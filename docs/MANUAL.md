@@ -2,11 +2,13 @@
 
 This manual explains how to use VibeGuard before, during, and after AI-assisted edits.
 
+---
+
 ## 1. What VibeGuard is for
 
 VibeGuard is a safety layer for AI coding workflows.
 
-It does **not** replace your AI tool.  
+It does **not** replace your AI tool.
 It helps you keep the project stable while using tools like:
 
 - Claude Code
@@ -18,42 +20,171 @@ It helps you keep the project stable while using tools like:
 The core idea is simple:
 
 > Let AI generate code, but do not let it freely destroy project structure.
+> And always make it easy to save and undo.
 
 ---
 
 ## 2. The safest workflow
 
+### New project
+
+```bash
+vibeguard init
+```
+
+This sets up everything in one command.
+
+### Ongoing workflow
+
 Use this loop whenever you ask AI to change code:
 
 ```bash
+vibeguard checkpoint "before your task"
 vibeguard doctor --strict
 vibeguard anchor
 vibeguard patch "your request here"
 # ask AI using the generated patch request
 vibeguard explain --write-report
 vibeguard guard --strict --write-report
+
+# if all good:
+vibeguard checkpoint "done: your task"
+
+# if something broke:
+vibeguard undo
 ```
-
-What each step does:
-
-### `doctor`
-Checks structure problems before editing.
-
-### `anchor`
-Adds safe edit zones so AI is less likely to rewrite whole files.
-
-### `patch`
-Generates a structured patch request with a suggested file and anchor.
-
-### `explain`
-Translates recent changes into plain language.
-
-### `guard`
-Combines structure risk and recent change risk, then tells you whether it is safe to continue.
 
 ---
 
 ## 3. Command reference
+
+---
+
+## `vibeguard init`
+
+One-command project setup for beginners.
+
+```bash
+vibeguard init
+vibeguard init --tool claude
+vibeguard init --tool cursor
+vibeguard init --tool opencode
+vibeguard init --tool antigravity
+```
+
+What it does:
+
+1. Exports `AI_DEV_SYSTEM_SINGLE_FILE.md` and `AGENTS.md` to the project root
+2. Exports tool-specific helper files (`vibeguard_exports/<tool>/`)
+3. Creates a `.gitignore` if one does not exist
+4. Runs `git init` if the project is not a Git repo yet
+5. Creates the first checkpoint automatically
+
+After `init`, your project is fully ready for AI-assisted development.
+
+---
+
+## `vibeguard checkpoint`
+
+Saves the current project state as a restore point (uses Git under the hood).
+
+```bash
+vibeguard checkpoint "before login feature"
+vibeguard checkpoint "added signup validation"
+vibeguard checkpoint
+```
+
+- If no message is given, a timestamp is used automatically.
+- Shows a list of changed files before saving.
+- Displays the total number of checkpoints saved.
+
+Think of it as a **game save point** for your code.
+
+---
+
+## `vibeguard undo`
+
+Restores the project to the last checkpoint.
+
+```bash
+vibeguard undo
+vibeguard undo --list
+```
+
+Behavior:
+
+- If there are **unsaved changes** → restores to the last commit (like pressing "undo" in a game)
+- If the working tree is **already clean** → rolls back to the previous checkpoint commit
+- `--list` → shows the list of available checkpoints to choose from
+
+Use this when AI broke something and you want to go back.
+
+---
+
+## `vibeguard history`
+
+Shows all saved checkpoints.
+
+```bash
+vibeguard history
+```
+
+Displays:
+
+- checkpoint number
+- when it was saved (e.g. "2 hours ago")
+- the message you gave it
+
+Also shows:
+
+- total checkpoint count
+- most recent save time
+- reminder of how to undo or save a new checkpoint
+
+---
+
+## `vibeguard protect`
+
+Locks important files so AI cannot accidentally modify them.
+
+```bash
+vibeguard protect main.py
+vibeguard protect src/config.py
+vibeguard protect --list
+vibeguard protect --remove main.py
+```
+
+- Protected files are tracked in `.vibeguard_protected`
+- `guard` and `watch` will warn you if a protected file was changed
+- Use this for files that must never be touched by AI
+
+---
+
+## `vibeguard ask`
+
+Generates a plain-language explanation prompt for a file.
+
+```bash
+vibeguard ask login.py
+vibeguard ask login.py "what does the validate function do?"
+vibeguard ask login.py --write
+```
+
+What it does:
+
+- Reads the file
+- Builds a prompt asking an AI to explain it in plain Korean
+- With `--write`: saves the prompt to `VIBEGUARD_ASK.md`
+- Without `--write`: prints the prompt so you can copy it
+
+Use this when you do not understand a file and want to ask AI to explain it before editing.
+
+Notes:
+
+- Files over 300 lines are truncated to the first 300 lines
+- The prompt includes the filename, line count, and file content
+
+---
 
 ## `vibeguard doctor`
 
@@ -184,7 +315,7 @@ vibeguard guard --write-report
 
 This answers:
 
-> “Is it safe to continue with another AI edit right now?”
+> "Is it safe to continue with another AI edit right now?"
 
 Output includes:
 
@@ -193,6 +324,7 @@ Output includes:
 - recommendations
 - doctor findings
 - recent changed files
+- protected file violations (if any)
 
 Saved report:
 
@@ -209,6 +341,7 @@ Creates helper files for tool-specific workflows.
 ```bash
 vibeguard export claude
 vibeguard export opencode
+vibeguard export cursor
 vibeguard export antigravity
 ```
 
@@ -218,11 +351,17 @@ This creates:
 vibeguard_exports/<tool>/
 ```
 
+Also creates in the project root:
+
+- `AI_DEV_SYSTEM_SINGLE_FILE.md` — the full ruleset
+- `AGENTS.md` — auto-read by Claude Code, OpenCode, and other AI tools
+
 Examples:
 
-- Claude → rules, setup notes, prompt template
-- OpenCode → workflow notes and prompt template
-- Antigravity → task artifact and verification checklist
+- Claude → `RULES.md`, `SETUP.md`, `PROMPT_TEMPLATE.md`
+- OpenCode → `RULES.md`, `SETUP.md`, `PROMPT_TEMPLATE.md`
+- Cursor → `RULES.md` (`.cursorrules` format), `SETUP.md`, `PROMPT_TEMPLATE.md`
+- Antigravity → `TASK_ARTIFACT.md`, `VERIFICATION_CHECKLIST.md`, `SETUP.md`
 
 ---
 
@@ -257,6 +396,7 @@ Watch detects:
 - larger files with no anchors
 - likely UI + business logic mixing
 - likely business logic inside entry files
+- changes to protected files
 
 Log file if enabled:
 
@@ -270,7 +410,7 @@ State file:
 .vibeguard/watch_state.json
 ```
 
-If `watchdog` is missing, only the `watch` command fails gracefully.  
+If `watchdog` is missing, only the `watch` command fails gracefully.
 All other commands continue to work.
 
 ---
@@ -279,11 +419,14 @@ All other commands continue to work.
 
 Best results come from these conventions:
 
+- run `init` when starting a new project
+- save a `checkpoint` before every AI edit
+- use `undo` immediately if something looks wrong
+- `protect` files that must never change
 - keep entry files tiny
 - split large files before AI keeps growing them
 - add anchors before repeated edits
 - prefer patch requests over vague instructions
-- use Git when possible
 - run `guard` before another large AI change
 
 ---
@@ -319,7 +462,7 @@ pip install watchdog
 Use the JSON output, inspect the rationale, then manually edit the generated markdown request.
 
 ### `guard` seems too noisy
-Prefer Git repositories.  
+Prefer Git repositories.
 Fallback mtime mode is intentionally conservative, but calmer than before.
 
 ### `anchor` touched files you did not want
@@ -330,41 +473,40 @@ vibeguard anchor --dry-run
 vibeguard anchor --only-ext .py
 ```
 
+### `undo` says there are no checkpoints
+Run `vibeguard checkpoint "initial"` first to create your first save point.
+
+### `protect` list is empty
+Run `vibeguard protect <filename>` to add files to the protected list.
+
 ---
 
-## 7. Final advice
+## 7. Typical initial setup
 
-The safest pattern is:
+New project:
 
-> structure first, AI second
+```bash
+vibeguard init
+```
 
-That is exactly what VibeGuard is for.
+That's it. Everything else is set up automatically.
 
+Existing project:
 
-
-##실제 추천 초기 세팅
-
-그래서 저는 보통 이렇게 합니다.
-
-vibeguard doctor
-vibeguard anchor
-vibeguard export opencode
-vibeguard guard
-
-이러면 프로젝트가 AI 개발 준비 상태가 됩니다.
-
-새 프로젝트에서는 이 순서가 가장 좋습니다.
-
-vibeguard doctor
-vibeguard anchor
-vibeguard export opencode
-
-##진행 중 프로젝트 도입 흐름
-
-정리하면 이렇게 합니다.
-
+```bash
 vibeguard doctor
 vibeguard anchor --dry-run
 vibeguard anchor
 vibeguard export opencode
-vibeguard guard
+vibeguard checkpoint "vibeguard added"
+```
+
+---
+
+## 8. Final advice
+
+The safest pattern is:
+
+> checkpoint first, AI second, guard always
+
+That is exactly what VibeGuard is for.
