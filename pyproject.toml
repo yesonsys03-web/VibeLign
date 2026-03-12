@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vibeguard"
+version = "1.0.0"
+description = "AI coding safety system for vibecoders"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{name = "yesonsys"}]
+dependencies = []
+
+[project.scripts]
+vibeguard = "vibeguard.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["vibeguard*"]

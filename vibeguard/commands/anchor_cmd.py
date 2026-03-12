@@ -1,0 +1,21 @@
+from pathlib import Path
+from vibeguard.core.anchor_tools import preview_anchor_targets, insert_module_anchors
+
+def run_anchor(args):
+    root = Path.cwd()
+    allowed_exts = {ext.strip().lower() for ext in args.only_ext.split(",") if ext.strip()} if args.only_ext.strip() else None
+    targets = preview_anchor_targets(root, allowed_exts=allowed_exts)
+    if args.dry_run:
+        if not targets:
+            print("앵커가 필요한 파일이 없습니다.")
+            return
+        print("앵커가 추가될 파일 목록:")
+        for path in targets:
+            print(path.relative_to(root))
+        return
+    changed = 0
+    for path in targets:
+        if insert_module_anchors(path):
+            changed += 1
+            print(f"앵커 삽입: {path.relative_to(root)}")
+    print(f"{changed}개 파일에 앵커를 삽입했습니다." if changed else "앵커가 필요한 파일이 없습니다.")

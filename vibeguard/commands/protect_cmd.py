@@ -1,0 +1,67 @@
+from pathlib import Path
+from vibeguard.core.protected_files import get_protected, save_protected
+
+
+def run_protect(args):
+    root = Path.cwd()
+    protected = get_protected(root)
+
+    # 파일 인자가 없거나 --list 플래그 → 목록 출력
+    if not args.file or args.list:
+        if not protected:
+            print("보호된 파일이 없습니다.")
+            print()
+            print("보호하려면: vibeguard protect <파일명>")
+            print("예시:       vibeguard protect main.py")
+        else:
+            print(f"보호된 파일 목록 ({len(protected)}개):")
+            print()
+            for f in sorted(protected):
+                exists = (root / f).exists()
+                status = "" if exists else "  [파일 없음]"
+                print(f"  [잠금] {f}{status}")
+            print()
+            print("보호 해제하려면: vibeguard protect --remove <파일명>")
+        return
+
+    # 파일명 정규화 (프로젝트 루트 기준 상대 경로)
+    target_input = args.file
+    target_path = Path(target_input)
+
+    # 절대경로 또는 상대경로 처리
+    if not target_path.is_absolute():
+        target_path = root / target_path
+
+    if not target_path.exists():
+        print(f"경고: '{args.file}' 파일이 존재하지 않습니다.")
+        print("파일명과 경로를 다시 확인하세요.")
+        return
+
+    try:
+        rel = str(target_path.relative_to(root))
+    except ValueError:
+        print(f"오류: 프로젝트 루트 밖의 파일은 보호할 수 없습니다.")
+        return
+
+    # --remove: 보호 해제
+    if args.remove:
+        if rel in protected:
+            protected.discard(rel)
+            save_protected(root, protected)
+            print(f"보호 해제: {rel}")
+            print(f"이제 이 파일은 일반 파일로 취급됩니다.")
+        else:
+            print(f"'{rel}'은 보호 목록에 없습니다.")
+        return
+
+    # 보호 추가
+    if rel in protected:
+        print(f"'{rel}'은 이미 보호 중입니다.")
+    else:
+        protected.add(rel)
+        save_protected(root, protected)
+        print(f"[잠금] 보호 설정 완료: {rel}")
+        print()
+        print("이 파일이 AI에 의해 수정되면 guard와 watch가 강하게 경고합니다.")
+        print("보호 목록 확인: vibeguard protect --list")
+        print("보호 해제:      vibeguard protect --remove " + rel)
