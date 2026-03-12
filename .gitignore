@@ -27,3 +27,4 @@ vibeguard_exports/
 .vscode/
 .idea/
 .claude/
+.github/workflows/
