@@ -65,8 +65,8 @@ def run_undo(args):
         print(f"되돌릴 체크포인트: [{target['hash'][:7]}] {target['msg']}")
         print()
 
-        # 트래킹된 파일만 복구 (git restore .)
-        result = _run_git(["restore", "."], cwd=root)
+        # HEAD(체크포인트 커밋) 기준으로 INDEX + 워킹트리 동시 리셋
+        result = _run_git(["reset", "--hard", "HEAD"], cwd=root)
         if result.returncode == 0:
             print("✓ 되돌리기 완료!")
             print()

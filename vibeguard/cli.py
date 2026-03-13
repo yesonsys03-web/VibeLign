@@ -12,9 +12,49 @@ from vibeguard.commands.undo_cmd import run_undo
 from vibeguard.commands.protect_cmd import run_protect
 from vibeguard.commands.ask_cmd import run_ask
 from vibeguard.commands.history_cmd import run_history
+from vibeguard.commands.config_cmd import run_config
+
+_EPILOG = """
+─────────────────────────────────────────────────
+ vibeguard 명령어가 실행되지 않을 때 (PATH 설정)
+─────────────────────────────────────────────────
+ [Mac / Linux]
+   1. 터미널에서 아래 명령어 실행:
+      echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+      source ~/.zshrc
+
+   2. 그래도 안 되면:
+      uv tool update-shell
+      (새 터미널 창 열기)
+
+ [Windows]
+   1. 명령 프롬프트(CMD) 또는 PowerShell에서:
+      uv tool update-shell
+      (새 터미널 창 열기)
+
+   2. 그래도 안 되면 직접 PATH 추가:
+      시스템 환경 변수 → Path → 새로 만들기:
+      %USERPROFILE%\\.local\\bin
+─────────────────────────────────────────────────
+ 업데이트 후 변경사항이 반영되지 않을 때 (재설치)
+─────────────────────────────────────────────────
+ [Mac / Linux]
+   uv tool uninstall vibeguard && uv tool install . --no-cache
+
+ [Windows]
+   uv tool uninstall vibeguard
+   uv tool install . --no-cache
+─────────────────────────────────────────────────
+"""
+
 
 def build_parser():
-    parser = argparse.ArgumentParser(prog="vibeguard", description="바이브코더를 위한 AI 코딩 안전 시스템")
+    parser = argparse.ArgumentParser(
+        prog="vibeguard",
+        description="바이브코더를 위한 AI 코딩 안전 시스템",
+        epilog=_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("init", help="프로젝트 초기 설정 (AI 규칙 파일 + 첫 체크포인트)")
@@ -44,6 +84,9 @@ def build_parser():
 
     p = sub.add_parser("history", help="체크포인트 저장 이력 보기")
     p.set_defaults(func=run_history)
+
+    p = sub.add_parser("config", help="API 키 설정 (Anthropic / Gemini)")
+    p.set_defaults(func=run_config)
 
     p = sub.add_parser("doctor", help="프로젝트 구조 진단")
     p.add_argument("--json", action="store_true")
