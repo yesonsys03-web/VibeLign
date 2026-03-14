@@ -36,6 +36,23 @@ VibeGuard adds **guardrails** so AI edits remain safe — and gives you a simple
 
 ---
 
+
+
+# Architecture & Design Documents
+
+The full design documents for VibeLign are located in:
+
+Recommended reading order:
+
+1. VibeLign_Ultimate_Vision.md
+2. VibeLign_System_Architecture.md
+3. VibeLign_CLI_Strategy.md
+4. VibeLign_vib_doctor_Final_Design_Spec.md
+
+These documents describe the internal architecture and future roadmap of the project.
+
+---
+
 # AI Coding Workflow
 
 Recommended loop:
