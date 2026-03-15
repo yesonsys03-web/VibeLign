@@ -527,8 +527,11 @@ def print_cli_help(message: str, console: Optional[Any] = None) -> None:
 
     intro: list[str] = []
     sections: list[tuple[str, list[str]]] = []
+    epilog_lines: list[str] = []
     current_title: Optional[str] = None
     current_lines: list[str] = []
+    seen_section = False
+    in_epilog = False
 
     def flush() -> None:
         nonlocal current_title, current_lines
@@ -543,12 +546,27 @@ def print_cli_help(message: str, console: Optional[Any] = None) -> None:
             flush()
             current_title = section_titles[normalized]
             current_lines = []
+            seen_section = True
+            in_epilog = False
+            continue
+
+        if in_epilog:
+            epilog_lines.append(line)
             continue
 
         if current_title is None:
-            intro.append(line)
+            if seen_section:
+                in_epilog = True
+                epilog_lines.append(line)
+            else:
+                intro.append(line)
         else:
-            current_lines.append(line)
+            if seen_section and line.strip() and not line[0].isspace():
+                flush()
+                in_epilog = True
+                epilog_lines.append(line)
+            else:
+                current_lines.append(line)
 
     flush()
 
@@ -563,6 +581,12 @@ def print_cli_help(message: str, console: Optional[Any] = None) -> None:
         )
 
     for title, body_lines in sections:
+        body = "\n".join(body_lines).rstrip()
+        if not body:
+            continue
+        # Skip subparser choices section (redundant with grouped description)
+        if title == "Positional Arguments" and body.lstrip().startswith("{"):
+            continue
         border = (
             "green"
             if title == "Usage"
@@ -570,14 +594,21 @@ def print_cli_help(message: str, console: Optional[Any] = None) -> None:
             if title == "Positional Arguments"
             else "yellow"
         )
-        body = "\n".join(body_lines).rstrip()
-        if not body:
-            body = "(no details)"
         rich_console.print(
             rich_mod["Panel"](
                 body,
                 title=title,
                 border_style=border,
+                padding=(0, 1),
+            )
+        )
+
+    epilog_text = "\n".join(epilog_lines).strip()
+    if epilog_text:
+        rich_console.print(
+            rich_mod["Panel"](
+                epilog_text,
+                border_style="bright_blue",
                 padding=(0, 1),
             )
         )

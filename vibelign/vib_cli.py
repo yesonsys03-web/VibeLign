@@ -8,6 +8,8 @@ from .commands.vib_checkpoint_cmd import run_vib_checkpoint
 from .commands.vib_doctor_cmd import run_vib_doctor
 from .commands.vib_explain_cmd import run_vib_explain
 from .commands.vib_history_cmd import run_vib_history
+from .commands.init_cmd import run_init
+from .commands.install_guide_cmd import run_install_guide
 from .commands.vib_init_cmd import run_vib_init_cli
 from .commands.vib_patch_cmd import run_vib_patch
 from .commands.vib_start_cmd import run_vib_start
@@ -21,6 +23,10 @@ from vibelign.terminal_render import print_cli_help
 
 
 class RichArgumentParser(argparse.ArgumentParser):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("formatter_class", argparse.RawDescriptionHelpFormatter)
+        super().__init__(*args, **kwargs)
+
     def _print_message(self, message, file=None):
         if not message:
             return
@@ -30,102 +36,341 @@ class RichArgumentParser(argparse.ArgumentParser):
         print_cli_help(str(message))
 
 
+_MAIN_DESCRIPTION = """\
+VibeLign - AI한테 코딩 시켜도 안전하게 지켜주는 도구
+
+처음 시작:
+  start       안심하고 바이브코딩 시작! 처음 설정을 도와줘요
+  init        VibeLign을 최신 버전으로 재설치해요
+  install     단계별 설치 방법 안내
+
+세이브 & 되돌리기:
+  checkpoint  게임 세이브처럼 지금 상태를 저장해요
+  undo        저장한 곳으로 되돌려요
+  history     저장 목록을 봐요
+
+점검 & 확인:
+  doctor      프로젝트 건강 상태를 확인해요
+  guard       AI가 코드를 망가뜨리지 않았는지 검사해요
+  explain     뭐가 바뀌었는지 쉽게 알려줘요
+
+AI 수정 요청:
+  patch       말로 요청하면 안전한 수정 계획을 만들어요
+  anchor      AI가 건드려도 되는 안전 구역을 표시해요
+
+파일 & 설정:
+  protect     중요한 파일을 잠가요
+  ask         파일이 뭘 하는지 설명해줘요
+  config      API 키 설정
+  export      AI 도구용 설정 내보내기
+  watch       실시간 감시"""
+
+_MAIN_EPILOG = """\
+처음이세요? 이것만 따라하세요:
+  1. vib start              처음 한 번만!
+  2. vib checkpoint "저장"  작업 전에 세이브
+  3. vib doctor             상태 확인
+
+자세한 사용법: vib <명령어> --help
+
+설치: pip install vibelign  또는  uv tool install vibelign
+자세한 설치 방법 (터미널 여는 법 + uv 설치 포함): vib install --help"""
+
+
 def build_parser():
     run_vib_guard = importlib.import_module(
         "vibelign.commands.vib_guard_cmd"
     ).run_vib_guard
     parser = RichArgumentParser(
         prog="vib",
-        description="VibeLign CLI (VibeLign와 호환되는 새 진입점)",
+        description=_MAIN_DESCRIPTION,
+        epilog=_MAIN_EPILOG,
     )
     sub = parser.add_subparsers(
         dest="command", required=True, parser_class=RichArgumentParser
     )
 
-    p = sub.add_parser("init", help="프로젝트에 VibeLign 메타데이터를 초기화")
-    p.set_defaults(func=run_vib_init_cli)
+    # ── 처음 시작 ──
+    p = sub.add_parser(
+        "install",
+        help="단계별 설치 방법 안내",
+        description=(
+            "VibeLign을 처음 설치하는 방법을 단계별로 안내해요.\n"
+            "터미널 여는 법부터 uv 설치, vibelign 설치까지 모두 설명해요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib install        설치 방법 보기\n"
+            "  vib install --help 이 안내 보기"
+        ),
+    )
+    p.set_defaults(func=run_install_guide)
 
-    p = sub.add_parser("start", help="처음 쓰는 사람용 시작 명령")
-    p.add_argument("message", nargs="*", help="원하면 바로 저장할 체크포인트 메시지")
+    p = sub.add_parser(
+        "init",
+        help="VibeLign을 다시 설치해요",
+        description=(
+            "VibeLign을 최신 버전으로 다시 설치해요.\n"
+            "코드가 업데이트되면 이 명령어로 새로 깔아주세요.\n"
+            "uv 또는 pip을 자동으로 사용해요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib init           최신 버전으로 재설치\n"
+            "  vib init --force   강제로 다시 설치"
+        ),
+    )
+    p.add_argument("--force", action="store_true", help="강제로 다시 설치")
+    p.set_defaults(func=run_init)
+
+    p = sub.add_parser(
+        "start",
+        help="안심하고 바이브코딩 시작!",
+        description=(
+            "안심하고 바이브코딩을 시작하세요!\n"
+            "AI한테 코딩을 시키기 전에, 이 명령어로 안전하게 준비해요.\n"
+            "기존 코드를 건드리지 않아요. 걱정 마세요!"
+        ),
+        epilog=(
+            '이렇게 쓰세요:\n'
+            '  vib start              처음 프로젝트 설정\n'
+            '  vib start "첫 세이브"  설정하면서 바로 세이브'
+        ),
+    )
+    p.add_argument("message", nargs="*", help="저장할 메시지 (안 써도 돼요)")
     p.set_defaults(func=run_vib_start)
 
-    p = sub.add_parser("checkpoint", help="현재 상태를 체크포인트로 저장")
-    p.add_argument("message", nargs="*", help="체크포인트 메시지")
+    # ── 세이브 & 되돌리기 ──
+    p = sub.add_parser(
+        "checkpoint",
+        help="게임 세이브처럼 지금 상태를 저장해요",
+        description=(
+            "현재 프로젝트 상태를 세이브 포인트로 저장해요.\n"
+            "AI가 뭔가 망가뜨려도 이 지점으로 되돌릴 수 있어요."
+        ),
+        epilog=(
+            '이렇게 쓰세요:\n'
+            '  vib checkpoint              빠르게 저장\n'
+            '  vib checkpoint "로그인 완성"  메시지와 함께 저장'
+        ),
+    )
+    p.add_argument("message", nargs="*", help="저장할 메시지 (안 써도 돼요)")
     p.set_defaults(func=run_vib_checkpoint)
 
-    p = sub.add_parser("undo", help="최근 체크포인트로 되돌리기")
+    p = sub.add_parser(
+        "undo",
+        help="저장한 곳으로 되돌려요",
+        description=(
+            "마지막 체크포인트로 되돌려요.\n"
+            "AI가 코드를 망가뜨렸을 때 쓰세요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib undo         마지막 저장으로 되돌리기\n"
+            "  vib undo --list  저장 목록 보기"
+        ),
+    )
     p.add_argument("--list", action="store_true", help="체크포인트 목록 보기")
     p.set_defaults(func=run_vib_undo)
 
-    p = sub.add_parser("history", help="체크포인트 이력 보기")
+    p = sub.add_parser(
+        "history",
+        help="저장 목록을 봐요",
+        description="지금까지 저장한 체크포인트 목록을 보여줘요.",
+        epilog="이렇게 쓰세요:\n  vib history    저장 기록 보기",
+    )
     p.set_defaults(func=run_vib_history)
 
-    p = sub.add_parser("protect", help="중요 파일을 AI 수정으로부터 보호")
-    p.add_argument("file", nargs="?", help="보호할 파일명")
+    # ── 파일 & 설정 ──
+    p = sub.add_parser(
+        "protect",
+        help="중요한 파일을 잠가요",
+        description=(
+            "AI가 건드리면 안 되는 중요한 파일을 보호해요.\n"
+            "보호된 파일은 AI가 수정할 수 없어요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib protect main.py              파일 보호\n"
+            "  vib protect --list               보호 목록 보기\n"
+            "  vib protect main.py --remove     보호 해제"
+        ),
+    )
+    p.add_argument("file", nargs="?", help="보호할 파일 이름")
     p.add_argument("--remove", action="store_true", help="보호 해제")
     p.add_argument("--list", action="store_true", help="보호 목록 보기")
     p.set_defaults(func=run_protect)
 
-    p = sub.add_parser("ask", help="파일 내용을 쉬운 말로 설명")
-    p.add_argument("file", help="설명이 필요한 파일명")
-    p.add_argument("question", nargs="*", help="특정 질문")
-    p.add_argument("--write", action="store_true", help="프롬프트를 파일로 저장")
+    p = sub.add_parser(
+        "ask",
+        help="파일이 뭘 하는지 설명해줘요",
+        description=(
+            "파일이 무슨 일을 하는지 쉬운 말로 설명해줘요.\n"
+            "AI가 알아서 분석해서 알려줘요."
+        ),
+        epilog=(
+            '이렇게 쓰세요:\n'
+            '  vib ask main.py              파일 설명\n'
+            '  vib ask main.py "이거 뭐야?"  질문하기\n'
+            '  vib ask main.py --write      설명을 파일로 저장'
+        ),
+    )
+    p.add_argument("file", help="설명할 파일 이름")
+    p.add_argument("question", nargs="*", help="궁금한 것 (안 써도 돼요)")
+    p.add_argument("--write", action="store_true", help="설명을 파일로 저장")
     p.set_defaults(func=run_ask)
 
-    p = sub.add_parser("config", help="API 키 설정")
+    p = sub.add_parser(
+        "config",
+        help="API 키 설정",
+        description=(
+            "AI 기능을 쓰려면 API 키가 필요해요.\n"
+            "이 명령어로 설정할 수 있어요."
+        ),
+        epilog="이렇게 쓰세요:\n  vib config    API 키 설정하기",
+    )
     p.set_defaults(func=run_config)
 
-    p = sub.add_parser("doctor", help="PRD 스타일의 VibeLign 프로젝트 진단")
-    p.add_argument("--json", action="store_true")
-    p.add_argument("--strict", action="store_true")
-    p.add_argument("--detailed", action="store_true")
-    p.add_argument("--fix-hints", action="store_true")
-    p.add_argument("--write-report", action="store_true")
+    # ── 점검 & 확인 ──
+    p = sub.add_parser(
+        "doctor",
+        help="프로젝트 건강 상태를 확인해요",
+        description=(
+            "프로젝트가 AI 수정을 받아도 괜찮은지 점검해요.\n"
+            "문제가 있으면 어디가 아픈지 알려줘요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib doctor             기본 점검\n"
+            "  vib doctor --strict    꼼꼼하게 점검\n"
+            "  vib doctor --detailed  자세한 설명 포함"
+        ),
+    )
+    p.add_argument("--json", action="store_true", help="JSON으로 출력")
+    p.add_argument("--strict", action="store_true", help="더 꼼꼼하게 점검")
+    p.add_argument("--detailed", action="store_true", help="문제마다 자세한 설명")
+    p.add_argument("--fix-hints", action="store_true", help="고치는 방법 힌트")
+    p.add_argument("--write-report", action="store_true", help="결과를 파일로 저장")
     p.set_defaults(func=run_vib_doctor)
 
-    p = sub.add_parser("anchor", help="VibeLign 앵커 추천/삽입/검증")
-    p.add_argument("--suggest", action="store_true")
-    p.add_argument("--auto", action="store_true")
-    p.add_argument("--validate", action="store_true")
-    p.add_argument("--dry-run", action="store_true")
-    p.add_argument("--json", action="store_true")
-    p.add_argument("--only-ext", default="")
+    p = sub.add_parser(
+        "anchor",
+        help="AI가 건드려도 되는 안전 구역을 표시해요",
+        description=(
+            "코드에 안전 구역(앵커)을 표시해요.\n"
+            "AI가 이 구역 안에서만 수정하도록 안내해요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib anchor --suggest   앵커 추천 받기\n"
+            "  vib anchor --auto      자동으로 앵커 삽입\n"
+            "  vib anchor --validate  앵커 검증"
+        ),
+    )
+    p.add_argument("--suggest", action="store_true", help="앵커 추천 받기")
+    p.add_argument("--auto", action="store_true", help="자동으로 앵커 삽입")
+    p.add_argument("--validate", action="store_true", help="앵커 검증")
+    p.add_argument("--dry-run", action="store_true", help="실제로 바꾸지 않고 미리 보기")
+    p.add_argument("--json", action="store_true", help="JSON으로 출력")
+    p.add_argument("--only-ext", default="", help="특정 확장자만 (.py, .js 등)")
     p.set_defaults(func=run_vib_anchor)
 
-    p = sub.add_parser("patch", help="CodeSpeak-ready 패치 계획 생성")
-    p.add_argument("request", nargs="+")
-    p.add_argument("--ai", action="store_true")
-    p.add_argument("--json", action="store_true")
-    p.add_argument("--preview", action="store_true")
-    p.add_argument("--write-report", action="store_true")
+    p = sub.add_parser(
+        "patch",
+        help="말로 요청하면 안전한 수정 계획을 만들어요",
+        description=(
+            '"로그인 버튼 추가해줘" 같이 말로 요청하면\n'
+            "어떤 파일의 어느 부분을 수정할지 계획을 세워요."
+        ),
+        epilog=(
+            '이렇게 쓰세요:\n'
+            '  vib patch "로그인 버튼 추가"           수정 계획\n'
+            '  vib patch "버그 수정" --ai             AI가 분석\n'
+            '  vib patch "사이드바 제거" --preview    미리 보기'
+        ),
+    )
+    p.add_argument("request", nargs="+", help="수정 요청 (말로 써주세요)")
+    p.add_argument("--ai", action="store_true", help="AI가 더 정확하게 분석")
+    p.add_argument("--json", action="store_true", help="JSON으로 출력")
+    p.add_argument("--preview", action="store_true", help="수정 미리 보기")
+    p.add_argument("--write-report", action="store_true", help="결과를 파일로 저장")
     p.set_defaults(func=run_vib_patch)
 
-    p = sub.add_parser("explain", help="최근 변경을 쉬운 말로 설명 (파일 지정 가능)")
-    p.add_argument(
-        "file", nargs="?", default=None, help="특정 파일만 설명 (예: main.py)"
+    p = sub.add_parser(
+        "explain",
+        help="뭐가 바뀌었는지 쉽게 알려줘요",
+        description=(
+            "최근에 뭐가 바뀌었는지 쉬운 말로 설명해줘요.\n"
+            "AI가 코드를 바꿨을 때 확인하세요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib explain              전체 변경 설명\n"
+            "  vib explain main.py      특정 파일만 설명\n"
+            "  vib explain --ai         AI가 더 자세하게"
+        ),
     )
-    p.add_argument("--json", action="store_true")
-    p.add_argument("--ai", action="store_true")
-    p.add_argument("--since-minutes", type=int, default=120)
-    p.add_argument("--write-report", action="store_true")
+    p.add_argument(
+        "file", nargs="?", default=None, help="특정 파일만 설명 (안 써도 돼요)"
+    )
+    p.add_argument("--json", action="store_true", help="JSON으로 출력")
+    p.add_argument("--ai", action="store_true", help="AI가 더 자세하게 분석")
+    p.add_argument("--since-minutes", type=int, default=120, help="최근 몇 분 동안의 변경 (기본: 120분)")
+    p.add_argument("--write-report", action="store_true", help="결과를 파일로 저장")
     p.set_defaults(func=run_vib_explain)
 
-    p = sub.add_parser("guard", help="최근 변경과 구조 위험을 함께 검증")
-    p.add_argument("--json", action="store_true")
-    p.add_argument("--strict", action="store_true")
-    p.add_argument("--since-minutes", type=int, default=120)
-    p.add_argument("--write-report", action="store_true")
+    p = sub.add_parser(
+        "guard",
+        help="AI가 코드를 망가뜨리지 않았는지 검사해요",
+        description=(
+            "AI가 코드를 수정한 후, 구조가 망가지지 않았는지 검사해요.\n"
+            "doctor + explain을 합친 종합 검진이에요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib guard              기본 검사\n"
+            "  vib guard --strict     꼼꼼하게 검사"
+        ),
+    )
+    p.add_argument("--json", action="store_true", help="JSON으로 출력")
+    p.add_argument("--strict", action="store_true", help="더 꼼꼼하게 검사")
+    p.add_argument("--since-minutes", type=int, default=120, help="최근 몇 분 동안의 변경 (기본: 120분)")
+    p.add_argument("--write-report", action="store_true", help="결과를 파일로 저장")
     p.set_defaults(func=run_vib_guard)
 
-    p = sub.add_parser("export", help="도우미 템플릿 내보내기")
-    p.add_argument("tool", choices=["claude", "opencode", "cursor", "antigravity"])
+    p = sub.add_parser(
+        "export",
+        help="AI 도구용 설정 내보내기",
+        description=(
+            "Claude, Cursor 같은 AI 도구에서 VibeLign을 쓸 수 있도록\n"
+            "설정 파일을 내보내요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib export claude      Claude용 설정\n"
+            "  vib export cursor      Cursor용 설정"
+        ),
+    )
+    p.add_argument("tool", choices=["claude", "opencode", "cursor", "antigravity"], help="AI 도구 이름")
     p.set_defaults(func=run_export)
 
-    p = sub.add_parser("watch", help="실시간 구조 모니터링")
-    p.add_argument("--strict", action="store_true")
-    p.add_argument("--write-log", action="store_true")
-    p.add_argument("--json", action="store_true")
-    p.add_argument("--debounce-ms", type=int, default=800)
+    p = sub.add_parser(
+        "watch",
+        help="실시간 감시",
+        description=(
+            "파일이 바뀔 때마다 자동으로 구조를 점검해요.\n"
+            "AI가 코딩하는 동안 켜두면 좋아요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib watch              실시간 감시 시작\n"
+            "  vib watch --strict     꼼꼼 모드"
+        ),
+    )
+    p.add_argument("--strict", action="store_true", help="더 꼼꼼하게 감시")
+    p.add_argument("--write-log", action="store_true", help="로그를 파일로 저장")
+    p.add_argument("--json", action="store_true", help="JSON으로 출력")
+    p.add_argument("--debounce-ms", type=int, default=800, help="감시 간격 (밀리초, 기본: 800)")
     p.set_defaults(func=run_watch_cmd)
 
     return parser
