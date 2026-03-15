@@ -12,10 +12,6 @@ class MetaPaths:
         return self.root / ".vibelign"
 
     @property
-    def vibelign_dir(self) -> Path:
-        return self.root / ".vibelign"
-
-    @property
     def config_path(self) -> Path:
         return self.vibelign_dir / "config.yaml"
 
@@ -58,4 +54,6 @@ class MetaPaths:
     def report_path(self, command: str, fmt: str) -> Path:
         suffix = ".json" if fmt == "json" else ".md"
         return self.reports_dir / f"{command}_latest{suffix}"
+
+
 # === ANCHOR: META_PATHS_END ===

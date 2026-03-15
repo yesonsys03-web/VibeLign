@@ -5,19 +5,23 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Set
 
 from vibelign.core.anchor_tools import (
+    anchor_recommendation_details,
     collect_anchor_index,
     collect_anchor_metadata,
     insert_module_anchors,
     preview_anchor_targets,
+    recommend_anchor_targets,
     suggest_anchor_names,
     validate_anchor_file,
-
 )
 from vibelign.core.meta_paths import MetaPaths
+from vibelign.core.project_map import load_project_map
 
 
 from vibelign.terminal_render import cli_print
+
 print = cli_print
+
 
 def _allowed_exts(value: str) -> Optional[Set[str]]:
     if not value.strip():
@@ -58,6 +62,7 @@ def run_vib_anchor(args: Any) -> None:
     root = Path.cwd()
     meta = MetaPaths(root)
     allowed_exts = _allowed_exts(args.only_ext)
+    project_map, _project_map_error = load_project_map(root)
 
     if args.validate:
         index = _write_anchor_index(root, meta, allowed_exts)
@@ -90,10 +95,13 @@ def run_vib_anchor(args: Any) -> None:
         print(f"Anchor index saved: {meta.anchor_index_path.relative_to(root)}")
         return
 
-    targets = preview_anchor_targets(root, allowed_exts=allowed_exts)
+    recommendations = recommend_anchor_targets(
+        root, allowed_exts=allowed_exts, project_map=project_map
+    )
+    targets = [root / str(item["path"]) for item in recommendations]
     if args.suggest or args.dry_run:
         suggestions = {
-            str(path.relative_to(root)): suggest_anchor_names(path) for path in targets
+            str(item["path"]): item["suggested_anchors"] for item in recommendations
         }
         _ = _write_anchor_index(root, meta, allowed_exts)
         if args.json:
@@ -103,9 +111,8 @@ def run_vib_anchor(args: Any) -> None:
                         "ok": True,
                         "error": None,
                         "data": {
-                            "targets": [
-                                str(path.relative_to(root)) for path in targets
-                            ],
+                            "targets": [str(item["path"]) for item in recommendations],
+                            "recommendations": recommendations,
                             "suggested_anchors": suggestions,
                         },
                     },
@@ -118,10 +125,12 @@ def run_vib_anchor(args: Any) -> None:
             print("앵커를 추천할 파일이 없습니다.")
             return
         print("추천 앵커 대상 파일:")
-        for path in targets:
-            rel = str(path.relative_to(root))
+        for item in recommendations:
+            rel = str(item["path"])
             print(f"- {rel}")
-            for name in suggestions.get(rel, [])[:5]:
+            for reason in list(item["reasons"])[:3]:
+                print(f"  - 이유: {reason}")
+            for name in list(suggestions.get(rel, []))[:5]:
                 print(f"  - {name}")
         return
 
@@ -150,8 +159,8 @@ def run_vib_anchor(args: Any) -> None:
         print(
             "기본 동작은 suggest 모드입니다. 실제 삽입은 `vib anchor --auto`를 사용하세요."
         )
-        for path in targets:
-            print(f"- {path.relative_to(root)}")
+        for item in recommendations:
+            print(f"- {item['path']}")
         return
 
     changed = []

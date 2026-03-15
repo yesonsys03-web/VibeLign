@@ -12,7 +12,7 @@ Canonical rule:
 
 Core workflow:
 
-vib init
+vib init (or vib start)
 vib doctor
 vib checkpoint
 vib anchor
@@ -25,6 +25,7 @@ vib history / vib undo if needed
 MVP command set:
 
 - vib init
+- vib start
 - vib doctor
 - vib anchor
 - vib patch

@@ -8,11 +8,13 @@ from vibelign.core.guard_report import combine_guard
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.protected_files import get_protected, is_protected
 from vibelign.core.risk_analyzer import analyze_project
-
+from vibelign.terminal_render import print_ai_response
 
 
 from vibelign.terminal_render import cli_print
+
 print = cli_print
+
 
 def _guard_status(report) -> str:
     if report.blocked:
@@ -112,33 +114,44 @@ def _build_guard_envelope(
 
 
 def _render_markdown(data: Dict[str, Any]) -> str:
+    status_label = {
+        "pass": "통과",
+        "warn": "주의",
+        "fail": "중지",
+    }.get(str(data["status"]), str(data["status"]))
+    status_hint = {
+        "pass": "지금은 큰 위험이 없어 보여요. 다음 단계로 넘어가도 됩니다.",
+        "warn": "바로 멈출 정도는 아니지만, 먼저 한 번 더 확인하는 게 좋아요.",
+        "fail": "지금은 다음 작업으로 넘어가기보다, 먼저 문제를 해결하는 게 좋아요.",
+    }.get(str(data["status"]), "현재 상태를 먼저 확인해보세요.")
     lines = [
-        "# VibeLign Guard Report",
+        "# VibeLign 가드 리포트",
         "",
-        f"Status: {data['status']}",
-        f"Strict: {'yes' if data['strict'] else 'no'}",
-        f"Project score: {data['project_score']} / 100",
-        f"Project status: {data['project_status']}",
-        f"Change risk: {data['change_risk_level']}",
+        f"전체 상태: {status_label}",
+        status_hint,
+        f"엄격 모드: {'예' if data['strict'] else '아니오'}",
+        f"프로젝트 점수: {data['project_score']} / 100",
+        f"프로젝트 기본 상태: {data['project_status']}",
+        f"최근 바뀐 내용의 위험도: {data['change_risk_level']}",
         "",
-        "## Summary",
+        "## 요약",
         str(data["summary"]),
         "",
     ]
     if data["protected_violations"]:
-        lines.extend(["## Protected files changed"])
+        lines.extend(["## 보호된 파일에서 바뀐 점"])
         lines.extend([f"- `{item}`" for item in data["protected_violations"]])
         lines.append("")
-    lines.extend(["## Recommended next steps"])
+    lines.extend(["## 다음에 하면 좋은 일"])
     lines.extend([f"- {item}" for item in data["recommendations"]])
-    lines.extend(["", "## Recent changed files"])
+    lines.extend(["", "## 최근 바뀐 파일"])
     files = data["explain"]["files"]
     if files:
         lines.extend(
             [f"- `{item['path']}` ({item['status']}, {item['kind']})" for item in files]
         )
     else:
-        lines.append("- 최근 변경된 파일이 없습니다.")
+        lines.append("- 최근에 바뀐 파일이 없습니다.")
     return "\n".join(lines) + "\n"
 
 
@@ -175,7 +188,7 @@ def run_vib_guard(args: Any) -> None:
             raise SystemExit(1)
         return
     markdown = _render_markdown(envelope["data"])
-    print(markdown, end="")
+    print_ai_response(markdown)
     if args.write_report:
         meta.ensure_vibelign_dirs()
         _ = meta.report_path("guard", "md").write_text(markdown, encoding="utf-8")

@@ -17,3 +17,6 @@ vib = "vibelign.vib_cli:main"
 
 [tool.setuptools.packages.find]
 include = ["vibelign*"]
+
+[tool.pyright]
+exclude = [".venv", "build"]

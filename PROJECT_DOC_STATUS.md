@@ -81,11 +81,9 @@ Update these first when documentation alignment work begins:
 
 Do not move planning work into older planning folders.
 
-## Open Naming Decisions
+## Naming Decisions (Resolved)
 
-These are still unresolved and should remain explicit until decided:
-
-- final public CLI name
-- final package name
-- final repository rename timing
-- backward compatibility policy for `vibelign` naming
+- Final public CLI name: **`vib`**
+- Final package name: **`vibelign`** (pip install vibelign)
+- Repository rename timing: **MVP 출시 후**
+- Backward compatibility: **`vibelign` CLI 래퍼 유지** (vibelign 명령이 vib으로 위임)

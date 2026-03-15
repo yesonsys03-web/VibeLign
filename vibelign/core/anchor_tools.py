@@ -1,9 +1,13 @@
 from pathlib import Path
 import re
-from vibelign.core.project_scan import iter_source_files, safe_read_text
+from typing import Any, Optional
+
+from vibelign.core.project_map import ProjectMapSnapshot
+from vibelign.core.project_scan import iter_source_files, line_count, safe_read_text
 
 
 from vibelign.terminal_render import cli_print
+
 print = cli_print
 
 COMMENT_PREFIX = {
@@ -67,6 +71,87 @@ def preview_anchor_targets(root: Path, allowed_exts=None):
         if text and "ANCHOR:" not in text:
             targets.append(path)
     return targets
+
+
+def anchor_recommendation_details(
+    root: Path, path: Path, project_map: Optional[ProjectMapSnapshot] = None
+) -> dict[str, object]:
+    rel = str(path.relative_to(root))
+    text = safe_read_text(path)
+    symbol_suggestions = suggest_anchor_names(path)
+    score = 0
+    reasons: list[str] = []
+    lines = line_count(path)
+
+    if lines >= 300:
+        score += 4
+        reasons.append(f"파일이 커서({lines}줄) 안전 구역을 먼저 나누는 편이 좋아요")
+    elif lines >= 120:
+        score += 2
+        reasons.append(f"파일이 어느 정도 커서({lines}줄) 앵커가 있으면 더 안전해요")
+
+    if project_map is not None:
+        if rel in project_map.entry_files:
+            score += 4
+            reasons.append(
+                "프로젝트 시작점과 가까운 파일이라 먼저 보호하는 편이 좋아요"
+            )
+        if rel in project_map.ui_modules:
+            score += 3
+            reasons.append("UI 파일이라 AI가 자주 건드릴 가능성이 있어요")
+        if rel in project_map.service_modules:
+            score += 2
+            reasons.append("서비스 역할 파일이라 변경 범위를 나누면 안전해요")
+        if rel in project_map.core_modules:
+            score += 2
+            reasons.append("핵심 로직 파일이라 구역을 나눠두면 실수를 줄일 수 있어요")
+        if rel in project_map.large_files and not any(
+            "파일이 커서" in reason for reason in reasons
+        ):
+            score += 2
+            reasons.append("Project Map 에서도 큰 파일로 표시된 항목이에요")
+
+    if len(symbol_suggestions) >= 4:
+        score += 3
+        reasons.append("함수나 클래스가 여러 개라 자연스러운 구역을 나누기 좋아요")
+    elif len(symbol_suggestions) >= 2:
+        score += 1
+        reasons.append("구조가 나뉘어 있어 심볼 기준 앵커를 만들기 좋아요")
+
+    if text:
+        if text.count("def ") + text.count("class ") >= 4:
+            score += 1
+        if text.count("function ") + text.count("class ") >= 4:
+            score += 1
+
+    if not reasons:
+        reasons.append("앵커가 없어서 기본 추천 대상에 포함됐어요")
+
+    return {
+        "path": rel,
+        "score": score,
+        "reasons": reasons,
+        "suggested_anchors": symbol_suggestions,
+        "line_count": lines,
+    }
+
+
+def recommend_anchor_targets(
+    root: Path,
+    allowed_exts=None,
+    project_map: Optional[ProjectMapSnapshot] = None,
+) -> list[dict[str, Any]]:
+    recommendations = []
+    for path in preview_anchor_targets(root, allowed_exts=allowed_exts):
+        recommendations.append(anchor_recommendation_details(root, path, project_map))
+    recommendations.sort(
+        key=lambda item: (
+            -int(item["score"]),
+            -int(item["line_count"]),
+            str(item["path"]),
+        )
+    )
+    return recommendations
 
 
 def _python_symbol_blocks(text: str):

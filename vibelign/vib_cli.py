@@ -8,13 +8,13 @@ from .commands.vib_checkpoint_cmd import run_vib_checkpoint
 from .commands.vib_doctor_cmd import run_vib_doctor
 from .commands.vib_explain_cmd import run_vib_explain
 from .commands.vib_history_cmd import run_vib_history
+from .commands.vib_init_cmd import run_vib_init_cli
 from .commands.vib_patch_cmd import run_vib_patch
 from .commands.vib_start_cmd import run_vib_start
 from .commands.vib_undo_cmd import run_vib_undo
 from vibelign.commands.ask_cmd import run_ask
 from vibelign.commands.config_cmd import run_config
 from vibelign.commands.export_cmd import run_export
-from vibelign.commands.init_cmd import run_init
 from vibelign.commands.protect_cmd import run_protect
 from vibelign.commands.watch_cmd import run_watch_cmd
 from vibelign.terminal_render import print_cli_help
@@ -42,11 +42,8 @@ def build_parser():
         dest="command", required=True, parser_class=RichArgumentParser
     )
 
-    p = sub.add_parser("init", help="VibeLign 업데이트 / 재설치 (pip·uv 자동 감지)")
-    p.add_argument(
-        "--force", action="store_true", help="이미 최신 버전이어도 강제로 재설치"
-    )
-    p.set_defaults(func=run_init)
+    p = sub.add_parser("init", help="프로젝트에 VibeLign 메타데이터를 초기화")
+    p.set_defaults(func=run_vib_init_cli)
 
     p = sub.add_parser("start", help="처음 쓰는 사람용 시작 명령")
     p.add_argument("message", nargs="*", help="원하면 바로 저장할 체크포인트 메시지")

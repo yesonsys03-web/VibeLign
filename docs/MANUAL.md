@@ -2,6 +2,8 @@
 
 This manual explains how to use VibeLign before, during, and after AI-assisted edits.
 
+The primary CLI command is **`vib`**. The legacy `vibelign` command is also supported as a backward-compatible wrapper.
+
 ---
 
 ## 1. What VibeLign is for
@@ -26,32 +28,40 @@ The core idea is simple:
 
 ## 2. The safest workflow
 
-### New project
+### New project (beginner)
 
 ```bash
-vibelign init
+vib start
 ```
 
-This sets up everything in one command.
+Interactive guided setup — runs init, hooks, and health check.
+
+### Existing project / re-initialize
+
+```bash
+vib init
+```
+
+Sets up or resets VibeLign metadata.
 
 ### Ongoing workflow
 
 Use this loop whenever you ask AI to change code:
 
 ```bash
-vibelign checkpoint "before your task"
-vibelign doctor --strict
-vibelign anchor
-vibelign patch "your request here"
+vib checkpoint "before your task"
+vib doctor --strict
+vib anchor
+vib patch "your request here"
 # ask AI using the generated patch request
-vibelign explain --write-report
-vibelign guard --strict --write-report
+vib explain --write-report
+vib guard --strict --write-report
 
 # if all good:
-vibelign checkpoint "done: your task"
+vib checkpoint "done: your task"
 
 # if something broke:
-vibelign undo
+vib undo
 ```
 
 ---
@@ -60,38 +70,54 @@ vibelign undo
 
 ---
 
-## `vibelign init`
+## `vib init`
 
-One-command project setup for beginners.
+VibeLign 메타데이터를 초기화(또는 재초기화)합니다.
 
 ```bash
-vibelign init
-vibelign init --tool claude
-vibelign init --tool cursor
-vibelign init --tool opencode
-vibelign init --tool antigravity
+vib init
 ```
 
 What it does:
 
 1. Exports `AI_DEV_SYSTEM_SINGLE_FILE.md` and `AGENTS.md` to the project root
-2. Exports tool-specific helper files (`vibelign_exports/<tool>/`)
-3. Creates a `.gitignore` if one does not exist
-4. Runs `git init` if the project is not a Git repo yet
-5. Creates the first checkpoint automatically
+2. Creates `.vibelign/` directory with config, state, and project map
+3. Creates a `.gitignore` entry if needed
+4. Scans project structure and builds `project_map.json`
 
-After `init`, your project is fully ready for AI-assisted development.
+Use `vib init` to set up or reset VibeLign metadata.
 
 ---
 
-## `vibelign checkpoint`
+## `vib start`
+
+Beginner-friendly guided setup with interactive onboarding.
+
+```bash
+vib start
+vib start "first save"
+```
+
+What it does:
+
+- Ensures AI rule files exist (creates if missing, keeps if present)
+- Sets up AI tool hooks (e.g. Claude Code auto-checkpoint)
+- Runs a project health check and shows the score
+- Guides you to the recommended next step
+
+Use `vib start` if you are new to VibeLign or want a guided walkthrough.
+Note: `vib start` and `vib init` are separate commands with different purposes.
+
+---
+
+## `vib checkpoint`
 
 Saves the current project state as a restore point (uses Git under the hood).
 
 ```bash
-vibelign checkpoint "before login feature"
-vibelign checkpoint "added signup validation"
-vibelign checkpoint
+vib checkpoint "before login feature"
+vib checkpoint "added signup validation"
+vib checkpoint
 ```
 
 - If no message is given, a timestamp is used automatically.
@@ -102,13 +128,13 @@ Think of it as a **game save point** for your code.
 
 ---
 
-## `vibelign undo`
+## `vib undo`
 
 Restores the project to the last checkpoint.
 
 ```bash
-vibelign undo
-vibelign undo --list
+vib undo
+vib undo --list
 ```
 
 Behavior:
@@ -121,12 +147,12 @@ Use this when AI broke something and you want to go back.
 
 ---
 
-## `vibelign history`
+## `vib history`
 
 Shows all saved checkpoints.
 
 ```bash
-vibelign history
+vib history
 ```
 
 Displays:
@@ -143,15 +169,15 @@ Also shows:
 
 ---
 
-## `vibelign protect`
+## `vib protect`
 
 Locks important files so AI cannot accidentally modify them.
 
 ```bash
-vibelign protect main.py
-vibelign protect src/config.py
-vibelign protect --list
-vibelign protect --remove main.py
+vib protect main.py
+vib protect src/config.py
+vib protect --list
+vib protect --remove main.py
 ```
 
 - Protected files are tracked in `.vibelign_protected`
@@ -160,12 +186,12 @@ vibelign protect --remove main.py
 
 ---
 
-## `vibelign config`
+## `vib config`
 
 Sets API keys and Gemini model preferences.
 
 ```bash
-vibelign config
+vib config
 ```
 
 What it does:
@@ -182,15 +208,15 @@ Notes:
 
 ---
 
-## `vibelign ask`
+## `vib ask`
 
 Generates a plain-language explanation prompt for a file.
 
 ```bash
-vibelign ask login.py
-vibelign ask login.py "what does the validate function do?"
-vibelign ask login.py --write
-GEMINI_MODEL=gemini-2.5-flash-lite vibelign ask login.py
+vib ask login.py
+vib ask login.py "what does the validate function do?"
+vib ask login.py --write
+GEMINI_MODEL=gemini-2.5-flash-lite vib ask login.py
 ```
 
 What it does:
@@ -211,37 +237,38 @@ Notes:
 
 ---
 
-## `vibelign doctor`
+## `vib doctor`
 
 Checks structural issues.
 
 ```bash
-vibelign doctor
-vibelign doctor --strict
-vibelign doctor --json
+vib doctor
+vib doctor --strict
+vib doctor --json
 ```
 
 Looks for:
 
 - oversized entry files
-- huge files
+- huge files (300+ warning, 500+ strong warning, 800+ critical)
 - catch-all files
 - missing anchors
 - UI + business logic mixing
 - too many definitions in one file
+- circular imports and missing internal module targets
 
 Use `--strict` when you want earlier warnings.
 
 ---
 
-## `vibelign anchor`
+## `vib anchor`
 
 Adds module-level anchors to source files that do not have them yet.
 
 ```bash
-vibelign anchor
-vibelign anchor --dry-run
-vibelign anchor --only-ext .py,.js
+vib anchor
+vib anchor --dry-run
+vib anchor --only-ext .py,.js
 ```
 
 Important behavior:
@@ -262,13 +289,13 @@ AI can be instructed to edit only inside an anchor instead of rewriting the full
 
 ---
 
-## `vibelign patch`
+## `vib patch`
 
 Builds a safer AI prompt.
 
 ```bash
-vibelign patch "add progress indicator to backup worker"
-vibelign patch "add progress indicator to backup worker" --json
+vib patch "add progress indicator to backup worker"
+vib patch "add progress indicator to backup worker" --json
 ```
 
 Outputs:
@@ -293,15 +320,15 @@ Notes:
 
 ---
 
-## `vibelign explain`
+## `vib explain`
 
 Explains recent changes in human language.
 
 ```bash
-vibelign explain
-vibelign explain --write-report
-vibelign explain --json
-vibelign explain --since-minutes 30
+vib explain
+vib explain --write-report
+vib explain --json
+vib explain --since-minutes 30
 ```
 
 Primary mode:
@@ -327,15 +354,15 @@ VIBELIGN_EXPLAIN.md
 
 ---
 
-## `vibelign guard`
+## `vib guard`
 
 Combines `doctor` + `explain`.
 
 ```bash
-vibelign guard
-vibelign guard --strict
-vibelign guard --json
-vibelign guard --write-report
+vib guard
+vib guard --strict
+vib guard --json
+vib guard --write-report
 ```
 
 This answers:
@@ -359,15 +386,15 @@ VIBELIGN_GUARD.md
 
 ---
 
-## `vibelign export`
+## `vib export`
 
 Creates helper files for tool-specific workflows.
 
 ```bash
-vibelign export claude
-vibelign export opencode
-vibelign export cursor
-vibelign export antigravity
+vib export claude
+vib export opencode
+vib export cursor
+vib export antigravity
 ```
 
 This creates:
@@ -390,16 +417,16 @@ Examples:
 
 ---
 
-## `vibelign watch`
+## `vib watch`
 
 Real-time monitor while AI or you edit files.
 
 ```bash
-vibelign watch
-vibelign watch --strict
-vibelign watch --write-log
-vibelign watch --json
-vibelign watch --debounce-ms 800
+vib watch
+vib watch --strict
+vib watch --write-log
+vib watch --json
+vib watch --debounce-ms 800
 ```
 
 Extra dependency required:
@@ -444,15 +471,15 @@ All other commands continue to work.
 
 Best results come from these conventions:
 
-- run `init` when starting a new project
-- save a `checkpoint` before every AI edit
-- use `undo` immediately if something looks wrong
-- `protect` files that must never change
+- run `vib init` when starting a new project
+- save a `vib checkpoint` before every AI edit
+- use `vib undo` immediately if something looks wrong
+- `vib protect` files that must never change
 - keep entry files tiny
 - split large files before AI keeps growing them
 - add anchors before repeated edits
 - prefer patch requests over vague instructions
-- run `guard` before another large AI change
+- run `vib guard` before another large AI change
 
 ---
 
@@ -494,15 +521,15 @@ Fallback mtime mode is intentionally conservative, but calmer than before.
 Use:
 
 ```bash
-vibelign anchor --dry-run
-vibelign anchor --only-ext .py
+vib anchor --dry-run
+vib anchor --only-ext .py
 ```
 
 ### `undo` says there are no checkpoints
-Run `vibelign checkpoint "initial"` first to create your first save point.
+Run `vib checkpoint "initial"` first to create your first save point.
 
 ### `protect` list is empty
-Run `vibelign protect <filename>` to add files to the protected list.
+Run `vib protect <filename>` to add files to the protected list.
 
 ---
 
@@ -511,7 +538,7 @@ Run `vibelign protect <filename>` to add files to the protected list.
 New project:
 
 ```bash
-vibelign init
+vib init
 ```
 
 That's it. Everything else is set up automatically.
@@ -519,16 +546,27 @@ That's it. Everything else is set up automatically.
 Existing project:
 
 ```bash
-vibelign doctor
-vibelign anchor --dry-run
-vibelign anchor
-vibelign export opencode
-vibelign checkpoint "vibelign added"
+vib doctor
+vib anchor --dry-run
+vib anchor
+vib export opencode
+vib checkpoint "vibelign added"
 ```
 
 ---
 
-## 8. Final advice
+## 8. Backward compatibility
+
+The legacy `vibelign` command is maintained as a wrapper that delegates to `vib`. All commands work with both:
+
+```bash
+vib doctor        # primary
+vibelign doctor   # also works (backward-compatible wrapper)
+```
+
+---
+
+## 9. Final advice
 
 The safest pattern is:
 

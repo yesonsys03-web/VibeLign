@@ -25,16 +25,21 @@ Core workflow:
 
 vib init → vib doctor → vib checkpoint → vib anchor → vib patch --preview (optional) → AI edit → vib explain → vib guard → vib history / vib undo if needed
 
+Beginner shortcut:
+
+vib start → guided setup + project health check + next-step guidance
+
 
 --------------------------------------------------
 MVP Command Surface
 --------------------------------------------------
 
-Authoritative MVP commands:
+Authoritative command surface for the core MVP workflow:
 
-| Command | MVP | Primary purpose | Writes metadata | Writes source |
+| Command | Core MVP | Primary purpose | Writes metadata | Writes source |
 | --- | --- | --- | --- | --- |
 | `vib init` | yes | attach VibeLign and create baseline metadata | yes | no |
+| `vib start` | yes | beginner-first shortcut for setup and guidance | yes | no |
 | `vib doctor` | yes | analyze project structure | yes, state only | no |
 | `vib anchor` | yes | suggest/insert/validate anchors | yes | yes, anchors only |
 | `vib patch` | yes | generate safe patch request | no | no |
@@ -48,6 +53,11 @@ Authoritative MVP commands:
 | `vib config` | no | configure providers | yes | no |
 | `vib export` | no | export tool helpers | no | no |
 | `vib watch` | no | real-time monitoring | no | no |
+
+Notes:
+
+- `vib start` is part of the beginner-facing MVP experience and wraps the same safe workflow in a more guided entry point.
+- `vib protect`, `vib ask`, `vib config`, `vib export`, and `vib watch` are already exposed in the current CLI, but they remain outside the core MVP acceptance boundary unless promoted in the MVP plan.
 
 Shared command rules:
 

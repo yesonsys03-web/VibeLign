@@ -2,7 +2,7 @@ import importlib
 import json
 from typing import Any, Dict, List, Optional, cast
 
-from vibelign.core.codespeak import CodeSpeakResult
+from vibelign.core.codespeak import CodeSpeakResult, parse_codespeak_v0
 
 
 def build_codespeak_ai_prompt(request: str, rule_result: CodeSpeakResult) -> str:
@@ -70,15 +70,15 @@ def enhance_codespeak_with_ai(
         return None
     if not isinstance(clarifying_questions, list):
         clarifying_questions = []
-    parts = codespeak.split(".")
-    if len(parts) != 4 or not all(parts):
+    parts = parse_codespeak_v0(codespeak)
+    if parts is None:
         return None
     return CodeSpeakResult(
         codespeak=codespeak,
-        layer=parts[0],
-        target=parts[1],
-        subject=parts[2],
-        action=parts[3],
+        layer=parts["layer"],
+        target=parts["target"],
+        subject=parts["subject"],
+        action=parts["action"],
         confidence=confidence,
         interpretation=interpretation,
         clarifying_questions=[

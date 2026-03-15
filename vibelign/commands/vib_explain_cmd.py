@@ -2,28 +2,43 @@
 import importlib
 import json
 from pathlib import Path
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Optional, cast
 
 from vibelign.core.change_explainer import (
     explain_file_from_git,
     explain_file_from_mtime,
     explain_from_git,
     explain_from_mtime,
-
 )
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.terminal_render import print_ai_response
 
 
 from vibelign.terminal_render import cli_print
+
 print = cli_print
 
-def _resolve_file_path(root: Path, file_arg: str) -> tuple:
+
+def _risk_label(level: str) -> str:
+    return {
+        "LOW": "낮음",
+        "MEDIUM": "보통",
+        "HIGH": "높음",
+    }.get(level, level)
+
+
+def _resolve_file_path(
+    root: Path, file_arg: str
+) -> tuple[Optional[str], Optional[Path], Optional[str]]:
     """파일 인자를 절대 경로로 해석. (rel_path, abs_path, error_msg) 반환."""
     p = Path(file_arg)
     abs_path = p if p.is_absolute() else root / p
     if not abs_path.exists():
-        return None, None, f"파일을 찾을 수 없어요: {file_arg}\n경로와 파일명을 다시 확인해보세요."
+        return (
+            None,
+            None,
+            f"파일을 찾을 수 없어요: {file_arg}\n경로와 파일명을 다시 확인해보세요.",
+        )
     try:
         rel = str(abs_path.relative_to(root))
     except ValueError:
@@ -31,7 +46,9 @@ def _resolve_file_path(root: Path, file_arg: str) -> tuple:
     return rel, abs_path, None
 
 
-def _build_file_explain_envelope(root: Path, file_arg: str, since_minutes: int) -> Dict[str, Any]:
+def _build_file_explain_envelope(
+    root: Path, file_arg: str, since_minutes: int
+) -> Dict[str, Any]:
     """특정 파일의 변경 설명 envelope 를 반환."""
     rel, _abs, err = _resolve_file_path(root, file_arg)
     if err:
@@ -40,12 +57,19 @@ def _build_file_explain_envelope(root: Path, file_arg: str, since_minutes: int) 
             "error": {"code": "file_not_found", "message": err, "hint": ""},
             "data": {"file": file_arg},
         }
+    if rel is None:
+        return {
+            "ok": False,
+            "error": {"code": "file_not_found", "message": file_arg, "hint": ""},
+            "data": {"file": file_arg},
+        }
+    rel_path = rel
 
-    report = explain_file_from_git(root, rel) or explain_file_from_mtime(
-        root, rel, since_minutes=since_minutes
+    report = explain_file_from_git(root, rel_path) or explain_file_from_mtime(
+        root, rel_path, since_minutes=since_minutes
     )
     data = {
-        "file": rel,
+        "file": rel_path,
         "source": report.source,
         "risk_level": report.risk_level,
         "summary": report.summary,
@@ -69,7 +93,7 @@ def _render_file_markdown(data: Dict[str, Any]) -> str:
     lines = [
         f"# `{file_name}` 변경 설명",
         "",
-        f"**위험 수준:** {risk_emoji} {risk}  |  **소스:** {data.get('source', '')}",
+        f"**위험 수준:** {risk_emoji} {_risk_label(str(risk))}  |  **소스:** {data.get('source', '')}",
         "",
         "## 1. 무슨 일이 있었나요?",
         str(data.get("summary", "")),
@@ -80,9 +104,7 @@ def _render_file_markdown(data: Dict[str, Any]) -> str:
         [f"- {item}" for item in what_changed] or ["- 눈에 띄는 변경이 없어요."]
     )
     lines.extend(["", "## 3. 왜 신경 써야 하나요?"])
-    lines.extend(
-        [f"- {item}" for item in why_matters] or ["- 큰 영향은 없어 보여요."]
-    )
+    lines.extend([f"- {item}" for item in why_matters] or ["- 큰 영향은 없어 보여요."])
     lines.extend(["", "## 4. 되돌리려면?", str(data.get("what_to_do_next", ""))])
     return "\n".join(lines) + "\n"
 
@@ -132,8 +154,8 @@ def _render_markdown(data: Dict[str, Any]) -> str:
     lines = [
         "# VibeLign Explain Report",
         "",
-        f"Source: {data['source']}",
-        f"Risk level: {data['risk_level']}",
+        f"소스: {data['source']}",
+        f"위험 수준: {_risk_label(str(data['risk_level']))}",
         "",
         "## 1. 한 줄 요약",
         str(data["summary"]),
@@ -166,7 +188,9 @@ def run_vib_explain(args: Any) -> None:
     # ── 파일 인자가 있으면 파일별 explain 모드
     file_arg: str = getattr(args, "file", None) or ""
     if file_arg:
-        envelope = _build_file_explain_envelope(root, file_arg, since_minutes=args.since_minutes)
+        envelope = _build_file_explain_envelope(
+            root, file_arg, since_minutes=args.since_minutes
+        )
         if not envelope["ok"]:
             err = envelope["error"]
             print(f"✗ {err['message']}")
@@ -216,7 +240,7 @@ def run_vib_explain(args: Any) -> None:
                 )
             return
     markdown = _render_markdown(envelope["data"])
-    print(markdown, end="")
+    print_ai_response(markdown)
     if args.write_report:
         meta.ensure_vibelign_dirs()
         _ = meta.report_path("explain", "md").write_text(markdown, encoding="utf-8")

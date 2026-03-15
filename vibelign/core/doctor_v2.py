@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from vibelign.core.anchor_tools import extract_anchors
+from vibelign.core.project_map import load_project_map
 from vibelign.core.project_scan import iter_source_files
 from vibelign.core.risk_analyzer import analyze_project
 
@@ -90,15 +91,28 @@ def analyze_project_v2(root: Path, strict: bool = False) -> DoctorV2Report:
     status = _build_status(project_score)
     coverage = _anchor_coverage(root)
     stats = dict(legacy.stats)
+    project_map, project_map_error = load_project_map(root)
     stats["anchor_coverage"] = coverage
     stats["legacy_penalty"] = legacy.score
+    stats["project_map_loaded"] = project_map is not None
+    issues = list(legacy.issues)
+    suggestions = list(legacy.suggestions)
+    if project_map is not None:
+        stats["project_map_file_count"] = project_map.file_count
+        stats["project_map_generated_at"] = project_map.generated_at
+    elif project_map_error == "unsupported_project_map_schema":
+        issues.append(".vibelign/project_map.json schema_version 이 지원되지 않습니다")
+        suggestions.append("vib init 으로 Project Map 을 다시 생성하세요")
+    elif project_map_error == "invalid_project_map":
+        issues.append(".vibelign/project_map.json 을 읽을 수 없습니다")
+        suggestions.append("vib init 으로 Project Map 을 다시 생성하세요")
     return DoctorV2Report(
         project_score=project_score,
         status=status,
         anchor_coverage=coverage,
         stats=stats,
-        issues=_issue_details(legacy.issues, legacy.suggestions),
-        recommended_actions=_recommended_actions(legacy.suggestions),
+        issues=_issue_details(issues, suggestions),
+        recommended_actions=_recommended_actions(suggestions),
     )
 
 
@@ -110,36 +124,44 @@ def build_doctor_envelope(root: Path, strict: bool = False) -> Dict[str, Any]:
 def render_doctor_markdown(
     report: DoctorV2Report, detailed: bool = False, fix_hints: bool = False
 ) -> str:
+    status_line = {
+        "Safe": "지금 상태가 아주 좋아요. 바로 다음 작업으로 넘어가도 됩니다.",
+        "Good": "지금 상태가 좋아요. 작은 수정부터 시작하면 됩니다.",
+        "Caution": "큰 문제는 아니지만, 먼저 몇 가지를 정리하면 더 안전해요.",
+        "Risky": "바로 크게 수정하기보다, 먼저 문제를 줄이는 게 좋아요.",
+        "High Risk": "지금은 수정부터 하기보다, 먼저 구조 문제를 확인하는 게 좋아요.",
+    }.get(report.status, "현재 상태를 먼저 확인하는 게 좋아요.")
     lines = [
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "VibeLign Project Health Report",
+        "VibeLign 프로젝트 상태 보기",
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         "",
-        f"Project score: {report.project_score} / 100",
-        f"Status: {report.status}",
-        f"Anchor coverage: {report.anchor_coverage}%",
+        f"프로젝트 점수: {report.project_score} / 100",
+        f"현재 상태: {report.status}",
+        status_line,
+        f"안전 구역 표시 비율: {report.anchor_coverage}%",
         "",
-        "Main findings:",
+        "먼저 보면 좋은 점:",
     ]
     if report.issues:
         for index, item in enumerate(report.issues, 1):
             lines.append(f"{index}. {item['found']}")
     else:
-        lines.append("1. 큰 구조 문제를 찾지 못했습니다.")
+        lines.append("1. 지금 바로 걱정할 큰 구조 문제는 보이지 않습니다.")
 
     if detailed and report.issues:
-        lines.extend(["", "Detailed findings:"])
+        lines.extend(["", "자세히 보면:"])
         for item in report.issues:
             lines.extend(
                 [
-                    f"- Found: {item['found']}",
-                    f"  Why: {item['why_it_matters']}",
-                    f"  Next: {item['next_step']}",
+                    f"- 찾은 문제: {item['found']}",
+                    f"  왜 중요하냐면: {item['why_it_matters']}",
+                    f"  다음에 하면 좋은 일: {item['next_step']}",
                 ]
             )
 
     if fix_hints or report.recommended_actions:
-        lines.extend(["", "Recommended next steps:"])
+        lines.extend(["", "다음에 하면 좋은 일:"])
         for action in report.recommended_actions or ["vib anchor --suggest"]:
             lines.append(f"- {action}")
 

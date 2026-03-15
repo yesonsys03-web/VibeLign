@@ -3,6 +3,7 @@
 MVP command set:
 
 - vib init
+- vib start
 - vib doctor
 - vib anchor
 - vib patch
@@ -12,14 +13,14 @@ MVP command set:
 - vib undo
 - vib history
 
-Out of MVP:
+Out of core MVP acceptance boundary:
 
 - dedicated `vib preview` command
 - HTML preview
 - Simulation Engine execution
 - GUI integration
 - IDE integrations
-- protect/ask/config/export/watch
+- `vib protect`, `vib ask`, `vib config`, `vib export`, `vib watch` as extended CLI commands
 
 Acceptance criteria for MVP:
 

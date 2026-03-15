@@ -1,6 +1,7 @@
 # === ANCHOR: CODESPEAK_START ===
 import re
 from dataclasses import dataclass, asdict
+from typing import Optional
 
 
 ACTION_MAP = {
@@ -74,6 +75,10 @@ TARGET_HINTS = {
     "core": "patch",
 }
 
+CODESPEAK_V0_RE = re.compile(
+    r"^(?P<layer>[a-z][a-z0-9_]*)\.(?P<target>[a-z][a-z0-9_]*)\.(?P<subject>[a-z][a-z0-9_]*)\.(?P<action>[a-z][a-z0-9_]*)$"
+)
+
 
 @dataclass
 class CodeSpeakResult:
@@ -88,6 +93,17 @@ class CodeSpeakResult:
 
     def to_dict(self):
         return asdict(self)
+
+
+def parse_codespeak_v0(codespeak: str) -> Optional[dict[str, str]]:
+    match = CODESPEAK_V0_RE.fullmatch(codespeak.strip())
+    if match is None:
+        return None
+    return match.groupdict()
+
+
+def is_valid_codespeak_v0(codespeak: str) -> bool:
+    return parse_codespeak_v0(codespeak) is not None
 
 
 def tokenize_request(text: str) -> list[str]:
@@ -162,4 +178,6 @@ def build_codespeak(request: str) -> CodeSpeakResult:
         interpretation=interpretation,
         clarifying_questions=clarifying_questions,
     )
+
+
 # === ANCHOR: CODESPEAK_END ===

@@ -18,6 +18,30 @@ class GuardReport:
         return asdict(self)
 
 
+def _doctor_level_label(level: str) -> str:
+    return {
+        "GOOD": "좋음",
+        "WARNING": "주의",
+        "HIGH": "위험",
+    }.get(level, level)
+
+
+def _risk_label(level: str) -> str:
+    return {
+        "LOW": "낮음",
+        "MEDIUM": "보통",
+        "HIGH": "높음",
+    }.get(level, level)
+
+
+def _overall_label(level: str) -> str:
+    return {
+        "GOOD": "안정적",
+        "WARNING": "한 번 더 확인 필요",
+        "HIGH": "지금은 멈추는 편이 안전함",
+    }.get(level, level)
+
+
 def combine_guard(doctor, explain):
     total = doctor.score + {"LOW": 0, "MEDIUM": 3, "HIGH": 6}.get(explain.risk_level, 0)
     overall = (
@@ -47,7 +71,7 @@ def combine_guard(doctor, explain):
         doctor.score,
         explain.risk_level,
         blocked,
-        f"구조 건강도는 {doctor.level}(점수={doctor.score})이고 최근 변경 위험도는 {explain.risk_level}입니다. 종합 가드 수준은 {overall}입니다.",
+        f"프로젝트 기본 상태는 {_doctor_level_label(doctor.level)}이고 점수는 {doctor.score}점입니다. 최근 바뀐 내용의 위험도는 {_risk_label(explain.risk_level)}이고, 전체 판단은 '{_overall_label(overall)}' 입니다.",
         recs,
         doctor.to_dict(),
         explain.to_dict(),

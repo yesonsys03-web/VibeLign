@@ -1,13 +1,17 @@
 from dataclasses import dataclass, asdict, field
 import subprocess, time
 from pathlib import Path
+from typing import Any
+from vibelign.core.project_map import enrich_change_kind, load_project_map
 from vibelign.core.project_scan import iter_project_files, relpath_str
+
 
 @dataclass
 class ChangeItem:
     path: str
     status: str
     kind: str
+
 
 @dataclass
 class ExplainReport:
@@ -17,47 +21,97 @@ class ExplainReport:
     why_it_might_matter: list[str] = field(default_factory=list)
     risk_level: str = "LOW"
     rollback_hint: str = ""
-    files: list[dict] = field(default_factory=list)
+    files: list[dict[str, Any]] = field(default_factory=list)
+
     def to_dict(self):
         return asdict(self)
 
+
+def _risk_label(level: str) -> str:
+    return {
+        "LOW": "낮음",
+        "MEDIUM": "보통",
+        "HIGH": "높음",
+    }.get(level, level)
+
+
 def classify_path(rel: str):
     low = rel.lower()
-    if any(low.endswith(name) for name in ["main.py","index.js","app.js","main.ts","main.rs","main.go","main.cpp","program.cs"]):
+    if any(
+        low.endswith(name)
+        for name in [
+            "main.py",
+            "index.js",
+            "app.js",
+            "main.ts",
+            "main.rs",
+            "main.go",
+            "main.cpp",
+            "program.cs",
+        ]
+    ):
         return "entry file"
     if "/ui/" in low or "window" in low or "dialog" in low or "widget" in low:
         return "ui"
     if "test" in low:
         return "test"
-    if any(tok in low for tok in ["worker","backup","service","core","api","config","scheduler","hash"]):
+    if any(
+        tok in low
+        for tok in [
+            "worker",
+            "backup",
+            "service",
+            "core",
+            "api",
+            "config",
+            "scheduler",
+            "hash",
+        ]
+    ):
         return "logic"
     if low.endswith(".md"):
         return "docs"
     return "general"
+
 
 def risk_from_items(items):
     if not items:
         return "LOW"
     score = 0
     for item in items:
-        score += 3 if item.kind == "entry file" else 2 if item.kind == "logic" else 1 if item.kind == "ui" else 0
-        if item.status in {"deleted","renamed"}:
+        score += (
+            3
+            if item.kind == "entry file"
+            else 2
+            if item.kind == "logic"
+            else 1
+            if item.kind == "ui"
+            else 0
+        )
+        if item.status in {"deleted", "renamed"}:
             score += 3
     if len(items) >= 8:
         score += 3
     return "HIGH" if score >= 8 else "MEDIUM" if score >= 4 else "LOW"
 
+
 def _run_git(root: Path, args):
     try:
-        proc = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, check=False)
-        return proc.returncode == 0, proc.stdout if proc.returncode == 0 else (proc.stderr or proc.stdout)
+        proc = subprocess.run(
+            ["git", *args], cwd=root, capture_output=True, text=True, check=False
+        )
+        return proc.returncode == 0, proc.stdout if proc.returncode == 0 else (
+            proc.stderr or proc.stdout
+        )
     except Exception as e:
         return False, str(e)
 
+
 def explain_from_git(root: Path):
-    ok, out = _run_git(root, ["status","--porcelain"])
+    ok, out = _run_git(root, ["status", "--porcelain"])
     if not ok:
         return None
+    project_map, _project_map_error = load_project_map(root)
     items = []
     for line in out.splitlines():
         if not line.strip():
@@ -65,15 +119,40 @@ def explain_from_git(root: Path):
         status_code = line[:2].strip()
         rel = line[3:].strip()
         if "->" in rel:
-            rel = rel.split("->",1)[1].strip()
-        status = {"M":"modified","A":"added","D":"deleted","R":"renamed","??":"untracked"}.get(status_code,"changed")
-        items.append(ChangeItem(rel, status, classify_path(rel)))
+            rel = rel.split("->", 1)[1].strip()
+        status = {
+            "M": "modified",
+            "A": "added",
+            "D": "deleted",
+            "R": "renamed",
+            "??": "untracked",
+        }.get(status_code, "changed")
+        items.append(
+            ChangeItem(
+                rel, status, enrich_change_kind(project_map, rel, classify_path(rel))
+            )
+        )
     risk = risk_from_items(items)
     if not items:
-        return ExplainReport("git", "Git 저장소가 깨끗합니다. 현재 변경된 파일이 없습니다.", risk_level="LOW", rollback_hint="지금 당장 롤백할 필요가 없습니다.", files=[])
-    return ExplainReport("git", f"Git 상태에서 {len(items)}개의 변경된 파일을 감지했습니다. 위험 수준은 {risk}로 보입니다.", ["최근 파일이 변경되었습니다."], ["AI에게 계속 수정을 요청하기 전에 변경된 파일을 확인하세요."], risk, "롤백이 필요하면 git diff와 git restore를 사용하세요.", [asdict(i) for i in items])
+        return ExplainReport(
+            "git",
+            "Git 저장소가 깨끗합니다. 현재 변경된 파일이 없습니다.",
+            risk_level="LOW",
+            rollback_hint="지금 당장 롤백할 필요가 없습니다.",
+            files=[],
+        )
+    return ExplainReport(
+        "git",
+        f"Git 상태에서 {len(items)}개의 변경된 파일을 찾았습니다. 지금 위험도는 {_risk_label(risk)} 정도로 보여요.",
+        ["최근 파일이 변경되었습니다."],
+        ["AI에게 계속 수정을 요청하기 전에 변경된 파일을 확인하세요."],
+        risk,
+        "롤백이 필요하면 git diff와 git restore를 사용하세요.",
+        [asdict(i) for i in items],
+    )
 
-def _parse_unified_diff(diff_text: str) -> dict:
+
+def _parse_unified_diff(diff_text: str) -> dict[str, list[str]]:
     """유니파이드 diff 텍스트를 파싱해 추가/삭제 줄과 섹션 컨텍스트를 반환."""
     added: list[str] = []
     removed: list[str] = []
@@ -98,7 +177,9 @@ def _extract_def_name(line: str) -> str:
     return tokens[-1] if len(tokens) >= 2 else line[:20]
 
 
-def _korean_diff_explanation(parsed: dict) -> tuple:
+def _korean_diff_explanation(
+    parsed: dict[str, list[str]],
+) -> tuple[str, list[str], list[str], str]:
     """파싱된 diff 정보로 한국어 설명을 생성. (요약, 변경사항, 중요성, 위험등급) 반환."""
     added = parsed["added"]
     removed = parsed["removed"]
@@ -124,13 +205,19 @@ def _korean_diff_explanation(parsed: dict) -> tuple:
         elif import_add:
             what.append(f"새 외부 도구(import)가 {len(import_add)}개 추가됐어요")
         else:
-            what.append(f"기존 외부 도구(import) {len(import_del)}개를 더 이상 쓰지 않아요")
+            what.append(
+                f"기존 외부 도구(import) {len(import_del)}개를 더 이상 쓰지 않아요"
+            )
         why.append("다른 파일이나 라이브러리와의 연결 방식이 달라질 수 있어요")
 
     # ── 함수 / 클래스 정의 변경
     kw_def = ("def ", "async def ", "class ")
-    def_add = [l.strip() for l in added if any(l.lstrip().startswith(k) for k in kw_def)]
-    def_del = [l.strip() for l in removed if any(l.lstrip().startswith(k) for k in kw_def)]
+    def_add = [
+        l.strip() for l in added if any(l.lstrip().startswith(k) for k in kw_def)
+    ]
+    def_del = [
+        l.strip() for l in removed if any(l.lstrip().startswith(k) for k in kw_def)
+    ]
 
     if def_add:
         names = [f"`{_extract_def_name(l)}`" for l in def_add[:3]]
@@ -171,7 +258,8 @@ def _korean_diff_explanation(parsed: dict) -> tuple:
 
 def explain_file_from_git(root: Path, rel_path: str):
     """특정 파일의 git diff 를 분석해 ExplainReport 반환. git 없으면 None."""
-    item_kind = classify_path(rel_path)
+    project_map, _project_map_error = load_project_map(root)
+    item_kind = enrich_change_kind(project_map, rel_path, classify_path(rel_path))
 
     # HEAD 대비 변경 (staged + unstaged 모두 포함)
     ok, diff = _run_git(root, ["diff", "HEAD", "--", rel_path])
@@ -195,7 +283,9 @@ def explain_file_from_git(root: Path, rel_path: str):
                 "git",
                 f"`{rel_path}` 는 처음 추가된 파일이에요. 총 {n}줄로 이루어져 있어요.",
                 [f"처음 생성된 파일이에요 (총 {n}줄)"],
-                ["이 파일이 어떤 역할을 하는지, 다른 파일과 어떻게 연결되는지 확인해보세요"],
+                [
+                    "이 파일이 어떤 역할을 하는지, 다른 파일과 어떻게 연결되는지 확인해보세요"
+                ],
                 risk,
                 f"파일 자체를 삭제하면 돼요: `rm {rel_path}`",
                 [{"path": rel_path, "status": "added", "kind": item_kind}],
@@ -223,10 +313,13 @@ def explain_file_from_git(root: Path, rel_path: str):
     )
 
 
-def explain_file_from_mtime(root: Path, rel_path: str, since_minutes: int = 120) -> "ExplainReport":
+def explain_file_from_mtime(
+    root: Path, rel_path: str, since_minutes: int = 120
+) -> "ExplainReport":
     """git 없이 수정 시각만으로 특정 파일의 변경 여부를 설명."""
     path = root / rel_path
-    item_kind = classify_path(rel_path)
+    project_map, _project_map_error = load_project_map(root)
+    item_kind = enrich_change_kind(project_map, rel_path, classify_path(rel_path))
 
     try:
         mtime = path.stat().st_mtime
@@ -276,12 +369,31 @@ def explain_file_from_mtime(root: Path, rel_path: str, since_minutes: int = 120)
 
 def explain_from_mtime(root: Path, since_minutes=120):
     cutoff = time.time() - since_minutes * 60
+    project_map, _project_map_error = load_project_map(root)
     items = []
     for path in iter_project_files(root):
         try:
-            if path.stat().st_mtime >= cutoff and path.suffix.lower() in {".py",".js",".ts",".rs",".go",".java",".cs",".cpp",".c",".hpp",".h"}:
+            if path.stat().st_mtime >= cutoff and path.suffix.lower() in {
+                ".py",
+                ".js",
+                ".ts",
+                ".rs",
+                ".go",
+                ".java",
+                ".cs",
+                ".cpp",
+                ".c",
+                ".hpp",
+                ".h",
+            }:
                 rel = relpath_str(root, path)
-                items.append(ChangeItem(rel, "recently_modified", classify_path(rel)))
+                items.append(
+                    ChangeItem(
+                        rel,
+                        "recently_modified",
+                        enrich_change_kind(project_map, rel, classify_path(rel)),
+                    )
+                )
         except Exception:
             pass
 
@@ -289,16 +401,26 @@ def explain_from_mtime(root: Path, since_minutes=120):
     items = sorted(items, key=lambda i: i.path)[:5]
     risk = risk_from_items(items)
     if not items:
-        return ExplainReport("mtime", f"최근 {since_minutes}분 동안 수정된 파일이 없습니다.", risk_level="LOW", rollback_hint="수정 시간 기준으로 최근 변경된 파일이 없습니다.", files=[])
+        return ExplainReport(
+            "mtime",
+            f"최근 {since_minutes}분 동안 수정된 파일이 없습니다.",
+            risk_level="LOW",
+            rollback_hint="수정 시간 기준으로 최근 변경된 파일이 없습니다.",
+            files=[],
+        )
 
     if len(items) <= 2 and all(i.kind in {"general", "docs", "test"} for i in items):
         risk = "LOW"
-    elif len(items) <= 3 and all(i.kind != "entry file" for i in items) and risk == "HIGH":
+    elif (
+        len(items) <= 3
+        and all(i.kind != "entry file" for i in items)
+        and risk == "HIGH"
+    ):
         risk = "MEDIUM"
 
     return ExplainReport(
         "mtime",
-        f"최근 {since_minutes}분 동안 {len(items)}개의 소스 파일이 수정되었습니다. 위험 수준은 {risk}로 보입니다.",
+        f"최근 {since_minutes}분 동안 {len(items)}개의 소스 파일이 바뀌었습니다. 지금 위험도는 {_risk_label(risk)} 정도로 보여요.",
         ["최근 소스 파일 변경이 감지되었습니다."],
         ["AI 수정을 계속하기 전에 이 파일들을 확인하세요."],
         risk,

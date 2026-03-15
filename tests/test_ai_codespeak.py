@@ -1,5 +1,6 @@
 import unittest
 import importlib
+from unittest.mock import patch
 
 from vibelign.core.codespeak import build_codespeak
 
@@ -21,6 +22,20 @@ class AiCodeSpeakTest(unittest.TestCase):
         parsed = _parse_codespeak_text(text)
         self.assertIsNotNone(parsed)
         self.assertEqual(parsed["codespeak"], "ui.component.progress_bar.add")
+
+    def test_invalid_ai_codespeak_v0_is_rejected(self):
+        rule_result = build_codespeak("add progress bar")
+        with patch(
+            "vibelign.core.ai_explain.generate_text_with_ai",
+            return_value=(
+                '{"codespeak":"UI.component.progress_bar.add","interpretation":"ok","confidence":"high","clarifying_questions":[]}',
+                True,
+            ),
+        ):
+            result = _ai_codespeak.enhance_codespeak_with_ai(
+                "add progress bar", rule_result, quiet=True
+            )
+        self.assertIsNone(result)
 
 
 if __name__ == "__main__":

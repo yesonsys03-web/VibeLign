@@ -3,7 +3,9 @@ from pathlib import Path
 import re
 import json
 from dataclasses import dataclass, asdict
+from typing import Optional
 from vibelign.core.meta_paths import MetaPaths
+from vibelign.core.project_map import ProjectMapSnapshot, load_project_map
 from vibelign.core.project_scan import iter_source_files, relpath_str
 from vibelign.core.anchor_tools import extract_anchors
 
@@ -85,7 +87,39 @@ def _score_anchor_names(anchor_names, request_tokens, label):
     return score, rationale
 
 
-def score_path(path: Path, request_tokens, anchor_meta=None):
+def _is_ui_request(request_tokens):
+    return any(
+        tok in request_tokens
+        for tok in [
+            "progress",
+            "ui",
+            "button",
+            "dialog",
+            "window",
+            "layout",
+            "sidebar",
+            "panel",
+            "widget",
+            "screen",
+            "render",
+        ]
+    )
+
+
+def _is_service_request(request_tokens):
+    return any(
+        tok in request_tokens
+        for tok in ["service", "auth", "login", "api", "worker", "guard", "schedule"]
+    )
+
+
+def score_path(
+    path: Path,
+    request_tokens,
+    rel_path: str,
+    anchor_meta=None,
+    project_map: Optional[ProjectMapSnapshot] = None,
+):
     score = 0
     rationale = []
     pt = str(path).lower()
@@ -116,28 +150,34 @@ def score_path(path: Path, request_tokens, anchor_meta=None):
     if stem in request_tokens:
         score += 4
         rationale.append(f"파일명 '{stem}'이 요청과 직접 일치")
-    ui_request = any(
-        tok in request_tokens
-        for tok in [
-            "progress",
-            "ui",
-            "button",
-            "dialog",
-            "window",
-            "layout",
-            "sidebar",
-            "panel",
-            "widget",
-            "screen",
-            "render",
-        ]
-    )
+    ui_request = _is_ui_request(request_tokens)
     if ui_request and any(
         tok in pt
         for tok in ["ui", "window", "dialog", "widget", "render", "terminal", "panel"]
     ):
         score += 3
         rationale.append("UI 성격 요청과 경로 특성이 잘 맞음")
+    if project_map is not None:
+        map_kind = project_map.classify_path(rel_path)
+        if rel_path in project_map.entry_files and not any(
+            tok in request_tokens for tok in ["main", "entry", "startup", "boot", "cli"]
+        ):
+            score -= 2
+            rationale.append("entry file 은 꼭 필요할 때만 건드리는 편이 안전함")
+        if ui_request and map_kind == "ui":
+            score += 4
+            rationale.append("Project Map 에서 UI 모듈로 분류된 파일임")
+        if _is_service_request(request_tokens) and map_kind == "service":
+            score += 4
+            rationale.append("Project Map 에서 service 모듈로 분류된 파일임")
+        if map_kind == "logic" and not ui_request:
+            score += 2
+            rationale.append("Project Map 에서 core/logic 모듈로 분류된 파일임")
+        if rel_path in project_map.large_files:
+            score += 1
+            rationale.append(
+                "Project Map 에서 큰 파일로 표시되어 수정 후보로 우선 검토함"
+            )
     if any(
         tok in stem for tok in ["worker", "service", "window", "scheduler", "backup"]
     ):
@@ -235,10 +275,17 @@ def load_anchor_metadata(root: Path):
 def suggest_patch(root: Path, request: str):
     request_tokens = tokenize(request)
     metadata = load_anchor_metadata(root)
+    project_map, _project_map_error = load_project_map(root)
     scored = []
     for path in iter_source_files(root):
         rel = relpath_str(root, path)
-        score, rationale = score_path(path, request_tokens, metadata.get(rel, {}))
+        score, rationale = score_path(
+            path,
+            request_tokens,
+            rel,
+            metadata.get(rel, {}),
+            project_map,
+        )
         scored.append((score, path, rationale))
 
     if not scored:

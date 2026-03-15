@@ -198,6 +198,75 @@ def _section_border_style(title: str) -> str:
     return "cyan"
 
 
+def _severity_style(text: str) -> Optional[str]:
+    normalized = text.strip().lower()
+    if not normalized:
+        return None
+
+    danger_tokens = [
+        "중지",
+        "실패",
+        "fail",
+        "high risk",
+        "risky",
+        "문제",
+        "보호된 파일",
+        "건드리면 안 되는",
+        "즉시 확인",
+        "멈춰야",
+        "blocked",
+    ]
+    warning_tokens = [
+        "주의",
+        "warn",
+        "warning",
+        "caution",
+        "조심",
+        "확인하는 게 좋아요",
+        "확인하세요",
+        "먼저 보면",
+    ]
+    success_tokens = [
+        "통과",
+        "safe",
+        "good",
+        "완료",
+        "안정적으로",
+        "좋아요",
+        "큰 위험이 없어",
+        "안전",
+        "문제는 없습니다",
+        "걱정할 큰 구조 문제는 없습니다",
+    ]
+
+    if any(token in normalized for token in danger_tokens):
+        return "bold red"
+    if any(token in normalized for token in warning_tokens):
+        return "bold yellow"
+    if any(token in normalized for token in success_tokens):
+        return "bold green"
+    return None
+
+
+def _severity_text(rich_mod: dict[str, Any], text: str) -> Any:
+    style = _severity_style(text)
+    if style:
+        return rich_mod["Text"](text, style=style)
+    return rich_mod["Text"](text)
+
+
+def _clack_style(message: str, fallback_style: str) -> str:
+    severity_style = _severity_style(message)
+    if severity_style is not None and fallback_style in {
+        "white",
+        "cyan",
+        "bold cyan",
+        "bold magenta",
+    }:
+        return severity_style
+    return fallback_style
+
+
 def print_provider_status(
     provider: str,
     model: str,
@@ -269,26 +338,28 @@ def print_ai_response(
 
     def append_block(block_type: str, payload: object) -> Optional[Any]:
         if block_type == "paragraph":
-            return rich_mod["Text"](str(payload))
+            return _severity_text(rich_mod, str(payload))
         if block_type == "quote":
             return rich_mod["Panel"](
-                rich_mod["Text"](str(payload), style="italic"),
+                _severity_text(rich_mod, str(payload)),
                 border_style="blue",
                 padding=(0, 1),
             )
         if block_type == "bullet_list":
             bullet_text = rich_mod["Text"]()
             for item in cast(list[str], payload):
-                bullet_text.append("- ", style="bold green")
-                bullet_text.append(str(item))
+                item_style = _severity_style(str(item))
+                bullet_text.append("- ", style=item_style or "bold cyan")
+                bullet_text.append(str(item), style=item_style or "white")
                 bullet_text.append("\n")
             bullet_text.plain = bullet_text.plain.rstrip()
             return bullet_text
         if block_type == "ordered_list":
             ordered_text = rich_mod["Text"]()
             for index, item in enumerate(cast(list[str], payload), 1):
-                ordered_text.append(f"{index}. ", style="bold magenta")
-                ordered_text.append(str(item))
+                item_style = _severity_style(str(item))
+                ordered_text.append(f"{index}. ", style=item_style or "bold magenta")
+                ordered_text.append(str(item), style=item_style or "white")
                 ordered_text.append("\n")
             ordered_text.plain = ordered_text.plain.rstrip()
             return ordered_text
@@ -390,7 +461,8 @@ def _clack_line(
         return
 
     line = f"{symbol} {message}"
-    if not should_use_rich():
+    use_rich = console is not None or should_use_rich()
+    if not use_rich:
         plain_print(line)
         return
     rich_mod = _load_rich()
@@ -398,7 +470,7 @@ def _clack_line(
         plain_print(line)
         return
     rich_console = _get_console(rich_mod, console)
-    rich_console.print(rich_mod["Text"](line, style=style))
+    rich_console.print(rich_mod["Text"](line, style=_clack_style(message, style)))
 
 
 def clack_intro(message: str, console: Optional[Any] = None) -> None:

@@ -4,11 +4,13 @@ from vibelign.core.risk_analyzer import analyze_project
 from vibelign.core.change_explainer import explain_from_git, explain_from_mtime
 from vibelign.core.guard_report import combine_guard
 from vibelign.core.protected_files import get_protected, is_protected
-
+from vibelign.terminal_render import print_ai_response
 
 
 from vibelign.terminal_render import cli_print
+
 print = cli_print
+
 
 def _render_markdown(report, protected_violations=None):
     lines = []
@@ -24,8 +26,8 @@ def _render_markdown(report, protected_violations=None):
             lines.append(f"  [잠금] `{f}`")
         lines += [
             "",
-            "AI가 보호 설정된 파일을 건드렸습니다. 즉시 확인하세요.",
-            "되돌리려면: `vib undo`",
+            "AI가 건드리면 안 되는 파일이 바뀌었습니다. 먼저 이 부분부터 확인하세요.",
+            "되돌리고 싶다면: `vib undo`",
             "",
             "---",
             "",
@@ -35,31 +37,31 @@ def _render_markdown(report, protected_violations=None):
         lines.append("")
 
     lines += [
-        f"종합 수준: {report.overall_level}",
-        f"차단 여부: {'예' if report.blocked else '아니오'}",
-        f"Doctor 수준: {report.doctor_level}",
-        f"Doctor 점수: {report.doctor_score}",
-        f"최근 변경 위험도: {report.change_risk_level}",
+        f"전체 상태: {report.overall_level}",
+        f"지금 멈춰야 하나요?: {'예' if report.blocked else '아니오'}",
+        f"프로젝트 기본 상태: {report.doctor_level}",
+        f"프로젝트 점수: {report.doctor_score}",
+        f"최근 바뀐 내용의 위험도: {report.change_risk_level}",
         "",
         "## 요약",
         report.summary,
         "",
-        "## 권장 조치",
+        "## 다음에 하면 좋은 일",
     ]
     lines.extend([f"- {item}" for item in report.recommendations])
-    lines.extend(["", "## Doctor 문제 목록"])
+    lines.extend(["", "## 프로젝트에서 보인 문제"])
     lines.extend(
         [f"- {item}" for item in report.doctor.get("issues", [])]
-        or ["- 주요 구조적 문제가 없습니다."]
+        or ["- 지금 바로 걱정할 큰 구조 문제는 없습니다."]
     )
-    lines.extend(["", "## 최근 변경된 파일"])
+    lines.extend(["", "## 최근 바뀐 파일"])
     files = report.explain.get("files", [])
     if files:
         lines.extend(
             [f"- `{item['path']}` ({item['status']}, {item['kind']})" for item in files]
         )
     else:
-        lines.append("- 최근 변경된 파일이 없습니다.")
+        lines.append("- 최근에 바뀐 파일이 없습니다.")
     return "\n".join(lines) + "\n"
 
 
@@ -84,7 +86,7 @@ def run_guard(args):
         print(json.dumps(report.to_dict(), indent=2))
         return
     md = _render_markdown(report, protected_violations=protected_violations)
-    print(md)
+    print_ai_response(md)
     if args.write_report:
         out = root / "VIBELIGN_GUARD.md"
         if out.exists():
