@@ -7,16 +7,48 @@ from typing import Any, Optional, cast
 
 _ONBOARDING_STYLE_ENV = "VIBELIGN_ONBOARDING_STYLE"
 
+# ── 섹션 제목에 붙이는 이모지 매핑 ───────────────────────────────
+_SECTION_EMOJI: list[tuple[str, str]] = [
+    ("정체", "📄"),
+    ("하는 일", "📄"),
+    ("요약", "📋"),
+    ("기능", "⚙️"),
+    ("연결", "🔗"),
+    ("주의", "⚠️"),
+    ("수정", "✏️"),
+    ("AI", "🤖"),
+    ("문제", "🔴"),
+    ("권장", "💡"),
+    ("상태", "📊"),
+    ("바뀐", "🔄"),
+    ("설명", "💬"),
+    ("다음", "➡️"),
+    ("보면", "👀"),
+    ("가드", "🛡️"),
+    ("doctor", "🏥"),
+    ("통과", "✅"),
+    ("중지", "🚫"),
+]
+
+
+def _section_emoji(title: str) -> str:
+    for keyword, emoji in _SECTION_EMOJI:
+        if keyword in title:
+            return emoji
+    return "◆"
+
 
 def _load_rich() -> Optional[dict[str, Any]]:
     try:
         return {
             "Console": importlib.import_module("rich.console").Console,
             "Group": importlib.import_module("rich.console").Group,
+            "Columns": importlib.import_module("rich.columns").Columns,
             "Panel": importlib.import_module("rich.panel").Panel,
             "Rule": importlib.import_module("rich.rule").Rule,
             "Syntax": importlib.import_module("rich.syntax").Syntax,
             "Text": importlib.import_module("rich.text").Text,
+            "Padding": importlib.import_module("rich.padding").Padding,
         }
     except ImportError:
         return None
@@ -188,55 +220,26 @@ def _get_console(rich_mod: dict[str, Any], console: Optional[Any] = None) -> Any
     return rich_mod["Console"]()
 
 
-def _section_border_style(title: str) -> str:
-    if "한 줄 요약" in title:
-        return "green"
-    if "주의" in title:
-        return "yellow"
-    if "연결" in title:
-        return "magenta"
-    return "cyan"
-
-
 def _severity_style(text: str) -> Optional[str]:
     normalized = text.strip().lower()
     if not normalized:
         return None
 
     danger_tokens = [
-        "중지",
-        "실패",
-        "fail",
-        "high risk",
-        "risky",
-        "문제",
-        "보호된 파일",
-        "건드리면 안 되는",
-        "즉시 확인",
-        "멈춰야",
-        "blocked",
+        "중지", "실패", "fail", "high risk", "risky",
+        "문제", "보호된 파일", "건드리면 안 되는",
+        "즉시 확인", "멈춰야", "blocked",
+        "오류가 날 수 있", "위험이 높", "꼭 여러 파일",
     ]
     warning_tokens = [
-        "주의",
-        "warn",
-        "warning",
-        "caution",
-        "조심",
-        "확인하는 게 좋아요",
-        "확인하세요",
-        "먼저 보면",
+        "주의", "warn", "warning", "caution", "조심",
+        "확인하는 게 좋아요", "확인하세요", "먼저 보면",
+        "헷갈릴 수 있", "실수할", "엉뚱한", "섞여 있",
     ]
     success_tokens = [
-        "통과",
-        "safe",
-        "good",
-        "완료",
-        "안정적으로",
-        "좋아요",
-        "큰 위험이 없어",
-        "안전",
-        "문제는 없습니다",
-        "걱정할 큰 구조 문제는 없습니다",
+        "통과", "safe", "good", "완료", "안정적으로",
+        "좋아요", "큰 위험이 없어", "안전",
+        "문제는 없습니다", "걱정할 큰 구조 문제는 없습니다",
     ]
 
     if any(token in normalized for token in danger_tokens):
@@ -258,13 +261,45 @@ def _severity_text(rich_mod: dict[str, Any], text: str) -> Any:
 def _clack_style(message: str, fallback_style: str) -> str:
     severity_style = _severity_style(message)
     if severity_style is not None and fallback_style in {
-        "white",
-        "cyan",
-        "bold cyan",
-        "bold magenta",
+        "white", "cyan", "bold cyan", "bold magenta",
     }:
         return severity_style
     return fallback_style
+
+
+# ── 새 렌더러: 섹션을 Rule + 들여쓴 본문으로 출력 ────────────────
+def _render_section_heading(rich_mod: dict[str, Any], title: str) -> Any:
+    """섹션 제목 → 이모지 + 굵은 텍스트 + Rule 구분선"""
+    emoji = _section_emoji(title)
+    text = rich_mod["Text"]()
+    text.append(f" {emoji} ", style="bold")
+    text.append(title, style="bold bright_white")
+    text.append("  ")
+    return rich_mod["Rule"](text, style="bright_black", align="left")
+
+
+def _render_bullet_list(rich_mod: dict[str, Any], items: list[str]) -> Any:
+    """각 불릿 항목을 Padding으로 감싸 줄바꿈 시 들여쓰기 유지"""
+    group_items = []
+    for item in items:
+        item_style = _severity_style(item)
+        line = rich_mod["Text"]()
+        line.append("▸ ", style=item_style or "bold cyan")
+        line.append(item, style=item_style or "bright_white")
+        group_items.append(rich_mod["Padding"](line, pad=(0, 0, 0, 2)))
+    return rich_mod["Group"](*group_items)
+
+
+def _render_ordered_list(rich_mod: dict[str, Any], items: list[str]) -> Any:
+    """각 번호 항목을 Padding으로 감싸 줄바꿈 시 들여쓰기 유지"""
+    group_items = []
+    for index, item in enumerate(items, 1):
+        item_style = _severity_style(item)
+        line = rich_mod["Text"]()
+        line.append(f"{index}. ", style=item_style or "bold magenta")
+        line.append(item, style=item_style or "bright_white")
+        group_items.append(rich_mod["Padding"](line, pad=(0, 0, 0, 2)))
+    return rich_mod["Group"](*group_items)
 
 
 def print_provider_status(
@@ -277,20 +312,22 @@ def print_provider_status(
         use_rich = should_use_rich()
     rich_mod = _load_rich() if use_rich else None
     if not use_rich or rich_mod is None:
-        print(f"현재 provider: {provider} / model: {model}")
+        builtins.print(f"현재 provider: {provider} / model: {model}")
         return
 
     rich_console = _get_console(rich_mod, console)
     label = rich_mod["Text"]()
+    label.append(" 🤖 ", style="bold")
     label.append("Provider", style="bold cyan")
     label.append(": ")
-    label.append(provider, style="bold white")
-    label.append("    ")
+    label.append(provider, style="bold bright_white")
+    label.append("   │   ", style="bright_black")
     label.append("Model", style="bold green")
     label.append(": ")
-    label.append(model, style="bold white")
+    label.append(model, style="bold bright_white")
+    label.append(" ")
     rich_console.print(
-        rich_mod["Panel"].fit(label, border_style="cyan", padding=(0, 1))
+        rich_mod["Panel"].fit(label, border_style="bright_black", padding=(0, 1))
     )
 
 
@@ -303,23 +340,22 @@ def print_attempted_providers(
         use_rich = should_use_rich()
     rich_mod = _load_rich() if use_rich else None
     if not use_rich or rich_mod is None:
-        print("시도한 provider:")
+        builtins.print("시도한 provider:")
         for item in attempted:
-            print(f"  - {item}")
-        print()
+            builtins.print(f"  - {item}")
+        builtins.print()
         return
 
     rich_console = _get_console(rich_mod, console)
     content = rich_mod["Text"]()
     for item in attempted:
-        content.append("- ", style="bold yellow")
-        content.append(item)
+        content.append("  ▸ ", style="bold yellow")
+        content.append(item, style="bright_white")
         content.append("\n")
-    content.plain = content.plain.rstrip()
     rich_console.print(
         rich_mod["Panel"](
             content,
-            title="시도한 provider",
+            title="⚠️  시도한 provider",
             border_style="yellow",
             padding=(0, 1),
         )
@@ -333,86 +369,86 @@ def print_ai_response(
         use_rich = should_use_rich()
     rich_mod = _load_rich() if use_rich else None
     if not use_rich or rich_mod is None:
-        print(text)
+        builtins.print(text)
         return
-
-    def append_block(block_type: str, payload: object) -> Optional[Any]:
-        if block_type == "paragraph":
-            return _severity_text(rich_mod, str(payload))
-        if block_type == "quote":
-            return rich_mod["Panel"](
-                _severity_text(rich_mod, str(payload)),
-                border_style="blue",
-                padding=(0, 1),
-            )
-        if block_type == "bullet_list":
-            bullet_text = rich_mod["Text"]()
-            for item in cast(list[str], payload):
-                item_style = _severity_style(str(item))
-                bullet_text.append("- ", style=item_style or "bold cyan")
-                bullet_text.append(str(item), style=item_style or "white")
-                bullet_text.append("\n")
-            bullet_text.plain = bullet_text.plain.rstrip()
-            return bullet_text
-        if block_type == "ordered_list":
-            ordered_text = rich_mod["Text"]()
-            for index, item in enumerate(cast(list[str], payload), 1):
-                item_style = _severity_style(str(item))
-                ordered_text.append(f"{index}. ", style=item_style or "bold magenta")
-                ordered_text.append(str(item), style=item_style or "white")
-                ordered_text.append("\n")
-            ordered_text.plain = ordered_text.plain.rstrip()
-            return ordered_text
-        if block_type == "code":
-            language, code = cast(tuple[str, str], payload)
-            return rich_mod["Syntax"](
-                code or "", language or "text", word_wrap=False, line_numbers=False
-            )
-        if block_type == "rule":
-            return rich_mod["Rule"](style="dim")
-        return None
-
-    def flush_section(
-        title: Optional[str], items: list[Any], renderables: list[Any]
-    ) -> None:
-        if title is None:
-            return
-        if items:
-            body = rich_mod["Group"](*items)
-        else:
-            body = rich_mod["Text"]("내용 없음")
-        renderables.append(
-            rich_mod["Panel"](
-                body,
-                title=title,
-                border_style=_section_border_style(title),
-                padding=(0, 1),
-            )
-        )
 
     rich_console = _get_console(rich_mod, console)
     renderables: list[Any] = []
-    current_title: Optional[str] = None
-    current_items: list[Any] = []
+    current_section_items: list[Any] = []
+    in_section = False
+
+    def flush_section() -> None:
+        nonlocal current_section_items, in_section
+        if current_section_items:
+            for renderable in current_section_items:
+                renderables.append(renderable)
+            renderables.append(rich_mod["Text"](""))  # 섹션 후 빈 줄
+        current_section_items = []
+        in_section = False
+
     for block_type, payload in _parse_blocks(text):
         if block_type == "heading":
-            flush_section(current_title, current_items, renderables)
-            current_title = str(payload)
-            current_items = []
+            flush_section()
+            in_section = True
+            # 섹션 제목을 Rule 로 렌더
+            renderables.append(rich_mod["Text"](""))
+            renderables.append(_render_section_heading(rich_mod, str(payload)))
             continue
 
-        renderable = append_block(block_type, payload)
-        if renderable is None:
-            continue
-        if current_title is None:
-            renderables.append(renderable)
-        else:
-            current_items.append(renderable)
+        if block_type == "paragraph":
+            para_text = _severity_text(rich_mod, str(payload))
+            if in_section:
+                # 섹션 안 본문은 들여쓰기
+                indented = rich_mod["Padding"](para_text, pad=(0, 0, 0, 4))
+                current_section_items.append(indented)
+            else:
+                renderables.append(para_text)
 
-    flush_section(current_title, current_items, renderables)
+        elif block_type == "bullet_list":
+            bullet = _render_bullet_list(rich_mod, cast(list[str], payload))
+            if in_section:
+                current_section_items.append(bullet)
+            else:
+                renderables.append(bullet)
+
+        elif block_type == "ordered_list":
+            ordered = _render_ordered_list(rich_mod, cast(list[str], payload))
+            if in_section:
+                current_section_items.append(ordered)
+            else:
+                renderables.append(ordered)
+
+        elif block_type == "code":
+            language, code = cast(tuple[str, str], payload)
+            syntax = rich_mod["Syntax"](
+                code or "", language or "text", word_wrap=True, line_numbers=False,
+                theme="monokai",
+            )
+            boxed = rich_mod["Panel"](
+                syntax, border_style="bright_black", padding=(0, 1)
+            )
+            if in_section:
+                current_section_items.append(boxed)
+            else:
+                renderables.append(boxed)
+
+        elif block_type == "quote":
+            quote_text = _severity_text(rich_mod, str(payload))
+            quote_panel = rich_mod["Panel"](
+                quote_text, border_style="blue", padding=(0, 1)
+            )
+            if in_section:
+                current_section_items.append(quote_panel)
+            else:
+                renderables.append(quote_panel)
+
+        elif block_type == "rule":
+            renderables.append(rich_mod["Rule"](style="bright_black"))
+
+    flush_section()
 
     if not renderables:
-        print(text)
+        builtins.print(text)
         return
 
     rich_console.print(rich_mod["Group"](*renderables))
@@ -574,31 +610,28 @@ def print_cli_help(message: str, console: Optional[Any] = None) -> None:
         rich_console.print(
             rich_mod["Panel"](
                 "\n".join(intro),
-                title="VibeLign CLI",
+                title="🧬 VibeLign CLI",
                 border_style="cyan",
                 padding=(0, 1),
             )
         )
 
+    border_map = {
+        "Usage": "green",
+        "Positional Arguments": "magenta",
+        "Options": "yellow",
+    }
     for title, body_lines in sections:
         body = "\n".join(body_lines).rstrip()
         if not body:
             continue
-        # Skip subparser choices section (redundant with grouped description)
         if title == "Positional Arguments" and body.lstrip().startswith("{"):
             continue
-        border = (
-            "green"
-            if title == "Usage"
-            else "magenta"
-            if title == "Positional Arguments"
-            else "yellow"
-        )
         rich_console.print(
             rich_mod["Panel"](
                 body,
                 title=title,
-                border_style=border,
+                border_style=border_map.get(title, "cyan"),
                 padding=(0, 1),
             )
         )
