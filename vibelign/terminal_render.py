@@ -424,12 +424,17 @@ def print_ai_response(
 
         elif block_type == "code":
             language, code = cast(tuple[str, str], payload)
-            syntax = rich_mod["Syntax"](
-                code or "", language or "text", word_wrap=True, line_numbers=False,
-                theme="monokai",
-            )
+            # text/plain 코드 블록은 Syntax 렌더러가 줄마다 여백을 추가하므로
+            # 일반 Text 객체로 렌더링해 불필요한 빈 줄 방지
+            if (language or "text") in ("text", "plain", ""):
+                inner: Any = rich_mod["Text"](code or "", style="bright_white")
+            else:
+                inner = rich_mod["Syntax"](
+                    code or "", language, word_wrap=True, line_numbers=False,
+                    theme="monokai",
+                )
             boxed = rich_mod["Panel"](
-                syntax, border_style="bright_black", padding=(0, 1)
+                inner, border_style="bright_black", padding=(0, 1)
             )
             if in_section:
                 current_section_items.append(boxed)

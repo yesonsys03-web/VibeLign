@@ -336,6 +336,7 @@ def _render_markdown(data: Dict[str, Any], preview_text: Optional[str] = None) -
         "# VibeLign 패치 계획",
         "",
         f"지금 상태: {contract['user_status']['title']}",
+        "",
         contract["user_status"]["reason"],
         "",
     ]
