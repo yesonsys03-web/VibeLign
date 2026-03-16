@@ -215,9 +215,10 @@ def _parse_blocks(text: str) -> list[tuple[str, object]]:
 
 
 def _get_console(rich_mod: dict[str, Any], console: Optional[Any] = None) -> Any:
+    """터미널 리사이즈 시 너비 자동 감지 — 고정 너비 사용 안 함"""
     if console is not None:
         return console
-    return rich_mod["Console"]()
+    return rich_mod["Console"](width=None, highlight=False)
 
 
 def _severity_style(text: str) -> Optional[str]:
@@ -267,15 +268,21 @@ def _clack_style(message: str, fallback_style: str) -> str:
     return fallback_style
 
 
-# ── 새 렌더러: 섹션을 Rule + 들여쓴 본문으로 출력 ────────────────
+# ── 섹션 헤딩: 제목 텍스트 + 아래 구분선 ────────────────────────
 def _render_section_heading(rich_mod: dict[str, Any], title: str) -> Any:
-    """섹션 제목 → 이모지 + 굵은 텍스트 + Rule 구분선"""
+    """섹션 제목 → 이모지 + 밝은 청록색 큰 제목 텍스트 + 구분선"""
     emoji = _section_emoji(title)
-    text = rich_mod["Text"]()
-    text.append(f" {emoji} ", style="bold")
-    text.append(title, style="bold bright_white")
-    text.append("  ")
-    return rich_mod["Rule"](text, style="bright_black", align="left")
+    # 제목 텍스트 (크고 눈에 띄게)
+    title_text = rich_mod["Text"]()
+    title_text.append(f" {emoji}  ", style="bold")
+    title_text.append(title, style="bold bright_cyan")
+    # 제목 아래 얇은 구분선
+    rule = rich_mod["Rule"](style="dim cyan")
+    return rich_mod["Group"](
+        rich_mod["Text"](""),    # 섹션 위 여백
+        rich_mod["Padding"](title_text, pad=(0, 0, 0, 0)),
+        rule,
+    )
 
 
 def _render_bullet_list(rich_mod: dict[str, Any], items: list[str]) -> Any:
@@ -379,10 +386,8 @@ def print_ai_response(
 
     def flush_section() -> None:
         nonlocal current_section_items, in_section
-        if current_section_items:
-            for renderable in current_section_items:
-                renderables.append(renderable)
-            renderables.append(rich_mod["Text"](""))  # 섹션 후 빈 줄
+        for renderable in current_section_items:
+            renderables.append(renderable)
         current_section_items = []
         in_section = False
 
@@ -390,33 +395,32 @@ def print_ai_response(
         if block_type == "heading":
             flush_section()
             in_section = True
-            # 섹션 제목을 Rule 로 렌더
-            renderables.append(rich_mod["Text"](""))
             renderables.append(_render_section_heading(rich_mod, str(payload)))
             continue
 
         if block_type == "paragraph":
             para_text = _severity_text(rich_mod, str(payload))
             if in_section:
-                # 섹션 안 본문은 들여쓰기
-                indented = rich_mod["Padding"](para_text, pad=(0, 0, 0, 4))
+                # 섹션 안 본문은 들여쓰기 + 아래 여백
+                indented = rich_mod["Padding"](para_text, pad=(0, 0, 1, 4))
                 current_section_items.append(indented)
             else:
-                renderables.append(para_text)
+                renderables.append(rich_mod["Padding"](para_text, pad=(0, 0, 1, 0)))
 
         elif block_type == "bullet_list":
             bullet = _render_bullet_list(rich_mod, cast(list[str], payload))
             if in_section:
-                current_section_items.append(bullet)
+                # 불릿 리스트 위아래 여백
+                current_section_items.append(rich_mod["Padding"](bullet, pad=(0, 0, 1, 0)))
             else:
-                renderables.append(bullet)
+                renderables.append(rich_mod["Padding"](bullet, pad=(0, 0, 1, 0)))
 
         elif block_type == "ordered_list":
             ordered = _render_ordered_list(rich_mod, cast(list[str], payload))
             if in_section:
-                current_section_items.append(ordered)
+                current_section_items.append(rich_mod["Padding"](ordered, pad=(0, 0, 1, 0)))
             else:
-                renderables.append(ordered)
+                renderables.append(rich_mod["Padding"](ordered, pad=(0, 0, 1, 0)))
 
         elif block_type == "code":
             language, code = cast(tuple[str, str], payload)
