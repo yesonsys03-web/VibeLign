@@ -340,34 +340,25 @@ def _render_markdown(data: Dict[str, Any], preview_text: Optional[str] = None) -
         "",
     ]
     if contract["status"] == "NEEDS_CLARIFICATION":
-        lines.extend(
-            [
-                "먼저 이렇게 해보세요:",
-            ]
-        )
+        lines.append("## 먼저 이렇게 해보세요")
         lines.extend(f"- {item}" for item in contract["user_guidance"])
-        lines.extend(["", "먼저 확인하면 좋은 질문:"])
+        lines.extend(["", "## 먼저 확인하면 좋은 질문"])
         lines.extend(f"- {item}" for item in contract["clarifying_questions"])
-        lines.extend(["", "지금 파악한 내용:"])
+        lines.append("")
     else:
-        lines.extend(
-            [
-                "이제 이렇게 진행하면 돼요:",
-            ]
-        )
+        lines.append("## 이제 이렇게 진행하면 돼요")
         lines.extend(f"- {item}" for item in contract["user_guidance"])
-        lines.extend([""])
+        lines.append("")
+
     lines.extend(
         [
-            f"이 요청을 이렇게 이해했어요: {patch_plan['interpretation']}",
+            "## 수정 대상 요약",
+            f"- CodeSpeak : {patch_plan['codespeak']}",
+            f"- 파일      : {patch_plan['target_file']}",
+            f"- 앵커      : {patch_plan['target_anchor']}",
+            f"- 확신 정도 : {patch_plan['confidence']}",
             "",
-            "수정 대상 요약:",
-            f"  CodeSpeak : {patch_plan['codespeak']}",
-            f"  파일      : {patch_plan['target_file']}",
-            f"  앵커      : {patch_plan['target_anchor']}",
-            f"  확신 정도 : {patch_plan['confidence']}",
-            "",
-            "이 계획에서 허용하는 범위:",
+            "## 이 계획에서 허용하는 범위",
         ]
     )
     for item in contract["scope"]["allowed_files"]:
@@ -377,49 +368,33 @@ def _render_markdown(data: Dict[str, Any], preview_text: Optional[str] = None) -
             f"- 파일 상태: {contract['scope']['target_file_status']}",
             f"- 안전 구역 상태: {contract['scope']['target_anchor_status']}",
             "",
-            "이 계획이 바로 실행되려면:",
+            "## 이 계획이 바로 실행되려면",
         ]
     )
     lines.extend(f"- {item}" for item in contract["preconditions"])
-    lines.extend(
-        [
-            "",
-            "허용된 수정 방식:",
-        ]
-    )
+    lines.extend(["", "## 허용된 수정 방식"])
     lines.extend(f"- {item}" for item in contract["allowed_ops"])
-    lines.extend(
-        [
-            "",
-            f"기대하는 결과: {contract['expected_result']}",
-            "",
-            "왜 이렇게 골랐는지:",
-        ]
-    )
+    lines.extend(["", "## 왜 이렇게 골랐는지"])
     lines.extend(f"- {item}" for item in patch_plan["rationale"])
     if contract["clarifying_questions"] and contract["status"] != "NEEDS_CLARIFICATION":
-        lines.extend(["", "먼저 확인하면 좋은 질문:"])
+        lines.extend(["", "## 먼저 확인하면 좋은 질문"])
         lines.extend(f"- {item}" for item in contract["clarifying_questions"])
     if preview_text is not None:
-        lines.extend(["", "미리 보기:", "```text", preview_text, "```"])
-    lines.extend(
-        [
-            "",
-            "검증할 때 쓸 명령:",
-        ]
-    )
+        lines.extend(["", "## 미리 보기", "```text", preview_text, "```"])
+    lines.extend(["", "## 검증할 때 쓸 명령"])
     lines.extend(f"- {item}" for item in contract["verification"]["commands"])
     lines.extend(
         [
             "",
-            f"다음에 할 일: {contract['user_status']['next_step']}",
+            f"## 다음에 할 일",
+            contract["user_status"]["next_step"],
         ]
     )
     if contract["status"] == "READY" and handoff is not None:
         lines.extend(
             [
                 "",
-                "AI에게 그대로 전달할 블록:",
+                "## AI에게 그대로 전달할 블록",
                 "```text",
                 str(handoff["prompt"]),
                 "```",
