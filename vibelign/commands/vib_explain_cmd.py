@@ -90,10 +90,15 @@ def _render_file_markdown(data: Dict[str, Any]) -> str:
     what_changed = cast(List[str], data.get("what_changed") or [])
     why_matters = cast(List[str], data.get("why_it_matters") or [])
 
+    source_label = {
+        "git": "파일 변경 감지",
+        "mtime": "최근 수정 시간 감지",
+        "fallback": "자동 감지 실패",
+    }.get(str(data.get("source", "")), str(data.get("source", "")))
     lines = [
         f"# `{file_name}` 변경 설명",
         "",
-        f"**위험 수준:** {risk_emoji} {_risk_label(str(risk))}  |  **소스:** {data.get('source', '')}",
+        f"**위험 수준:** {risk_emoji} {_risk_label(str(risk))}  |  **감지 방식:** {source_label}",
         "",
         "## 1. 무슨 일이 있었나요?",
         str(data.get("summary", "")),
@@ -159,8 +164,7 @@ def _render_markdown(data: Dict[str, Any]) -> str:
     lines = [
         "# VibeLign Explain Report",
         "",
-        f"감지 방식: {source_label}",
-        f"위험 수준: {_risk_label(str(data['risk_level']))}",
+        f"감지 방식: {source_label}  |  위험 수준: {_risk_label(str(data['risk_level']))}",
         "",
         "## 1. 한 줄 요약",
         str(data["summary"]),

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, asdict, field
-import subprocess, time
+import re, subprocess, time
 from pathlib import Path
 from typing import Any
 from vibelign.core.project_map import enrich_change_kind, load_project_map
@@ -95,6 +95,29 @@ def risk_from_items(items):
     return "HIGH" if score >= 8 else "MEDIUM" if score >= 4 else "LOW"
 
 
+def _decode_git_path(path: str) -> str:
+    """git 옥탈(octal) 인코딩된 경로를 UTF-8 NFC 문자열로 디코딩.
+    macOS는 NFD, git 출력은 NFC — 비교 시 통일이 필요하므로 NFC로 반환."""
+    import unicodedata
+
+    if not (path.startswith('"') and path.endswith('"')):
+        return unicodedata.normalize("NFC", path)
+    path = path[1:-1]
+    buf = bytearray()
+    i = 0
+    while i < len(path):
+        if path[i] == "\\" and i + 3 < len(path) and path[i + 1 : i + 4].isdigit():
+            buf.append(int(path[i + 1 : i + 4], 8))
+            i += 4
+        else:
+            buf.extend(path[i].encode("utf-8"))
+            i += 1
+    try:
+        return unicodedata.normalize("NFC", buf.decode("utf-8"))
+    except UnicodeDecodeError:
+        return path
+
+
 def _run_git(root: Path, args):
     try:
         proc = subprocess.run(
@@ -112,6 +135,10 @@ def explain_from_git(root: Path):
     if not ok:
         return None
     project_map, _project_map_error = load_project_map(root)
+    # 상위 git 저장소에서 현재 폴더 자체가 untracked으로 표시될 수 있음 — 필터용
+    # macOS 경로는 NFD이므로 NFC로 정규화해서 git 출력과 비교
+    import unicodedata
+    cwd_dir_entry = unicodedata.normalize("NFC", root.name + "/")
     items = []
     for line in out.splitlines():
         if not line.strip():
@@ -120,6 +147,9 @@ def explain_from_git(root: Path):
         rel = line[3:].strip()
         if "->" in rel:
             rel = rel.split("->", 1)[1].strip()
+        # 현재 디렉토리 자체가 untracked으로 잡히는 경우 건너뜀
+        if status_code == "??" and _decode_git_path(rel) == cwd_dir_entry:
+            continue
         status = {
             "M": "modified",
             "A": "added",
