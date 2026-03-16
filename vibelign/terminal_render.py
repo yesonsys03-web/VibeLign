@@ -215,10 +215,17 @@ def _parse_blocks(text: str) -> list[tuple[str, object]]:
 
 
 def _get_console(rich_mod: dict[str, Any], console: Optional[Any] = None) -> Any:
-    """터미널 리사이즈 시 너비 자동 감지 — 고정 너비 사용 안 함"""
+    """터미널 너비를 자동 감지하되 최대 120자로 제한.
+    채팅창 등 좁은 뷰어에서 붙여넣기 시 줄 넘침 방지."""
     if console is not None:
         return console
-    return rich_mod["Console"](width=None, highlight=False)
+    import shutil
+    try:
+        detected = shutil.get_terminal_size(fallback=(100, 24)).columns
+        w = min(max(detected, 40), 120)
+    except Exception:
+        w = 100
+    return rich_mod["Console"](width=w, highlight=False)
 
 
 def _severity_style(text: str) -> Optional[str]:
@@ -424,18 +431,27 @@ def print_ai_response(
 
         elif block_type == "code":
             language, code = cast(tuple[str, str], payload)
-            # text/plain 코드 블록은 Syntax 렌더러가 줄마다 여백을 추가하므로
-            # 일반 Text 객체로 렌더링해 불필요한 빈 줄 방지
             if (language or "text") in ("text", "plain", ""):
-                inner: Any = rich_mod["Text"](code or "", style="bright_white")
+                # text 블록은 Panel 없이 Rule + 텍스트 라인으로 렌더링.
+                # Panel을 쓰면 터미널 너비만큼 padding이 붙어 채팅 붙여넣기 시
+                # 오른쪽 border │ 가 다음 줄로 넘어가는 문제 방지.
+                sep = rich_mod["Rule"](style="bright_black")
+                line_items: list[Any] = [rich_mod["Padding"](sep, pad=(0, 0, 0, 0))]
+                for cl in (code or "").splitlines():
+                    t = rich_mod["Text"]()
+                    t.append("  ", style="")
+                    t.append(cl, style="bright_white")
+                    line_items.append(t)
+                line_items.append(rich_mod["Padding"](sep, pad=(0, 0, 0, 0)))
+                boxed = rich_mod["Group"](*line_items)
             else:
-                inner = rich_mod["Syntax"](
+                inner: Any = rich_mod["Syntax"](
                     code or "", language, word_wrap=True, line_numbers=False,
                     theme="monokai",
                 )
-            boxed = rich_mod["Panel"](
-                inner, border_style="bright_black", padding=(0, 1)
-            )
+                boxed = rich_mod["Panel"](
+                    inner, border_style="bright_black", padding=(0, 1)
+                )
             if in_section:
                 current_section_items.append(boxed)
             else:
