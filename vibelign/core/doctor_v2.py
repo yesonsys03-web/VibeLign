@@ -54,12 +54,12 @@ def _issue_details(issues: List[str], suggestions: List[str]) -> List[Dict[str, 
         next_step = (
             suggestions[index]
             if index < len(suggestions)
-            else "관련 파일을 직접 확인하세요."
+            else "관련 파일을 직접 열어서 확인해보세요."
         )
         details.append(
             {
                 "found": issue,
-                "why_it_matters": f"{issue} 때문에 AI가 수정 범위를 넓게 잡거나 구조를 더 망가뜨릴 수 있습니다.",
+                "why_it_matters": f"{issue} 때문에 AI가 엉뚱한 곳까지 건드리거나 코드를 더 꼬이게 만들 수 있어요.",
                 "next_step": next_step,
                 "path": rel
                 if "/" in rel or rel.endswith((".py", ".js", ".ts", ".tsx", ".jsx"))
@@ -75,8 +75,8 @@ def _recommended_actions(legacy_suggestions: List[str]) -> List[str]:
     for suggestion in legacy_suggestions:
         if "앵커" in suggestion:
             action = "vib anchor --suggest"
-        elif "분리" in suggestion:
-            action = "큰 파일을 역할별로 나누는 작업을 계획하세요"
+        elif "분리" in suggestion or "나눠" in suggestion:
+            action = "파일이 너무 길면 기능별로 나눠보세요 (AI 실수 예방에 도움돼요)"
         else:
             action = suggestion
         if action not in seen:
@@ -101,11 +101,11 @@ def analyze_project_v2(root: Path, strict: bool = False) -> DoctorV2Report:
         stats["project_map_file_count"] = project_map.file_count
         stats["project_map_generated_at"] = project_map.generated_at
     elif project_map_error == "unsupported_project_map_schema":
-        issues.append(".vibelign/project_map.json schema_version 이 지원되지 않습니다")
-        suggestions.append("vib init 으로 Project Map 을 다시 생성하세요")
+        issues.append(".vibelign/project_map.json 파일의 버전이 맞지 않아요")
+        suggestions.append("vib start 를 다시 실행하면 자동으로 고쳐져요")
     elif project_map_error == "invalid_project_map":
-        issues.append(".vibelign/project_map.json 을 읽을 수 없습니다")
-        suggestions.append("vib init 으로 Project Map 을 다시 생성하세요")
+        issues.append(".vibelign/project_map.json 파일을 읽을 수 없어요")
+        suggestions.append("vib start 를 다시 실행하면 자동으로 고쳐져요")
     return DoctorV2Report(
         project_score=project_score,
         status=status,
@@ -139,7 +139,7 @@ def render_doctor_markdown(
         f"프로젝트 점수: {report.project_score} / 100",
         f"현재 상태: {report.status}",
         status_line,
-        f"안전 구역 표시 비율: {report.anchor_coverage}%",
+        f"AI 안전 구역 표시된 파일 비율: {report.anchor_coverage}%",
         "",
         "먼저 보면 좋은 점:",
     ]

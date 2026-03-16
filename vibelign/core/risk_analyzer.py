@@ -49,24 +49,24 @@ def analyze_project(root: Path, strict=False):
 
         if name in ENTRY_FILES and lines > entry_limit:
             oversized_entry_files += 1
-            add_issue(report, f"{rel} 파일이 너무 큽니다 ({lines}줄)", f"{name}은 시작 코드만 유지하고 나머지 로직은 모듈로 분리하세요", 3)
+            add_issue(report, f"{rel} 파일이 너무 깁니다 ({lines}줄) — AI가 어디를 고쳐야 할지 헷갈릴 수 있어요", f"{name}은 시작 코드만 두고 나머지는 다른 파일로 옮기는 게 좋아요", 3)
         if name in CATCH_ALL:
-            add_issue(report, f"{rel}은 모든 걸 담는 파일처럼 보입니다", f"{name}을 역할별로 분리하세요", 2)
+            add_issue(report, f"{rel}은 여러 기능이 한 파일에 몰려 있어요", f"{name}을 기능별로 파일을 나눠보세요", 2)
         if lines >= 800:
-            add_issue(report, f"{rel} 파일이 위험할 정도로 큽니다 ({lines}줄, critical)", f"{name}을 반드시 더 작은 모듈로 분리하세요", 5)
+            add_issue(report, f"{rel} 파일이 너무 깁니다 ({lines}줄) — AI가 실수할 위험이 높아요", f"{name}은 꼭 여러 파일로 나눠야 해요", 5)
         elif lines >= 500:
-            add_issue(report, f"{rel} 파일이 매우 큽니다 ({lines}줄, strong warning)", f"{name}을 더 작은 모듈로 분리하는 것을 강력히 권장합니다", 3)
+            add_issue(report, f"{rel} 파일이 많이 깁니다 ({lines}줄) — AI가 엉뚱한 곳을 고칠 수 있어요", f"{name}을 여러 파일로 나누는 걸 강력히 권장해요", 3)
         elif lines >= 300:
-            add_issue(report, f"{rel} 파일이 큽니다 ({lines}줄, warning)", f"{name}을 더 작은 모듈로 분리하는 것을 고려하세요", 2)
+            add_issue(report, f"{rel} 파일이 조금 깁니다 ({lines}줄)", f"{name}을 여러 파일로 나누는 걸 고려해보세요", 2)
         if lines > anchor_limit and "ANCHOR:" not in text:
             missing_anchor_files += 1
-            add_issue(report, f"{rel}에 앵커가 없습니다", f"{name}에 앵커를 추가하면 AI가 안전하게 부분 수정할 수 있습니다", 2)
+            add_issue(report, f"{rel}에 안전 구역 표시(앵커)가 없어요", f"{name}에 앵커를 추가하면 AI가 딱 그 부분만 안전하게 고칠 수 있어요 — vib anchor --suggest", 2)
         if fn_count >= (18 if strict else 25):
-            add_issue(report, f"{rel}에 정의가 너무 많습니다 ({fn_count}개)", f"{name}을 기능별 모듈로 분리하는 것을 고려하세요", 2)
+            add_issue(report, f"{rel}에 기능이 너무 많이 들어 있어요 ({fn_count}개) — AI가 어디를 건드려야 할지 헷갈릴 수 있어요", f"{name}을 기능별로 파일을 나눠보세요", 2)
         if name in ENTRY_FILES and lines > 60 and contains_any(text, BIZ_HINTS):
-            add_issue(report, f"{rel}에 비즈니스 로직이 섞여 있을 수 있습니다", f"{name}에서 시작 코드 외의 로직을 별도 모듈로 옮기세요", 3)
+            add_issue(report, f"{rel}에 실행 코드 말고 다른 기능도 섞여 있는 것 같아요", f"{name}에서 시작 코드 외의 기능은 다른 파일로 옮기세요", 3)
         if contains_any(text, UI_HINTS) and contains_any(text, BIZ_HINTS) and lines > 100:
-            add_issue(report, f"{rel}에 UI와 비즈니스 로직이 혼재할 수 있습니다", f"{name}에서 UI 코드와 처리/서비스 로직을 분리하세요", 3)
+            add_issue(report, f"{rel}에 화면 코드와 처리 코드가 한 파일에 섞여 있어요", f"{name}에서 화면 코드와 처리 코드를 파일로 나눠보세요", 3)
 
     dep_issues = _check_dependency_risks(root)
     for issue, suggestion, sc in dep_issues:
@@ -124,8 +124,8 @@ def _check_dependency_risks(root: Path):
         for mod in imports:
             if mod not in module_names and not any(mod.startswith(m + ".") for m in module_names):
                 issues.append(
-                    (f"{rel}이 존재하지 않는 내부 모듈 '{mod}'을 참조합니다",
-                     f"import 대상 '{mod}'이 프로젝트에 존재하는지 확인하세요", 2)
+                    (f"{rel}이 '{mod}' 파일을 불러오려 하는데 그 파일이 없어요",
+                     f"'{mod}' 파일이 프로젝트 안에 있는지 확인해보세요", 2)
                 )
 
     seen_cycles: set[frozenset[str]] = set()
@@ -140,8 +140,8 @@ def _check_dependency_risks(root: Path):
                         if src != other_src and pair not in seen_cycles:
                             seen_cycles.add(pair)
                             issues.append(
-                                (f"{src}와 {other_src} 사이에 순환 import가 의심됩니다",
-                                 "순환 의존성을 제거하거나 공통 모듈로 분리하세요", 3)
+                                (f"{src}와 {other_src}가 서로를 불러오고 있어요 — 이러면 오류가 날 수 있어요",
+                                 "두 파일이 서로를 부르지 않도록 공통 내용을 별도 파일로 분리해보세요", 3)
                             )
 
     return issues
