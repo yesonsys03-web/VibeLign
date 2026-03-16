@@ -108,7 +108,7 @@ def _run_git(root: Path, args):
 
 
 def explain_from_git(root: Path):
-    ok, out = _run_git(root, ["status", "--porcelain"])
+    ok, out = _run_git(root, ["status", "--porcelain", "--", "."])
     if not ok:
         return None
     project_map, _project_map_error = load_project_map(root)
