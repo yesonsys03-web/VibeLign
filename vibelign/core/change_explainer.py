@@ -143,11 +143,11 @@ def explain_from_git(root: Path):
         )
     return ExplainReport(
         "git",
-        f"Git 상태에서 {len(items)}개의 변경된 파일을 찾았습니다. 지금 위험도는 {_risk_label(risk)} 정도로 보여요.",
+        f"{len(items)}개의 파일이 바뀐 것을 확인했어요. 지금 위험도는 {_risk_label(risk)} 정도로 보여요.",
         ["최근 파일이 변경되었습니다."],
         ["AI에게 계속 수정을 요청하기 전에 변경된 파일을 확인하세요."],
         risk,
-        "롤백이 필요하면 git diff와 git restore를 사용하세요.",
+        "되돌리려면 vib undo 를 쓰거나, vib checkpoint 로 저장해둔 지점이 있다면 그곳으로 돌아갈 수 있어요.",
         [asdict(i) for i in items],
     )
 
@@ -287,16 +287,16 @@ def explain_file_from_git(root: Path, rel_path: str):
                     "이 파일이 어떤 역할을 하는지, 다른 파일과 어떻게 연결되는지 확인해보세요"
                 ],
                 risk,
-                f"파일 자체를 삭제하면 돼요: `rm {rel_path}`",
+                "vib checkpoint 로 지금 상태를 저장해두면 나중에 vib undo 로 되돌릴 수 있어요.",
                 [{"path": rel_path, "status": "added", "kind": item_kind}],
             )
         return ExplainReport(
             "git",
-            f"`{rel_path}` 는 마지막 커밋 이후 바뀐 내용이 없어요.",
+            f"`{rel_path}` 는 마지막 저장 이후 바뀐 내용이 없어요.",
             ["변경된 내용이 없어요"],
             [],
             "LOW",
-            "롤백이 필요하지 않아요.",
+            "되돌릴 필요가 없어요.",
             [],
         )
 
@@ -308,7 +308,7 @@ def explain_file_from_git(root: Path, rel_path: str):
         what_changed,
         why_matters,
         risk,
-        f"`git restore {rel_path}` 로 이 파일의 변경을 되돌릴 수 있어요",
+        "vib undo 로 되돌릴 수 있어요. 또는 vib checkpoint 로 저장해두면 언제든 그 시점으로 돌아갈 수 있어요.",
         [{"path": rel_path, "status": "modified", "kind": item_kind}],
     )
 
@@ -350,9 +350,9 @@ def explain_file_from_mtime(
             "mtime",
             f"`{rel_path}` 가 {when}에 수정됐어요 (현재 {n_lines}줄).",
             [f"{when}에 파일이 수정됐어요 (총 {n_lines}줄)"],
-            ["무엇이 바뀌었는지 보려면 git 또는 vib checkpoint 기록을 활용해보세요"],
+            ["무엇이 바뀌었는지 보려면 vib history 로 checkpoint 기록을 확인해보세요"],
             risk,
-            f"git 환경이라면 `git diff HEAD -- {rel_path}` 로 확인하세요",
+            "vib undo 로 되돌릴 수 있어요. 먼저 vib checkpoint 로 현재 상태를 저장해두는 걸 추천해요.",
             [{"path": rel_path, "status": "recently_modified", "kind": item_kind}],
         )
 
@@ -424,6 +424,6 @@ def explain_from_mtime(root: Path, since_minutes=120):
         ["최근 소스 파일 변경이 감지되었습니다."],
         ["AI 수정을 계속하기 전에 이 파일들을 확인하세요."],
         risk,
-        "Git을 사용 중이라면 다음 AI 수정 전에 커밋하세요. Git이 없다면 수동으로 복사하거나 버전 백업을 사용하세요.",
+        "다음 AI 수정 전에 vib checkpoint 로 지금 상태를 저장해두는 게 좋아요. 나중에 vib undo 로 되돌릴 수 있어요.",
         [asdict(i) for i in items],
     )

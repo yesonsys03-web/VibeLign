@@ -115,7 +115,7 @@ def _fallback_explain_data() -> Dict[str, Any]:
         "risk_level": "LOW",
         "what_changed": ["변경 설명 데이터를 자동으로 만들지 못했습니다."],
         "why_it_matters": ["현재 작업 상태를 직접 확인하는 편이 안전합니다."],
-        "what_to_do_next": "git status 나 최근 수정 파일을 직접 확인하세요.",
+        "what_to_do_next": "vib doctor 로 상태를 확인하거나, 최근 수정 파일을 직접 열어보세요.",
         "files": [],
         "summary": "자동 설명이 실패해 안전한 기본 안내를 보여줍니다.",
     }
@@ -131,7 +131,7 @@ def _build_explain_envelope(root: Path, since_minutes: int) -> Dict[str, Any]:
             "error": {
                 "code": "explain_unavailable",
                 "message": "변경 설명 데이터를 만들지 못했습니다.",
-                "hint": "git 상태나 최근 수정 파일을 직접 확인하세요.",
+                "hint": "vib doctor 로 상태를 확인하거나, 최근 수정 파일을 직접 열어보세요.",
             },
             "data": _fallback_explain_data(),
         }
@@ -151,10 +151,15 @@ def _render_markdown(data: Dict[str, Any]) -> str:
     files = cast(List[Dict[str, str]], data.get("files", []) or [])
     what_changed = cast(List[str], data.get("what_changed", []) or [])
     why_it_matters = cast(List[str], data.get("why_it_matters", []) or [])
+    source_label = {
+        "git": "파일 변경 감지",
+        "mtime": "최근 수정 시간 감지",
+        "fallback": "자동 감지 실패",
+    }.get(str(data.get("source", "")), str(data.get("source", "")))
     lines = [
         "# VibeLign Explain Report",
         "",
-        f"소스: {data['source']}",
+        f"감지 방식: {source_label}",
         f"위험 수준: {_risk_label(str(data['risk_level']))}",
         "",
         "## 1. 한 줄 요약",

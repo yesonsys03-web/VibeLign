@@ -60,7 +60,7 @@ def _build_guard_envelope(
             "error": {
                 "code": "guard_explain_unavailable",
                 "message": "guard용 변경 설명 데이터를 만들지 못했습니다.",
-                "hint": "git 상태를 직접 확인한 뒤 다시 실행하세요.",
+                "hint": "vib doctor 로 상태를 확인한 뒤 다시 실행해보세요.",
             },
             "data": {
                 "status": "fail",
@@ -70,7 +70,7 @@ def _build_guard_envelope(
                 "project_status": "High Risk",
                 "change_risk_level": "HIGH",
                 "summary": "guard 설명 데이터를 만들지 못해 안전하게 실패 처리했습니다.",
-                "recommendations": ["git status 로 작업 상태를 직접 확인하세요."],
+                "recommendations": ["vib doctor 로 작업 상태를 확인해보세요."],
                 "protected_violations": [],
                 "doctor": {
                     "project_score": 0,
