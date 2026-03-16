@@ -28,21 +28,21 @@ The core idea is simple:
 
 ## 2. The safest workflow
 
-### New project (beginner)
+### New project or first time using VibeLign
 
 ```bash
 vib start
 ```
 
-Interactive guided setup — runs init, hooks, and health check.
+프로젝트에 필요한 모든 파일 생성, 훅 설정, 상태 점검을 한 번에 처리합니다.
 
-### Existing project / re-initialize
+### Reinstall VibeLign after source changes
 
 ```bash
 vib init
 ```
 
-Sets up or resets VibeLign metadata.
+VibeLign 소스를 수정한 후 재설치할 때 사용합니다.
 
 ### Ongoing workflow
 
@@ -72,41 +72,41 @@ vib undo
 
 ## `vib init`
 
-VibeLign 메타데이터를 초기화(또는 재초기화)합니다.
+VibeLign 소스를 수정한 후 재설치할 때 사용합니다.
 
 ```bash
 vib init
+vib init --force
 ```
 
 What it does:
 
-1. Exports `AI_DEV_SYSTEM_SINGLE_FILE.md` and `AGENTS.md` to the project root
-2. Creates `.vibelign/` directory with config, state, and project map
-3. Creates a `.gitignore` entry if needed
-4. Scans project structure and builds `project_map.json`
+1. Python 버전, pip, uv 환경을 확인합니다
+2. 로컬 소스가 감지되면 네트워크 없이 직접 복사해 재설치합니다
+3. 로컬 소스가 없으면 uv 또는 pip으로 최신 버전을 재설치합니다
 
-Use `vib init` to set up or reset VibeLign metadata.
+Use `vib init` after modifying VibeLign source code or when you need to reinstall.
 
 ---
 
 ## `vib start`
 
-Beginner-friendly guided setup with interactive onboarding.
+프로젝트에 VibeLign을 처음 적용하거나, 기존 프로젝트에서 처음 사용할 때 실행합니다.
 
 ```bash
 vib start
-vib start "first save"
 ```
 
 What it does:
 
-- Ensures AI rule files exist (creates if missing, keeps if present)
-- Sets up AI tool hooks (e.g. Claude Code auto-checkpoint)
-- Runs a project health check and shows the score
-- Guides you to the recommended next step
+1. `AGENTS.md`, `AI_DEV_SYSTEM_SINGLE_FILE.md` 등 필요한 파일을 자동 생성 (이미 있으면 유지)
+2. `.vibelign/` 디렉토리, `config.yaml`, `state.json`, `project_map.json` 생성
+3. `.gitignore`에 VibeLign 항목 추가
+4. AI 도구 훅 설정 제안 (Claude Code 등)
+5. 프로젝트 상태 점수 확인 및 다음 할 일 안내
 
-Use `vib start` if you are new to VibeLign or want a guided walkthrough.
-Note: `vib start` and `vib init` are separate commands with different purposes.
+Use `vib start` for any project — new or existing — before starting AI-assisted coding.
+Note: `vib start` handles all project setup independently. `vib init` is only for reinstalling VibeLign itself.
 
 ---
 
@@ -323,7 +323,7 @@ What it does:
 2. Rebuilds `.vibelign/anchor_index.json`
 3. Regenerates `.vibelign/project_map.json` with the latest anchor index
 
-Use `vib scan` instead of running `vib anchor` and `vib init` separately.
+Use `vib scan` instead of running `vib anchor` and `vib start` separately.
 This is the recommended way to keep the project map fresh after adding anchors.
 
 ---
@@ -519,7 +519,7 @@ All other commands continue to work.
 
 Best results come from these conventions:
 
-- run `vib init` when starting a new project
+- run `vib start` when starting a new project or using VibeLign for the first time
 - save a `vib checkpoint` before every AI edit
 - use `vib undo` immediately if something looks wrong
 - `vib protect` files that must never change
@@ -583,15 +583,15 @@ Run `vib protect <filename>` to add files to the protected list.
 
 ## 7. Typical initial setup
 
-New project:
+New project or first time using VibeLign:
 
 ```bash
-vib init
+vib start
 ```
 
 That's it. Everything else is set up automatically.
 
-Existing project:
+Existing project (VibeLign already configured):
 
 ```bash
 vib doctor
@@ -599,6 +599,12 @@ vib anchor --dry-run
 vib anchor
 vib export opencode
 vib checkpoint "vibelign added"
+```
+
+To reinstall VibeLign after source changes:
+
+```bash
+vib init
 ```
 
 ---

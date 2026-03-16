@@ -10,7 +10,6 @@ from .commands.vib_explain_cmd import run_vib_explain
 from .commands.vib_history_cmd import run_vib_history
 from .commands.init_cmd import run_init
 from .commands.install_guide_cmd import run_install_guide
-from .commands.vib_init_cmd import run_vib_init_cli
 from .commands.vib_patch_cmd import run_vib_patch
 from .commands.vib_start_cmd import run_vib_start
 from .commands.vib_undo_cmd import run_vib_undo
@@ -41,8 +40,8 @@ _MAIN_DESCRIPTION = """\
 VibeLign - AI한테 코딩 시켜도 안전하게 지켜주는 도구
 
 처음 시작:
-  start       안심하고 바이브코딩 시작! 처음 설정을 도와줘요
-  init        VibeLign을 최신 버전으로 재설치해요
+  start       프로젝트 세팅 (AGENTS.md 등 필요 파일 자동 생성)
+  init        VibeLign 소스 수정 후 재설치할 때 사용
   install     단계별 설치 방법 안내
 
 세이브 & 되돌리기:
@@ -131,12 +130,15 @@ def build_parser():
         description=(
             "안심하고 바이브코딩을 시작하세요!\n"
             "AI한테 코딩을 시키기 전에, 이 명령어로 안전하게 준비해요.\n"
+            "AGENTS.md, AI_DEV_SYSTEM_SINGLE_FILE.md 등 필요한 파일을 자동으로 만들어줘요.\n"
             "기존 코드를 건드리지 않아요. 걱정 마세요!"
         ),
         epilog=(
             '이렇게 쓰세요:\n'
-            '  vib start              처음 프로젝트 설정\n'
-            '  vib start "첫 세이브"  설정하면서 바로 세이브'
+            '  vib start   새 프로젝트 또는 VibeLign 처음 사용하는 프로젝트 세팅\n'
+            '\n'
+            'VibeLign 자체를 재설치하려면:\n'
+            '  vib init'
         ),
     )
     p.add_argument("message", nargs="*", help="저장할 메시지 (안 써도 돼요)")
@@ -361,7 +363,7 @@ def build_parser():
         help="앵커 스캔 + 코드맵 갱신을 한 번에 해요",
         description=(
             "앵커 스캔, 앵커 인덱스 갱신, 코드맵 재생성을 한 번에 실행해요.\n"
-            "vib anchor 와 vib init 을 따로 실행하지 않아도 돼요."
+            "vib anchor 와 vib start 를 따로 실행하지 않아도 돼요."
         ),
         epilog=(
             "이렇게 쓰세요:\n"

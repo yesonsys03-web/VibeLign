@@ -1,11 +1,14 @@
+import json
+from datetime import datetime, timezone
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
+from vibelign.commands.export_cmd import AGENTS_MD_CONTENT
 from vibelign.commands.vib_doctor_cmd import build_doctor_envelope
-from vibelign.commands.vib_init_cmd import run_vib_init
+from vibelign.core.ai_dev_system import AI_DEV_SYSTEM_CONTENT
 from vibelign.core.hook_setup import detect_tool, is_hook_set, setup_hook_if_needed
 from vibelign.core.meta_paths import MetaPaths
+from vibelign.core.project_scan import iter_source_files, line_count, relpath_str
 from vibelign.terminal_render import (
     clack_info,
     clack_intro,
@@ -13,6 +16,15 @@ from vibelign.terminal_render import (
     clack_step,
     clack_success,
 )
+
+GITIGNORE_LINE = ".vibelign/checkpoints/"
+LARGE_FILE_LINE_THRESHOLD = 300
+
+CONFIG_YAML = """schema_version: 1
+llm_provider: anthropic
+api_key: ENV
+preview_format: ascii
+"""
 
 
 def _status_line(status: str) -> str:
@@ -34,11 +46,21 @@ def _has_git(root: Path) -> bool:
     return (root / ".git").is_dir()
 
 
+def _ensure_gitignore_entry(root: Path) -> None:
+    gitignore_path = root / ".gitignore"
+    if not gitignore_path.exists():
+        gitignore_path.write_text(GITIGNORE_LINE + "\n", encoding="utf-8")
+        return
+    existing = gitignore_path.read_text(encoding="utf-8", errors="ignore")
+    if GITIGNORE_LINE not in existing.splitlines():
+        suffix = "" if existing.endswith("\n") or not existing else "\n"
+        gitignore_path.write_text(
+            existing + suffix + GITIGNORE_LINE + "\n", encoding="utf-8"
+        )
+
+
 def _ensure_rule_files(root: Path) -> Dict[str, List[str]]:
     """AI 룰 파일이 없으면 생성. 이미 있으면 건드리지 않음."""
-    from vibelign.commands.export_cmd import AGENTS_MD_CONTENT
-    from vibelign.core.ai_dev_system import AI_DEV_SYSTEM_CONTENT
-
     created: List[str] = []
     skipped: List[str] = []
     for fname, content in [
@@ -54,23 +76,104 @@ def _ensure_rule_files(root: Path) -> Dict[str, List[str]]:
     return {"created": created, "skipped": skipped}
 
 
+def _build_project_map(root: Path) -> Dict[str, Any]:
+    from vibelign.core.anchor_tools import collect_anchor_index
+
+    entry_files: List[str] = []
+    ui_modules: List[str] = []
+    core_modules: List[str] = []
+    service_modules: List[str] = []
+    large_files: List[str] = []
+    file_count = 0
+    for path in iter_source_files(root):
+        rel = relpath_str(root, path)
+        file_count += 1
+        low = rel.lower()
+        lines = line_count(path)
+        if path.name in {"main.py", "app.py", "cli.py", "index.js", "main.ts"}:
+            entry_files.append(rel)
+        if any(
+            token in low
+            for token in ["ui", "view", "views", "window", "dialog", "widget", "screen"]
+        ):
+            ui_modules.append(rel)
+        if any(
+            token in low for token in ["core", "engine", "patch", "anchor", "guard"]
+        ):
+            core_modules.append(rel)
+        if any(
+            token in low
+            for token in [
+                "service", "services", "api", "client", "server",
+                "worker", "job", "task", "queue", "auth", "data",
+            ]
+        ):
+            service_modules.append(rel)
+        if lines >= LARGE_FILE_LINE_THRESHOLD:
+            large_files.append(rel)
+    anchor_index = collect_anchor_index(root)
+    return {
+        "schema_version": 2,
+        "project_name": root.name,
+        "entry_files": sorted(entry_files),
+        "ui_modules": sorted(ui_modules),
+        "core_modules": sorted(core_modules),
+        "service_modules": sorted(service_modules),
+        "large_files": sorted(large_files),
+        "file_count": file_count,
+        "anchor_index": anchor_index,
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+
+
+def _setup_project(root: Path, meta: MetaPaths) -> Dict[str, List[str]]:
+    """프로젝트 세팅: .vibelign 디렉토리, config, state, project_map, 룰 파일, .gitignore"""
+    _ensure_gitignore_entry(root)
+    rule_files = _ensure_rule_files(root)
+    created = list(rule_files["created"])
+    skipped = list(rule_files["skipped"])
+
+    meta.ensure_vibelign_dirs()
+    if not meta.config_path.exists():
+        meta.config_path.write_text(CONFIG_YAML, encoding="utf-8")
+
+    project_map = _build_project_map(root)
+    meta.project_map_path.write_text(
+        json.dumps(project_map, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+
+    if not meta.state_path.exists():
+        state = {
+            "schema_version": 1,
+            "project_initialized": True,
+            "project_map_version": 1,
+            "last_scan_at": None,
+            "last_anchor_run_at": None,
+            "last_guard_run_at": None,
+        }
+        meta.state_path.write_text(
+            json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        created.append(str(meta.vibelign_dir.relative_to(root)) + "/")
+
+    return {"created": created, "skipped": skipped}
+
+
 def run_vib_start(args: Any) -> None:
     root = Path.cwd()
     meta = MetaPaths(root)
     clack_intro("VibeLign 시작 설정")
 
-    # [1] 첫 실행이면 전체 init, 기존 프로젝트면 룰 파일만 보장
-    init_result: Optional[Dict[str, List[str]]] = None
-    if not meta.state_path.exists():
+    # [1] 프로젝트 세팅 (새 프로젝트면 전체, 기존이면 누락된 것만 보완)
+    is_new = not meta.state_path.exists()
+    if is_new:
         clack_step("처음 사용하는 프로젝트예요. 기본 설정을 준비할게요.")
-        init_result = run_vib_init(SimpleNamespace())
-    else:
-        # 기존 프로젝트라도 AI 룰 파일이 없으면 자동 생성 (state.json 등은 건드리지 않음)
-        rule_result = _ensure_rule_files(root)
-        if rule_result["created"]:
-            init_result = rule_result  # 새로 생성된 파일 있으면 출력에 표시
+    setup_result = _setup_project(root, meta)
+    setup_changed: Optional[Dict[str, List[str]]] = (
+        setup_result if (is_new or setup_result["created"]) else None
+    )
 
-    # [2] AI 도구 훅 설정 제안 (interactive → 반드시 Rich 출력 전에)
+    # [2] AI 도구 훅 설정 제안
     setup_hook_if_needed(root)
 
     # [3] 훅/git 상태 파악
@@ -79,16 +182,16 @@ def run_vib_start(args: Any) -> None:
     hook_label = {"claude": "Claude Code"}.get(tool, tool) if tool else None
     git_active = _has_git(root)
 
-    # [4] Rich 패널 출력
+    # [4] 출력
     clack_step("프로젝트 상태를 확인하는 중...")
     doctor_envelope = build_doctor_envelope(root, strict=False)
     doctor_data = doctor_envelope["data"]
 
-    if init_result is not None:
+    if setup_changed is not None:
         clack_step("초기 설정")
-        for f in init_result.get("created", []):
+        for f in setup_changed.get("created", []):
             clack_success(f"생성됨: {f}")
-        for f in init_result.get("skipped", []):
+        for f in setup_changed.get("skipped", []):
             clack_info(f"유지됨: {f}")
 
     if hook_label and hook_active:

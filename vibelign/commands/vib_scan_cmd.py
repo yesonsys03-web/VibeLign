@@ -12,7 +12,7 @@ def run_vib_scan(args: Any) -> None:
     from datetime import datetime, timezone
     from vibelign.core.anchor_tools import collect_anchor_index
     from vibelign.commands.vib_anchor_cmd import run_vib_anchor
-    from vibelign.commands.vib_init_cmd import _build_project_map
+    from vibelign.commands.vib_start_cmd import _build_project_map
 
     root = Path.cwd()
     meta = MetaPaths(root)
