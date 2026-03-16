@@ -164,7 +164,7 @@ def _render_markdown(data: Dict[str, Any]) -> str:
     lines = [
         "# VibeLign Explain Report",
         "",
-        f"감지 방식: {source_label}  |  위험 수준: {_risk_label(str(data['risk_level']))}",
+        f"위험 수준: {_risk_label(str(data['risk_level']))}  |  감지 방식: {source_label}",
         "",
         "## 1. 한 줄 요약",
         str(data["summary"]),
