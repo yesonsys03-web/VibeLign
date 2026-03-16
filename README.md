@@ -86,11 +86,12 @@ vib init → checkpoint → patch → AI edit → explain → guard → checkpoi
 | `vib history` | view all saved checkpoints |
 | `vib doctor` | analyze project structure |
 | `vib anchor` | insert safe edit anchors |
-| `vib patch` | generate safe AI patch request |
+| `vib scan` | anchor scan + project map refresh in one command |
+| `vib patch` | generate safe AI patch request (Korean supported) |
 | `vib explain` | explain recent changes |
 | `vib guard` | verify project safety |
 | `vib export` | export tool-specific helper files |
-| `vib watch` | real-time monitoring |
+| `vib watch` | real-time monitoring + auto project map refresh |
 
 ---
 
@@ -123,7 +124,9 @@ vib config
 # --- AI coding workflow ---
 vib doctor
 vib anchor
+vib scan                            # anchor + project map refresh at once
 vib patch "add progress bar"
+vib patch "로그인 버튼 추가해줘"    # Korean supported
 vib explain
 vib guard
 

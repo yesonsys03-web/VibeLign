@@ -166,10 +166,60 @@ def _check_uv() -> bool:
     return False
 
 
+def _find_source_root() -> "Path | None":
+    """vibelign 소스 루트 디렉토리를 감지합니다 (개발 환경용)."""
+    # 1) 현재 파일 기준 상위로 올라가며 pyproject.toml 탐색 (editable install)
+    import vibelign as _pkg
+    for candidate in Path(_pkg.__file__).parents:
+        if (candidate / "pyproject.toml").exists() and (candidate / "vibelign").is_dir():
+            return candidate
+    # 2) 잘 알려진 개발 경로 직접 확인
+    for known in [
+        Path.home() / "coding" / "VibeLign",
+        Path.cwd(),
+    ]:
+        if (known / "pyproject.toml").exists() and (known / "vibelign").is_dir():
+            return known
+    return None
+
+
+def _reinstall_local(source_root: Path) -> bool:
+    """네트워크 없이 소스 디렉토리에서 직접 복사해 설치합니다."""
+    import importlib
+    import vibelign as _pkg
+    dest = Path(_pkg.__file__).parent
+    src = source_root / "vibelign"
+    _step(f"로컬 소스에서 복사 중: {src} → {dest}")
+    if dest.resolve() == src.resolve():
+        _ok("이미 로컬 소스에서 실행 중이에요 (editable install)")
+        return True
+    try:
+        import shutil
+        shutil.copytree(str(src), str(dest), dirs_exist_ok=True)
+        # .pyc 캐시 무효화
+        for pyc in dest.rglob("*.pyc"):
+            pyc.unlink(missing_ok=True)
+        importlib.invalidate_caches()
+        _ok("로컬 소스 복사 완료")
+        return True
+    except Exception as e:
+        _fail(f"복사 실패: {e}")
+        return False
+
+
 def _reinstall(use_uv: bool, force: bool) -> bool:
+    # 로컬 소스가 감지되면 네트워크 없이 직접 복사
+    source_root = _find_source_root()
+    if source_root is not None:
+        _ok(f"로컬 소스 감지: {source_root}")
+        return _reinstall_local(source_root)
+
     if use_uv:
         _step("uv 캐시를 정리하는 중...")
-        subprocess.run(["uv", "cache", "clean"], capture_output=True)
+        try:
+            subprocess.run(["uv", "cache", "clean"], capture_output=True, timeout=15)
+        except subprocess.TimeoutExpired:
+            _warn("uv 캐시 정리 시간 초과 — 건너뜁니다.")
         cmd = ["uv", "tool", "install", "vibelign", "--no-cache"]
         if force:
             cmd.append("--force")
@@ -188,7 +238,12 @@ def _reinstall(use_uv: bool, force: bool) -> bool:
             cmd.append("--force-reinstall")
         _step("vibelign 재설치 중 (pip)...")
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        _fail("vibelign 재설치가 너무 오래 걸려 중단됐어요.")
+        clack_info("인터넷 연결 상태를 확인하고 다시 시도해보세요.")
+        return False
 
     if result.returncode == 0:
         combined = (result.stdout or "") + (result.stderr or "")

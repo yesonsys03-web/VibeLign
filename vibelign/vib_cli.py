@@ -14,6 +14,7 @@ from .commands.vib_init_cmd import run_vib_init_cli
 from .commands.vib_patch_cmd import run_vib_patch
 from .commands.vib_start_cmd import run_vib_start
 from .commands.vib_undo_cmd import run_vib_undo
+from .commands.vib_scan_cmd import run_vib_scan
 from vibelign.commands.ask_cmd import run_ask
 from vibelign.commands.config_cmd import run_config
 from vibelign.commands.export_cmd import run_export
@@ -57,6 +58,7 @@ VibeLign - AI한테 코딩 시켜도 안전하게 지켜주는 도구
 AI 수정 요청:
   patch       말로 요청하면 안전한 수정 계획을 만들어요
   anchor      AI가 건드려도 되는 안전 구역을 표시해요
+  scan        앵커 스캔 + 코드맵 갱신을 한 번에 해요
 
 파일 & 설정:
   protect     중요한 파일을 잠가요
@@ -353,6 +355,22 @@ def build_parser():
     )
     p.add_argument("tool", choices=["claude", "opencode", "cursor", "antigravity"], help="AI 도구 이름")
     p.set_defaults(func=run_export)
+
+    p = sub.add_parser(
+        "scan",
+        help="앵커 스캔 + 코드맵 갱신을 한 번에 해요",
+        description=(
+            "앵커 스캔, 앵커 인덱스 갱신, 코드맵 재생성을 한 번에 실행해요.\n"
+            "vib anchor 와 vib init 을 따로 실행하지 않아도 돼요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib scan          앵커 추천 + 코드맵 갱신\n"
+            "  vib scan --auto   앵커 자동 삽입 + 코드맵 갱신"
+        ),
+    )
+    p.add_argument("--auto", action="store_true", help="앵커 자동 삽입 (추천만 볼 때는 생략)")
+    p.set_defaults(func=run_vib_scan)
 
     p = sub.add_parser(
         "watch",

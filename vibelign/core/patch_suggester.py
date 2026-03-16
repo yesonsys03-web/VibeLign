@@ -198,7 +198,7 @@ def score_path(
     return score, rationale
 
 
-def choose_anchor(anchors, request_tokens):
+def choose_anchor(anchors, request_tokens, anchor_meta: Optional[dict] = None):
     if not anchors:
         return "[먼저 앵커를 추가하세요]", ["이 파일에는 아직 앵커가 없습니다"]
     best_anchor = anchors[0]
@@ -214,6 +214,23 @@ def choose_anchor(anchors, request_tokens):
                 rationale.append(f"앵커에 키워드 '{token}'이 포함됨")
         if "core" in al or "logic" in al or "worker" in al:
             score += 1
+        # intent 정보가 있으면 자연어 매칭 점수 추가
+        if anchor_meta and anchor in anchor_meta:
+            meta = anchor_meta[anchor]
+            intent = meta.get("intent", "").lower()
+            if intent:
+                intent_tokens = re.findall(r"[a-zA-Z_가-힣]+", intent)
+                for token in request_tokens:
+                    if token in intent_tokens or token in intent:
+                        score += 4
+                        rationale.append(
+                            f"앵커 의도('{intent[:30]}...')에 키워드 '{token}'이 포함됨"
+                            if len(intent) > 30
+                            else f"앵커 의도('{intent}')에 키워드 '{token}'이 포함됨"
+                        )
+            warning = meta.get("warning")
+            if warning:
+                rationale.append(f"⚠️ {warning}")
         if score > best_score:
             best_score = score
             best_anchor = anchor
@@ -273,8 +290,10 @@ def load_anchor_metadata(root: Path):
 
 
 def suggest_patch(root: Path, request: str):
+    from vibelign.core.anchor_tools import load_anchor_meta
     request_tokens = tokenize(request)
     metadata = load_anchor_metadata(root)
+    anchor_meta = load_anchor_meta(root)
     project_map, _project_map_error = load_project_map(root)
     scored = []
     for path in iter_source_files(root):
@@ -300,7 +319,7 @@ def suggest_patch(root: Path, request: str):
     scored.sort(key=lambda x: (-x[0], str(x[1])))
     best_score, best_path, reasons = scored[0]
     anchors = extract_anchors(best_path)
-    anchor, ar = choose_anchor(anchors, request_tokens)
+    anchor, ar = choose_anchor(anchors, request_tokens, anchor_meta)
     if anchor == "[먼저 앵커를 추가하세요]":
         file_meta = metadata.get(relpath_str(root, best_path), {}) if metadata else {}
         suggested = (

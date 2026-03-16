@@ -1,68 +1,62 @@
 # === ANCHOR: CODESPEAK_START ===
 import re
 from dataclasses import dataclass, asdict
+from pathlib import Path
 from typing import Optional
 
 
 ACTION_MAP = {
-    "add": ["add", "insert", "create", "append", "new", "make", "build"],
-    "remove": ["remove", "delete", "drop", "clear", "clean"],
-    "fix": ["fix", "repair", "resolve", "debug", "handle", "catch"],
-    "update": ["update", "change", "edit", "modify", "improve", "enhance", "upgrade"],
-    "split": ["split", "separate", "divide", "extract", "refactor"],
-    "apply": ["apply", "set", "enable", "activate"],
+    "add": ["add", "insert", "create", "append", "new", "make", "build",
+            "추가", "넣어", "만들어", "생성", "넣기", "추가해", "만들기"],
+    "remove": ["remove", "delete", "drop", "clear", "clean",
+               "삭제", "제거", "지워", "없애", "지우기", "삭제해"],
+    "fix": ["fix", "repair", "resolve", "debug", "handle", "catch",
+            "수정", "고쳐", "해결", "버그", "고치기", "수정해", "고쳐줘"],
+    "update": ["update", "change", "edit", "modify", "improve", "enhance", "upgrade",
+               "변경", "바꿔", "키워", "줄여", "수정해", "바꾸기", "변경해", "업데이트"],
+    "split": ["split", "separate", "divide", "extract", "refactor",
+              "분리", "나눠", "쪼개", "추출", "리팩토링"],
+    "apply": ["apply", "set", "enable", "activate",
+              "적용", "설정", "활성화", "켜줘", "적용해"],
 }
 
 LAYER_MAP = {
     "ui": [
-        "button",
-        "window",
-        "dialog",
-        "layout",
-        "sidebar",
-        "toolbar",
-        "panel",
-        "screen",
-        "render",
-        "widget",
-        "progress",
-        "menu",
+        "button", "window", "dialog", "layout", "sidebar", "toolbar",
+        "panel", "screen", "render", "widget", "progress", "menu",
+        "버튼", "화면", "창", "레이아웃", "메뉴", "패널", "툴바", "사이드바",
+        "팝업", "모달", "탭", "아이콘", "폼", "입력", "목록", "리스트",
     ],
-    "service": ["login", "auth", "register", "user", "session", "token", "password"],
-    "engine": ["patch", "anchor", "guard", "scan", "analyze", "build", "compile"],
-    "api": ["request", "fetch", "http", "endpoint", "route", "server", "response"],
+    "service": [
+        "login", "auth", "register", "user", "session", "token", "password",
+        "로그인", "인증", "회원", "비밀번호", "세션", "가입", "로그아웃",
+        "사용자", "유저", "계정", "프로필",
+    ],
+    "engine": [
+        "patch", "anchor", "guard", "scan", "analyze", "build", "compile",
+        "앵커", "패치", "스캔", "분석", "빌드", "컴파일",
+    ],
+    "api": [
+        "request", "fetch", "http", "endpoint", "route", "server", "response",
+        "요청", "서버", "엔드포인트", "라우트", "응답", "api", "호출",
+    ],
     "data": [
-        "db",
-        "database",
-        "model",
-        "schema",
-        "store",
-        "cache",
-        "json",
-        "yaml",
-        "file",
-        "save",
-        "load",
+        "db", "database", "model", "schema", "store", "cache",
+        "json", "yaml", "file", "save", "load",
+        "데이터", "데이터베이스", "모델", "저장", "불러오기", "캐시", "파일",
     ],
-    "cli": ["command", "arg", "flag", "option", "help", "output", "print"],
+    "cli": [
+        "command", "arg", "flag", "option", "help", "output", "print",
+        "명령어", "커맨드", "옵션", "출력", "도움말",
+    ],
 }
 
 STOPWORDS = {
-    "a",
-    "an",
-    "the",
-    "to",
-    "for",
-    "with",
-    "and",
-    "of",
-    "in",
-    "on",
-    "please",
-    "my",
-    "this",
-    "that",
-    "me",
+    "a", "an", "the", "to", "for", "with", "and", "of", "in", "on",
+    "please", "my", "this", "that", "me",
+    "을", "를", "이", "가", "에", "에서", "으로", "로", "와", "과",
+    "좀", "해줘", "줘", "해", "주세요", "부탁", "그", "저", "제",
+    "좀더", "더", "다시", "한번", "잠깐",
 }
 
 TARGET_HINTS = {
@@ -90,6 +84,8 @@ class CodeSpeakResult:
     confidence: str
     interpretation: str
     clarifying_questions: list[str]
+    target_file: Optional[str] = None
+    target_anchor: Optional[str] = None
 
     def to_dict(self):
         return asdict(self)
@@ -107,22 +103,36 @@ def is_valid_codespeak_v0(codespeak: str) -> bool:
 
 
 def tokenize_request(text: str) -> list[str]:
-    return re.findall(r"[a-zA-Z_]+", text.lower())
+    return re.findall(r"[a-zA-Z_가-힣]+", text.lower())
 
 
 def _infer_action(tokens: list[str]) -> tuple[str, int]:
+    # 정확 일치 우선
     for action, words in ACTION_MAP.items():
         for token in tokens:
             if token in words:
                 return action, 2
+    # 한국어 복합 동사 부분 포함 검사 (예: "추가해줘" → "추가" 포함)
+    for action, words in ACTION_MAP.items():
+        for token in tokens:
+            for word in words:
+                if len(word) >= 2 and word in token:
+                    return action, 1
     return "update", 0
 
 
 def _infer_layer(tokens: list[str]) -> tuple[str, int]:
+    # 정확 일치 우선
     for layer, words in LAYER_MAP.items():
         for token in tokens:
             if token in words:
                 return layer, 2
+    # 한국어 복합 어절 부분 포함 검사
+    for layer, words in LAYER_MAP.items():
+        for token in tokens:
+            for word in words:
+                if len(word) >= 2 and word in token:
+                    return layer, 1
     return "core", 0
 
 
@@ -151,7 +161,7 @@ def _infer_subject(tokens: list[str], layer: str, action: str) -> tuple[str, int
     return "_".join(candidates[:2]), 1
 
 
-def build_codespeak(request: str) -> CodeSpeakResult:
+def build_codespeak(request: str, root: Optional[Path] = None) -> CodeSpeakResult:
     tokens = tokenize_request(request)
     action, action_score = _infer_action(tokens)
     layer, layer_score = _infer_layer(tokens)
@@ -168,6 +178,17 @@ def build_codespeak(request: str) -> CodeSpeakResult:
     interpretation = (
         f"'{request}' 요청을 {layer} 영역의 {subject} {action} 작업으로 해석했습니다."
     )
+    target_file = None
+    target_anchor = None
+    if root is not None:
+        try:
+            from vibelign.core.patch_suggester import suggest_patch
+            suggestion = suggest_patch(root, request)
+            target_file = suggestion.target_file
+            target_anchor = suggestion.target_anchor
+        except Exception:
+            pass
+
     return CodeSpeakResult(
         codespeak=f"{layer}.{target}.{subject}.{action}",
         layer=layer,
@@ -177,6 +198,8 @@ def build_codespeak(request: str) -> CodeSpeakResult:
         confidence=confidence,
         interpretation=interpretation,
         clarifying_questions=clarifying_questions,
+        target_file=target_file,
+        target_anchor=target_anchor,
     )
 
 

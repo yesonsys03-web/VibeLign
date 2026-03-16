@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import re
 from typing import Any, Optional
 
@@ -395,6 +396,52 @@ def collect_anchor_metadata(
                 "suggested_anchors": suggested,
             }
     return metadata
+
+
+def load_anchor_meta(root: Path) -> dict[str, dict]:
+    """anchor_meta.json 로드. 없으면 빈 딕셔너리 반환."""
+    from vibelign.core.meta_paths import MetaPaths
+    meta = MetaPaths(root)
+    if not meta.anchor_meta_path.exists():
+        return {}
+    try:
+        return json.loads(meta.anchor_meta_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def save_anchor_meta(root: Path, data: dict[str, dict]) -> None:
+    """anchor_meta.json 저장."""
+    from vibelign.core.meta_paths import MetaPaths
+    meta = MetaPaths(root)
+    meta.ensure_vibelign_dir()
+    meta.anchor_meta_path.write_text(
+        json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+
+
+def set_anchor_intent(
+    root: Path,
+    anchor_name: str,
+    intent: str,
+    connects: Optional[list[str]] = None,
+    warning: Optional[str] = None,
+) -> None:
+    """특정 앵커에 의도(intent) 정보를 저장한다."""
+    data = load_anchor_meta(root)
+    entry: dict = data.get(anchor_name, {})
+    entry["intent"] = intent
+    if connects is not None:
+        entry["connects"] = connects
+    if warning is not None:
+        entry["warning"] = warning
+    data[anchor_name] = entry
+    save_anchor_meta(root, data)
+
+
+def get_anchor_intent(root: Path, anchor_name: str) -> dict:
+    """특정 앵커의 의도 정보를 반환. 없으면 빈 딕셔너리."""
+    return load_anchor_meta(root).get(anchor_name, {})
 
 
 def validate_anchor_file(path: Path) -> list[str]:

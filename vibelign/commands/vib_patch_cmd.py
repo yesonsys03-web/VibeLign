@@ -262,7 +262,7 @@ def _render_preview(target_path: Path, target_anchor: str) -> str:
 
 def _build_patch_data(root: Path, request: str) -> Dict[str, Any]:
     suggestion = suggest_patch(root, request)
-    codespeak = build_codespeak(request)
+    codespeak = build_codespeak(request, root=root)
     confidence = suggestion.confidence
     if confidence == "high" and codespeak.confidence != "high":
         confidence = codespeak.confidence
@@ -291,7 +291,7 @@ def _build_patch_data_with_options(
     root: Path, request: str, use_ai: bool, quiet_ai: bool
 ) -> Dict[str, Any]:
     suggestion = suggest_patch(root, request)
-    codespeak = build_codespeak(request)
+    codespeak = build_codespeak(request, root=root)
     if use_ai:
         ai_codespeak = importlib.import_module("vibelign.core.ai_codespeak")
         ai_explain = importlib.import_module("vibelign.core.ai_explain")
@@ -360,10 +360,12 @@ def _render_markdown(data: Dict[str, Any], preview_text: Optional[str] = None) -
     lines.extend(
         [
             f"이 요청을 이렇게 이해했어요: {patch_plan['interpretation']}",
-            f"CodeSpeak: {patch_plan['codespeak']}",
-            f"확신 정도: {patch_plan['confidence']}",
-            f"고를 파일: {patch_plan['target_file']}",
-            f"고를 안전 구역: {patch_plan['target_anchor']}",
+            "",
+            "수정 대상 요약:",
+            f"  CodeSpeak : {patch_plan['codespeak']}",
+            f"  파일      : {patch_plan['target_file']}",
+            f"  앵커      : {patch_plan['target_anchor']}",
+            f"  확신 정도 : {patch_plan['confidence']}",
             "",
             "이 계획에서 허용하는 범위:",
         ]

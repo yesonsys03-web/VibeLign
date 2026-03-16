@@ -28,6 +28,10 @@ class MetaPaths:
         return self.vibelign_dir / "anchor_index.json"
 
     @property
+    def anchor_meta_path(self) -> Path:
+        return self.vibelign_dir / "anchor_meta.json"
+
+    @property
     def checkpoints_dir(self) -> Path:
         return self.vibelign_dir / "checkpoints"
 

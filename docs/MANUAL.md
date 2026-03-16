@@ -287,6 +287,45 @@ Example anchor:
 Why this matters:
 AI can be instructed to edit only inside an anchor instead of rewriting the full file.
 
+### Anchor intent metadata
+
+You can attach intent descriptions to anchors in `.vibelign/anchor_meta.json`.
+This improves patch suggestion accuracy when using `vib patch`.
+
+Format:
+
+```json
+{
+  "LOGIN_FORM": {
+    "intent": "이메일/비밀번호 입력받아 로그인 처리",
+    "connects": ["AUTH_API"],
+    "warning": "수정 시 AUTH_API에 영향"
+  }
+}
+```
+
+This file is written programmatically via the Python API (`set_anchor_intent`) or edited manually.
+
+---
+
+## `vib scan`
+
+Runs anchor scan + anchor index update + project map refresh in a single command.
+
+```bash
+vib scan
+vib scan --auto
+```
+
+What it does:
+
+1. Runs `vib anchor --suggest` (or `--auto` if flag given)
+2. Rebuilds `.vibelign/anchor_index.json`
+3. Regenerates `.vibelign/project_map.json` with the latest anchor index
+
+Use `vib scan` instead of running `vib anchor` and `vib init` separately.
+This is the recommended way to keep the project map fresh after adding anchors.
+
 ---
 
 ## `vib patch`
@@ -294,29 +333,30 @@ AI can be instructed to edit only inside an anchor instead of rewriting the full
 Builds a safer AI prompt.
 
 ```bash
+vib patch "로그인 버튼 추가해줘"
 vib patch "add progress indicator to backup worker"
 vib patch "add progress indicator to backup worker" --json
 ```
 
 Outputs:
 
-- suggested target file
-- suggested target anchor
+- suggested target file and anchor (CodeSpeak + 앵커 위치 요약)
 - confidence
 - rationale
 
-It also writes:
+Korean requests are fully supported:
 
-```text
-VIBELIGN_PATCH_REQUEST.md
+```bash
+vib patch "로그인 버튼 크기 키워줘"
+vib patch "장바구니 삭제 버튼 추가해줘"
+vib patch "비밀번호 버그 고쳐줘"
 ```
-
-This file can be pasted directly into your AI coding tool.
 
 Notes:
 
 - files like `__init__.py`, tests, docs, and cache folders are strongly deprioritized
 - if the project has no useful source files yet, confidence becomes low
+- if anchor intent metadata exists in `.vibelign/anchor_meta.json`, it is used to improve anchor matching accuracy
 
 ---
 
@@ -450,6 +490,14 @@ Watch detects:
 - likely business logic inside entry files
 - changes to protected files
 
+**Auto project map refresh:**
+When files change, `vib watch` automatically refreshes `.vibelign/project_map.json` after a debounce period (default 800ms). The map update uses a temp-file swap to avoid partial reads. Status messages are printed:
+
+```
+⏳ 코드맵 갱신 중... (파일 3개 변경)
+✅ 파일 3개 변경 감지 → 코드맵 자동 갱신 완료
+```
+
 Log file if enabled:
 
 ```text
@@ -477,8 +525,8 @@ Best results come from these conventions:
 - `vib protect` files that must never change
 - keep entry files tiny
 - split large files before AI keeps growing them
-- add anchors before repeated edits
-- prefer patch requests over vague instructions
+- run `vib scan` after adding anchors to keep the project map fresh
+- prefer patch requests over vague instructions (Korean is supported)
 - run `vib guard` before another large AI change
 
 ---

@@ -1,6 +1,7 @@
 from importlib import import_module
 from pathlib import Path
 from typing import Optional
+import threading
 import time
 
 
@@ -70,6 +71,9 @@ def run_watch(config):
             self.debounce_ms = debounce_ms
             self.state = load_state(state_path)
             self.last_seen = {}
+            self.global_timer: Optional[threading.Timer] = None
+            self.pending_changes: list[str] = []
+            self._lock = threading.Lock()
             from vibelign.core.protected_files import get_protected
 
             self.protected = get_protected(root)
@@ -91,6 +95,82 @@ def run_watch(config):
             prev = self.last_seen.get(key, 0)
             self.last_seen[key] = now
             return (now - prev) < self.debounce_ms
+
+        def _schedule_global_update(self, rel_path: str) -> None:
+            with self._lock:
+                self.pending_changes.append(rel_path)
+                if self.global_timer is not None:
+                    self.global_timer.cancel()
+                self.global_timer = threading.Timer(
+                    self.debounce_ms / 1000.0,
+                    self._run_global_update,
+                )
+                self.global_timer.start()
+
+        def _run_global_update(self) -> None:
+            with self._lock:
+                changed = list(dict.fromkeys(self.pending_changes))
+                self.pending_changes.clear()
+                self.global_timer = None
+            if not changed:
+                return
+            self._refresh_project_map(changed)
+
+        def _refresh_project_map(self, changed: list[str]) -> None:
+            import json
+            from datetime import datetime, timezone
+            from vibelign.core.meta_paths import MetaPaths
+            from vibelign.core.anchor_tools import collect_anchor_index
+
+            meta = MetaPaths(self.root)
+            if not meta.project_map_path.exists():
+                return
+            try:
+                payload = json.loads(
+                    meta.project_map_path.read_text(encoding="utf-8")
+                )
+            except (OSError, json.JSONDecodeError):
+                return
+
+            emit(
+                {
+                    "level": "OK",
+                    "path": "",
+                    "message": f"⏳ 코드맵 갱신 중... (파일 {len(changed)}개 변경)",
+                    "why": "",
+                    "action": "",
+                },
+                json_mode=self.json_mode,
+                log_path=self.log_path,
+            )
+
+            try:
+                anchor_index = collect_anchor_index(self.root)
+                payload["anchor_index"] = anchor_index
+                payload["schema_version"] = 2
+                payload["updated_at"] = (
+                    datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                )
+                tmp_path = meta.project_map_path.with_suffix(".tmp")
+                tmp_path.write_text(
+                    json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+                    encoding="utf-8",
+                )
+                tmp_path.replace(meta.project_map_path)
+            except Exception:
+                return
+
+            emit(
+                {
+                    "level": "OK",
+                    "path": "",
+                    "message": f"✅ 파일 {len(changed)}개 변경 감지 → 코드맵 자동 갱신 완료",
+                    "why": "",
+                    "action": "",
+                },
+                json_mode=self.json_mode,
+                log_path=self.log_path,
+            )
 
         def _process(self, src_path: str):
             path = Path(src_path)
@@ -135,6 +215,7 @@ def run_watch(config):
                     emit(item, json_mode=self.json_mode, log_path=self.log_path)
             self.state[rel] = FileSnapshot(rel, new_lines, new_sha)
             save_state(self.state_path, self.state)
+            self._schedule_global_update(rel)
 
         def on_modified(self, event):
             if not event.is_directory:
@@ -162,6 +243,7 @@ def run_watch(config):
     print(f"엄격 모드: {strict}")
     print(f"JSON 모드: {json_mode}")
     print(f"로그 저장: {write_log}")
+    print("파일이 변경되면 코드맵이 자동으로 갱신됩니다. (Ctrl+C로 종료)")
 
     handler = VibeLignWatchHandler(
         root, state_path, strict, json_mode, log_path, debounce_ms

@@ -55,6 +55,8 @@ def _ensure_gitignore_entry(root: Path) -> None:
 
 
 def _build_project_map(root: Path) -> Dict[str, Any]:
+    from vibelign.core.anchor_tools import collect_anchor_index
+
     entry_files: List[str] = []
     ui_modules: List[str] = []
     core_modules: List[str] = []
@@ -96,8 +98,9 @@ def _build_project_map(root: Path) -> Dict[str, Any]:
             service_modules.append(rel)
         if lines >= LARGE_FILE_LINE_THRESHOLD:
             large_files.append(rel)
+    anchor_index = collect_anchor_index(root)
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "project_name": root.name,
         "entry_files": sorted(entry_files),
         "ui_modules": sorted(ui_modules),
@@ -105,6 +108,7 @@ def _build_project_map(root: Path) -> Dict[str, Any]:
         "service_modules": sorted(service_modules),
         "large_files": sorted(large_files),
         "file_count": file_count,
+        "anchor_index": anchor_index,
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
 

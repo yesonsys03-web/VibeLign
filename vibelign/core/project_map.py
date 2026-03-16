@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
 from vibelign.core.meta_paths import MetaPaths
 
 
-SUPPORTED_PROJECT_MAP_SCHEMA = 1
+SUPPORTED_PROJECT_MAP_SCHEMA = 2
 
 
 @dataclass(frozen=True)
@@ -22,6 +22,7 @@ class ProjectMapSnapshot:
     large_files: frozenset[str]
     file_count: int
     generated_at: Optional[str]
+    anchor_index: dict[str, list[str]] = field(default_factory=dict)
 
     def classify_path(self, rel_path: str) -> Optional[str]:
         if rel_path in self.entry_files:
@@ -59,7 +60,7 @@ def load_project_map(root: Path) -> tuple[Optional[ProjectMapSnapshot], Optional
         return None, "invalid_project_map"
 
     schema_version = payload.get("schema_version")
-    if schema_version != SUPPORTED_PROJECT_MAP_SCHEMA:
+    if schema_version not in (1, 2):
         return None, "unsupported_project_map_schema"
 
     def _values(name: str) -> frozenset[str]:
@@ -69,9 +70,15 @@ def load_project_map(root: Path) -> tuple[Optional[ProjectMapSnapshot], Optional
         return frozenset(str(item) for item in raw if isinstance(item, str))
 
     file_count = payload.get("file_count", 0)
+    raw_anchor_index = payload.get("anchor_index", {})
+    anchor_index = (
+        {k: list(v) for k, v in raw_anchor_index.items() if isinstance(v, list)}
+        if isinstance(raw_anchor_index, dict)
+        else {}
+    )
     return (
         ProjectMapSnapshot(
-            schema_version=SUPPORTED_PROJECT_MAP_SCHEMA,
+            schema_version=schema_version,
             project_name=str(payload.get("project_name", root.name)),
             entry_files=_values("entry_files"),
             ui_modules=_values("ui_modules"),
@@ -84,6 +91,7 @@ def load_project_map(root: Path) -> tuple[Optional[ProjectMapSnapshot], Optional
                 if isinstance(payload.get("generated_at"), str)
                 else None
             ),
+            anchor_index=anchor_index,
         ),
         None,
     )
