@@ -1,0 +1,15 @@
+Request: 로그인 잠금이 풀리지 않는 버그 수정 — 로그인 성공 시 login_attempts를 0으로 리셋해야 함
+
+Project files:
+- api/auth.py
+- api/users.py
+- app.py
+- config.py
+- core/database.py
+- core/validators.py
+- pages/login.py
+- pages/profile.py
+- pages/signup.py
+
+Please modify the relevant file(s) to fulfill this request.
+Do not rewrite entire files. Make the smallest change necessary.

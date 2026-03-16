@@ -121,6 +121,23 @@ def build_doctor_envelope(root: Path, strict: bool = False) -> Dict[str, Any]:
     return {"ok": True, "error": None, "data": report.to_dict()}
 
 
+def _score_grade(score: int) -> str:
+    """점수를 학점 비유로 변환."""
+    if score >= 90:
+        return "A+ 학점이에요"
+    if score >= 85:
+        return "A 학점 정도예요"
+    if score >= 80:
+        return "B+ 학점 정도예요"
+    if score >= 70:
+        return "B 학점 정도예요"
+    if score >= 60:
+        return "C 학점 정도예요"
+    if score >= 50:
+        return "D 학점 정도예요"
+    return "아직 많이 부족해요"
+
+
 def render_doctor_markdown(
     report: DoctorV2Report, detailed: bool = False, fix_hints: bool = False
 ) -> str:
@@ -131,12 +148,13 @@ def render_doctor_markdown(
         "Risky": "바로 크게 수정하기보다, 먼저 문제를 줄이는 게 좋아요.",
         "High Risk": "지금은 수정부터 하기보다, 먼저 구조 문제를 확인하는 게 좋아요.",
     }.get(report.status, "현재 상태를 먼저 확인하는 게 좋아요.")
+    grade = _score_grade(report.project_score)
     lines = [
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         "VibeLign 프로젝트 상태 보기",
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         "",
-        f"프로젝트 점수: {report.project_score} / 100",
+        f"프로젝트 점수: {report.project_score} / 100 ({grade})",
         f"현재 상태: {report.status}",
         status_line,
         f"AI 안전 구역 표시된 파일 비율: {report.anchor_coverage}%",

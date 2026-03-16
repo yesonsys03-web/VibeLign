@@ -32,6 +32,13 @@ vib explain --write-report
 vib guard --strict --write-report
 ```
 
+## Project Map
+
+Before modifying any file, read `.vibelign/project_map.json` to understand:
+- File categories (entry, ui, service, core)
+- Anchor locations per file (`anchor_index`)
+- File dependencies via `.vibelign/anchor_meta.json` (`@CONNECTS`)
+
 ## Full Rules
 
 See `AI_DEV_SYSTEM_SINGLE_FILE.md` for the complete ruleset.
@@ -51,6 +58,7 @@ _RULES = """\
 5. **진입 파일을 작게 유지하세요** — main.py, index.js 등에 비즈니스 로직을 넣지 마세요
 6. **새 파일을 임의로 생성하지 마세요** — 명시적 요청이 있을 때만 생성
 7. **임포트 구조를 바꾸지 마세요** — 명시적 허락 없이 변경 금지
+8. **코드맵을 먼저 읽으세요** — `.vibelign/project_map.json`에서 파일 구조와 앵커 위치를 확인
 """
 
 _SETUP = """\
@@ -166,6 +174,7 @@ _CURSOR_RULES = """\
 5. **진입 파일을 작게 유지하세요** — main.py, index.js 등에 비즈니스 로직을 넣지 마세요
 6. **새 파일을 임의로 생성하지 마세요** — 명시적 요청이 있을 때만 생성
 7. **임포트 구조를 바꾸지 마세요** — 명시적 허락 없이 변경 금지
+8. **코드맵을 먼저 읽으세요** — `.vibelign/project_map.json`에서 파일 구조와 앵커 위치를 확인
 """
 
 _ANTIGRAVITY_TASK = """\

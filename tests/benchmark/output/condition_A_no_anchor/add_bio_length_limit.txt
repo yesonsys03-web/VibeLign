@@ -1,0 +1,15 @@
+Request: 프로필 수정 시 bio 길이를 200자로 제한해줘
+
+Project files:
+- api/auth.py
+- api/users.py
+- app.py
+- config.py
+- core/database.py
+- core/validators.py
+- pages/login.py
+- pages/profile.py
+- pages/signup.py
+
+Please modify the relevant file(s) to fulfill this request.
+Do not rewrite entire files. Make the smallest change necessary.

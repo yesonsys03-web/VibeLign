@@ -1,0 +1,15 @@
+Request: 회원가입 시 허용된 이메일 도메인만 통과하도록 검사 추가
+
+Project files:
+- api/auth.py
+- api/users.py
+- app.py
+- config.py
+- core/database.py
+- core/validators.py
+- pages/login.py
+- pages/profile.py
+- pages/signup.py
+
+Please modify the relevant file(s) to fulfill this request.
+Do not rewrite entire files. Make the smallest change necessary.

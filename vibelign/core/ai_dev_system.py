@@ -98,6 +98,17 @@ The AI should treat them as the preferred editing boundaries.
 
 ---
 
+## 3-1. Project Map Rules
+
+If `.vibelign/project_map.json` exists:
+
+- Read it before making any changes to understand file roles and anchor locations
+- Use the `anchor_index` field to find which anchors exist in each file
+- Check `.vibelign/anchor_meta.json` for anchor intent and cross-file dependencies (`@CONNECTS`)
+- Do not modify files outside the categories relevant to the request
+
+---
+
 ## 4. Structure Safety Rules
 
 Avoid the following patterns unless explicitly required:

@@ -1,0 +1,42 @@
+[
+  {
+    "id": "change_error_msg",
+    "request": "로그인 실패 시 에러 메시지를 한국어로 바꿔줘",
+    "correct_files": ["pages/login.py"],
+    "correct_anchor": "LOGIN_HANDLE_LOGIN",
+    "forbidden_files": ["api/auth.py", "core/database.py"],
+    "description": "단일 파일, 단일 함수 내 문자열 변경"
+  },
+  {
+    "id": "add_email_domain_check",
+    "request": "회원가입 시 허용된 이메일 도메인만 통과하도록 검사 추가",
+    "correct_files": ["pages/signup.py"],
+    "correct_anchor": "SIGNUP_HANDLE_SIGNUP",
+    "forbidden_files": ["pages/login.py", "core/database.py"],
+    "description": "기존 함수에 검증 로직 추가 (validators.py의 validate_email_domain 활용)"
+  },
+  {
+    "id": "fix_login_lock_bug",
+    "request": "로그인 잠금이 풀리지 않는 버그 수정 — 로그인 성공 시 login_attempts를 0으로 리셋해야 함",
+    "correct_files": ["api/auth.py"],
+    "correct_anchor": "AUTH_LOGIN_USER",
+    "forbidden_files": ["pages/login.py", "pages/signup.py"],
+    "description": "서비스 레이어 버그 수정 (이미 구현되어 있지만 AI가 올바른 위치를 찾는지 테스트)"
+  },
+  {
+    "id": "add_bio_length_limit",
+    "request": "프로필 수정 시 bio 길이를 200자로 제한해줘",
+    "correct_files": ["pages/profile.py"],
+    "correct_anchor": "PROFILE_HANDLE_PROFILE_UPDATE",
+    "forbidden_files": ["pages/login.py", "api/auth.py"],
+    "description": "UI 레이어에 입력 검증 추가"
+  },
+  {
+    "id": "add_password_change",
+    "request": "비밀번호 변경 기능 추가 — 현재 비밀번호 확인 후 새 비밀번호로 변경",
+    "correct_files": ["api/auth.py", "pages/profile.py"],
+    "correct_anchor": null,
+    "forbidden_files": ["pages/login.py", "pages/signup.py"],
+    "description": "다중 파일 수정이 필요한 새 기능 추가"
+  }
+]

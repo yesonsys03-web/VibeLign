@@ -18,6 +18,7 @@ from vibelign.commands.ask_cmd import run_ask
 from vibelign.commands.config_cmd import run_config
 from vibelign.commands.export_cmd import run_export
 from vibelign.commands.protect_cmd import run_protect
+from vibelign.commands.vib_bench_cmd import run_vib_bench
 from vibelign.commands.watch_cmd import run_watch_cmd
 from vibelign.terminal_render import print_cli_help
 
@@ -141,6 +142,8 @@ def build_parser():
             '  vib init'
         ),
     )
+    p.add_argument("--quickstart", action="store_true",
+                   help="start + anchor를 한 번에 실행해요")
     p.add_argument("message", nargs="*", help="저장할 메시지 (안 써도 돼요)")
     p.set_defaults(func=run_vib_start)
 
@@ -247,13 +250,15 @@ def build_parser():
             "이렇게 쓰세요:\n"
             "  vib doctor             기본 점검\n"
             "  vib doctor --strict    꼼꼼하게 점검\n"
-            "  vib doctor --detailed  자세한 설명 포함"
+            "  vib doctor --detailed  자세한 설명 포함\n"
+            "  vib doctor --fix       앵커 없는 파일에 자동으로 앵커 추가"
         ),
     )
     p.add_argument("--json", action="store_true", help="JSON으로 출력")
     p.add_argument("--strict", action="store_true", help="더 꼼꼼하게 점검")
     p.add_argument("--detailed", action="store_true", help="문제마다 자세한 설명")
     p.add_argument("--fix-hints", action="store_true", help="고치는 방법 힌트")
+    p.add_argument("--fix", action="store_true", help="앵커 없는 파일에 자동으로 앵커 추가")
     p.add_argument("--write-report", action="store_true", help="결과를 파일로 저장")
     p.set_defaults(func=run_vib_doctor)
 
@@ -298,6 +303,7 @@ def build_parser():
     p.add_argument("--json", action="store_true", help="JSON으로 출력")
     p.add_argument("--preview", action="store_true", help="수정 미리 보기")
     p.add_argument("--write-report", action="store_true", help="결과를 파일로 저장")
+    p.add_argument("--copy", action="store_true", help="AI 전달용 프롬프트를 클립보드에 복사")
     p.set_defaults(func=run_vib_patch)
 
     p = sub.add_parser(
@@ -393,11 +399,195 @@ def build_parser():
     p.add_argument("--debounce-ms", type=int, default=800, help="감시 간격 (밀리초, 기본: 800)")
     p.set_defaults(func=run_watch_cmd)
 
+    # ── 벤치마크 ──
+    p = sub.add_parser(
+        "bench",
+        help="앵커 효과 검증 벤치마크",
+        description=(
+            "앵커가 AI 코드 수정 정확도를 높이는지 검증하는 벤치마크 도구예요.\n"
+            "A(앵커 없음) vs B(앵커 있음) 조건으로 프롬프트를 생성하고,\n"
+            "AI 수정 결과를 채점할 수 있어요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib bench --generate    A/B 프롬프트 생성\n"
+            "  vib bench --score       AI 수정 결과 채점\n"
+            "  vib bench --report      마크다운 리포트 생성"
+        ),
+    )
+    p.add_argument("--generate", action="store_true", help="A/B 조건별 프롬프트 생성")
+    p.add_argument("--score", action="store_true", help="AI 수정 결과 채점")
+    p.add_argument("--report", action="store_true", help="마크다운 비교 리포트 생성")
+    p.add_argument("--json", action="store_true", help="JSON으로 출력")
+    p.set_defaults(func=run_vib_bench)
+
+    # ── 쉘 자동완성 ──
+    p = sub.add_parser(
+        "completion",
+        help="탭 자동완성 설정 (zsh/bash)",
+        description=(
+            "vib 명령어의 탭 자동완성을 설정해요.\n"
+            "한 번만 설정하면 vib + 탭키로 명령어가 자동 완성돼요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib completion            설정 방법 안내\n"
+            "  vib completion --install  자동으로 설정 (zsh만 지원)"
+        ),
+    )
+    p.add_argument("--install", action="store_true", help="자동으로 쉘 프로파일에 설정")
+    p.set_defaults(func=lambda args: _run_completion(args, parser))
+
     return parser
 
 
+def _generate_completion_script(parser) -> str:
+    """parser에서 서브커맨드와 옵션을 추출하여 zsh/bash 자동완성 스크립트 생성."""
+    subparsers_action = None
+    for action in parser._subparsers._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            subparsers_action = action
+            break
+
+    commands = []
+    cmd_opts = {}
+    if subparsers_action:
+        for cmd_name, cmd_parser in subparsers_action.choices.items():
+            commands.append(cmd_name)
+            opts = []
+            for act in cmd_parser._actions:
+                for opt in act.option_strings:
+                    if opt.startswith("--"):
+                        opts.append(opt)
+            cmd_opts[cmd_name] = " ".join(opts)
+
+    cmds_str = " ".join(commands)
+
+    # zsh completion function
+    case_lines = []
+    for cmd in commands:
+        if cmd_opts[cmd]:
+            case_lines.append(f'        {cmd}) opts="{cmd_opts[cmd]}" ;;')
+        else:
+            case_lines.append(f'        {cmd}) opts="" ;;')
+    case_block = "\n".join(case_lines)
+
+    return f'''# VibeLign (vib) 쉘 자동완성
+# 이 스크립트는 vib completion 으로 자동 생성되었습니다.
+
+if [ -n "${{ZSH_VERSION:-}}" ]; then
+    # ── zsh ──
+    autoload -Uz compinit 2>/dev/null
+    if ! type compdef &>/dev/null; then
+        compinit -i 2>/dev/null
+    fi
+    _vib_zsh() {{
+        local -a commands
+        commands=({cmds_str})
+
+        if (( CURRENT == 2 )); then
+            compadd -a commands
+            return
+        fi
+
+        local opts
+        case "${{words[2]}}" in
+{case_block}
+            *) opts="" ;;
+        esac
+
+        compadd -- ${{(s: :)opts}}
+    }}
+    compdef _vib_zsh vib
+else
+    # ── bash ──
+    _vib_completions() {{
+        local cur prev commands opts
+        COMPREPLY=()
+        cur="${{COMP_WORDS[COMP_CWORD]}}"
+        prev="${{COMP_WORDS[COMP_CWORD-1]}}"
+        commands="{cmds_str}"
+
+        if [[ ${{COMP_CWORD}} -eq 1 ]]; then
+            COMPREPLY=( $(compgen -W "${{commands}}" -- "${{cur}}") )
+            return 0
+        fi
+
+        case "${{COMP_WORDS[1]}}" in
+{case_block}
+            *) opts="" ;;
+        esac
+
+        COMPREPLY=( $(compgen -W "${{opts}}" -- "${{cur}}") )
+        return 0
+    }}
+    complete -F _vib_completions vib
+fi
+'''
+
+
+def _run_completion(args, parser):
+    """쉘 자동완성 설정."""
+    import os
+    from vibelign.terminal_render import clack_info, clack_intro, clack_outro, clack_success, clack_warn
+
+    script = _generate_completion_script(parser)
+
+    if getattr(args, "install", False):
+        shell = os.environ.get("SHELL", "")
+        if "zsh" in shell:
+            profile = os.path.expanduser("~/.zshrc")
+        elif "bash" in shell:
+            profile = os.path.expanduser("~/.bashrc")
+            if not os.path.exists(profile):
+                profile = os.path.expanduser("~/.bash_profile")
+        else:
+            clack_warn("지원하지 않는 쉘이에요. 아래 스크립트를 직접 추가해주세요.")
+            print(script)
+            return
+
+        comp_dir = os.path.expanduser("~/.vibelign")
+        os.makedirs(comp_dir, exist_ok=True)
+        comp_file = os.path.join(comp_dir, "completion.sh")
+
+        with open(comp_file, "w", encoding="utf-8") as f:
+            f.write(script)
+
+        source_line = f'[ -f "{comp_file}" ] && source "{comp_file}"'
+
+        # 이미 추가되어 있는지 확인
+        profile_text = ""
+        if os.path.exists(profile):
+            profile_text = open(profile, encoding="utf-8", errors="ignore").read()
+
+        if comp_file in profile_text:
+            clack_success("자동완성 스크립트를 갱신했어요! 새 터미널을 열면 적용돼요.")
+        else:
+            with open(profile, "a", encoding="utf-8") as f:
+                f.write(f"\n# VibeLign 탭 자동완성\n{source_line}\n")
+            clack_success(f"자동완성 설정 완료! ({profile}에 추가)")
+            clack_info("새 터미널을 열면 vib + 탭키로 명령어가 자동 완성돼요.")
+            clack_info(f"지금 바로 쓰려면: source {profile}")
+        return
+
+    clack_intro("VibeLign 탭 자동완성 설정")
+    clack_info("방법 1 (자동 설정, 추천):")
+    clack_info("  vib completion --install")
+    clack_info("")
+    clack_info("방법 2 (수동 설정):")
+    clack_info("  아래 명령어를 ~/.zshrc 또는 ~/.bashrc 에 추가하세요:")
+    clack_info('  eval "$(vib completion)"')
+    clack_outro("설정 후 새 터미널을 열면 vib + 탭키가 작동해요!")
+
+
 def main():
-    args = build_parser().parse_args()
+    parser = build_parser()
+    # eval "$(vib completion)" 지원: stdout이 파이프면 스크립트 직접 출력
+    if len(sys.argv) == 2 and sys.argv[1] == "completion" and not sys.stdout.isatty():
+        print(_generate_completion_script(parser))
+        return
+
+    args = parser.parse_args()
     args.func(args)
 
 

@@ -12,6 +12,20 @@ from vibelign.terminal_render import print_attempted_providers, print_provider_s
 from vibelign.terminal_render import cli_print
 print = cli_print
 
+
+def _friendly_error(provider: str, exc: Exception) -> str:
+    """AI API 에러를 코알못이 이해할 수 있는 메시지로 변환."""
+    msg = str(exc)
+    if "401" in msg or "403" in msg or "Unauthorized" in msg:
+        return f"{provider} API 키가 맞지 않아요. vib config 에서 키를 다시 확인해보세요."
+    if "429" in msg or "rate" in msg.lower():
+        return f"{provider} AI가 지금 너무 바빠서 응답하지 못했어요. 잠시 후 다시 시도하세요."
+    if "timeout" in msg.lower() or "timed out" in msg.lower():
+        return f"{provider} AI가 응답하는 데 너무 오래 걸렸어요. 인터넷 연결을 확인하고 다시 시도하세요."
+    if "connection" in msg.lower() or "network" in msg.lower() or "urlopen" in msg.lower():
+        return f"{provider} AI에 연결할 수 없어요. 인터넷 연결을 확인해보세요."
+    return f"{provider} AI 호출에 문제가 생겼어요. (기술 코드: {msg})"
+
 def has_ai_provider() -> bool:
     return any(
         os.environ.get(key)
@@ -124,7 +138,7 @@ def _try_anthropic(
         )
     except Exception as exc:
         if not quiet:
-            print(f"Anthropic API 호출 실패: {exc}\n")
+            print(_friendly_error("Anthropic", exc) + "\n")
         return None
 
 
@@ -144,7 +158,7 @@ def _try_openai(
         )
     except Exception as exc:
         if not quiet:
-            print(f"OpenAI API 호출 실패: {exc}\n")
+            print(_friendly_error("OpenAI", exc) + "\n")
         return None
 
 
@@ -193,7 +207,7 @@ def _try_glm(prompt: str, attempted: List[str], quiet: bool = False) -> Optional
         )
     except Exception as exc:
         if not quiet:
-            print(f"GLM API 호출 실패: {exc}\n")
+            print(_friendly_error("GLM", exc) + "\n")
         return None
 
 
@@ -211,7 +225,7 @@ def _try_kimi(prompt: str, attempted: List[str], quiet: bool = False) -> Optiona
         )
     except Exception as exc:
         if not quiet:
-            print(f"Kimi API 호출 실패: {exc}\n")
+            print(_friendly_error("Kimi", exc) + "\n")
         return None
 
 

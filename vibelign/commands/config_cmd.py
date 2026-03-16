@@ -192,6 +192,14 @@ def _select_gemini_model(api_key: Optional[str], current_model: str) -> Optional
 def run_config(args):
     clack_intro("VibeLign API 키 설정")
 
+    # 무료 API 안내
+    if not any(os.environ.get(p["key_name"]) for p in _PROVIDERS):
+        clack_info("AI 기능을 쓰려면 API 키가 하나 이상 필요해요.")
+        clack_info("무료로 시작하려면 Google AI Studio에서 Gemini 키를 받으세요:")
+        clack_info("  https://aistudio.google.com/apikey")
+        clack_info("  (Google 계정만 있으면 무료로 바로 발급돼요)")
+        print()
+
     # 현재 상태 표시
     clack_step("현재 상태")
     for p in _PROVIDERS:

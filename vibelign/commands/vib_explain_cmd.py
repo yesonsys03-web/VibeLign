@@ -240,6 +240,10 @@ def run_vib_explain(args: Any) -> None:
                 text = None
         else:
             text = None
+            print("AI API 키가 설정되어 있지 않아서 기본 설명을 보여드릴게요.")
+            print("더 자세한 설명을 원하시면 vib config 에서 AI API를 설정하세요.")
+            print("  (Google Gemini는 무료 키를 바로 받을 수 있어요)")
+            print()
         if text:
             print_ai_response(text)
             if args.write_report:

@@ -16,6 +16,35 @@ from vibelign.terminal_render import print_ai_response
 print = cli_print
 
 
+def _copy_to_clipboard(text: str) -> None:
+    """텍스트를 시스템 클립보드에 복사."""
+    import subprocess
+    import sys
+
+    try:
+        if sys.platform == "darwin":
+            proc = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
+            proc.communicate(text.encode("utf-8"))
+        elif sys.platform.startswith("linux"):
+            proc = subprocess.Popen(
+                ["xclip", "-selection", "clipboard"], stdin=subprocess.PIPE
+            )
+            proc.communicate(text.encode("utf-8"))
+        elif sys.platform == "win32":
+            proc = subprocess.Popen(["clip"], stdin=subprocess.PIPE)
+            proc.communicate(text.encode("utf-16le"))
+        else:
+            from vibelign.terminal_render import clack_warn
+            clack_warn("이 OS에서는 클립보드 복사를 지원하지 않아요.")
+            return
+
+        from vibelign.terminal_render import clack_success
+        clack_success("AI 전달용 프롬프트가 클립보드에 복사되었어요! 바로 붙여넣기하세요.")
+    except FileNotFoundError:
+        from vibelign.terminal_render import clack_warn
+        clack_warn("클립보드 도구를 찾을 수 없어요. (macOS: pbcopy, Linux: xclip)")
+
+
 def _allowed_ops_for_action(action: str) -> list[str]:
     return {
         "add": ["insert_after", "insert_before"],
@@ -121,15 +150,48 @@ def _augment_clarifying_questions(
 def _build_ready_handoff(
     contract: Dict[str, Any], patch_plan: Dict[str, Any]
 ) -> Dict[str, Any]:
+    root = Path.cwd()
+    meta = MetaPaths(root)
+
     prompt_lines = [
         "You are applying a VibeLign patch contract.",
+        "",
+        "Before making any changes:",
+        "1. Read .vibelign/project_map.json to understand the project structure",
+        "2. Check the anchor list for the target file",
+        "3. Only modify code within the specified anchor boundaries",
+        "4. Check @CONNECTS in .vibelign/anchor_meta.json to avoid breaking related features",
+        "",
+    ]
+
+    # 앵커 메타 정보가 있으면 target_anchor의 intent/connects 포함
+    anchor_name = str(patch_plan.get("target_anchor", ""))
+    if anchor_name and anchor_name != "N/A":
+        anchor_meta_path = meta.vibelign_dir / "anchor_meta.json"
+        if anchor_meta_path.exists():
+            try:
+                anchor_meta = json.loads(anchor_meta_path.read_text(encoding="utf-8"))
+                meta_entry = anchor_meta.get(anchor_name, {})
+                if meta_entry.get("intent"):
+                    prompt_lines.append(f"Anchor intent: {meta_entry['intent']}")
+                if meta_entry.get("connects"):
+                    prompt_lines.append(
+                        f"Connected anchors (may be affected): {', '.join(meta_entry['connects'])}"
+                    )
+                if meta_entry.get("warning"):
+                    prompt_lines.append(f"Warning: {meta_entry['warning']}")
+                prompt_lines.append("")
+            except (json.JSONDecodeError, OSError):
+                pass
+
+    prompt_lines.extend([
         f"Intent: {contract['intent']}",
         f"CodeSpeak: {patch_plan['codespeak']}",
         f"Allowed files: {', '.join(contract['scope']['allowed_files'])}",
         f"Target anchor: {patch_plan['target_anchor']}",
         f"Allowed operations: {', '.join(contract['allowed_ops'])}",
         "Preconditions:",
-    ]
+    ])
     prompt_lines.extend(f"- {item}" for item in contract["preconditions"])
     prompt_lines.extend(
         [
@@ -447,6 +509,15 @@ def run_vib_patch(args: Any) -> None:
     if args.write_report:
         meta.ensure_vibelign_dirs()
         _ = meta.report_path("patch", "md").write_text(markdown, encoding="utf-8")
+
+    # --copy: handoff 프롬프트를 클립보드에 복사
+    if getattr(args, "copy", False):
+        handoff = data.get("handoff")
+        if handoff and handoff.get("prompt"):
+            _copy_to_clipboard(str(handoff["prompt"]))
+        else:
+            from vibelign.terminal_render import clack_warn
+            clack_warn("아직 AI에게 전달할 프롬프트가 없어요. 요청을 더 구체적으로 써주세요.")
 
 
 # === ANCHOR: VIB_PATCH_CMD_END ===

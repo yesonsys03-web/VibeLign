@@ -1,0 +1,30 @@
+Request: 로그인 잠금이 풀리지 않는 버그 수정 — 로그인 성공 시 login_attempts를 0으로 리셋해야 함
+
+Before making any changes:
+1. Read the project map below to understand the project structure
+2. Check the anchor list for the target file
+3. Only modify code within the specified anchor boundaries
+
+## Project Structure
+Entry files: app.py
+Service modules: api/auth.py, api/users.py, core/database.py
+Core modules: core/database.py, core/validators.py
+
+## Anchor Index
+- api/auth.py: AUTH, AUTH__HASH_PASSWORD, AUTH__GENERATE_TOKEN, AUTH_LOGIN_USER, AUTH_REGISTER_USER
+- api/users.py: USERS, USERS_GET_USER_PROFILE, USERS_UPDATE_USER_PROFILE
+- app.py: APP, APP_MAIN
+- config.py: CONFIG
+- core/database.py: DATABASE, DATABASE_INIT_DB, DATABASE_CREATE_USER, DATABASE_FIND_USER_BY_EMAIL, DATABASE_FIND_USER_BY_ID, DATABASE_UPDATE_USER, DATABASE_UPDATE_LOGIN_ATTEMPTS
+- core/validators.py: VALIDATORS, VALIDATORS_VALIDATE_EMAIL, VALIDATORS_VALIDATE_EMAIL_DOMAIN, VALIDATORS_VALIDATE_PASSWORD
+- pages/login.py: LOGIN, LOGIN_RENDER_LOGIN_FORM, LOGIN_HANDLE_LOGIN, LOGIN_RENDER_LOGIN_ERROR
+- pages/profile.py: PROFILE, PROFILE_RENDER_PROFILE, PROFILE_HANDLE_PROFILE_UPDATE
+- pages/signup.py: SIGNUP, SIGNUP_RENDER_SIGNUP_FORM, SIGNUP_HANDLE_SIGNUP
+
+## Rules
+- Only modify files relevant to the request
+- Stay within anchor boundaries
+- Do not rewrite entire files
+- Do not remove ANCHOR markers
+
+Please modify the relevant file(s) to fulfill this request.
