@@ -424,15 +424,17 @@ def build_parser():
     # ── 쉘 자동완성 ──
     p = sub.add_parser(
         "completion",
-        help="탭 자동완성 설정 (zsh/bash)",
+        help="탭 자동완성 설정 (zsh/bash/PowerShell)",
         description=(
             "vib 명령어의 탭 자동완성을 설정해요.\n"
-            "한 번만 설정하면 vib + 탭키로 명령어가 자동 완성돼요."
+            "한 번만 설정하면 vib + 탭키로 명령어가 자동 완성돼요.\n"
+            "macOS/Linux: zsh, bash 지원\n"
+            "Windows: PowerShell 지원"
         ),
         epilog=(
             "이렇게 쓰세요:\n"
             "  vib completion            설정 방법 안내\n"
-            "  vib completion --install  자동으로 설정 (zsh만 지원)"
+            "  vib completion --install  자동으로 설정 (zsh/bash/PowerShell 자동 감지)"
         ),
     )
     p.add_argument("--install", action="store_true", help="자동으로 쉘 프로파일에 설정")
@@ -441,8 +443,8 @@ def build_parser():
     return parser
 
 
-def _generate_completion_script(parser) -> str:
-    """parser에서 서브커맨드와 옵션을 추출하여 zsh/bash 자동완성 스크립트 생성."""
+def _parse_commands(parser):
+    """parser에서 서브커맨드 목록과 옵션 맵 추출."""
     subparsers_action = None
     for action in parser._subparsers._actions:
         if isinstance(action, argparse._SubParsersAction):
@@ -459,17 +461,19 @@ def _generate_completion_script(parser) -> str:
                 for opt in act.option_strings:
                     if opt.startswith("--"):
                         opts.append(opt)
-            cmd_opts[cmd_name] = " ".join(opts)
+            cmd_opts[cmd_name] = opts
+    return commands, cmd_opts
 
+
+def _generate_completion_script(parser) -> str:
+    """zsh/bash 자동완성 스크립트 생성 (eval "$(vib completion)" 용)."""
+    commands, cmd_opts = _parse_commands(parser)
     cmds_str = " ".join(commands)
 
-    # zsh completion function
     case_lines = []
     for cmd in commands:
-        if cmd_opts[cmd]:
-            case_lines.append(f'        {cmd}) opts="{cmd_opts[cmd]}" ;;')
-        else:
-            case_lines.append(f'        {cmd}) opts="" ;;')
+        opts_str = " ".join(cmd_opts[cmd])
+        case_lines.append(f'        {cmd}) opts="{opts_str}" ;;')
     case_block = "\n".join(case_lines)
 
     return f'''# VibeLign (vib) 쉘 자동완성
@@ -526,58 +530,152 @@ fi
 '''
 
 
+def _generate_powershell_script(parser) -> str:
+    """PowerShell 자동완성 스크립트 생성."""
+    commands, cmd_opts = _parse_commands(parser)
+
+    cmds_ps = ", ".join(f"'{c}'" for c in commands)
+
+    opts_lines = []
+    for cmd in commands:
+        if cmd_opts[cmd]:
+            opts_ps = ", ".join(f"'{o}'" for o in cmd_opts[cmd])
+            opts_lines.append(f"    '{cmd}' = @({opts_ps})")
+        else:
+            opts_lines.append(f"    '{cmd}' = @()")
+    opts_block = "\n".join(opts_lines)
+
+    return f"""# VibeLign (vib) PowerShell 탭 자동완성
+# 이 스크립트는 vib completion --install 로 자동 추가되었습니다.
+
+Register-ArgumentCompleter -Native -CommandName vib -ScriptBlock {{
+    param($wordToComplete, $commandAst, $cursorPosition)
+
+    $commands = @({cmds_ps})
+    $cmdOpts = @{{
+{opts_block}
+    }}
+
+    $words = $commandAst.CommandElements
+    if ($words.Count -le 2) {{
+        $commands | Where-Object {{ $_ -like "$wordToComplete*" }} |
+            ForEach-Object {{
+                [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+            }}
+    }} else {{
+        $cmd = $words[1].Value
+        if ($cmdOpts.ContainsKey($cmd)) {{
+            $cmdOpts[$cmd] | Where-Object {{ $_ -like "$wordToComplete*" }} |
+                ForEach-Object {{
+                    [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+                }}
+        }}
+    }}
+}}
+"""
+
+
 def _run_completion(args, parser):
     """쉘 자동완성 설정."""
     import os
+    import sys
     from vibelign.terminal_render import clack_info, clack_intro, clack_outro, clack_success, clack_warn
 
-    script = _generate_completion_script(parser)
+    is_windows = sys.platform == "win32"
 
     if getattr(args, "install", False):
-        shell = os.environ.get("SHELL", "")
-        if "zsh" in shell:
-            profile = os.path.expanduser("~/.zshrc")
-        elif "bash" in shell:
-            profile = os.path.expanduser("~/.bashrc")
-            if not os.path.exists(profile):
-                profile = os.path.expanduser("~/.bash_profile")
+        if is_windows:
+            _install_completion_powershell(parser, clack_info, clack_success, clack_warn)
         else:
-            clack_warn("지원하지 않는 쉘이에요. 아래 스크립트를 직접 추가해주세요.")
-            print(script)
-            return
-
-        comp_dir = os.path.expanduser("~/.vibelign")
-        os.makedirs(comp_dir, exist_ok=True)
-        comp_file = os.path.join(comp_dir, "completion.sh")
-
-        with open(comp_file, "w", encoding="utf-8") as f:
-            f.write(script)
-
-        source_line = f'[ -f "{comp_file}" ] && source "{comp_file}"'
-
-        # 이미 추가되어 있는지 확인
-        profile_text = ""
-        if os.path.exists(profile):
-            profile_text = open(profile, encoding="utf-8", errors="ignore").read()
-
-        if comp_file in profile_text:
-            clack_success("자동완성 스크립트를 갱신했어요! 새 터미널을 열면 적용돼요.")
-        else:
-            with open(profile, "a", encoding="utf-8") as f:
-                f.write(f"\n# VibeLign 탭 자동완성\n{source_line}\n")
-            clack_success(f"자동완성 설정 완료! ({profile}에 추가)")
-            clack_info("새 터미널을 열면 vib + 탭키로 명령어가 자동 완성돼요.")
-            clack_info(f"지금 바로 쓰려면: source {profile}")
+            _install_completion_posix(parser, clack_info, clack_success, clack_warn)
         return
 
     clack_intro("VibeLign 탭 자동완성 설정")
     clack_info("방법 1 (자동 설정, 추천):")
     clack_info("  vib completion --install")
     clack_info("")
-    clack_info("방법 2 (수동 설정):")
-    clack_info("  아래 명령어를 ~/.zshrc 또는 ~/.bashrc 에 추가하세요:")
-    clack_info('  eval "$(vib completion)"')
+    if is_windows:
+        clack_info("방법 2 (수동 설정 - PowerShell):")
+        clack_info("  $PROFILE 파일에 아래를 추가하세요:")
+        clack_info("  Invoke-Expression (vib completion)")
+    else:
+        clack_info("방법 2 (수동 설정 - zsh/bash):")
+        clack_info("  아래 명령어를 ~/.zshrc 또는 ~/.bashrc 에 추가하세요:")
+        clack_info('  eval "$(vib completion)"')
     clack_outro("설정 후 새 터미널을 열면 vib + 탭키가 작동해요!")
+
+
+def _install_completion_posix(parser, clack_info, clack_success, clack_warn):
+    """macOS/Linux: zsh/bash 프로파일에 자동완성 스크립트 추가."""
+    import os
+
+    script = _generate_completion_script(parser)
+    shell = os.environ.get("SHELL", "")
+
+    if "zsh" in shell:
+        profile = os.path.expanduser("~/.zshrc")
+    elif "bash" in shell:
+        profile = os.path.expanduser("~/.bashrc")
+        if not os.path.exists(profile):
+            profile = os.path.expanduser("~/.bash_profile")
+    else:
+        clack_warn("지원하지 않는 쉘이에요. 아래 스크립트를 직접 추가해주세요.")
+        print(script)
+        return
+
+    comp_dir = os.path.expanduser("~/.vibelign")
+    os.makedirs(comp_dir, exist_ok=True)
+    comp_file = os.path.join(comp_dir, "completion.sh")
+
+    with open(comp_file, "w", encoding="utf-8") as f:
+        f.write(script)
+
+    source_line = f'[ -f "{comp_file}" ] && source "{comp_file}"'
+
+    profile_text = ""
+    if os.path.exists(profile):
+        profile_text = open(profile, encoding="utf-8", errors="ignore").read()
+
+    if comp_file in profile_text:
+        clack_success("자동완성 스크립트를 갱신했어요! 새 터미널을 열면 적용돼요.")
+    else:
+        with open(profile, "a", encoding="utf-8") as f:
+            f.write(f"\n# VibeLign 탭 자동완성\n{source_line}\n")
+        clack_success(f"자동완성 설정 완료! ({profile}에 추가)")
+        clack_info("새 터미널을 열면 vib + 탭키로 명령어가 자동 완성돼요.")
+        clack_info(f"지금 바로 쓰려면: source {profile}")
+
+
+def _install_completion_powershell(parser, clack_info, clack_success, clack_warn):
+    """Windows: PowerShell 프로파일에 자동완성 스크립트 추가."""
+    import os
+    from pathlib import Path
+
+    script = _generate_powershell_script(parser)
+
+    comp_dir = Path.home() / ".vibelign"
+    comp_dir.mkdir(exist_ok=True)
+    comp_file = comp_dir / "completion.ps1"
+    comp_file.write_text(script, encoding="utf-8")
+
+    # PowerShell 프로파일 경로 (PS 7+ 우선, 없으면 PS 5)
+    ps7_profile = Path.home() / "Documents" / "PowerShell" / "Microsoft.PowerShell_profile.ps1"
+    ps5_profile = Path.home() / "Documents" / "WindowsPowerShell" / "Microsoft.PowerShell_profile.ps1"
+    profile = ps7_profile if ps7_profile.parent.exists() else ps5_profile
+
+    profile.parent.mkdir(parents=True, exist_ok=True)
+
+    source_line = f'. "{comp_file}"'
+    profile_text = profile.read_text(encoding="utf-8", errors="ignore") if profile.exists() else ""
+
+    if str(comp_file) in profile_text:
+        clack_success("자동완성 스크립트를 갱신했어요! 새 PowerShell 창을 열면 적용돼요.")
+    else:
+        with open(profile, "a", encoding="utf-8") as f:
+            f.write(f"\n# VibeLign 탭 자동완성\n{source_line}\n")
+        clack_success(f"자동완성 설정 완료! ({profile}에 추가)")
+        clack_info("새 PowerShell 창을 열면 vib + 탭키로 명령어가 자동 완성돼요.")
+        clack_info(f"지금 바로 쓰려면: . {profile}")
 
 
 def main():

@@ -336,6 +336,9 @@ def run_vib_start(args: Any) -> None:
         clack_info("")
         clack_info('언제든 vib doctor 로 프로젝트 상태를 확인할 수 있어요')
         clack_info('vib checkpoint "설명" 으로 현재 상태를 저장할 수 있어요 (게임 세이브)')
+        clack_info("")
+        clack_info("💡 탭키로 명령어 자동완성을 쓰고 싶다면:")
+        clack_info("   vib completion --install")
         clack_outro("준비 완료! 위 단계를 따라해 보세요")
     else:
         next_step = _next_step(doctor_data)
