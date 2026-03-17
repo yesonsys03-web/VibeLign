@@ -13,8 +13,8 @@ from pathlib import Path
 
 _ANCHOR_RE = re.compile(r"ANCHOR:\s*([A-Z0-9_]+)")
 
-# 모듈 로드 시 한 번만 체크
-_FD: str | None = shutil.which("fd")
+# 모듈 로드 시 한 번만 체크 (Ubuntu는 fd 대신 fdfind 로 설치됨)
+_FD: str | None = shutil.which("fd") or shutil.which("fdfind")
 _RG: str | None = shutil.which("rg")
 
 _FD_EXCLUDES = [
