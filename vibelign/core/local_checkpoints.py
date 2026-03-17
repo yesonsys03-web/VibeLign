@@ -240,6 +240,26 @@ def _manifest_file_map(manifest: Dict[str, object]) -> Dict[str, Dict[str, objec
 # === ANCHOR: LOCAL_CHECKPOINTS__MANIFEST_FILE_MAP_END ===
 
 
+def _extract_tag(message: str) -> str:
+    """메시지에서 태그를 추출 (파일시스템 안전 문자만 허용, 최대 30자)."""
+    import re as _re
+    # "vibelign: checkpoint - 로그인 완성 (2026-03-17 22:58)" → "로그인 완성"
+    msg = message
+    for prefix in ("vibelign: checkpoint - ", "vibelign: checkpoint"):
+        if msg.startswith(prefix):
+            msg = msg[len(prefix):]
+            break
+    # 날짜 접미어 제거
+    msg = _re.sub(r"\s*\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)\s*$", "", msg).strip()
+    if not msg:
+        return ""
+    # 파일시스템 안전 문자만 유지 (한글, 영숫자, 하이픈, 언더스코어)
+    tag = _re.sub(r"[^\w가-힣-]", "_", msg)
+    # 연속 언더스코어 정리
+    tag = _re.sub(r"_+", "_", tag).strip("_")
+    return tag[:30]
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS_CREATE_CHECKPOINT_START ===
 def create_checkpoint(root: Path, message: str) -> Optional[CheckpointSummary]:
     meta = MetaPaths(root)
@@ -251,7 +271,9 @@ def create_checkpoint(root: Path, message: str) -> Optional[CheckpointSummary]:
         latest_files = _manifest_file_map(latest)
     if current_files == latest_files:
         return None
-    checkpoint_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    tag = _extract_tag(message)
+    checkpoint_id = f"{ts}_{tag}" if tag else ts
     snapshot_dir = meta.checkpoints_dir / checkpoint_id
     files_dir = _files_dir(snapshot_dir)
     files_dir.mkdir(parents=True, exist_ok=True)
