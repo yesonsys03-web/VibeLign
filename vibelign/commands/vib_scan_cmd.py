@@ -78,8 +78,11 @@ def run_vib_scan(args: Any) -> None:
         # anchor_index.json도 코드맵 데이터에서 추출해 저장 (중복 스캔 없음)
         anchor_index = project_map["anchor_index"]
         meta.anchor_index_path.write_text(
-            json.dumps({"files": {k: {"anchors": v} for k, v in anchor_index.items()}},
-                       indent=2, ensure_ascii=False) + "\n",
+            json.dumps({
+                "schema_version": 1,
+                "anchors": anchor_index,
+                "files": {k: {"anchors": v} for k, v in anchor_index.items()},
+            }, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
         clack_success(

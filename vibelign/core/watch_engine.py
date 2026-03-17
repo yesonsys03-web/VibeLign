@@ -176,6 +176,19 @@ def run_watch(config):
                     encoding="utf-8",
                 )
                 tmp_path.replace(meta.project_map_path)
+
+                # anchor_index.json도 최신 상태로 갱신
+                anchor_index_payload = {
+                    "schema_version": 1,
+                    "anchors": anchor_index,
+                    "files": {k: {"anchors": v} for k, v in anchor_index.items()},
+                }
+                ai_tmp = meta.anchor_index_path.with_suffix(".tmp")
+                ai_tmp.write_text(
+                    json.dumps(anchor_index_payload, indent=2, ensure_ascii=False) + "\n",
+                    encoding="utf-8",
+                )
+                ai_tmp.replace(meta.anchor_index_path)
             except Exception:
                 return
 
