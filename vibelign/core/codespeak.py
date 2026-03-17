@@ -26,6 +26,9 @@ LAYER_MAP = {
         "panel", "screen", "render", "widget", "progress", "menu",
         "버튼", "화면", "창", "레이아웃", "메뉴", "패널", "툴바", "사이드바",
         "팝업", "모달", "탭", "아이콘", "폼", "입력", "목록", "리스트",
+        "진행바", "진행표시", "체크박스", "체크", "드롭다운", "셀렉트",
+        "슬라이더", "스크롤", "토글", "찾아보기", "선택창", "업로드",
+        "라디오", "스피너", "배지", "툴팁", "헤더", "푸터", "네비게이션",
     ],
     "service": [
         "login", "auth", "register", "user", "session", "token", "password",
@@ -57,6 +60,8 @@ STOPWORDS = {
     "을", "를", "이", "가", "에", "에서", "으로", "로", "와", "과",
     "좀", "해줘", "줘", "해", "주세요", "부탁", "그", "저", "제",
     "좀더", "더", "다시", "한번", "잠깐",
+    "동일하게", "통일", "같게", "맞춰", "맞춰줘", "통일해", "통일해줘",
+    "달라", "다르게", "사이즈가", "크기가", "높이가", "너비가", "가로가", "세로가",
 }
 
 TARGET_HINTS = {
@@ -70,7 +75,7 @@ TARGET_HINTS = {
 }
 
 CODESPEAK_V0_RE = re.compile(
-    r"^(?P<layer>[a-z][a-z0-9_]*)\.(?P<target>[a-z][a-z0-9_]*)\.(?P<subject>[a-z][a-z0-9_]*)\.(?P<action>[a-z][a-z0-9_]*)$"
+    r"^(?P<layer>[a-z][a-z0-9_]*)\.(?P<target>[a-z][a-z0-9_]*)\.(?P<subject>[a-z0-9가-힣][a-z0-9가-힣_]*)\.(?P<action>[a-z][a-z0-9_]*)$"
 )
 
 
@@ -149,9 +154,15 @@ def _infer_target(tokens: list[str], layer: str) -> str:
 def _infer_subject(tokens: list[str], layer: str, action: str) -> tuple[str, int]:
     excluded = set(STOPWORDS)
     excluded.add(action)
+    all_action_words: set[str] = set()
     for words in ACTION_MAP.values():
-        excluded.update(words)
-    candidates = [token for token in tokens if token not in excluded]
+        all_action_words.update(words)
+    excluded.update(all_action_words)
+    candidates = [
+        token for token in tokens
+        if token not in excluded
+        and not any(w in token for w in all_action_words if len(w) >= 2)
+    ]
     if not candidates:
         return f"{layer}_request", 0
     if candidates[:2] == ["progress", "bar"]:
