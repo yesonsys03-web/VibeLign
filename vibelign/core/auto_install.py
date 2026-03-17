@@ -151,7 +151,12 @@ def try_install_watchdog(
     except ImportError:
         pass
 
-    cmd = [sys.executable, "-m", "pip", "install", "watchdog"]
+    # uv tool 환경은 pip이 없으므로 uv pip --python 으로 설치
+    # 일반 Python 환경은 sys.executable -m pip 사용
+    if shutil.which("uv"):
+        cmd = ["uv", "pip", "install", "--python", sys.executable, "watchdog"]
+    else:
+        cmd = [sys.executable, "-m", "pip", "install", "watchdog"]
     clack_info("⚡ watchdog 이(가) 설치되어 있지 않아요.")
     clack_info("  설치하면 vib watch 로 파일 변경을 실시간 감지할 수 있어요. (없어도 정상 작동해요)")
     if not _ask_yn(f"  지금 설치할까요? ({' '.join(cmd)}) [y/N] "):
