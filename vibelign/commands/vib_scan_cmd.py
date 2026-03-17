@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from vibelign.core.meta_paths import MetaPaths
-from vibelign.terminal_render import clack_info, clack_intro, clack_outro, clack_step, clack_success
+from vibelign.terminal_render import clack_info, clack_intro, clack_outro, clack_step, clack_success, clack_warn
 
 
 def run_vib_scan(args: Any) -> None:
@@ -57,6 +57,24 @@ def run_vib_scan(args: Any) -> None:
         )
     else:
         clack_info("project_map.json 없음 — vib init 또는 vib start를 먼저 실행하세요")
+
+    # [4] 앵커 무결성 검사
+    clack_step("앵커 무결성 검사 중...")
+    from vibelign.core.anchor_tools import validate_anchor_file
+    from vibelign.core.project_scan import iter_source_files
+    problems: list[str] = []
+    for path in iter_source_files(root):
+        for problem in validate_anchor_file(path):
+            if problem != "앵커가 없습니다":
+                rel = str(path.relative_to(root))
+                problems.append(f"{rel}: {problem}")
+    if problems:
+        clack_warn(f"앵커 문제 {len(problems)}건 발견:")
+        for p in problems:
+            clack_warn(f"  {p}")
+        clack_info("vib anchor --validate 로 상세 확인, 문제 파일을 에디터로 열어 수정하세요")
+    else:
+        clack_success("앵커 무결성 이상 없음")
 
     clack_outro("스캔 완료. AI에게 project_map.json을 제공하면 전체 구조를 한 번에 파악해요.")
 
