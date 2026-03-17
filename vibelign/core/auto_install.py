@@ -152,7 +152,7 @@ def try_install_watchdog(
         pass
 
     cmd = (
-        ["uv", "pip", "install", "watchdog"]
+        ["uv", "pip", "install", "--system", "watchdog"]
         if shutil.which("uv")
         else [sys.executable, "-m", "pip", "install", "watchdog"]
     )
