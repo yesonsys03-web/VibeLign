@@ -17,27 +17,33 @@
 
 # VibeLign
 
-> **Not a coder? That's fine.**
-> VibeLign is a safety net for anyone using AI to build software.
-> Save before. Undo after. Stay in control — no Git required.
+> ### Sound familiar?
+>
+> - You asked AI to add one small feature — it **rewrote the entire file**
+> - Everything ended up crammed into `main.py` — **1000+ lines, zero structure**
+> - AI changed something you didn't ask for — **now nothing works**
+> - You want to undo it — **but you don't know Git, and Ctrl+Z is useless**
+>
+> **VibeLign was built for exactly this.**
 
 ```bash
 pip install vibelign
-vib start        # installed. let's go.
+vib start
 ```
 
 ---
 
-# Why VibeLign?
+# What VibeLign Does
 
-AI coding is powerful — but one wrong prompt can rewrite everything:
+Most AI coding tools are great at writing code fast — but terrible at **staying in bounds**.
 
-- AI rewrites the whole file instead of one function
-- `main.py` balloons to 1000+ lines overnight
-- You can't tell what changed or how to go back
-- No save point. No undo. Just panic.
+VibeLign solves three problems that beginners hit every day:
 
-VibeLign gives you a **save-before / undo-after** safety loop — and injects guard rules so AI stays in bounds.
+| Problem | VibeLign's fix |
+|---------|----------------|
+| 🏚️ AI dumps everything into `main.py` | Injects **structure rules** so AI organizes code properly |
+| 🤖 AI ignores your instructions and does its own thing | Generates a **precise patch request** AI actually follows |
+| 💥 AI edits go wrong and you can't go back | **Checkpoint + Undo** — restore any saved state in seconds |
 
 Works with: **Claude Code · Cursor · Codex · OpenCode · any AI coding agent**
 
@@ -52,6 +58,21 @@ Looks good       →  vib checkpoint "done"           # save again
 ```
 
 > No Git knowledge needed. No fear required. Just `vib`.
+
+---
+
+# Why VibeLign?
+
+AI coding tools write code fast — but they often go off the rails:
+
+- Ask for one change → AI rewrites three files you didn't touch
+- Ask for a new feature → everything gets stuffed into `main.py`
+- AI "fixes" something → breaks something else entirely
+- No structure, no rules, no way back
+
+VibeLign puts **guardrails on AI** so it edits only what you asked, structures code properly, and gives you a save point to fall back on.
+
+Works with: **Claude Code · Cursor · Codex · OpenCode · any AI coding agent**
 
 ---
 
