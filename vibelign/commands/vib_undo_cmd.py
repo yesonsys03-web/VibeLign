@@ -43,6 +43,7 @@ def run_vib_undo(args: Any) -> None:
         time_label = friendly_time(cp.created_at)
         msg = _clean_msg(cp.message)
         print(f"  [{i + 1}] {time_label:<18}  {msg}{pin}{marker}")
+    print(f"  [0] 취소")
     print()
 
     try:
@@ -53,6 +54,9 @@ def run_vib_undo(args: Any) -> None:
 
     if not answer:
         idx = 0
+    elif answer in ("0", "q", "n", "취소"):
+        print("취소됐습니다.")
+        return
     else:
         try:
             idx = int(answer) - 1
