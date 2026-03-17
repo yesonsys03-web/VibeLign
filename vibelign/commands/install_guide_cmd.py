@@ -43,6 +43,24 @@ def run_install_guide(args) -> None:
 
     cli_print("")
 
+    # ── 5단계 (선택) ──
+    clack_step("5단계  빠른 검색 도구 설치  (선택 — 없어도 잘 작동해요)")
+    clack_info("파일이 많은 프로젝트라면 아래 도구를 설치하면 스캔이 훨씬 빨라져요.")
+    clack_info("")
+    clack_info("Mac (Homebrew):")
+    clack_info("  brew install fd ripgrep")
+    clack_info("")
+    clack_info("Windows (winget):")
+    clack_info("  winget install sharkdp.fd BurntSushi.ripgrep.MSVC")
+    clack_info("")
+    clack_info("Ubuntu / Debian:")
+    clack_info("  sudo apt install fd-find ripgrep")
+    clack_info("  (설치 후 fd 명령어가 fdfind 로 나올 수 있어요 → ln -s $(which fdfind) ~/.local/bin/fd)")
+    clack_info("")
+    clack_warn("설치 안 해도 VibeLign은 정상 작동해요. 파일이 수천 개일 때 체감 차이가 있어요.")
+
+    cli_print("")
+
     # ── 에러 대처 ──
     clack_step("에러가 나면?")
     clack_info('"command not found"  →  python3 --version 먼저 확인')
