@@ -144,21 +144,26 @@ def try_install_watchdog(
     clack_warn: Callable,
     clack_success: Callable,
 ) -> None:
-    """watchdog이 없을 때 자동 설치 (pip/uv, 프롬프트 없이)."""
+    """watchdog이 없을 때 y/N 프롬프트로 설치를 제안."""
     try:
         import watchdog  # noqa: F401
         return
     except ImportError:
         pass
 
-    clack_info("watch 모드를 위해 watchdog 패키지를 설치하는 중...")
     cmd = (
         ["uv", "pip", "install", "watchdog"]
         if shutil.which("uv")
         else [sys.executable, "-m", "pip", "install", "watchdog"]
     )
+    clack_info("⚡ watchdog 이(가) 설치되어 있지 않아요.")
+    clack_info("  설치하면 vib watch 로 파일 변경을 실시간 감지할 수 있어요. (없어도 정상 작동해요)")
+    if not _ask_yn(f"  지금 설치할까요? ({' '.join(cmd)}) [y/N] "):
+        clack_info("건너뜀. 나중에 `pip install watchdog`으로 설치하세요.")
+        return
+    clack_info(f"설치 중... ({' '.join(cmd)})")
     ok = _run_visible(cmd)
     if ok:
         clack_success("watchdog 설치 완료!")
     else:
-        clack_warn("watchdog 설치에 실패했어요. `pip install watchdog`을 직접 실행하세요.")
+        clack_warn("설치에 실패했어요. `pip install watchdog`을 직접 실행하세요.")
