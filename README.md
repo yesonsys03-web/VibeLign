@@ -6,10 +6,33 @@
 
 # VibeLign
 
-**AI coding safety system for vibecoders.**
+<p align="center">
+  <b>🎮 AI가 코드를 망쳐도, 게임처럼 되돌리면 그만</b><br/>
+  <i>When AI breaks your code — just press undo. Like a game save.</i>
+</p>
 
-AI writes code fast.
-VibeLign keeps your project safe.
+<p align="center">
+  <a href="https://pypi.org/project/vibelign/"><img src="https://img.shields.io/pypi/v/vibelign?color=7c3aed&label=vibelign" alt="PyPI"/></a>
+  <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python"/>
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"/>
+  <img src="https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20Cursor%20%7C%20Codex-orange" alt="AI Tools"/>
+</p>
+
+---
+
+> **코딩 몰라도 괜찮아요.**
+> Claude Code, Cursor, Codex로 바이브코딩하다가 AI가 코드를 다 날려버린 경험 있나요?
+> Git도 모르고, 되돌릴 방법도 없고, 식은땀만 났죠.
+> **VibeLign은 그 순간을 위해 만들어졌어요.**
+
+```bash
+pip install vibelign
+vib start        # 설치 끝, 시작하기
+```
+
+> **Not a coder? That's fine.**
+> VibeLign is a safety net for anyone using AI to build software.
+> Save before. Undo after. Stay in control — no Git required.
 
 ---
 
@@ -23,16 +46,16 @@ VibeLign keeps your project safe.
 
 # Why VibeLign?
 
-AI coding is powerful, but it often creates structural problems:
+AI coding is powerful — but one wrong prompt can rewrite everything:
 
-- giant `main.py`
-- random `utils.py` catch-all files
-- whole-file rewrites
-- mixed UI + business logic
-- uncontrolled wide patches
-- no way to undo AI changes
+- AI rewrites the whole file instead of one function
+- `main.py` balloons to 1000+ lines overnight
+- You can't tell what changed or how to go back
+- No save point. No undo. Just panic.
 
-These problems are common when using:
+VibeLign gives you a **save-before / undo-after** safety loop — and injects guard rules so AI stays in bounds.
+
+Works with:
 
 - Claude Code
 - Cursor
@@ -288,11 +311,18 @@ docs/MANUAL.md
 
 # Philosophy
 
-AI coding is fast.
+> *"AI 코딩은 빠르다. 하지만 안전장치 없이는 언제 터질지 모른다."*
 
-But without guardrails, it can break project structure.
+코드를 모르는 사람도, 방금 시작한 사람도 — AI로 뭔가를 만들고 있다면 VibeLign이 필요해요.
 
-VibeLign adds **structure-aware safety** to AI-driven development — and makes save/restore simple enough for anyone.
+**VibeLign의 약속:**
+- 저장은 1초 (`vib checkpoint "설명"`)
+- 복구는 1초 (`vib undo`)
+- 배울 것 없음. Git 필요 없음. 두려움 없음.
+
+---
+
+⭐ **이 툴이 당신의 코드를 살렸다면, Star 하나가 큰 힘이 됩니다!**
 
 ---
 
@@ -307,6 +337,35 @@ MIT
 <p align="center">
   <img src="assets/banner.svg" alt="VibeLign Banner" width="100%"/>
 </p>
+
+<p align="center">
+  <b>🎮 AI가 코드를 날려도 — 세이브 포인트로 돌아가면 그만</b>
+</p>
+
+---
+
+> ### 이런 경험 있으신가요?
+>
+> - Claude Code한테 기능 추가해달랬더니 **멀쩡한 코드를 통째로 갈아엎어버렸다**
+> - Cursor가 파일 5개를 한꺼번에 바꿔서 **뭐가 뭔지 모르겠다**
+> - 되돌리고 싶은데 **git은 모르고, Ctrl+Z는 이미 한계**
+> - 식은땀 흘리면서 **어제까지만 됐는데...** 를 반복하고 있다
+>
+> **VibeLign은 그 순간을 위해 만들어졌습니다.**
+
+---
+
+### 딱 3가지만 기억하세요
+
+```
+작업 전    →   vib checkpoint "설명"    # 세이브 포인트 저장
+AI가 망쳤으면 →   vib undo               # 즉시 복구
+잘 됐으면   →   vib checkpoint "완료"   # 또 저장
+```
+
+> Git 몰라도 됩니다. 터미널 겁나도 됩니다. **그냥 vib만 기억하세요.**
+
+---
 
 **AI 코딩 안전 시스템: 바이브코더를 위한 보호막**
 
@@ -538,8 +597,15 @@ vib undo
 
 ## VibeLign의 철학
 
-AI 코딩은 정말 빠릅니다. 하지만 안전장치가 없으면 프로젝트의 구조가 무너질 수 있죠.
-VibeLign은 AI 개발에 **구조를 생각하는 안전함**을 더해줍니다 — 그리고 누구나 쉽게 저장하고 되돌릴 수 있게 해줍니다.
+AI 코딩은 정말 빠릅니다. 하지만 안전장치 없이 달리다 보면 언제 터질지 모릅니다.
+
+VibeLign은 **코알못 바이브코더도 두려움 없이 AI 코딩을 즐길 수 있도록** 만들어진 안전망입니다.
+
+저장은 1초. 복구는 1초. 배울 건 없음.
+
+---
+
+⭐ **VibeLign이 당신의 코드를 구해줬다면, Star 한 번 눌러주세요. 개발에 큰 힘이 됩니다!**
 
 ---
 
