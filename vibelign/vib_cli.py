@@ -504,6 +504,12 @@ def _manual_topics() -> str:
         return ""
 
 
+# positional 완성이 필요한 커맨드: {커맨드명: [완성 목록]}
+_POSITIONAL_COMPLETIONS: dict[str, list[str]] = {
+    "export": ["claude", "opencode", "cursor", "antigravity"],
+}
+
+
 def _generate_completion_script(parser) -> str:
     """zsh/bash 자동완성 스크립트 생성 (eval "$(vib completion)" 용)."""
     commands, cmd_opts = _parse_commands(parser)
@@ -512,13 +518,15 @@ def _generate_completion_script(parser) -> str:
 
     case_lines = []
     for cmd in commands:
+        opts_str = " ".join(cmd_opts[cmd])
         if cmd == "manual":
-            # positional(커맨드명) + 옵션 모두 완성
-            opts_str = " ".join(cmd_opts[cmd])
             all_completions = f"{manual_topics} {opts_str}".strip()
             case_lines.append(f'        manual) opts="{all_completions}" ;;')
+        elif cmd in _POSITIONAL_COMPLETIONS:
+            positional_str = " ".join(_POSITIONAL_COMPLETIONS[cmd])
+            all_completions = f"{positional_str} {opts_str}".strip()
+            case_lines.append(f'        {cmd}) opts="{all_completions}" ;;')
         else:
-            opts_str = " ".join(cmd_opts[cmd])
             case_lines.append(f'        {cmd}) opts="{opts_str}" ;;')
     case_block = "\n".join(case_lines)
 
@@ -585,13 +593,15 @@ def _generate_powershell_script(parser) -> str:
 
     opts_lines = []
     for cmd in commands:
+        base_opts = cmd_opts.get(cmd, [])
         if cmd == "manual":
-            # positional(커맨드명) + 옵션 모두 포함
-            all_items = manual_topics + cmd_opts.get(cmd, [])
+            all_items = manual_topics + base_opts
+        elif cmd in _POSITIONAL_COMPLETIONS:
+            all_items = _POSITIONAL_COMPLETIONS[cmd] + base_opts
+        else:
+            all_items = base_opts
+        if all_items:
             opts_ps = ", ".join(f"'{o}'" for o in all_items)
-            opts_lines.append(f"    'manual' = @({opts_ps})")
-        elif cmd_opts[cmd]:
-            opts_ps = ", ".join(f"'{o}'" for o in cmd_opts[cmd])
             opts_lines.append(f"    '{cmd}' = @({opts_ps})")
         else:
             opts_lines.append(f"    '{cmd}' = @()")
