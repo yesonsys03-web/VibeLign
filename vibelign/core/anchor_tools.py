@@ -450,6 +450,23 @@ def get_anchor_intent(root: Path, anchor_name: str) -> dict:
     return load_anchor_meta(root).get(anchor_name, {})
 
 
+def strip_anchors(path: Path) -> bool:
+    """파일에서 모든 앵커 줄을 제거한다. 변경이 있으면 True를 반환."""
+    text = safe_read_text(path)
+    if not text:
+        return False
+    lines = text.splitlines()
+    cleaned = [line for line in lines if not re.search(r"===\s*ANCHOR:", line)]
+    if len(cleaned) == len(lines):
+        return False
+    try:
+        path.write_text("\n".join(cleaned).rstrip() + "\n", encoding="utf-8")
+    except OSError as e:
+        print(f"경고: {path} 앵커 제거 실패: {e}")
+        return False
+    return True
+
+
 def validate_anchor_file(path: Path) -> list[str]:
     text = safe_read_text(path)
     if not text:

@@ -58,21 +58,33 @@ def run_vib_scan(args: Any) -> None:
     else:
         clack_info("project_map.json 없음 — vib init 또는 vib start를 먼저 실행하세요")
 
-    # [4] 앵커 무결성 검사
+    # [4] 앵커 무결성 검사 (+ --auto 시 자동 수정)
     clack_step("앵커 무결성 검사 중...")
-    from vibelign.core.anchor_tools import validate_anchor_file
+    from vibelign.core.anchor_tools import insert_module_anchors, strip_anchors, validate_anchor_file
     from vibelign.core.project_scan import iter_source_files
     problems: list[str] = []
+    problem_paths: list[Path] = []
     for path in iter_source_files(root):
-        for problem in validate_anchor_file(path):
-            if problem != "앵커가 없습니다":
-                rel = str(path.relative_to(root))
-                problems.append(f"{rel}: {problem}")
+        file_problems = [p for p in validate_anchor_file(path) if p != "앵커가 없습니다"]
+        if file_problems:
+            rel = str(path.relative_to(root))
+            for p in file_problems:
+                problems.append(f"{rel}: {p}")
+            problem_paths.append(path)
     if problems:
         clack_warn(f"앵커 문제 {len(problems)}건 발견:")
         for p in problems:
             clack_warn(f"  {p}")
-        clack_info("vib anchor --validate 로 상세 확인, 문제 파일을 에디터로 열어 수정하세요")
+        if getattr(args, "auto", False) and problem_paths:
+            clack_step("문제 파일 앵커 재삽입 중...")
+            fixed: list[str] = []
+            for p in problem_paths:
+                strip_anchors(p)
+                insert_module_anchors(p)
+                fixed.append(str(p.relative_to(root)))
+            clack_success(f"앵커 재삽입 완료: {', '.join(fixed)}")
+        else:
+            clack_info("vib anchor --validate 로 상세 확인, 또는 vib scan --auto 로 자동 수정하세요")
     else:
         clack_success("앵커 무결성 이상 없음")
 
