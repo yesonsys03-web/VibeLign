@@ -495,15 +495,31 @@ def _parse_commands(parser):
     return commands, cmd_opts
 
 
+def _manual_topics() -> str:
+    """vib manual 의 positional 완성 목록."""
+    try:
+        from vibelign.commands.vib_manual_cmd import MANUAL
+        return " ".join(MANUAL.keys())
+    except Exception:
+        return ""
+
+
 def _generate_completion_script(parser) -> str:
     """zsh/bash 자동완성 스크립트 생성 (eval "$(vib completion)" 용)."""
     commands, cmd_opts = _parse_commands(parser)
     cmds_str = " ".join(commands)
+    manual_topics = _manual_topics()
 
     case_lines = []
     for cmd in commands:
-        opts_str = " ".join(cmd_opts[cmd])
-        case_lines.append(f'        {cmd}) opts="{opts_str}" ;;')
+        if cmd == "manual":
+            # positional(커맨드명) + 옵션 모두 완성
+            opts_str = " ".join(cmd_opts[cmd])
+            all_completions = f"{manual_topics} {opts_str}".strip()
+            case_lines.append(f'        manual) opts="{all_completions}" ;;')
+        else:
+            opts_str = " ".join(cmd_opts[cmd])
+            case_lines.append(f'        {cmd}) opts="{opts_str}" ;;')
     case_block = "\n".join(case_lines)
 
     return f'''# VibeLign (vib) 쉘 자동완성
@@ -563,12 +579,18 @@ fi
 def _generate_powershell_script(parser) -> str:
     """PowerShell 자동완성 스크립트 생성."""
     commands, cmd_opts = _parse_commands(parser)
+    manual_topics = _manual_topics().split()
 
     cmds_ps = ", ".join(f"'{c}'" for c in commands)
 
     opts_lines = []
     for cmd in commands:
-        if cmd_opts[cmd]:
+        if cmd == "manual":
+            # positional(커맨드명) + 옵션 모두 포함
+            all_items = manual_topics + cmd_opts.get(cmd, [])
+            opts_ps = ", ".join(f"'{o}'" for o in all_items)
+            opts_lines.append(f"    'manual' = @({opts_ps})")
+        elif cmd_opts[cmd]:
             opts_ps = ", ".join(f"'{o}'" for o in cmd_opts[cmd])
             opts_lines.append(f"    '{cmd}' = @({opts_ps})")
         else:
