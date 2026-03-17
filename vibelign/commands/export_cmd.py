@@ -266,7 +266,103 @@ vib guard --strict
 **문제 있으면** → `vib undo`
 """
 
+_CLAUDE_MD_CONTENT = """\
+# VibeLign 규칙 (Claude Code용)
+
+> 전체 규칙은 프로젝트 루트의 `AI_DEV_SYSTEM_SINGLE_FILE.md`를 읽으세요.
+
+## 핵심 원칙
+
+1. **가능한 가장 작은 패치를 적용하세요**
+2. **요청한 파일만 수정하세요** — 연관 없는 파일은 절대 건드리지 마세요
+3. **파일 전체를 재작성하지 마세요** — 명시적 요청이 없는 한 금지
+4. **앵커 경계를 지키세요** — `ANCHOR: NAME_START` ~ `ANCHOR: NAME_END` 사이만 수정
+5. **진입 파일을 작게 유지하세요** — main.py, index.js 등에 비즈니스 로직을 넣지 마세요
+6. **새 파일을 임의로 생성하지 마세요** — 명시적 요청이 있을 때만 생성
+7. **임포트 구조를 바꾸지 마세요** — 명시적 허락 없이 변경 금지
+8. **코드맵을 먼저 읽으세요** — `.vibelign/project_map.json`에서 파일 구조와 앵커 위치를 확인
+
+## 작업 흐름
+
+```
+vib doctor --strict        # 상태 확인
+vib anchor                 # 안전 구역 설정
+vib checkpoint "설명"      # 현재 상태 저장
+# AI 작업 수행
+vib guard --strict         # 결과 검증
+vib checkpoint "완료"      # 또는 vib undo
+```
+"""
+
+_OPENCODE_MD_CONTENT = """\
+# VibeLign 규칙 (OpenCode용)
+
+> 전체 규칙은 프로젝트 루트의 `AI_DEV_SYSTEM_SINGLE_FILE.md`를 읽으세요.
+
+## 핵심 원칙
+
+1. **가능한 가장 작은 패치를 적용하세요**
+2. **요청한 파일만 수정하세요** — 연관 없는 파일은 절대 건드리지 마세요
+3. **파일 전체를 재작성하지 마세요** — 명시적 요청이 없는 한 금지
+4. **앵커 경계를 지키세요** — `ANCHOR: NAME_START` ~ `ANCHOR: NAME_END` 사이만 수정
+5. **진입 파일을 작게 유지하세요** — main.py, index.js 등에 비즈니스 로직을 넣지 마세요
+6. **새 파일을 임의로 생성하지 마세요** — 명시적 요청이 있을 때만 생성
+7. **임포트 구조를 바꾸지 마세요** — 명시적 허락 없이 변경 금지
+8. **코드맵을 먼저 읽으세요** — `.vibelign/project_map.json`에서 파일 구조와 앵커 위치를 확인
+
+## 작업 흐름
+
+```
+vib doctor --strict        # 상태 확인
+vib anchor                 # 안전 구역 설정
+vib checkpoint "설명"      # 현재 상태 저장
+# AI 작업 수행
+vib guard --strict         # 결과 검증
+vib checkpoint "완료"      # 또는 vib undo
+```
+"""
+
+_VIBELIGN_CLAUDE_MARKER = "<!-- VibeLign Rules (vib export claude) -->"
+_VIBELIGN_OPENCODE_MARKER = "<!-- VibeLign Rules (vib export opencode) -->"
 _VIBELIGN_CURSOR_MARKER = "# --- VibeLign Rules (vibelign export cursor) ---"
+
+
+def _write_claude_md(root) -> str:
+    """CLAUDE.md 에 VibeLign 규칙을 씁니다. (Claude Code 자동 읽음)
+    반환값: 'created' | 'appended' | 'skipped'
+    """
+    claude_md_path = root / "CLAUDE.md"
+    if claude_md_path.exists():
+        existing = claude_md_path.read_text(encoding="utf-8")
+        if _VIBELIGN_CLAUDE_MARKER in existing:
+            return "skipped"
+        append_content = f"\n\n{_VIBELIGN_CLAUDE_MARKER}\n{_CLAUDE_MD_CONTENT}\n"
+        claude_md_path.write_text(existing + append_content, encoding="utf-8")
+        return "appended"
+    else:
+        claude_md_path.write_text(
+            f"{_VIBELIGN_CLAUDE_MARKER}\n{_CLAUDE_MD_CONTENT}\n", encoding="utf-8"
+        )
+        return "created"
+
+
+def _write_opencode_md(root) -> str:
+    """OPENCODE.md 에 VibeLign 규칙을 씁니다. (OpenCode 자동 읽음)
+    반환값: 'created' | 'appended' | 'skipped'
+    """
+    opencode_md_path = root / "OPENCODE.md"
+    if opencode_md_path.exists():
+        existing = opencode_md_path.read_text(encoding="utf-8")
+        if _VIBELIGN_OPENCODE_MARKER in existing:
+            return "skipped"
+        append_content = f"\n\n{_VIBELIGN_OPENCODE_MARKER}\n{_OPENCODE_MD_CONTENT}\n"
+        opencode_md_path.write_text(existing + append_content, encoding="utf-8")
+        return "appended"
+    else:
+        opencode_md_path.write_text(
+            f"{_VIBELIGN_OPENCODE_MARKER}\n{_OPENCODE_MD_CONTENT}\n", encoding="utf-8"
+        )
+        return "created"
 
 
 def _write_cursorrules(root) -> str:
@@ -340,10 +436,30 @@ def run_export(args):
     )
     print(f"{export_root} 생성 완료")
 
-    if args.tool == "cursor":
+    if args.tool == "claude":
+        result = _write_claude_md(root)
+        if result == "created":
+            print("CLAUDE.md 생성 완료  ← Claude Code가 자동으로 읽어요")
+        elif result == "appended":
+            print("경고: 기존 CLAUDE.md 파일이 있습니다.")
+            print("      덮어쓰지 않고 VibeLign 규칙을 뒤에 추가했습니다.")
+        else:
+            print("참고: CLAUDE.md에 이미 VibeLign 규칙이 있습니다 (건너뜀)")
+
+    elif args.tool == "opencode":
+        result = _write_opencode_md(root)
+        if result == "created":
+            print("OPENCODE.md 생성 완료  ← OpenCode가 자동으로 읽어요")
+        elif result == "appended":
+            print("경고: 기존 OPENCODE.md 파일이 있습니다.")
+            print("      덮어쓰지 않고 VibeLign 규칙을 뒤에 추가했습니다.")
+        else:
+            print("참고: OPENCODE.md에 이미 VibeLign 규칙이 있습니다 (건너뜀)")
+
+    elif args.tool == "cursor":
         result = _write_cursorrules(root)
         if result == "created":
-            print(".cursorrules 생성 완료")
+            print(".cursorrules 생성 완료  ← Cursor가 자동으로 읽어요")
         elif result == "appended":
             print("경고: 기존 .cursorrules 파일이 있습니다.")
             print("      덮어쓰지 않고 VibeLign 규칙을 뒤에 추가했습니다.")
