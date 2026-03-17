@@ -46,6 +46,12 @@ def iter_project_files(root: Path):
 
 
 def iter_source_files(root: Path):
+    from vibelign.core.fast_tools import has_fd, find_source_files_fd
+    if has_fd():
+        files = find_source_files_fd(root)
+        if files:
+            yield from files
+            return
     for path in iter_project_files(root):
         if path.suffix.lower() in SOURCE_EXTS:
             yield path

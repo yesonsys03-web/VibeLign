@@ -371,6 +371,12 @@ def suggest_anchor_names(path: Path) -> list[str]:
 
 
 def collect_anchor_index(root: Path, allowed_exts=None) -> dict[str, list[str]]:
+    if allowed_exts is None:
+        from vibelign.core.fast_tools import has_rg, grep_anchors_rg
+        if has_rg():
+            result = grep_anchors_rg(root)
+            if result is not None:
+                return result
     index = {}
     for path in iter_source_files(root):
         if allowed_exts is not None and path.suffix.lower() not in allowed_exts:
