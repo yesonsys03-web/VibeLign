@@ -1,3 +1,4 @@
+# === ANCHOR: GUARD_CMD_START ===
 import json
 from pathlib import Path
 from vibelign.core.risk_analyzer import analyze_project
@@ -12,6 +13,7 @@ from vibelign.terminal_render import cli_print
 print = cli_print
 
 
+# === ANCHOR: GUARD_CMD__RENDER_MARKDOWN_START ===
 def _render_markdown(report, protected_violations=None):
     lines = []
     # 보호 파일 위반이 있으면 최상단에 경고 표시
@@ -63,8 +65,10 @@ def _render_markdown(report, protected_violations=None):
     else:
         lines.append("- 최근에 바뀐 파일이 없습니다.")
     return "\n".join(lines) + "\n"
+# === ANCHOR: GUARD_CMD__RENDER_MARKDOWN_END ===
 
 
+# === ANCHOR: GUARD_CMD_RUN_GUARD_START ===
 def run_guard(args):
     root = Path.cwd()
     doctor = analyze_project(root, strict=args.strict)
@@ -93,3 +97,5 @@ def run_guard(args):
             print(f"경고: 기존 {out.name} 파일을 덮어씁니다")
         out.write_text(md, encoding="utf-8")
         print(f"{out.name}에 리포트를 저장했습니다")
+# === ANCHOR: GUARD_CMD_RUN_GUARD_END ===
+# === ANCHOR: GUARD_CMD_END ===

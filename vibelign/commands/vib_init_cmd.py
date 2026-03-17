@@ -1,2 +1,4 @@
+# === ANCHOR: VIB_INIT_CMD_START ===
 # 프로젝트 초기화 로직은 vib_start_cmd.py 로 이전되었습니다.
 # 이 모듈은 하위 호환성을 위해 유지됩니다.
+# === ANCHOR: VIB_INIT_CMD_END ===

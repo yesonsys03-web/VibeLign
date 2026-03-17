@@ -1,3 +1,4 @@
+# === ANCHOR: PATCH_CMD_START ===
 import json
 from pathlib import Path
 from vibelign.core.patch_suggester import suggest_patch
@@ -32,6 +33,7 @@ PATCH_TEMPLATE = '''AI_DEV_SYSTEM_SINGLE_FILE.md 규칙을 따르세요.
 [예상 결과]
 '''
 
+# === ANCHOR: PATCH_CMD_RUN_PATCH_START ===
 def run_patch(args):
     request = " ".join(args.request).strip()
     suggestion = suggest_patch(Path.cwd(), request)
@@ -47,3 +49,5 @@ def run_patch(args):
     print(f"제안 파일: {suggestion.target_file}")
     print(f"제안 앵커: {suggestion.target_anchor}")
     print(f"신뢰도: {suggestion.confidence}")
+# === ANCHOR: PATCH_CMD_RUN_PATCH_END ===
+# === ANCHOR: PATCH_CMD_END ===

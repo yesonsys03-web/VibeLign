@@ -1,3 +1,4 @@
+# === ANCHOR: AI_CODESPEAK_START ===
 import importlib
 import json
 from typing import Any, Dict, List, Optional, cast
@@ -5,8 +6,10 @@ from typing import Any, Dict, List, Optional, cast
 from vibelign.core.codespeak import CodeSpeakResult, parse_codespeak_v0
 
 
+# === ANCHOR: AI_CODESPEAK_BUILD_CODESPEAK_AI_PROMPT_START ===
 def build_codespeak_ai_prompt(request: str, rule_result: CodeSpeakResult) -> str:
     return f"""다음 사용자 요청을 CodeSpeak로 해석해주세요.
+# === ANCHOR: AI_CODESPEAK_BUILD_CODESPEAK_AI_PROMPT_END ===
 
 규칙:
 - JSON만 출력하세요.
@@ -35,6 +38,7 @@ def build_codespeak_ai_prompt(request: str, rule_result: CodeSpeakResult) -> str
 """
 
 
+# === ANCHOR: AI_CODESPEAK__PARSE_CODESPEAK_TEXT_START ===
 def _parse_codespeak_text(text: str) -> Optional[Dict[str, Any]]:
     start = text.find("{")
     end = text.rfind("}")
@@ -47,10 +51,13 @@ def _parse_codespeak_text(text: str) -> Optional[Dict[str, Any]]:
     if not isinstance(parsed, dict):
         return None
     return cast(Dict[str, Any], parsed)
+# === ANCHOR: AI_CODESPEAK__PARSE_CODESPEAK_TEXT_END ===
 
 
+# === ANCHOR: AI_CODESPEAK_ENHANCE_CODESPEAK_WITH_AI_START ===
 def enhance_codespeak_with_ai(
     request: str, rule_result: CodeSpeakResult, quiet: bool = False
+# === ANCHOR: AI_CODESPEAK_ENHANCE_CODESPEAK_WITH_AI_END ===
 ) -> Optional[CodeSpeakResult]:
     prompt = build_codespeak_ai_prompt(request, rule_result)
     ai_explain = importlib.import_module("vibelign.core.ai_explain")
@@ -85,3 +92,4 @@ def enhance_codespeak_with_ai(
             str(item) for item in clarifying_questions if isinstance(item, str)
         ],
     )
+# === ANCHOR: AI_CODESPEAK_END ===

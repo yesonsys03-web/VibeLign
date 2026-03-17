@@ -1,3 +1,4 @@
+# === ANCHOR: EXPLAIN_CMD_START ===
 import json
 from pathlib import Path
 from vibelign.core.change_explainer import (
@@ -11,6 +12,7 @@ from vibelign.core.change_explainer import (
 from vibelign.terminal_render import cli_print
 print = cli_print
 
+# === ANCHOR: EXPLAIN_CMD__RENDER_MARKDOWN_START ===
 def _render_markdown(report):
     lines = ["# VibeLign 변경 설명 리포트", "", f"소스: {report.source}", f"위험 수준: {report.risk_level}", "", "## 요약", report.summary, "", "## 변경된 사항"]
     lines.extend([f"- {item}" for item in report.what_changed] or ["- 주목할 만한 변경사항이 없습니다."])
@@ -23,7 +25,9 @@ def _render_markdown(report):
         lines.append("- 나열된 파일이 없습니다.")
     lines.extend(["", "## 롤백 힌트", report.rollback_hint])
     return "\n".join(lines) + "\n"
+# === ANCHOR: EXPLAIN_CMD__RENDER_MARKDOWN_END ===
 
+# === ANCHOR: EXPLAIN_CMD__RENDER_FILE_MARKDOWN_START ===
 def _render_file_markdown(report, rel_path: str) -> str:
     risk_emoji = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(report.risk_level, "⚪")
     lines = [
@@ -41,8 +45,10 @@ def _render_file_markdown(report, rel_path: str) -> str:
     lines.extend([f"- {item}" for item in report.why_it_might_matter] or ["- 큰 영향은 없어 보여요."])
     lines.extend(["", "## 4. 되돌리려면?", report.rollback_hint])
     return "\n".join(lines) + "\n"
+# === ANCHOR: EXPLAIN_CMD__RENDER_FILE_MARKDOWN_END ===
 
 
+# === ANCHOR: EXPLAIN_CMD_RUN_EXPLAIN_START ===
 def run_explain(args):
     root = Path.cwd()
 
@@ -85,3 +91,5 @@ def run_explain(args):
             print(f"경고: 기존 {out.name} 파일을 덮어씁니다")
         out.write_text(md, encoding="utf-8")
         print(f"{out.name}에 리포트를 저장했습니다")
+# === ANCHOR: EXPLAIN_CMD_RUN_EXPLAIN_END ===
+# === ANCHOR: EXPLAIN_CMD_END ===

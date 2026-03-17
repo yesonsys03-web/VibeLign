@@ -1,3 +1,4 @@
+# === ANCHOR: HOOK_SETUP_START ===
 import json
 from pathlib import Path
 from typing import Optional
@@ -20,6 +21,7 @@ _CLAUDE_HOOK_ENTRY = {
 }
 
 
+# === ANCHOR: HOOK_SETUP_DETECT_TOOL_START ===
 def detect_tool(root: Path) -> Optional[str]:
     """프로젝트 루트에서 AI 도구를 감지"""
     if (root / ".claude").is_dir():
@@ -28,8 +30,10 @@ def detect_tool(root: Path) -> Optional[str]:
     # if (root / ".gemini").is_dir():
     #     return "gemini"
     return None
+# === ANCHOR: HOOK_SETUP_DETECT_TOOL_END ===
 
 
+# === ANCHOR: HOOK_SETUP_IS_HOOK_SET_START ===
 def is_hook_set(root: Path, tool: str) -> bool:
     """훅이 이미 설정됐는지 확인"""
     if tool == "claude":
@@ -43,8 +47,10 @@ def is_hook_set(root: Path, tool: str) -> bool:
         except (json.JSONDecodeError, OSError):
             return False
     return False
+# === ANCHOR: HOOK_SETUP_IS_HOOK_SET_END ===
 
 
+# === ANCHOR: HOOK_SETUP__SETUP_CLAUDE_HOOK_START ===
 def _setup_claude_hook(root: Path) -> bool:
     """Claude Code PostToolUse 훅 추가 (기존 설정 보존)"""
     path = root / _CLAUDE_SETTINGS
@@ -74,8 +80,10 @@ def _setup_claude_hook(root: Path) -> bool:
         return True
     except OSError:
         return False
+# === ANCHOR: HOOK_SETUP__SETUP_CLAUDE_HOOK_END ===
 
 
+# === ANCHOR: HOOK_SETUP_SETUP_HOOK_IF_NEEDED_START ===
 def setup_hook_if_needed(root: Path) -> None:
     """AI 도구 감지 → 훅 미설정 시 사용자에게 제안"""
     tool = detect_tool(root)
@@ -110,3 +118,5 @@ def setup_hook_if_needed(root: Path) -> None:
         print("  이제 AI가 파일을 수정하면 자동으로 checkpoint 가 저장돼요.")
     else:
         print("✗ 훅 설정에 실패했어요. vib checkpoint 를 직접 실행해주세요.")
+# === ANCHOR: HOOK_SETUP_SETUP_HOOK_IF_NEEDED_END ===
+# === ANCHOR: HOOK_SETUP_END ===

@@ -1,3 +1,4 @@
+# === ANCHOR: VIB_GUARD_CMD_START ===
 import json
 from pathlib import Path
 from typing import Any, Dict, List
@@ -16,14 +17,17 @@ from vibelign.terminal_render import cli_print
 print = cli_print
 
 
+# === ANCHOR: VIB_GUARD_CMD__GUARD_STATUS_START ===
 def _guard_status(report) -> str:
     if report.blocked:
         return "fail"
     if report.overall_level == "WARNING":
         return "warn"
     return "pass"
+# === ANCHOR: VIB_GUARD_CMD__GUARD_STATUS_END ===
 
 
+# === ANCHOR: VIB_GUARD_CMD__REWRITE_RECOMMENDATIONS_START ===
 def _rewrite_recommendations(recommendations: List[str]) -> List[str]:
     rewritten = []
     for item in recommendations:
@@ -33,8 +37,10 @@ def _rewrite_recommendations(recommendations: List[str]) -> List[str]:
             .replace("vibelign", "vib")
         )
     return rewritten
+# === ANCHOR: VIB_GUARD_CMD__REWRITE_RECOMMENDATIONS_END ===
 
 
+# === ANCHOR: VIB_GUARD_CMD__PROTECTED_VIOLATIONS_START ===
 def _protected_violations(root: Path, explain_report) -> List[str]:
     protected = get_protected(root)
     if not protected:
@@ -45,10 +51,13 @@ def _protected_violations(root: Path, explain_report) -> List[str]:
         if isinstance(path, str) and is_protected(path, protected):
             violations.append(path)
     return violations
+# === ANCHOR: VIB_GUARD_CMD__PROTECTED_VIOLATIONS_END ===
 
 
+# === ANCHOR: VIB_GUARD_CMD__BUILD_GUARD_ENVELOPE_START ===
 def _build_guard_envelope(
     root: Path, strict: bool, since_minutes: int
+# === ANCHOR: VIB_GUARD_CMD__BUILD_GUARD_ENVELOPE_END ===
 ) -> Dict[str, Any]:
     legacy_doctor = analyze_project(root, strict=strict)
     explain_report = explain_from_git(root) or explain_from_mtime(
@@ -113,6 +122,7 @@ def _build_guard_envelope(
     return {"ok": True, "error": None, "data": data}
 
 
+# === ANCHOR: VIB_GUARD_CMD__RENDER_MARKDOWN_START ===
 def _render_markdown(data: Dict[str, Any]) -> str:
     status_label = {
         "pass": "통과",
@@ -153,8 +163,10 @@ def _render_markdown(data: Dict[str, Any]) -> str:
     else:
         lines.append("- 최근에 바뀐 파일이 없습니다.")
     return "\n".join(lines) + "\n"
+# === ANCHOR: VIB_GUARD_CMD__RENDER_MARKDOWN_END ===
 
 
+# === ANCHOR: VIB_GUARD_CMD__UPDATE_GUARD_STATE_START ===
 def _update_guard_state(root: Path, meta: MetaPaths) -> None:
     if not meta.state_path.exists():
         return
@@ -167,8 +179,10 @@ def _update_guard_state(root: Path, meta: MetaPaths) -> None:
     _ = meta.state_path.write_text(
         json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
+# === ANCHOR: VIB_GUARD_CMD__UPDATE_GUARD_STATE_END ===
 
 
+# === ANCHOR: VIB_GUARD_CMD_RUN_VIB_GUARD_START ===
 def run_vib_guard(args: Any) -> None:
     root = Path.cwd()
     meta = MetaPaths(root)
@@ -194,3 +208,5 @@ def run_vib_guard(args: Any) -> None:
         _ = meta.report_path("guard", "md").write_text(markdown, encoding="utf-8")
     if envelope["data"]["status"] == "fail":
         raise SystemExit(1)
+# === ANCHOR: VIB_GUARD_CMD_RUN_VIB_GUARD_END ===
+# === ANCHOR: VIB_GUARD_CMD_END ===

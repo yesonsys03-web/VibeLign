@@ -15,6 +15,7 @@ from .commands.vib_patch_cmd import run_vib_patch
 from .commands.vib_start_cmd import run_vib_start
 from .commands.vib_undo_cmd import run_vib_undo
 from .commands.vib_scan_cmd import run_vib_scan
+from .commands.vib_transfer_cmd import run_transfer
 from vibelign.commands.ask_cmd import run_ask
 from vibelign.commands.config_cmd import run_config
 from vibelign.commands.export_cmd import run_export
@@ -63,6 +64,7 @@ AI 수정 요청:
 
 파일 & 설정:
   protect     중요한 파일을 잠가요
+  transfer    AI 툴 전환 시 맥락 파일 생성
   ask         파일이 뭘 하는지 설명해줘요
   config      API 키 설정
   export      AI 도구용 설정 내보내기
@@ -383,6 +385,27 @@ def build_parser():
     )
     p.add_argument("--auto", action="store_true", help="앵커 자동 삽입 (추천만 볼 때는 생략)")
     p.set_defaults(func=run_vib_scan)
+
+    p = sub.add_parser(
+        "transfer",
+        help="AI 툴 바꿔도 맥락 유지 (PROJECT_CONTEXT.md 생성)",
+        description=(
+            "Claude Code → Cursor → Windsurf 등 AI 툴을 바꿀 때\n"
+            "프로젝트 맥락을 한 파일로 정리해서 즉시 이어서 작업 가능하게 해요.\n"
+            "PROJECT_CONTEXT.md 파일을 프로젝트 루트에 생성/갱신해요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib transfer              기본 생성\n"
+            "  vib transfer --compact    경량 버전 (토큰 절약)\n"
+            "  vib transfer --full       핵심 파일 전체 포함\n"
+            "  vib transfer --out ctx.md 파일명 지정"
+        ),
+    )
+    p.add_argument("--compact", action="store_true", help="경량 버전 (토큰 최소화)")
+    p.add_argument("--full", action="store_true", help="핵심 파일 전체 포함")
+    p.add_argument("--out", default=None, help="출력 파일명 (기본: PROJECT_CONTEXT.md)")
+    p.set_defaults(func=run_transfer)
 
     p = sub.add_parser(
         "watch",

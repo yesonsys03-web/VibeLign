@@ -52,11 +52,11 @@ def analyze_project(root: Path, strict=False):
             add_issue(report, f"{rel} 파일이 너무 깁니다 ({lines}줄) — AI가 어디를 고쳐야 할지 헷갈릴 수 있어요", f"{name}은 시작 코드만 두고 나머지는 다른 파일로 옮기는 게 좋아요", 3)
         if name in CATCH_ALL:
             add_issue(report, f"{rel}은 여러 기능이 한 파일에 몰려 있어요", f"{name}을 기능별로 파일을 나눠보세요", 2)
-        if lines >= 800:
+        if lines >= 1000:
             add_issue(report, f"{rel} 파일이 너무 깁니다 ({lines}줄) — AI가 실수할 위험이 높아요", f"{name}은 꼭 여러 파일로 나눠야 해요", 5)
-        elif lines >= 500:
+        elif lines >= 800:
             add_issue(report, f"{rel} 파일이 많이 깁니다 ({lines}줄) — AI가 엉뚱한 곳을 고칠 수 있어요", f"{name}을 여러 파일로 나누는 걸 강력히 권장해요", 3)
-        elif lines >= 300:
+        elif lines >= 500:
             add_issue(report, f"{rel} 파일이 조금 깁니다 ({lines}줄)", f"{name}을 여러 파일로 나누는 걸 고려해보세요", 2)
         if lines > anchor_limit and "ANCHOR:" not in text:
             missing_anchor_files += 1
@@ -89,12 +89,44 @@ _IMPORT_RE = re.compile(
 )
 
 
+def _resolve_relative_import(mod: str, path: Path, root: Path) -> str | None:
+    """Resolve a relative import like '.commands.foo' to 'pkg.commands.foo'."""
+    if not mod.startswith("."):
+        return None
+    # Count leading dots
+    dots = len(mod) - len(mod.lstrip("."))
+    remainder = mod.lstrip(".")
+    # Determine the importing file's package parts
+    try:
+        rel = path.relative_to(root)
+    except ValueError:
+        return None
+    parts = list(rel.with_suffix("").parts)
+    # Single dot → same package (drop file name), two dots → parent, etc.
+    pkg_parts = parts[:-1]  # drop the file name to get package
+    levels_up = dots - 1
+    if levels_up > len(pkg_parts):
+        return None
+    if levels_up > 0:
+        pkg_parts = pkg_parts[:-levels_up]
+    base = ".".join(pkg_parts)
+    if remainder:
+        return f"{base}.{remainder}" if base else remainder
+    return base or None
+
+
 def _extract_internal_imports(root: Path, path: Path):
     """Extract internal (project-local) import targets from a Python file."""
     text = safe_read_text(path)
     results = []
     for m in _IMPORT_RE.finditer(text):
         mod = m.group(1) or m.group(2)
+        # Resolve relative imports to absolute module names
+        if mod.startswith("."):
+            resolved = _resolve_relative_import(mod, path, root)
+            if resolved is None:
+                continue
+            mod = resolved
         top = mod.split(".")[0]
         candidate = root / top
         if candidate.is_dir() or (root / f"{top}.py").exists():

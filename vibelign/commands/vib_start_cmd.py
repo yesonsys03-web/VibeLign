@@ -1,3 +1,4 @@
+# === ANCHOR: VIB_START_CMD_START ===
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,9 +30,11 @@ _TREE_SKIP = {
 }
 
 
+# === ANCHOR: VIB_START_CMD__BUILD_TREE_START ===
 def _build_tree(root: Path) -> List[str]:
     lines: List[str] = []
 
+    # === ANCHOR: VIB_START_CMD__WALK_START ===
     def _walk(path: Path, depth: int) -> None:
         try:
             entries = sorted(path.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
@@ -46,7 +49,9 @@ def _build_tree(root: Path) -> List[str]:
                 _walk(entry, depth + 1)
             else:
                 lines.append(f"{indent}{entry.name}")
+    # === ANCHOR: VIB_START_CMD__WALK_END ===
 
+# === ANCHOR: VIB_START_CMD__BUILD_TREE_END ===
     _walk(root, 0)
     return lines
 
@@ -109,25 +114,32 @@ vib doctor
 """
 
 
+# === ANCHOR: VIB_START_CMD__STATUS_LINE_START ===
 def _status_line(status: str) -> str:
     if status in {"Safe", "Good"}:
         return "프로젝트 상태가 좋아요. 바로 AI 코딩을 시작해도 됩니다."
     if status == "Caution":
         return "큰 문제는 아니지만, 먼저 조금 정리하면 더 안전해요."
     return "지금은 바로 크게 수정하기보다, 먼저 문제를 확인하는 게 좋아요."
+# === ANCHOR: VIB_START_CMD__STATUS_LINE_END ===
 
 
+# === ANCHOR: VIB_START_CMD__NEXT_STEP_START ===
 def _next_step(data: Dict[str, Any]) -> str:
     actions = data.get("recommended_actions") or []
     if actions:
         return str(actions[0])
     return "vib anchor --suggest"
+# === ANCHOR: VIB_START_CMD__NEXT_STEP_END ===
 
 
+# === ANCHOR: VIB_START_CMD__HAS_GIT_START ===
 def _has_git(root: Path) -> bool:
     return (root / ".git").is_dir()
+# === ANCHOR: VIB_START_CMD__HAS_GIT_END ===
 
 
+# === ANCHOR: VIB_START_CMD__ENSURE_GITIGNORE_ENTRY_START ===
 def _ensure_gitignore_entry(root: Path) -> None:
     gitignore_path = root / ".gitignore"
     lines_to_add = [
@@ -145,8 +157,10 @@ def _ensure_gitignore_entry(root: Path) -> None:
     gitignore_path.write_text(
         existing + suffix + "\n".join(lines_to_add) + "\n", encoding="utf-8"
     )
+# === ANCHOR: VIB_START_CMD__ENSURE_GITIGNORE_ENTRY_END ===
 
 
+# === ANCHOR: VIB_START_CMD__ENSURE_RULE_FILES_START ===
 def _ensure_rule_files(root: Path) -> Dict[str, List[str]]:
     """AI 룰 파일이 없으면 생성. 이미 있으면 건드리지 않음."""
     created: List[str] = []
@@ -162,8 +176,10 @@ def _ensure_rule_files(root: Path) -> Dict[str, List[str]]:
         else:
             skipped.append(fname)
     return {"created": created, "skipped": skipped}
+# === ANCHOR: VIB_START_CMD__ENSURE_RULE_FILES_END ===
 
 
+# === ANCHOR: VIB_START_CMD__BUILD_PROJECT_MAP_START ===
 def _build_project_map(root: Path, force_scan: bool = False) -> Dict[str, Any]:
     from vibelign.core.meta_paths import MetaPaths
     from vibelign.core.scan_cache import incremental_scan
@@ -215,8 +231,10 @@ def _build_project_map(root: Path, force_scan: bool = False) -> Dict[str, Any]:
         "anchor_index": anchor_index,
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
+# === ANCHOR: VIB_START_CMD__BUILD_PROJECT_MAP_END ===
 
 
+# === ANCHOR: VIB_START_CMD__SETUP_PROJECT_START ===
 def _setup_project(root: Path, meta: MetaPaths) -> Dict[str, List[str]]:
     """프로젝트 세팅: .vibelign 디렉토리, config, state, project_map, 룰 파일, .gitignore"""
     _ensure_gitignore_entry(root)
@@ -253,8 +271,10 @@ def _setup_project(root: Path, meta: MetaPaths) -> Dict[str, List[str]]:
         created.append(str(meta.vibelign_dir.relative_to(root)) + "/")
 
     return {"created": created, "skipped": skipped}
+# === ANCHOR: VIB_START_CMD__SETUP_PROJECT_END ===
 
 
+# === ANCHOR: VIB_START_CMD_RUN_VIB_START_START ===
 def run_vib_start(args: Any) -> None:
     root = Path.cwd()
     meta = MetaPaths(root)
@@ -383,3 +403,5 @@ def run_vib_start(args: Any) -> None:
                 "아직 코드 파일이 없어서 앵커를 달 게 없어요. "
                 "코드를 작성한 뒤 vib anchor 를 실행하세요!"
             )
+# === ANCHOR: VIB_START_CMD_RUN_VIB_START_END ===
+# === ANCHOR: VIB_START_CMD_END ===

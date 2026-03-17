@@ -1,3 +1,4 @@
+# === ANCHOR: AI_EXPLAIN_START ===
 import json
 import importlib
 import os
@@ -13,6 +14,7 @@ from vibelign.terminal_render import cli_print
 print = cli_print
 
 
+# === ANCHOR: AI_EXPLAIN__FRIENDLY_ERROR_START ===
 def _friendly_error(provider: str, exc: Exception) -> str:
     """AI API 에러를 코알못이 이해할 수 있는 메시지로 변환."""
     msg = str(exc)
@@ -25,7 +27,9 @@ def _friendly_error(provider: str, exc: Exception) -> str:
     if "connection" in msg.lower() or "network" in msg.lower() or "urlopen" in msg.lower():
         return f"{provider} AI에 연결할 수 없어요. 인터넷 연결을 확인해보세요."
     return f"{provider} AI 호출에 문제가 생겼어요. (기술 코드: {msg})"
+# === ANCHOR: AI_EXPLAIN__FRIENDLY_ERROR_END ===
 
+# === ANCHOR: AI_EXPLAIN_HAS_AI_PROVIDER_START ===
 def has_ai_provider() -> bool:
     return any(
         os.environ.get(key)
@@ -37,8 +41,10 @@ def has_ai_provider() -> bool:
             "MOONSHOT_API_KEY",
         ]
     )
+# === ANCHOR: AI_EXPLAIN_HAS_AI_PROVIDER_END ===
 
 
+# === ANCHOR: AI_EXPLAIN_BUILD_EXPLAIN_AI_PROMPT_START ===
 def build_explain_ai_prompt(data: Dict[str, Any]) -> str:
     what_changed = "\n".join(f"- {item}" for item in data.get("what_changed", []))
     why_it_matters = "\n".join(f"- {item}" for item in data.get("why_it_matters", []))
@@ -52,6 +58,7 @@ def build_explain_ai_prompt(data: Dict[str, Any]) -> str:
         file_lines.append(f"- {path} ({status}, {kind})")
     files = "\n".join(file_lines)
     return f"""다음 변경 요약을 바탕으로 코딩을 모르는 사람도 이해할 수 있게 한국어로 다시 설명해주세요.
+# === ANCHOR: AI_EXPLAIN_BUILD_EXPLAIN_AI_PROMPT_END ===
 형식은 반드시 아래 4개 섹션을 유지하세요.
 
 ## 1. 한 줄 요약
@@ -84,8 +91,10 @@ files:
 """
 
 
+# === ANCHOR: AI_EXPLAIN__CALL_OPENAI_COMPATIBLE_START ===
 def _call_openai_compatible(
     api_key: str, base_url: str, model: str, prompt: str
+# === ANCHOR: AI_EXPLAIN__CALL_OPENAI_COMPATIBLE_END ===
 ) -> str:
     data = {
         "model": model,
@@ -109,8 +118,10 @@ def _call_openai_compatible(
         return result["choices"][0]["message"]["content"]
 
 
+# === ANCHOR: AI_EXPLAIN__TRY_ANTHROPIC_START ===
 def _try_anthropic(
     prompt: str, attempted: List[str], quiet: bool = False
+# === ANCHOR: AI_EXPLAIN__TRY_ANTHROPIC_END ===
 ) -> Optional[str]:
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -142,8 +153,10 @@ def _try_anthropic(
         return None
 
 
+# === ANCHOR: AI_EXPLAIN__TRY_OPENAI_START ===
 def _try_openai(
     prompt: str, attempted: List[str], quiet: bool = False
+# === ANCHOR: AI_EXPLAIN__TRY_OPENAI_END ===
 ) -> Optional[str]:
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -162,8 +175,10 @@ def _try_openai(
         return None
 
 
+# === ANCHOR: AI_EXPLAIN__TRY_GEMINI_START ===
 def _try_gemini(
     prompt: str, attempted: List[str], quiet: bool = False
+# === ANCHOR: AI_EXPLAIN__TRY_GEMINI_END ===
 ) -> Optional[str]:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -193,6 +208,7 @@ def _try_gemini(
         return None
 
 
+# === ANCHOR: AI_EXPLAIN__TRY_GLM_START ===
 def _try_glm(prompt: str, attempted: List[str], quiet: bool = False) -> Optional[str]:
     api_key = os.environ.get("GLM_API_KEY")
     if not api_key:
@@ -209,8 +225,10 @@ def _try_glm(prompt: str, attempted: List[str], quiet: bool = False) -> Optional
         if not quiet:
             print(_friendly_error("GLM", exc) + "\n")
         return None
+# === ANCHOR: AI_EXPLAIN__TRY_GLM_END ===
 
 
+# === ANCHOR: AI_EXPLAIN__TRY_KIMI_START ===
 def _try_kimi(prompt: str, attempted: List[str], quiet: bool = False) -> Optional[str]:
     api_key = os.environ.get("MOONSHOT_API_KEY")
     if not api_key:
@@ -227,15 +245,20 @@ def _try_kimi(prompt: str, attempted: List[str], quiet: bool = False) -> Optiona
         if not quiet:
             print(_friendly_error("Kimi", exc) + "\n")
         return None
+# === ANCHOR: AI_EXPLAIN__TRY_KIMI_END ===
 
 
+# === ANCHOR: AI_EXPLAIN_EXPLAIN_WITH_AI_START ===
 def explain_with_ai(data: Dict[str, Any]) -> Tuple[Optional[str], List[str]]:
     prompt = build_explain_ai_prompt(data)
     return generate_text_with_ai(prompt)
+# === ANCHOR: AI_EXPLAIN_EXPLAIN_WITH_AI_END ===
 
 
+# === ANCHOR: AI_EXPLAIN_GENERATE_TEXT_WITH_AI_START ===
 def generate_text_with_ai(
     prompt: str, quiet: bool = False
+# === ANCHOR: AI_EXPLAIN_GENERATE_TEXT_WITH_AI_END ===
 ) -> Tuple[Optional[str], List[str]]:
     attempted: List[str] = []
     text = (
@@ -248,3 +271,4 @@ def generate_text_with_ai(
     if text is None and not quiet:
         print_attempted_providers(attempted)
     return text, attempted
+# === ANCHOR: AI_EXPLAIN_END ===

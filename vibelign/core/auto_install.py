@@ -1,3 +1,4 @@
+# === ANCHOR: AUTO_INSTALL_START ===
 """고속 도구(fd, ripgrep) 및 watchdog 자동 설치 유틸리티."""
 from __future__ import annotations
 
@@ -7,6 +8,7 @@ import sys
 from typing import Callable
 
 
+# === ANCHOR: AUTO_INSTALL__ASK_YN_START ===
 def _ask_yn(prompt: str) -> bool:
     """y/N 프롬프트. 터미널이 없으면 False를 반환."""
     try:
@@ -14,8 +16,10 @@ def _ask_yn(prompt: str) -> bool:
         return ans in ("y", "yes")
     except (EOFError, KeyboardInterrupt):
         return False
+# === ANCHOR: AUTO_INSTALL__ASK_YN_END ===
 
 
+# === ANCHOR: AUTO_INSTALL__RUN_VISIBLE_START ===
 def _run_visible(cmd: list[str]) -> bool:
     """명령어를 실행하고 출력을 터미널에 그대로 표시. 성공 여부 반환."""
     try:
@@ -23,8 +27,10 @@ def _run_visible(cmd: list[str]) -> bool:
         return result.returncode == 0
     except (FileNotFoundError, OSError):
         return False
+# === ANCHOR: AUTO_INSTALL__RUN_VISIBLE_END ===
 
 
+# === ANCHOR: AUTO_INSTALL__DETECT_PKG_MANAGER_START ===
 def _detect_pkg_manager() -> str | None:
     """현재 시스템에서 사용 가능한 패키지 관리자를 감지.
 
@@ -43,8 +49,10 @@ def _detect_pkg_manager() -> str | None:
         if shutil.which(mgr):
             return mgr
     return None
+# === ANCHOR: AUTO_INSTALL__DETECT_PKG_MANAGER_END ===
 
 
+# === ANCHOR: AUTO_INSTALL__INSTALL_CMD_START ===
 def _install_cmd(pkg_manager: str, tools: list[str]) -> list[str] | None:
     """패키지 관리자별 설치 명령어를 반환. 설치할 게 없으면 None."""
     has_fd = "fd" in tools
@@ -68,12 +76,15 @@ def _install_cmd(pkg_manager: str, tools: list[str]) -> list[str] | None:
         return ["sudo", "pacman", "-S", "--noconfirm"] + pkgs if pkgs else None
 
     return None
+# === ANCHOR: AUTO_INSTALL__INSTALL_CMD_END ===
 
 
+# === ANCHOR: AUTO_INSTALL__TRY_INSTALL_HOMEBREW_START ===
 def _try_install_homebrew(
     clack_info: Callable,
     clack_warn: Callable,
     clack_success: Callable,
+# === ANCHOR: AUTO_INSTALL__TRY_INSTALL_HOMEBREW_END ===
 ) -> bool:
     """Mac에 Homebrew가 없을 때 설치를 제안. 성공 여부 반환."""
     clack_warn("Homebrew(Mac 패키지 관리자)가 설치되어 있지 않아요.")
@@ -96,11 +107,13 @@ def _try_install_homebrew(
     return False
 
 
+# === ANCHOR: AUTO_INSTALL_TRY_INSTALL_FAST_TOOLS_START ===
 def try_install_fast_tools(
     missing_tools: list[str],
     clack_info: Callable,
     clack_warn: Callable,
     clack_success: Callable,
+# === ANCHOR: AUTO_INSTALL_TRY_INSTALL_FAST_TOOLS_END ===
 ) -> None:
     """fd/ripgrep이 없을 때 y/N 프롬프트로 설치를 제안."""
     if not missing_tools:
@@ -139,10 +152,12 @@ def try_install_fast_tools(
         clack_warn(f"설치에 실패했어요. 터미널에서 직접 실행해 보세요: {cmd_str}")
 
 
+# === ANCHOR: AUTO_INSTALL_TRY_INSTALL_WATCHDOG_START ===
 def try_install_watchdog(
     clack_info: Callable,
     clack_warn: Callable,
     clack_success: Callable,
+# === ANCHOR: AUTO_INSTALL_TRY_INSTALL_WATCHDOG_END ===
 ) -> None:
     """watchdog이 없을 때 y/N 프롬프트로 설치를 제안."""
     try:
@@ -168,3 +183,4 @@ def try_install_watchdog(
         clack_success("watchdog 설치 완료!")
     else:
         clack_warn("설치에 실패했어요. `pip install watchdog`을 직접 실행하세요.")
+# === ANCHOR: AUTO_INSTALL_END ===

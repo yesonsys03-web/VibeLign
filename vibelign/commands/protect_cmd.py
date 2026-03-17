@@ -1,3 +1,4 @@
+# === ANCHOR: PROTECT_CMD_START ===
 from pathlib import Path
 from vibelign.core.protected_files import get_protected, save_protected
 
@@ -6,6 +7,7 @@ from vibelign.core.protected_files import get_protected, save_protected
 from vibelign.terminal_render import cli_print
 print = cli_print
 
+# === ANCHOR: PROTECT_CMD_RUN_PROTECT_START ===
 def run_protect(args):
     root = Path.cwd()
     protected = get_protected(root)
@@ -69,3 +71,5 @@ def run_protect(args):
         print("이 파일이 AI에 의해 수정되면 guard와 watch가 강하게 경고합니다.")
         print("보호 목록 확인: vib protect --list")
         print("보호 해제:      vib protect --remove " + rel)
+# === ANCHOR: PROTECT_CMD_RUN_PROTECT_END ===
+# === ANCHOR: PROTECT_CMD_END ===

@@ -1,3 +1,4 @@
+# === ANCHOR: CONFIG_CMD_START ===
 import os
 import json
 import getpass
@@ -63,6 +64,7 @@ _PROVIDERS = [
 ]
 
 
+# === ANCHOR: CONFIG_CMD__GET_SHELL_PROFILE_START ===
 def _get_shell_profile() -> Path:
     shell = os.environ.get("SHELL", "")
     if "zsh" in shell:
@@ -71,8 +73,10 @@ def _get_shell_profile() -> Path:
         profile = Path("~/.bash_profile").expanduser()
         return profile if profile.exists() else Path("~/.bashrc").expanduser()
     return Path("~/.zshrc").expanduser()
+# === ANCHOR: CONFIG_CMD__GET_SHELL_PROFILE_END ===
 
 
+# === ANCHOR: CONFIG_CMD__SAVE_TO_PROFILE_START ===
 def _save_to_profile(profile: Path, key_name: str, api_key: str):
     """셸 프로파일에 export 라인 추가 (기존 항목 교체)"""
     export_line = f'export {key_name}="{api_key}"'
@@ -96,8 +100,10 @@ def _save_to_profile(profile: Path, key_name: str, api_key: str):
         profile.write_text("".join(new_lines), encoding="utf-8")
     else:
         profile.write_text(export_line + "\n", encoding="utf-8")
+# === ANCHOR: CONFIG_CMD__SAVE_TO_PROFILE_END ===
 
 
+# === ANCHOR: CONFIG_CMD__FETCH_GEMINI_MODELS_START ===
 def _fetch_gemini_models(api_key: str) -> list[str]:
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
     req = urllib.request.Request(url, method="GET")
@@ -126,8 +132,10 @@ def _fetch_gemini_models(api_key: str) -> list[str]:
             ordered.append(model)
             seen.add(model)
     return ordered
+# === ANCHOR: CONFIG_CMD__FETCH_GEMINI_MODELS_END ===
 
 
+# === ANCHOR: CONFIG_CMD__SELECT_GEMINI_MODEL_START ===
 def _select_gemini_model(api_key: Optional[str], current_model: str) -> Optional[str]:
     clack_step("Gemini 모델 설정 (선택사항)")
     if current_model:
@@ -187,8 +195,10 @@ def _select_gemini_model(api_key: Optional[str], current_model: str) -> Optional
 
     clack_warn("잘못된 선택입니다. Gemini 모델 설정을 건너뜁니다.")
     return None
+# === ANCHOR: CONFIG_CMD__SELECT_GEMINI_MODEL_END ===
 
 
+# === ANCHOR: CONFIG_CMD_RUN_CONFIG_START ===
 def run_config(args):
     clack_intro("VibeLign API 키 설정")
 
@@ -301,3 +311,5 @@ def run_config(args):
 
     clack_outro("설정 완료")
     clack_info("이제 'vib ask 파일명'을 실행하면 AI가 바로 설명합니다.")
+# === ANCHOR: CONFIG_CMD_RUN_CONFIG_END ===
+# === ANCHOR: CONFIG_CMD_END ===

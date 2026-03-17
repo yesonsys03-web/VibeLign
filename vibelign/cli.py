@@ -1,3 +1,4 @@
+# === ANCHOR: CLI_START ===
 import argparse
 import sys
 from vibelign.commands.doctor_cmd import run_doctor
@@ -18,14 +19,18 @@ from vibelign.commands.vib_start_cmd import run_vib_start
 from vibelign.terminal_render import print_cli_help
 
 
+# === ANCHOR: CLI_RICHARGUMENTPARSER_START ===
 class RichArgumentParser(argparse.ArgumentParser):
+    # === ANCHOR: CLI__PRINT_MESSAGE_START ===
     def _print_message(self, message, file=None):
         if not message:
             return
         if file not in (None, sys.stdout):
             file.write(message)
             return
+# === ANCHOR: CLI_RICHARGUMENTPARSER_END ===
         print_cli_help(str(message))
+    # === ANCHOR: CLI__PRINT_MESSAGE_END ===
 
 
 _EPILOG = """
@@ -77,6 +82,7 @@ _EPILOG = """
 """
 
 
+# === ANCHOR: CLI_BUILD_PARSER_START ===
 def build_parser():
     parser = RichArgumentParser(
         prog="vibelign",
@@ -169,12 +175,16 @@ def build_parser():
     p.add_argument("--debounce-ms", type=int, default=800)
     p.set_defaults(func=run_watch_cmd)
     return parser
+# === ANCHOR: CLI_BUILD_PARSER_END ===
 
 
+# === ANCHOR: CLI_MAIN_START ===
 def main():
     args = build_parser().parse_args()
     args.func(args)
+# === ANCHOR: CLI_MAIN_END ===
 
 
 if __name__ == "__main__":
     main()
+# === ANCHOR: CLI_END ===

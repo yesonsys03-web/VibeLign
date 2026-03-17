@@ -30,3 +30,4 @@ vibelign_exports/
 .claude/
 .vibelign/checkpoints/
 VibeLign_dev_plan/
+.vibelign/scan_cache.json

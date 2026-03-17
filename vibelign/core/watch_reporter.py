@@ -1,3 +1,4 @@
+# === ANCHOR: WATCH_REPORTER_START ===
 from pathlib import Path
 from datetime import datetime
 import json
@@ -6,6 +7,7 @@ import json
 from vibelign.terminal_render import cli_print
 print = cli_print
 
+# === ANCHOR: WATCH_REPORTER_EMIT_START ===
 def emit(event, json_mode=False, log_path: Path | None = None):
     if json_mode:
         line = json.dumps(event, ensure_ascii=False)
@@ -21,3 +23,5 @@ def emit(event, json_mode=False, log_path: Path | None = None):
         ts = datetime.now().isoformat(timespec="seconds")
         with log_path.open("a", encoding="utf-8") as f:
             f.write(f"{ts} {json.dumps(event, ensure_ascii=False)}\n")
+# === ANCHOR: WATCH_REPORTER_EMIT_END ===
+# === ANCHOR: WATCH_REPORTER_END ===

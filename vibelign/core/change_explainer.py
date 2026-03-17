@@ -1,3 +1,4 @@
+# === ANCHOR: CHANGE_EXPLAINER_START ===
 from dataclasses import dataclass, asdict, field
 import re, subprocess, time
 from pathlib import Path
@@ -7,13 +8,16 @@ from vibelign.core.project_scan import iter_project_files, relpath_str
 
 
 @dataclass
+# === ANCHOR: CHANGE_EXPLAINER_CHANGEITEM_START ===
 class ChangeItem:
     path: str
     status: str
     kind: str
+# === ANCHOR: CHANGE_EXPLAINER_CHANGEITEM_END ===
 
 
 @dataclass
+# === ANCHOR: CHANGE_EXPLAINER_EXPLAINREPORT_START ===
 class ExplainReport:
     source: str
     summary: str
@@ -23,18 +27,24 @@ class ExplainReport:
     rollback_hint: str = ""
     files: list[dict[str, Any]] = field(default_factory=list)
 
+    # === ANCHOR: CHANGE_EXPLAINER_TO_DICT_START ===
     def to_dict(self):
+# === ANCHOR: CHANGE_EXPLAINER_EXPLAINREPORT_END ===
         return asdict(self)
+    # === ANCHOR: CHANGE_EXPLAINER_TO_DICT_END ===
 
 
+# === ANCHOR: CHANGE_EXPLAINER__RISK_LABEL_START ===
 def _risk_label(level: str) -> str:
     return {
         "LOW": "낮음",
         "MEDIUM": "보통",
         "HIGH": "높음",
     }.get(level, level)
+# === ANCHOR: CHANGE_EXPLAINER__RISK_LABEL_END ===
 
 
+# === ANCHOR: CHANGE_EXPLAINER_CLASSIFY_PATH_START ===
 def classify_path(rel: str):
     low = rel.lower()
     if any(
@@ -72,8 +82,10 @@ def classify_path(rel: str):
     if low.endswith(".md"):
         return "docs"
     return "general"
+# === ANCHOR: CHANGE_EXPLAINER_CLASSIFY_PATH_END ===
 
 
+# === ANCHOR: CHANGE_EXPLAINER_RISK_FROM_ITEMS_START ===
 def risk_from_items(items):
     if not items:
         return "LOW"
@@ -93,8 +105,10 @@ def risk_from_items(items):
     if len(items) >= 8:
         score += 3
     return "HIGH" if score >= 8 else "MEDIUM" if score >= 4 else "LOW"
+# === ANCHOR: CHANGE_EXPLAINER_RISK_FROM_ITEMS_END ===
 
 
+# === ANCHOR: CHANGE_EXPLAINER__DECODE_GIT_PATH_START ===
 def _decode_git_path(path: str) -> str:
     """git 옥탈(octal) 인코딩된 경로를 UTF-8 NFC 문자열로 디코딩.
     macOS는 NFD, git 출력은 NFC — 비교 시 통일이 필요하므로 NFC로 반환."""
@@ -116,8 +130,10 @@ def _decode_git_path(path: str) -> str:
         return unicodedata.normalize("NFC", buf.decode("utf-8"))
     except UnicodeDecodeError:
         return path
+# === ANCHOR: CHANGE_EXPLAINER__DECODE_GIT_PATH_END ===
 
 
+# === ANCHOR: CHANGE_EXPLAINER__RUN_GIT_START ===
 def _run_git(root: Path, args):
     try:
         proc = subprocess.run(
@@ -128,8 +144,10 @@ def _run_git(root: Path, args):
         )
     except Exception as e:
         return False, str(e)
+# === ANCHOR: CHANGE_EXPLAINER__RUN_GIT_END ===
 
 
+# === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FROM_GIT_START ===
 def explain_from_git(root: Path):
     ok, out = _run_git(root, ["status", "--porcelain", "--", "."])
     if not ok:
@@ -180,8 +198,10 @@ def explain_from_git(root: Path):
         "되돌리려면 vib undo 를 쓰거나, vib checkpoint 로 저장해둔 지점이 있다면 그곳으로 돌아갈 수 있어요.",
         [asdict(i) for i in items],
     )
+# === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FROM_GIT_END ===
 
 
+# === ANCHOR: CHANGE_EXPLAINER__PARSE_UNIFIED_DIFF_START ===
 def _parse_unified_diff(diff_text: str) -> dict[str, list[str]]:
     """유니파이드 diff 텍스트를 파싱해 추가/삭제 줄과 섹션 컨텍스트를 반환."""
     added: list[str] = []
@@ -199,16 +219,21 @@ def _parse_unified_diff(diff_text: str) -> dict[str, list[str]]:
         elif line.startswith("-") and not line.startswith("---"):
             removed.append(line[1:])
     return {"added": added, "removed": removed, "sections": sections}
+# === ANCHOR: CHANGE_EXPLAINER__PARSE_UNIFIED_DIFF_END ===
 
 
+# === ANCHOR: CHANGE_EXPLAINER__EXTRACT_DEF_NAME_START ===
 def _extract_def_name(line: str) -> str:
     """'def foo(...)' → 'foo', 'class Bar:' → 'Bar'"""
     tokens = line.split("(")[0].strip().split()
     return tokens[-1] if len(tokens) >= 2 else line[:20]
+# === ANCHOR: CHANGE_EXPLAINER__EXTRACT_DEF_NAME_END ===
 
 
+# === ANCHOR: CHANGE_EXPLAINER__KOREAN_DIFF_EXPLANATION_START ===
 def _korean_diff_explanation(
     parsed: dict[str, list[str]],
+# === ANCHOR: CHANGE_EXPLAINER__KOREAN_DIFF_EXPLANATION_END ===
 ) -> tuple[str, list[str], list[str], str]:
     """파싱된 diff 정보로 한국어 설명을 생성. (요약, 변경사항, 중요성, 위험등급) 반환."""
     added = parsed["added"]
@@ -286,6 +311,7 @@ def _korean_diff_explanation(
     return summary, what, why, risk
 
 
+# === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FILE_FROM_GIT_START ===
 def explain_file_from_git(root: Path, rel_path: str):
     """특정 파일의 git diff 를 분석해 ExplainReport 반환. git 없으면 None."""
     project_map, _project_map_error = load_project_map(root)
@@ -341,10 +367,13 @@ def explain_file_from_git(root: Path, rel_path: str):
         "vib undo 로 되돌릴 수 있어요. 또는 vib checkpoint 로 저장해두면 언제든 그 시점으로 돌아갈 수 있어요.",
         [{"path": rel_path, "status": "modified", "kind": item_kind}],
     )
+# === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FILE_FROM_GIT_END ===
 
 
+# === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FILE_FROM_MTIME_START ===
 def explain_file_from_mtime(
     root: Path, rel_path: str, since_minutes: int = 120
+# === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FILE_FROM_MTIME_END ===
 ) -> "ExplainReport":
     """git 없이 수정 시각만으로 특정 파일의 변경 여부를 설명."""
     path = root / rel_path
@@ -397,6 +426,7 @@ def explain_file_from_mtime(
     )
 
 
+# === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FROM_MTIME_START ===
 def explain_from_mtime(root: Path, since_minutes=120):
     cutoff = time.time() - since_minutes * 60
     project_map, _project_map_error = load_project_map(root)
@@ -457,3 +487,5 @@ def explain_from_mtime(root: Path, since_minutes=120):
         "다음 AI 수정 전에 vib checkpoint 로 지금 상태를 저장해두는 게 좋아요. 나중에 vib undo 로 되돌릴 수 있어요.",
         [asdict(i) for i in items],
     )
+# === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FROM_MTIME_END ===
+# === ANCHOR: CHANGE_EXPLAINER_END ===

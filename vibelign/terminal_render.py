@@ -1,3 +1,4 @@
+# === ANCHOR: TERMINAL_RENDER_START ===
 import importlib
 import os
 import re
@@ -31,13 +32,16 @@ _SECTION_EMOJI: list[tuple[str, str]] = [
 ]
 
 
+# === ANCHOR: TERMINAL_RENDER__SECTION_EMOJI_START ===
 def _section_emoji(title: str) -> str:
     for keyword, emoji in _SECTION_EMOJI:
         if keyword in title:
             return emoji
     return "◆"
+# === ANCHOR: TERMINAL_RENDER__SECTION_EMOJI_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER__LOAD_RICH_START ===
 def _load_rich() -> Optional[dict[str, Any]]:
     try:
         return {
@@ -52,8 +56,10 @@ def _load_rich() -> Optional[dict[str, Any]]:
         }
     except ImportError:
         return None
+# === ANCHOR: TERMINAL_RENDER__LOAD_RICH_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER_SHOULD_USE_RICH_START ===
 def should_use_rich() -> bool:
     if os.environ.get("VIBELIGN_ASK_PLAIN") == "1":
         return False
@@ -64,8 +70,10 @@ def should_use_rich() -> bool:
     if _load_rich() is None:
         return False
     return sys.stdout.isatty()
+# === ANCHOR: TERMINAL_RENDER_SHOULD_USE_RICH_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER_NORMALIZE_AI_OUTPUT_START ===
 def normalize_ai_output(text: str) -> str:
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     normalized = []
@@ -97,15 +105,19 @@ def normalize_ai_output(text: str) -> str:
                 normalized.append("")
 
     return "\n".join(normalized).strip()
+# === ANCHOR: TERMINAL_RENDER_NORMALIZE_AI_OUTPUT_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER__STRIP_INLINE_MARKDOWN_START ===
 def _strip_inline_markdown(text: str) -> str:
     cleaned = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
     cleaned = re.sub(r"__(.*?)__", r"\1", cleaned)
     cleaned = re.sub(r"`([^`]+)`", r"\1", cleaned)
     return cleaned.strip()
+# === ANCHOR: TERMINAL_RENDER__STRIP_INLINE_MARKDOWN_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER__FLUSH_PARAGRAPH_START ===
 def _flush_paragraph(blocks: list[tuple[str, object]], paragraph: list[str]) -> None:
     if not paragraph:
         return
@@ -115,10 +127,13 @@ def _flush_paragraph(blocks: list[tuple[str, object]], paragraph: list[str]) -> 
     if content:
         blocks.append(("paragraph", content))
     paragraph.clear()
+# === ANCHOR: TERMINAL_RENDER__FLUSH_PARAGRAPH_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER__FLUSH_LIST_START ===
 def _flush_list(
     blocks: list[tuple[str, object]], items: list[str], ordered: bool
+# === ANCHOR: TERMINAL_RENDER__FLUSH_LIST_END ===
 ) -> None:
     if not items:
         return
@@ -126,6 +141,7 @@ def _flush_list(
     items.clear()
 
 
+# === ANCHOR: TERMINAL_RENDER__PARSE_BLOCKS_START ===
 def _parse_blocks(text: str) -> list[tuple[str, object]]:
     blocks: list[tuple[str, object]] = []
     paragraph: list[str] = []
@@ -212,8 +228,10 @@ def _parse_blocks(text: str) -> list[tuple[str, object]]:
     if code_lines:
         blocks.append(("code", (code_lang, "\n".join(code_lines).rstrip())))
     return blocks
+# === ANCHOR: TERMINAL_RENDER__PARSE_BLOCKS_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER__GET_CONSOLE_START ===
 def _get_console(rich_mod: dict[str, Any], console: Optional[Any] = None) -> Any:
     """터미널 너비를 자동 감지하되 최대 120자로 제한.
     채팅창 등 좁은 뷰어에서 붙여넣기 시 줄 넘침 방지."""
@@ -226,8 +244,10 @@ def _get_console(rich_mod: dict[str, Any], console: Optional[Any] = None) -> Any
     except Exception:
         w = 100
     return rich_mod["Console"](width=w, highlight=False)
+# === ANCHOR: TERMINAL_RENDER__GET_CONSOLE_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER__SEVERITY_STYLE_START ===
 def _severity_style(text: str) -> Optional[str]:
     normalized = text.strip().lower()
     if not normalized:
@@ -257,15 +277,19 @@ def _severity_style(text: str) -> Optional[str]:
     if any(token in normalized for token in success_tokens):
         return "bold green"
     return None
+# === ANCHOR: TERMINAL_RENDER__SEVERITY_STYLE_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER__SEVERITY_TEXT_START ===
 def _severity_text(rich_mod: dict[str, Any], text: str) -> Any:
     style = _severity_style(text)
     if style:
         return rich_mod["Text"](text, style=style)
     return rich_mod["Text"](text)
+# === ANCHOR: TERMINAL_RENDER__SEVERITY_TEXT_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER__CLACK_STYLE_START ===
 def _clack_style(message: str, fallback_style: str) -> str:
     severity_style = _severity_style(message)
     if severity_style is not None and fallback_style in {
@@ -276,6 +300,8 @@ def _clack_style(message: str, fallback_style: str) -> str:
 
 
 # ── 섹션 헤딩: 제목 텍스트 + 아래 구분선 ────────────────────────
+# === ANCHOR: TERMINAL_RENDER__CLACK_STYLE_END ===
+# === ANCHOR: TERMINAL_RENDER__RENDER_SECTION_HEADING_START ===
 def _render_section_heading(rich_mod: dict[str, Any], title: str) -> Any:
     """섹션 제목 → 이모지 + 밝은 청록색 큰 제목 텍스트 + 구분선"""
     emoji = _section_emoji(title)
@@ -290,8 +316,10 @@ def _render_section_heading(rich_mod: dict[str, Any], title: str) -> Any:
         rich_mod["Padding"](title_text, pad=(0, 0, 0, 0)),
         rule,
     )
+# === ANCHOR: TERMINAL_RENDER__RENDER_SECTION_HEADING_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER__RENDER_BULLET_LIST_START ===
 def _render_bullet_list(rich_mod: dict[str, Any], items: list[str]) -> Any:
     """각 불릿 항목을 Padding으로 감싸 줄바꿈 시 들여쓰기 유지"""
     group_items = []
@@ -302,8 +330,10 @@ def _render_bullet_list(rich_mod: dict[str, Any], items: list[str]) -> Any:
         line.append(item, style=item_style or "bright_white")
         group_items.append(rich_mod["Padding"](line, pad=(0, 0, 0, 2)))
     return rich_mod["Group"](*group_items)
+# === ANCHOR: TERMINAL_RENDER__RENDER_BULLET_LIST_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER__RENDER_ORDERED_LIST_START ===
 def _render_ordered_list(rich_mod: dict[str, Any], items: list[str]) -> Any:
     """각 번호 항목을 Padding으로 감싸 줄바꿈 시 들여쓰기 유지"""
     group_items = []
@@ -314,13 +344,16 @@ def _render_ordered_list(rich_mod: dict[str, Any], items: list[str]) -> Any:
         line.append(item, style=item_style or "bright_white")
         group_items.append(rich_mod["Padding"](line, pad=(0, 0, 0, 2)))
     return rich_mod["Group"](*group_items)
+# === ANCHOR: TERMINAL_RENDER__RENDER_ORDERED_LIST_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER_PRINT_PROVIDER_STATUS_START ===
 def print_provider_status(
     provider: str,
     model: str,
     console: Optional[Any] = None,
     use_rich: Optional[bool] = None,
+# === ANCHOR: TERMINAL_RENDER_PRINT_PROVIDER_STATUS_END ===
 ) -> None:
     if use_rich is None:
         use_rich = should_use_rich()
@@ -345,8 +378,10 @@ def print_provider_status(
     )
 
 
+# === ANCHOR: TERMINAL_RENDER_PRINT_ATTEMPTED_PROVIDERS_START ===
 def print_attempted_providers(
     attempted: list[str], console: Optional[Any] = None, use_rich: Optional[bool] = None
+# === ANCHOR: TERMINAL_RENDER_PRINT_ATTEMPTED_PROVIDERS_END ===
 ) -> None:
     if not attempted:
         return
@@ -376,8 +411,10 @@ def print_attempted_providers(
     )
 
 
+# === ANCHOR: TERMINAL_RENDER_PRINT_AI_RESPONSE_START ===
 def print_ai_response(
     text: str, console: Optional[Any] = None, use_rich: Optional[bool] = None
+# === ANCHOR: TERMINAL_RENDER_PRINT_AI_RESPONSE_END ===
 ) -> None:
     if use_rich is None:
         use_rich = should_use_rich()
@@ -391,12 +428,14 @@ def print_ai_response(
     current_section_items: list[Any] = []
     in_section = False
 
+    # === ANCHOR: TERMINAL_RENDER_FLUSH_SECTION_START ===
     def flush_section() -> None:
         nonlocal current_section_items, in_section
         for renderable in current_section_items:
             renderables.append(renderable)
         current_section_items = []
         in_section = False
+    # === ANCHOR: TERMINAL_RENDER_FLUSH_SECTION_END ===
 
     for block_type, payload in _parse_blocks(text):
         if block_type == "heading":
@@ -479,12 +518,14 @@ def print_ai_response(
     rich_console.print(rich_mod["Group"](*renderables))
 
 
+# === ANCHOR: TERMINAL_RENDER_CLI_PRINT_START ===
 def cli_print(
     *args: object,
     sep: str = " ",
     end: str = "\n",
     file: Optional[Any] = None,
     flush: bool = False,
+# === ANCHOR: TERMINAL_RENDER_CLI_PRINT_END ===
 ) -> None:
     plain_print = builtins.print
     text = sep.join(str(arg) for arg in args)
@@ -509,8 +550,10 @@ def cli_print(
     plain_print(text)
 
 
+# === ANCHOR: TERMINAL_RENDER__CLACK_LINE_START ===
 def _clack_line(
     symbol: str, message: str, style: str, console: Optional[Any] = None
+# === ANCHOR: TERMINAL_RENDER__CLACK_LINE_END ===
 ) -> None:
     plain_print = builtins.print
     onboarding_style = (
@@ -534,34 +577,49 @@ def _clack_line(
     rich_console.print(rich_mod["Text"](line, style=_clack_style(message, style)))
 
 
+# === ANCHOR: TERMINAL_RENDER_CLACK_INTRO_START ===
 def clack_intro(message: str, console: Optional[Any] = None) -> None:
     _clack_line("◆", message, "bold cyan", console)
+# === ANCHOR: TERMINAL_RENDER_CLACK_INTRO_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER_CLACK_STEP_START ===
 def clack_step(message: str, console: Optional[Any] = None) -> None:
     _clack_line("◌", message, "cyan", console)
+# === ANCHOR: TERMINAL_RENDER_CLACK_STEP_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER_CLACK_INFO_START ===
 def clack_info(message: str, console: Optional[Any] = None) -> None:
     _clack_line("•", message, "white", console)
+# === ANCHOR: TERMINAL_RENDER_CLACK_INFO_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER_CLACK_SUCCESS_START ===
 def clack_success(message: str, console: Optional[Any] = None) -> None:
     _clack_line("✔", message, "bold green", console)
+# === ANCHOR: TERMINAL_RENDER_CLACK_SUCCESS_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER_CLACK_WARN_START ===
 def clack_warn(message: str, console: Optional[Any] = None) -> None:
     _clack_line("▲", message, "bold yellow", console)
+# === ANCHOR: TERMINAL_RENDER_CLACK_WARN_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER_CLACK_ERROR_START ===
 def clack_error(message: str, console: Optional[Any] = None) -> None:
     _clack_line("✖", message, "bold red", console)
+# === ANCHOR: TERMINAL_RENDER_CLACK_ERROR_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER_CLACK_OUTRO_START ===
 def clack_outro(message: str, console: Optional[Any] = None) -> None:
     _clack_line("◆", message, "bold magenta", console)
+# === ANCHOR: TERMINAL_RENDER_CLACK_OUTRO_END ===
 
 
+# === ANCHOR: TERMINAL_RENDER_PRINT_CLI_HELP_START ===
 def print_cli_help(message: str, console: Optional[Any] = None) -> None:
     plain_print = builtins.print
     if not message:
@@ -594,12 +652,14 @@ def print_cli_help(message: str, console: Optional[Any] = None) -> None:
     seen_section = False
     in_epilog = False
 
+    # === ANCHOR: TERMINAL_RENDER_FLUSH_START ===
     def flush() -> None:
         nonlocal current_title, current_lines
         if current_title is not None:
             sections.append((current_title, current_lines[:]))
         current_title = None
         current_lines = []
+    # === ANCHOR: TERMINAL_RENDER_FLUSH_END ===
 
     for line in lines:
         normalized = line.strip().lower()
@@ -668,5 +728,7 @@ def print_cli_help(message: str, console: Optional[Any] = None) -> None:
                 epilog_text,
                 border_style="bright_blue",
                 padding=(0, 1),
+# === ANCHOR: TERMINAL_RENDER_PRINT_CLI_HELP_END ===
             )
         )
+# === ANCHOR: TERMINAL_RENDER_END ===

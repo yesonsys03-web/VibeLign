@@ -1,3 +1,4 @@
+# === ANCHOR: WATCH_ENGINE_START ===
 from importlib import import_module
 from pathlib import Path
 from typing import Optional
@@ -25,13 +26,16 @@ SOURCE_EXTS = {
 }
 
 
+# === ANCHOR: WATCH_ENGINE_SAFE_READ_START ===
 def safe_read(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8", errors="ignore")
     except Exception:
         return ""
+# === ANCHOR: WATCH_ENGINE_SAFE_READ_END ===
 
 
+# === ANCHOR: WATCH_ENGINE_RUN_WATCH_START ===
 def run_watch(config):
     try:
         events_module = import_module("watchdog.events")
@@ -60,7 +64,9 @@ def run_watch(config):
     )
     from vibelign.core.watch_reporter import emit
 
+    # === ANCHOR: WATCH_ENGINE_VIBELIGNWATCHHANDLER_START ===
     class VibeLignWatchHandler(FileSystemEventHandler):
+        # === ANCHOR: WATCH_ENGINE___INIT___START ===
         def __init__(
             self,
             root: Path,
@@ -69,6 +75,7 @@ def run_watch(config):
             json_mode: bool,
             log_path: Optional[Path],
             debounce_ms: int = 800,
+        # === ANCHOR: WATCH_ENGINE___INIT___END ===
         ):
             super().__init__()
             self.root = root
@@ -86,6 +93,7 @@ def run_watch(config):
 
             self.protected = get_protected(root)
 
+        # === ANCHOR: WATCH_ENGINE__ELIGIBLE_START ===
         def _eligible(self, path: Path) -> bool:
             return (
                 path.is_file()
@@ -96,14 +104,18 @@ def run_watch(config):
                 and "tests" not in path.parts
                 and "docs" not in path.parts
             )
+        # === ANCHOR: WATCH_ENGINE__ELIGIBLE_END ===
 
+        # === ANCHOR: WATCH_ENGINE__DEBOUNCED_START ===
         def _debounced(self, path: Path) -> bool:
             now = time.time() * 1000
             key = str(path)
             prev = self.last_seen.get(key, 0)
             self.last_seen[key] = now
             return (now - prev) < self.debounce_ms
+        # === ANCHOR: WATCH_ENGINE__DEBOUNCED_END ===
 
+        # === ANCHOR: WATCH_ENGINE__SCHEDULE_GLOBAL_UPDATE_START ===
         def _schedule_global_update(self, rel_path: str) -> None:
             with self._lock:
                 self.pending_changes.append(rel_path)
@@ -114,7 +126,9 @@ def run_watch(config):
                     self._run_global_update,
                 )
                 self.global_timer.start()
+        # === ANCHOR: WATCH_ENGINE__SCHEDULE_GLOBAL_UPDATE_END ===
 
+        # === ANCHOR: WATCH_ENGINE__RUN_GLOBAL_UPDATE_START ===
         def _run_global_update(self) -> None:
             with self._lock:
                 changed = list(dict.fromkeys(self.pending_changes))
@@ -123,7 +137,9 @@ def run_watch(config):
             if not changed:
                 return
             self._refresh_project_map(changed)
+        # === ANCHOR: WATCH_ENGINE__RUN_GLOBAL_UPDATE_END ===
 
+        # === ANCHOR: WATCH_ENGINE__REFRESH_PROJECT_MAP_START ===
         def _refresh_project_map(self, changed: list[str]) -> None:
             import json
             from datetime import datetime, timezone
@@ -211,7 +227,9 @@ def run_watch(config):
                 json_mode=self.json_mode,
                 log_path=self.log_path,
             )
+        # === ANCHOR: WATCH_ENGINE__REFRESH_PROJECT_MAP_END ===
 
+        # === ANCHOR: WATCH_ENGINE__PROCESS_START ===
         def _process(self, src_path: str):
             path = Path(src_path)
             if not self._eligible(path) or self._debounced(path):
@@ -255,19 +273,27 @@ def run_watch(config):
                     emit(item, json_mode=self.json_mode, log_path=self.log_path)
             self.state[rel] = FileSnapshot(rel, new_lines, new_sha)
             save_state(self.state_path, self.state)
+    # === ANCHOR: WATCH_ENGINE_VIBELIGNWATCHHANDLER_END ===
             self._schedule_global_update(rel)
+        # === ANCHOR: WATCH_ENGINE__PROCESS_END ===
 
+        # === ANCHOR: WATCH_ENGINE_ON_MODIFIED_START ===
         def on_modified(self, event):
             if not event.is_directory:
                 self._process(event.src_path)
+        # === ANCHOR: WATCH_ENGINE_ON_MODIFIED_END ===
 
+        # === ANCHOR: WATCH_ENGINE_ON_CREATED_START ===
         def on_created(self, event):
             if not event.is_directory:
                 self._process(event.src_path)
+        # === ANCHOR: WATCH_ENGINE_ON_CREATED_END ===
 
+        # === ANCHOR: WATCH_ENGINE_ON_MOVED_START ===
         def on_moved(self, event):
             if not event.is_directory:
                 self._process(event.dest_path)
+        # === ANCHOR: WATCH_ENGINE_ON_MOVED_END ===
 
     root = Path(config["root"])
     strict = bool(config.get("strict", False))
@@ -275,6 +301,7 @@ def run_watch(config):
     debounce_ms = int(config.get("debounce_ms", 800))
     write_log = bool(config.get("write_log", False))
     vg_dir = root / ".vibelign"
+# === ANCHOR: WATCH_ENGINE_RUN_WATCH_END ===
     state_path = vg_dir / "watch_state.json"
     log_path = vg_dir / "watch.log" if write_log else None
 
@@ -297,3 +324,4 @@ def run_watch(config):
     except KeyboardInterrupt:
         observer.stop()
     observer.join()
+# === ANCHOR: WATCH_ENGINE_END ===

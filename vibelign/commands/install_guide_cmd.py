@@ -1,3 +1,4 @@
+# === ANCHOR: INSTALL_GUIDE_CMD_START ===
 from vibelign.terminal_render import (
     clack_info,
     clack_intro,
@@ -9,6 +10,7 @@ from vibelign.terminal_render import (
 )
 
 
+# === ANCHOR: INSTALL_GUIDE_CMD_RUN_INSTALL_GUIDE_START ===
 def run_install_guide(args) -> None:
     clack_intro("VibeLign 설치 방법")
 
@@ -79,3 +81,5 @@ def run_install_guide(args) -> None:
     cli_print("")
 
     clack_outro("설치 후 시작:  vib start")
+# === ANCHOR: INSTALL_GUIDE_CMD_RUN_INSTALL_GUIDE_END ===
+# === ANCHOR: INSTALL_GUIDE_CMD_END ===

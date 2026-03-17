@@ -1,3 +1,4 @@
+# === ANCHOR: INIT_CMD_START ===
 import platform
 import shutil
 import subprocess
@@ -55,22 +56,31 @@ _UV_INSTALL_CMD = {
 }
 
 
+# === ANCHOR: INIT_CMD__OK_START ===
 def _ok(msg: str) -> None:
     clack_success(msg)
+# === ANCHOR: INIT_CMD__OK_END ===
 
 
+# === ANCHOR: INIT_CMD__STEP_START ===
 def _step(msg: str) -> None:
     clack_step(msg)
+# === ANCHOR: INIT_CMD__STEP_END ===
 
 
+# === ANCHOR: INIT_CMD__WARN_START ===
 def _warn(msg: str) -> None:
     clack_warn(msg)
+# === ANCHOR: INIT_CMD__WARN_END ===
 
 
+# === ANCHOR: INIT_CMD__FAIL_START ===
 def _fail(msg: str) -> None:
     clack_error(msg)
+# === ANCHOR: INIT_CMD__FAIL_END ===
 
 
+# === ANCHOR: INIT_CMD__KOREAN_ERROR_START ===
 def _korean_error(result: subprocess.CompletedProcess[str]) -> str:
     combined = ((result.stdout or "") + (result.stderr or "")).lower()
     if any(
@@ -81,8 +91,10 @@ def _korean_error(result: subprocess.CompletedProcess[str]) -> str:
     if any(k in combined for k in ["permission", "access denied", "denied"]):
         return _ERR["permission"]
     return ""
+# === ANCHOR: INIT_CMD__KOREAN_ERROR_END ===
 
 
+# === ANCHOR: INIT_CMD__CHECK_PYTHON_START ===
 def _check_python() -> bool:
     cur = sys.version_info[:2]
     if cur < _MIN_PYTHON:
@@ -94,8 +106,10 @@ def _check_python() -> bool:
         return False
     _ok(f"Python {cur[0]}.{cur[1]}")
     return True
+# === ANCHOR: INIT_CMD__CHECK_PYTHON_END ===
 
 
+# === ANCHOR: INIT_CMD__CHECK_PIP_START ===
 def _check_pip() -> bool:
     if shutil.which("pip") or shutil.which("pip3"):
         _ok("pip")
@@ -112,8 +126,10 @@ def _check_pip() -> bool:
     _fail("pip 복구에 실패했어요.")
     print(f"    {_ERR['pip_broken']}")
     return False
+# === ANCHOR: INIT_CMD__CHECK_PIP_END ===
 
 
+# === ANCHOR: INIT_CMD__CHECK_UV_START ===
 def _check_uv() -> bool:
     """uv 감지. 없으면 설치 여부를 물어봄. 현재 세션에서 사용 가능하면 True."""
     if shutil.which("uv"):
@@ -164,8 +180,10 @@ def _check_uv() -> bool:
 
     _fail("uv 설치 경로를 찾을 수 없어요. pip으로 진행할게요.")
     return False
+# === ANCHOR: INIT_CMD__CHECK_UV_END ===
 
 
+# === ANCHOR: INIT_CMD__FIND_SOURCE_ROOT_START ===
 def _find_source_root() -> "Path | None":
     """vibelign 소스 루트 디렉토리를 감지합니다 (개발 환경용)."""
     # 1) 현재 파일 기준 상위로 올라가며 pyproject.toml 탐색 (editable install)
@@ -181,8 +199,10 @@ def _find_source_root() -> "Path | None":
         if (known / "pyproject.toml").exists() and (known / "vibelign").is_dir():
             return known
     return None
+# === ANCHOR: INIT_CMD__FIND_SOURCE_ROOT_END ===
 
 
+# === ANCHOR: INIT_CMD__REINSTALL_LOCAL_START ===
 def _reinstall_local(source_root: Path) -> bool:
     """네트워크 없이 소스 디렉토리에서 직접 복사해 설치합니다."""
     import importlib
@@ -205,8 +225,10 @@ def _reinstall_local(source_root: Path) -> bool:
     except Exception as e:
         _fail(f"복사 실패: {e}")
         return False
+# === ANCHOR: INIT_CMD__REINSTALL_LOCAL_END ===
 
 
+# === ANCHOR: INIT_CMD__REINSTALL_START ===
 def _reinstall(use_uv: bool, force: bool) -> bool:
     # 로컬 소스가 감지되면 네트워크 없이 직접 복사
     source_root = _find_source_root()
@@ -262,8 +284,10 @@ def _reinstall(use_uv: bool, force: bool) -> bool:
     hint = _korean_error(result)
     clack_info(hint or _ERR["reinstall_fail"])
     return False
+# === ANCHOR: INIT_CMD__REINSTALL_END ===
 
 
+# === ANCHOR: INIT_CMD_RUN_INIT_START ===
 def run_init(args) -> None:
     force = getattr(args, "force", False)
 
@@ -290,3 +314,5 @@ def run_init(args) -> None:
     else:
         clack_error("재설치 중 문제가 생겼어요.")
         clack_info("위의 안내를 따라 해결해보세요.")
+# === ANCHOR: INIT_CMD_RUN_INIT_END ===
+# === ANCHOR: INIT_CMD_END ===

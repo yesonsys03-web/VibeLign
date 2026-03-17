@@ -1,3 +1,4 @@
+# === ANCHOR: DOCTOR_CMD_START ===
 import json
 from pathlib import Path
 from vibelign.core.risk_analyzer import analyze_project
@@ -9,6 +10,7 @@ from vibelign.terminal_render import cli_print
 print = cli_print
 
 
+# === ANCHOR: DOCTOR_CMD_RUN_DOCTOR_START ===
 def run_doctor(args):
     report = analyze_project(Path.cwd(), strict=args.strict)
     if args.json:
@@ -39,3 +41,5 @@ def run_doctor(args):
     for i, suggestion in enumerate(report.suggestions, 1):
         lines.append(f"{i}. {suggestion}")
     print_ai_response("\n".join(lines) + "\n")
+# === ANCHOR: DOCTOR_CMD_RUN_DOCTOR_END ===
+# === ANCHOR: DOCTOR_CMD_END ===

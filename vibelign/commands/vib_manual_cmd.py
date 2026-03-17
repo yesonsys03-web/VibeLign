@@ -407,6 +407,33 @@ MANUAL: dict[str, dict] = {
         ],
     },
 
+    "transfer": {
+        "emoji": "🔄",
+        "title": "vib transfer",
+        "one_line": "AI 툴 전환 시 맥락 파일을 만들어요",
+        "what": (
+            "Claude Code → Cursor → Windsurf 등 AI 툴을 바꿀 때\n"
+            "프로젝트 맥락을 즉시 전달해줘요.\n"
+            "PROJECT_CONTEXT.md 파일 하나만 있으면 어떤 AI든 바로 이어서 작업 가능해요."
+        ),
+        "when": [
+            "AI 툴을 바꾸기 직전에",
+            "다른 사람에게 프로젝트를 넘길 때",
+            "새 AI 채팅에 프로젝트 맥락을 전달하고 싶을 때",
+        ],
+        "examples": [
+            ("vib transfer", "기본 생성 (PROJECT_CONTEXT.md)"),
+            ("vib transfer --compact", "경량 버전 (토큰 절약)"),
+            ("vib transfer --full", "핵심 파일 전체 포함"),
+            ("vib transfer --out ctx.md", "파일명 지정"),
+        ],
+        "options": [
+            ("--compact", "토큰을 최소화한 경량 버전을 만들어요.\n무료 플랜에서 쓸 때 좋아요."),
+            ("--full", "핵심 파일을 더 깊이 포함해요.\n더 자세한 맥락이 필요할 때 써요."),
+            ("--out 파일명", "출력 파일명을 지정해요.\n기본값은 PROJECT_CONTEXT.md예요."),
+        ],
+    },
+
     "completion": {
         "emoji": "⌨️",
         "title": "vib completion",
@@ -476,7 +503,7 @@ GROUPS = [
     ("💾 세이브 & 되돌리기", ["checkpoint", "undo", "history"]),
     ("🔬 점검 & 확인", ["doctor", "guard", "explain"]),
     ("✏️ AI 수정 요청", ["patch", "anchor", "scan"]),
-    ("🗂️ 파일 & 설정", ["protect", "ask", "config", "export", "watch", "completion"]),
+    ("🗂️ 파일 & 설정", ["protect", "transfer", "ask", "config", "export", "watch", "completion"]),
 ]
 
 

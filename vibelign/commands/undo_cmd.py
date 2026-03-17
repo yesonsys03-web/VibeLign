@@ -1,3 +1,4 @@
+# === ANCHOR: UNDO_CMD_START ===
 from pathlib import Path
 
 from vibelign.core.local_checkpoints import (
@@ -11,6 +12,7 @@ from vibelign.core.local_checkpoints import (
 from vibelign.terminal_render import cli_print
 print = cli_print
 
+# === ANCHOR: UNDO_CMD_RUN_UNDO_START ===
 def run_undo(args):
     root = Path.cwd()
     checkpoints = list_checkpoints(root)
@@ -61,3 +63,5 @@ def run_undo(args):
         print("✓ 이전 로컬 체크포인트로 되돌렸습니다!")
     else:
         print("되돌리기 실패: 체크포인트 데이터를 읽지 못했습니다.")
+# === ANCHOR: UNDO_CMD_RUN_UNDO_END ===
+# === ANCHOR: UNDO_CMD_END ===

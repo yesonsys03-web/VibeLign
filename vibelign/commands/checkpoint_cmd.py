@@ -1,3 +1,4 @@
+# === ANCHOR: CHECKPOINT_CMD_START ===
 from datetime import datetime
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from vibelign.core.local_checkpoints import create_checkpoint
 from vibelign.terminal_render import cli_print
 print = cli_print
 
+# === ANCHOR: CHECKPOINT_CMD_RUN_CHECKPOINT_START ===
 def run_checkpoint(args):
     root = Path.cwd()
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -30,3 +32,5 @@ def run_checkpoint(args):
         )
     print()
     print("문제가 생기면 'vib undo'로 되돌릴 수 있습니다.")
+# === ANCHOR: CHECKPOINT_CMD_RUN_CHECKPOINT_END ===
+# === ANCHOR: CHECKPOINT_CMD_END ===

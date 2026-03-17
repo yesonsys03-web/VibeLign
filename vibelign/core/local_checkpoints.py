@@ -1,3 +1,4 @@
+# === ANCHOR: LOCAL_CHECKPOINTS_START ===
 import hashlib
 import json
 import shutil
@@ -34,6 +35,7 @@ IGNORED_FILES = {
 
 
 @dataclass
+# === ANCHOR: LOCAL_CHECKPOINTS_CHECKPOINTSUMMARY_START ===
 class CheckpointSummary:
     checkpoint_id: str
     created_at: str
@@ -43,9 +45,11 @@ class CheckpointSummary:
     pinned: bool = False
     pruned_count: int = 0
     pruned_bytes: int = 0
+# === ANCHOR: LOCAL_CHECKPOINTS_CHECKPOINTSUMMARY_END ===
 
 
 @dataclass
+# === ANCHOR: LOCAL_CHECKPOINTS_RETENTIONPOLICY_START ===
 class RetentionPolicy:
     keep_latest: int = 30
     keep_daily_days: int = 14
@@ -53,19 +57,23 @@ class RetentionPolicy:
     max_total_size_bytes: int = 2 * 1024 * 1024 * 1024
     max_age_days: int = 180
     min_keep: int = 10
+# === ANCHOR: LOCAL_CHECKPOINTS_RETENTIONPOLICY_END ===
 
 
 DEFAULT_RETENTION_POLICY = RetentionPolicy()
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS__SHA256_START ===
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(65536), b""):
             digest.update(chunk)
     return digest.hexdigest()
+# === ANCHOR: LOCAL_CHECKPOINTS__SHA256_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS__SHOULD_SKIP_DIR_START ===
 def _should_skip_dir(path: Path, meta: MetaPaths) -> bool:
     parts = path.parts
     if any(part in IGNORED_DIRS for part in parts):
@@ -78,8 +86,10 @@ def _should_skip_dir(path: Path, meta: MetaPaths) -> bool:
     except Exception:
         pass
     return False
+# === ANCHOR: LOCAL_CHECKPOINTS__SHOULD_SKIP_DIR_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS_ITER_SNAPSHOT_FILES_START ===
 def iter_snapshot_files(root: Path) -> Iterable[Path]:
     meta = MetaPaths(root)
     for path in root.rglob("*"):
@@ -90,16 +100,22 @@ def iter_snapshot_files(root: Path) -> Iterable[Path]:
         if _should_skip_dir(path, meta):
             continue
         yield path
+# === ANCHOR: LOCAL_CHECKPOINTS_ITER_SNAPSHOT_FILES_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS__MANIFEST_PATH_START ===
 def _manifest_path(snapshot_dir: Path) -> Path:
     return snapshot_dir / "manifest.json"
+# === ANCHOR: LOCAL_CHECKPOINTS__MANIFEST_PATH_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS__FILES_DIR_START ===
 def _files_dir(snapshot_dir: Path) -> Path:
     return snapshot_dir / "files"
+# === ANCHOR: LOCAL_CHECKPOINTS__FILES_DIR_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS__CURRENT_FILE_MAP_START ===
 def _current_file_map(root: Path) -> Dict[str, Dict[str, object]]:
     mapping: Dict[str, Dict[str, object]] = {}
     for path in iter_snapshot_files(root):
@@ -110,8 +126,10 @@ def _current_file_map(root: Path) -> Dict[str, Dict[str, object]]:
             "size": path.stat().st_size,
         }
     return mapping
+# === ANCHOR: LOCAL_CHECKPOINTS__CURRENT_FILE_MAP_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS__LOAD_MANIFEST_START ===
 def _load_manifest(snapshot_dir: Path) -> Optional[Dict[str, object]]:
     manifest_path = _manifest_path(snapshot_dir)
     if not manifest_path.exists():
@@ -120,15 +138,19 @@ def _load_manifest(snapshot_dir: Path) -> Optional[Dict[str, object]]:
         return json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
+# === ANCHOR: LOCAL_CHECKPOINTS__LOAD_MANIFEST_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS__MANIFEST_FILES_START ===
 def _manifest_files(manifest: Dict[str, object]) -> List[Dict[str, object]]:
     raw_files = manifest.get("files", [])
     if not isinstance(raw_files, list):
         return []
     return [item for item in raw_files if isinstance(item, dict)]
+# === ANCHOR: LOCAL_CHECKPOINTS__MANIFEST_FILES_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS__COERCE_INT_START ===
 def _coerce_int(value: object) -> int:
     if isinstance(value, bool):
         return int(value)
@@ -140,15 +162,19 @@ def _coerce_int(value: object) -> int:
         except ValueError:
             return 0
     return 0
+# === ANCHOR: LOCAL_CHECKPOINTS__COERCE_INT_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS__PARSE_CHECKPOINT_TIME_START ===
 def _parse_checkpoint_time(value: str) -> Optional[datetime]:
     try:
         return datetime.strptime(value, "%Y%m%dT%H%M%S%fZ").replace(tzinfo=timezone.utc)
     except ValueError:
         return None
+# === ANCHOR: LOCAL_CHECKPOINTS__PARSE_CHECKPOINT_TIME_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS_FRIENDLY_TIME_START ===
 def friendly_time(created_at: str) -> str:
     """타임스탬프를 사람이 읽기 쉬운 한국어 형태로 변환."""
     cp_time = _parse_checkpoint_time(created_at)
@@ -168,8 +194,10 @@ def friendly_time(created_at: str) -> str:
         return f"{local_time.month}월 {local_time.day}일({day_name}) {time_str}"
     else:
         return f"{local_time.month}월 {local_time.day}일 {time_str}"
+# === ANCHOR: LOCAL_CHECKPOINTS_FRIENDLY_TIME_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS_LIST_CHECKPOINTS_START ===
 def list_checkpoints(root: Path) -> List[CheckpointSummary]:
     meta = MetaPaths(root)
     if not meta.checkpoints_dir.exists():
@@ -192,21 +220,27 @@ def list_checkpoints(root: Path) -> List[CheckpointSummary]:
             )
         )
     return summaries
+# === ANCHOR: LOCAL_CHECKPOINTS_LIST_CHECKPOINTS_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS__LATEST_MANIFEST_START ===
 def _latest_manifest(root: Path) -> Optional[Dict[str, object]]:
     checkpoints = list_checkpoints(root)
     if not checkpoints:
         return None
     meta = MetaPaths(root)
     return _load_manifest(meta.checkpoints_dir / checkpoints[0].checkpoint_id)
+# === ANCHOR: LOCAL_CHECKPOINTS__LATEST_MANIFEST_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS__MANIFEST_FILE_MAP_START ===
 def _manifest_file_map(manifest: Dict[str, object]) -> Dict[str, Dict[str, object]]:
     files = _manifest_files(manifest)
     return {str(item["path"]): item for item in files if "path" in item}
+# === ANCHOR: LOCAL_CHECKPOINTS__MANIFEST_FILE_MAP_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS_CREATE_CHECKPOINT_START ===
 def create_checkpoint(root: Path, message: str) -> Optional[CheckpointSummary]:
     meta = MetaPaths(root)
     meta.ensure_vibelign_dirs()
@@ -253,16 +287,20 @@ def create_checkpoint(root: Path, message: str) -> Optional[CheckpointSummary]:
     summary.pruned_count = pruned["count"]
     summary.pruned_bytes = pruned["bytes"]
     return summary
+# === ANCHOR: LOCAL_CHECKPOINTS_CREATE_CHECKPOINT_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS_HAS_CHANGES_SINCE_CHECKPOINT_START ===
 def has_changes_since_checkpoint(root: Path, checkpoint_id: str) -> bool:
     meta = MetaPaths(root)
     manifest = _load_manifest(meta.checkpoints_dir / checkpoint_id)
     if not isinstance(manifest, dict):
         return True
     return _current_file_map(root) != _manifest_file_map(manifest)
+# === ANCHOR: LOCAL_CHECKPOINTS_HAS_CHANGES_SINCE_CHECKPOINT_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS_RESTORE_CHECKPOINT_START ===
 def restore_checkpoint(root: Path, checkpoint_id: str) -> bool:
     meta = MetaPaths(root)
     snapshot_dir = meta.checkpoints_dir / checkpoint_id
@@ -287,10 +325,13 @@ def restore_checkpoint(root: Path, checkpoint_id: str) -> bool:
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
     return True
+# === ANCHOR: LOCAL_CHECKPOINTS_RESTORE_CHECKPOINT_END ===
 
 
+# === ANCHOR: LOCAL_CHECKPOINTS_PRUNE_CHECKPOINTS_START ===
 def prune_checkpoints(
     root: Path, policy: RetentionPolicy = DEFAULT_RETENTION_POLICY
+# === ANCHOR: LOCAL_CHECKPOINTS_PRUNE_CHECKPOINTS_END ===
 ) -> Dict[str, int]:
     checkpoints = list_checkpoints(root)
     now = datetime.now(timezone.utc)
@@ -359,3 +400,4 @@ def prune_checkpoints(
         kept = [item for item in kept if item.checkpoint_id != cp.checkpoint_id]
 
     return {"count": deleted_count, "bytes": deleted_bytes}
+# === ANCHOR: LOCAL_CHECKPOINTS_END ===

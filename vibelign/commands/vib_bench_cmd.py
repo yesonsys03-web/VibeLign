@@ -1,3 +1,4 @@
+# === ANCHOR: VIB_BENCH_CMD_START ===
 """vib bench — 앵커 효과 검증 벤치마크."""
 import json
 import shutil
@@ -19,10 +20,13 @@ SAMPLE_PROJECT = BENCHMARK_DIR / "sample_project"
 SCENARIOS_PATH = BENCHMARK_DIR / "scenarios.json"
 
 
+# === ANCHOR: VIB_BENCH_CMD__LOAD_SCENARIOS_START ===
 def _load_scenarios() -> List[Dict[str, Any]]:
     return json.loads(SCENARIOS_PATH.read_text(encoding="utf-8"))
+# === ANCHOR: VIB_BENCH_CMD__LOAD_SCENARIOS_END ===
 
 
+# === ANCHOR: VIB_BENCH_CMD__GENERATE_PLAIN_PROMPT_START ===
 def _generate_plain_prompt(scenario: Dict[str, Any], project_files: List[str]) -> str:
     """A조건: 앵커/코드맵 없이 plain prompt 생성."""
     lines = [
@@ -37,10 +41,13 @@ def _generate_plain_prompt(scenario: Dict[str, Any], project_files: List[str]) -
         "Do not rewrite entire files. Make the smallest change necessary.",
     ])
     return "\n".join(lines)
+# === ANCHOR: VIB_BENCH_CMD__GENERATE_PLAIN_PROMPT_END ===
 
 
+# === ANCHOR: VIB_BENCH_CMD__GENERATE_ANCHOR_PROMPT_START ===
 def _generate_anchor_prompt(
     scenario: Dict[str, Any], root: Path, project_files: List[str]
+# === ANCHOR: VIB_BENCH_CMD__GENERATE_ANCHOR_PROMPT_END ===
 ) -> str:
     """B조건: 앵커+코드맵 포함 handoff prompt 생성."""
     from vibelign.core.anchor_tools import collect_anchor_index, extract_anchors
@@ -110,6 +117,7 @@ def _generate_anchor_prompt(
     return "\n".join(lines)
 
 
+# === ANCHOR: VIB_BENCH_CMD__RUN_GENERATE_START ===
 def _run_generate(output_dir: Path) -> None:
     """A/B 조건별 프롬프트 생성."""
     from vibelign.core.anchor_tools import insert_module_anchors
@@ -168,8 +176,10 @@ def _run_generate(output_dir: Path) -> None:
             prompt = _generate_anchor_prompt(sc, proj_b, b_project_files)
             (b_dir / f"{sc['id']}.txt").write_text(prompt, encoding="utf-8")
             clack_info(f"  {sc['id']}: {sc['description']}")
+# === ANCHOR: VIB_BENCH_CMD__RUN_GENERATE_END ===
 
 
+# === ANCHOR: VIB_BENCH_CMD__RUN_SCORE_START ===
 def _run_score(results_dir: Path) -> Dict[str, Any]:
     """AI 수정 결과를 채점."""
     scenarios = _load_scenarios()
@@ -220,8 +230,10 @@ def _run_score(results_dir: Path) -> Dict[str, Any]:
             })
 
     return scores
+# === ANCHOR: VIB_BENCH_CMD__RUN_SCORE_END ===
 
 
+# === ANCHOR: VIB_BENCH_CMD__CHECK_ANCHOR_BOUNDARY_START ===
 def _check_anchor_boundary(sc_dir: Path, expected_anchor: str) -> bool:
     """수정된 파일에서 앵커 경계 내에서만 수정되었는지 확인."""
     # 간단한 휴리스틱: 수정된 파일에 해당 앵커가 존재하는지만 확인
@@ -231,8 +243,10 @@ def _check_anchor_boundary(sc_dir: Path, expected_anchor: str) -> bool:
             if expected_anchor in content:
                 return True
     return False
+# === ANCHOR: VIB_BENCH_CMD__CHECK_ANCHOR_BOUNDARY_END ===
 
 
+# === ANCHOR: VIB_BENCH_CMD__RUN_REPORT_START ===
 def _run_report(scores: Dict[str, Any]) -> str:
     """채점 결과를 마크다운 리포트로 변환."""
     lines = [
@@ -261,9 +275,11 @@ def _run_report(scores: Dict[str, Any]) -> str:
     b_scores = [e for e in scores.get("scenarios", []) if "with_anchor" in e["condition"]]
 
     if a_scores and b_scores:
+        # === ANCHOR: VIB_BENCH_CMD_AVG_START ===
         def avg(entries, key):
             vals = [e[key] for e in entries]
             return sum(vals) / len(vals) if vals else 0
+        # === ANCHOR: VIB_BENCH_CMD_AVG_END ===
 
         lines.extend([
             "",
@@ -284,10 +300,12 @@ def _run_report(scores: Dict[str, Any]) -> str:
             lines.append(
                 f"| {label} | {a_avg:.0%} | {b_avg:.0%} | {sign}{diff:.0%} |"
             )
+# === ANCHOR: VIB_BENCH_CMD__RUN_REPORT_END ===
 
     return "\n".join(lines)
 
 
+# === ANCHOR: VIB_BENCH_CMD_RUN_VIB_BENCH_START ===
 def run_vib_bench(args: Any) -> None:
     """앵커 효과 검증 벤치마크."""
     if not SAMPLE_PROJECT.exists():
@@ -345,3 +363,5 @@ def run_vib_bench(args: Any) -> None:
             report_path = BENCHMARK_DIR / "BENCHMARK_REPORT.md"
             report_path.write_text(report, encoding="utf-8")
             clack_success(f"리포트 생성: {report_path}")
+# === ANCHOR: VIB_BENCH_CMD_RUN_VIB_BENCH_END ===
+# === ANCHOR: VIB_BENCH_CMD_END ===

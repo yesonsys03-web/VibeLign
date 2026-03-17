@@ -1,3 +1,4 @@
+# === ANCHOR: ASK_CMD_START ===
 import os
 import json
 import importlib
@@ -21,6 +22,7 @@ MAX_LINES = 300  # 너무 긴 파일은 앞부분만 사용
 DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview"
 
 
+# === ANCHOR: ASK_CMD__FORMAT_GEMINI_ERROR_START ===
 def _format_gemini_error(error: Exception, model: str) -> str:
     if isinstance(error, urllib.error.HTTPError):
         try:
@@ -53,6 +55,7 @@ def _format_gemini_error(error: Exception, model: str) -> str:
                 message.append(f"응답 본문: {detail}")
             return "\n".join(message)
     return f"Gemini API 호출 실패: {error}"
+# === ANCHOR: ASK_CMD__FORMAT_GEMINI_ERROR_END ===
 
 
 _SYSTEM_PROMPT = (
@@ -85,6 +88,7 @@ _SECTION_SPECS = [
 ]
 
 
+# === ANCHOR: ASK_CMD__BUILD_RESPONSE_FORMAT_START ===
 def _build_response_format(selected: list[int], question: Optional[str] = None) -> str:
     sections = []
     for index in selected:
@@ -95,8 +99,10 @@ def _build_response_format(selected: list[int], question: Optional[str] = None) 
             "## 5. 추가 질문 답변\n- 사용자가 따로 묻는 질문에 직접 답해주세요."
         )
     return "\n\n".join(sections)
+# === ANCHOR: ASK_CMD__BUILD_RESPONSE_FORMAT_END ===
 
 
+# === ANCHOR: ASK_CMD__HAS_API_KEY_START ===
 def _has_api_key() -> bool:
     return any(
         os.environ.get(k)
@@ -108,8 +114,10 @@ def _has_api_key() -> bool:
             "MOONSHOT_API_KEY",
         ]
     )
+# === ANCHOR: ASK_CMD__HAS_API_KEY_END ===
 
 
+# === ANCHOR: ASK_CMD__BUILD_FILE_HEADER_START ===
 def _build_file_header(rel_path: str, content: str, line_count: int) -> str:
     truncated = line_count > MAX_LINES
     display_content = "\n".join(content.splitlines()[:MAX_LINES])
@@ -120,6 +128,7 @@ def _build_file_header(rel_path: str, content: str, line_count: int) -> str:
     )
     suffix = Path(rel_path).suffix.lstrip(".") or "text"
     return f"""\
+# === ANCHOR: ASK_CMD__BUILD_FILE_HEADER_END ===
 파일명: {rel_path}
 줄 수: {line_count}줄{truncate_note}
 내용:
@@ -128,8 +137,10 @@ def _build_file_header(rel_path: str, content: str, line_count: int) -> str:
 ```"""
 
 
+# === ANCHOR: ASK_CMD__BUILD_FOCUSED_PROMPT_START ===
 def _build_focused_prompt(
     rel_path: str, content: str, line_count: int, selected: list[int]
+# === ANCHOR: ASK_CMD__BUILD_FOCUSED_PROMPT_END ===
 ) -> str:
     header = _build_file_header(rel_path, content, line_count)
     section_format = _build_response_format(selected)
@@ -148,8 +159,10 @@ def _build_focused_prompt(
 """
 
 
+# === ANCHOR: ASK_CMD__BUILD_PROMPT_START ===
 def _build_prompt(
     rel_path: str, content: str, line_count: int, question: Optional[str]
+# === ANCHOR: ASK_CMD__BUILD_PROMPT_END ===
 ) -> str:
     header = _build_file_header(rel_path, content, line_count)
     specific_q = f"\n특히 이 부분이 궁금합니다: {question}\n" if question else ""
@@ -169,8 +182,10 @@ def _build_prompt(
 """
 
 
+# === ANCHOR: ASK_CMD__CALL_OPENAI_COMPATIBLE_START ===
 def _call_openai_compatible(
     api_key: str, base_url: str, model: str, prompt: str
+# === ANCHOR: ASK_CMD__CALL_OPENAI_COMPATIBLE_END ===
 ) -> bool:
     """OpenAI 호환 API 공통 호출 (OpenAI / GLM / Kimi)"""
     data = {
@@ -197,6 +212,7 @@ def _call_openai_compatible(
     return True
 
 
+# === ANCHOR: ASK_CMD__TRY_ANTHROPIC_START ===
 def _try_anthropic(prompt: str, attempted: list[str]) -> bool:
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -233,8 +249,10 @@ def _try_anthropic(prompt: str, attempted: list[str]) -> bool:
     except Exception as e:
         print(f"Anthropic API 호출 실패: {e}\n")
         return False
+# === ANCHOR: ASK_CMD__TRY_ANTHROPIC_END ===
 
 
+# === ANCHOR: ASK_CMD__TRY_OPENAI_START ===
 def _try_openai(prompt: str, attempted: list[str]) -> bool:
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -255,8 +273,10 @@ def _try_openai(prompt: str, attempted: list[str]) -> bool:
     except Exception as e:
         print(f"OpenAI API 호출 실패: {e}\n")
         return False
+# === ANCHOR: ASK_CMD__TRY_OPENAI_END ===
 
 
+# === ANCHOR: ASK_CMD__TRY_GEMINI_START ===
 def _try_gemini(prompt: str, attempted: list[str]) -> bool:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -286,8 +306,10 @@ def _try_gemini(prompt: str, attempted: list[str]) -> bool:
     except Exception as e:
         print(_format_gemini_error(e, model) + "\n")
         return False
+# === ANCHOR: ASK_CMD__TRY_GEMINI_END ===
 
 
+# === ANCHOR: ASK_CMD__TRY_GLM_START ===
 def _try_glm(prompt: str, attempted: list[str]) -> bool:
     api_key = os.environ.get("GLM_API_KEY")
     if not api_key:
@@ -308,8 +330,10 @@ def _try_glm(prompt: str, attempted: list[str]) -> bool:
     except Exception as e:
         print(f"GLM API 호출 실패: {e}\n")
         return False
+# === ANCHOR: ASK_CMD__TRY_GLM_END ===
 
 
+# === ANCHOR: ASK_CMD__TRY_KIMI_START ===
 def _try_kimi(prompt: str, attempted: list[str]) -> bool:
     api_key = os.environ.get("MOONSHOT_API_KEY")
     if not api_key:
@@ -330,8 +354,10 @@ def _try_kimi(prompt: str, attempted: list[str]) -> bool:
     except Exception as e:
         print(f"Kimi API 호출 실패: {e}\n")
         return False
+# === ANCHOR: ASK_CMD__TRY_KIMI_END ===
 
 
+# === ANCHOR: ASK_CMD_RUN_ASK_START ===
 def run_ask(args):
     root = Path.cwd()
     target_input = args.file
@@ -423,3 +449,5 @@ def run_ask(args):
         print(prompt)
         print()
         print("파일로 저장하려면: vib ask " + target_input + " --write")
+# === ANCHOR: ASK_CMD_RUN_ASK_END ===
+# === ANCHOR: ASK_CMD_END ===

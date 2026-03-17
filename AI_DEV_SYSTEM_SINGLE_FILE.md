@@ -90,6 +90,7 @@ Example:
 - if the requested change clearly belongs to an anchor, stay inside that anchor
 - do not rewrite the whole file if an anchor exists for the target area
 - if a large file has no anchors, prefer adding anchors before repeated AI edits
+- when creating a new file, always include anchors (START / END pair) from the beginning
 - do not remove existing anchors unless explicitly requested
 
 ### If anchors exist

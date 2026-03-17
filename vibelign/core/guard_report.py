@@ -1,8 +1,10 @@
+# === ANCHOR: GUARD_REPORT_START ===
 from dataclasses import dataclass, asdict
 from typing import Any, Dict
 
 
 @dataclass
+# === ANCHOR: GUARD_REPORT_GUARDREPORT_START ===
 class GuardReport:
     overall_level: str
     doctor_level: str
@@ -14,34 +16,44 @@ class GuardReport:
     doctor: Dict[str, Any]
     explain: Dict[str, Any]
 
+    # === ANCHOR: GUARD_REPORT_TO_DICT_START ===
     def to_dict(self):
+# === ANCHOR: GUARD_REPORT_GUARDREPORT_END ===
         return asdict(self)
+    # === ANCHOR: GUARD_REPORT_TO_DICT_END ===
 
 
+# === ANCHOR: GUARD_REPORT__DOCTOR_LEVEL_LABEL_START ===
 def _doctor_level_label(level: str) -> str:
     return {
         "GOOD": "좋음",
         "WARNING": "주의",
         "HIGH": "위험",
     }.get(level, level)
+# === ANCHOR: GUARD_REPORT__DOCTOR_LEVEL_LABEL_END ===
 
 
+# === ANCHOR: GUARD_REPORT__RISK_LABEL_START ===
 def _risk_label(level: str) -> str:
     return {
         "LOW": "낮음",
         "MEDIUM": "보통",
         "HIGH": "높음",
     }.get(level, level)
+# === ANCHOR: GUARD_REPORT__RISK_LABEL_END ===
 
 
+# === ANCHOR: GUARD_REPORT__OVERALL_LABEL_START ===
 def _overall_label(level: str) -> str:
     return {
         "GOOD": "안정적",
         "WARNING": "한 번 더 확인 필요",
         "HIGH": "지금은 멈추는 편이 안전함",
     }.get(level, level)
+# === ANCHOR: GUARD_REPORT__OVERALL_LABEL_END ===
 
 
+# === ANCHOR: GUARD_REPORT_COMBINE_GUARD_START ===
 def combine_guard(doctor, explain):
     total = doctor.score + {"LOW": 0, "MEDIUM": 3, "HIGH": 6}.get(explain.risk_level, 0)
     overall = (
@@ -76,3 +88,5 @@ def combine_guard(doctor, explain):
         doctor.to_dict(),
         explain.to_dict(),
     )
+# === ANCHOR: GUARD_REPORT_COMBINE_GUARD_END ===
+# === ANCHOR: GUARD_REPORT_END ===

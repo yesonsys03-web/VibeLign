@@ -1,3 +1,4 @@
+# === ANCHOR: HISTORY_CMD_START ===
 from pathlib import Path
 
 from vibelign.core.local_checkpoints import list_checkpoints
@@ -7,6 +8,7 @@ from vibelign.core.local_checkpoints import list_checkpoints
 from vibelign.terminal_render import cli_print
 print = cli_print
 
+# === ANCHOR: HISTORY_CMD_RUN_HISTORY_START ===
 def run_history(args):
     root = Path.cwd()
     checkpoints = list_checkpoints(root)
@@ -35,3 +37,5 @@ def run_history(args):
     print("되돌리려면:         vib undo")
     print("목록에서 선택:      vib undo --list")
     print("새 체크포인트 저장: vib checkpoint '작업 내용'")
+# === ANCHOR: HISTORY_CMD_RUN_HISTORY_END ===
+# === ANCHOR: HISTORY_CMD_END ===
