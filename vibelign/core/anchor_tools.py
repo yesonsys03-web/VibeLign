@@ -454,8 +454,8 @@ def validate_anchor_file(path: Path) -> list[str]:
     text = safe_read_text(path)
     if not text:
         return ["파일 내용을 읽을 수 없습니다."]
-    start_markers = re.findall(r"ANCHOR:\s*([A-Z0-9_]+)_START", text)
-    end_markers = re.findall(r"ANCHOR:\s*([A-Z0-9_]+)_END", text)
+    start_markers = re.findall(r"ANCHOR:\s*([A-Z0-9_]+)_START\s*===", text)
+    end_markers = re.findall(r"ANCHOR:\s*([A-Z0-9_]+)_END\s*===", text)
     problems = []
     for name in start_markers:
         if name not in end_markers:
