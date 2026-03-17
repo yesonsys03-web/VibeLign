@@ -151,11 +151,7 @@ def try_install_watchdog(
     except ImportError:
         pass
 
-    cmd = (
-        ["uv", "pip", "install", "--system", "watchdog"]
-        if shutil.which("uv")
-        else [sys.executable, "-m", "pip", "install", "watchdog"]
-    )
+    cmd = [sys.executable, "-m", "pip", "install", "watchdog"]
     clack_info("⚡ watchdog 이(가) 설치되어 있지 않아요.")
     clack_info("  설치하면 vib watch 로 파일 변경을 실시간 감지할 수 있어요. (없어도 정상 작동해요)")
     if not _ask_yn(f"  지금 설치할까요? ({' '.join(cmd)}) [y/N] "):
