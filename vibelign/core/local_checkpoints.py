@@ -157,7 +157,7 @@ def friendly_time(created_at: str) -> str:
     local_time = cp_time.astimezone()
     now = datetime.now(timezone.utc).astimezone()
     delta = now - local_time
-    time_str = local_time.strftime("%H:%M")
+    time_str = local_time.strftime("%H:%M:%S")
     if delta.days == 0:
         return f"오늘 {time_str}"
     elif delta.days == 1:
