@@ -31,14 +31,14 @@ class VibPatchRenderTest(unittest.TestCase):
         self.assertIn("# VibeLign 패치 계획", markdown)
         self.assertIn("지금 상태:", markdown)
         self.assertIn("조금 더 알려주면 바로 도와줄 수 있어요", markdown)
-        self.assertIn("먼저 이렇게 해보세요:", markdown)
+        self.assertIn("먼저 이렇게 해보세요", markdown)
         self.assertIn("지금은 바로 수정하지 마세요.", markdown)
-        self.assertIn("먼저 확인하면 좋은 질문:", markdown)
+        self.assertIn("먼저 확인하면 좋은 질문", markdown)
         self.assertIn("정확히 어느 함수나 구역", markdown)
-        self.assertIn("이 요청을 이렇게 이해했어요:", markdown)
-        self.assertIn("왜 이렇게 골랐는지:", markdown)
-        self.assertIn("미리 보기:", markdown)
-        self.assertIn("다음에 할 일:", markdown)
+        self.assertIn("수정 대상 요약", markdown)
+        self.assertIn("왜 이렇게 골랐는지", markdown)
+        self.assertIn("미리 보기", markdown)
+        self.assertIn("다음에 할 일", markdown)
 
     def test_run_vib_patch_uses_rich_renderer_for_text_output(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -79,7 +79,7 @@ class VibPatchRenderTest(unittest.TestCase):
             {"patch_plan": patch_plan, "contract": _build_contract(patch_plan)}
         )
         self.assertIn("지금 바로 진행할 수 있어요", markdown)
-        self.assertIn("이제 이렇게 진행하면 돼요:", markdown)
+        self.assertIn("이제 이렇게 진행하면 돼요", markdown)
         self.assertIn("지금은 바로 AI에게 전달해도 괜찮아요.", markdown)
 
 

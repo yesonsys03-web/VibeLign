@@ -156,15 +156,9 @@ def _build_ready_handoff(
     prompt_lines = [
         "You are applying a VibeLign patch contract.",
         "",
-        "Before making any changes:",
-        "1. Read .vibelign/project_map.json to understand the project structure",
-        "2. Check the anchor list for the target file",
-        "3. Only modify code within the specified anchor boundaries",
-        "4. Check @CONNECTS in .vibelign/anchor_meta.json to avoid breaking related features",
-        "",
     ]
 
-    # 앵커 메타 정보가 있으면 target_anchor의 intent/connects 포함
+    # 앵커 메타 정보가 있으면 target_anchor의 intent/connects/warning 포함
     anchor_name = str(patch_plan.get("target_anchor", ""))
     if anchor_name and anchor_name != "N/A":
         anchor_meta_path = meta.vibelign_dir / "anchor_meta.json"
@@ -187,31 +181,11 @@ def _build_ready_handoff(
     prompt_lines.extend([
         f"Intent: {contract['intent']}",
         f"CodeSpeak: {patch_plan['codespeak']}",
-        f"Allowed files: {', '.join(contract['scope']['allowed_files'])}",
-        f"Target anchor: {patch_plan['target_anchor']}",
-        f"Allowed operations: {', '.join(contract['allowed_ops'])}",
-        "Preconditions:",
+        f"File: {', '.join(contract['scope']['allowed_files'])}",
+        f"Anchor: {patch_plan['target_anchor']}",
+        f"Allowed ops: {', '.join(contract['allowed_ops'])}",
+        f"Constraints: {', '.join(patch_plan['constraints'])}",
     ])
-    prompt_lines.extend(f"- {item}" for item in contract["preconditions"])
-    prompt_lines.extend(
-        [
-            "Constraints:",
-        ]
-    )
-    prompt_lines.extend(f"- {item}" for item in patch_plan["constraints"])
-    prompt_lines.extend(
-        [
-            f"Expected result: {contract['expected_result']}",
-            "Verification:",
-        ]
-    )
-    prompt_lines.extend(f"- {item}" for item in contract["verification"]["commands"])
-    prompt_lines.extend(
-        [
-            "Do not edit files outside the allowed files list.",
-            "If a precondition does not match, stop and report the mismatch instead of guessing.",
-        ]
-    )
     return {
         "ready": True,
         "target_file": patch_plan["target_file"],
@@ -457,10 +431,13 @@ def _render_markdown(data: Dict[str, Any], preview_text: Optional[str] = None) -
         lines.extend(
             [
                 "",
-                "## AI에게 그대로 전달할 블록",
-                "```text",
+                "────────────────────────────────────────",
+                "📋 아래 내용을 복사해서 AI에게 붙여넣으세요",
+                "────────────────────────────────────────",
+                "",
                 str(handoff["prompt"]),
-                "```",
+                "",
+                "────────────────────────────────────────",
             ]
         )
     return "\n".join(lines) + "\n"
