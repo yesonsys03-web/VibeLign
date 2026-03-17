@@ -320,6 +320,12 @@ def run_vib_start(args: Any) -> None:
     clack_info(_status_line(status))
 
     if is_new:
+        clack_step("딱 3가지만 기억하세요")
+        clack_info("")
+        clack_info('  1. 작업 전엔 항상   →  vib checkpoint "설명"')
+        clack_info('  2. AI가 망쳤으면    →  vib undo')
+        clack_info('  3. 잘 됐으면        →  vib checkpoint "완료"')
+        clack_info("")
         clack_step("이제 이렇게 진행하면 돼요")
         clack_info("")
         clack_info("1단계: 안전 구역 만들기 (1번만 하면 돼요)")
@@ -335,10 +341,24 @@ def run_vib_start(args: Any) -> None:
         clack_info("   AI가 이상한 곳을 건드리지 않았는지 자동으로 검사해요")
         clack_info("")
         clack_info('언제든 vib doctor 로 프로젝트 상태를 확인할 수 있어요')
-        clack_info('vib checkpoint "설명" 으로 현재 상태를 저장할 수 있어요 (게임 세이브)')
         clack_info("")
         clack_info("💡 탭키로 명령어 자동완성을 쓰고 싶다면:")
         clack_info("   vib completion --install")
+        clack_info("")
+        clack_step("지금 첫 번째 체크포인트를 저장할까요?")
+        clack_info("  나중에 AI가 뭔가 망쳐도 지금 이 시점으로 되돌릴 수 있어요")
+        try:
+            answer = input("  [Y/n]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            answer = "n"
+        if answer in ("", "y", "yes"):
+            import types
+            from vibelign.commands.vib_checkpoint_cmd import run_vib_checkpoint
+            cp_args = types.SimpleNamespace(message=["시작"])
+            run_vib_checkpoint(cp_args)
+            clack_success("체크포인트 저장 완료! 이제 안심하고 AI 코딩을 시작하세요 🎉")
+        else:
+            clack_info('나중에 직접 저장하려면: vib checkpoint "시작"')
         clack_outro("준비 완료! 위 단계를 따라해 보세요")
     else:
         next_step = _next_step(doctor_data)
