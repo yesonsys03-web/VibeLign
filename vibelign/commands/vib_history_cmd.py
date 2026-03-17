@@ -17,6 +17,9 @@ def _clean_msg(msg: str) -> str:
             msg = msg[len(prefix):]
             break
     msg = _TIMESTAMP_PATTERN.sub("", msg).strip()
+    # 훅에서 stdin JSON이 메시지로 들어온 경우 방어
+    if msg.startswith("{") or len(msg) > 200:
+        return "(자동 저장)"
     return msg or "(메시지 없음)"
 
 

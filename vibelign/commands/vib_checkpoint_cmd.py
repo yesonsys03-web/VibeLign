@@ -42,6 +42,16 @@ def run_vib_checkpoint(args: Any) -> None:
     if summary.pruned_count:
         freed_kb = max(1, round(summary.pruned_bytes / 1024))
         print(f"  오래된 체크포인트 {summary.pruned_count}개를 정리했고, 약 {freed_kb}KB를 비웠어요.")
+
+    # PROJECT_CONTEXT.md 자동 갱신
+    try:
+        from vibelign.commands.vib_transfer_cmd import _build_context_content
+        ctx_path = root / "PROJECT_CONTEXT.md"
+        ctx_path.write_text(_build_context_content(root), encoding="utf-8")
+        print("  📄 PROJECT_CONTEXT.md 자동 갱신 완료")
+    except Exception:
+        pass
+
     print("문제가 생기면 `vib undo`로 되돌릴 수 있습니다.")
 
 

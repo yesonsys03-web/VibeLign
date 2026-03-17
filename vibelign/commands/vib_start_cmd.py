@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from vibelign.commands.export_cmd import AGENTS_MD_CONTENT
 from vibelign.commands.vib_doctor_cmd import build_doctor_envelope
 from vibelign.core.ai_dev_system import AI_DEV_SYSTEM_CONTENT
-from vibelign.core.hook_setup import detect_tool, is_hook_set, setup_hook_if_needed
+from vibelign.core.hook_setup import detect_tool, is_hook_set, setup_hook_if_needed, remove_old_hook
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_scan import iter_source_files, line_count, relpath_str
 from vibelign.terminal_render import (
@@ -289,12 +289,13 @@ def run_vib_start(args: Any) -> None:
         setup_result if (is_new or setup_result["created"]) else None
     )
 
-    # [2] AI 도구 훅 설정 제안
+    # [2] 기존 PostToolUse 훅 정리 + 초기 체크포인트 생성
+    remove_old_hook(root)
     setup_hook_if_needed(root)
 
-    # [3] 훅/git 상태 파악
+    # [3] AI 도구 감지
     tool = detect_tool(root)
-    hook_active = tool is not None and is_hook_set(root, tool)
+    hook_active = False  # PostToolUse 훅은 더 이상 사용하지 않음
     hook_label = {"claude": "Claude Code"}.get(tool, tool) if tool else None
     git_active = _has_git(root)
 

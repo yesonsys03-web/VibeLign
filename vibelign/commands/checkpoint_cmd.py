@@ -30,6 +30,7 @@ def run_checkpoint(args):
         print(
             f"  오래된 체크포인트 {summary.pruned_count}개를 정리했고, 약 {freed_kb}KB를 비웠어요."
         )
+
     print()
     print("문제가 생기면 'vib undo'로 되돌릴 수 있습니다.")
 # === ANCHOR: CHECKPOINT_CMD_RUN_CHECKPOINT_END ===
