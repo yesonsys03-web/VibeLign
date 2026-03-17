@@ -1,3 +1,9 @@
+<p align="center">
+  <img src="assets/banner.svg" alt="VibeLign Banner" width="100%"/>
+</p>
+
+---
+
 # VibeLign
 
 **AI coding safety system for vibecoders.**
@@ -9,7 +15,9 @@ VibeLign keeps your project safe.
 
 # Quick Start
 
-![Quickstart](assets/quickstart_en.png)
+<p align="center">
+  <img src="assets/banner.svg" alt="VibeLign Quick Start" width="100%"/>
+</p>
 
 ---
 
@@ -178,7 +186,9 @@ If these commands work, VibeLign is installed correctly.
 
 # Visual Guide (Korean)
 
-![빠른 시작 가이드](assets/quickstart_kr.png)
+<p align="center">
+  <img src="assets/banner.svg" alt="VibeLign Visual Guide" width="100%"/>
+</p>
 
 ---
 
@@ -284,6 +294,10 @@ MIT
 
 # VibeLign (한글 번역)
 
+<p align="center">
+  <img src="assets/banner.svg" alt="VibeLign Banner" width="100%"/>
+</p>
+
 **AI 코딩 안전 시스템: 바이브코더를 위한 보호막**
 
 AI는 코드를 정말 빨리 작성하지만, 가끔 프로젝트를 엉망으로 만들기도 합니다.
@@ -307,7 +321,9 @@ vib patch "진행 표시바 추가해줘"
 
 ## 퀵 스타트 (빨리 시작하기)
 
-![퀵스타트 가이드](assets/quickstart_kr.png)
+<p align="center">
+  <img src="assets/banner.svg" alt="VibeLign 퀵스타트" width="100%"/>
+</p>
 
 ---
 
@@ -427,7 +443,9 @@ vib guard --json
 
 ## 시각 가이드
 
-![빠른 시작 가이드](assets/quickstart_kr.png)
+<p align="center">
+  <img src="assets/banner.svg" alt="VibeLign 시각 가이드" width="100%"/>
+</p>
 
 ---
 

@@ -1,0 +1,251 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0e1a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0d1a2e;stop-opacity:1" />
+    </linearGradient>
+    <!-- Purple accent gradient -->
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#7c3aed;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2563eb;stop-opacity:1" />
+    </linearGradient>
+    <!-- Card gradient -->
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e2a3a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#131c2b;stop-opacity:1" />
+    </linearGradient>
+    <!-- Glow filter -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- Soft glow for text -->
+    <filter id="textGlow">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- Grid pattern -->
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1a2540" stroke-width="0.5"/>
+    </pattern>
+    <!-- Clip path for rounded corners on cards -->
+    <clipPath id="card1clip">
+      <rect x="60" y="330" width="260" height="200" rx="16"/>
+    </clipPath>
+    <clipPath id="card2clip">
+      <rect x="350" y="330" width="260" height="200" rx="16"/>
+    </clipPath>
+    <clipPath id="card3clip">
+      <rect x="640" y="330" width="260" height="200" rx="16"/>
+    </clipPath>
+    <clipPath id="card4clip">
+      <rect x="930" y="330" width="290" height="200" rx="16"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="640" fill="url(#bgGrad)"/>
+  <!-- Grid overlay -->
+  <rect width="1280" height="640" fill="url(#grid)" opacity="0.6"/>
+
+  <!-- Decorative circles (background ambient) -->
+  <circle cx="100" cy="120" r="180" fill="#7c3aed" opacity="0.04"/>
+  <circle cx="1180" cy="520" r="200" fill="#2563eb" opacity="0.05"/>
+  <circle cx="640" cy="320" r="350" fill="#1e40af" opacity="0.03"/>
+
+  <!-- Top accent bar (gradient) -->
+  <rect x="0" y="0" width="1280" height="4" fill="url(#accentGrad)"/>
+
+  <!-- Shield icon (left of title) -->
+  <g transform="translate(130, 110)" filter="url(#glow)">
+    <!-- Shield shape -->
+    <path d="M0,-38 L32,-22 L32,8 C32,28 16,42 0,48 C-16,42 -32,28 -32,8 L-32,-22 Z"
+          fill="url(#accentGrad)" opacity="0.9"/>
+    <!-- Checkmark inside shield -->
+    <path d="M-12,4 L-4,14 L14,-8" stroke="white" stroke-width="4.5" fill="none"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Main title: VibeLign -->
+  <text x="182" y="120" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="72" font-weight="800" letter-spacing="-1"
+        fill="white" filter="url(#textGlow)">Vibe<tspan fill="url(#accentGrad)">Lign</tspan></text>
+
+  <!-- Version badge -->
+  <rect x="470" y="82" width="80" height="28" rx="14" fill="#7c3aed" opacity="0.25"/>
+  <rect x="470" y="82" width="80" height="28" rx="14" fill="none" stroke="#7c3aed" stroke-width="1" opacity="0.5"/>
+  <text x="510" y="101" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="13" font-weight="600" fill="#a78bfa" text-anchor="middle">v1.5</text>
+
+  <!-- Tagline Korean -->
+  <text x="182" y="168" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif"
+        font-size="28" font-weight="700" fill="#c7d2fe" letter-spacing="0.5">
+    AI가 코드를 망쳐도 괜찮아 — 게임처럼 되돌리면 돼
+  </text>
+
+  <!-- Tagline English -->
+  <text x="182" y="204" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="18" font-weight="400" fill="#64748b" letter-spacing="0.3">
+    AI Coding Safety for Vibecoders · Checkpoint · Undo · Guard
+  </text>
+
+  <!-- Divider line -->
+  <line x1="60" y1="240" x2="1220" y2="240" stroke="url(#accentGrad)" stroke-width="1" opacity="0.3"/>
+
+  <!-- Supported tools row -->
+  <text x="60" y="275" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="14" font-weight="500" fill="#475569">Works with</text>
+
+  <!-- Tool badges -->
+  <!-- Claude Code -->
+  <rect x="145" y="256" width="130" height="30" rx="15" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <circle cx="163" cy="271" r="8" fill="#d97706" opacity="0.8"/>
+  <text x="178" y="276" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="12" font-weight="600" fill="#cbd5e1">Claude Code</text>
+
+  <!-- Cursor -->
+  <rect x="290" y="256" width="90" height="30" rx="15" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <circle cx="308" cy="271" r="8" fill="#6366f1" opacity="0.8"/>
+  <text x="323" y="276" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="12" font-weight="600" fill="#cbd5e1">Cursor</text>
+
+  <!-- Codex -->
+  <rect x="395" y="256" width="90" height="30" rx="15" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <circle cx="413" cy="271" r="8" fill="#10b981" opacity="0.8"/>
+  <text x="428" y="276" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="12" font-weight="600" fill="#cbd5e1">Codex</text>
+
+  <!-- OpenCode -->
+  <rect x="500" y="256" width="105" height="30" rx="15" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <circle cx="518" cy="271" r="8" fill="#3b82f6" opacity="0.8"/>
+  <text x="533" y="276" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="12" font-weight="600" fill="#cbd5e1">OpenCode</text>
+
+  <!-- Terminal mockup (right side) -->
+  <rect x="740" y="80" width="490" height="185" rx="12" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+  <!-- Terminal titlebar -->
+  <rect x="740" y="80" width="490" height="36" rx="12" fill="#1e293b"/>
+  <rect x="740" y="104" width="490" height="12" fill="#1e293b"/>
+  <!-- Traffic light dots -->
+  <circle cx="765" cy="98" r="6" fill="#ef4444" opacity="0.8"/>
+  <circle cx="788" cy="98" r="6" fill="#f59e0b" opacity="0.8"/>
+  <circle cx="811" cy="98" r="6" fill="#10b981" opacity="0.8"/>
+  <!-- Terminal title -->
+  <text x="985" y="102" font-family="'SF Mono', 'Fira Code', monospace"
+        font-size="12" fill="#64748b" text-anchor="middle">terminal</text>
+  <!-- Terminal content -->
+  <text x="768" y="140" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace"
+        font-size="13" fill="#64748b">$</text>
+  <text x="783" y="140" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace"
+        font-size="13" fill="#a78bfa">vib checkpoint</text>
+  <text x="894" y="140" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace"
+        font-size="13" fill="#94a3b8">"결제 모듈 추가 전"</text>
+
+  <text x="768" y="162" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace"
+        font-size="13" fill="#10b981">✓</text>
+  <text x="785" y="162" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace"
+        font-size="13" fill="#e2e8f0">체크포인트 저장 완료!</text>
+
+  <text x="768" y="186" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace"
+        font-size="13" fill="#64748b">$</text>
+  <text x="783" y="186" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace"
+        font-size="13" fill="#a78bfa">vib undo</text>
+
+  <text x="768" y="208" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace"
+        font-size="12" fill="#64748b">  [1] 오늘 14:30:02</text>
+  <text x="945" y="208" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace"
+        font-size="12" fill="#94a3b8">결제 모듈 추가 전</text>
+  <text x="768" y="228" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace"
+        font-size="12" fill="#475569">  [0] 취소</text>
+
+  <!-- Blinking cursor -->
+  <rect x="768" y="238" width="8" height="14" rx="1" fill="#a78bfa" opacity="0.8">
+    <animate attributeName="opacity" values="0.8;0;0.8" dur="1.2s" repeatCount="indefinite"/>
+  </rect>
+
+  <!-- ═══ Feature Cards ═══ -->
+
+  <!-- Card 1: Checkpoint -->
+  <rect x="60" y="330" width="260" height="200" rx="16" fill="url(#cardGrad)" stroke="#1e2a3a" stroke-width="1.5"/>
+  <rect x="60" y="330" width="260" height="4" rx="2" fill="url(#accentGrad)" opacity="0.8"/>
+  <!-- Icon area -->
+  <text x="88" y="388" font-size="36">💾</text>
+  <text x="88" y="425" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif"
+        font-size="18" font-weight="700" fill="white">체크포인트</text>
+  <text x="88" y="450" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="14" font-weight="600" fill="#a78bfa">Checkpoint</text>
+  <text x="88" y="475" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif"
+        font-size="12" fill="#64748b">AI 작업 전 현재 상태 저장</text>
+  <text x="88" y="494" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="11" fill="#475569">Save state before AI touches code</text>
+
+  <!-- Card 2: Undo -->
+  <rect x="350" y="330" width="260" height="200" rx="16" fill="url(#cardGrad)" stroke="#1e2a3a" stroke-width="1.5"/>
+  <rect x="350" y="330" width="260" height="4" rx="2" fill="#10b981" opacity="0.7"/>
+  <text x="378" y="388" font-size="36">⏪</text>
+  <text x="378" y="425" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif"
+        font-size="18" font-weight="700" fill="white">되돌리기</text>
+  <text x="378" y="450" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="14" font-weight="600" fill="#34d399">One-command Undo</text>
+  <text x="378" y="475" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif"
+        font-size="12" fill="#64748b">AI가 망쳐도 즉시 복구</text>
+  <text x="378" y="494" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="11" fill="#475569">Instant rollback from AI mistakes</text>
+
+  <!-- Card 3: Guard -->
+  <rect x="640" y="330" width="260" height="200" rx="16" fill="url(#cardGrad)" stroke="#1e2a3a" stroke-width="1.5"/>
+  <rect x="640" y="330" width="260" height="4" rx="2" fill="#f59e0b" opacity="0.7"/>
+  <text x="668" y="388" font-size="36">🛡️</text>
+  <text x="668" y="425" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif"
+        font-size="18" font-weight="700" fill="white">가드</text>
+  <text x="668" y="450" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="14" font-weight="600" fill="#fbbf24">AI Guard Rules</text>
+  <text x="668" y="475" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif"
+        font-size="12" fill="#64748b">AI에게 금지 규칙 자동 주입</text>
+  <text x="668" y="494" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="11" fill="#475569">Auto-inject safety rules for AI</text>
+
+  <!-- Card 4: For Vibecoders -->
+  <rect x="930" y="330" width="290" height="200" rx="16" fill="url(#cardGrad)" stroke="#1e2a3a" stroke-width="1.5"/>
+  <rect x="930" y="330" width="290" height="4" rx="2" fill="#ec4899" opacity="0.7"/>
+  <text x="958" y="388" font-size="36">🎮</text>
+  <text x="958" y="425" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif"
+        font-size="18" font-weight="700" fill="white">코알못도 OK</text>
+  <text x="958" y="450" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="14" font-weight="600" fill="#f472b6">For Vibecoders</text>
+  <text x="958" y="475" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif"
+        font-size="12" fill="#64748b">코딩 몰라도 안전하게 개발</text>
+  <text x="958" y="494" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="11" fill="#475569">Safe development without coding skills</text>
+
+  <!-- Bottom strip -->
+  <rect x="0" y="598" width="1280" height="42" fill="#060b14" opacity="0.7"/>
+
+  <!-- pip install badge -->
+  <text x="60" y="625" font-family="'SF Mono', 'Fira Code', monospace"
+        font-size="14" fill="#475569">$</text>
+  <text x="76" y="625" font-family="'SF Mono', 'Fira Code', monospace"
+        font-size="14" fill="#e2e8f0">pip install vibelign</text>
+  <text x="260" y="625" font-family="'SF Mono', 'Fira Code', monospace"
+        font-size="14" fill="#475569">→</text>
+  <text x="285" y="625" font-family="'SF Mono', 'Fira Code', monospace"
+        font-size="14" fill="#a78bfa">vib start</text>
+
+  <!-- Stars / GitHub text -->
+  <text x="640" y="625" font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="13" fill="#334155" text-anchor="middle">⭐ Star on GitHub if VibeLign saved your code!</text>
+
+  <!-- Right tagline -->
+  <text x="1220" y="625" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif"
+        font-size="13" fill="#334155" text-anchor="end">설치 5초 · 시작 1분 · 후회 0번</text>
+
+  <!-- Bottom gradient line -->
+  <rect x="0" y="636" width="1280" height="4" fill="url(#accentGrad)" opacity="0.5"/>
+</svg>
