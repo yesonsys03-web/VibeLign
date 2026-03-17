@@ -301,18 +301,16 @@ def run_vib_start(args: Any) -> None:
         )
         clack_info("git을 사용하면 별도 명령어 없이 자동 추적돼요")
 
-    # [5] 고속 도구 감지 힌트
+    # [5] 고속 도구 자동 설치 제안
     from vibelign.core.fast_tools import has_fd, has_rg
+    from vibelign.core.auto_install import try_install_fast_tools
     missing_tools = []
     if not has_fd():
         missing_tools.append("fd")
     if not has_rg():
-        missing_tools.append("rg (ripgrep)")
+        missing_tools.append("ripgrep")
     if missing_tools:
-        clack_info(
-            f"⚡ {', '.join(missing_tools)} 설치 시 파일 스캔이 더 빨라져요 "
-            "(brew install fd ripgrep)"
-        )
+        try_install_fast_tools(missing_tools, clack_info, clack_warn, clack_success)
 
     score = doctor_data["project_score"]
     status = doctor_data["status"]

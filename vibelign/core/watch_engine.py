@@ -38,10 +38,18 @@ def run_watch(config):
         observers_module = import_module("watchdog.observers")
         FileSystemEventHandler = events_module.FileSystemEventHandler
         Observer = observers_module.Observer
-    except Exception as e:
-        raise RuntimeError(
-            "watch 모드를 사용하려면 'watchdog'을 설치해야 합니다. `pip install watchdog` 또는 `uv add watchdog`으로 설치하세요."
-        ) from e
+    except Exception:
+        from vibelign.core.auto_install import try_install_watchdog
+        try_install_watchdog(print, print, print)
+        try:
+            events_module = import_module("watchdog.events")
+            observers_module = import_module("watchdog.observers")
+            FileSystemEventHandler = events_module.FileSystemEventHandler
+            Observer = observers_module.Observer
+        except Exception as e:
+            raise RuntimeError(
+                "watch 모드를 사용하려면 'watchdog'을 설치해야 합니다. `pip install watchdog` 또는 `uv add watchdog`으로 설치하세요."
+            ) from e
 
     from vibelign.core.watch_rules import classify_event
     from vibelign.core.watch_state import (
