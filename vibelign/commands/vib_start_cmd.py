@@ -21,6 +21,34 @@ from vibelign.terminal_render import (
 GITIGNORE_LINE = ".vibelign/checkpoints/"
 LARGE_FILE_LINE_THRESHOLD = 300
 
+_TREE_SKIP = {
+    ".git", "__pycache__", "node_modules", ".vibelign",
+    "build", "dist", ".venv", "venv", ".pytest_cache",
+    ".ruff_cache", ".mypy_cache", ".tox", "coverage",
+}
+
+
+def _build_tree(root: Path) -> List[str]:
+    lines: List[str] = []
+
+    def _walk(path: Path, depth: int) -> None:
+        try:
+            entries = sorted(path.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
+        except PermissionError:
+            return
+        for entry in entries:
+            if entry.name.startswith(".") or entry.name in _TREE_SKIP:
+                continue
+            indent = "  " * depth
+            if entry.is_dir():
+                lines.append(f"{indent}{entry.name}/")
+                _walk(entry, depth + 1)
+            else:
+                lines.append(f"{indent}{entry.name}")
+
+    _walk(root, 0)
+    return lines
+
 CONFIG_YAML = """schema_version: 1
 llm_provider: anthropic
 api_key: ENV
@@ -129,6 +157,19 @@ def _ensure_rule_files(root: Path) -> Dict[str, List[str]]:
     return {"created": created, "skipped": skipped}
 
 
+def _classify_file(path: Path, rel: str) -> str:
+    low = rel.lower()
+    if path.name in {"main.py", "app.py", "cli.py", "index.js", "main.ts"}:
+        return "entry"
+    if any(token in low for token in ["ui", "view", "views", "window", "dialog", "widget", "screen"]):
+        return "ui"
+    if any(token in low for token in ["service", "services", "api", "client", "server", "worker", "job", "task", "queue", "auth", "data"]):
+        return "service"
+    if any(token in low for token in ["core", "engine", "patch", "anchor", "guard"]):
+        return "core"
+    return "other"
+
+
 def _build_project_map(root: Path) -> Dict[str, Any]:
     from vibelign.core.anchor_tools import collect_anchor_index
 
@@ -137,37 +178,40 @@ def _build_project_map(root: Path) -> Dict[str, Any]:
     core_modules: List[str] = []
     service_modules: List[str] = []
     large_files: List[str] = []
+    file_details: Dict[str, Any] = {}
     file_count = 0
     for path in iter_source_files(root):
         rel = relpath_str(root, path)
         file_count += 1
         low = rel.lower()
         lines = line_count(path)
-        if path.name in {"main.py", "app.py", "cli.py", "index.js", "main.ts"}:
+        category = _classify_file(path, rel)
+        if category == "entry":
             entry_files.append(rel)
-        if any(
-            token in low
-            for token in ["ui", "view", "views", "window", "dialog", "widget", "screen"]
-        ):
+        if any(token in low for token in ["ui", "view", "views", "window", "dialog", "widget", "screen"]):
             ui_modules.append(rel)
-        if any(
-            token in low for token in ["core", "engine", "patch", "anchor", "guard"]
-        ):
+        if any(token in low for token in ["core", "engine", "patch", "anchor", "guard"]):
             core_modules.append(rel)
-        if any(
-            token in low
-            for token in [
-                "service", "services", "api", "client", "server",
-                "worker", "job", "task", "queue", "auth", "data",
-            ]
-        ):
+        if any(token in low for token in ["service", "services", "api", "client", "server", "worker", "job", "task", "queue", "auth", "data"]):
             service_modules.append(rel)
         if lines >= LARGE_FILE_LINE_THRESHOLD:
             large_files.append(rel)
+        file_details[rel] = {"category": category, "line_count": lines}
+
     anchor_index = collect_anchor_index(root)
+    files = {
+        rel: {
+            "category": details["category"],
+            "anchors": anchor_index.get(rel, []),
+            "line_count": details["line_count"],
+        }
+        for rel, details in file_details.items()
+    }
     return {
         "schema_version": 2,
         "project_name": root.name,
+        "tree": _build_tree(root),
+        "files": files,
         "entry_files": sorted(entry_files),
         "ui_modules": sorted(ui_modules),
         "core_modules": sorted(core_modules),

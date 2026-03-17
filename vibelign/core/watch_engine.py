@@ -147,6 +147,12 @@ def run_watch(config):
             try:
                 anchor_index = collect_anchor_index(self.root)
                 payload["anchor_index"] = anchor_index
+                # Sync files dict anchors with fresh anchor_index
+                existing_files = payload.get("files", {})
+                for rel_path, anchors in anchor_index.items():
+                    if rel_path in existing_files:
+                        existing_files[rel_path]["anchors"] = anchors
+                payload["files"] = existing_files
                 payload["schema_version"] = 2
                 payload["updated_at"] = (
                     datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")

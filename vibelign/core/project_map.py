@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from vibelign.core.meta_paths import MetaPaths
 
@@ -23,6 +23,8 @@ class ProjectMapSnapshot:
     file_count: int
     generated_at: Optional[str]
     anchor_index: dict[str, list[str]] = field(default_factory=dict)
+    tree: list[str] = field(default_factory=list)
+    files: dict[str, Any] = field(default_factory=dict)
 
     def classify_path(self, rel_path: str) -> Optional[str]:
         if rel_path in self.entry_files:
@@ -76,6 +78,14 @@ def load_project_map(root: Path) -> tuple[Optional[ProjectMapSnapshot], Optional
         if isinstance(raw_anchor_index, dict)
         else {}
     )
+    raw_tree = payload.get("tree", [])
+    tree = raw_tree if isinstance(raw_tree, list) else []
+    raw_files = payload.get("files", {})
+    files: dict[str, Any] = (
+        {k: v for k, v in raw_files.items() if isinstance(v, dict)}
+        if isinstance(raw_files, dict)
+        else {}
+    )
     return (
         ProjectMapSnapshot(
             schema_version=schema_version,
@@ -92,6 +102,8 @@ def load_project_map(root: Path) -> tuple[Optional[ProjectMapSnapshot], Optional
                 else None
             ),
             anchor_index=anchor_index,
+            tree=tree,
+            files=files,
         ),
         None,
     )
