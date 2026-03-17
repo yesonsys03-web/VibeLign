@@ -4,6 +4,7 @@ import importlib
 import sys
 
 from .commands.vib_anchor_cmd import run_vib_anchor
+from .commands.vib_manual_cmd import run_vib_manual
 from .commands.vib_checkpoint_cmd import run_vib_checkpoint
 from .commands.vib_doctor_cmd import run_vib_doctor
 from .commands.vib_explain_cmd import run_vib_explain
@@ -65,7 +66,10 @@ AI 수정 요청:
   ask         파일이 뭘 하는지 설명해줘요
   config      API 키 설정
   export      AI 도구용 설정 내보내기
-  watch       실시간 감시"""
+  watch       실시간 감시
+
+도움말:
+  manual      코알못을 위한 상세 사용 설명서"""
 
 _MAIN_EPILOG = """\
 처음이세요? 이것만 따라하세요:
@@ -420,6 +424,32 @@ def build_parser():
     p.add_argument("--report", action="store_true", help="마크다운 비교 리포트 생성")
     p.add_argument("--json", action="store_true", help="JSON으로 출력")
     p.set_defaults(func=run_vib_bench)
+
+    # ── 매뉴얼 ──
+    p = sub.add_parser(
+        "manual",
+        help="코알못을 위한 상세 사용 설명서",
+        description=(
+            "모든 명령어를 쉬운 말로 설명해줘요.\n"
+            "옵션, 예시, 언제 쓰는지까지 전부 알려줘요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib manual                전체 명령어 목록\n"
+            "  vib manual checkpoint     checkpoint 상세 보기\n"
+            "  vib manual --all          전체 상세 보기\n"
+            "  vib manual --save         VIBELIGN_MANUAL.md 파일로 저장"
+        ),
+    )
+    p.add_argument(
+        "command_name",
+        nargs="?",
+        default=None,
+        help="상세히 볼 커맨드 이름 (예: checkpoint, anchor, guard ...)",
+    )
+    p.add_argument("--all", action="store_true", help="전체 커맨드 상세 보기")
+    p.add_argument("--save", action="store_true", help="VIBELIGN_MANUAL.md 파일로 저장")
+    p.set_defaults(func=run_vib_manual)
 
     # ── 쉘 자동완성 ──
     p = sub.add_parser(
