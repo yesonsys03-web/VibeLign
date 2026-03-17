@@ -1,4 +1,5 @@
 # === ANCHOR: VIB_HISTORY_CMD_START ===
+import re
 from pathlib import Path
 from typing import Any
 
@@ -7,6 +8,17 @@ from vibelign.core.local_checkpoints import friendly_time, list_checkpoints
 
 from vibelign.terminal_render import cli_print
 print = cli_print
+
+_TIMESTAMP_PATTERN = re.compile(r"\s*\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)\s*$")
+
+def _clean_msg(msg: str) -> str:
+    for prefix in ("vibelign: checkpoint - ", "vibelign: checkpoint"):
+        if msg.startswith(prefix):
+            msg = msg[len(prefix):]
+            break
+    msg = _TIMESTAMP_PATTERN.sub("", msg).strip()
+    return msg or "(메시지 없음)"
+
 
 def run_vib_history(args: Any) -> None:
     root = Path.cwd()
@@ -24,11 +36,7 @@ def run_vib_history(args: Any) -> None:
         marker = "  ◀ 최근" if i == 0 else ""
         pin = " [보호]" if cp.pinned else ""
         time_label = friendly_time(cp.created_at)
-        msg = cp.message
-        for prefix in ("vibelign: checkpoint - ", "vibelign: checkpoint"):
-            if msg.startswith(prefix):
-                msg = msg[len(prefix):].strip()
-                break
+        msg = _clean_msg(cp.message)
         print(f"  [{i + 1:2}]  {time_label:<18}  {msg}{pin}{marker}")
     print()
     print(f"총 {len(checkpoints)}개의 체크포인트")

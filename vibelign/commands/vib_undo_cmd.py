@@ -1,4 +1,5 @@
 # === ANCHOR: VIB_UNDO_CMD_START ===
+import re
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,19 @@ from vibelign.core.local_checkpoints import (
 
 from vibelign.terminal_render import cli_print
 print = cli_print
+
+# "vibelign: checkpoint - 시작 (2026-03-17 16:52)" → "시작"
+_TIMESTAMP_PATTERN = re.compile(r"\s*\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)\s*$")
+
+def _clean_msg(msg: str) -> str:
+    """메시지에서 vibelign 접두어와 날짜 접미어를 제거."""
+    for prefix in ("vibelign: checkpoint - ", "vibelign: checkpoint"):
+        if msg.startswith(prefix):
+            msg = msg[len(prefix):]
+            break
+    msg = _TIMESTAMP_PATTERN.sub("", msg).strip()
+    return msg or "(메시지 없음)"
+
 
 def run_vib_undo(args: Any) -> None:
     root = Path.cwd()
@@ -27,12 +41,7 @@ def run_vib_undo(args: Any) -> None:
         marker = "  ← 가장 최근" if i == 0 else ""
         pin = " [보호]" if cp.pinned else ""
         time_label = friendly_time(cp.created_at)
-        # 메시지에서 "vibelign: checkpoint - " 접두어 제거해서 깔끔하게 보여줌
-        msg = cp.message
-        for prefix in ("vibelign: checkpoint - ", "vibelign: checkpoint"):
-            if msg.startswith(prefix):
-                msg = msg[len(prefix):].strip()
-                break
+        msg = _clean_msg(cp.message)
         print(f"  [{i + 1}] {time_label:<18}  {msg}{pin}{marker}")
     print()
 
@@ -56,11 +65,7 @@ def run_vib_undo(args: Any) -> None:
 
     target = checkpoints[idx]
     time_label = friendly_time(target.created_at)
-    msg = target.message
-    for prefix in ("vibelign: checkpoint - ", "vibelign: checkpoint"):
-        if msg.startswith(prefix):
-            msg = msg[len(prefix):].strip()
-            break
+    msg = _clean_msg(target.message)
 
     print()
     print(f"  되돌릴 시점: [{idx + 1}] {time_label}  {msg}")

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vibelign"
-version = "1.5.26"
+version = "1.5.27"
 description = "AI coding safety system for vibecoders"
 readme = "README.md"
 requires-python = ">=3.10"
