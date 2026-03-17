@@ -19,6 +19,7 @@ from vibelign.terminal_render import (
 )
 
 GITIGNORE_LINE = ".vibelign/checkpoints/"
+GITIGNORE_SCAN_CACHE_LINE = ".vibelign/scan_cache.json"
 LARGE_FILE_LINE_THRESHOLD = 300
 
 _TREE_SKIP = {
@@ -129,15 +130,21 @@ def _has_git(root: Path) -> bool:
 
 def _ensure_gitignore_entry(root: Path) -> None:
     gitignore_path = root / ".gitignore"
+    lines_to_add = [
+        line for line in [GITIGNORE_LINE, GITIGNORE_SCAN_CACHE_LINE]
+        if line not in (gitignore_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+                        if gitignore_path.exists() else [])
+    ]
+    if not lines_to_add:
+        return
     if not gitignore_path.exists():
-        gitignore_path.write_text(GITIGNORE_LINE + "\n", encoding="utf-8")
+        gitignore_path.write_text("\n".join(lines_to_add) + "\n", encoding="utf-8")
         return
     existing = gitignore_path.read_text(encoding="utf-8", errors="ignore")
-    if GITIGNORE_LINE not in existing.splitlines():
-        suffix = "" if existing.endswith("\n") or not existing else "\n"
-        gitignore_path.write_text(
-            existing + suffix + GITIGNORE_LINE + "\n", encoding="utf-8"
-        )
+    suffix = "" if existing.endswith("\n") or not existing else "\n"
+    gitignore_path.write_text(
+        existing + suffix + "\n".join(lines_to_add) + "\n", encoding="utf-8"
+    )
 
 
 def _ensure_rule_files(root: Path) -> Dict[str, List[str]]:
