@@ -120,7 +120,7 @@ def run_watch(config):
             import json
             from datetime import datetime, timezone
             from vibelign.core.meta_paths import MetaPaths
-            from vibelign.core.anchor_tools import collect_anchor_index
+            from vibelign.core.scan_cache import incremental_scan
 
             meta = MetaPaths(self.root)
             if not meta.project_map_path.exists():
@@ -145,14 +145,27 @@ def run_watch(config):
             )
 
             try:
-                anchor_index = collect_anchor_index(self.root)
+                scan = incremental_scan(
+                    self.root,
+                    meta.scan_cache_path,
+                    invalidated=set(changed),
+                )
+                anchor_index = {
+                    rel: data["anchors"]
+                    for rel, data in scan.items()
+                    if data.get("anchors")
+                }
+                files = {
+                    rel: {
+                        "category": data["category"],
+                        "anchors": data["anchors"],
+                        "line_count": data["line_count"],
+                    }
+                    for rel, data in scan.items()
+                }
                 payload["anchor_index"] = anchor_index
-                # Sync files dict anchors with fresh anchor_index
-                existing_files = payload.get("files", {})
-                for rel_path, anchors in anchor_index.items():
-                    if rel_path in existing_files:
-                        existing_files[rel_path]["anchors"] = anchors
-                payload["files"] = existing_files
+                payload["files"] = files
+                payload["file_count"] = len(scan)
                 payload["schema_version"] = 2
                 payload["updated_at"] = (
                     datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")

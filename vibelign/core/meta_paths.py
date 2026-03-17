@@ -47,6 +47,10 @@ class MetaPaths:
     def watch_log_path(self) -> Path:
         return self.vibelign_dir / "watch.log"
 
+    @property
+    def scan_cache_path(self) -> Path:
+        return self.vibelign_dir / "scan_cache.json"
+
     def ensure_vibelign_dirs(self) -> None:
         self.vibelign_dir.mkdir(parents=True, exist_ok=True)
         self.checkpoints_dir.mkdir(parents=True, exist_ok=True)

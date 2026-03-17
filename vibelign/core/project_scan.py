@@ -67,4 +67,26 @@ def relpath_str(root: Path, path: Path) -> str:
         return str(path.relative_to(root))
     except Exception:
         return str(path)
+
+
+_ENTRY_NAMES = {"main.py", "app.py", "cli.py", "index.js", "main.ts"}
+_UI_TOKENS = ["ui", "view", "views", "window", "dialog", "widget", "screen"]
+_SERVICE_TOKENS = [
+    "service", "services", "api", "client", "server",
+    "worker", "job", "task", "queue", "auth", "data",
+]
+_CORE_TOKENS = ["core", "engine", "patch", "anchor", "guard"]
+
+
+def classify_file(path: Path, rel: str) -> str:
+    low = rel.lower()
+    if path.name in _ENTRY_NAMES:
+        return "entry"
+    if any(t in low for t in _UI_TOKENS):
+        return "ui"
+    if any(t in low for t in _SERVICE_TOKENS):
+        return "service"
+    if any(t in low for t in _CORE_TOKENS):
+        return "core"
+    return "other"
 # === ANCHOR: PROJECT_SCAN_END ===

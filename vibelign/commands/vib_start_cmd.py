@@ -157,56 +157,43 @@ def _ensure_rule_files(root: Path) -> Dict[str, List[str]]:
     return {"created": created, "skipped": skipped}
 
 
-def _classify_file(path: Path, rel: str) -> str:
-    low = rel.lower()
-    if path.name in {"main.py", "app.py", "cli.py", "index.js", "main.ts"}:
-        return "entry"
-    if any(token in low for token in ["ui", "view", "views", "window", "dialog", "widget", "screen"]):
-        return "ui"
-    if any(token in low for token in ["service", "services", "api", "client", "server", "worker", "job", "task", "queue", "auth", "data"]):
-        return "service"
-    if any(token in low for token in ["core", "engine", "patch", "anchor", "guard"]):
-        return "core"
-    return "other"
+def _build_project_map(root: Path, force_scan: bool = False) -> Dict[str, Any]:
+    from vibelign.core.meta_paths import MetaPaths
+    from vibelign.core.scan_cache import incremental_scan
+    from vibelign.core.project_scan import _UI_TOKENS, _SERVICE_TOKENS, _CORE_TOKENS
 
-
-def _build_project_map(root: Path) -> Dict[str, Any]:
-    from vibelign.core.anchor_tools import collect_anchor_index
+    meta = MetaPaths(root)
+    meta.ensure_vibelign_dir()
+    scan = incremental_scan(root, meta.scan_cache_path, force=force_scan)
 
     entry_files: List[str] = []
     ui_modules: List[str] = []
     core_modules: List[str] = []
     service_modules: List[str] = []
     large_files: List[str] = []
-    file_details: Dict[str, Any] = {}
-    file_count = 0
-    for path in iter_source_files(root):
-        rel = relpath_str(root, path)
-        file_count += 1
+    anchor_index: Dict[str, Any] = {}
+    files: Dict[str, Any] = {}
+
+    for rel, data in scan.items():
         low = rel.lower()
-        lines = line_count(path)
-        category = _classify_file(path, rel)
+        category = data["category"]
+        anchors = data["anchors"]
+        lines = data["line_count"]
+
         if category == "entry":
             entry_files.append(rel)
-        if any(token in low for token in ["ui", "view", "views", "window", "dialog", "widget", "screen"]):
+        if any(t in low for t in _UI_TOKENS):
             ui_modules.append(rel)
-        if any(token in low for token in ["core", "engine", "patch", "anchor", "guard"]):
+        if any(t in low for t in _CORE_TOKENS):
             core_modules.append(rel)
-        if any(token in low for token in ["service", "services", "api", "client", "server", "worker", "job", "task", "queue", "auth", "data"]):
+        if any(t in low for t in _SERVICE_TOKENS):
             service_modules.append(rel)
         if lines >= LARGE_FILE_LINE_THRESHOLD:
             large_files.append(rel)
-        file_details[rel] = {"category": category, "line_count": lines}
+        if anchors:
+            anchor_index[rel] = anchors
+        files[rel] = {"category": category, "anchors": anchors, "line_count": lines}
 
-    anchor_index = collect_anchor_index(root)
-    files = {
-        rel: {
-            "category": details["category"],
-            "anchors": anchor_index.get(rel, []),
-            "line_count": details["line_count"],
-        }
-        for rel, details in file_details.items()
-    }
     return {
         "schema_version": 2,
         "project_name": root.name,
@@ -217,7 +204,7 @@ def _build_project_map(root: Path) -> Dict[str, Any]:
         "core_modules": sorted(core_modules),
         "service_modules": sorted(service_modules),
         "large_files": sorted(large_files),
-        "file_count": file_count,
+        "file_count": len(scan),
         "anchor_index": anchor_index,
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
