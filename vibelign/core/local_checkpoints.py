@@ -149,6 +149,27 @@ def _parse_checkpoint_time(value: str) -> Optional[datetime]:
         return None
 
 
+def friendly_time(created_at: str) -> str:
+    """타임스탬프를 사람이 읽기 쉬운 한국어 형태로 변환."""
+    cp_time = _parse_checkpoint_time(created_at)
+    if cp_time is None:
+        return created_at
+    local_time = cp_time.astimezone()
+    now = datetime.now(timezone.utc).astimezone()
+    delta = now - local_time
+    time_str = local_time.strftime("%H:%M")
+    if delta.days == 0:
+        return f"오늘 {time_str}"
+    elif delta.days == 1:
+        return f"어제 {time_str}"
+    elif delta.days < 7:
+        days = ["월", "화", "수", "목", "금", "토", "일"]
+        day_name = days[local_time.weekday()]
+        return f"{local_time.month}월 {local_time.day}일({day_name}) {time_str}"
+    else:
+        return f"{local_time.month}월 {local_time.day}일 {time_str}"
+
+
 def list_checkpoints(root: Path) -> List[CheckpointSummary]:
     meta = MetaPaths(root)
     if not meta.checkpoints_dir.exists():
