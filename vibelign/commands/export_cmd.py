@@ -325,6 +325,26 @@ vib checkpoint "완료"      # 또는 vib undo
 _VIBELIGN_CLAUDE_MARKER = "<!-- VibeLign Rules (vib export claude) -->"
 _VIBELIGN_OPENCODE_MARKER = "<!-- VibeLign Rules (vib export opencode) -->"
 _VIBELIGN_CURSOR_MARKER = "# --- VibeLign Rules (vibelign export cursor) ---"
+_VIBELIGN_AGENTS_MARKER = "<!-- VibeLign Rules (vib export) -->"
+
+
+def _write_agents_md(root) -> str:
+    """AGENTS.md 에 VibeLign 규칙을 씁니다.
+    반환값: 'created' | 'appended' | 'skipped'
+    """
+    agents_path = root / "AGENTS.md"
+    if agents_path.exists():
+        existing = agents_path.read_text(encoding="utf-8")
+        if _VIBELIGN_AGENTS_MARKER in existing:
+            return "skipped"
+        append_content = f"\n\n{_VIBELIGN_AGENTS_MARKER}\n{AGENTS_MD_CONTENT}\n"
+        agents_path.write_text(existing + append_content, encoding="utf-8")
+        return "appended"
+    else:
+        agents_path.write_text(
+            f"{_VIBELIGN_AGENTS_MARKER}\n{AGENTS_MD_CONTENT}\n", encoding="utf-8"
+        )
+        return "created"
 
 
 def _write_claude_md(root) -> str:
@@ -417,11 +437,14 @@ def run_export(args):
     ai_dev_path.write_text(AI_DEV_SYSTEM_CONTENT, encoding="utf-8")
     print(f"{ai_dev_path.name} 생성 완료")
 
-    agents_path = root / "AGENTS.md"
-    if agents_path.exists():
-        print(f"경고: 기존 {agents_path.name} 파일을 덮어씁니다")
-    agents_path.write_text(AGENTS_MD_CONTENT, encoding="utf-8")
-    print(f"{agents_path.name} 생성 완료")
+    agents_result = _write_agents_md(root)
+    if agents_result == "created":
+        print("AGENTS.md 생성 완료  ← Codex, OpenCode 등이 자동으로 읽어요")
+    elif agents_result == "appended":
+        print("경고: 기존 AGENTS.md 파일이 있습니다.")
+        print("      덮어쓰지 않고 VibeLign 규칙을 뒤에 추가했습니다.")
+    else:
+        print("참고: AGENTS.md에 이미 VibeLign 규칙이 있습니다 (건너뜀)")
 
     export_root = root / "vibelign_exports" / args.tool
     already_exists = export_root.exists()
