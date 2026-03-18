@@ -8,9 +8,13 @@ from vibelign.core.anchor_tools import (
     anchor_recommendation_details,
     collect_anchor_index,
     collect_anchor_metadata,
+    generate_anchor_intents_with_ai,
+    get_anchor_intent,
     insert_module_anchors,
+    load_anchor_meta,
     preview_anchor_targets,
     recommend_anchor_targets,
+    set_anchor_intent,
     suggest_anchor_names,
     validate_anchor_file,
 )
@@ -63,6 +67,49 @@ def run_vib_anchor(args: Any) -> None:
     meta = MetaPaths(root)
     allowed_exts = _allowed_exts(args.only_ext)
     project_map, _project_map_error = load_project_map(root)
+
+    if args.set_intent:
+        if not args.intent:
+            print("오류: --intent 옵션으로 의도(intent) 텍스트를 입력하세요.")
+            print("예시: vib anchor --set-intent ANCHOR_NAME --intent \"버튼/레이아웃 UI 구성\"")
+            raise SystemExit(1)
+        set_anchor_intent(root, args.set_intent, args.intent)
+        print(f"✅ intent 저장 완료: [{args.set_intent}] → {args.intent}")
+        return
+
+    if args.auto_intent:
+        from vibelign.core.project_scan import iter_source_files
+        from vibelign.core.anchor_tools import extract_anchors
+        anchored = [
+            path for path in iter_source_files(root)
+            if (allowed_exts is None or path.suffix.lower() in allowed_exts)
+            and extract_anchors(path)
+        ]
+        if not anchored:
+            print("앵커가 있는 파일이 없습니다. 먼저 vib anchor --auto 를 실행하세요.")
+            return
+        print(f"🤖 AI가 {len(anchored)}개 파일의 앵커 intent를 자동 생성 중...")
+        count = generate_anchor_intents_with_ai(root, anchored)
+        if count:
+            print(f"✅ intent 등록 완료: {count}개")
+        else:
+            print("⚠️  intent 자동 생성 실패 (API 키 확인 또는 vib anchor --set-intent 로 직접 등록)")
+        return
+
+    if args.list_intent:
+        data = load_anchor_meta(root)
+        if not data:
+            print("등록된 intent가 없습니다.")
+            print("등록하려면: vib anchor --set-intent ANCHOR_NAME --intent \"설명\"")
+            return
+        for anchor, meta_info in sorted(data.items()):
+            intent = meta_info.get("intent", "")
+            warning = meta_info.get("warning", "")
+            line = f"  {anchor}: {intent}"
+            if warning:
+                line += f"  ⚠️ {warning}"
+            print(line)
+        return
 
     if args.validate:
         index = _write_anchor_index(root, meta, allowed_exts)
@@ -187,6 +234,12 @@ def run_vib_anchor(args: Any) -> None:
         print("앵커를 추가했습니다:")
         for rel in changed:
             print(f"- {rel}")
+        print("🤖 AI가 앵커 intent를 자동 생성 중...")
+        count = generate_anchor_intents_with_ai(root, [root / rel for rel in changed])
+        if count:
+            print(f"✅ intent 등록 완료: {count}개")
+        else:
+            print("⚠️  intent 자동 생성 실패 (API 키 확인 또는 vib anchor --set-intent 로 직접 등록)")
     else:
         print("앵커가 필요한 파일이 없습니다.")
     print(f"Anchor index saved: {meta.anchor_index_path.relative_to(root)}")

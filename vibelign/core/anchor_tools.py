@@ -346,7 +346,7 @@ def extract_anchors(path: Path) -> list[str]:
     anchors = []
     for match in ANCHOR_RE.finditer(safe_read_text(path)):
         raw = match.group(1)
-        base = re.sub(r"_(START|END)$", "", raw)
+        base = re.sub(r"_(START|END)$", "", raw).rstrip("_")
         anchors.append(base)
     return list(dict.fromkeys(anchors))
 
@@ -448,6 +448,94 @@ def set_anchor_intent(
 def get_anchor_intent(root: Path, anchor_name: str) -> dict:
     """특정 앵커의 의도 정보를 반환. 없으면 빈 딕셔너리."""
     return load_anchor_meta(root).get(anchor_name, {})
+
+
+def extract_anchor_line_ranges(path: Path) -> dict[str, tuple[int, int]]:
+    """각 앵커의 START~END 줄 번호 반환. {anchor_name: (start_line, end_line)} (1-based)"""
+    text = safe_read_text(path)
+    if not text:
+        return {}
+    ranges: dict[str, tuple[int, int]] = {}
+    starts: dict[str, int] = {}
+    for i, line in enumerate(text.splitlines(), start=1):
+        m_start = re.search(r"ANCHOR:\s*([A-Z0-9_]+)_START", line)
+        if m_start:
+            name = re.sub(r"_(START|END)$", "", m_start.group(1)).rstrip("_")
+            starts[name] = i
+            continue
+        m_end = re.search(r"ANCHOR:\s*([A-Z0-9_]+)_END", line)
+        if m_end:
+            name = re.sub(r"_(START|END)$", "", m_end.group(1)).rstrip("_")
+            if name in starts:
+                ranges[name] = (starts.pop(name), i)
+    return ranges
+
+
+def extract_anchor_blocks(path: Path) -> dict[str, str]:
+    """각 앵커의 START~END 사이 코드를 추출. {anchor_name: code}"""
+    text = safe_read_text(path)
+    if not text:
+        return {}
+    blocks: dict[str, str] = {}
+    current_anchor: Optional[str] = None
+    current_lines: list[str] = []
+    for line in text.splitlines():
+        m_start = re.search(r"ANCHOR:\s*([A-Z0-9_]+)_START", line)
+        if m_start:
+            current_anchor = re.sub(r"_(START|END)$", "", m_start.group(1)).rstrip("_")
+            current_lines = []
+            continue
+        m_end = re.search(r"ANCHOR:\s*([A-Z0-9_]+)_END", line)
+        if m_end and current_anchor:
+            blocks[current_anchor] = "\n".join(current_lines).strip()
+            current_anchor = None
+            current_lines = []
+            continue
+        if current_anchor is not None:
+            current_lines.append(line)
+    return blocks
+
+
+def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
+    """AI를 사용해 anchor intent를 자동 생성하고 저장. 반환: 등록된 intent 수"""
+    from vibelign.core.ai_explain import generate_text_with_ai, has_ai_provider
+    if not has_ai_provider():
+        return 0
+    existing = load_anchor_meta(root)
+    all_blocks: dict[str, str] = {}
+    for path in paths:
+        for anchor, code in extract_anchor_blocks(path).items():
+            if anchor not in existing:
+                all_blocks[anchor] = code[:400]
+    if not all_blocks:
+        return 0
+    anchor_list = list(all_blocks.keys())
+    numbered = "\n\n".join(
+        f"[{i + 1}] {name}\n{code}"
+        for i, (name, code) in enumerate(all_blocks.items())
+    )
+    prompt = (
+        "다음은 코드 파일의 각 구역(앵커)입니다.\n"
+        "각 구역이 무슨 일을 하는지 한국어로 한 줄(10~20자)로 설명해주세요.\n"
+        "반드시 아래 형식으로만 출력하세요. 다른 말은 하지 마세요.\n"
+        "[번호] 설명\n\n"
+        + numbered
+    )
+    text, _ = generate_text_with_ai(prompt, quiet=True)
+    if not text:
+        return 0
+    parsed: dict[str, str] = {}
+    parts = re.split(r"\[(\d+)\]", text)
+    i = 1
+    while i + 1 < len(parts):
+        idx = int(parts[i]) - 1
+        val = parts[i + 1].strip().splitlines()[0].strip()
+        if 0 <= idx < len(anchor_list) and val:
+            parsed[anchor_list[idx]] = val
+        i += 2
+    for anchor, intent in parsed.items():
+        set_anchor_intent(root, anchor, intent)
+    return len(parsed)
 
 
 def strip_anchors(path: Path) -> bool:
