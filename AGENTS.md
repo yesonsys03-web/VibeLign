@@ -17,19 +17,20 @@ This file is automatically read by OpenCode, Claude Code, and other AI coding to
 
 ### Mode 1 — Normal AI edit (default)
 
-When the user makes a regular request, apply the smallest safe patch using your own judgment.
+When the user's request does NOT contain "바이브라인" or "vibelign", modify directly using your own judgment.
+**Do NOT call any VibeLign MCP tools in this mode.**
 
 ```
-User: "Change the login button color to blue"
+User: "로그인 버튼 색 파란색으로 바꿔줘"
 → Modify directly. Follow Core Rules above.
 ```
 
-### Mode 2 — VibeLign safe mode (triggered by keyword)
+### Mode 2 — VibeLign safe mode (keyword trigger ONLY)
 
-When the user includes **"바이브라인으로"** (or "with vibelign" / "vibelign mode") in their request,
-activate the full VibeLign MCP workflow:
+**Triggered strictly when the user's message contains "바이브라인" or "vibelign" (case-insensitive).**
+Do NOT switch to this mode based on your own judgment — keyword is required.
 
-1. Call `patch_get` with the user's request — this translates it to CodeSpeak and pinpoints the exact `target_file` and `target_anchor`.
+1. Call `patch_get` with the user's request — translates it to CodeSpeak and pinpoints exact `target_file` and `target_anchor`.
 2. Modify **only** within the returned `target_anchor` boundary in `target_file`.
 3. Call `guard_check` to validate.
 4. Call `checkpoint_create` to save the state.
@@ -39,12 +40,10 @@ User: "바이브라인으로 로그인 버튼 색 파란색으로 바꿔줘"
 → patch_get("로그인 버튼 색 파란색으로 바꿔줘")
 → Modify only target_file at target_anchor
 → guard_check → checkpoint_create
-```
 
-**When to recommend Mode 2 to the user:**
-- Request touches multiple files or the target location is ambiguous
-- Logic or structural change (not just a text/style tweak)
-- User is unsure which file to modify
+User: "vibelign change login button color to blue"
+→ Same VibeLign workflow
+```
 
 ### Without MCP (CLI fallback)
 
