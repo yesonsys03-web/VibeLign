@@ -31,6 +31,8 @@ pip install vibelign
 vib start
 ```
 
+![Quick Start](./assets/quickstart_en.jpeg)
+
 ---
 
 ## 🤔 What is VibeLign?

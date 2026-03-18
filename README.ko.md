@@ -31,6 +31,8 @@ pip install vibelign
 vib start
 ```
 
+![퀵 스타트](./assets/quickstart_kr.jpeg)
+
 ---
 
 ## 🤔 VibeLign이 뭔가요?
