@@ -474,6 +474,16 @@ def build_parser():
     p.add_argument("--save", action="store_true", help="VIBELIGN_MANUAL.md 파일로 저장")
     p.set_defaults(func=run_vib_manual)
 
+    # ── AI 개발 규칙 ──
+    p = sub.add_parser(
+        "rules",
+        help="AI 개발 규칙 전체 보기 (vib manual rules 와 동일)",
+        description="VibeLign이 AI한테 지키게 하는 모든 코딩 규칙을 보여줘요.",
+    )
+    p.set_defaults(func=lambda args: run_vib_manual(
+        type("Args", (), {"command_name": "rules", "save": False, "all": False})()
+    ))
+
     # ── 쉘 자동완성 ──
     p = sub.add_parser(
         "completion",
