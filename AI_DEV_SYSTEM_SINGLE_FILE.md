@@ -353,7 +353,64 @@ Goal:
 
 ---
 
-## 14. Final Principle
+## 14. Maintainability Rules for Non-Programmer Workflows
+
+These rules ensure the codebase stays understandable and fixable even by people who did not write it.
+
+### No magic numbers or strings
+- do not hardcode unexplained values inline
+- assign them to named constants with clear names
+
+```python
+# bad
+if retry > 3:
+# good
+MAX_RETRY = 3
+if retry > MAX_RETRY:
+```
+
+### Error messages must be human-readable
+- error messages should explain what went wrong and what to check
+- do not expose raw exception types as the only message
+
+```python
+# bad
+raise Exception("NoneType")
+# good
+raise Exception(f"파일을 찾을 수 없습니다. 경로를 확인하세요: {path}")
+```
+
+### No silent failures
+- do not use bare `except: pass` — always log or surface the error
+- if an operation fails quietly, non-programmers have no way to diagnose it
+
+```python
+# bad
+try:
+    do_something()
+except:
+    pass
+# good
+except Exception as e:
+    print(f"오류 발생: {e}")
+```
+
+### No dead code
+- do not leave commented-out function blocks in the codebase
+- remove unused imports, unused variables, and unused functions
+- dead code confuses future edits and makes AI suggestions less reliable
+
+### Keep dependencies in sync
+- if a new `import` is added, update `pyproject.toml` or `requirements.txt` immediately
+- do not leave undeclared dependencies that only work on the developer's machine
+
+### Keep comments in sync with code
+- if a function's behavior changes, update its comment or docstring
+- outdated comments are worse than no comments — they actively mislead
+
+---
+
+## 15. Final Principle
 
 **Fast AI edits are useful. Safe AI edits are better.**
 
