@@ -4,16 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vibelign"
-version = "1.5.32"
+version = "1.6.0"
 description = "AI coding safety system for vibecoders"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "yesonsys"}]
-dependencies = ["anthropic>=0.40.0", "rich>=13.9.0"]
+dependencies = ["anthropic>=0.40.0", "rich>=13.9.0", "mcp>=1.0.0"]
 
 [project.scripts]
 vibelign = "vibelign.cli:main"
 vib = "vibelign.vib_cli:main"
+vibelign-mcp = "vibelign.mcp_server:main"
 
 [tool.setuptools.packages.find]
 include = ["vibelign*"]

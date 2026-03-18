@@ -497,6 +497,54 @@ MANUAL: dict[str, dict] = {
         ],
         "options": [],
     },
+
+    "mcp": {
+        "emoji": "🤖",
+        "title": "MCP (AI 자동 연동)",
+        "one_line": "AI가 VibeLign 기능을 자동으로 써요",
+        "what": (
+            "보통은 AI한테 '체크포인트 저장해줘'라고 말하면\n"
+            "AI가 명령어를 알려주고, 여러분이 직접 터미널에서 쳐야 해요.\n\n"
+            "MCP가 연결되면 달라져요.\n"
+            "AI한테 말하면 AI가 직접 VibeLign을 실행해요.\n"
+            "터미널을 따로 열 필요가 없어요.\n\n"
+            "설정: vib start 실행 → Claude Code 재시작 (딱 한 번만)\n\n"
+            "사용 가능한 MCP 도구 11가지:\n"
+            "  checkpoint_create   — 체크포인트 저장   (vib checkpoint 와 같아요)\n"
+            "  checkpoint_list     — 저장 목록 보기    (vib history 와 같아요)\n"
+            "  checkpoint_restore  — 특정 시점 복원    (vib undo 와 같아요)\n"
+            "  project_context_get — AI 전환 시 컨텍스트 전달 (vib transfer 와 같아요)\n"
+            "  doctor_run          — 건강 진단         (vib doctor 와 같아요)\n"
+            "  guard_check         — AI 작업 후 확인   (vib guard 와 같아요)\n"
+            "  protect_add         — 파일 보호 등록    (vib protect 와 같아요)\n"
+            "  anchor_run          — 앵커 자동 삽입    (vib anchor --auto 와 같아요)\n"
+            "  anchor_list         — 앵커 목록 보기\n"
+            "  explain_get         — 변경 내역 분석    (vib explain 와 같아요)\n"
+            "  config_get          — 현재 설정 확인"
+        ),
+        "when": [
+            "Claude Code와 VibeLign을 함께 쓸 때",
+            "매번 터미널에서 명령어 치기 귀찮을 때",
+            "AI가 작업 전후를 자동으로 관리해주길 원할 때",
+        ],
+        "examples": [
+            ('"로그인 완성으로 체크포인트 저장해줘"', "checkpoint_create 호출. 메시지를 함께 말해야 해요"),
+            ('"저장된 목록 보여줘"', "checkpoint_list 호출"),
+            ('"2번 체크포인트로 되돌려줘"', "목록 확인 후 checkpoint_restore 호출. 번호나 이름을 말해야 해요"),
+            ('"프로젝트 요약해줘"', "project_context_get 호출"),
+            ('"프로젝트 상태 진단해줘"', "doctor_run 호출"),
+            ('"방금 수정한 거 문제없는지 확인해줘"', "guard_check 호출"),
+            ('".env 파일 보호 목록에 추가해줘"', "protect_add 호출"),
+            ('"앵커 없는 파일에 앵커 삽입해줘"', "anchor_run 호출"),
+            ('"최근에 뭐가 바뀌었는지 알려줘"', "explain_get 호출"),
+        ],
+        "options": [
+            ("설정 방법", "vib start 한 번 실행 → Claude Code 재시작"),
+            ("동사를 붙이세요", "'체크포인트 저장' 보다 '저장해줘'가 더 확실하게 작동해요"),
+            ("복원은 시점 지정 필수", "'되돌려줘'만 하면 AI가 목록을 먼저 보여줘요. 번호나 메시지를 함께 말하세요"),
+            ("한 번에 여러 요청 가능", "'저장하고, 앵커 확인하고, 작업 시작해줘' → AI가 순서대로 자동 처리"),
+        ],
+    },
 }
 
 # 그룹 순서
@@ -506,6 +554,7 @@ GROUPS = [
     ("🔬 점검 & 확인", ["doctor", "guard", "explain"]),
     ("✏️ AI 수정 요청", ["patch", "anchor", "scan"]),
     ("🗂️ 파일 & 설정", ["protect", "transfer", "ask", "config", "export", "watch", "completion"]),
+    ("🤖 MCP (AI 자동 연동)", ["mcp"]),
 ]
 
 
@@ -545,10 +594,11 @@ def _render_command(key: str) -> None:
         for w in m["when"]:
             console.print(f"     [dim]•[/dim]  {w}")
 
-    # 이렇게 쳐봐
+    # 이렇게 쳐봐 (MCP는 AI한테 말하는 방식)
     if m["examples"]:
         console.print()
-        console.print("  [bold magenta]✏️  이렇게 쳐봐[/bold magenta]")
+        label = "💬  AI한테 이렇게 말해봐" if key == "mcp" else "✏️  이렇게 쳐봐"
+        console.print(f"  [bold magenta]{label}[/bold magenta]")
         tbl = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
         tbl.add_column(style="bold cyan", no_wrap=True)
         tbl.add_column(style="dim white")

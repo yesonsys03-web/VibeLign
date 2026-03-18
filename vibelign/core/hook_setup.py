@@ -29,9 +29,14 @@ def is_hook_set(root: Path, tool: str) -> bool:
 
 # === ANCHOR: HOOK_SETUP_SETUP_HOOK_IF_NEEDED_START ===
 def setup_hook_if_needed(root: Path) -> None:
-    """vib start 시 초기 체크포인트 1회 생성."""
-    from vibelign.core.local_checkpoints import create_checkpoint
+    """vib start 시 초기 체크포인트 1회 생성. 최근 체크포인트가 이미 vib start 저장이면 건너뜀."""
+    from vibelign.core.local_checkpoints import create_checkpoint, list_checkpoints
     from datetime import datetime
+
+    # 가장 최근 체크포인트가 이미 vib start 초기 저장이면 중복 생성 방지
+    existing = list_checkpoints(root)
+    if existing and "vib start 초기 저장" in existing[0].message:
+        return
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     msg = f"vibelign: checkpoint - vib start 초기 저장 ({timestamp})"

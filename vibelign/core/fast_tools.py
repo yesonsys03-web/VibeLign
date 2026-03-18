@@ -74,6 +74,7 @@ def grep_anchors_rg(root: Path) -> dict[str, list[str]] | None:
         "--no-line-number",
         "--no-heading",
         "-o",
+        "--glob", "!.vibelign/**",
         r"ANCHOR:\s*[A-Z0-9_]+",
     ] + glob_args + [str(root)]
 
