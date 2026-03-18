@@ -72,6 +72,26 @@ Before modifying any file, read `.vibelign/project_map.json` to understand:
 - Anchor locations per file (`anchor_index`)
 - File dependencies via `.vibelign/anchor_meta.json` (`@CONNECTS`)
 
+## Checkpoint Restore (Undo) via MCP
+
+When the user asks to undo or restore a previous state (e.g. "바이브라인 언두해줘", "이전으로 돌려줘", "undo"):
+
+**NEVER run `vib undo` from the shell** — it uses interactive `input()` and will hang in MCP context.
+
+**Always use this flow instead:**
+
+1. Call `checkpoint_list` — show the list to the user
+2. Ask the user which checkpoint to restore
+3. Call `checkpoint_restore(checkpoint_id=<selected_id>)`
+
+```
+User: "바이브라인 언두해줘"
+→ checkpoint_list() → show list to user
+→ "몇 번으로 복원할까요?"
+→ User picks one
+→ checkpoint_restore(checkpoint_id="...")
+```
+
 ## Full Rules
 
 See `AI_DEV_SYSTEM_SINGLE_FILE.md` for the complete ruleset.
