@@ -3,12 +3,20 @@ from pathlib import Path
 from typing import Any
 
 from vibelign.core.meta_paths import MetaPaths
-from vibelign.terminal_render import clack_info, clack_intro, clack_outro, clack_step, clack_success, clack_warn
+from vibelign.terminal_render import (
+    clack_info,
+    clack_intro,
+    clack_outro,
+    clack_step,
+    clack_success,
+    clack_warn,
+)
 
 
 def _write_project_map(root: Path, meta: MetaPaths) -> dict:
     import json
     from vibelign.commands.vib_start_cmd import _build_project_map
+
     project_map = _build_project_map(root)
     meta.project_map_path.write_text(
         json.dumps(project_map, indent=2, ensure_ascii=False) + "\n",
@@ -37,17 +45,28 @@ def run_vib_scan(args: Any) -> None:
         dry_run=False,
         json=False,
         only_ext="",
+        set_intent=None,
+        intent="",
+        auto_intent=False,
+        list_intent=False,
     )
     run_vib_anchor(anchor_args)
 
     # [2] 앵커 무결성 검사 (+ --auto 시 자동 수정)
     clack_step("앵커 무결성 검사 중...")
-    from vibelign.core.anchor_tools import insert_module_anchors, strip_anchors, validate_anchor_file
+    from vibelign.core.anchor_tools import (
+        insert_module_anchors,
+        strip_anchors,
+        validate_anchor_file,
+    )
     from vibelign.core.project_scan import iter_source_files
+
     problems: list[str] = []
     problem_paths: list[Path] = []
     for path in iter_source_files(root):
-        file_problems = [p for p in validate_anchor_file(path) if p != "앵커가 없습니다"]
+        file_problems = [
+            p for p in validate_anchor_file(path) if p != "앵커가 없습니다"
+        ]
         if file_problems:
             rel = str(path.relative_to(root))
             for p in file_problems:
@@ -66,7 +85,9 @@ def run_vib_scan(args: Any) -> None:
                 fixed.append(str(p.relative_to(root)))
             clack_success(f"앵커 재삽입 완료: {', '.join(fixed)}")
         else:
-            clack_info("vib anchor --validate 로 상세 확인, 또는 vib scan --auto 로 자동 수정하세요")
+            clack_info(
+                "vib anchor --validate 로 상세 확인, 또는 vib scan --auto 로 자동 수정하세요"
+            )
     else:
         clack_success("앵커 무결성 이상 없음")
 
@@ -78,11 +99,16 @@ def run_vib_scan(args: Any) -> None:
         # anchor_index.json도 코드맵 데이터에서 추출해 저장 (중복 스캔 없음)
         anchor_index = project_map["anchor_index"]
         meta.anchor_index_path.write_text(
-            json.dumps({
-                "schema_version": 1,
-                "anchors": anchor_index,
-                "files": {k: {"anchors": v} for k, v in anchor_index.items()},
-            }, indent=2, ensure_ascii=False) + "\n",
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "anchors": anchor_index,
+                    "files": {k: {"anchors": v} for k, v in anchor_index.items()},
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n",
             encoding="utf-8",
         )
         clack_success(
@@ -92,7 +118,9 @@ def run_vib_scan(args: Any) -> None:
     else:
         clack_info("project_map.json 없음 — vib init 또는 vib start를 먼저 실행하세요")
 
-    clack_outro("스캔 완료. AI에게 project_map.json을 제공하면 전체 구조를 한 번에 파악해요.")
+    clack_outro(
+        "스캔 완료. AI에게 project_map.json을 제공하면 전체 구조를 한 번에 파악해요."
+    )
 
 
 # === ANCHOR: VIB_SCAN_CMD_END ===

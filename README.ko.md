@@ -15,16 +15,16 @@
 
 ---
 
-# VibeLign
+# 🎮 VibeLign — AI 코딩의 안전장치
 
-> ### 이런 경험, 있으신가요?
+> ### 이런 적 있나요?
 >
-> - 버튼 하나만 추가해달랬는데 AI가 **파일 전체를 갈아엎어버렸다**
-> - 기능을 추가할 때마다 **`main.py` 한 파일에 코드가 계속 쌓인다**
-> - 내가 요청한 것과 **전혀 다른 방향으로 수정**해놓고 모른 척한다
-> - 되돌리고 싶은데 **git은 모르고, Ctrl+Z는 이미 한계**다
+> - AI한테 간단한 기능을 추가해달라고 했더니 **파일 전체를 다시 썼어요**
+> - 모든 코드가 `main.py` 한 파일에 들어있어요 — **1000줄 넘음, 관리 불가능**
+> - AI가 다른 파일을 건드려서 이제 아무것도 안 돼요
+> - 되돌리려고 하는데 방법을 몰라요
 >
-> **VibeLign은 바로 그 문제들을 해결하기 위해 만들어졌습니다.**
+> **이거를 위해 만들었어요!**
 
 ```bash
 pip install vibelign
@@ -33,209 +33,209 @@ vib start
 
 ---
 
-# VibeLign이 해결하는 3가지 문제
+## 🤔 VibeLign이 뭔가요?
 
-AI 코딩 도구는 빠르지만, 초보자 프로젝트에서 항상 같은 문제를 일으킵니다:
+AI 코딩 도구(Claude Code, Cursor 등)는 코드를 빨리 작성해요. 하지만 **문제**가 있어요:
 
-| 문제 | VibeLign의 해결 |
-|------|----------------|
-| 🏚️ 모든 코드가 `main.py` 한 파일에 몰림 | **구조 규칙 주입** — AI가 코드를 올바르게 분리하도록 강제 |
-| 🤖 내 말대로 안 고치고 멋대로 수정 | **정밀 패치 요청서 생성** — AI가 정확히 이해하는 명령서 작성 |
-| 💥 잘못 수정된 코드를 되돌릴 방법이 없음 | **체크포인트 + 되돌리기** — 몇 초 만에 이전 상태로 복구 |
+| 문제 | VibeLign이 해결해줌 |
+|------|---------------------|
+| 모든 코드가 `main.py`에 들어감 | AI가 **알아서 정리**하게 함 |
+| AI가 요청한 것과 다른 걸 함 | **정확한 수정 요청**을 만들어줌 |
+| 코드가 망가졌는데 되돌릴 수 없음 | **세이브 & 되돌리기** 기능 제공 |
 
-지원 도구: **Claude Code · Cursor · Codex · OpenCode · 모든 AI 코딩 에이전트**
-
----
-
-# 딱 3가지만 기억하세요
-
-```
-작업 전       →   vib checkpoint "설명"    # 세이브 포인트 저장
-AI가 망쳤으면 →   vib undo                 # 즉시 복구
-잘 됐으면     →   vib checkpoint "완료"   # 또 저장
-```
-
-> Git 몰라도 됩니다. 터미널 겁나도 됩니다. **그냥 vib만 기억하세요.**
+**어떤 AI 도구와도 함께 쓸 수 있어요**: Claude Code · Cursor · Codex · OpenCode
 
 ---
 
-# 퀵 스타트
+## 📝 딱 3가지만 기억하세요
+
+```
+AI가 코딩하기 전  →  vib checkpoint "작업 전"     # 세이브
+AI가 망쳤어       →  vib undo                      # 되돌리기
+괜찮아졌어        →  vib checkpoint "완료"          # 다시 세이브
+```
+
+> Git 몰라도 돼요. 그냥 `vib`만 치면 돼요.
+
+---
+
+## 🚀 3단계로 시작하기
 
 ```bash
 # 1. 설치
 pip install vibelign
 
 # 2. 프로젝트 폴더로 이동
-cd 내-프로젝트
+cd my-project
 
-# 3. 시작
+# 3. 시작!
 vib start
 ```
 
 ---
 
-# 왜 바이브코딩 초보에게 VibeLign이 필요할까요?
+## 📚 모든 명령어
 
-AI 코딩 도구를 쓰면 빠르게 뭔가 만들 수 있어요. 하지만 코드를 모르는 초보일수록 이런 상황이 반복됩니다:
-
-- 한 가지만 고쳐달랬는데 **만지지 말라고 한 파일까지 수정**해놓는다
-- 새 기능을 추가할 때마다 **`main.py` 하나에 죄다 몰아넣는다**
-- 로그인 기능 만들어달랬는데 **결제 코드까지 건드려놨다**
-- 어제까지 잘 되던 게 갑자기 안 되는데 **뭐가 바뀐지 모른다**
-
-VibeLign은 AI가 **선을 지키게** 만들고, 잘못됐을 때 **즉시 되돌릴 수 있게** 해줍니다.
-
----
-
-# AI 코딩 작업 순서
-
-```
-vib init → checkpoint → patch → AI 수정 → explain → guard → checkpoint (또는 undo)
-```
+### 기본 (꼭 알아두기)
 
 | 명령어 | 하는 일 |
 |--------|---------|
-| `vib init` | VibeLign 메타데이터를 초기화/재설치해요 |
-| `vib start` | 신규 사용자 온보딩 — "딱 3가지 규칙" 안내 + 첫 체크포인트 저장 |
-| `vib checkpoint` | 현재 상태를 세이브 포인트로 저장 — 메시지 없으면 자동으로 입력 안내 |
-| `vib undo` | 인터랙티브 되돌리기 — 번호 목록에서 선택, `[0]`으로 취소 가능 |
-| `vib history` | 초 단위 시간으로 저장된 체크포인트 목록 확인 (`오늘 14:30:02`) |
-| `vib protect` | 중요한 파일을 AI가 못 건드리게 잠가요 |
-| `vib ask` | 파일을 쉬운 말로 설명해 달라는 프롬프트를 만들어요 |
-| `vib doctor` | 프로젝트 구조가 괜찮은지 분석해요 |
-| `vib anchor` | 안전하게 고칠 수 있는 구역(앵커)을 정해요 |
-| `vib scan` | anchor + 프로젝트 맵 새로고침을 한 번에 |
-| `vib patch` | AI에게 보낼 안전한 수정 요청서를 만들어요 |
-| `vib explain` | 최근에 바뀐 내용을 알기 쉽게 설명해줘요 |
-| `vib guard` | 프로젝트가 여전히 안전한지 검사해요 |
-| `vib export` | AI 도구별 설정 파일 생성 (claude / cursor / opencode / antigravity) |
-| `vib watch` | 실시간으로 파일 변화를 감시해요 |
+| `vib start` | 처음 한 번만! 프로젝트 세팅 |
+| `vib checkpoint "메시지"` | 지금 상태 저장 (게임 세이브처럼) |
+| `vib checkpoint` | 저장할 때 메시지 입력하라고 뜸 |
+| `vib undo` | 마지막 세이브 지점으로 돌아감 |
+| `vib history` | 세이브 목록 보기 |
+
+### AI한테 코딩 요청할 때
+
+| 명령어 | 하는 일 |
+|--------|---------|
+| `vib patch "버튼 추가해줘"` | AI에게 어떻게 수정할지 알려줌 (한국어 OK!) |
+| `vib anchor` | AI가 수정해도 되는 곳을 표시해줌 |
+| `vib scan` | 파일 정리 + 최신 상태 확인 |
+
+### 확인하고 검증할 때
+
+| 명령어 | 하는 일 |
+|--------|---------|
+| `vib doctor` | 프로젝트 건강 상태 확인 |
+| `vib explain` | 뭐가 바뀌었는지 쉬운 말로 설명 |
+| `vib guard` | 코드가 망가지지 않았는지 확인 |
+| `vib ask 파일명.py` | 파일이 뭘 하는지 설명해달라고 함 |
+
+### 파일 보호
+
+| 명령어 | 하는 일 |
+|--------|---------|
+| `vib protect 파일명.py` | 중요한 파일 잠금 (AI가 못 건드림) |
+| `vib protect --list` | 잠근 파일 목록 보기 |
+| `vib protect --remove 파일명.py` | 잠금 해제 |
+
+### 설정 & 내보내기
+
+| 명령어 | 하는 일 |
+|--------|---------|
+| `vib config` | API 키 설정 |
+| `vib export claude` | Claude Code용 설정 파일 만들기 |
+| `vib export cursor` | Cursor용 설정 파일 만들기 |
+| `vib export opencode` | OpenCode용 설정 파일 만들기 |
+
+### 기타 유용한 것들
+
+| 명령어 | 하는 일 |
+|--------|---------|
+| `vib watch` | 파일 변경 실시간 감시 |
+| `vib bench` | 앵커가 얼마나 효과적인지 테스트 |
+| `vib manual` | 상세 사용 설명서 보기 |
+| `vib rules` | AI 개발 규칙 전체 보기 |
+| `vib transfer` | AI 도구 바꿀 때 프로젝트 정보引き継ぐ |
+| `vib completion` | 탭 누르면 자동완성되게 설정 |
+| `vib install` | 설치 방법을 단계별로 알려줌 |
 
 ---
 
-# 핵심 명령어
+## 💡 추천하는 흐름
 
 ```bash
-# --- 프로젝트 세팅 ---
-vib init
-vib start                                 # 처음 쓰는 사람용 가이드 온보딩
+# 처음 시작할 때
+vib start
 
-# --- 저장 & 되돌리기 ---
-vib checkpoint "로그인 기능 추가 전"     # 메시지와 함께 저장
-vib checkpoint                            # 메시지 없으면 입력 안내
-vib undo                                  # 목록에서 선택해서 복구
-vib history                               # 저장된 체크포인트 전체 보기
-
-# --- 파일 보호 ---
-vib protect main.py
-vib protect --list
-vib protect --remove main.py
-
-# --- 파일 설명 요청 ---
-vib ask login.py
-vib ask login.py --write
-
-# --- AI 코딩 작업 ---
-vib doctor
-vib anchor
-vib scan
-vib patch "진행 표시바 추가해줘"
-vib explain
-vib guard
-
-# --- AI 설정 파일 내보내기 ---
-vib export claude       # Claude Code용 CLAUDE.md
-vib export cursor       # Cursor용 .cursorrules
-vib export opencode     # OpenCode용 OPENCODE.md
-vib export antigravity  # Codex/에이전트용 AGENTS.md
-
-# --- 감시 ---
-vib watch
-```
-
----
-
-# 설치 방법
-
-### 추천 방법 (uv)
-```bash
-uv tool install vibelign
-```
-
-### 다른 방법 (pip)
-```bash
-pip install vibelign
-```
-
-설치 후 `vib`과 `vibelign` 두 명령어 모두 사용 가능합니다.
-
----
-
-# 권장 사용법
-
-```bash
-vib init
-vib checkpoint "프로젝트 시작"
-
-# AI 작업 전
+# AI가 코딩하기 전
+vib checkpoint "로그인 기능 추가 전"
 vib doctor --strict
-vib anchor
-vib patch "원하는 변경사항"
+vib patch "로그인 버튼 만들어줘"
 
-# AI 작업 후
+# AI가 코딩한 후
 vib explain --write-report
 vib guard --strict --write-report
 
-# 이상 없으면 저장
-vib checkpoint "완료: 작업 내용"
+# 다 됐으면
+vib checkpoint "로그인 기능 완성!"
 
-# 이상 있으면 되돌리기
+# 실수했으면
 vib undo
 ```
 
 ---
 
-# 출시 상태
+## 🔧 설치 방법
+
+### 방법 1: uv (추천, 빠름)
+```bash
+uv tool install vibelign
+```
+
+### 방법 2: pip
+```bash
+pip install vibelign
+```
+
+설치하면 `vib`랑 `vibelign` 둘 다 쓸 수 있어요.
+
+---
+
+## 📖 더 자세히 알고 싶으면
+
+```bash
+vib manual          # 상세 사용 설명서
+vib manual rules    # AI 개발 규칙만 보기
+vib rules           # rules랑 같음
+```
+
+---
+
+## 🎯 우리 약속
+
+> *"AI 코딩은 빠르다. 하지만 안전장치 없으면 만든 걸 다 날릴 수 있다."*
+
+VibeLign이 보장하는 것:
+- ✅ 1초 만에 세이브 (`vib checkpoint "설명"`)
+- ✅ 1초 만에 되돌리기 (`vib undo`)
+- ✅ Git 몰라도 됨
+- ✅ 초보자도 쉽게 쓸 수 있음
+
+---
+
+⭐ **VibeLign이 코드 저장해줬으면 Star 하나 부탁해요 — 감사합니다!**
+
+---
+
+## 📋 업데이트 내역 (Release Notes)
+
+**v1.6.0** — MCP 서버 + AI 개발 규칙 시스템:
+
+- `vib mcp` — MCP(Model Context Protocol) 서버 실행 (Claude Desktop 연동)
+- `vib rules` — AI 개발 규칙 전체를 CLI에서 바로 확인
+- `vib manual rules` — 개발 규칙 상세 매뉴얼
+- Anchor intent system — 앵커에 의도(intent) 정보 저장
+- 한국어 토크나이저 — patch 요청을 한국어로도 정확하게 해석
+- AI_DEV_SYSTEM — 유지보수성/함수 디자인 규칙 추가 (Section 6-1, 14)
+- `vib scan` 버그 수정 — set_intent 속성 누락 해결
 
 **v1.5.32** — 체크포인트/되돌리기 UX 개편 + AI 설정 파일 보호:
 
-- `vib checkpoint` — 메시지 없이 실행하면 자동으로 메시지 입력 안내 (git commit 방식)
-- `vib undo` — 완전 인터랙티브: 번호 목록 + 친숙한 시간 표시 + `[0] 취소` 옵션
-- `vib history` — 초 단위 시간 표시 (`오늘 14:30:02`)로 같은 분의 체크포인트도 구별 가능
-- `vib start` — 신규 사용자 온보딩에 "딱 3가지만 기억하세요" 추가 + 첫 체크포인트 바로 저장
-- `vib export` — `AGENTS.md`, `CLAUDE.md`, `OPENCODE.md`, `.cursorrules` 마커 보호 (덮어쓰기 방지)
-- GitHub 배너 이미지 추가
+- `vib checkpoint` — 메시지 입력 프롬프트 지원
+- `vib undo` — 번호 선택 + 취소 옵션 `[0]`
+- `vib history` — 초 단위 타임스탬프 표시
+- `vib start` — 초보자 온보딩 + 첫 체크포인트 자동 저장
+- `vib export` — AGENTS.md, CLAUDE.md, OPENCODE.md, .cursorrules 보호
 
 **v1.5.0** — 멀티 AI 툴 설정 내보내기:
 
-- `vib export claude` — Claude Code용 `CLAUDE.md` 안전 규칙 생성
-- `vib export cursor` — Cursor용 `.cursorrules` 생성
-- `vib export opencode` — OpenCode용 `OPENCODE.md` 생성
-- `vib export antigravity` — Codex/에이전트용 `AGENTS.md` 생성
-- 모든 내보낸 파일에 VibeLign 마커 적용 (사용자 커스텀 내용 보호)
+- `vib export claude` — Claude Code용 CLAUDE.md 생성
+- `vib export cursor` — Cursor용 .cursorrules 생성
+- `vib export opencode` — OpenCode용 OPENCODE.md 생성
+- `vib export antigravity` — Codex/에이전트용 AGENTS.md 생성
+- 내보낸 파일에 VibeLign 마커 추가 (덮어쓰기 방지)
 
 **v1.1.0** — 코알못을 위한 핵심 기능 추가:
 
-- `init` — VibeLign 메타데이터 초기화/재설치
-- `start` — 처음 쓰는 사람용 가이드 온보딩
-- `checkpoint` / `undo` — git 몰라도 되는 세이브/복구
-- `protect` — 중요 파일 AI로부터 보호
-- `ask` — 코드 쉬운 말로 설명받기
-- `history` — 체크포인트 이력 보기
-
----
-
-# VibeLign의 철학
-
-AI 코딩은 정말 빠릅니다. 하지만 안전장치 없이 달리다 보면 언제 터질지 모릅니다.
-
-VibeLign은 **코알못 바이브코더도 두려움 없이 AI 코딩을 즐길 수 있도록** 만들어진 안전망입니다.
-
-저장은 1초. 복구는 1초. 배울 건 없음.
-
----
-
-⭐ **VibeLign이 당신의 코드를 구해줬다면, Star 한 번 눌러주세요. 개발에 큰 힘이 됩니다!**
+- `vib init` — VibeLign 초기화/리셋
+- `vib start` — 처음 사용자 가이드
+- `vib checkpoint` / `vib undo` — Git 없이 세이브 & 되돌리기
+- `vib protect` — 중요 파일 잠금
+- `vib ask` — 파일 설명 AI 프롬프트 생성
+- `vib history` — 체크포인트 이력 보기
 
 ---
 
