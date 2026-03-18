@@ -279,7 +279,7 @@ def _setup_project(root: Path, meta: MetaPaths) -> Dict[str, List[str]]:
     _ensure_gitignore_entry(root)
     rule_files = _ensure_rule_files(root)
     created = list(rule_files["created"])
-    skipped = list(rule_files["skipped"])
+    updated = list(rule_files["updated"])
 
     meta.ensure_vibelign_dirs()
     if not meta.config_path.exists():
@@ -312,7 +312,7 @@ def _setup_project(root: Path, meta: MetaPaths) -> Dict[str, List[str]]:
     if _register_mcp_claude(root):
         created.append(".claude/settings.json (MCP 등록)")
 
-    return {"created": created, "skipped": skipped}
+    return {"created": created, "updated": updated}
 # === ANCHOR: VIB_START_CMD__SETUP_PROJECT_END ===
 
 
