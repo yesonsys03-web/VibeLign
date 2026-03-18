@@ -162,9 +162,9 @@ def _ensure_gitignore_entry(root: Path) -> None:
 
 # === ANCHOR: VIB_START_CMD__ENSURE_RULE_FILES_START ===
 def _ensure_rule_files(root: Path) -> Dict[str, List[str]]:
-    """AI 룰 파일이 없으면 생성. 이미 있으면 건드리지 않음."""
+    """AI 룰 파일을 항상 최신으로 유지. 기존 파일은 ~로 백업 후 덮어씀."""
     created: List[str] = []
-    skipped: List[str] = []
+    updated: List[str] = []
     for fname, content in [
         ("AI_DEV_SYSTEM_SINGLE_FILE.md", AI_DEV_SYSTEM_CONTENT),
         ("AGENTS.md", AGENTS_MD_CONTENT),
@@ -174,8 +174,11 @@ def _ensure_rule_files(root: Path) -> Dict[str, List[str]]:
             path.write_text(content, encoding="utf-8")
             created.append(fname)
         else:
-            skipped.append(fname)
-    return {"created": created, "skipped": skipped}
+            backup = root / (fname + "~")
+            backup.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+            path.write_text(content, encoding="utf-8")
+            updated.append(fname)
+    return {"created": created, "updated": updated}
 # === ANCHOR: VIB_START_CMD__ENSURE_RULE_FILES_END ===
 
 
@@ -325,7 +328,7 @@ def run_vib_start(args: Any) -> None:
         clack_step("처음 사용하는 프로젝트예요. 기본 설정을 준비할게요.")
     setup_result = _setup_project(root, meta)
     setup_changed: Optional[Dict[str, List[str]]] = (
-        setup_result if (is_new or setup_result["created"]) else None
+        setup_result if (is_new or setup_result["created"] or setup_result["updated"]) else None
     )
 
     # [2] 기존 PostToolUse 훅 정리 + 초기 체크포인트 생성
@@ -347,8 +350,8 @@ def run_vib_start(args: Any) -> None:
         clack_step("초기 설정")
         for f in setup_changed.get("created", []):
             clack_success(f"생성됨: {f}")
-        for f in setup_changed.get("skipped", []):
-            clack_info(f"유지됨: {f}")
+        for f in setup_changed.get("updated", []):
+            clack_success(f"업데이트됨: {f}  (기존 파일 → {f}~)")
 
     if hook_label and hook_active:
         clack_step("AI 도구 연동")
