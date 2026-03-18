@@ -15,16 +15,16 @@
 
 ---
 
-# VibeLign
+# 🎮 VibeLign — Safety Guard for AI Coding
 
 > ### Sound familiar?
 >
-> - You asked AI to add one small feature — it **rewrote the entire file**
-> - Everything ended up crammed into `main.py` — **1000+ lines, zero structure**
-> - AI changed something you didn't ask for — **now nothing works**
-> - You want to undo it — **but you don't know Git, and Ctrl+Z is useless**
+> - You asked AI to add a small feature — it **rewrote the entire file**
+> - All code ended up in `main.py` — **1000+ lines, impossible to manage**
+> - AI touched other files and now nothing works
+> - You want to undo but don't know how
 >
-> **VibeLign was built for exactly this.**
+> **That's why we made this!**
 
 ```bash
 pip install vibelign
@@ -33,217 +33,209 @@ vib start
 
 ---
 
-# What VibeLign Does
+## 🤔 What is VibeLign?
 
-Most AI coding tools are great at writing code fast — but terrible at **staying in bounds**.
+AI coding tools (Claude Code, Cursor, etc.) write code fast. But they have **problems**:
 
-VibeLign solves three problems that beginners hit every day:
+| Problem | VibeLign Fixes It |
+|---------|-------------------|
+| All code goes into `main.py` | AI **organizes** code properly |
+| AI does something different from what you asked | Creates **precise edit requests** |
+| Code breaks and you can't go back | **Save & Undo** feature |
 
-| Problem | VibeLign's fix |
-|---------|----------------|
-| 🏚️ AI dumps everything into `main.py` | Injects **structure rules** so AI organizes code properly |
-| 🤖 AI ignores your instructions and does its own thing | Generates a **precise patch request** AI actually follows |
-| 💥 AI edits go wrong and you can't go back | **Checkpoint + Undo** — restore any saved state in seconds |
-
-Works with: **Claude Code · Cursor · Codex · OpenCode · any AI coding agent**
+**Works with any AI tool**: Claude Code · Cursor · Codex · OpenCode
 
 ---
 
-# Just 3 Things to Remember
+## 📝 Just 3 Things to Remember
 
 ```
-Before AI edits  →  vib checkpoint "description"   # save state
-AI broke it      →  vib undo                        # instant rollback
-Looks good       →  vib checkpoint "done"           # save again
+Before AI edits  →  vib checkpoint "before work"    # save
+AI broke it      →  vib undo                         # undo
+Looks good       →  vib checkpoint "done"             # save again
 ```
 
-> No Git knowledge needed. No fear required. Just `vib`.
+> No Git knowledge needed. Just type `vib`.
 
 ---
 
-# Why VibeLign?
-
-AI coding tools write code fast — but they often go off the rails:
-
-- Ask for one change → AI rewrites three files you didn't touch
-- Ask for a new feature → everything gets stuffed into `main.py`
-- AI "fixes" something → breaks something else entirely
-- No structure, no rules, no way back
-
-VibeLign puts **guardrails on AI** so it edits only what you asked, structures code properly, and gives you a save point to fall back on.
-
-Works with: **Claude Code · Cursor · Codex · OpenCode · any AI coding agent**
-
----
-
-# Quick Start
+## 🚀 Start in 3 Steps
 
 ```bash
 # 1. Install
 pip install vibelign
 
 # 2. Go to your project folder
-cd your-project
+cd my-project
 
-# 3. Start
+# 3. Start!
 vib start
 ```
 
 ---
 
-# AI Coding Workflow
+## 📚 All Commands
 
-```
-vib init → checkpoint → patch → AI edit → explain → guard → checkpoint (or undo)
-```
+### Basics (Must Know)
 
-| Command | Purpose |
-|---------|---------|
-| `vib init` | initialize/reset VibeLign metadata |
-| `vib start` | guided onboarding — shows 3 rules + saves first checkpoint |
-| `vib checkpoint` | save current state; prompts for message if omitted |
-| `vib undo` | interactive rollback — pick from numbered list, `[0]` to cancel |
-| `vib history` | view all checkpoints with friendly timestamps (seconds precision) |
-| `vib protect` | lock important files from AI edits |
-| `vib ask` | generate a plain-language explanation prompt |
-| `vib doctor` | analyze project structure |
-| `vib anchor` | insert safe edit anchors |
-| `vib scan` | anchor scan + project map refresh in one command |
-| `vib patch` | generate safe AI patch request (Korean supported) |
-| `vib explain` | explain recent changes |
-| `vib guard` | verify project safety |
-| `vib export` | export AI config files (claude / cursor / opencode / antigravity) |
-| `vib watch` | real-time monitoring + auto project map refresh |
+| Command | What It Does |
+|---------|--------------|
+| `vib start` | First time only! Set up project |
+| `vib checkpoint "message"` | Save current state (like game save) |
+| `vib checkpoint` | Will ask for a message |
+| `vib undo` | Go back to last save |
+| `vib history` | See all saves |
 
----
+### When Asking AI to Code
 
-# Core Commands
+| Command | What It Does |
+|---------|--------------|
+| `vib patch "add button"` | Tell AI exactly how to edit (Korean OK!) |
+| `vib anchor` | Mark safe areas for AI to edit |
+| `vib scan` | Clean up files + check status |
 
-```bash
-# --- Project setup ---
-vib init
-vib start                               # guided onboarding for beginners
+### Checking & Verification
 
-# --- Save & restore ---
-vib checkpoint "before login feature"   # save with message
-vib checkpoint                          # will prompt for message
-vib undo                                # pick checkpoint from list
-vib history                             # view all saves
+| Command | What It Does |
+|---------|--------------|
+| `vib doctor` | Check project health |
+| `vib explain` | Explain changes in plain language |
+| `vib guard` | Check if code is broken |
+| `vib ask filename.py` | Ask AI to explain a file |
 
-# --- File protection ---
-vib protect main.py
-vib protect --list
-vib protect --remove main.py
+### File Protection
 
-# --- Ask AI to explain a file ---
-vib ask login.py
-vib ask login.py --write
+| Command | What It Does |
+|---------|--------------|
+| `vib protect filename.py` | Lock important files (AI can't touch) |
+| `vib protect --list` | See locked files |
+| `vib protect --remove filename.py` | Unlock file |
 
-# --- AI coding workflow ---
-vib doctor
-vib anchor
-vib scan
-vib patch "add progress bar"
-vib patch "로그인 버튼 추가해줘"    # Korean supported
-vib explain
-vib guard
+### Settings & Export
 
-# --- Export AI config files ---
-vib export claude       # CLAUDE.md for Claude Code
-vib export cursor       # .cursorrules for Cursor
-vib export opencode     # OPENCODE.md for OpenCode
-vib export antigravity  # AGENTS.md for Codex / agents
+| Command | What It Does |
+|---------|--------------|
+| `vib config` | Set API keys |
+| `vib export claude` | Create Claude Code settings |
+| `vib export cursor` | Create Cursor settings |
+| `vib export opencode` | Create OpenCode settings |
 
-# --- Monitor ---
-vib watch
-```
+### Other Useful Commands
+
+| Command | What It Does |
+|---------|--------------|
+| `vib watch` | Monitor file changes in real-time |
+| `vib bench` | Test how effective anchors are |
+| `vib manual` | Show detailed user guide |
+| `vib rules` | Show all AI development rules |
+| `vib transfer` | Keep project info when switching AI tools |
+| `vib completion` | Set up tab autocomplete |
+| `vib install` | Show step-by-step installation guide |
 
 ---
 
-# Install
-
-### Recommended (uv)
-```bash
-uv tool install vibelign
-```
-
-### Alternative (pip)
-```bash
-pip install vibelign
-```
-
-After installation both `vib` and `vibelign` commands are available.
-
----
-
-# Recommended Workflow
+## 💡 Recommended Workflow
 
 ```bash
-vib init
-vib checkpoint "project start"
+# First time
+vib start
 
-# --- before AI edit ---
+# Before AI edits
+vib checkpoint "before login feature"
 vib doctor --strict
-vib anchor
-vib patch "your request here"
+vib patch "create login button"
 
-# --- after AI edit ---
+# After AI edits
 vib explain --write-report
 vib guard --strict --write-report
 
-# --- if OK ---
-vib checkpoint "done: your task"
+# If done
+vib checkpoint "login feature done!"
 
-# --- if NOT OK ---
+# If something broke
 vib undo
 ```
 
 ---
 
-# Release Status
+## 🔧 Installation
 
-**v1.5.32** — Checkpoint & Undo UX overhaul + AI config file protection:
+### Option 1: uv (Recommended, faster)
+```bash
+uv tool install vibelign
+```
 
-- `vib checkpoint` — now prompts for a message when none is given (like `git commit`)
-- `vib undo` — fully interactive: numbered list with friendly timestamps, cancel option `[0]`
-- `vib history` — timestamps show seconds (`오늘 14:30:02`) to distinguish same-minute saves
-- `vib start` — new user onboarding shows "3 things to remember" + saves first checkpoint
-- `vib export` — `AGENTS.md`, `CLAUDE.md`, `OPENCODE.md`, `.cursorrules` protected by markers (no overwrite)
-- GitHub banner added to README
+### Option 2: pip
+```bash
+pip install vibelign
+```
 
-**v1.5.0** — Multi-tool AI config export:
-
-- `vib export claude` — generates `CLAUDE.md` with safety rules for Claude Code
-- `vib export cursor` — generates `.cursorrules` for Cursor
-- `vib export opencode` — generates `OPENCODE.md` for OpenCode
-- `vib export antigravity` — generates `AGENTS.md` for Codex / any agent
-- All exported files protected with VibeLign markers (no accidental overwrite)
-
-**v1.1.0** — Beginner-friendly commands added:
-
-- `init` — initialize/reset VibeLign metadata
-- `start` — guided onboarding for first-time users
-- `checkpoint` / `undo` — save and restore without Git knowledge
-- `protect` — lock files from AI edits
-- `ask` — generate plain-language explanation prompts
-- `history` — view all checkpoints
+After installation, both `vib` and `vibelign` commands are available.
 
 ---
 
-# Philosophy
+## 📖 Want to Learn More?
 
-> *"AI coding is fast. But without guardrails, it can destroy what you built."*
-
-Whether you're a seasoned dev or a total beginner — if you're using AI to build software, VibeLign is your safety net.
-
-**VibeLign's promise:**
-- Save in 1 second (`vib checkpoint "description"`)
-- Restore in 1 second (`vib undo`)
-- Nothing to learn. No Git needed. No fear.
+```bash
+vib manual          # Detailed user guide
+vib manual rules    # AI development rules only
+vib rules           # Same as above
+```
 
 ---
 
-⭐ **If VibeLign saved your code, a Star means a lot — thank you!**
+## 🎯 Our Promise
+
+> *"AI coding is fast. But without safety guards, it can destroy what you built."*
+
+VibeLign promises:
+- ✅ Save in 1 second (`vib checkpoint "description"`)
+- ✅ Undo in 1 second (`vib undo`)
+- ✅ No Git knowledge needed
+- ✅ Easy for beginners
+
+---
+
+⭐ **If VibeLign saved your code, a Star would mean a lot — thank you!**
+
+---
+
+## 📋 Release Notes
+
+**v1.6.0** — MCP Server + AI Development Rules System:
+
+- `vib mcp` — MCP (Model Context Protocol) server for Claude Desktop integration
+- `vib rules` — View all AI development rules directly in CLI
+- `vib manual rules` — Detailed rules manual
+- Anchor intent system — Store intent information in anchors
+- Korean tokenizer — Accurately interpret patch requests in Korean
+- AI_DEV_SYSTEM — Added maintainability/function design rules (Section 6-1, 14)
+- `vib scan` bug fix — Fixed missing set_intent attribute
+
+**v1.5.32** — Checkpoint & Undo UX Overhaul + AI Config File Protection:
+
+- `vib checkpoint` — Message prompt support
+- `vib undo` — Number selection + cancel option `[0]`
+- `vib history` — Second-precision timestamps
+- `vib start` — Beginner onboarding + auto first checkpoint
+- `vib export` — AGENTS.md, CLAUDE.md, OPENCODE.md, .cursorrules protection
+
+**v1.5.0** — Multi-Tool AI Config Export:
+
+- `vib export claude` — Generate CLAUDE.md for Claude Code
+- `vib export cursor` — Generate .cursorrules for Cursor
+- `vib export opencode` — Generate OPENCODE.md for OpenCode
+- `vib export antigravity` — Generate AGENTS.md for Codex/agents
+- Added VibeLign markers to exported files (prevent overwriting)
+
+**v1.1.0** — Core Features for Beginners:
+
+- `vib init` — Initialize/reset VibeLign
+- `vib start` — First-time user guide
+- `vib checkpoint` / `vib undo` — Save & restore without Git
+- `vib protect` — Lock important files
+- `vib ask` — Generate AI explanation prompts
+- `vib history` — View checkpoint history
 
 ---
 
