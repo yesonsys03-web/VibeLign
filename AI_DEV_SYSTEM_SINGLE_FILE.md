@@ -90,11 +90,21 @@ Example:
 - if the requested change clearly belongs to an anchor, stay inside that anchor
 - do not rewrite the whole file if an anchor exists for the target area
 - if a large file has no anchors, prefer adding anchors before repeated AI edits
-- when creating a new file, always include anchors (START / END pair) from the beginning
 - do not remove existing anchors unless explicitly requested
 
 ### If anchors exist
 The AI should treat them as the preferred editing boundaries.
+
+---
+
+## 3-1. Project Map Rules
+
+If `.vibelign/project_map.json` exists:
+
+- Read it before making any changes to understand file roles and anchor locations
+- Use the `anchor_index` field to find which anchors exist in each file
+- Check `.vibelign/anchor_meta.json` for anchor intent and cross-file dependencies (`@CONNECTS`)
+- Do not modify files outside the categories relevant to the request
 
 ---
 
