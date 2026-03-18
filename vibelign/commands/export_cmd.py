@@ -23,6 +23,20 @@ This file is automatically read by OpenCode, Claude Code, and other AI coding to
 
 ## Required Workflow
 
+### When VibeLign MCP is connected (recommended)
+
+If VibeLign MCP server is available in your tool list, use these MCP tools instead of CLI commands:
+
+1. **Before any code modification**, call `patch_get` with the user's natural language request.
+   - This translates the request into CodeSpeak and identifies the exact `target_file` and `target_anchor`.
+   - Only modify code inside the returned `target_anchor` boundary in `target_file`.
+2. After modification, call `guard_check` to validate the changes.
+3. Call `checkpoint_create` to save the state.
+
+**Important**: `patch_get` MUST be called before every code edit. Never modify files without calling it first.
+
+### Without MCP (CLI fallback)
+
 ```bash
 vib doctor --strict
 vib anchor

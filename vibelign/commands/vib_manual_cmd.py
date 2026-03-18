@@ -509,7 +509,7 @@ MANUAL: dict[str, dict] = {
             "AI한테 말하면 AI가 직접 VibeLign을 실행해요.\n"
             "터미널을 따로 열 필요가 없어요.\n\n"
             "설정: vib start 실행 → Claude Code 재시작 (딱 한 번만)\n\n"
-            "사용 가능한 MCP 도구 11가지:\n"
+            "사용 가능한 MCP 도구 12가지:\n"
             "  checkpoint_create   — 체크포인트 저장   (vib checkpoint 와 같아요)\n"
             "  checkpoint_list     — 저장 목록 보기    (vib history 와 같아요)\n"
             "  checkpoint_restore  — 특정 시점 복원    (vib undo 와 같아요)\n"
@@ -517,6 +517,7 @@ MANUAL: dict[str, dict] = {
             "  doctor_run          — 건강 진단         (vib doctor 와 같아요)\n"
             "  guard_check         — AI 작업 후 확인   (vib guard 와 같아요)\n"
             "  protect_add         — 파일 보호 등록    (vib protect 와 같아요)\n"
+            "  patch_get           — 자연어→CodeSpeak 번역 + 수정 위치 특정 (vib patch 와 같아요)\n"
             "  anchor_run          — 앵커 자동 삽입    (vib anchor --auto 와 같아요)\n"
             "  anchor_list         — 앵커 목록 보기\n"
             "  explain_get         — 변경 내역 분석    (vib explain 와 같아요)\n"
@@ -537,12 +538,14 @@ MANUAL: dict[str, dict] = {
             ('".env 파일 보호 목록에 추가해줘"', "protect_add 호출"),
             ('"앵커 없는 파일에 앵커 삽입해줘"', "anchor_run 호출"),
             ('"최근에 뭐가 바뀌었는지 알려줘"', "explain_get 호출"),
+            ('"UI 확대·축소해도 화면이 따라오게 해줘"', "patch_get 호출 → 어느 파일 어디를 고쳐야 할지 CodeSpeak으로 번역"),
         ],
         "options": [
             ("설정 방법", "vib start 한 번 실행 → Claude Code 재시작"),
             ("동사를 붙이세요", "'체크포인트 저장' 보다 '저장해줘'가 더 확실하게 작동해요"),
             ("복원은 시점 지정 필수", "'되돌려줘'만 하면 AI가 목록을 먼저 보여줘요. 번호나 메시지를 함께 말하세요"),
             ("한 번에 여러 요청 가능", "'저장하고, 앵커 확인하고, 작업 시작해줘' → AI가 순서대로 자동 처리"),
+            ("코드 수정 전 patch_get 먼저", "AI가 코드를 고치기 전에 patch_get을 자동으로 호출해 위치를 확인해요"),
         ],
     },
 }
