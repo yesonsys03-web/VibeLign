@@ -152,6 +152,43 @@ def try_install_fast_tools(
         clack_warn(f"설치에 실패했어요. 터미널에서 직접 실행해 보세요: {cmd_str}")
 
 
+# === ANCHOR: AUTO_INSTALL_ENSURE_PYPROJECT_START ===
+def ensure_pyproject_toml(
+    root,
+    clack_info: Callable,
+    clack_warn: Callable,
+    clack_success: Callable,
+) -> bool:
+    """pyproject.toml이 없으면 y/N 프롬프트로 생성을 제안. 생성하면 True 반환."""
+    from pathlib import Path
+    pyproject_path = Path(root) / "pyproject.toml"
+    if pyproject_path.exists():
+        return False
+
+    clack_info("📦 pyproject.toml 파일이 없어요.")
+    clack_info("  이 파일이 없으면 uv run 으로 파이썬 파일을 실행할 수 없어요.")
+    if not _ask_yn("  지금 기본 파일을 만들까요? [y/N] "):
+        clack_info("건너뜀. 나중에 pyproject.toml을 직접 만들거나 `uv init`으로 생성하세요.")
+        return False
+
+    # 폴더명을 프로젝트명으로 사용 (공백·특수문자 → 하이픈)
+    import re
+    folder_name = Path(root).name
+    project_name = re.sub(r"[^a-zA-Z0-9가-힣]+", "-", folder_name).strip("-") or "my-project"
+
+    # uv / pip 둘 다 호환되는 최소 pyproject.toml
+    content = f"""[project]
+name = "{project_name}"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = []
+"""
+    pyproject_path.write_text(content, encoding="utf-8")
+    clack_success(f"pyproject.toml 생성 완료! (프로젝트명: {project_name})")
+    return True
+# === ANCHOR: AUTO_INSTALL_ENSURE_PYPROJECT_END ===
+
+
 # === ANCHOR: AUTO_INSTALL_TRY_INSTALL_WATCHDOG_START ===
 def try_install_watchdog(
     clack_info: Callable,
