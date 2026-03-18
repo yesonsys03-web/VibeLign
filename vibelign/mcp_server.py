@@ -141,6 +141,26 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["file_paths"],
             },
         ),
+        # ── 패치 ─────────────────────────────────────────────────────────────
+        types.Tool(
+            name="patch_get",
+            description=(
+                "사용자의 자연어 요청을 CodeSpeak(구조화된 수정 지시어)로 번역하고, "
+                "프로젝트 앵커 인덱스를 검색하여 수정할 파일과 정확한 위치(target_anchor)를 특정합니다. "
+                "코드를 수정하기 전에 반드시 이 도구를 먼저 호출하고, "
+                "반환된 target_file과 target_anchor 범위 안에서만 수정하세요."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "request": {
+                        "type": "string",
+                        "description": "수정 요청 (예: '로그인 버튼 크기 키워줘')",
+                    }
+                },
+                "required": ["request"],
+            },
+        ),
         # ── 기타 ─────────────────────────────────────────────────────────────
         types.Tool(
             name="anchor_run",
@@ -271,6 +291,32 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         lines = [f"✓ {len(new_paths)}개 파일을 보호 목록에 추가했습니다."]
         lines.extend(f"  - {p}" for p in new_paths)
         return [types.TextContent(type="text", text="\n".join(lines))]
+
+    # ── patch_get ──────────────────────────────────────────────────────────
+    if name == "patch_get":
+        from vibelign.commands.vib_patch_cmd import _build_patch_data, _build_contract
+        request = str(arguments.get("request", ""))
+        if not request:
+            return [types.TextContent(type="text", text="오류: request가 필요합니다.")]
+        data = _build_patch_data(root, request)
+        patch_plan = data["patch_plan"]
+        contract = _build_contract(patch_plan)
+        result = {
+            "target_file": patch_plan["target_file"],
+            "target_anchor": patch_plan["target_anchor"],
+            "codespeak": patch_plan["codespeak"],
+            "interpretation": patch_plan["interpretation"],
+            "confidence": patch_plan["confidence"],
+            "constraints": patch_plan["constraints"],
+            "allowed_ops": contract["allowed_ops"],
+            "status": contract["status"],
+            "clarifying_questions": contract["clarifying_questions"],
+            "rationale": patch_plan["rationale"],
+        }
+        return [types.TextContent(
+            type="text",
+            text=json.dumps(result, indent=2, ensure_ascii=False),
+        )]
 
     # ── anchor_run ─────────────────────────────────────────────────────────
     if name == "anchor_run":
