@@ -366,7 +366,7 @@ def run_vib_start(args: Any) -> None:
 
     # [5] 고속 도구 자동 설치 제안 (watchdog은 vib watch 실행 시에만 설치 제안)
     from vibelign.core.fast_tools import has_fd, has_rg
-    from vibelign.core.auto_install import try_install_fast_tools
+    from vibelign.core.auto_install import try_install_fast_tools, ensure_pyproject_toml
     missing_tools = []
     if not has_fd():
         missing_tools.append("fd")
@@ -374,6 +374,9 @@ def run_vib_start(args: Any) -> None:
         missing_tools.append("ripgrep")
     if missing_tools:
         try_install_fast_tools(missing_tools, clack_info, clack_warn, clack_success)
+
+    # [6] pyproject.toml 없으면 생성 제안
+    ensure_pyproject_toml(root, clack_info, clack_warn, clack_success)
 
     score = doctor_data["project_score"]
     status = doctor_data["status"]
