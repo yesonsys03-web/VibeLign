@@ -21,19 +21,38 @@ This file is automatically read by OpenCode, Claude Code, and other AI coding to
 - Respect anchor boundaries (`ANCHOR: NAME_START` / `ANCHOR: NAME_END`)
 - Keep entry files (main.py, index.js, etc.) small and focused
 
-## Required Workflow
+## Two Modification Modes
 
-### When VibeLign MCP is connected (recommended)
+### Mode 1 — Normal AI edit (default)
 
-If VibeLign MCP server is available in your tool list, use these MCP tools instead of CLI commands:
+When the user makes a regular request, apply the smallest safe patch using your own judgment.
 
-1. **Before any code modification**, call `patch_get` with the user's natural language request.
-   - This translates the request into CodeSpeak and identifies the exact `target_file` and `target_anchor`.
-   - Only modify code inside the returned `target_anchor` boundary in `target_file`.
-2. After modification, call `guard_check` to validate the changes.
-3. Call `checkpoint_create` to save the state.
+```
+User: "Change the login button color to blue"
+→ Modify directly. Follow Core Rules above.
+```
 
-**Important**: `patch_get` MUST be called before every code edit. Never modify files without calling it first.
+### Mode 2 — VibeLign safe mode (triggered by keyword)
+
+When the user includes **"바이브라인으로"** (or "with vibelign" / "vibelign mode") in their request,
+activate the full VibeLign MCP workflow:
+
+1. Call `patch_get` with the user's request — this translates it to CodeSpeak and pinpoints the exact `target_file` and `target_anchor`.
+2. Modify **only** within the returned `target_anchor` boundary in `target_file`.
+3. Call `guard_check` to validate.
+4. Call `checkpoint_create` to save the state.
+
+```
+User: "바이브라인으로 로그인 버튼 색 파란색으로 바꿔줘"
+→ patch_get("로그인 버튼 색 파란색으로 바꿔줘")
+→ Modify only target_file at target_anchor
+→ guard_check → checkpoint_create
+```
+
+**When to recommend Mode 2 to the user:**
+- Request touches multiple files or the target location is ambiguous
+- Logic or structural change (not just a text/style tweak)
+- User is unsure which file to modify
 
 ### Without MCP (CLI fallback)
 
