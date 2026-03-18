@@ -521,6 +521,10 @@ MANUAL: dict[str, dict] = {
             "  checkpoint_create   — 체크포인트 저장   (vib checkpoint 와 같아요)\n"
             "  checkpoint_list     — 저장 목록 보기    (vib history 와 같아요)\n"
             "  checkpoint_restore  — 특정 시점 복원    (vib undo 와 같아요)\n"
+            "\n"
+            "  ⚠️  복원할 때는 '바이브라인 언두해줘'라고 말하면 돼요.\n"
+            "     AI가 목록을 먼저 보여주고 → 번호를 고르면 → 자동으로 복원해요.\n"
+            "     ('vib undo'를 직접 실행하면 MCP 환경에서 멈춰요. AI한테 맡기세요!)\n\n"
             "  project_context_get — AI 전환 시 컨텍스트 전달 (vib transfer 와 같아요)\n"
             "  doctor_run          — 건강 진단         (vib doctor 와 같아요)\n"
             "  guard_check         — AI 작업 후 확인   (vib guard 와 같아요)\n"
@@ -540,7 +544,8 @@ MANUAL: dict[str, dict] = {
         "examples": [
             ('"저장해줘"', "checkpoint_create 호출"),
             ('"저장된 목록 보여줘"', "checkpoint_list 호출"),
-            ('"2번으로 되돌려줘"', "checkpoint_restore 호출"),
+            ('"바이브라인 언두해줘"', "목록 보여줌 → 번호 선택 → checkpoint_restore 자동 호출"),
+            ('"3번으로 복원해줘"', "checkpoint_restore 바로 호출"),
             ('"바이브라인으로 로그인 버튼 크기 키워줘"', "patch_get → 수정 → guard_check → checkpoint 자동 실행"),
             ('"바이브라인으로 다크모드 배경색 바꿔줘"', "안전 수정 전체 워크플로우 자동 실행"),
             ('"프로젝트 상태 진단해줘"', "doctor_run 호출"),
