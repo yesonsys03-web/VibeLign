@@ -498,6 +498,115 @@ MANUAL: dict[str, dict] = {
         "options": [],
     },
 
+    "rules": {
+        "emoji": "📋",
+        "title": "VibeLign AI 개발 규칙",
+        "one_line": "AI가 코드를 작성할 때 반드시 지켜야 할 규칙들이에요",
+        "what": (
+            "vib start를 실행하면 프로젝트에 AI_DEV_SYSTEM_SINGLE_FILE.md 파일이 생겨요.\n"
+            "이 파일이 AI한테 '이렇게 코딩해야 해'를 알려주는 규칙서예요.\n"
+            "Claude Code, OpenCode, Cursor 등 어떤 AI를 써도 이 규칙을 읽고 따라요.\n\n"
+
+            "━━ 핵심 원칙 ━━\n\n"
+
+            "🔹 패치 우선 원칙\n"
+            "  AI는 파일 전체를 다시 쓰지 않아요.\n"
+            "  꼭 필요한 부분만 최소한으로 수정해요.\n"
+            "  관련 없는 파일은 절대 건드리지 않아요.\n\n"
+
+            "━━ 두 가지 수정 방식 ━━\n\n"
+
+            "방식 1 — 일반 수정 (기본)\n"
+            "  평소처럼 말하면 AI가 알아서 수정해요.\n"
+            "  예: '로그인 버튼 색 파란색으로 바꿔줘'\n\n"
+
+            "방식 2 — 바이브라인 안전 수정 ('바이브라인으로' 또는 'vibelign')\n"
+            "  요청에 '바이브라인으로'를 붙이면 전체 안전 워크플로우 자동 실행:\n"
+            "  patch_get → 정확한 위치 확인 → 수정 → guard_check → checkpoint 저장\n"
+            "  예: '바이브라인으로 로그인 버튼 색 파란색으로 바꿔줘'\n\n"
+            "  ⚠️  '바이브라인으로' 없으면 → AI가 직접 수정 (VibeLign 툴 사용 안 함)\n\n"
+
+            "━━ 파일 구조 규칙 ━━\n\n"
+
+            "🔹 진입 파일 보호 (main.py, index.js 등)\n"
+            "  진입 파일은 작게 유지해요. 실제 로직은 별도 파일로 분리해요.\n\n"
+
+            "🔹 UI와 비즈니스 로직 분리\n"
+            "  UI 파일: 화면 레이아웃, 버튼, 입력창만\n"
+            "  로직 파일: 실제 처리, 파일 읽기/쓰기, 네트워크\n"
+            "  두 가지를 한 파일에 섞으면 안 돼요.\n\n"
+
+            "🔹 파일 크기 관리\n"
+            "  파일이 커지면 역할별로 나눠요.\n"
+            "  utils.py, helpers.py, misc.py 같은 모호한 이름 금지.\n"
+            "  대신: backup_worker.py, translation_pipeline.py처럼 구체적으로 지어요.\n\n"
+
+            "━━ 함수 설계 규칙 ━━\n\n"
+
+            "🔹 함수 길이\n"
+            "  함수가 40줄 넘으면 → 분리 고려\n"
+            "  함수가 80줄 넘으면 → 반드시 분리\n"
+            "  한 함수는 딱 한 가지 일만 해요.\n\n"
+
+            "🔹 함수 이름\n"
+            "  좋은 예: load_config(), parse_excel_row(), validate_input_path()\n"
+            "  나쁜 예: do_stuff(), process(), handle(), run_all()\n\n"
+
+            "🔹 파일 간 연결\n"
+            "  순환 import 금지 (A가 B를 부르고, B가 다시 A를 부르는 구조)\n"
+            "  공통 로직은 별도 파일로 분리해서 양쪽에서 가져다 써요.\n\n"
+
+            "━━ 유지보수 규칙 (코알못도 관리할 수 있게) ━━\n\n"
+
+            "🔹 매직 넘버 금지\n"
+            "  나쁜 예: if retry > 3\n"
+            "  좋은 예: MAX_RETRY = 3 / if retry > MAX_RETRY\n\n"
+
+            "🔹 에러 메시지는 사람이 읽을 수 있게\n"
+            "  나쁜 예: raise Exception('NoneType')\n"
+            "  좋은 예: raise Exception('파일을 찾을 수 없어요. 경로를 확인하세요')\n\n"
+
+            "🔹 조용한 실패 금지\n"
+            "  except: pass 절대 금지\n"
+            "  에러가 나면 반드시 화면에 표시해요.\n\n"
+
+            "🔹 죽은 코드 제거\n"
+            "  주석 처리된 코드 덩어리 남기지 않아요.\n"
+            "  쓰지 않는 import, 변수, 함수 삭제해요.\n\n"
+
+            "🔹 의존성 동기화\n"
+            "  새 패키지를 추가하면 pyproject.toml도 함께 업데이트해요.\n\n"
+
+            "🔹 주석도 함께 업데이트\n"
+            "  코드를 바꾸면 위에 있는 설명 주석도 같이 바꿔요.\n"
+            "  오래된 주석은 없는 것보다 더 혼란스러워요.\n\n"
+
+            "━━ 앵커 규칙 ━━\n\n"
+
+            "🔹 앵커(ANCHOR)가 있으면 그 안에서만 수정\n"
+            "  앵커를 무시하고 파일 전체를 바꾸면 안 돼요.\n"
+            "  앵커가 없는 큰 파일은 먼저 앵커를 달고 작업해요.\n\n"
+
+            "🔹 앵커를 허락 없이 지우면 안 돼요"
+        ),
+        "when": [
+            "AI가 내 규칙을 제대로 따르고 있는지 확인하고 싶을 때",
+            "'바이브라인으로' 키워드를 언제 써야 하는지 헷갈릴 때",
+            "AI가 이상하게 코딩할 때 어떤 규칙이 있는지 확인할 때",
+            "내 프로젝트 규칙을 처음부터 다시 보고 싶을 때",
+        ],
+        "examples": [
+            ("vib manual rules", "전체 규칙 보기"),
+            ("vib start", "프로젝트에 규칙 파일(AI_DEV_SYSTEM_SINGLE_FILE.md) 생성"),
+            ("cat AI_DEV_SYSTEM_SINGLE_FILE.md", "규칙 파일 직접 보기"),
+        ],
+        "options": [
+            ("규칙 파일 위치", "AI_DEV_SYSTEM_SINGLE_FILE.md — 프로젝트 루트에 생성돼요"),
+            ("규칙 업데이트", "vib start 재실행하면 최신 규칙으로 덮어써요 (기존 파일은 .md~ 백업)"),
+            ("어떤 AI든 적용", "AGENTS.md를 읽는 Claude Code, OpenCode, Cursor 모두 자동 적용"),
+        ],
+    },
+
     "mcp": {
         "emoji": "🤖",
         "title": "MCP (AI 자동 연동)",
@@ -570,6 +679,7 @@ GROUPS = [
     ("✏️ AI 수정 요청", ["patch", "anchor", "scan"]),
     ("🗂️ 파일 & 설정", ["protect", "transfer", "ask", "config", "export", "watch", "completion"]),
     ("🤖 MCP (AI 자동 연동)", ["mcp"]),
+    ("📋 AI 개발 규칙", ["rules"]),
 ]
 
 
