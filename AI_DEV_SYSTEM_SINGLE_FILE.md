@@ -175,6 +175,43 @@ When editing existing code:
 
 ---
 
+## 6-1. Function Design Rules
+
+### Function length
+- if a function exceeds 40 lines, consider splitting it
+- if a function exceeds 80 lines, split it — no exceptions
+- each function should do exactly one thing
+
+### Single Responsibility
+- one function = one clear job
+- if a function has multiple "and" steps (read AND parse AND save), split it
+- helper logic that appears in more than one place → extract into its own function
+
+### Function naming
+Good examples:
+- `load_config()`
+- `parse_excel_row()`
+- `send_retry_request()`
+- `validate_input_path()`
+
+Avoid vague names:
+- `do_stuff()`
+- `process()`
+- `handle()`
+- `run_all()`
+
+### Inter-file connections
+- do not create circular imports (A imports B, B imports A)
+- if two files need to share logic, extract shared logic into a third module
+- keep import chains shallow — deep chains are hard to trace and break easily
+
+### Error handling
+- handle errors where they occur — do not let exceptions silently propagate
+- use specific exception types, not bare `except:`
+- if the same error-handling pattern appears in many functions, extract it
+
+---
+
 ## 7. Naming Rules
 
 Prefer clear, specific names.
