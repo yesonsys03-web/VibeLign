@@ -278,9 +278,12 @@ def build_parser():
         ),
         epilog=(
             "이렇게 쓰세요:\n"
-            "  vib anchor --suggest   앵커 추천 받기\n"
-            "  vib anchor --auto      자동으로 앵커 삽입\n"
-            "  vib anchor --validate  앵커 검증"
+            "  vib anchor --suggest                                앵커 추천 받기\n"
+            "  vib anchor --auto                                   자동으로 앵커 삽입\n"
+            "  vib anchor --auto-intent                            AI가 모든 앵커 intent 자동 생성\n"
+            "  vib anchor --validate                               앵커 검증\n"
+            "  vib anchor --set-intent ANCHOR_NAME --intent \"설명\"  앵커 의도 직접 등록\n"
+            "  vib anchor --list-intent                            등록된 의도 목록 보기"
         ),
     )
     p.add_argument("--suggest", action="store_true", help="앵커 추천 받기")
@@ -289,6 +292,10 @@ def build_parser():
     p.add_argument("--dry-run", action="store_true", help="실제로 바꾸지 않고 미리 보기")
     p.add_argument("--json", action="store_true", help="JSON으로 출력")
     p.add_argument("--only-ext", default="", help="특정 확장자만 (.py, .js 등)")
+    p.add_argument("--set-intent", metavar="ANCHOR_NAME", default=None, help="앵커에 의도(intent) 등록")
+    p.add_argument("--intent", metavar="TEXT", default=None, help="등록할 의도 텍스트 (--set-intent와 함께 사용)")
+    p.add_argument("--list-intent", action="store_true", help="등록된 intent 목록 보기")
+    p.add_argument("--auto-intent", action="store_true", help="AI가 모든 앵커 intent 자동 생성")
     p.set_defaults(func=run_vib_anchor)
 
     p = sub.add_parser(

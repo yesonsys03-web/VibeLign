@@ -4,6 +4,7 @@ import importlib
 from pathlib import Path
 from typing import Any, Dict, Optional, cast
 
+from vibelign.core.anchor_tools import extract_anchor_line_ranges
 from vibelign.core.codespeak import build_codespeak, parse_codespeak_v0
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.patch_suggester import suggest_patch
@@ -153,10 +154,7 @@ def _build_ready_handoff(
     root = Path.cwd()
     meta = MetaPaths(root)
 
-    prompt_lines = [
-        "You are applying a VibeLign patch contract.",
-        "",
-    ]
+    prompt_lines = []
 
     # 앵커 메타 정보가 있으면 target_anchor의 intent/connects/warning 포함
     anchor_name = str(patch_plan.get("target_anchor", ""))
@@ -174,13 +172,18 @@ def _build_ready_handoff(
                     )
                 if meta_entry.get("warning"):
                     prompt_lines.append(f"Warning: {meta_entry['warning']}")
-                prompt_lines.append("")
             except (json.JSONDecodeError, OSError):
                 pass
+        target_path = root / str(patch_plan.get("target_file", ""))
+        if target_path.exists():
+            line_ranges = extract_anchor_line_ranges(target_path)
+            if anchor_name in line_ranges:
+                start, end = line_ranges[anchor_name]
+                prompt_lines.append(f"Anchor lines: {start}-{end}")
+        prompt_lines.append("")
 
     prompt_lines.extend([
-        f"Intent: {contract['intent']}",
-        f"CodeSpeak: {patch_plan['codespeak']}",
+        f"Request: {patch_plan['request']}",
         f"File: {', '.join(contract['scope']['allowed_files'])}",
         f"Anchor: {patch_plan['target_anchor']}",
         f"Allowed ops: {', '.join(contract['allowed_ops'])}",

@@ -28,6 +28,14 @@ KEYWORD_HINTS = {
     "log": ["log", "logger", "logging", "status"],
     "schedule": ["schedule", "scheduler", "cron", "timer"],
     "config": ["config", "settings", "json", "yaml", "toml"],
+    # 한국어 키워드
+    "버튼": ["button", "ui", "window", "dialog", "layout"],
+    "색상": ["ui", "window", "dialog", "widget", "layout", "button"],
+    "화면": ["ui", "window", "dialog", "widget", "layout", "panel"],
+    "창": ["ui", "window", "dialog", "widget"],
+    "레이아웃": ["ui", "window", "dialog", "layout"],
+    "로그": ["log", "logger", "logging", "status"],
+    "설정": ["config", "settings", "json", "yaml", "toml"],
 }
 
 LOW_PRIORITY_NAMES = {"__init__.py", "__init__.js", "__init__.ts"}
@@ -46,7 +54,7 @@ class PatchSuggestion:
 
 
 def tokenize(text):
-    return re.findall(r"[a-zA-Z_]+", text.lower())
+    return re.findall(r"[a-zA-Z_]+|[가-힣]+", text.lower())
 
 
 def _score_anchor_names(anchor_names, request_tokens, label):
@@ -87,22 +95,17 @@ def _score_anchor_names(anchor_names, request_tokens, label):
     return score, rationale
 
 
+_UI_REQUEST_KEYWORDS = [
+    "progress", "ui", "button", "dialog", "window", "layout",
+    "sidebar", "panel", "widget", "screen", "render",
+    "버튼", "색상", "화면", "창", "레이아웃", "디자인", "스타일", "폰트", "크기", "컬러", "사이즈",
+]
+
+
 def _is_ui_request(request_tokens):
     return any(
-        tok in request_tokens
-        for tok in [
-            "progress",
-            "ui",
-            "button",
-            "dialog",
-            "window",
-            "layout",
-            "sidebar",
-            "panel",
-            "widget",
-            "screen",
-            "render",
-        ]
+        any(kw in tok or tok in kw for kw in _UI_REQUEST_KEYWORDS)
+        for tok in request_tokens
     )
 
 
@@ -119,6 +122,7 @@ def score_path(
     rel_path: str,
     anchor_meta=None,
     project_map: Optional[ProjectMapSnapshot] = None,
+    intent_meta: Optional[dict] = None,
 ):
     score = 0
     rationale = []
@@ -195,12 +199,33 @@ def score_path(
         elif suggested_score:
             score += suggested_score + 2
             rationale.extend(suggested_rationale)
+    if isinstance(intent_meta, dict):
+        for anchor_name, meta_entry in intent_meta.items():
+            intent = meta_entry.get("intent", "").lower()
+            if not intent:
+                continue
+            intent_tokens = re.findall(r"[a-zA-Z_가-힣]+", intent)
+            matched = [t for t in request_tokens if t in intent_tokens or t in intent]
+            if matched:
+                score += len(matched) * 3
+                rationale.append(f"앵커 intent에 키워드 '{', '.join(matched)}'이 포함됨")
+                break
     return score, rationale
+
+
+_UI_STYLE_TOKENS = {"색상", "주황색", "파란색", "빨간색", "초록색", "노란색", "보라색", "폰트", "스타일", "디자인", "크기", "굵기", "투명도", "배경색", "글자색", "컬러", "사이즈", "보색"}
+_LOGIC_INTENT_TOKENS = {"번역", "api", "번역문", "번역기", "변환", "처리", "관리", "요청", "응답", "저장", "로드"}
+
+
+def _has_style_token(request_tokens) -> bool:
+    """조사가 붙은 토큰도 포함해서 스타일 키워드 존재 여부 확인"""
+    return any(style in tok for tok in request_tokens for style in _UI_STYLE_TOKENS)
 
 
 def choose_anchor(anchors, request_tokens, anchor_meta: Optional[dict] = None):
     if not anchors:
         return "[먼저 앵커를 추가하세요]", ["이 파일에는 아직 앵커가 없습니다"]
+    is_style_request = _has_style_token(request_tokens)
     best_anchor = anchors[0]
     best_score = -1
     best_rationale = [f"첫 번째 앵커 '{best_anchor}'를 기본값으로 선택"]
@@ -228,6 +253,10 @@ def choose_anchor(anchors, request_tokens, anchor_meta: Optional[dict] = None):
                             if len(intent) > 30
                             else f"앵커 의도('{intent}')에 키워드 '{token}'이 포함됨"
                         )
+                # 스타일 요청인데 intent가 로직 성격이면 페널티
+                if is_style_request and any(t in intent for t in _LOGIC_INTENT_TOKENS):
+                    score -= 5
+                    rationale.append("스타일 요청인데 로직 성격 앵커라 우선순위 낮춤")
             warning = meta.get("warning")
             if warning:
                 rationale.append(f"⚠️ {warning}")
@@ -304,6 +333,7 @@ def suggest_patch(root: Path, request: str):
             rel,
             metadata.get(rel, {}),
             project_map,
+            intent_meta=anchor_meta,
         )
         scored.append((score, path, rationale))
 
