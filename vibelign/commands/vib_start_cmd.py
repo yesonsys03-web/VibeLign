@@ -234,6 +234,42 @@ def _build_project_map(root: Path, force_scan: bool = False) -> Dict[str, Any]:
 # === ANCHOR: VIB_START_CMD__BUILD_PROJECT_MAP_END ===
 
 
+# === ANCHOR: VIB_START_CMD__REGISTER_MCP_START ===
+def _register_mcp_claude(root: Path) -> bool:
+    """Claude Code .claude/settings.json에 vibelign MCP 서버를 등록한다.
+    이미 등록되어 있으면 False, 새로 등록하면 True 반환."""
+    claude_dir = root / ".claude"
+    settings_path = claude_dir / "settings.json"
+    claude_dir.mkdir(exist_ok=True)
+
+    if settings_path.exists():
+        try:
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            # 손상된 파일을 백업하고 새로 시작
+            backup = settings_path.with_suffix(".json.bak")
+            settings_path.rename(backup)
+            clack_warn(
+                f".claude/settings.json 파일이 손상되어 백업했습니다. ({backup.name})\n"
+                "  MCP 등록을 새로 진행합니다."
+            )
+            settings = {}
+    else:
+        settings = {}
+
+    mcp_servers = settings.setdefault("mcpServers", {})
+    if "vibelign" in mcp_servers:
+        return False
+
+    mcp_servers["vibelign"] = {"command": "vibelign-mcp", "args": []}
+    settings_path.write_text(
+        json.dumps(settings, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return True
+# === ANCHOR: VIB_START_CMD__REGISTER_MCP_END ===
+
+
 # === ANCHOR: VIB_START_CMD__SETUP_PROJECT_START ===
 def _setup_project(root: Path, meta: MetaPaths) -> Dict[str, List[str]]:
     """프로젝트 세팅: .vibelign 디렉토리, config, state, project_map, 룰 파일, .gitignore"""
@@ -269,6 +305,9 @@ def _setup_project(root: Path, meta: MetaPaths) -> Dict[str, List[str]]:
             json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
         created.append(str(meta.vibelign_dir.relative_to(root)) + "/")
+
+    if _register_mcp_claude(root):
+        created.append(".claude/settings.json (MCP 등록)")
 
     return {"created": created, "skipped": skipped}
 # === ANCHOR: VIB_START_CMD__SETUP_PROJECT_END ===

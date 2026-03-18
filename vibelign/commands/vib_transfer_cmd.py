@@ -128,8 +128,7 @@ def _get_recent_checkpoints(root: Path, n: int = 5) -> list[dict]:
     try:
         from vibelign.commands.vib_history_cmd import _clean_msg
         checkpoints = list_checkpoints(root)
-        recent = checkpoints[-n:] if len(checkpoints) >= n else checkpoints
-        recent.reverse()  # 최신 순
+        recent = checkpoints[:n]  # 최신 순 (list_checkpoints는 이미 최신순)
         result = []
         for cp in recent:
             result.append({
