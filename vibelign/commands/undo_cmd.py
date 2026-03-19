@@ -2,15 +2,17 @@
 from pathlib import Path
 
 from vibelign.core.local_checkpoints import (
+    get_last_restore_error,
     has_changes_since_checkpoint,
     list_checkpoints,
     restore_checkpoint,
-
 )
 
 
 from vibelign.terminal_render import cli_print
+
 print = cli_print
+
 
 # === ANCHOR: UNDO_CMD_RUN_UNDO_START ===
 def run_undo(args):
@@ -43,7 +45,7 @@ def run_undo(args):
         if restore_checkpoint(root, current.checkpoint_id):
             print("✓ 최근 로컬 체크포인트 상태로 복구했습니다!")
         else:
-            print("되돌리기 실패: 체크포인트 데이터를 읽지 못했습니다.")
+            print(f"되돌리기 실패: {get_last_restore_error()}")
         return
     if len(checkpoints) < 2:
         print("이전 체크포인트가 없습니다.")
@@ -62,6 +64,8 @@ def run_undo(args):
     if restore_checkpoint(root, target.checkpoint_id):
         print("✓ 이전 로컬 체크포인트로 되돌렸습니다!")
     else:
-        print("되돌리기 실패: 체크포인트 데이터를 읽지 못했습니다.")
+        print(f"되돌리기 실패: {get_last_restore_error()}")
+
+
 # === ANCHOR: UNDO_CMD_RUN_UNDO_END ===
 # === ANCHOR: UNDO_CMD_END ===

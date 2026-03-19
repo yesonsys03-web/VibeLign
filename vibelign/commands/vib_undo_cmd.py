@@ -5,22 +5,25 @@ from typing import Any
 
 from vibelign.core.local_checkpoints import (
     friendly_time,
+    get_last_restore_error,
     list_checkpoints,
     restore_checkpoint,
 )
 
 
 from vibelign.terminal_render import cli_print
+
 print = cli_print
 
 # "vibelign: checkpoint - 시작 (2026-03-17 16:52)" → "시작"
 _TIMESTAMP_PATTERN = re.compile(r"\s*\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)\s*$")
 
+
 def _clean_msg(msg: str) -> str:
     """메시지에서 vibelign 접두어와 날짜 접미어를 제거."""
     for prefix in ("vibelign: checkpoint - ", "vibelign: checkpoint"):
         if msg.startswith(prefix):
-            msg = msg[len(prefix):]
+            msg = msg[len(prefix) :]
             break
     msg = _TIMESTAMP_PATTERN.sub("", msg).strip()
     # 훅에서 stdin JSON이 메시지로 들어온 경우 방어
@@ -89,7 +92,7 @@ def run_vib_undo(args: Any) -> None:
     if restore_checkpoint(root, target.checkpoint_id):
         print(f"✓ [{time_label}] 시점으로 되돌렸습니다!")
     else:
-        print("되돌리기 실패: 체크포인트 데이터를 읽지 못했습니다.")
+        print(f"되돌리기 실패: {get_last_restore_error()}")
 
 
 # === ANCHOR: VIB_UNDO_CMD_END ===

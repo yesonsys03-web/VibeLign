@@ -15,11 +15,13 @@ Claude Code .claude/settings.json 등록:
       }
     }
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 from pathlib import Path
+from typing import cast
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -195,17 +197,20 @@ async def list_tools() -> list[types.Tool]:
             inputSchema={"type": "object", "properties": {}},
         ),
     ]
+
+
 # === ANCHOR: MCP_SERVER_LIST_TOOLS_END ===
 
 
 # === ANCHOR: MCP_SERVER_CALL_TOOL_START ===
 @app.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
+async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextContent]:
     root = _root()
 
     # ── checkpoint_create ──────────────────────────────────────────────────
     if name == "checkpoint_create":
         from vibelign.core.local_checkpoints import create_checkpoint, friendly_time
+
         message = str(arguments.get("message", ""))
         summary = create_checkpoint(root, message)
         if summary is None:
@@ -223,9 +228,12 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     # ── checkpoint_list ────────────────────────────────────────────────────
     if name == "checkpoint_list":
         from vibelign.core.local_checkpoints import list_checkpoints, friendly_time
+
         checkpoints = list_checkpoints(root)
         if not checkpoints:
-            return [types.TextContent(type="text", text="저장된 체크포인트가 없습니다.")]
+            return [
+                types.TextContent(type="text", text="저장된 체크포인트가 없습니다.")
+            ]
         lines = ["# 체크포인트 목록\n"]
         for cp in checkpoints:
             pin = " [보호]" if cp.pinned else ""
@@ -238,23 +246,27 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
     # ── checkpoint_restore ─────────────────────────────────────────────────
     if name == "checkpoint_restore":
-        from vibelign.core.local_checkpoints import restore_checkpoint
+        from vibelign.core.local_checkpoints import (
+            get_last_restore_error,
+            restore_checkpoint,
+        )
+
         checkpoint_id = str(arguments.get("checkpoint_id", ""))
         if not checkpoint_id:
-            return [types.TextContent(type="text", text="오류: checkpoint_id가 필요합니다.")]
+            return [
+                types.TextContent(type="text", text="오류: checkpoint_id가 필요합니다.")
+            ]
         ok = restore_checkpoint(root, checkpoint_id)
         if ok:
             text = f"✓ `{checkpoint_id}` 시점으로 복원했습니다."
         else:
-            text = (
-                f"오류: `{checkpoint_id}` 체크포인트를 찾지 못했습니다.\n"
-                f"checkpoint_list로 유효한 ID를 확인하세요."
-            )
+            text = f"오류: {get_last_restore_error()}"
         return [types.TextContent(type="text", text=text)]
 
     # ── project_context_get ────────────────────────────────────────────────
     if name == "project_context_get":
         from vibelign.commands.vib_transfer_cmd import _build_context_content
+
         compact = bool(arguments.get("compact", False))
         full = bool(arguments.get("full", False))
         content = _build_context_content(root, compact=compact, full=full)
@@ -263,6 +275,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     # ── doctor_run ─────────────────────────────────────────────────────────
     if name == "doctor_run":
         from vibelign.core.doctor_v2 import build_doctor_envelope, render_doctor_json
+
         strict = bool(arguments.get("strict", False))
         envelope = build_doctor_envelope(root, strict=strict)
         return [types.TextContent(type="text", text=render_doctor_json(envelope))]
@@ -270,20 +283,33 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     # ── guard_check ────────────────────────────────────────────────────────
     if name == "guard_check":
         from vibelign.commands.vib_guard_cmd import _build_guard_envelope
+
         strict = bool(arguments.get("strict", False))
-        since_minutes = int(arguments.get("since_minutes", 30))
-        envelope = _build_guard_envelope(root, strict=strict, since_minutes=since_minutes)
-        return [types.TextContent(
-            type="text",
-            text=json.dumps(envelope, indent=2, ensure_ascii=False),
-        )]
+        since_minutes = int(cast(int | str, arguments.get("since_minutes", 30)))
+        envelope = _build_guard_envelope(
+            root, strict=strict, since_minutes=since_minutes
+        )
+        return [
+            types.TextContent(
+                type="text",
+                text=json.dumps(envelope, indent=2, ensure_ascii=False),
+            )
+        ]
 
     # ── protect_add ────────────────────────────────────────────────────────
     if name == "protect_add":
         from vibelign.core.protected_files import get_protected, save_protected
-        file_paths: list[str] = arguments.get("file_paths", [])
+
+        raw_file_paths = arguments.get("file_paths", [])
+        file_paths = (
+            [str(item) for item in raw_file_paths]
+            if isinstance(raw_file_paths, list)
+            else []
+        )
         if not file_paths:
-            return [types.TextContent(type="text", text="오류: file_paths가 필요합니다.")]
+            return [
+                types.TextContent(type="text", text="오류: file_paths가 필요합니다.")
+            ]
         protected = get_protected(root)
         new_paths = [p for p in file_paths if p not in protected]
         protected.update(new_paths)
@@ -295,6 +321,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     # ── patch_get ──────────────────────────────────────────────────────────
     if name == "patch_get":
         from vibelign.commands.vib_patch_cmd import _build_patch_data, _build_contract
+
         request = str(arguments.get("request", ""))
         if not request:
             return [types.TextContent(type="text", text="오류: request가 필요합니다.")]
@@ -313,10 +340,12 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             "clarifying_questions": contract["clarifying_questions"],
             "rationale": patch_plan["rationale"],
         }
-        return [types.TextContent(
-            type="text",
-            text=json.dumps(result, indent=2, ensure_ascii=False),
-        )]
+        return [
+            types.TextContent(
+                type="text",
+                text=json.dumps(result, indent=2, ensure_ascii=False),
+            )
+        ]
 
     # ── anchor_run ─────────────────────────────────────────────────────────
     if name == "anchor_run":
@@ -329,10 +358,13 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         from vibelign.core.meta_paths import MetaPaths
         from vibelign.core.project_map import load_project_map
         from datetime import datetime, timezone
+
         meta = MetaPaths(root)
         meta.ensure_vibelign_dirs()
         project_map, _ = load_project_map(root)
-        recommendations = recommend_anchor_targets(root, allowed_exts=None, project_map=project_map)
+        recommendations = recommend_anchor_targets(
+            root, allowed_exts=None, project_map=project_map
+        )
         targets = [root / str(item["path"]) for item in recommendations]
         changed = []
         for path in targets:
@@ -353,7 +385,9 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
             )
         if changed:
-            text = f"✓ 앵커 삽입 완료 — {len(changed)}개 파일\n" + "\n".join(f"  - {f}" for f in changed)
+            text = f"✓ 앵커 삽입 완료 — {len(changed)}개 파일\n" + "\n".join(
+                f"  - {f}" for f in changed
+            )
         else:
             text = "모든 파일에 이미 앵커가 있습니다."
         return [types.TextContent(type="text", text=text)]
@@ -361,41 +395,54 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     # ── explain_get ────────────────────────────────────────────────────────
     if name == "explain_get":
         from vibelign.commands.vib_explain_cmd import _build_explain_envelope
-        since_minutes = int(arguments.get("since_minutes", 120))
+
+        since_minutes = int(cast(int | str, arguments.get("since_minutes", 120)))
         envelope = _build_explain_envelope(root, since_minutes=since_minutes)
-        return [types.TextContent(
-            type="text",
-            text=json.dumps(envelope, indent=2, ensure_ascii=False),
-        )]
+        return [
+            types.TextContent(
+                type="text",
+                text=json.dumps(envelope, indent=2, ensure_ascii=False),
+            )
+        ]
 
     # ── anchor_list ────────────────────────────────────────────────────────
     if name == "anchor_list":
         from vibelign.core.meta_paths import MetaPaths
+
         meta = MetaPaths(root)
         if not meta.anchor_index_path.exists():
-            return [types.TextContent(
-                type="text",
-                text="앵커 인덱스가 없습니다. `vib scan`을 먼저 실행하세요.",
-            )]
+            return [
+                types.TextContent(
+                    type="text",
+                    text="앵커 인덱스가 없습니다. `vib scan`을 먼저 실행하세요.",
+                )
+            ]
         data = json.loads(meta.anchor_index_path.read_text(encoding="utf-8"))
-        return [types.TextContent(
-            type="text",
-            text=json.dumps(data, indent=2, ensure_ascii=False),
-        )]
+        return [
+            types.TextContent(
+                type="text",
+                text=json.dumps(data, indent=2, ensure_ascii=False),
+            )
+        ]
 
     # ── config_get ─────────────────────────────────────────────────────────
     if name == "config_get":
         from vibelign.core.meta_paths import MetaPaths
+
         meta = MetaPaths(root)
         if not meta.config_path.exists():
-            return [types.TextContent(
-                type="text",
-                text="설정 파일이 없습니다. `vib init`을 먼저 실행하세요.",
-            )]
+            return [
+                types.TextContent(
+                    type="text",
+                    text="설정 파일이 없습니다. `vib init`을 먼저 실행하세요.",
+                )
+            ]
         text = meta.config_path.read_text(encoding="utf-8")
         return [types.TextContent(type="text", text=text)]
 
     return [types.TextContent(type="text", text=f"알 수 없는 도구: {name}")]
+
+
 # === ANCHOR: MCP_SERVER_CALL_TOOL_END ===
 
 
@@ -411,6 +458,8 @@ async def _run() -> None:
 
 def main() -> None:
     asyncio.run(_run())
+
+
 # === ANCHOR: MCP_SERVER_MAIN_END ===
 
 
