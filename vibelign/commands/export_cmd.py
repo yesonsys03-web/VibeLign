@@ -1,9 +1,19 @@
 from pathlib import Path
+
 from vibelign.core.ai_dev_system import AI_DEV_SYSTEM_CONTENT
 
 
 from vibelign.terminal_render import cli_print
+
 print = cli_print
+
+SUPPORTED_EXPORT_TOOLS = (
+    "claude",
+    "opencode",
+    "cursor",
+    "antigravity",
+    "codex",
+)
 
 AGENTS_MD_CONTENT = """\
 # AGENTS.md
@@ -456,6 +466,18 @@ def _write_cursorrules(root) -> str:
         return "created"
 
 
+def write_claude_md(root: Path) -> str:
+    return _write_claude_md(root)
+
+
+def write_opencode_md(root: Path) -> str:
+    return _write_opencode_md(root)
+
+
+def write_cursorrules(root: Path) -> str:
+    return _write_cursorrules(root)
+
+
 TEMPLATES = {
     "claude": {
         "RULES.md": _RULES,
@@ -477,7 +499,28 @@ TEMPLATES = {
         "VERIFICATION_CHECKLIST.md": _ANTIGRAVITY_CHECKLIST,
         "SETUP.md": _ANTIGRAVITY_SETUP,
     },
+    "codex": {
+        "TASK_ARTIFACT.md": _ANTIGRAVITY_TASK,
+        "VERIFICATION_CHECKLIST.md": _ANTIGRAVITY_CHECKLIST,
+        "SETUP.md": _ANTIGRAVITY_SETUP,
+    },
 }
+
+
+def export_tool_files(root: Path, tool: str, overwrite: bool = True) -> str:
+    export_root = root / "vibelign_exports" / tool
+    export_root.mkdir(parents=True, exist_ok=True)
+    for name, content in TEMPLATES[tool].items():
+        target = export_root / name
+        if overwrite or not target.exists():
+            target.write_text(content, encoding="utf-8")
+    readme_path = export_root / "README.md"
+    if overwrite or not readme_path.exists():
+        readme_path.write_text(
+            f"# VibeLign 내보내기: {tool}\n\n프로젝트 루트의 `AI_DEV_SYSTEM_SINGLE_FILE.md`를 주요 규칙 파일로 유지하세요.\n",
+            encoding="utf-8",
+        )
+    return str(export_root)
 
 
 def run_export(args):
@@ -500,19 +543,13 @@ def run_export(args):
 
     export_root = root / "vibelign_exports" / args.tool
     already_exists = export_root.exists()
-    export_root.mkdir(parents=True, exist_ok=True)
     if already_exists:
         print(f"경고: {export_root.relative_to(root)}의 기존 파일을 덮어씁니다")
-    for name, content in TEMPLATES[args.tool].items():
-        (export_root / name).write_text(content, encoding="utf-8")
-    (export_root / "README.md").write_text(
-        f"# VibeLign 내보내기: {args.tool}\n\n프로젝트 루트의 `AI_DEV_SYSTEM_SINGLE_FILE.md`를 주요 규칙 파일로 유지하세요.\n",
-        encoding="utf-8",
-    )
+    export_tool_files(root, args.tool)
     print(f"{export_root} 생성 완료")
 
     if args.tool == "claude":
-        result = _write_claude_md(root)
+        result = write_claude_md(root)
         if result == "created":
             print("CLAUDE.md 생성 완료  ← Claude Code가 자동으로 읽어요")
         elif result == "appended":
@@ -522,7 +559,7 @@ def run_export(args):
             print("참고: CLAUDE.md에 이미 VibeLign 규칙이 있습니다 (건너뜀)")
 
     elif args.tool == "opencode":
-        result = _write_opencode_md(root)
+        result = write_opencode_md(root)
         if result == "created":
             print("OPENCODE.md 생성 완료  ← OpenCode가 자동으로 읽어요")
         elif result == "appended":
@@ -532,7 +569,7 @@ def run_export(args):
             print("참고: OPENCODE.md에 이미 VibeLign 규칙이 있습니다 (건너뜀)")
 
     elif args.tool == "cursor":
-        result = _write_cursorrules(root)
+        result = write_cursorrules(root)
         if result == "created":
             print(".cursorrules 생성 완료  ← Cursor가 자동으로 읽어요")
         elif result == "appended":
@@ -540,3 +577,6 @@ def run_export(args):
             print("      덮어쓰지 않고 VibeLign 규칙을 뒤에 추가했습니다.")
         else:
             print("참고: .cursorrules에 이미 VibeLign 규칙이 있습니다 (건너뜀)")
+
+    elif args.tool == "codex":
+        print("참고: Codex는 AGENTS.md를 자동으로 읽어요")

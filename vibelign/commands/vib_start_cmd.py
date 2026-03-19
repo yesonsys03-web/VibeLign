@@ -4,10 +4,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from vibelign.commands.export_cmd import AGENTS_MD_CONTENT
+from vibelign.commands.export_cmd import (
+    AGENTS_MD_CONTENT,
+    export_tool_files,
+    write_claude_md,
+    write_cursorrules,
+    write_opencode_md,
+)
 from vibelign.commands.vib_doctor_cmd import build_doctor_envelope
 from vibelign.core.ai_dev_system import AI_DEV_SYSTEM_CONTENT
-from vibelign.core.hook_setup import detect_tool, is_hook_set, setup_hook_if_needed, remove_old_hook
+from vibelign.core.hook_setup import (
+    detect_tool,
+    is_hook_set,
+    setup_hook_if_needed,
+    remove_old_hook,
+)
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_scan import iter_source_files, line_count, relpath_str
 from vibelign.terminal_render import (
@@ -22,11 +33,29 @@ from vibelign.terminal_render import (
 GITIGNORE_LINE = ".vibelign/checkpoints/"
 GITIGNORE_SCAN_CACHE_LINE = ".vibelign/scan_cache.json"
 LARGE_FILE_LINE_THRESHOLD = 300
+START_TOOL_CHOICES = ("claude", "opencode", "cursor", "antigravity", "codex")
+TOOL_DISPLAY_NAMES = {
+    "claude": "Claude",
+    "opencode": "OpenCode",
+    "cursor": "Cursor",
+    "antigravity": "Antigravity",
+    "codex": "Codex",
+}
 
 _TREE_SKIP = {
-    ".git", "__pycache__", "node_modules", ".vibelign",
-    "build", "dist", ".venv", "venv", ".pytest_cache",
-    ".ruff_cache", ".mypy_cache", ".tox", "coverage",
+    ".git",
+    "__pycache__",
+    "node_modules",
+    ".vibelign",
+    "build",
+    "dist",
+    ".venv",
+    "venv",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+    ".tox",
+    "coverage",
 }
 
 
@@ -37,7 +66,9 @@ def _build_tree(root: Path) -> List[str]:
     # === ANCHOR: VIB_START_CMD__WALK_START ===
     def _walk(path: Path, depth: int) -> None:
         try:
-            entries = sorted(path.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
+            entries = sorted(
+                path.iterdir(), key=lambda p: (p.is_file(), p.name.lower())
+            )
         except PermissionError:
             return
         for entry in entries:
@@ -49,11 +80,13 @@ def _build_tree(root: Path) -> List[str]:
                 _walk(entry, depth + 1)
             else:
                 lines.append(f"{indent}{entry.name}")
+
     # === ANCHOR: VIB_START_CMD__WALK_END ===
 
-# === ANCHOR: VIB_START_CMD__BUILD_TREE_END ===
+    # === ANCHOR: VIB_START_CMD__BUILD_TREE_END ===
     _walk(root, 0)
     return lines
+
 
 CONFIG_YAML = """schema_version: 1
 llm_provider: anthropic
@@ -121,6 +154,8 @@ def _status_line(status: str) -> str:
     if status == "Caution":
         return "큰 문제는 아니지만, 먼저 조금 정리하면 더 안전해요."
     return "지금은 바로 크게 수정하기보다, 먼저 문제를 확인하는 게 좋아요."
+
+
 # === ANCHOR: VIB_START_CMD__STATUS_LINE_END ===
 
 
@@ -130,12 +165,16 @@ def _next_step(data: Dict[str, Any]) -> str:
     if actions:
         return str(actions[0])
     return "vib anchor --suggest"
+
+
 # === ANCHOR: VIB_START_CMD__NEXT_STEP_END ===
 
 
 # === ANCHOR: VIB_START_CMD__HAS_GIT_START ===
 def _has_git(root: Path) -> bool:
     return (root / ".git").is_dir()
+
+
 # === ANCHOR: VIB_START_CMD__HAS_GIT_END ===
 
 
@@ -143,9 +182,14 @@ def _has_git(root: Path) -> bool:
 def _ensure_gitignore_entry(root: Path) -> None:
     gitignore_path = root / ".gitignore"
     lines_to_add = [
-        line for line in [GITIGNORE_LINE, GITIGNORE_SCAN_CACHE_LINE]
-        if line not in (gitignore_path.read_text(encoding="utf-8", errors="ignore").splitlines()
-                        if gitignore_path.exists() else [])
+        line
+        for line in [GITIGNORE_LINE, GITIGNORE_SCAN_CACHE_LINE]
+        if line
+        not in (
+            gitignore_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            if gitignore_path.exists()
+            else []
+        )
     ]
     if not lines_to_add:
         return
@@ -157,12 +201,13 @@ def _ensure_gitignore_entry(root: Path) -> None:
     gitignore_path.write_text(
         existing + suffix + "\n".join(lines_to_add) + "\n", encoding="utf-8"
     )
+
+
 # === ANCHOR: VIB_START_CMD__ENSURE_GITIGNORE_ENTRY_END ===
 
 
 # === ANCHOR: VIB_START_CMD__ENSURE_RULE_FILES_START ===
-def _ensure_rule_files(root: Path) -> Dict[str, List[str]]:
-    """AI 룰 파일을 항상 최신으로 유지. 기존 파일은 ~로 백업 후 덮어씀."""
+def _ensure_rule_files(root: Path, overwrite: bool = True) -> Dict[str, List[str]]:
     created: List[str] = []
     updated: List[str] = []
     for fname, content in [
@@ -173,12 +218,14 @@ def _ensure_rule_files(root: Path) -> Dict[str, List[str]]:
         if not path.exists():
             path.write_text(content, encoding="utf-8")
             created.append(fname)
-        else:
+        elif overwrite:
             backup = root / (fname + "~")
             backup.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
             path.write_text(content, encoding="utf-8")
             updated.append(fname)
     return {"created": created, "updated": updated}
+
+
 # === ANCHOR: VIB_START_CMD__ENSURE_RULE_FILES_END ===
 
 
@@ -234,6 +281,8 @@ def _build_project_map(root: Path, force_scan: bool = False) -> Dict[str, Any]:
         "anchor_index": anchor_index,
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
+
+
 # === ANCHOR: VIB_START_CMD__BUILD_PROJECT_MAP_END ===
 
 
@@ -270,14 +319,127 @@ def _register_mcp_claude(root: Path) -> bool:
         encoding="utf-8",
     )
     return True
+
+
 # === ANCHOR: VIB_START_CMD__REGISTER_MCP_END ===
 
 
+def _parse_start_tools(raw: Optional[str]) -> List[str]:
+    if not raw:
+        return []
+
+    selected: List[str] = []
+    seen = set()
+    for item in raw.split(","):
+        tool = item.strip().lower()
+        if not tool:
+            continue
+        if tool not in START_TOOL_CHOICES:
+            options = ", ".join(START_TOOL_CHOICES)
+            raise ValueError(f"지원하지 않는 도구예요: {tool} (선택지: {options})")
+        if tool not in seen:
+            selected.append(tool)
+            seen.add(tool)
+    return selected
+
+
+def _selected_start_tools(args: Any) -> List[str]:
+    if getattr(args, "all_tools", False):
+        return list(START_TOOL_CHOICES)
+    return _parse_start_tools(getattr(args, "tools", None))
+
+
+def _configure_start_tools(
+    root: Path, tools: List[str], force: bool = False
+) -> List[str]:
+    created: List[str] = []
+
+    for tool in tools:
+        if tool == "claude":
+            export_tool_files(root, "claude", overwrite=force)
+            result = write_claude_md(root)
+            if result == "created":
+                created.append("CLAUDE.md")
+            elif result == "appended":
+                created.append("CLAUDE.md (규칙 추가)")
+            if _register_mcp_claude(root):
+                created.append(".claude/settings.json (MCP 등록)")
+            continue
+
+        if tool == "opencode":
+            export_tool_files(root, "opencode", overwrite=force)
+            result = write_opencode_md(root)
+            if result == "created":
+                created.append("OPENCODE.md")
+            elif result == "appended":
+                created.append("OPENCODE.md (규칙 추가)")
+            continue
+
+        if tool == "cursor":
+            export_tool_files(root, "cursor", overwrite=force)
+            result = write_cursorrules(root)
+            if result == "created":
+                created.append(".cursorrules")
+            elif result == "appended":
+                created.append(".cursorrules (규칙 추가)")
+            continue
+
+        if tool == "antigravity":
+            export_tool_files(root, "antigravity", overwrite=force)
+            created.append("vibelign_exports/antigravity/")
+            continue
+
+        if tool == "codex":
+            export_tool_files(root, "codex", overwrite=force)
+            created.append("vibelign_exports/codex/")
+
+    return created
+
+
+def _tool_readiness(tools: List[str]) -> Dict[str, List[str]]:
+    ready = []
+    almost_ready = []
+
+    for tool in tools:
+        label = TOOL_DISPLAY_NAMES[tool]
+        if tool in {"claude", "antigravity", "opencode"}:
+            ready.append(label)
+        else:
+            almost_ready.append(label)
+
+    return {"ready": ready, "almost_ready": almost_ready}
+
+
+def _print_tool_readiness_summary(tools: List[str]) -> None:
+    if not tools:
+        return
+
+    readiness = _tool_readiness(tools)
+    ready = readiness["ready"]
+    almost_ready = readiness["almost_ready"]
+
+    clack_step("AI 도구 준비 상태")
+    if ready:
+        clack_info("지금 바로 사용할 수 있어요")
+        for tool in ready:
+            clack_info(f"- {tool}")
+    if almost_ready:
+        clack_info("거의 끝났어요")
+        for tool in almost_ready:
+            clack_info(f"- {tool}")
+        if "Cursor" in almost_ready:
+            clack_info("  Cursor: 설정에서 VibeLign 연결을 한 번만 확인하세요.")
+        if "Codex" in almost_ready:
+            clack_info("  Codex: Codex 설정에 VibeLign을 한 번만 연결하세요.")
+
+
 # === ANCHOR: VIB_START_CMD__SETUP_PROJECT_START ===
-def _setup_project(root: Path, meta: MetaPaths) -> Dict[str, List[str]]:
+def _setup_project(
+    root: Path, meta: MetaPaths, force: bool = False
+) -> Dict[str, List[str]]:
     """프로젝트 세팅: .vibelign 디렉토리, config, state, project_map, 룰 파일, .gitignore"""
     _ensure_gitignore_entry(root)
-    rule_files = _ensure_rule_files(root)
+    rule_files = _ensure_rule_files(root, overwrite=force)
     created = list(rule_files["created"])
     updated = list(rule_files["updated"])
 
@@ -309,10 +471,9 @@ def _setup_project(root: Path, meta: MetaPaths) -> Dict[str, List[str]]:
         )
         created.append(str(meta.vibelign_dir.relative_to(root)) + "/")
 
-    if _register_mcp_claude(root):
-        created.append(".claude/settings.json (MCP 등록)")
-
     return {"created": created, "updated": updated}
+
+
 # === ANCHOR: VIB_START_CMD__SETUP_PROJECT_END ===
 
 
@@ -321,14 +482,24 @@ def run_vib_start(args: Any) -> None:
     root = Path.cwd()
     meta = MetaPaths(root)
     clack_intro("VibeLign 시작 설정")
+    try:
+        selected_tools = _selected_start_tools(args)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
     # [1] 프로젝트 세팅 (새 프로젝트면 전체, 기존이면 누락된 것만 보완)
     is_new = not meta.state_path.exists()
     if is_new:
         clack_step("처음 사용하는 프로젝트예요. 기본 설정을 준비할게요.")
-    setup_result = _setup_project(root, meta)
+    force = getattr(args, "force", False)
+    setup_result = _setup_project(root, meta, force=force)
+    tool_created = _configure_start_tools(root, selected_tools, force=force)
+    if tool_created:
+        setup_result["created"].extend(tool_created)
     setup_changed: Optional[Dict[str, List[str]]] = (
-        setup_result if (is_new or setup_result["created"] or setup_result["updated"]) else None
+        setup_result
+        if (is_new or setup_result["created"] or setup_result["updated"])
+        else None
     )
 
     # [2] 기존 PostToolUse 훅 정리 + 초기 체크포인트 생성
@@ -353,6 +524,8 @@ def run_vib_start(args: Any) -> None:
         for f in setup_changed.get("updated", []):
             clack_success(f"업데이트됨: {f}  (기존 파일 → {f}~)")
 
+    _print_tool_readiness_summary(selected_tools)
+
     if hook_label and hook_active:
         clack_step("AI 도구 연동")
         clack_success(f"{hook_label} 훅이 활성화돼요")
@@ -367,6 +540,7 @@ def run_vib_start(args: Any) -> None:
     # [5] 고속 도구 자동 설치 제안 (watchdog은 vib watch 실행 시에만 설치 제안)
     from vibelign.core.fast_tools import has_fd, has_rg
     from vibelign.core.auto_install import try_install_fast_tools, ensure_pyproject_toml
+
     missing_tools = []
     if not has_fd():
         missing_tools.append("fd")
@@ -388,7 +562,7 @@ def run_vib_start(args: Any) -> None:
         clack_step("딱 3가지만 기억하세요")
         clack_info("")
         clack_info('  1. 작업 전엔 항상   →  vib checkpoint "설명"')
-        clack_info('  2. AI가 망쳤으면    →  vib undo')
+        clack_info("  2. AI가 망쳤으면    →  vib undo")
         clack_info('  3. 잘 됐으면        →  vib checkpoint "완료"')
         clack_info("")
         clack_step("이제 이렇게 진행하면 돼요")
@@ -405,7 +579,7 @@ def run_vib_start(args: Any) -> None:
         clack_info("   vib guard")
         clack_info("   AI가 이상한 곳을 건드리지 않았는지 자동으로 검사해요")
         clack_info("")
-        clack_info('언제든 vib doctor 로 프로젝트 상태를 확인할 수 있어요')
+        clack_info("언제든 vib doctor 로 프로젝트 상태를 확인할 수 있어요")
         clack_info("")
         clack_info("💡 탭키로 명령어 자동완성을 쓰고 싶다면:")
         clack_info("   vib completion --install")
@@ -419,6 +593,7 @@ def run_vib_start(args: Any) -> None:
         if answer in ("", "y", "yes"):
             import types
             from vibelign.commands.vib_checkpoint_cmd import run_vib_checkpoint
+
             cp_args = types.SimpleNamespace(message=["시작"])
             run_vib_checkpoint(cp_args)
             clack_success("체크포인트 저장 완료! 이제 안심하고 AI 코딩을 시작하세요 🎉")
@@ -438,15 +613,23 @@ def run_vib_start(args: Any) -> None:
         if has_files:
             clack_step("빠른 시작: 앵커 자동 삽입 중...")
             anchor_args = types.SimpleNamespace(
-                suggest=False, auto=True, validate=False,
-                dry_run=False, json=False, only_ext="",
+                suggest=False,
+                auto=True,
+                validate=False,
+                dry_run=False,
+                json=False,
+                only_ext="",
             )
             run_vib_anchor(anchor_args)
-            clack_success("앵커 삽입 완료! 이제 vib patch 로 AI에게 수정을 시킬 수 있어요")
+            clack_success(
+                "앵커 삽입 완료! 이제 vib patch 로 AI에게 수정을 시킬 수 있어요"
+            )
         else:
             clack_warn(
                 "아직 코드 파일이 없어서 앵커를 달 게 없어요. "
                 "코드를 작성한 뒤 vib anchor 를 실행하세요!"
             )
+
+
 # === ANCHOR: VIB_START_CMD_RUN_VIB_START_END ===
 # === ANCHOR: VIB_START_CMD_END ===
