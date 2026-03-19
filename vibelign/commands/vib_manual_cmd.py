@@ -1,5 +1,6 @@
 # === ANCHOR: VIB_MANUAL_CMD_START ===
 """vib manual - 코알못을 위한 VibeLign 상세 매뉴얼."""
+
 from __future__ import annotations
 
 from rich.console import Console
@@ -21,23 +22,50 @@ MANUAL: dict[str, dict] = {
         "one_line": "처음 시작할 때 딱 한 번만 실행해요",
         "what": (
             "새 프로젝트에서 VibeLign을 처음 쓸 때 필요한 파일을 자동으로 만들어줘요.\n"
-            "AGENTS.md, AI_DEV_SYSTEM.md 같은 파일이 생기는데,\n"
-            "이게 있어야 AI가 내 프로젝트를 제대로 이해하고 작업해요."
+            "AGENTS.md, AI_DEV_SYSTEM_SINGLE_FILE.md 같은 파일이 생기는데,\n"
+            "이게 있어야 AI가 내 프로젝트를 제대로 이해하고 작업해요.\n\n"
+            "`vib start --all-tools`를 쓰면 Claude, Antigravity, OpenCode, Cursor, Codex 준비도 한 번에 해줘요.\n"
+            "기본값은 기존 설정을 최대한 보존하면서 없는 것만 추가해요.\n"
+            "정말 다시 깔듯이 새로 만들고 싶을 때만 `--force`를 써요."
         ),
         "when": [
             "새 프로젝트 폴더에서 VibeLign을 처음 쓸 때",
             "AI한테 코딩을 맡기기 전에 한 번만 세팅할 때",
             "설치 직후 처음 설정할 때",
+            "여러 AI 도구를 한 번에 준비하고 싶을 때",
         ],
         "examples": [
             ("vib start", "기본 세팅 (가장 많이 씀)"),
+            (
+                "vib start --all-tools",
+                "Claude, Antigravity, OpenCode, Cursor, Codex를 한 번에 준비",
+            ),
+            ("vib start --all-tools --force", "기존 VibeLign 설정도 다시 생성"),
             ("vib start --quickstart", "세팅 + 앵커 자동 삽입까지 한 번에"),
         ],
         "options": [
-            ("--quickstart", "start 실행 후 anchor --auto 까지 자동으로 실행해요.\n한 번에 다 끝내고 싶을 때 써요."),
+            (
+                "--all-tools",
+                "Claude, Antigravity, OpenCode, Cursor, Codex 설정을 한 번에 준비해요.\n기존 설정은 최대한 보존하면서 없는 것만 추가해요.",
+            ),
+            (
+                "--tools",
+                "원하는 도구만 골라서 준비해요.\n예: claude,opencode,cursor,antigravity,codex",
+            ),
+            (
+                "--force",
+                "기존 VibeLign 설정 파일도 다시 만들거나 덮어써요.\n기본값은 안전 모드라서 기존 설정을 최대한 유지해요.",
+            ),
+            (
+                "--quickstart",
+                "start 실행 후 anchor --auto 까지 자동으로 실행해요.\n한 번에 다 끝내고 싶을 때 써요.",
+            ),
+            (
+                "준비 상태 안내",
+                "start가 끝나면 도구별로 '바로 사용 가능' / '거의 끝남'을 알려줘요.\n현재는 Claude, Antigravity, OpenCode는 바로 사용 가능으로 보여줘요.",
+            ),
         ],
     },
-
     "checkpoint": {
         "emoji": "💾",
         "title": "vib checkpoint",
@@ -63,10 +91,12 @@ MANUAL: dict[str, dict] = {
             ('vib checkpoint "버그 수정 전"', "작업 전 백업"),
         ],
         "options": [
-            ("message", "저장할 때 메모를 남길 수 있어요.\n메시지 없이 실행하면 입력 화면이 나와요.\n엔터만 누르면 메시지 없이 저장돼요.\n예: vib checkpoint \"회원가입 버튼 추가\""),
+            (
+                "message",
+                '저장할 때 메모를 남길 수 있어요.\n메시지 없이 실행하면 입력 화면이 나와요.\n엔터만 누르면 메시지 없이 저장돼요.\n예: vib checkpoint "회원가입 버튼 추가"',
+            ),
         ],
     },
-
     "undo": {
         "emoji": "⏪",
         "title": "vib undo",
@@ -93,10 +123,12 @@ MANUAL: dict[str, dict] = {
             ("vib undo", "목록 보고 번호 선택 → 되돌리기"),
         ],
         "options": [
-            ("번호 입력", "목록에서 원하는 시점의 번호를 입력해요.\n엔터 = 가장 최근 / 0 또는 q = 취소"),
+            (
+                "번호 입력",
+                "목록에서 원하는 시점의 번호를 입력해요.\n엔터 = 가장 최근 / 0 또는 q = 취소",
+            ),
         ],
     },
-
     "history": {
         "emoji": "📋",
         "title": "vib history",
@@ -117,7 +149,6 @@ MANUAL: dict[str, dict] = {
         ],
         "options": [],
     },
-
     "doctor": {
         "emoji": "🩺",
         "title": "vib doctor",
@@ -140,15 +171,23 @@ MANUAL: dict[str, dict] = {
             ("vib doctor --write-report", "결과를 파일로 저장"),
         ],
         "options": [
-            ("--strict", "기본 점검보다 더 꼼꼼하게 검사해요.\n작은 문제도 놓치지 않아요."),
+            (
+                "--strict",
+                "기본 점검보다 더 꼼꼼하게 검사해요.\n작은 문제도 놓치지 않아요.",
+            ),
             ("--detailed", "각 문제마다 왜 문제인지 설명을 추가로 보여줘요."),
             ("--fix-hints", "각 문제를 어떻게 고치면 되는지 힌트를 줘요."),
-            ("--fix", "앵커가 없는 파일에 자동으로 앵커를 달아줘요.\n직접 하기 귀찮을 때 편해요."),
-            ("--write-report", "점검 결과를 파일로 저장해요.\n나중에 다시 볼 수 있어요."),
+            (
+                "--fix",
+                "앵커가 없는 파일에 자동으로 앵커를 달아줘요.\n직접 하기 귀찮을 때 편해요.",
+            ),
+            (
+                "--write-report",
+                "점검 결과를 파일로 저장해요.\n나중에 다시 볼 수 있어요.",
+            ),
             ("--json", "결과를 JSON 형식으로 출력해요. (개발자용)"),
         ],
     },
-
     "anchor": {
         "emoji": "⚓",
         "title": "vib anchor",
@@ -165,21 +204,35 @@ MANUAL: dict[str, dict] = {
         ],
         "examples": [
             ("vib anchor --auto", "모든 파일에 자동으로 앵커 달기 (가장 많이 씀)"),
-            ("vib anchor --suggest", "어떻게 달면 좋을지 추천만 보기 (실제로 바꾸지 않음)"),
+            (
+                "vib anchor --suggest",
+                "어떻게 달면 좋을지 추천만 보기 (실제로 바꾸지 않음)",
+            ),
             ("vib anchor --validate", "앵커가 제대로 달려있는지 검사"),
             ("vib anchor --dry-run", "실제로 바꾸지 않고 어떻게 바뀔지 미리 보기"),
             ("vib anchor --only-ext .py", "Python 파일만 처리"),
         ],
         "options": [
-            ("--auto", "모든 파일에 자동으로 앵커를 달아줘요.\n처음 설정할 때 이걸 써요."),
-            ("--suggest", "앵커를 어떻게 달면 좋을지 추천만 보여줘요.\n실제로 파일을 바꾸지는 않아요."),
-            ("--validate", "앵커가 올바르게 달려있는지 검사해요.\n짝이 안 맞는 앵커를 찾아줘요."),
+            (
+                "--auto",
+                "모든 파일에 자동으로 앵커를 달아줘요.\n처음 설정할 때 이걸 써요.",
+            ),
+            (
+                "--suggest",
+                "앵커를 어떻게 달면 좋을지 추천만 보여줘요.\n실제로 파일을 바꾸지는 않아요.",
+            ),
+            (
+                "--validate",
+                "앵커가 올바르게 달려있는지 검사해요.\n짝이 안 맞는 앵커를 찾아줘요.",
+            ),
             ("--dry-run", "실제로 바꾸지 않고 어떻게 바뀔지만 미리 보여줘요."),
-            ("--only-ext .py", "특정 확장자의 파일만 처리해요.\n예: --only-ext .py (파이썬만), --only-ext .js (자바스크립트만)"),
+            (
+                "--only-ext .py",
+                "특정 확장자의 파일만 처리해요.\n예: --only-ext .py (파이썬만), --only-ext .js (자바스크립트만)",
+            ),
             ("--json", "결과를 JSON 형식으로 출력해요. (개발자용)"),
         ],
     },
-
     "scan": {
         "emoji": "🔍",
         "title": "vib scan",
@@ -199,10 +252,12 @@ MANUAL: dict[str, dict] = {
             ("vib scan --auto", "문제 있는 앵커 자동 수정 + 코드맵 갱신"),
         ],
         "options": [
-            ("--auto", "문제 있는 앵커를 자동으로 고쳐줘요.\n앵커를 지웠다가 다시 달아서 깨끗하게 만들어요."),
+            (
+                "--auto",
+                "문제 있는 앵커를 자동으로 고쳐줘요.\n앵커를 지웠다가 다시 달아서 깨끗하게 만들어요.",
+            ),
         ],
     },
-
     "patch": {
         "emoji": "🛠️",
         "title": "vib patch",
@@ -224,15 +279,20 @@ MANUAL: dict[str, dict] = {
             ('vib patch "기능 추가" --copy', "결과를 클립보드에 복사"),
         ],
         "options": [
-            ("request", "수정 요청을 말로 써요.\n예: vib patch \"다크모드 추가해줘\""),
-            ("--ai", "AI가 코드를 더 자세히 분석해서 정확한 계획을 세워요.\n조금 더 시간이 걸려요."),
+            ("request", '수정 요청을 말로 써요.\n예: vib patch "다크모드 추가해줘"'),
+            (
+                "--ai",
+                "AI가 코드를 더 자세히 분석해서 정확한 계획을 세워요.\n조금 더 시간이 걸려요.",
+            ),
             ("--preview", "수정 계획을 미리 보기로 확인해요."),
-            ("--copy", "AI에 전달할 프롬프트를 클립보드에 복사해요.\n바로 붙여넣기할 수 있어요."),
+            (
+                "--copy",
+                "AI에 전달할 프롬프트를 클립보드에 복사해요.\n바로 붙여넣기할 수 있어요.",
+            ),
             ("--write-report", "수정 계획을 파일로 저장해요."),
             ("--json", "결과를 JSON 형식으로 출력해요. (개발자용)"),
         ],
     },
-
     "guard": {
         "emoji": "🛡️",
         "title": "vib guard",
@@ -254,12 +314,14 @@ MANUAL: dict[str, dict] = {
         ],
         "options": [
             ("--strict", "더 꼼꼼하게 검사해요. 작은 문제도 잡아줘요."),
-            ("--since-minutes 60", "최근 몇 분 동안의 변경만 확인해요.\n기본값은 120분이에요."),
+            (
+                "--since-minutes 60",
+                "최근 몇 분 동안의 변경만 확인해요.\n기본값은 120분이에요.",
+            ),
             ("--write-report", "검사 결과를 파일로 저장해요."),
             ("--json", "결과를 JSON 형식으로 출력해요. (개발자용)"),
         ],
     },
-
     "explain": {
         "emoji": "📖",
         "title": "vib explain",
@@ -283,12 +345,14 @@ MANUAL: dict[str, dict] = {
         "options": [
             ("file", "특정 파일의 변경만 설명해요.\n예: vib explain login.py"),
             ("--ai", "AI가 변경 내용을 더 자세하게 분석해서 설명해줘요."),
-            ("--since-minutes 숫자", "최근 몇 분 동안의 변경만 보여줘요.\n기본값은 120분이에요."),
+            (
+                "--since-minutes 숫자",
+                "최근 몇 분 동안의 변경만 보여줘요.\n기본값은 120분이에요.",
+            ),
             ("--write-report", "설명 결과를 파일로 저장해요."),
             ("--json", "결과를 JSON 형식으로 출력해요. (개발자용)"),
         ],
     },
-
     "protect": {
         "emoji": "🔒",
         "title": "vib protect",
@@ -315,7 +379,6 @@ MANUAL: dict[str, dict] = {
             ("--remove", "보호를 해제해요.\n예: vib protect main.py --remove"),
         ],
     },
-
     "watch": {
         "emoji": "👁️",
         "title": "vib watch",
@@ -338,11 +401,13 @@ MANUAL: dict[str, dict] = {
         "options": [
             ("--strict", "더 꼼꼼하게 감시해요. 작은 변화도 잡아줘요."),
             ("--write-log", "감시 중 발생한 일을 파일로 기록해요."),
-            ("--debounce-ms 숫자", "파일이 바뀐 후 몇 밀리초 후에 처리할지 설정해요.\n기본값은 800ms예요. 너무 자주 갱신되면 늘려요."),
+            (
+                "--debounce-ms 숫자",
+                "파일이 바뀐 후 몇 밀리초 후에 처리할지 설정해요.\n기본값은 800ms예요. 너무 자주 갱신되면 늘려요.",
+            ),
             ("--json", "결과를 JSON 형식으로 출력해요. (개발자용)"),
         ],
     },
-
     "ask": {
         "emoji": "💬",
         "title": "vib ask",
@@ -364,11 +429,13 @@ MANUAL: dict[str, dict] = {
         ],
         "options": [
             ("file", "설명할 파일 이름이에요.\n예: vib ask login.py"),
-            ("question", "파일에 대해 궁금한 걸 물어볼 수 있어요.\n예: vib ask login.py \"이 함수는 뭐야?\""),
+            (
+                "question",
+                '파일에 대해 궁금한 걸 물어볼 수 있어요.\n예: vib ask login.py "이 함수는 뭐야?"',
+            ),
             ("--write", "설명 결과를 VIBELIGN_ASK.md 파일로 저장해요."),
         ],
     },
-
     "config": {
         "emoji": "🔑",
         "title": "vib config",
@@ -386,7 +453,6 @@ MANUAL: dict[str, dict] = {
         ],
         "options": [],
     },
-
     "export": {
         "emoji": "📤",
         "title": "vib export",
@@ -405,10 +471,12 @@ MANUAL: dict[str, dict] = {
             ("vib export opencode", "OpenCode용 설정 파일 생성"),
         ],
         "options": [
-            ("tool", "어떤 AI 도구용인지 선택해요.\n선택지: claude / opencode / cursor / antigravity"),
+            (
+                "tool",
+                "어떤 AI 도구용인지 선택해요.\n선택지: claude / opencode / cursor / antigravity",
+            ),
         ],
     },
-
     "transfer": {
         "emoji": "🔄",
         "title": "vib transfer",
@@ -430,12 +498,20 @@ MANUAL: dict[str, dict] = {
             ("vib transfer --out ctx.md", "파일명 지정"),
         ],
         "options": [
-            ("--compact", "토큰을 최소화한 경량 버전을 만들어요.\n무료 플랜에서 쓸 때 좋아요."),
-            ("--full", "핵심 파일을 더 깊이 포함해요.\n더 자세한 맥락이 필요할 때 써요."),
-            ("--out 파일명", "출력 파일명을 지정해요.\n기본값은 PROJECT_CONTEXT.md예요."),
+            (
+                "--compact",
+                "토큰을 최소화한 경량 버전을 만들어요.\n무료 플랜에서 쓸 때 좋아요.",
+            ),
+            (
+                "--full",
+                "핵심 파일을 더 깊이 포함해요.\n더 자세한 맥락이 필요할 때 써요.",
+            ),
+            (
+                "--out 파일명",
+                "출력 파일명을 지정해요.\n기본값은 PROJECT_CONTEXT.md예요.",
+            ),
         ],
     },
-
     "completion": {
         "emoji": "⌨️",
         "title": "vib completion",
@@ -454,10 +530,12 @@ MANUAL: dict[str, dict] = {
             ("vib completion", "설정 방법 안내 보기"),
         ],
         "options": [
-            ("--install", "자동완성을 자동으로 설정해줘요.\nzsh/bash/PowerShell을 자동으로 감지해요.\n새 터미널을 열면 바로 사용할 수 있어요."),
+            (
+                "--install",
+                "자동완성을 자동으로 설정해줘요.\nzsh/bash/PowerShell을 자동으로 감지해요.\n새 터미널을 열면 바로 사용할 수 있어요.",
+            ),
         ],
     },
-
     "init": {
         "emoji": "🔄",
         "title": "vib init",
@@ -479,7 +557,6 @@ MANUAL: dict[str, dict] = {
             ("--force", "이미 최신 버전이어도 강제로 다시 설치해요."),
         ],
     },
-
     "install": {
         "emoji": "📦",
         "title": "vib install",
@@ -497,7 +574,6 @@ MANUAL: dict[str, dict] = {
         ],
         "options": [],
     },
-
     "rules": {
         "emoji": "📋",
         "title": "VibeLign AI 개발 규칙",
@@ -506,87 +582,64 @@ MANUAL: dict[str, dict] = {
             "vib start를 실행하면 프로젝트에 AI_DEV_SYSTEM_SINGLE_FILE.md 파일이 생겨요.\n"
             "이 파일이 AI한테 '이렇게 코딩해야 해'를 알려주는 규칙서예요.\n"
             "Claude Code, OpenCode, Cursor 등 어떤 AI를 써도 이 규칙을 읽고 따라요.\n\n"
-
             "━━ 핵심 원칙 ━━\n\n"
-
             "🔹 패치 우선 원칙\n"
             "  AI는 파일 전체를 다시 쓰지 않아요.\n"
             "  꼭 필요한 부분만 최소한으로 수정해요.\n"
             "  관련 없는 파일은 절대 건드리지 않아요.\n\n"
-
             "━━ 두 가지 수정 방식 ━━\n\n"
-
             "방식 1 — 일반 수정 (기본)\n"
             "  평소처럼 말하면 AI가 알아서 수정해요.\n"
             "  예: '로그인 버튼 색 파란색으로 바꿔줘'\n\n"
-
             "방식 2 — 바이브라인 안전 수정 ('바이브라인으로' 또는 'vibelign')\n"
             "  요청에 '바이브라인으로'를 붙이면 전체 안전 워크플로우 자동 실행:\n"
             "  patch_get → 정확한 위치 확인 → 수정 → guard_check → checkpoint 저장\n"
             "  예: '바이브라인으로 로그인 버튼 색 파란색으로 바꿔줘'\n\n"
             "  ⚠️  '바이브라인으로' 없으면 → AI가 직접 수정 (VibeLign 툴 사용 안 함)\n\n"
-
             "━━ 파일 구조 규칙 ━━\n\n"
-
             "🔹 진입 파일 보호 (main.py, index.js 등)\n"
             "  진입 파일은 작게 유지해요. 실제 로직은 별도 파일로 분리해요.\n\n"
-
             "🔹 UI와 비즈니스 로직 분리\n"
             "  UI 파일: 화면 레이아웃, 버튼, 입력창만\n"
             "  로직 파일: 실제 처리, 파일 읽기/쓰기, 네트워크\n"
             "  두 가지를 한 파일에 섞으면 안 돼요.\n\n"
-
             "🔹 파일 크기 관리\n"
             "  파일이 커지면 역할별로 나눠요.\n"
             "  utils.py, helpers.py, misc.py 같은 모호한 이름 금지.\n"
             "  대신: backup_worker.py, translation_pipeline.py처럼 구체적으로 지어요.\n\n"
-
             "━━ 함수 설계 규칙 ━━\n\n"
-
             "🔹 함수 길이\n"
             "  함수가 40줄 넘으면 → 분리 고려\n"
             "  함수가 80줄 넘으면 → 반드시 분리\n"
             "  한 함수는 딱 한 가지 일만 해요.\n\n"
-
             "🔹 함수 이름\n"
             "  좋은 예: load_config(), parse_excel_row(), validate_input_path()\n"
             "  나쁜 예: do_stuff(), process(), handle(), run_all()\n\n"
-
             "🔹 파일 간 연결\n"
             "  순환 import 금지 (A가 B를 부르고, B가 다시 A를 부르는 구조)\n"
             "  공통 로직은 별도 파일로 분리해서 양쪽에서 가져다 써요.\n\n"
-
             "━━ 유지보수 규칙 (코알못도 관리할 수 있게) ━━\n\n"
-
             "🔹 매직 넘버 금지\n"
             "  나쁜 예: if retry > 3\n"
             "  좋은 예: MAX_RETRY = 3 / if retry > MAX_RETRY\n\n"
-
             "🔹 에러 메시지는 사람이 읽을 수 있게\n"
             "  나쁜 예: raise Exception('NoneType')\n"
             "  좋은 예: raise Exception('파일을 찾을 수 없어요. 경로를 확인하세요')\n\n"
-
             "🔹 조용한 실패 금지\n"
             "  except: pass 절대 금지\n"
             "  에러가 나면 반드시 화면에 표시해요.\n\n"
-
             "🔹 죽은 코드 제거\n"
             "  주석 처리된 코드 덩어리 남기지 않아요.\n"
             "  쓰지 않는 import, 변수, 함수 삭제해요.\n\n"
-
             "🔹 의존성 동기화\n"
             "  새 패키지를 추가하면 pyproject.toml도 함께 업데이트해요.\n\n"
-
             "🔹 주석도 함께 업데이트\n"
             "  코드를 바꾸면 위에 있는 설명 주석도 같이 바꿔요.\n"
             "  오래된 주석은 없는 것보다 더 혼란스러워요.\n\n"
-
             "━━ 앵커 규칙 ━━\n\n"
-
             "🔹 앵커(ANCHOR)가 있으면 그 안에서만 수정\n"
             "  앵커를 무시하고 파일 전체를 바꾸면 안 돼요.\n"
             "  앵커가 없는 큰 파일은 먼저 앵커를 달고 작업해요.\n\n"
-
             "🔹 앵커를 허락 없이 지우면 안 돼요"
         ),
         "when": [
@@ -601,12 +654,20 @@ MANUAL: dict[str, dict] = {
             ("cat AI_DEV_SYSTEM_SINGLE_FILE.md", "규칙 파일 직접 보기"),
         ],
         "options": [
-            ("규칙 파일 위치", "AI_DEV_SYSTEM_SINGLE_FILE.md — 프로젝트 루트에 생성돼요"),
-            ("규칙 업데이트", "vib start 재실행하면 최신 규칙으로 덮어써요 (기존 파일은 .md~ 백업)"),
-            ("어떤 AI든 적용", "AGENTS.md를 읽는 Claude Code, OpenCode, Cursor 모두 자동 적용"),
+            (
+                "규칙 파일 위치",
+                "AI_DEV_SYSTEM_SINGLE_FILE.md — 프로젝트 루트에 생성돼요",
+            ),
+            (
+                "규칙 업데이트",
+                "vib start 재실행하면 최신 규칙으로 덮어써요 (기존 파일은 .md~ 백업)",
+            ),
+            (
+                "어떤 AI든 적용",
+                "AGENTS.md를 읽는 Claude Code, OpenCode, Cursor 모두 자동 적용",
+            ),
         ],
     },
-
     "mcp": {
         "emoji": "🤖",
         "title": "MCP (AI 자동 연동)",
@@ -618,6 +679,14 @@ MANUAL: dict[str, dict] = {
             "AI한테 말하면 AI가 직접 VibeLign을 실행해요.\n"
             "터미널을 따로 열 필요가 없어요.\n\n"
             "설정: vib start 실행 → Claude Code 재시작 (딱 한 번만)\n\n"
+            "추가로 `vib start --all-tools`를 쓰면 여러 도구를 한 번에 준비할 수 있어요.\n"
+            "현재 안내 기준으로는 Claude, Antigravity, OpenCode는 바로 사용 가능으로 보여주고,\n"
+            "Cursor, Codex는 마지막 연결 확인이 한 번 더 필요할 수 있어요.\n\n"
+            "쉽게 생각하면:\n"
+            "  Claude        → 거의 바로 됨\n"
+            "  Antigravity   → 사용자 경험상 바로 되는 경우가 많음\n"
+            "  OpenCode      → 프로젝트 설정 파일까지 함께 준비 가능\n"
+            "  Cursor/Codex  → 규칙 파일은 준비되지만 마지막 연결 확인이 필요할 수 있음\n\n"
             "━━ 두 가지 수정 방식 ━━\n\n"
             "방식 1 — 일반 수정 (기본)\n"
             "  평소처럼 말하면 AI가 알아서 수정해요.\n"
@@ -646,27 +715,59 @@ MANUAL: dict[str, dict] = {
         ),
         "when": [
             "Claude Code와 VibeLign을 함께 쓸 때",
+            "Antigravity나 OpenCode도 같이 준비하고 싶을 때",
             "매번 터미널에서 명령어 치기 귀찮을 때",
             "AI가 작업 전후를 자동으로 관리해주길 원할 때",
             "어느 파일을 건드려야 할지 애매한 수정을 안전하게 하고 싶을 때",
         ],
         "examples": [
+            ("vib start --all-tools", "여러 AI 도구를 한 번에 준비"),
             ('"저장해줘"', "checkpoint_create 호출"),
             ('"저장된 목록 보여줘"', "checkpoint_list 호출"),
-            ('"바이브라인 언두해줘"', "목록 보여줌 → 번호 선택 → checkpoint_restore 자동 호출"),
+            (
+                '"바이브라인 언두해줘"',
+                "목록 보여줌 → 번호 선택 → checkpoint_restore 자동 호출",
+            ),
             ('"3번으로 복원해줘"', "checkpoint_restore 바로 호출"),
-            ('"바이브라인으로 로그인 버튼 크기 키워줘"', "patch_get → 수정 → guard_check → checkpoint 자동 실행"),
-            ('"바이브라인으로 다크모드 배경색 바꿔줘"', "안전 수정 전체 워크플로우 자동 실행"),
+            (
+                '"바이브라인으로 로그인 버튼 크기 키워줘"',
+                "patch_get → 수정 → guard_check → checkpoint 자동 실행",
+            ),
+            (
+                '"바이브라인으로 다크모드 배경색 바꿔줘"',
+                "안전 수정 전체 워크플로우 자동 실행",
+            ),
             ('"프로젝트 상태 진단해줘"', "doctor_run 호출"),
             ('"방금 수정한 거 문제없는지 확인해줘"', "guard_check 호출"),
             ('"앵커 없는 파일에 앵커 삽입해줘"', "anchor_run 호출"),
         ],
         "options": [
             ("설정 방법", "vib start 한 번 실행 → Claude Code 재시작"),
-            ("'바이브라인으로' 키워드", "요청 앞에 붙이면 안전 수정 모드. 로직·기능 변경 시 권장"),
+            (
+                "여러 도구 한 번에 준비",
+                "vib start --all-tools\nClaude, Antigravity, OpenCode, Cursor, Codex 준비를 한 번에 시도해요.",
+            ),
+            (
+                "바로 사용 가능",
+                "현재 start 안내 기준으로 Claude, Antigravity, OpenCode는 바로 사용 가능으로 보여줘요.",
+            ),
+            (
+                "마지막 확인 필요",
+                "Cursor, Codex는 설정 화면이나 설정 파일에서 VibeLign 연결을 한 번 더 확인해야 할 수 있어요.",
+            ),
+            (
+                "'바이브라인으로' 키워드",
+                "요청 앞에 붙이면 안전 수정 모드. 로직·기능 변경 시 권장",
+            ),
             ("일반 수정", "단순 텍스트 변경, 오타 수정은 그냥 말해도 돼요"),
-            ("복원은 시점 지정 필수", "'되돌려줘'만 하면 AI가 목록을 먼저 보여줘요. 번호나 메시지를 함께 말하세요"),
-            ("한 번에 여러 요청 가능", "'저장하고, 앵커 확인하고, 작업 시작해줘' → AI가 순서대로 자동 처리"),
+            (
+                "복원은 시점 지정 필수",
+                "'되돌려줘'만 하면 AI가 목록을 먼저 보여줘요. 번호나 메시지를 함께 말하세요",
+            ),
+            (
+                "한 번에 여러 요청 가능",
+                "'저장하고, 앵커 확인하고, 작업 시작해줘' → AI가 순서대로 자동 처리",
+            ),
         ],
     },
 }
@@ -677,7 +778,10 @@ GROUPS = [
     ("💾 세이브 & 되돌리기", ["checkpoint", "undo", "history"]),
     ("🔬 점검 & 확인", ["doctor", "guard", "explain"]),
     ("✏️ AI 수정 요청", ["patch", "anchor", "scan"]),
-    ("🗂️ 파일 & 설정", ["protect", "transfer", "ask", "config", "export", "watch", "completion"]),
+    (
+        "🗂️ 파일 & 설정",
+        ["protect", "transfer", "ask", "config", "export", "watch", "completion"],
+    ),
     ("🤖 MCP (AI 자동 연동)", ["mcp"]),
     ("📋 AI 개발 규칙", ["rules"]),
 ]
@@ -686,6 +790,7 @@ GROUPS = [
 # ──────────────────────────────────────────────
 # 렌더링
 # ──────────────────────────────────────────────
+
 
 def _render_command(key: str) -> None:
     """단일 커맨드 상세 매뉴얼 출력."""
@@ -748,12 +853,14 @@ def _render_command(key: str) -> None:
 def _render_overview() -> None:
     """전체 커맨드 목록 개요 출력."""
     console.print()
-    console.print(Panel(
-        Text("VibeLign 전체 명령어 매뉴얼", style="bold white", justify="center"),
-        subtitle="[dim]vib manual <커맨드명>  →  상세 보기[/dim]",
-        border_style="bright_blue",
-        padding=(0, 4),
-    ))
+    console.print(
+        Panel(
+            Text("VibeLign 전체 명령어 매뉴얼", style="bold white", justify="center"),
+            subtitle="[dim]vib manual <커맨드명>  →  상세 보기[/dim]",
+            border_style="bright_blue",
+            padding=(0, 4),
+        )
+    )
     console.print()
 
     for group_name, keys in GROUPS:
@@ -807,7 +914,9 @@ def _save_markdown() -> str:
         lines.append(f"### {group_name}\n")
         for k in keys:
             m = MANUAL.get(k, {})
-            lines.append(f"- [{m.get('emoji','')} `vib {k}`](#{k}) — {m.get('one_line','')}\n")
+            lines.append(
+                f"- [{m.get('emoji', '')} `vib {k}`](#{k}) — {m.get('one_line', '')}\n"
+            )
         lines.append("\n")
 
     lines.append("---\n\n")
@@ -850,6 +959,7 @@ def _save_markdown() -> str:
 # 진입점
 # ──────────────────────────────────────────────
 
+
 def run_vib_manual(args) -> None:
     command = getattr(args, "command_name", None)
     save = getattr(args, "save", False)
@@ -857,8 +967,12 @@ def run_vib_manual(args) -> None:
 
     if save:
         path = _save_markdown()
-        console.print(f"\n[bold green]✅ 매뉴얼을 저장했어요![/bold green]  →  [cyan]{path}[/cyan]")
-        console.print("[dim]이 파일을 AI한테 보여주면 VibeLign에 대해 더 잘 도와줄 수 있어요.[/dim]\n")
+        console.print(
+            f"\n[bold green]✅ 매뉴얼을 저장했어요![/bold green]  →  [cyan]{path}[/cyan]"
+        )
+        console.print(
+            "[dim]이 파일을 AI한테 보여주면 VibeLign에 대해 더 잘 도와줄 수 있어요.[/dim]\n"
+        )
         return
 
     if command:
@@ -867,5 +981,6 @@ def run_vib_manual(args) -> None:
         _render_all()
     else:
         _render_overview()
+
 
 # === ANCHOR: VIB_MANUAL_CMD_END ===
