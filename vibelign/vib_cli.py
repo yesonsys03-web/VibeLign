@@ -138,19 +138,38 @@ def build_parser():
         description=(
             "안심하고 바이브코딩을 시작하세요!\n"
             "AI한테 코딩을 시키기 전에, 이 명령어로 안전하게 준비해요.\n"
-            "AGENTS.md, AI_DEV_SYSTEM_SINGLE_FILE.md 등 필요한 파일을 자동으로 만들어줘요.\n"
-            "기존 코드를 건드리지 않아요. 걱정 마세요!"
+            "AGENTS.md, AI_DEV_SYSTEM_SINGLE_FILE.md 등 필요한 파일을 자동으로 만들어요.\n"
+            "--all-tools를 쓰면 Claude, Antigravity, OpenCode, Cursor, Codex 준비도 한 번에 해줘요.\n"
+            "기본값은 기존 설정을 보존하고, --force일 때만 VibeLign 설정을 다시 만들거나 덮어써요."
         ),
         epilog=(
-            '이렇게 쓰세요:\n'
-            '  vib start   새 프로젝트 또는 VibeLign 처음 사용하는 프로젝트 세팅\n'
-            '\n'
-            'VibeLign 자체를 재설치하려면:\n'
-            '  vib init'
+            "이렇게 쓰세요:\n"
+            "  vib start   새 프로젝트 또는 VibeLign 처음 사용하는 프로젝트 세팅\n"
+            "  vib start --all-tools   여러 AI 도구를 한 번에 준비\n"
+            "  vib start --all-tools --force   기존 VibeLign 설정도 다시 생성\n"
+            "\n"
+            "VibeLign 자체를 재설치하려면:\n"
+            "  vib init"
         ),
     )
-    p.add_argument("--quickstart", action="store_true",
-                   help="start + anchor를 한 번에 실행해요")
+    group = p.add_mutually_exclusive_group()
+    group.add_argument(
+        "--all-tools",
+        action="store_true",
+        help="Claude, Antigravity, OpenCode, Cursor, Codex 설정을 한 번에 준비해요",
+    )
+    group.add_argument(
+        "--tools",
+        help="설정할 도구 목록 (예: claude,opencode,cursor,antigravity 또는 codex)",
+    )
+    p.add_argument(
+        "--force",
+        action="store_true",
+        help="기존 VibeLign 설정 파일도 다시 생성하거나 덮어써요",
+    )
+    p.add_argument(
+        "--quickstart", action="store_true", help="start + anchor를 한 번에 실행해요"
+    )
     p.add_argument("message", nargs="*", help="저장할 메시지 (안 써도 돼요)")
     p.set_defaults(func=run_vib_start)
 
@@ -163,8 +182,8 @@ def build_parser():
             "AI가 뭔가 망가뜨려도 이 지점으로 되돌릴 수 있어요."
         ),
         epilog=(
-            '이렇게 쓰세요:\n'
-            '  vib checkpoint              빠르게 저장\n'
+            "이렇게 쓰세요:\n"
+            "  vib checkpoint              빠르게 저장\n"
             '  vib checkpoint "로그인 완성"  메시지와 함께 저장'
         ),
     )
@@ -175,8 +194,7 @@ def build_parser():
         "undo",
         help="저장한 곳으로 되돌려요",
         description=(
-            "마지막 체크포인트로 되돌려요.\n"
-            "AI가 코드를 망가뜨렸을 때 쓰세요."
+            "마지막 체크포인트로 되돌려요.\nAI가 코드를 망가뜨렸을 때 쓰세요."
         ),
         epilog=(
             "이렇게 쓰세요:\n"
@@ -223,10 +241,10 @@ def build_parser():
             "AI가 알아서 분석해서 알려줘요."
         ),
         epilog=(
-            '이렇게 쓰세요:\n'
-            '  vib ask main.py              파일 설명\n'
+            "이렇게 쓰세요:\n"
+            "  vib ask main.py              파일 설명\n"
             '  vib ask main.py "이거 뭐야?"  질문하기\n'
-            '  vib ask main.py --write      설명을 파일로 저장'
+            "  vib ask main.py --write      설명을 파일로 저장"
         ),
     )
     p.add_argument("file", help="설명할 파일 이름")
@@ -238,8 +256,7 @@ def build_parser():
         "config",
         help="API 키 설정",
         description=(
-            "AI 기능을 쓰려면 API 키가 필요해요.\n"
-            "이 명령어로 설정할 수 있어요."
+            "AI 기능을 쓰려면 API 키가 필요해요.\n이 명령어로 설정할 수 있어요."
         ),
         epilog="이렇게 쓰세요:\n  vib config    API 키 설정하기",
     )
@@ -265,7 +282,9 @@ def build_parser():
     p.add_argument("--strict", action="store_true", help="더 꼼꼼하게 점검")
     p.add_argument("--detailed", action="store_true", help="문제마다 자세한 설명")
     p.add_argument("--fix-hints", action="store_true", help="고치는 방법 힌트")
-    p.add_argument("--fix", action="store_true", help="앵커 없는 파일에 자동으로 앵커 추가")
+    p.add_argument(
+        "--fix", action="store_true", help="앵커 없는 파일에 자동으로 앵커 추가"
+    )
     p.add_argument("--write-report", action="store_true", help="결과를 파일로 저장")
     p.set_defaults(func=run_vib_doctor)
 
@@ -282,20 +301,34 @@ def build_parser():
             "  vib anchor --auto                                   자동으로 앵커 삽입\n"
             "  vib anchor --auto-intent                            AI가 모든 앵커 intent 자동 생성\n"
             "  vib anchor --validate                               앵커 검증\n"
-            "  vib anchor --set-intent ANCHOR_NAME --intent \"설명\"  앵커 의도 직접 등록\n"
+            '  vib anchor --set-intent ANCHOR_NAME --intent "설명"  앵커 의도 직접 등록\n'
             "  vib anchor --list-intent                            등록된 의도 목록 보기"
         ),
     )
     p.add_argument("--suggest", action="store_true", help="앵커 추천 받기")
     p.add_argument("--auto", action="store_true", help="자동으로 앵커 삽입")
     p.add_argument("--validate", action="store_true", help="앵커 검증")
-    p.add_argument("--dry-run", action="store_true", help="실제로 바꾸지 않고 미리 보기")
+    p.add_argument(
+        "--dry-run", action="store_true", help="실제로 바꾸지 않고 미리 보기"
+    )
     p.add_argument("--json", action="store_true", help="JSON으로 출력")
     p.add_argument("--only-ext", default="", help="특정 확장자만 (.py, .js 등)")
-    p.add_argument("--set-intent", metavar="ANCHOR_NAME", default=None, help="앵커에 의도(intent) 등록")
-    p.add_argument("--intent", metavar="TEXT", default=None, help="등록할 의도 텍스트 (--set-intent와 함께 사용)")
+    p.add_argument(
+        "--set-intent",
+        metavar="ANCHOR_NAME",
+        default=None,
+        help="앵커에 의도(intent) 등록",
+    )
+    p.add_argument(
+        "--intent",
+        metavar="TEXT",
+        default=None,
+        help="등록할 의도 텍스트 (--set-intent와 함께 사용)",
+    )
     p.add_argument("--list-intent", action="store_true", help="등록된 intent 목록 보기")
-    p.add_argument("--auto-intent", action="store_true", help="AI가 모든 앵커 intent 자동 생성")
+    p.add_argument(
+        "--auto-intent", action="store_true", help="AI가 모든 앵커 intent 자동 생성"
+    )
     p.set_defaults(func=run_vib_anchor)
 
     p = sub.add_parser(
@@ -306,7 +339,7 @@ def build_parser():
             "어떤 파일의 어느 부분을 수정할지 계획을 세워요."
         ),
         epilog=(
-            '이렇게 쓰세요:\n'
+            "이렇게 쓰세요:\n"
             '  vib patch "로그인 버튼 추가"           수정 계획\n'
             '  vib patch "버그 수정" --ai             AI가 분석\n'
             '  vib patch "사이드바 제거" --preview    미리 보기'
@@ -317,7 +350,9 @@ def build_parser():
     p.add_argument("--json", action="store_true", help="JSON으로 출력")
     p.add_argument("--preview", action="store_true", help="수정 미리 보기")
     p.add_argument("--write-report", action="store_true", help="결과를 파일로 저장")
-    p.add_argument("--copy", action="store_true", help="AI 전달용 프롬프트를 클립보드에 복사")
+    p.add_argument(
+        "--copy", action="store_true", help="AI 전달용 프롬프트를 클립보드에 복사"
+    )
     p.set_defaults(func=run_vib_patch)
 
     p = sub.add_parser(
@@ -339,7 +374,12 @@ def build_parser():
     )
     p.add_argument("--json", action="store_true", help="JSON으로 출력")
     p.add_argument("--ai", action="store_true", help="AI가 더 자세하게 분석")
-    p.add_argument("--since-minutes", type=int, default=120, help="최근 몇 분 동안의 변경 (기본: 120분)")
+    p.add_argument(
+        "--since-minutes",
+        type=int,
+        default=120,
+        help="최근 몇 분 동안의 변경 (기본: 120분)",
+    )
     p.add_argument("--write-report", action="store_true", help="결과를 파일로 저장")
     p.set_defaults(func=run_vib_explain)
 
@@ -358,7 +398,12 @@ def build_parser():
     )
     p.add_argument("--json", action="store_true", help="JSON으로 출력")
     p.add_argument("--strict", action="store_true", help="더 꼼꼼하게 검사")
-    p.add_argument("--since-minutes", type=int, default=120, help="최근 몇 분 동안의 변경 (기본: 120분)")
+    p.add_argument(
+        "--since-minutes",
+        type=int,
+        default=120,
+        help="최근 몇 분 동안의 변경 (기본: 120분)",
+    )
     p.add_argument("--write-report", action="store_true", help="결과를 파일로 저장")
     p.set_defaults(func=run_vib_guard)
 
@@ -375,7 +420,11 @@ def build_parser():
             "  vib export cursor      Cursor용 설정"
         ),
     )
-    p.add_argument("tool", choices=["claude", "opencode", "cursor", "antigravity"], help="AI 도구 이름")
+    p.add_argument(
+        "tool",
+        choices=["claude", "opencode", "cursor", "antigravity", "codex"],
+        help="AI 도구 이름",
+    )
     p.set_defaults(func=run_export)
 
     p = sub.add_parser(
@@ -391,7 +440,9 @@ def build_parser():
             "  vib scan --auto   앵커 자동 삽입 + 코드맵 갱신"
         ),
     )
-    p.add_argument("--auto", action="store_true", help="앵커 자동 삽입 (추천만 볼 때는 생략)")
+    p.add_argument(
+        "--auto", action="store_true", help="앵커 자동 삽입 (추천만 볼 때는 생략)"
+    )
     p.set_defaults(func=run_vib_scan)
 
     p = sub.add_parser(
@@ -431,7 +482,9 @@ def build_parser():
     p.add_argument("--strict", action="store_true", help="더 꼼꼼하게 감시")
     p.add_argument("--write-log", action="store_true", help="로그를 파일로 저장")
     p.add_argument("--json", action="store_true", help="JSON으로 출력")
-    p.add_argument("--debounce-ms", type=int, default=800, help="감시 간격 (밀리초, 기본: 800)")
+    p.add_argument(
+        "--debounce-ms", type=int, default=800, help="감시 간격 (밀리초, 기본: 800)"
+    )
     p.set_defaults(func=run_watch_cmd)
 
     # ── 벤치마크 ──
@@ -488,9 +541,11 @@ def build_parser():
         help="AI 개발 규칙 전체 보기 (vib manual rules 와 동일)",
         description="VibeLign이 AI한테 지키게 하는 모든 코딩 규칙을 보여줘요.",
     )
-    p.set_defaults(func=lambda args: run_vib_manual(
-        type("Args", (), {"command_name": "rules", "save": False, "all": False})()
-    ))
+    p.set_defaults(
+        func=lambda args: run_vib_manual(
+            type("Args", (), {"command_name": "rules", "save": False, "all": False})()
+        )
+    )
 
     # ── 쉘 자동완성 ──
     p = sub.add_parser(
@@ -540,6 +595,7 @@ def _manual_topics() -> str:
     """vib manual 의 positional 완성 목록."""
     try:
         from vibelign.commands.vib_manual_cmd import MANUAL
+
         return " ".join(MANUAL.keys())
     except Exception:
         return ""
@@ -682,13 +738,21 @@ def _run_completion(args, parser):
     """쉘 자동완성 설정."""
     import os
     import sys
-    from vibelign.terminal_render import clack_info, clack_intro, clack_outro, clack_success, clack_warn
+    from vibelign.terminal_render import (
+        clack_info,
+        clack_intro,
+        clack_outro,
+        clack_success,
+        clack_warn,
+    )
 
     is_windows = sys.platform == "win32"
 
     if getattr(args, "install", False):
         if is_windows:
-            _install_completion_powershell(parser, clack_info, clack_success, clack_warn)
+            _install_completion_powershell(
+                parser, clack_info, clack_success, clack_warn
+            )
         else:
             _install_completion_posix(parser, clack_info, clack_success, clack_warn)
         return
@@ -762,17 +826,28 @@ def _install_completion_powershell(parser, clack_info, clack_success, clack_warn
     comp_file.write_text(script, encoding="utf-8")
 
     # PowerShell 프로파일 경로 (PS 7+ 우선, 없으면 PS 5)
-    ps7_profile = Path.home() / "Documents" / "PowerShell" / "Microsoft.PowerShell_profile.ps1"
-    ps5_profile = Path.home() / "Documents" / "WindowsPowerShell" / "Microsoft.PowerShell_profile.ps1"
+    ps7_profile = (
+        Path.home() / "Documents" / "PowerShell" / "Microsoft.PowerShell_profile.ps1"
+    )
+    ps5_profile = (
+        Path.home()
+        / "Documents"
+        / "WindowsPowerShell"
+        / "Microsoft.PowerShell_profile.ps1"
+    )
     profile = ps7_profile if ps7_profile.parent.exists() else ps5_profile
 
     profile.parent.mkdir(parents=True, exist_ok=True)
 
     source_line = f'. "{comp_file}"'
-    profile_text = profile.read_text(encoding="utf-8", errors="ignore") if profile.exists() else ""
+    profile_text = (
+        profile.read_text(encoding="utf-8", errors="ignore") if profile.exists() else ""
+    )
 
     if str(comp_file) in profile_text:
-        clack_success("자동완성 스크립트를 갱신했어요! 새 PowerShell 창을 열면 적용돼요.")
+        clack_success(
+            "자동완성 스크립트를 갱신했어요! 새 PowerShell 창을 열면 적용돼요."
+        )
     else:
         with open(profile, "a", encoding="utf-8") as f:
             f.write(f"\n# VibeLign 탭 자동완성\n{source_line}\n")
