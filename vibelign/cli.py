@@ -28,8 +28,9 @@ class RichArgumentParser(argparse.ArgumentParser):
         if file not in (None, sys.stdout):
             file.write(message)
             return
-# === ANCHOR: CLI_RICHARGUMENTPARSER_END ===
+        # === ANCHOR: CLI_RICHARGUMENTPARSER_END ===
         print_cli_help(str(message))
+
     # === ANCHOR: CLI__PRINT_MESSAGE_END ===
 
 
@@ -95,6 +96,12 @@ def build_parser():
     )
 
     p = sub.add_parser("start", help="프로젝트 시작 설정 (AI 도구 연동 + 상태 확인)")
+    group = p.add_mutually_exclusive_group()
+    group.add_argument(
+        "--all-tools", action="store_true", help="모든 지원 도구를 한 번에 준비"
+    )
+    group.add_argument("--tools", default=None)
+    p.add_argument("--force", action="store_true")
     p.set_defaults(func=run_vib_start)
 
     p = sub.add_parser("init", help="VibeLign 업데이트 / 재설치 (pip·uv 자동 감지)")
@@ -165,7 +172,9 @@ def build_parser():
     p.set_defaults(func=run_guard)
 
     p = sub.add_parser("export", help="도우미 템플릿 내보내기")
-    p.add_argument("tool", choices=["claude", "opencode", "cursor", "antigravity"])
+    p.add_argument(
+        "tool", choices=["claude", "opencode", "cursor", "antigravity", "codex"]
+    )
     p.set_defaults(func=run_export)
 
     p = sub.add_parser("watch", help="실시간 구조 모니터링")
@@ -175,6 +184,8 @@ def build_parser():
     p.add_argument("--debounce-ms", type=int, default=800)
     p.set_defaults(func=run_watch_cmd)
     return parser
+
+
 # === ANCHOR: CLI_BUILD_PARSER_END ===
 
 
@@ -182,6 +193,8 @@ def build_parser():
 def main():
     args = build_parser().parse_args()
     args.func(args)
+
+
 # === ANCHOR: CLI_MAIN_END ===
 
 
