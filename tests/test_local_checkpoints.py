@@ -3,7 +3,9 @@ import unittest
 import json
 from pathlib import Path
 from typing import cast
+from unittest.mock import patch
 
+from vibelign.core import local_checkpoints
 from vibelign.core.local_checkpoints import (
     CheckpointSummary,
     RetentionPolicy,
@@ -117,6 +119,72 @@ class LocalCheckpointsTest(unittest.TestCase):
             )
             self.assertEqual(result["count"], 1)
             self.assertFalse(old_dir.exists())
+
+    def test_create_checkpoint_skips_file_missing_during_hash(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stable = root / "app.py"
+            transient = root / "VK8MCISF.DOCX"
+            stable.write_text("print('v1')\n", encoding="utf-8")
+            transient.write_text("temp\n", encoding="utf-8")
+
+            original_sha256 = local_checkpoints._sha256
+
+            def flaky_sha256(path: Path) -> str:
+                if path.name == "VK8MCISF.DOCX":
+                    raise FileNotFoundError(path)
+                return original_sha256(path)
+
+            with patch(
+                "vibelign.core.local_checkpoints._sha256", side_effect=flaky_sha256
+            ):
+                summary = create_checkpoint(root, "hash race")
+
+            self.assertIsNotNone(summary)
+            checkpoints = list_checkpoints(root)
+            self.assertEqual(len(checkpoints), 1)
+            manifest_path = (
+                root
+                / ".vibelign"
+                / "checkpoints"
+                / checkpoints[0].checkpoint_id
+                / "manifest.json"
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual([item["path"] for item in manifest["files"]], ["app.py"])
+
+    def test_create_checkpoint_skips_file_missing_during_copy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stable = root / "app.py"
+            transient = root / "VK8MCISF.DOCX"
+            stable.write_text("print('v1')\n", encoding="utf-8")
+            transient.write_text("temp\n", encoding="utf-8")
+
+            original_copy2 = local_checkpoints.shutil.copy2
+
+            def flaky_copy2(src: Path, dst: Path) -> None:
+                if src.name == "VK8MCISF.DOCX":
+                    raise FileNotFoundError(src)
+                original_copy2(src, dst)
+
+            with patch(
+                "vibelign.core.local_checkpoints.shutil.copy2", side_effect=flaky_copy2
+            ):
+                summary = create_checkpoint(root, "copy race")
+
+            self.assertIsNotNone(summary)
+            checkpoints = list_checkpoints(root)
+            self.assertEqual(len(checkpoints), 1)
+            manifest_path = (
+                root
+                / ".vibelign"
+                / "checkpoints"
+                / checkpoints[0].checkpoint_id
+                / "manifest.json"
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual([item["path"] for item in manifest["files"]], ["app.py"])
 
 
 if __name__ == "__main__":
