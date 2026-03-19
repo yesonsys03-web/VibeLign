@@ -45,6 +45,8 @@ class CheckpointSummary:
     pinned: bool = False
     pruned_count: int = 0
     pruned_bytes: int = 0
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS_CHECKPOINTSUMMARY_END ===
 
 
@@ -57,6 +59,8 @@ class RetentionPolicy:
     max_total_size_bytes: int = 2 * 1024 * 1024 * 1024
     max_age_days: int = 180
     min_keep: int = 10
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS_RETENTIONPOLICY_END ===
 
 
@@ -70,6 +74,8 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(65536), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS__SHA256_END ===
 
 
@@ -86,6 +92,8 @@ def _should_skip_dir(path: Path, meta: MetaPaths) -> bool:
     except Exception:
         pass
     return False
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS__SHOULD_SKIP_DIR_END ===
 
 
@@ -100,18 +108,24 @@ def iter_snapshot_files(root: Path) -> Iterable[Path]:
         if _should_skip_dir(path, meta):
             continue
         yield path
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS_ITER_SNAPSHOT_FILES_END ===
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS__MANIFEST_PATH_START ===
 def _manifest_path(snapshot_dir: Path) -> Path:
     return snapshot_dir / "manifest.json"
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS__MANIFEST_PATH_END ===
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS__FILES_DIR_START ===
 def _files_dir(snapshot_dir: Path) -> Path:
     return snapshot_dir / "files"
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS__FILES_DIR_END ===
 
 
@@ -120,12 +134,19 @@ def _current_file_map(root: Path) -> Dict[str, Dict[str, object]]:
     mapping: Dict[str, Dict[str, object]] = {}
     for path in iter_snapshot_files(root):
         rel = str(path.relative_to(root))
-        mapping[rel] = {
-            "path": rel,
-            "sha256": _sha256(path),
-            "size": path.stat().st_size,
-        }
+        try:
+            mapping[rel] = {
+                "path": rel,
+                "sha256": _sha256(path),
+                "size": path.stat().st_size,
+            }
+        except FileNotFoundError:
+            continue
+        except OSError:
+            continue
     return mapping
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS__CURRENT_FILE_MAP_END ===
 
 
@@ -138,6 +159,8 @@ def _load_manifest(snapshot_dir: Path) -> Optional[Dict[str, object]]:
         return json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS__LOAD_MANIFEST_END ===
 
 
@@ -147,6 +170,8 @@ def _manifest_files(manifest: Dict[str, object]) -> List[Dict[str, object]]:
     if not isinstance(raw_files, list):
         return []
     return [item for item in raw_files if isinstance(item, dict)]
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS__MANIFEST_FILES_END ===
 
 
@@ -162,6 +187,8 @@ def _coerce_int(value: object) -> int:
         except ValueError:
             return 0
     return 0
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS__COERCE_INT_END ===
 
 
@@ -171,6 +198,8 @@ def _parse_checkpoint_time(value: str) -> Optional[datetime]:
         return datetime.strptime(value, "%Y%m%dT%H%M%S%fZ").replace(tzinfo=timezone.utc)
     except ValueError:
         return None
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS__PARSE_CHECKPOINT_TIME_END ===
 
 
@@ -194,6 +223,8 @@ def friendly_time(created_at: str) -> str:
         return f"{local_time.month}월 {local_time.day}일({day_name}) {time_str}"
     else:
         return f"{local_time.month}월 {local_time.day}일 {time_str}"
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS_FRIENDLY_TIME_END ===
 
 
@@ -220,6 +251,8 @@ def list_checkpoints(root: Path) -> List[CheckpointSummary]:
             )
         )
     return summaries
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS_LIST_CHECKPOINTS_END ===
 
 
@@ -230,6 +263,8 @@ def _latest_manifest(root: Path) -> Optional[Dict[str, object]]:
         return None
     meta = MetaPaths(root)
     return _load_manifest(meta.checkpoints_dir / checkpoints[0].checkpoint_id)
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS__LATEST_MANIFEST_END ===
 
 
@@ -237,17 +272,20 @@ def _latest_manifest(root: Path) -> Optional[Dict[str, object]]:
 def _manifest_file_map(manifest: Dict[str, object]) -> Dict[str, Dict[str, object]]:
     files = _manifest_files(manifest)
     return {str(item["path"]): item for item in files if "path" in item}
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS__MANIFEST_FILE_MAP_END ===
 
 
 def _extract_tag(message: str) -> str:
     """메시지에서 태그를 추출 (파일시스템 안전 문자만 허용, 최대 30자)."""
     import re as _re
+
     # "vibelign: checkpoint - 로그인 완성 (2026-03-17 22:58)" → "로그인 완성"
     msg = message
     for prefix in ("vibelign: checkpoint - ", "vibelign: checkpoint"):
         if msg.startswith(prefix):
-            msg = msg[len(prefix):]
+            msg = msg[len(prefix) :]
             break
     # 날짜 접미어 제거
     msg = _re.sub(r"\s*\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)\s*$", "", msg).strip()
@@ -277,22 +315,32 @@ def create_checkpoint(root: Path, message: str) -> Optional[CheckpointSummary]:
     snapshot_dir = meta.checkpoints_dir / checkpoint_id
     files_dir = _files_dir(snapshot_dir)
     files_dir.mkdir(parents=True, exist_ok=True)
-    for rel in current_files:
+    snapshot_files: Dict[str, Dict[str, object]] = {}
+    for rel, item in current_files.items():
         src = root / rel
         dst = files_dir / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
+        try:
+            shutil.copy2(src, dst)
+        except FileNotFoundError:
+            continue
+        except OSError:
+            continue
+        snapshot_files[rel] = item
+    if snapshot_files == latest_files:
+        shutil.rmtree(snapshot_dir, ignore_errors=True)
+        return None
     manifest = {
         "schema_version": 1,
         "id": checkpoint_id,
         "created_at": checkpoint_id,
         "message": message,
         "pinned": False,
-        "file_count": len(current_files),
+        "file_count": len(snapshot_files),
         "total_size_bytes": sum(
-            cast(int, item["size"]) for item in current_files.values()
+            cast(int, item["size"]) for item in snapshot_files.values()
         ),
-        "files": sorted(current_files.values(), key=lambda item: str(item["path"])),
+        "files": sorted(snapshot_files.values(), key=lambda item: str(item["path"])),
     }
     _ = _manifest_path(snapshot_dir).write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -301,7 +349,7 @@ def create_checkpoint(root: Path, message: str) -> Optional[CheckpointSummary]:
         checkpoint_id=checkpoint_id,
         created_at=checkpoint_id,
         message=message,
-        file_count=len(current_files),
+        file_count=len(snapshot_files),
         total_size_bytes=_coerce_int(manifest["total_size_bytes"]),
         pinned=False,
     )
@@ -309,6 +357,8 @@ def create_checkpoint(root: Path, message: str) -> Optional[CheckpointSummary]:
     summary.pruned_count = pruned["count"]
     summary.pruned_bytes = pruned["bytes"]
     return summary
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS_CREATE_CHECKPOINT_END ===
 
 
@@ -319,6 +369,8 @@ def has_changes_since_checkpoint(root: Path, checkpoint_id: str) -> bool:
     if not isinstance(manifest, dict):
         return True
     return _current_file_map(root) != _manifest_file_map(manifest)
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS_HAS_CHANGES_SINCE_CHECKPOINT_END ===
 
 
@@ -347,13 +399,16 @@ def restore_checkpoint(root: Path, checkpoint_id: str) -> bool:
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
     return True
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS_RESTORE_CHECKPOINT_END ===
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS_PRUNE_CHECKPOINTS_START ===
 def prune_checkpoints(
-    root: Path, policy: RetentionPolicy = DEFAULT_RETENTION_POLICY
-# === ANCHOR: LOCAL_CHECKPOINTS_PRUNE_CHECKPOINTS_END ===
+    root: Path,
+    policy: RetentionPolicy = DEFAULT_RETENTION_POLICY,
+    # === ANCHOR: LOCAL_CHECKPOINTS_PRUNE_CHECKPOINTS_END ===
 ) -> Dict[str, int]:
     checkpoints = list_checkpoints(root)
     now = datetime.now(timezone.utc)
@@ -422,4 +477,6 @@ def prune_checkpoints(
         kept = [item for item in kept if item.checkpoint_id != cp.checkpoint_id]
 
     return {"count": deleted_count, "bytes": deleted_bytes}
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS_END ===
