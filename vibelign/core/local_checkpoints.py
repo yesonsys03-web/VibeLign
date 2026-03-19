@@ -1,6 +1,7 @@
 # === ANCHOR: LOCAL_CHECKPOINTS_START ===
 import hashlib
 import json
+import re
 import shutil
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -65,6 +66,42 @@ class RetentionPolicy:
 
 
 DEFAULT_RETENTION_POLICY = RetentionPolicy()
+_SAFE_CHECKPOINT_ID_RE = re.compile(r"^\d{8}T\d{6}\d{6}Z(?:_[\w가-힣-]{1,30})?$")
+_last_restore_error = ""
+
+
+def _set_restore_error(message: str) -> bool:
+    global _last_restore_error
+    _last_restore_error = message
+    return False
+
+
+def get_last_restore_error() -> str:
+    return (
+        _last_restore_error or "되돌리기에 실패했어요. 체크포인트를 다시 확인해주세요."
+    )
+
+
+def _clear_restore_error() -> None:
+    global _last_restore_error
+    _last_restore_error = ""
+
+
+def _is_safe_checkpoint_id(checkpoint_id: str) -> bool:
+    return bool(_SAFE_CHECKPOINT_ID_RE.fullmatch(checkpoint_id))
+
+
+def _resolve_relative_path(base: Path, rel: str) -> Optional[Path]:
+    rel_path = Path(rel)
+    if rel_path.is_absolute() or ".." in rel_path.parts:
+        return None
+    try:
+        candidate = (base / rel_path).resolve()
+        if not candidate.is_relative_to(base.resolve()):
+            return None
+    except OSError:
+        return None
+    return candidate
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS__SHA256_START ===
@@ -312,13 +349,26 @@ def create_checkpoint(root: Path, message: str) -> Optional[CheckpointSummary]:
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     tag = _extract_tag(message)
     checkpoint_id = f"{ts}_{tag}" if tag else ts
-    snapshot_dir = meta.checkpoints_dir / checkpoint_id
-    files_dir = _files_dir(snapshot_dir)
+    if not _is_safe_checkpoint_id(checkpoint_id):
+        return None
+
+    checkpoints_dir = meta.checkpoints_dir.resolve()
+    snapshot_dir = (meta.checkpoints_dir / checkpoint_id).resolve()
+    if not snapshot_dir.is_relative_to(checkpoints_dir):
+        return None
+
+    files_dir = _files_dir(snapshot_dir).resolve()
+    if not files_dir.is_relative_to(snapshot_dir):
+        return None
+
     files_dir.mkdir(parents=True, exist_ok=True)
     snapshot_files: Dict[str, Dict[str, object]] = {}
     for rel, item in current_files.items():
         src = root / rel
-        dst = files_dir / rel
+        dst = _resolve_relative_path(files_dir, rel)
+        if dst is None:
+            shutil.rmtree(snapshot_dir, ignore_errors=True)
+            return None
         dst.parent.mkdir(parents=True, exist_ok=True)
         try:
             shutil.copy2(src, dst)
@@ -376,28 +426,62 @@ def has_changes_since_checkpoint(root: Path, checkpoint_id: str) -> bool:
 
 # === ANCHOR: LOCAL_CHECKPOINTS_RESTORE_CHECKPOINT_START ===
 def restore_checkpoint(root: Path, checkpoint_id: str) -> bool:
+    _clear_restore_error()
     meta = MetaPaths(root)
-    snapshot_dir = meta.checkpoints_dir / checkpoint_id
+    if not _is_safe_checkpoint_id(checkpoint_id):
+        return _set_restore_error("체크포인트 이름이 이상해요. 다시 골라주세요.")
+
+    checkpoints_dir = meta.checkpoints_dir.resolve()
+    snapshot_dir = (meta.checkpoints_dir / checkpoint_id).resolve()
+    if not snapshot_dir.is_relative_to(checkpoints_dir):
+        return _set_restore_error("체크포인트 위치가 이상해요. 다시 확인해주세요.")
+
     manifest = _load_manifest(snapshot_dir)
     if not isinstance(manifest, dict):
-        return False
+        return _set_restore_error("체크포인트 파일을 읽지 못했어요.")
+
     files = _manifest_files(manifest)
-    snapshot_files = {str(item["path"]) for item in files if "path" in item}
+    files_dir = _files_dir(snapshot_dir).resolve()
+    root_resolved = root.resolve()
+    snapshot_files: Set[str] = set()
+    validated_sources: Dict[str, Path] = {}
+    for item in files:
+        rel_obj = item.get("path")
+        if not isinstance(rel_obj, str) or not rel_obj:
+            return _set_restore_error("체크포인트 안에 잘못된 파일 정보가 있어요.")
+        src = _resolve_relative_path(files_dir, rel_obj)
+        dst = _resolve_relative_path(root_resolved, rel_obj)
+        if src is None or dst is None:
+            return _set_restore_error("체크포인트 안에 위험한 파일 경로가 있어요.")
+        if not src.exists():
+            return _set_restore_error("체크포인트 파일이 빠져 있어요. 복구를 멈췄어요.")
+        snapshot_files.add(rel_obj)
+        validated_sources[rel_obj] = src
+
     current_files = {str(path.relative_to(root)) for path in iter_snapshot_files(root)}
     for rel in sorted(current_files - snapshot_files, reverse=True):
-        target = root / rel
+        target = _resolve_relative_path(root_resolved, rel)
+        if target is None:
+            return _set_restore_error("지우면 안 되는 위치가 보여서 복구를 멈췄어요.")
         if target.exists():
             target.unlink()
             parent = target.parent
-            while parent != root and parent.exists() and not any(parent.iterdir()):
+            while (
+                parent != root_resolved
+                and parent.exists()
+                and not any(parent.iterdir())
+            ):
                 parent.rmdir()
                 parent = parent.parent
-    files_dir = _files_dir(snapshot_dir)
+
     for rel in sorted(snapshot_files):
-        src = files_dir / rel
-        dst = root / rel
+        src = validated_sources[rel]
+        dst = _resolve_relative_path(root_resolved, rel)
+        if dst is None:
+            return _set_restore_error("복구 위치가 이상해서 멈췄어요.")
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
+
     return True
 
 
