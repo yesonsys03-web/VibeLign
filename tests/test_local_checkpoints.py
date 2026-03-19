@@ -10,6 +10,7 @@ from vibelign.core.local_checkpoints import (
     CheckpointSummary,
     RetentionPolicy,
     create_checkpoint,
+    get_last_restore_error,
     has_changes_since_checkpoint,
     list_checkpoints,
     prune_checkpoints,
@@ -185,6 +186,86 @@ class LocalCheckpointsTest(unittest.TestCase):
             )
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual([item["path"] for item in manifest["files"]], ["app.py"])
+
+    def test_restore_checkpoint_rejects_invalid_checkpoint_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.assertFalse(restore_checkpoint(root, "../../evil"))
+            self.assertEqual(
+                get_last_restore_error(),
+                "체크포인트 이름이 이상해요. 다시 골라주세요.",
+            )
+
+    def test_restore_checkpoint_rejects_manifest_path_traversal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            checkpoint_id = "20260319T000000000000Z"
+            snapshot_dir = root / ".vibelign" / "checkpoints" / checkpoint_id
+            files_dir = snapshot_dir / "files"
+            files_dir.mkdir(parents=True)
+            (snapshot_dir / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "id": checkpoint_id,
+                        "created_at": checkpoint_id,
+                        "message": "bad checkpoint",
+                        "pinned": False,
+                        "file_count": 1,
+                        "total_size_bytes": 1,
+                        "files": [
+                            {
+                                "path": "../../outside.txt",
+                                "sha256": "x",
+                                "size": 1,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            self.assertFalse(restore_checkpoint(root, checkpoint_id))
+            self.assertEqual(
+                get_last_restore_error(),
+                "체크포인트 안에 위험한 파일 경로가 있어요.",
+            )
+
+    def test_create_checkpoint_rejects_invalid_generated_checkpoint_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "app.py").write_text("print('v1')\n", encoding="utf-8")
+
+            with patch(
+                "vibelign.core.local_checkpoints._extract_tag",
+                return_value="../../evil",
+            ):
+                summary = create_checkpoint(root, "bad tag")
+
+            self.assertIsNone(summary)
+            self.assertEqual(list_checkpoints(root), [])
+
+    def test_create_checkpoint_rejects_unsafe_snapshot_file_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "app.py").write_text("print('v1')\n", encoding="utf-8")
+
+            with patch(
+                "vibelign.core.local_checkpoints._current_file_map",
+                return_value={
+                    "../../outside.txt": {
+                        "path": "../../outside.txt",
+                        "sha256": "x",
+                        "size": 1,
+                    }
+                },
+            ):
+                summary = create_checkpoint(root, "bad file path")
+
+            self.assertIsNone(summary)
+            checkpoints_dir = root / ".vibelign" / "checkpoints"
+            if checkpoints_dir.exists():
+                self.assertEqual(list(checkpoints_dir.iterdir()), [])
 
 
 if __name__ == "__main__":
