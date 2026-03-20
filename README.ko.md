@@ -207,6 +207,7 @@ VibeLign이 보장하는 것:
 **v1.6.0** — MCP 서버 + AI 개발 규칙 시스템:
 
 - `vib mcp` — MCP(Model Context Protocol) 서버 실행 (Claude Desktop 연동)
+- `vib start` — Claude Code와 Cursor에 VibeLign MCP 자동 등록 (기존 Cursor MCP 서버는 유지)
 - `vib rules` — AI 개발 규칙 전체를 CLI에서 바로 확인
 - `vib manual rules` — 개발 규칙 상세 매뉴얼
 - Anchor intent system — 앵커에 의도(intent) 정보 저장

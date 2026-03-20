@@ -102,11 +102,30 @@ What it does:
 1. `AGENTS.md`, `AI_DEV_SYSTEM_SINGLE_FILE.md` 등 필요한 파일을 자동 생성 (이미 있으면 유지)
 2. `.vibelign/` 디렉토리, `config.yaml`, `state.json`, `project_map.json` 생성
 3. `.gitignore`에 VibeLign 항목 추가
-4. AI 도구 훅 설정 제안 (Claude Code 등)
+4. AI 도구 설정 파일 생성 및 MCP 등록 준비 (`Claude Code`, `Cursor` 등)
 5. 프로젝트 상태 점수 확인 및 다음 할 일 안내
 
 Use `vib start` for any project — new or existing — before starting AI-assisted coding.
 Note: `vib start` handles all project setup independently. `vib init` is only for reinstalling VibeLign itself.
+When `Cursor` is included, `vib start` also creates or updates `.cursor/mcp.json` and appends the `vibelign` MCP server without overwriting other configured servers.
+
+Typical Cursor layout after setup:
+
+```text
+your-project/
+  .cursor/
+    mcp.json
+  .cursorrules
+  vibelign_exports/
+    cursor/
+      RULES.md
+      SETUP.md
+      PROMPT_TEMPLATE.md
+```
+
+- `.cursor/mcp.json` — runtime MCP registration used by Cursor
+- `.cursorrules` — project rules file read by Cursor
+- `vibelign_exports/cursor/` — generated reference templates and setup guides
 
 ---
 
@@ -447,6 +466,7 @@ Also creates in the project root:
 
 - `AI_DEV_SYSTEM_SINGLE_FILE.md` — the full ruleset
 - `AGENTS.md` — auto-read by Claude Code, OpenCode, and other AI tools
+- `.cursorrules` — Cursor rules file when exporting for `cursor`
 
 Examples:
 
@@ -454,6 +474,22 @@ Examples:
 - OpenCode → `RULES.md`, `SETUP.md`, `PROMPT_TEMPLATE.md`
 - Cursor → `RULES.md` (`.cursorrules` format), `SETUP.md`, `PROMPT_TEMPLATE.md`
 - Antigravity → `TASK_ARTIFACT.md`, `VERIFICATION_CHECKLIST.md`, `SETUP.md`
+
+For Cursor, `vib export cursor` prepares rules/templates, while `vib start --tools cursor` handles runtime MCP registration in `.cursor/mcp.json`.
+
+Example Cursor file layout:
+
+```text
+your-project/
+  .cursor/
+    mcp.json
+  .cursorrules
+  vibelign_exports/
+    cursor/
+      RULES.md
+      SETUP.md
+      PROMPT_TEMPLATE.md
+```
 
 ---
 
