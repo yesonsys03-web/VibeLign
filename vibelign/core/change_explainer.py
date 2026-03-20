@@ -13,6 +13,8 @@ class ChangeItem:
     path: str
     status: str
     kind: str
+
+
 # === ANCHOR: CHANGE_EXPLAINER_CHANGEITEM_END ===
 
 
@@ -29,8 +31,9 @@ class ExplainReport:
 
     # === ANCHOR: CHANGE_EXPLAINER_TO_DICT_START ===
     def to_dict(self):
-# === ANCHOR: CHANGE_EXPLAINER_EXPLAINREPORT_END ===
+        # === ANCHOR: CHANGE_EXPLAINER_EXPLAINREPORT_END ===
         return asdict(self)
+
     # === ANCHOR: CHANGE_EXPLAINER_TO_DICT_END ===
 
 
@@ -41,6 +44,8 @@ def _risk_label(level: str) -> str:
         "MEDIUM": "보통",
         "HIGH": "높음",
     }.get(level, level)
+
+
 # === ANCHOR: CHANGE_EXPLAINER__RISK_LABEL_END ===
 
 
@@ -82,6 +87,8 @@ def classify_path(rel: str):
     if low.endswith(".md"):
         return "docs"
     return "general"
+
+
 # === ANCHOR: CHANGE_EXPLAINER_CLASSIFY_PATH_END ===
 
 
@@ -105,6 +112,8 @@ def risk_from_items(items):
     if len(items) >= 8:
         score += 3
     return "HIGH" if score >= 8 else "MEDIUM" if score >= 4 else "LOW"
+
+
 # === ANCHOR: CHANGE_EXPLAINER_RISK_FROM_ITEMS_END ===
 
 
@@ -130,6 +139,8 @@ def _decode_git_path(path: str) -> str:
         return unicodedata.normalize("NFC", buf.decode("utf-8"))
     except UnicodeDecodeError:
         return path
+
+
 # === ANCHOR: CHANGE_EXPLAINER__DECODE_GIT_PATH_END ===
 
 
@@ -137,13 +148,21 @@ def _decode_git_path(path: str) -> str:
 def _run_git(root: Path, args):
     try:
         proc = subprocess.run(
-            ["git", *args], cwd=root, capture_output=True, text=True, check=False
+            ["git", *args],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
         )
         return proc.returncode == 0, proc.stdout if proc.returncode == 0 else (
             proc.stderr or proc.stdout
         )
     except Exception as e:
         return False, str(e)
+
+
 # === ANCHOR: CHANGE_EXPLAINER__RUN_GIT_END ===
 
 
@@ -156,6 +175,7 @@ def explain_from_git(root: Path):
     # 상위 git 저장소에서 현재 폴더 자체가 untracked으로 표시될 수 있음 — 필터용
     # macOS 경로는 NFD이므로 NFC로 정규화해서 git 출력과 비교
     import unicodedata
+
     cwd_dir_entry = unicodedata.normalize("NFC", root.name + "/")
     items = []
     for line in out.splitlines():
@@ -198,6 +218,8 @@ def explain_from_git(root: Path):
         "되돌리려면 vib undo 를 쓰거나, vib checkpoint 로 저장해둔 지점이 있다면 그곳으로 돌아갈 수 있어요.",
         [asdict(i) for i in items],
     )
+
+
 # === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FROM_GIT_END ===
 
 
@@ -219,6 +241,8 @@ def _parse_unified_diff(diff_text: str) -> dict[str, list[str]]:
         elif line.startswith("-") and not line.startswith("---"):
             removed.append(line[1:])
     return {"added": added, "removed": removed, "sections": sections}
+
+
 # === ANCHOR: CHANGE_EXPLAINER__PARSE_UNIFIED_DIFF_END ===
 
 
@@ -227,13 +251,15 @@ def _extract_def_name(line: str) -> str:
     """'def foo(...)' → 'foo', 'class Bar:' → 'Bar'"""
     tokens = line.split("(")[0].strip().split()
     return tokens[-1] if len(tokens) >= 2 else line[:20]
+
+
 # === ANCHOR: CHANGE_EXPLAINER__EXTRACT_DEF_NAME_END ===
 
 
 # === ANCHOR: CHANGE_EXPLAINER__KOREAN_DIFF_EXPLANATION_START ===
 def _korean_diff_explanation(
     parsed: dict[str, list[str]],
-# === ANCHOR: CHANGE_EXPLAINER__KOREAN_DIFF_EXPLANATION_END ===
+    # === ANCHOR: CHANGE_EXPLAINER__KOREAN_DIFF_EXPLANATION_END ===
 ) -> tuple[str, list[str], list[str], str]:
     """파싱된 diff 정보로 한국어 설명을 생성. (요약, 변경사항, 중요성, 위험등급) 반환."""
     added = parsed["added"]
@@ -367,13 +393,17 @@ def explain_file_from_git(root: Path, rel_path: str):
         "vib undo 로 되돌릴 수 있어요. 또는 vib checkpoint 로 저장해두면 언제든 그 시점으로 돌아갈 수 있어요.",
         [{"path": rel_path, "status": "modified", "kind": item_kind}],
     )
+
+
 # === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FILE_FROM_GIT_END ===
 
 
 # === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FILE_FROM_MTIME_START ===
 def explain_file_from_mtime(
-    root: Path, rel_path: str, since_minutes: int = 120
-# === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FILE_FROM_MTIME_END ===
+    root: Path,
+    rel_path: str,
+    since_minutes: int = 120,
+    # === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FILE_FROM_MTIME_END ===
 ) -> "ExplainReport":
     """git 없이 수정 시각만으로 특정 파일의 변경 여부를 설명."""
     path = root / rel_path
@@ -487,5 +517,7 @@ def explain_from_mtime(root: Path, since_minutes=120):
         "다음 AI 수정 전에 vib checkpoint 로 지금 상태를 저장해두는 게 좋아요. 나중에 vib undo 로 되돌릴 수 있어요.",
         [asdict(i) for i in items],
     )
+
+
 # === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FROM_MTIME_END ===
 # === ANCHOR: CHANGE_EXPLAINER_END ===
