@@ -3,7 +3,9 @@ import platform
 import shutil
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Optional, Union
 
 
 from vibelign.terminal_render import (
@@ -56,27 +58,52 @@ _UV_INSTALL_CMD = {
 }
 
 
+def _run_text_subprocess(
+    cmd: Union[Sequence[str], str],
+    *,
+    shell: bool = False,
+    timeout: Optional[int] = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        cmd,
+        shell=shell,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+    )
+
+
 # === ANCHOR: INIT_CMD__OK_START ===
 def _ok(msg: str) -> None:
     clack_success(msg)
+
+
 # === ANCHOR: INIT_CMD__OK_END ===
 
 
 # === ANCHOR: INIT_CMD__STEP_START ===
 def _step(msg: str) -> None:
     clack_step(msg)
+
+
 # === ANCHOR: INIT_CMD__STEP_END ===
 
 
 # === ANCHOR: INIT_CMD__WARN_START ===
 def _warn(msg: str) -> None:
     clack_warn(msg)
+
+
 # === ANCHOR: INIT_CMD__WARN_END ===
 
 
 # === ANCHOR: INIT_CMD__FAIL_START ===
 def _fail(msg: str) -> None:
     clack_error(msg)
+
+
 # === ANCHOR: INIT_CMD__FAIL_END ===
 
 
@@ -91,6 +118,8 @@ def _korean_error(result: subprocess.CompletedProcess[str]) -> str:
     if any(k in combined for k in ["permission", "access denied", "denied"]):
         return _ERR["permission"]
     return ""
+
+
 # === ANCHOR: INIT_CMD__KOREAN_ERROR_END ===
 
 
@@ -106,6 +135,8 @@ def _check_python() -> bool:
         return False
     _ok(f"Python {cur[0]}.{cur[1]}")
     return True
+
+
 # === ANCHOR: INIT_CMD__CHECK_PYTHON_END ===
 
 
@@ -115,10 +146,8 @@ def _check_pip() -> bool:
         _ok("pip")
         return True
     _warn("pip이 없어요. Python 내장 기능으로 복구를 시도할게요...")
-    result = subprocess.run(
+    result = _run_text_subprocess(
         [sys.executable, "-m", "ensurepip", "--upgrade"],
-        capture_output=True,
-        text=True,
     )
     if result.returncode == 0:
         _ok("pip 복구 완료")
@@ -126,6 +155,8 @@ def _check_pip() -> bool:
     _fail("pip 복구에 실패했어요.")
     print(f"    {_ERR['pip_broken']}")
     return False
+
+
 # === ANCHOR: INIT_CMD__CHECK_PIP_END ===
 
 
@@ -156,7 +187,7 @@ def _check_uv() -> bool:
         return False
 
     _step("uv를 설치하는 중...")
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    result = _run_text_subprocess(cmd, shell=True)
     if result.returncode != 0:
         _fail("uv 설치에 실패했어요.")
         hint = _korean_error(result)
@@ -180,6 +211,8 @@ def _check_uv() -> bool:
 
     _fail("uv 설치 경로를 찾을 수 없어요. pip으로 진행할게요.")
     return False
+
+
 # === ANCHOR: INIT_CMD__CHECK_UV_END ===
 
 
@@ -188,8 +221,11 @@ def _find_source_root() -> "Path | None":
     """vibelign 소스 루트 디렉토리를 감지합니다 (개발 환경용)."""
     # 1) 현재 파일 기준 상위로 올라가며 pyproject.toml 탐색 (editable install)
     import vibelign as _pkg
+
     for candidate in Path(_pkg.__file__).parents:
-        if (candidate / "pyproject.toml").exists() and (candidate / "vibelign").is_dir():
+        if (candidate / "pyproject.toml").exists() and (
+            candidate / "vibelign"
+        ).is_dir():
             return candidate
     # 2) 잘 알려진 개발 경로 직접 확인
     for known in [
@@ -199,6 +235,8 @@ def _find_source_root() -> "Path | None":
         if (known / "pyproject.toml").exists() and (known / "vibelign").is_dir():
             return known
     return None
+
+
 # === ANCHOR: INIT_CMD__FIND_SOURCE_ROOT_END ===
 
 
@@ -207,6 +245,7 @@ def _reinstall_local(source_root: Path) -> bool:
     """네트워크 없이 소스 디렉토리에서 직접 복사해 설치합니다."""
     import importlib
     import vibelign as _pkg
+
     dest = Path(_pkg.__file__).parent
     src = source_root / "vibelign"
     _step(f"로컬 소스에서 복사 중: {src} → {dest}")
@@ -215,6 +254,7 @@ def _reinstall_local(source_root: Path) -> bool:
         return True
     try:
         import shutil
+
         shutil.copytree(str(src), str(dest), dirs_exist_ok=True)
         # .pyc 캐시 무효화
         for pyc in dest.rglob("*.pyc"):
@@ -225,6 +265,8 @@ def _reinstall_local(source_root: Path) -> bool:
     except Exception as e:
         _fail(f"복사 실패: {e}")
         return False
+
+
 # === ANCHOR: INIT_CMD__REINSTALL_LOCAL_END ===
 
 
@@ -261,7 +303,7 @@ def _reinstall(use_uv: bool, force: bool) -> bool:
         _step("vibelign 재설치 중 (pip)...")
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        result = _run_text_subprocess(cmd, timeout=120)
     except subprocess.TimeoutExpired:
         _fail("vibelign 재설치가 너무 오래 걸려 중단됐어요.")
         clack_info("인터넷 연결 상태를 확인하고 다시 시도해보세요.")
@@ -284,6 +326,8 @@ def _reinstall(use_uv: bool, force: bool) -> bool:
     hint = _korean_error(result)
     clack_info(hint or _ERR["reinstall_fail"])
     return False
+
+
 # === ANCHOR: INIT_CMD__REINSTALL_END ===
 
 
@@ -314,5 +358,7 @@ def run_init(args) -> None:
     else:
         clack_error("재설치 중 문제가 생겼어요.")
         clack_info("위의 안내를 따라 해결해보세요.")
+
+
 # === ANCHOR: INIT_CMD_RUN_INIT_END ===
 # === ANCHOR: INIT_CMD_END ===
