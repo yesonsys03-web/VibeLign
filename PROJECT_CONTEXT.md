@@ -25,7 +25,7 @@
 
 - **프로젝트명**: vibelign
 - **기술 스택**: Python
-- **루트 경로**: /Users/usabatch/coding/VibeLign
+- **루트 경로**: /Users/topsphinx/YesonENT Dropbox/top sphinx/Mac/Documents/coding/VibeLign
 
 ---
 
@@ -35,13 +35,7 @@
 VibeLign/
 ├── VibeLign_dev_plan/
 │   ├── vibelign_FINAL_COMPLETE_PRD/
-│   │   ├── 00_core_prd/
-│   │   ├── 01_cli_design/
-│   │   ├── 02_engine_design/
-│   │   ├── 03_development/
-│   │   ├── VIBELIGN_IMPROVEMENT_ROADMAP.md
-│   │   ├── VIBELIGN_IMPROVEMENT_ROADMAP_V2.md
-│   │   └── VIBELIGN_IMPROVEMENT_ROADMAP_V3.md
+│   │   └── 02_engine_design/
 │   └── vib_transfer_spec.md
 ├── assets/
 ├── docs/
@@ -182,7 +176,10 @@ VibeLign/
 ├── README.ko.md
 ├── README.md  ⭐
 ├── VIBELIGN_ASK.md
+├── VIBELIGN_EXPLAIN.md
+├── VIBELIGN_GUARD.md
 ├── VIBELIGN_MANUAL.md
+├── VIBELIGN_PATCH_REQUEST.md
 ├── VibeLign_QUICKSTART.md
 ├── pyproject.toml  ⭐
 └── vibe_skill_up.md
