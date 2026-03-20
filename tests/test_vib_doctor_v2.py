@@ -5,8 +5,8 @@ from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch
 
+from vibelign.commands.vib_start_cmd import run_vib_start
 from vibelign.commands.vib_doctor_cmd import run_vib_doctor
-from vibelign.commands.vib_init_cmd import run_vib_init
 from vibelign.core.doctor_v2 import (
     build_doctor_envelope,
     render_doctor_markdown,
@@ -15,19 +15,40 @@ from vibelign.core.doctor_v2 import (
 
 
 class VibDoctorV2Test(unittest.TestCase):
+    @staticmethod
+    def _start_args() -> SimpleNamespace:
+        return SimpleNamespace(all_tools=False, tools=None, force=False)
+
     def test_render_doctor_markdown_uses_friendly_labels(self):
         markdown = render_doctor_markdown(
             DoctorV2Report(
                 project_score=82,
                 status="Good",
                 anchor_coverage=60,
-                stats={},
+                stats={
+                    "mcp_status": {
+                        "cursor": {
+                            "enabled": True,
+                            "label": "Cursor",
+                            "state": "registered",
+                        }
+                    },
+                    "prepared_tool_status": {
+                        "opencode": {
+                            "enabled": True,
+                            "label": "OpenCode",
+                            "ready": True,
+                        }
+                    },
+                },
                 issues=[],
                 recommended_actions=["vib anchor --suggest"],
             )
         )
         self.assertIn("VibeLign 프로젝트 상태 보기", markdown)
         self.assertIn("프로젝트 점수: 82 / 100", markdown)
+        self.assertIn("Cursor MCP: 연결됨", markdown)
+        self.assertIn("OpenCode: 준비됨", markdown)
         self.assertIn("다음에 하면 좋은 일:", markdown)
 
     def test_doctor_envelope_contains_score_and_coverage(self):
@@ -57,7 +78,7 @@ class VibDoctorV2Test(unittest.TestCase):
             previous = Path.cwd()
             try:
                 os.chdir(root)
-                run_vib_init(SimpleNamespace())
+                run_vib_start(self._start_args())
                 run_vib_doctor(
                     SimpleNamespace(
                         json=True,
@@ -81,7 +102,7 @@ class VibDoctorV2Test(unittest.TestCase):
             previous = Path.cwd()
             try:
                 os.chdir(root)
-                run_vib_init(SimpleNamespace())
+                run_vib_start(self._start_args())
                 envelope = build_doctor_envelope(root, strict=False)
             finally:
                 os.chdir(previous)
@@ -106,7 +127,91 @@ class VibDoctorV2Test(unittest.TestCase):
             self.assertFalse(envelope["data"]["stats"]["project_map_loaded"])
             issues = envelope["data"]["issues"]
             self.assertTrue(
-                any("schema_version" in str(item.get("found", "")) for item in issues)
+                any(
+                    "버전이 맞지 않아요" in str(item.get("found", ""))
+                    for item in issues
+                )
+            )
+
+    def test_doctor_reports_missing_cursor_mcp_registration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "main.py").write_text("print('hello')\n", encoding="utf-8")
+            (root / ".cursorrules").write_text("rules\n", encoding="utf-8")
+
+            envelope = build_doctor_envelope(root, strict=False)
+
+            data = envelope["data"]
+            self.assertEqual(
+                data["stats"]["mcp_status"]["cursor"]["state"], "not_configured"
+            )
+            self.assertTrue(
+                any(
+                    ".cursor/mcp.json에 vibelign MCP 등록이 없어요"
+                    in str(item.get("found", ""))
+                    for item in data["issues"]
+                )
+            )
+            self.assertTrue(
+                any(
+                    "vib start --tools cursor" in action
+                    for action in data["recommended_actions"]
+                )
+            )
+
+    def test_doctor_reports_registered_cursor_mcp_status(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "main.py").write_text("print('hello')\n", encoding="utf-8")
+            (root / ".cursorrules").write_text("rules\n", encoding="utf-8")
+            cursor_dir = root / ".cursor"
+            cursor_dir.mkdir()
+            (cursor_dir / "mcp.json").write_text(
+                "{\n"
+                '  "mcpServers": {\n'
+                '    "vibelign": {"command": "vibelign-mcp", "args": []}\n'
+                "  }\n"
+                "}\n",
+                encoding="utf-8",
+            )
+
+            envelope = build_doctor_envelope(root, strict=False)
+
+            data = envelope["data"]
+            self.assertEqual(
+                data["stats"]["mcp_status"]["cursor"]["state"], "registered"
+            )
+            self.assertFalse(
+                any(
+                    ".cursor/mcp.json에 vibelign MCP 등록이 없어요"
+                    in str(item.get("found", ""))
+                    for item in data["issues"]
+                )
+            )
+
+    def test_doctor_reports_partial_opencode_preparation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "main.py").write_text("print('hello')\n", encoding="utf-8")
+            (root / "OPENCODE.md").write_text("rules\n", encoding="utf-8")
+
+            envelope = build_doctor_envelope(root, strict=False)
+
+            data = envelope["data"]
+            self.assertEqual(
+                data["stats"]["prepared_tool_status"]["opencode"]["state"], "partial"
+            )
+            self.assertTrue(
+                any(
+                    "OpenCode 준비 파일이 일부 없어요" in str(item.get("found", ""))
+                    for item in data["issues"]
+                )
+            )
+            self.assertTrue(
+                any(
+                    "vib start --tools opencode" in action
+                    for action in data["recommended_actions"]
+                )
             )
 
     def test_run_vib_doctor_uses_rich_renderer_for_text_output(self):
