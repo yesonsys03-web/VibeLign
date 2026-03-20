@@ -32,6 +32,52 @@ class DoctorV2Report:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class MCPToolConfig:
+    label: str
+    config_path: Path
+    signals: List[Path]
+
+
+@dataclass(frozen=True)
+class PreparedToolConfig:
+    label: str
+    required_paths: List[Path]
+    setup_command: str
+
+
+MCP_TOOL_CONFIGS = {
+    "claude": MCPToolConfig(
+        label="Claude Code",
+        config_path=Path(".claude/settings.json"),
+        signals=[Path("CLAUDE.md"), Path("vibelign_exports/claude")],
+    ),
+    "cursor": MCPToolConfig(
+        label="Cursor",
+        config_path=Path(".cursor/mcp.json"),
+        signals=[Path(".cursorrules"), Path("vibelign_exports/cursor")],
+    ),
+}
+
+PREPARED_TOOL_CONFIGS = {
+    "opencode": PreparedToolConfig(
+        label="OpenCode",
+        required_paths=[Path("OPENCODE.md"), Path("vibelign_exports/opencode")],
+        setup_command="vib start --tools opencode",
+    ),
+    "antigravity": PreparedToolConfig(
+        label="Antigravity",
+        required_paths=[Path("vibelign_exports/antigravity")],
+        setup_command="vib start --tools antigravity",
+    ),
+    "codex": PreparedToolConfig(
+        label="Codex",
+        required_paths=[Path("vibelign_exports/codex")],
+        setup_command="vib start --tools codex",
+    ),
+}
+
+
 def _build_status(score: int) -> str:
     for threshold, label in STATUS_LEVELS:
         if score >= threshold:
@@ -85,6 +131,154 @@ def _recommended_actions(legacy_suggestions: List[str]) -> List[str]:
     return actions[:6]
 
 
+def _is_mcp_tool_enabled(root: Path, tool_name: str) -> bool:
+    tool = MCP_TOOL_CONFIGS[tool_name]
+    config_path = root / tool.config_path
+    if config_path.exists():
+        return True
+    return any((root / signal).exists() for signal in tool.signals)
+
+
+def _read_mcp_server_status(root: Path, tool_name: str) -> Dict[str, Any]:
+    tool = MCP_TOOL_CONFIGS[tool_name]
+    config_path = root / tool.config_path
+    status = {
+        "enabled": _is_mcp_tool_enabled(root, tool_name),
+        "registered": False,
+        "config_path": str(tool.config_path),
+        "label": tool.label,
+        "state": "not_configured",
+    }
+    if not status["enabled"]:
+        status["state"] = "not_in_use"
+        return status
+    if not config_path.exists():
+        return status
+    try:
+        loaded = json.loads(config_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        status["state"] = "invalid_json"
+        return status
+    if not isinstance(loaded, dict):
+        status["state"] = "invalid_json"
+        return status
+    mcp_servers = loaded.get("mcpServers")
+    if not isinstance(mcp_servers, dict):
+        status["state"] = "missing_server"
+        return status
+    if "vibelign" not in mcp_servers:
+        status["state"] = "missing_server"
+        return status
+    status["registered"] = True
+    status["state"] = "registered"
+    return status
+
+
+def _collect_mcp_status(root: Path) -> Dict[str, Dict[str, Any]]:
+    return {
+        tool_name: _read_mcp_server_status(root, tool_name)
+        for tool_name in MCP_TOOL_CONFIGS
+    }
+
+
+def _collect_prepared_tool_status(root: Path) -> Dict[str, Dict[str, Any]]:
+    status_map: Dict[str, Dict[str, Any]] = {}
+    for tool_name, tool in PREPARED_TOOL_CONFIGS.items():
+        missing = [
+            str(path) for path in tool.required_paths if not (root / path).exists()
+        ]
+        any_present = any((root / path).exists() for path in tool.required_paths)
+        if not any_present:
+            status_map[tool_name] = {
+                "enabled": False,
+                "ready": False,
+                "label": tool.label,
+                "state": "not_in_use",
+                "missing": missing,
+            }
+            continue
+        status_map[tool_name] = {
+            "enabled": True,
+            "ready": not missing,
+            "label": tool.label,
+            "state": "prepared" if not missing else "partial",
+            "missing": missing,
+        }
+    return status_map
+
+
+def _append_mcp_issues(
+    issues: List[str], suggestions: List[str], mcp_status: Dict[str, Dict[str, Any]]
+) -> None:
+    for tool_name, status in mcp_status.items():
+        if not status["enabled"] or status["registered"]:
+            continue
+        config_path = status["config_path"]
+        label = status["label"]
+        if status["state"] == "invalid_json":
+            issues.append(f"{config_path} 파일을 읽을 수 없어요")
+            suggestions.append(
+                f"`vib start --tools {tool_name}` 를 다시 실행하면 {label} MCP 설정을 자동으로 복구해요"
+            )
+            continue
+        issues.append(f"{config_path}에 vibelign MCP 등록이 없어요")
+        suggestions.append(
+            f"`vib start --tools {tool_name}` 를 실행하면 {label}에 vibelign MCP를 자동 등록해요"
+        )
+
+
+def _append_prepared_tool_issues(
+    issues: List[str],
+    suggestions: List[str],
+    prepared_status: Dict[str, Dict[str, Any]],
+) -> None:
+    for tool_name, status in prepared_status.items():
+        if not status["enabled"] or status["ready"]:
+            continue
+        missing = ", ".join(str(path) for path in status["missing"])
+        issues.append(f"{status['label']} 준비 파일이 일부 없어요 ({missing})")
+        suggestions.append(
+            f"`{PREPARED_TOOL_CONFIGS[tool_name].setup_command}` 를 다시 실행하면 {status['label']} 준비 파일을 자동으로 채워줘요"
+        )
+
+
+def _render_mcp_lines(stats: Dict[str, Any]) -> List[str]:
+    raw = stats.get("mcp_status")
+    if not isinstance(raw, dict):
+        return []
+    lines: List[str] = []
+    for tool_name in MCP_TOOL_CONFIGS:
+        status = raw.get(tool_name)
+        if not isinstance(status, dict) or not status.get("enabled"):
+            continue
+        label = str(status.get("label") or tool_name)
+        state = status.get("state")
+        if state == "registered":
+            lines.append(f"{label} MCP: 연결됨")
+        elif state == "invalid_json":
+            lines.append(f"{label} MCP: 설정 파일 확인 필요")
+        else:
+            lines.append(f"{label} MCP: 아직 등록되지 않음")
+    return lines
+
+
+def _render_prepared_tool_lines(stats: Dict[str, Any]) -> List[str]:
+    raw = stats.get("prepared_tool_status")
+    if not isinstance(raw, dict):
+        return []
+    lines: List[str] = []
+    for tool_name in PREPARED_TOOL_CONFIGS:
+        status = raw.get(tool_name)
+        if not isinstance(status, dict) or not status.get("enabled"):
+            continue
+        label = str(status.get("label") or tool_name)
+        if status.get("ready"):
+            lines.append(f"{label}: 준비됨")
+        else:
+            lines.append(f"{label}: 준비 파일 확인 필요")
+    return lines
+
+
 def analyze_project_v2(root: Path, strict: bool = False) -> DoctorV2Report:
     legacy = analyze_project(root, strict=strict)
     project_score = max(0, 100 - (legacy.score * 4))
@@ -92,9 +286,13 @@ def analyze_project_v2(root: Path, strict: bool = False) -> DoctorV2Report:
     coverage = _anchor_coverage(root)
     stats = dict(legacy.stats)
     project_map, project_map_error = load_project_map(root)
+    mcp_status = _collect_mcp_status(root)
+    prepared_tool_status = _collect_prepared_tool_status(root)
     stats["anchor_coverage"] = coverage
     stats["legacy_penalty"] = legacy.score
     stats["project_map_loaded"] = project_map is not None
+    stats["mcp_status"] = mcp_status
+    stats["prepared_tool_status"] = prepared_tool_status
     issues = list(legacy.issues)
     suggestions = list(legacy.suggestions)
     if project_map is not None:
@@ -106,6 +304,8 @@ def analyze_project_v2(root: Path, strict: bool = False) -> DoctorV2Report:
     elif project_map_error == "invalid_project_map":
         issues.append(".vibelign/project_map.json 파일을 읽을 수 없어요")
         suggestions.append("vib start 를 다시 실행하면 자동으로 고쳐져요")
+    _append_mcp_issues(issues, suggestions, mcp_status)
+    _append_prepared_tool_issues(issues, suggestions, prepared_tool_status)
     return DoctorV2Report(
         project_score=project_score,
         status=status,
@@ -158,9 +358,10 @@ def render_doctor_markdown(
         f"현재 상태: {report.status}",
         status_line,
         f"AI 안전 구역 표시된 파일 비율: {report.anchor_coverage}%",
-        "",
-        "먼저 보면 좋은 점:",
     ]
+    lines.extend(_render_mcp_lines(report.stats))
+    lines.extend(_render_prepared_tool_lines(report.stats))
+    lines.extend(["", "먼저 보면 좋은 점:"])
     if report.issues:
         for index, item in enumerate(report.issues, 1):
             lines.append(f"{index}. {item['found']}")
