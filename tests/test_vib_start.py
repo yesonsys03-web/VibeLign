@@ -9,6 +9,7 @@ from vibelign.commands.vib_start_cmd import (
     _ensure_rule_files,
     _next_step,
     _parse_start_tools,
+    _register_mcp_cursor,
     _selected_start_tools,
     _status_line,
     _tool_readiness,
@@ -51,9 +52,65 @@ class VibStartTest(unittest.TestCase):
 
         self.assertEqual(
             readiness["ready"],
-            ["Claude", "OpenCode", "Antigravity"],
+            ["Claude", "OpenCode", "Cursor", "Antigravity"],
         )
-        self.assertEqual(readiness["almost_ready"], ["Cursor", "Codex"])
+        self.assertEqual(readiness["almost_ready"], ["Codex"])
+
+    def test_register_mcp_cursor_creates_config_when_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            created = _register_mcp_cursor(root)
+
+            self.assertTrue(created)
+            config = root / ".cursor" / "mcp.json"
+            self.assertTrue(config.exists())
+            self.assertIn('"vibelign"', config.read_text(encoding="utf-8"))
+
+    def test_register_mcp_cursor_merges_without_overwriting_existing_servers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cursor_dir = root / ".cursor"
+            cursor_dir.mkdir()
+            config = cursor_dir / "mcp.json"
+            config.write_text(
+                "{\n"
+                '  "mcpServers": {\n'
+                '    "existing": {"command": "demo", "args": ["--keep"]}\n'
+                "  },\n"
+                '  "theme": "light"\n'
+                "}\n",
+                encoding="utf-8",
+            )
+
+            created = _register_mcp_cursor(root)
+
+            self.assertTrue(created)
+            content = config.read_text(encoding="utf-8")
+            self.assertIn('"existing"', content)
+            self.assertIn('"vibelign"', content)
+            self.assertIn('"theme": "light"', content)
+
+    def test_register_mcp_cursor_skips_when_already_registered(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cursor_dir = root / ".cursor"
+            cursor_dir.mkdir()
+            config = cursor_dir / "mcp.json"
+            original = (
+                "{\n"
+                '  "mcpServers": {\n'
+                '    "vibelign": {"command": "vibelign-mcp", "args": []},\n'
+                '    "existing": {"command": "demo", "args": []}\n'
+                "  }\n"
+                "}\n"
+            )
+            config.write_text(original, encoding="utf-8")
+
+            created = _register_mcp_cursor(root)
+
+            self.assertFalse(created)
+            self.assertEqual(config.read_text(encoding="utf-8"), original)
 
     def test_export_tool_files_creates_codex_templates(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -321,6 +321,52 @@ def _register_mcp_claude(root: Path) -> bool:
     return True
 
 
+def _register_mcp_cursor(root: Path) -> bool:
+    cursor_dir = root / ".cursor"
+    settings_path = cursor_dir / "mcp.json"
+    cursor_dir.mkdir(exist_ok=True)
+
+    if settings_path.exists():
+        try:
+            loaded = json.loads(settings_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            backup = settings_path.with_suffix(".json.bak")
+            settings_path.rename(backup)
+            clack_warn(
+                f".cursor/mcp.json 파일이 손상되어 백업했습니다. ({backup.name})\n"
+                "  MCP 등록을 새로 진행합니다."
+            )
+            settings: Dict[str, Any] = {}
+        else:
+            if isinstance(loaded, dict):
+                settings = loaded
+            else:
+                backup = settings_path.with_suffix(".json.bak")
+                settings_path.rename(backup)
+                clack_warn(
+                    f".cursor/mcp.json 형식이 올바르지 않아 백업했습니다. ({backup.name})\n"
+                    "  MCP 등록을 새로 진행합니다."
+                )
+                settings = {}
+    else:
+        settings = {}
+
+    mcp_servers = settings.get("mcpServers")
+    if not isinstance(mcp_servers, dict):
+        mcp_servers = {}
+        settings["mcpServers"] = mcp_servers
+
+    if "vibelign" in mcp_servers:
+        return False
+
+    mcp_servers["vibelign"] = {"command": "vibelign-mcp", "args": []}
+    settings_path.write_text(
+        json.dumps(settings, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return True
+
+
 # === ANCHOR: VIB_START_CMD__REGISTER_MCP_END ===
 
 
@@ -382,6 +428,8 @@ def _configure_start_tools(
                 created.append(".cursorrules")
             elif result == "appended":
                 created.append(".cursorrules (규칙 추가)")
+            if _register_mcp_cursor(root):
+                created.append(".cursor/mcp.json (MCP 등록)")
             continue
 
         if tool == "antigravity":
@@ -402,7 +450,7 @@ def _tool_readiness(tools: List[str]) -> Dict[str, List[str]]:
 
     for tool in tools:
         label = TOOL_DISPLAY_NAMES[tool]
-        if tool in {"claude", "antigravity", "opencode"}:
+        if tool in {"claude", "antigravity", "opencode", "cursor"}:
             ready.append(label)
         else:
             almost_ready.append(label)
@@ -427,8 +475,6 @@ def _print_tool_readiness_summary(tools: List[str]) -> None:
         clack_info("거의 끝났어요")
         for tool in almost_ready:
             clack_info(f"- {tool}")
-        if "Cursor" in almost_ready:
-            clack_info("  Cursor: 설정에서 VibeLign 연결을 한 번만 확인하세요.")
         if "Codex" in almost_ready:
             clack_info("  Codex: Codex 설정에 VibeLign을 한 번만 연결하세요.")
 
