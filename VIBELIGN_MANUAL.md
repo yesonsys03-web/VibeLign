@@ -544,6 +544,27 @@ vib config   # API 키 설정 시작
 Claude Code, Cursor, OpenCode 같은 AI 도구에서
 VibeLign을 연동해서 쓸 수 있도록 설정 파일을 만들어줘요.
 
+`vib export cursor`는 `vibelign_exports/cursor/` 템플릿과 프로젝트 루트 `.cursorrules`를 준비해줘요.
+Cursor MCP 연결 자체는 `vib start`가 `.cursor/mcp.json`에 자동 등록해줘요.
+
+예를 들면 이런 구조가 만들어져요:
+
+```text
+your-project/
+  .cursor/
+    mcp.json
+  .cursorrules
+  vibelign_exports/
+    cursor/
+      RULES.md
+      SETUP.md
+      PROMPT_TEMPLATE.md
+```
+
+- `.cursor/mcp.json` → Cursor가 실제로 쓰는 MCP 연결 설정
+- `.cursorrules` → Cursor가 읽는 프로젝트 규칙
+- `vibelign_exports/cursor/` → 참고용 템플릿과 설명 문서
+
 **🕐 언제 써?**
 
 - Claude Code를 쓰면서 VibeLign도 같이 쓰고 싶을 때
@@ -667,12 +688,12 @@ AI: (자동으로 VibeLign을 실행해서 체크포인트 저장) 완료!
 `vib start`를 실행하면 자동으로 설정돼요. 딱 한 번만 하면 돼요.
 
 ```
-vib start   # 이걸 실행하면 MCP가 자동으로 Claude Code에 등록돼요
+vib start   # Claude Code와 Cursor에 MCP가 자동 등록돼요
 ```
 
-이후 Claude Code를 재시작하면 AI가 자동으로 VibeLign 기능을 쓸 수 있어요.
+이후 Claude Code나 Cursor를 재시작하면 AI가 자동으로 VibeLign 기능을 쓸 수 있어요.
 
-> 주의: MCP를 쓰려면 `vib start` 이후 Claude Code를 한 번 재시작해야 해요.
+> 주의: MCP를 쓰려면 `vib start` 이후 Claude Code나 Cursor를 한 번 재시작해야 해요.
 
 ---
 
@@ -1123,4 +1144,3 @@ AI: (자동으로)
 ```
 
 ---
-

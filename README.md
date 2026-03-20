@@ -207,6 +207,7 @@ VibeLign promises:
 **v1.6.0** — MCP Server + AI Development Rules System:
 
 - `vib mcp` — MCP (Model Context Protocol) server for Claude Desktop integration
+- `vib start` — Auto-register VibeLign MCP for Claude Code and Cursor without overwriting existing Cursor MCP servers
 - `vib rules` — View all AI development rules directly in CLI
 - `vib manual rules` — Detailed rules manual
 - Anchor intent system — Store intent information in anchors
