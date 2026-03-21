@@ -71,6 +71,12 @@ When making a new product or architecture decision:
 4. Do not consult other planning folders unless you are doing historical
    comparison only.
 
+### Planning rule for the current `vib start` category docs
+
+- Treat `VibeLign_dev_plan/vibelign_generated_file_manifest.md` as the source of truth for the generated-output contract.
+- Treat `VibeLign_dev_plan/vibelign_nextjs_typescript_app_v1_asset_manifest.md` as the source of truth for the concrete `web_app_safe_default_v1` scaffold file set.
+- If another planning doc conflicts with either one, align that doc first before making implementation or planning decisions.
+
 ## Immediate Cleanup Order
 
 Update these first when documentation alignment work begins:
