@@ -361,19 +361,21 @@ def build_parser():
         "secrets",
         help="API 키 같은 비밀정보 커밋을 막아요",
         description=(
-            "커밋 직전에 staged 변경사항을 검사해서 API 키 같은 비밀정보를 막아요.\n"
-            "vib start 후 자동으로 설치되는 pre-commit 훅에서도 이 명령어를 사용해요."
+            "커밋 직전에 지금 올리려는 내용만 검사해서 API 키 같은 비밀정보를 막아요.\n"
+            "`vib start`를 했다면 보통 커밋할 때마다 이 검사가 자동으로 돌아가요."
         ),
         epilog=(
             "이렇게 쓰세요:\n"
-            "  vib secrets --staged         staged 변경사항 검사\n"
-            "  vib secrets --install-hook   Git 훅 설치\n"
-            "  vib secrets --uninstall-hook Git 훅 제거"
+            "  vib secrets --staged         지금 커밋할 내용 수동 검사\n"
+            "  vib secrets --install-hook   커밋할 때마다 자동 검사되게 연결\n"
+            "  vib secrets --uninstall-hook 자동 검사 연결 해제"
         ),
     )
-    p.add_argument("--staged", action="store_true", help="staged 변경사항 검사")
-    p.add_argument("--install-hook", action="store_true", help="Git pre-commit 훅 설치")
-    p.add_argument("--uninstall-hook", action="store_true", help="VibeLign Git 훅 제거")
+    p.add_argument("--staged", action="store_true", help="지금 커밋할 내용만 검사")
+    p.add_argument(
+        "--install-hook", action="store_true", help="커밋할 때마다 자동 검사되게 연결"
+    )
+    p.add_argument("--uninstall-hook", action="store_true", help="자동 검사 연결 해제")
     p.set_defaults(func=run_vib_secrets)
 
     p = sub.add_parser(

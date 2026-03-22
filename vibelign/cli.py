@@ -139,7 +139,7 @@ def build_parser():
     p = sub.add_parser("config", help="API 키 설정 (Anthropic / Gemini)")
     p.set_defaults(func=run_config)
 
-    p = sub.add_parser("secrets", help="staged 비밀정보 검사 및 Git 훅 관리")
+    p = sub.add_parser("secrets", help="지금 커밋할 내용 검사 + 자동 검사 연결 관리")
     p.add_argument("--staged", action="store_true")
     p.add_argument("--install-hook", action="store_true")
     p.add_argument("--uninstall-hook", action="store_true")
