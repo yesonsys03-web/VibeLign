@@ -112,6 +112,7 @@ vib start
 | `vib protect filename.py` | Lock important files (AI can't touch) |
 | `vib protect --list` | See locked files |
 | `vib protect --remove filename.py` | Unlock file |
+| `vib secrets --staged` | Block staged API keys, tokens, and `.env` files before commit |
 
 ### Settings & Export
 
@@ -156,6 +157,14 @@ vib checkpoint "login feature done!"
 
 # If something broke
 vib undo
+```
+
+`vib start` now also enables Git secret protection automatically when your project uses Git.
+Before each commit, VibeLign checks staged changes for API keys, tokens, private keys, and secret-like files such as `.env`.
+
+```bash
+# Check manually anytime
+vib secrets --staged
 ```
 
 ---
