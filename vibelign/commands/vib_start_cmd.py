@@ -590,14 +590,16 @@ def run_vib_start(args: Any) -> None:
         if secret_hook_result.status in {"installed", "updated"}:
             clack_success("Git 커밋 전에 API 키/토큰/개인키를 자동 검사해요")
         elif secret_hook_result.status == "chmod-failed":
-            clack_warn("비밀정보 검사 훅은 만들었지만 실행 권한 설정에 실패했어요")
+            clack_warn(
+                "비밀정보 자동 검사 파일은 만들었지만 실행 준비를 끝내지 못했어요"
+            )
             if secret_hook_result.detail:
                 clack_info(secret_hook_result.detail)
         elif secret_hook_result.status == "existing-hook":
             clack_warn(
-                "기존 pre-commit 훅이 있어서 비밀정보 검사 훅을 자동 설치하지 않았어요"
+                "이미 다른 커밋 자동 실행 설정이 있어서 비밀정보 자동 검사를 따로 켜지 않았어요"
             )
-            clack_info("기존 훅에 `vib secrets --staged`를 추가하면 함께 쓸 수 있어요")
+            clack_info("그 설정 안에 `vib secrets --staged`를 넣으면 같이 쓸 수 있어요")
 
     # [5] 고속 도구 자동 설치 제안 (watchdog은 vib watch 실행 시에만 설치 제안)
     from vibelign.core.fast_tools import has_fd, has_rg
