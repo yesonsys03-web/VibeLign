@@ -81,7 +81,7 @@ MANUAL: dict[str, ManualEntry] = {
             ),
             (
                 "비밀정보 커밋 보호",
-                "Git 저장소라면 pre-commit 보호도 같이 설치해요.\n커밋 전에 API 키, 토큰, 개인키, .env 같은 걸 검사해줘요.",
+                "Git 저장소라면 커밋할 때마다 자동 검사도 같이 켜줘요.\n커밋 전에 API 키, 토큰, 개인키, .env 같은 걸 검사해줘요.",
             ),
         ],
     },
@@ -477,34 +477,34 @@ MANUAL: dict[str, ManualEntry] = {
         "title": "vib secrets",
         "one_line": "API 키 같은 비밀정보가 Git에 올라가기 전에 막아요",
         "what": (
-            "커밋하기 전에 staged 된 변경사항을 검사해서\n"
+            "커밋하기 전에 지금 올리려는 내용을 검사해서\n"
             "API 키, 토큰, 개인키, .env 같은 비밀정보가 들어갔는지 확인해줘요.\n"
             "쉽게 말하면 '실수로 중요한 비밀번호를 인터넷에 올리기 전에 막아주는 문지기'예요.\n\n"
             "보통은 `vib start`를 하면 자동으로 연결돼서 따로 신경 쓸 일이 거의 없어요.\n"
             "직접 확인하고 싶을 때만 `vib secrets --staged`를 실행하면 돼요."
         ),
         "when": [
-            "API 키나 .env를 실수로 git add 한 것 같을 때",
+            "API 키나 .env를 실수로 커밋할 파일 목록에 넣은 것 같을 때",
             "커밋 전에 한 번 더 확인하고 싶을 때",
             "왜 커밋이 막혔는지 이해하고 싶을 때",
         ],
         "examples": [
             ("vib secrets --staged", "지금 커밋하려는 내용에 비밀정보가 있는지 검사"),
-            ("vib secrets --install-hook", "자동 검사 훅 설치"),
-            ("vib secrets --uninstall-hook", "VibeLign이 설치한 자동 검사 훅 제거"),
+            ("vib secrets --install-hook", "앞으로 커밋할 때마다 자동 검사되게 켜기"),
+            ("vib secrets --uninstall-hook", "자동 검사 끄기"),
         ],
         "options": [
             (
                 "--staged",
-                "지금 git add 해둔 내용만 검사해요.\n커밋 직전에 보는 검사라고 생각하면 쉬워요.",
+                "지금 커밋할 내용만 검사해요.\n한 번만 직접 확인하고 싶을 때 쓰면 돼요.",
             ),
             (
                 "--install-hook",
-                "커밋할 때마다 자동 검사되게 연결해요.\n보통은 vib start가 자동으로 해줘요.",
+                "커밋 버튼을 누를 때마다 자동 검사되게 켜요.\n보통은 vib start가 자동으로 해줘요.",
             ),
             (
                 "--uninstall-hook",
-                "VibeLign이 설치한 자동 검사 연결을 제거해요.",
+                "커밋할 때마다 돌던 자동 검사를 꺼요.",
             ),
             (
                 "오탐 예외 처리",
