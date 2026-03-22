@@ -12,6 +12,7 @@ from .commands.vib_history_cmd import run_vib_history
 from .commands.init_cmd import run_init
 from .commands.install_guide_cmd import run_install_guide
 from .commands.vib_patch_cmd import run_vib_patch
+from .commands.vib_secrets_cmd import run_vib_secrets
 from .commands.vib_start_cmd import run_vib_start
 from .commands.vib_undo_cmd import run_vib_undo
 from .commands.vib_scan_cmd import run_vib_scan
@@ -58,9 +59,10 @@ VibeLign - AI한테 코딩 시켜도 안전하게 지켜주는 도구
   explain     뭐가 바뀌었는지 쉽게 알려줘요
 
 AI 수정 요청:
-  patch       말로 요청하면 안전한 수정 계획을 만들어요
+ patch       말로 요청하면 안전한 수정 계획을 만들어요
   anchor      AI가 건드려도 되는 안전 구역을 표시해요
   scan        앵커 스캔 + 코드맵 갱신을 한 번에 해요
+  secrets     API 키 같은 비밀정보 커밋을 막아요
 
 파일 & 설정:
   protect     중요한 파일을 잠가요
@@ -354,6 +356,25 @@ def build_parser():
         "--copy", action="store_true", help="AI 전달용 프롬프트를 클립보드에 복사"
     )
     p.set_defaults(func=run_vib_patch)
+
+    p = sub.add_parser(
+        "secrets",
+        help="API 키 같은 비밀정보 커밋을 막아요",
+        description=(
+            "커밋 직전에 staged 변경사항을 검사해서 API 키 같은 비밀정보를 막아요.\n"
+            "vib start 후 자동으로 설치되는 pre-commit 훅에서도 이 명령어를 사용해요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib secrets --staged         staged 변경사항 검사\n"
+            "  vib secrets --install-hook   Git 훅 설치\n"
+            "  vib secrets --uninstall-hook Git 훅 제거"
+        ),
+    )
+    p.add_argument("--staged", action="store_true", help="staged 변경사항 검사")
+    p.add_argument("--install-hook", action="store_true", help="Git pre-commit 훅 설치")
+    p.add_argument("--uninstall-hook", action="store_true", help="VibeLign Git 훅 제거")
+    p.set_defaults(func=run_vib_secrets)
 
     p = sub.add_parser(
         "explain",
