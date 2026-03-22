@@ -1,7 +1,7 @@
 import unittest
 from typing import Any, cast
 
-from vibelign.commands.vib_init_cmd import run_vib_init_cli
+from vibelign.commands.init_cmd import run_init
 from vibelign.vib_cli import build_parser
 
 
@@ -16,7 +16,15 @@ class VibCliSurfaceTest(unittest.TestCase):
         )
         commands = set(subparsers_action.choices.keys())
         self.assertTrue(
-            {"protect", "ask", "config", "export", "watch", "start"}.issubset(commands)
+            {
+                "protect",
+                "ask",
+                "config",
+                "export",
+                "watch",
+                "start",
+                "secrets",
+            }.issubset(commands)
         )
 
     def test_vib_init_points_to_project_init_flow(self):
@@ -29,8 +37,8 @@ class VibCliSurfaceTest(unittest.TestCase):
         )
         init_parser = subparsers_action.choices["init"]
         args = init_parser.parse_args([])
-        self.assertIs(args.func, run_vib_init_cli)
+        self.assertIs(args.func, run_init)
 
 
 if __name__ == "__main__":
-    unittest.main()
+    _ = unittest.main()

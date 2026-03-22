@@ -12,6 +12,7 @@ from vibelign.commands.init_cmd import run_init
 from vibelign.commands.checkpoint_cmd import run_checkpoint
 from vibelign.commands.undo_cmd import run_undo
 from vibelign.commands.protect_cmd import run_protect
+from vibelign.commands.vib_secrets_cmd import run_vib_secrets
 from vibelign.commands.ask_cmd import run_ask
 from vibelign.commands.history_cmd import run_history
 from vibelign.commands.config_cmd import run_config
@@ -137,6 +138,12 @@ def build_parser():
 
     p = sub.add_parser("config", help="API 키 설정 (Anthropic / Gemini)")
     p.set_defaults(func=run_config)
+
+    p = sub.add_parser("secrets", help="staged 비밀정보 검사 및 Git 훅 관리")
+    p.add_argument("--staged", action="store_true")
+    p.add_argument("--install-hook", action="store_true")
+    p.add_argument("--uninstall-hook", action="store_true")
+    p.set_defaults(func=run_vib_secrets)
 
     p = sub.add_parser("doctor", help="프로젝트 구조 진단")
     p.add_argument("--json", action="store_true")
