@@ -11,6 +11,7 @@ from vibelign.commands.export_cmd import (
     write_cursorrules,
     write_opencode_md,
 )
+from vibelign.core.git_hooks import install_pre_commit_secret_hook
 from vibelign.commands.vib_doctor_cmd import build_doctor_envelope
 from vibelign.core.ai_dev_system import AI_DEV_SYSTEM_CONTENT
 from vibelign.core.hook_setup import (
@@ -557,6 +558,7 @@ def run_vib_start(args: Any) -> None:
     hook_active = False  # PostToolUse 훅은 더 이상 사용하지 않음
     hook_label = {"claude": "Claude Code"}.get(tool, tool) if tool else None
     git_active = _has_git(root)
+    secret_hook_result = install_pre_commit_secret_hook(root) if git_active else None
 
     # [4] 출력
     clack_step("프로젝트 상태를 확인하는 중...")
@@ -582,6 +584,20 @@ def run_vib_start(args: Any) -> None:
             "AI 작업 후 `vib checkpoint`를 실행하면 변경 내역을 안전하게 남길 수 있어요"
         )
         clack_info("git을 사용하면 별도 명령어 없이 자동 추적돼요")
+
+    if secret_hook_result is not None:
+        clack_step("비밀정보 커밋 보호")
+        if secret_hook_result.status in {"installed", "updated"}:
+            clack_success("Git 커밋 전에 API 키/토큰/개인키를 자동 검사해요")
+        elif secret_hook_result.status == "chmod-failed":
+            clack_warn("비밀정보 검사 훅은 만들었지만 실행 권한 설정에 실패했어요")
+            if secret_hook_result.detail:
+                clack_info(secret_hook_result.detail)
+        elif secret_hook_result.status == "existing-hook":
+            clack_warn(
+                "기존 pre-commit 훅이 있어서 비밀정보 검사 훅을 자동 설치하지 않았어요"
+            )
+            clack_info("기존 훅에 `vib secrets --staged`를 추가하면 함께 쓸 수 있어요")
 
     # [5] 고속 도구 자동 설치 제안 (watchdog은 vib watch 실행 시에만 설치 제안)
     from vibelign.core.fast_tools import has_fd, has_rg
