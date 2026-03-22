@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -11,11 +13,22 @@ from rich import box
 
 console = Console()
 
+
+class ManualEntry(TypedDict):
+    emoji: str
+    title: str
+    one_line: str
+    what: str
+    when: list[str]
+    examples: list[tuple[str, str]]
+    options: list[tuple[str, str]]
+
+
 # ──────────────────────────────────────────────
 # 매뉴얼 데이터
 # ──────────────────────────────────────────────
 
-MANUAL: dict[str, dict] = {
+MANUAL: dict[str, ManualEntry] = {
     "start": {
         "emoji": "🚀",
         "title": "vib start",
@@ -24,6 +37,8 @@ MANUAL: dict[str, dict] = {
             "새 프로젝트에서 VibeLign을 처음 쓸 때 필요한 파일을 자동으로 만들어줘요.\n"
             "AGENTS.md, AI_DEV_SYSTEM_SINGLE_FILE.md 같은 파일이 생기는데,\n"
             "이게 있어야 AI가 내 프로젝트를 제대로 이해하고 작업해요.\n\n"
+            "Git을 쓰는 프로젝트라면 커밋 전에 비밀정보를 막아주는 보호도 같이 켜줘요.\n"
+            "그래서 API 키, 토큰, .env 같은 걸 실수로 올리려 하면 커밋 단계에서 한 번 더 잡아줘요.\n\n"
             "`vib start --all-tools`를 쓰면 Claude, Antigravity, OpenCode, Cursor, Codex 준비도 한 번에 해줘요.\n"
             "기본값은 기존 설정을 최대한 보존하면서 없는 것만 추가해요.\n"
             "정말 다시 깔듯이 새로 만들고 싶을 때만 `--force`를 써요."
@@ -63,6 +78,10 @@ MANUAL: dict[str, dict] = {
             (
                 "준비 상태 안내",
                 "start가 끝나면 도구별로 '바로 사용 가능' / '거의 끝남'을 알려줘요.\n현재는 Claude, Antigravity, OpenCode는 바로 사용 가능으로 보여줘요.",
+            ),
+            (
+                "비밀정보 커밋 보호",
+                "Git 저장소라면 pre-commit 보호도 같이 설치해요.\n커밋 전에 API 키, 토큰, 개인키, .env 같은 걸 검사해줘요.",
             ),
         ],
     },
@@ -453,6 +472,46 @@ MANUAL: dict[str, dict] = {
         ],
         "options": [],
     },
+    "secrets": {
+        "emoji": "🚫",
+        "title": "vib secrets",
+        "one_line": "API 키 같은 비밀정보가 Git에 올라가기 전에 막아요",
+        "what": (
+            "커밋하기 전에 staged 된 변경사항을 검사해서\n"
+            "API 키, 토큰, 개인키, .env 같은 비밀정보가 들어갔는지 확인해줘요.\n"
+            "쉽게 말하면 '실수로 중요한 비밀번호를 인터넷에 올리기 전에 막아주는 문지기'예요.\n\n"
+            "보통은 `vib start`를 하면 자동으로 연결돼서 따로 신경 쓸 일이 거의 없어요.\n"
+            "직접 확인하고 싶을 때만 `vib secrets --staged`를 실행하면 돼요."
+        ),
+        "when": [
+            "API 키나 .env를 실수로 git add 한 것 같을 때",
+            "커밋 전에 한 번 더 확인하고 싶을 때",
+            "왜 커밋이 막혔는지 이해하고 싶을 때",
+        ],
+        "examples": [
+            ("vib secrets --staged", "지금 커밋하려는 내용에 비밀정보가 있는지 검사"),
+            ("vib secrets --install-hook", "자동 검사 훅 설치"),
+            ("vib secrets --uninstall-hook", "VibeLign이 설치한 자동 검사 훅 제거"),
+        ],
+        "options": [
+            (
+                "--staged",
+                "지금 git add 해둔 내용만 검사해요.\n커밋 직전에 보는 검사라고 생각하면 쉬워요.",
+            ),
+            (
+                "--install-hook",
+                "커밋할 때마다 자동 검사되게 연결해요.\n보통은 vib start가 자동으로 해줘요.",
+            ),
+            (
+                "--uninstall-hook",
+                "VibeLign이 설치한 자동 검사 연결을 제거해요.",
+            ),
+            (
+                "오탐 예외 처리",
+                "진짜 비밀정보가 아닌데도 막히면 그 줄 끝에 `vibelign: allow-secret`를 붙여서 예외 처리할 수 있어요.",
+            ),
+        ],
+    },
     "export": {
         "emoji": "📤",
         "title": "vib export",
@@ -780,7 +839,16 @@ GROUPS = [
     ("✏️ AI 수정 요청", ["patch", "anchor", "scan"]),
     (
         "🗂️ 파일 & 설정",
-        ["protect", "transfer", "ask", "config", "export", "watch", "completion"],
+        [
+            "protect",
+            "transfer",
+            "ask",
+            "config",
+            "secrets",
+            "export",
+            "watch",
+            "completion",
+        ],
     ),
     ("🤖 MCP (AI 자동 연동)", ["mcp"]),
     ("📋 AI 개발 규칙", ["rules"]),
@@ -877,11 +945,11 @@ def _render_overview() -> None:
         tbl.add_column(style="dim white", width=10)
         tbl.add_column(style="white")
         for k in keys:
-            m = MANUAL.get(k, {})
+            m = MANUAL[k]
             tbl.add_row(
                 k,
-                m.get("emoji", ""),
-                m.get("one_line", ""),
+                m["emoji"],
+                m["one_line"],
             )
         console.print(tbl)
         console.print()
@@ -913,10 +981,8 @@ def _save_markdown() -> str:
     for group_name, keys in GROUPS:
         lines.append(f"### {group_name}\n")
         for k in keys:
-            m = MANUAL.get(k, {})
-            lines.append(
-                f"- [{m.get('emoji', '')} `vib {k}`](#{k}) — {m.get('one_line', '')}\n"
-            )
+            m = MANUAL[k]
+            lines.append(f"- [{m['emoji']} `vib {k}`](#{k}) — {m['one_line']}\n")
         lines.append("\n")
 
     lines.append("---\n\n")
@@ -924,22 +990,22 @@ def _save_markdown() -> str:
     for group_name, keys in GROUPS:
         lines.append(f"## {group_name}\n\n")
         for k in keys:
-            m = MANUAL.get(k, {})
-            emoji = m.get("emoji", "")
-            lines.append(f"### {emoji} `{m.get('title', k)}`\n\n")
-            lines.append(f"> {m.get('one_line', '')}\n\n")
-            lines.append(f"**💡 이게 뭐야?**\n\n{m.get('what', '')}\n\n")
-            if m.get("when"):
+            m = MANUAL[k]
+            emoji = m["emoji"]
+            lines.append(f"### {emoji} `{m['title']}`\n\n")
+            lines.append(f"> {m['one_line']}\n\n")
+            lines.append(f"**💡 이게 뭐야?**\n\n{m['what']}\n\n")
+            if m["when"]:
                 lines.append("**🕐 언제 써?**\n\n")
                 for w in m["when"]:
                     lines.append(f"- {w}\n")
                 lines.append("\n")
-            if m.get("examples"):
+            if m["examples"]:
                 lines.append("**✏️ 이렇게 쳐봐**\n\n```\n")
                 for cmd, desc in m["examples"]:
                     lines.append(f"{cmd}   # {desc}\n")
                 lines.append("```\n\n")
-            if m.get("options"):
+            if m["options"]:
                 lines.append("**⚙️ 옵션 설명**\n\n")
                 lines.append("| 옵션 | 설명 |\n|------|------|\n")
                 for opt, desc in m["options"]:

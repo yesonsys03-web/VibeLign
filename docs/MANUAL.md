@@ -91,7 +91,8 @@ Use `vib init` after modifying VibeLign source code or when you need to reinstal
 
 ## `vib start`
 
-프로젝트에 VibeLign을 처음 적용하거나, 기존 프로젝트에서 처음 사용할 때 실행합니다.
+프로젝트에서 VibeLign을 처음 쓸 때 가장 먼저 실행하는 명령어예요.
+쉽게 말하면 "AI한테 코딩 맡기기 전에 안전장치부터 켜는 준비 버튼"이에요.
 
 ```bash
 vib start
@@ -99,14 +100,15 @@ vib start
 
 What it does:
 
-1. `AGENTS.md`, `AI_DEV_SYSTEM_SINGLE_FILE.md` 등 필요한 파일을 자동 생성 (이미 있으면 유지)
-2. `.vibelign/` 디렉토리, `config.yaml`, `state.json`, `project_map.json` 생성
-3. `.gitignore`에 VibeLign 항목 추가
-4. AI 도구 설정 파일 생성 및 MCP 등록 준비 (`Claude Code`, `Cursor` 등)
-5. 프로젝트 상태 점수 확인 및 다음 할 일 안내
+1. `AGENTS.md`, `AI_DEV_SYSTEM_SINGLE_FILE.md` 같은 필요한 파일을 자동으로 만들어줘요 (이미 있으면 최대한 유지해요)
+2. `.vibelign/` 폴더와 `config.yaml`, `state.json`, `project_map.json`을 준비해줘요
+3. `.gitignore`에 VibeLign 관련 항목을 넣어 로컬 파일이 Git에 덜 섞이게 해줘요
+4. AI 도구 설정 파일도 준비해줘요 (`Claude Code`, `Cursor` 등)
+5. Git 저장소라면 커밋 전에 비밀정보를 검사하는 보호도 자동으로 연결해줘요 (`vib secrets --staged`)
+6. 마지막에는 지금 프로젝트가 얼마나 준비됐는지 점검해서 다음에 뭘 하면 되는지도 알려줘요
 
-Use `vib start` for any project — new or existing — before starting AI-assisted coding.
-Note: `vib start` handles all project setup independently. `vib init` is only for reinstalling VibeLign itself.
+초보자 기준으로는 새 프로젝트든 기존 프로젝트든, AI 작업 시작 전에 `vib start` 한 번만 하면 된다고 생각하면 쉬워요.
+참고로 `vib start`는 프로젝트 준비용이고, `vib init`은 VibeLign 자체를 다시 설치할 때 쓰는 명령어예요.
 When `Cursor` is included, `vib start` also creates or updates `.cursor/mcp.json` and appends the `vibelign` MCP server without overwriting other configured servers.
 
 Typical Cursor layout after setup:
@@ -224,6 +226,29 @@ Notes:
 - When a Gemini API key is available, VibeLign tries to fetch the current official model list from Google AI Studio
 - If the live model list cannot be fetched, VibeLign falls back to a built-in recommended Gemini model list
 - Press Enter or choose `0` to keep the current Gemini model setting unchanged
+
+---
+
+## `vib secrets`
+
+실수로 API 키나 비밀번호 같은 비밀정보를 Git에 올리기 전에 막아주는 명령어예요.
+쉽게 말하면 "커밋 직전 마지막 안전검사"예요.
+
+```bash
+vib secrets --staged
+vib secrets --install-hook
+vib secrets --uninstall-hook
+```
+
+What it does:
+
+- 커밋하기 전에 `git add` 해둔 내용만 검사해요
+- API 키, 토큰, 개인키, `.env` 같은 비밀정보가 있는지 찾아봐요
+- Git 저장소라면 보통 `vib start`가 이 검사를 자동으로 연결해줘요
+- 이미 다른 `pre-commit` 훅이 있으면 마음대로 덮어쓰지 않아요
+
+커밋이 막히면 "중요한 정보가 들어있을 수 있으니 다시 봐달라"는 뜻이에요.
+만약 진짜 비밀정보가 아닌데도 잘못 잡혔다면, 그 줄 끝에 `vibelign: allow-secret`를 붙여서 예외 처리할 수 있어요.
 
 ---
 
