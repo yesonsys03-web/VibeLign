@@ -6,10 +6,28 @@ build-backend = "setuptools.build_meta"
 name = "vibelign"
 version = "1.6.0"
 description = "AI coding safety system for vibecoders"
-readme = "README.md"
+readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.10"
 authors = [{name = "yesonsys"}]
+license = "MIT"
+keywords = ["vibelign", "ai", "cli", "mcp", "developer-tools", "code-safety", "vibe-coding"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Quality Assurance",
+]
 dependencies = ["anthropic>=0.40.0", "rich>=13.9.0", "mcp>=1.0.0"]
+
+[project.urls]
+Homepage = "https://yesonsys03-web.github.io/VibeLign/"
+Repository = "https://github.com/yesonsys03-web/VibeLign"
+Documentation = "https://yesonsys03-web.github.io/VibeLign/"
+Issues = "https://github.com/yesonsys03-web/VibeLign/issues"
+Releases = "https://github.com/yesonsys03-web/VibeLign/releases"
 
 [project.scripts]
 vibelign = "vibelign.cli:main"
