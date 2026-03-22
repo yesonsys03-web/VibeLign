@@ -1,0 +1,7 @@
+title: VibeLign
+description: AI coding safety CLI for vibe coding workflows
+url: https://yesonsys03-web.github.io
+baseurl: /VibeLign
+theme: minima
+plugins:
+  - jekyll-sitemap
