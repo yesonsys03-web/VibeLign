@@ -240,12 +240,16 @@ vib secrets --install-hook
 vib secrets --uninstall-hook
 ```
 
+- `vib secrets --staged` = 지금 한 번 직접 검사
+- `vib secrets --install-hook` = 앞으로 커밋할 때마다 자동 검사
+- `vib secrets --uninstall-hook` = 그 자동 검사 끄기
+
 What it does:
 
-- 커밋하기 전에 `git add` 해둔 내용만 검사해요
+- 커밋하기 전에 지금 올리려는 내용만 검사해요
 - API 키, 토큰, 개인키, `.env` 같은 비밀정보가 있는지 찾아봐요
 - Git 저장소라면 보통 `vib start`가 이 검사를 자동으로 연결해줘요
-- 이미 다른 `pre-commit` 훅이 있으면 마음대로 덮어쓰지 않아요
+- 이미 다른 자동 실행 설정이 있으면 마음대로 덮어쓰지 않아요
 
 커밋이 막히면 "중요한 정보가 들어있을 수 있으니 다시 봐달라"는 뜻이에요.
 만약 진짜 비밀정보가 아닌데도 잘못 잡혔다면, 그 줄 끝에 `vibelign: allow-secret`를 붙여서 예외 처리할 수 있어요.

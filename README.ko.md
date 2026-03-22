@@ -112,7 +112,7 @@ vib start
 | `vib protect 파일명.py` | 중요한 파일 잠금 (AI가 못 건드림) |
 | `vib protect --list` | 잠근 파일 목록 보기 |
 | `vib protect --remove 파일명.py` | 잠금 해제 |
-| `vib secrets --staged` | 커밋 전에 staged 된 API 키, 토큰, `.env` 파일 차단 |
+| `vib secrets --staged` | 지금 커밋할 내용에서 API 키, 토큰, `.env` 파일 차단 |
 
 ### 설정 & 내보내기
 
@@ -160,7 +160,7 @@ vib undo
 ```
 
 이제 `vib start`를 실행하면 Git 저장소에서는 비밀정보 커밋 보호도 자동으로 켜져요.
-커밋 전에 staged 된 변경사항에서 API 키, 토큰, 개인키, `.env` 같은 비밀정보 파일을 검사해서 실수 업로드를 막아줘요.
+커밋 전에 지금 올리려는 내용에서 API 키, 토큰, 개인키, `.env` 같은 비밀정보 파일을 검사해서 실수 업로드를 막아줘요.
 
 ```bash
 # 필요하면 수동 검사도 가능
