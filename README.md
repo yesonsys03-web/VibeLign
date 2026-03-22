@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="VibeLign Banner" width="100%"/>
+  <img src="https://raw.githubusercontent.com/yesonsys03-web/VibeLign/main/assets/banner.svg" alt="VibeLign Banner" width="100%"/>
 </p>
 
 <p align="center">
@@ -17,6 +17,14 @@
 
 # 🎮 VibeLign — Safety Guard for AI Coding
 
+VibeLign (`vibelign`) is an AI coding safety CLI for vibe coding workflows.
+It helps developers and non-developers protect project structure, save checkpoints, undo bad AI edits, manage anchors, and block secret leaks before commit.
+
+Documentation: `https://yesonsys03-web.github.io/VibeLign/`  
+Repository: `https://github.com/yesonsys03-web/VibeLign`  
+Issues: `https://github.com/yesonsys03-web/VibeLign/issues`  
+Releases: `https://github.com/yesonsys03-web/VibeLign/releases`
+
 > ### Sound familiar?
 >
 > - You asked AI to add a small feature — it **rewrote the entire file**
@@ -31,7 +39,7 @@ pip install vibelign
 vib start
 ```
 
-![Quick Start](./assets/quickstart_en.jpeg)
+![Quick Start](https://raw.githubusercontent.com/yesonsys03-web/VibeLign/main/assets/quickstart_en.jpeg)
 
 ---
 

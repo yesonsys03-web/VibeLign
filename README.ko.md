@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="VibeLign Banner" width="100%"/>
+  <img src="https://raw.githubusercontent.com/yesonsys03-web/VibeLign/main/assets/banner.svg" alt="VibeLign Banner" width="100%"/>
 </p>
 
 <p align="center">
@@ -17,6 +17,14 @@
 
 # 🎮 VibeLign — AI 코딩의 안전장치
 
+VibeLign(`vibelign`)은 바이브 코딩 작업을 더 안전하게 해주는 AI 코딩 안전 CLI예요.
+프로젝트 구조 보호, 체크포인트 저장, 되돌리기, 앵커 관리, 커밋 전 비밀정보 차단을 도와줘요.
+
+문서: `https://yesonsys03-web.github.io/VibeLign/`  
+저장소: `https://github.com/yesonsys03-web/VibeLign`  
+이슈: `https://github.com/yesonsys03-web/VibeLign/issues`  
+릴리즈: `https://github.com/yesonsys03-web/VibeLign/releases`
+
 > ### 이런 적 있나요?
 >
 > - AI한테 간단한 기능을 추가해달라고 했더니 **파일 전체를 다시 썼어요**
@@ -31,7 +39,7 @@ pip install vibelign
 vib start
 ```
 
-![퀵 스타트](./assets/quickstart_kr.jpeg)
+![퀵 스타트](https://raw.githubusercontent.com/yesonsys03-web/VibeLign/main/assets/quickstart_kr.jpeg)
 
 ---
 
