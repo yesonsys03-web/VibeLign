@@ -40,8 +40,18 @@ Releases: `https://github.com/yesonsys03-web/VibeLign/releases`
 >
 > **That's why we made this!**
 
+**Mac / Linux**
 ```bash
 pip install vibelign
+vib start
+```
+
+**Windows** (PowerShell)
+```powershell
+# Step 1: install uv — one-time setup, auto-configures PATH
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+# Close and reopen PowerShell, then:
+uv tool install vibelign
 vib start
 ```
 
@@ -77,6 +87,7 @@ Looks good       →  vib checkpoint "done"             # save again
 
 ## 🚀 Start in 3 Steps
 
+**Mac / Linux**
 ```bash
 # 1. Install
 pip install vibelign
@@ -85,6 +96,21 @@ pip install vibelign
 cd my-project
 
 # 3. Start!
+vib start
+```
+
+**Windows** (PowerShell)
+```powershell
+# 1. Install uv — one-time setup (auto-configures PATH, no warnings)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Close and reopen PowerShell, then:
+
+# 2. Install vibelign
+uv tool install vibelign
+
+# 3. Go to your project folder and start!
+cd my-project
 vib start
 ```
 
@@ -201,6 +227,25 @@ pip install vibelign
 ```
 
 After installation, both `vib` and `vibelign` commands are available.
+
+### Windows — if `vib` is not recognized after pip install
+
+When you install with pip on Windows, `vib.exe` is placed in the Python `Scripts` folder which may not be in PATH.
+The pip warning message shows the exact path you need to add:
+
+```
+WARNING: The scripts vib.exe ... are installed in 'C:\Users\...\Scripts' which is not on PATH.
+```
+
+**To fix manually:**
+1. Press `Win + R` → type `sysdm.cpl` → Enter
+2. **Advanced** tab → **Environment Variables**
+3. Under **System variables**, find `Path` → click **Edit**
+4. Click **New** and paste the `Scripts` path shown in the pip warning
+   - Example: `C:\Users\YourName\AppData\Local\Programs\Python\Python312\Scripts\`
+5. Click OK → fully close and reopen PowerShell
+
+> **Tip:** Use `uv tool install vibelign` to skip this entirely — uv handles PATH automatically.
 
 ---
 

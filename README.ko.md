@@ -40,8 +40,18 @@ VibeLign(`vibelign`)은 바이브 코딩 작업을 더 안전하게 해주는 AI
 >
 > **이거를 위해 만들었어요!**
 
+**Mac / Linux**
 ```bash
 pip install vibelign
+vib start
+```
+
+**Windows** (PowerShell)
+```powershell
+# 1단계: uv 설치 — 최초 1회, PATH 자동 설정, 경고 없음
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+# PowerShell 껐다 켜고:
+uv tool install vibelign
 vib start
 ```
 
@@ -77,6 +87,7 @@ AI가 망쳤어       →  vib undo                      # 되돌리기
 
 ## 🚀 3단계로 시작하기
 
+**Mac / Linux**
 ```bash
 # 1. 설치
 pip install vibelign
@@ -85,6 +96,21 @@ pip install vibelign
 cd my-project
 
 # 3. 시작!
+vib start
+```
+
+**Windows** (PowerShell)
+```powershell
+# 1. uv 설치 — 최초 1회 (PATH 자동 설정, 경고 없음)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# PowerShell 껐다 다시 켜고:
+
+# 2. vibelign 설치
+uv tool install vibelign
+
+# 3. 프로젝트 폴더로 이동 후 시작!
+cd my-project
 vib start
 ```
 
@@ -201,6 +227,25 @@ pip install vibelign
 ```
 
 설치하면 `vib`랑 `vibelign` 둘 다 쓸 수 있어요.
+
+### Windows — pip으로 설치 후 `vib`가 안 될 때
+
+pip으로 설치하면 `vib.exe`가 Python `Scripts` 폴더에 들어가는데, 이 폴더가 PATH에 없으면 `vib` 명령어를 인식 못해요.
+설치할 때 뜨는 경고 메시지에 추가해야 할 경로가 정확히 나와 있어요:
+
+```
+WARNING: The scripts vib.exe ... are installed in 'C:\Users\...\Scripts' which is not on PATH.
+```
+
+**수동으로 PATH 설정하는 방법:**
+1. `Win + R` → `sysdm.cpl` 입력 → 엔터
+2. **고급** 탭 → **환경 변수**
+3. **시스템 변수**의 `Path` → **편집**
+4. **새로 만들기** 클릭 후 경고 메시지에 나온 `Scripts` 경로 붙여넣기
+   - 예: `C:\Users\사용자이름\AppData\Local\Programs\Python\Python312\Scripts\`
+5. 확인 → PowerShell 완전히 껐다 다시 켜기
+
+> **팁:** `uv tool install vibelign`을 쓰면 이 과정이 필요 없어요 — PATH 자동 설정.
 
 ---
 
