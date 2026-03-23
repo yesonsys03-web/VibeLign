@@ -7,6 +7,12 @@
 </p>
 
 <p align="center">
+  <video src="https://github.com/user-attachments/assets/9ec83ef6-6f56-4584-ab89-59a284099580"
+         autoplay loop muted playsinline width="100%">
+  </video>
+</p>
+
+<p align="center">
   <a href="https://pypi.org/project/vibelign/"><img src="https://img.shields.io/pypi/v/vibelign?color=7c3aed&label=vibelign" alt="PyPI"/></a>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python"/>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"/>
