@@ -163,6 +163,50 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["request"],
             },
         ),
+        # ── 핸드오프 ─────────────────────────────────────────────────────────
+        types.Tool(
+            name="handoff_create",
+            description=(
+                "현재 AI 세션 요약을 받아 PROJECT_CONTEXT.md 상단에 Session Handoff 블록을 생성합니다. "
+                "토큰 한도 도달 또는 AI 툴 전환 직전에 호출하세요. "
+                "새 AI가 이 블록을 읽으면 즉시 작업을 이어갈 수 있습니다."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_summary": {
+                        "type": "string",
+                        "description": "오늘 한 작업 요약 (한두 줄 bullet)",
+                    },
+                    "first_next_action": {
+                        "type": "string",
+                        "description": "다음 AI가 가장 먼저 해야 할 일 (한 줄)",
+                    },
+                    "completed_work": {
+                        "type": "string",
+                        "description": "완료된 작업 요약 (선택)",
+                    },
+                    "unfinished_work": {
+                        "type": "string",
+                        "description": "미완료 작업 요약 (선택)",
+                    },
+                    "decision_context": {
+                        "type": "object",
+                        "description": "방향 전환 컨텍스트 (선택)",
+                        "properties": {
+                            "tried": {"type": "string"},
+                            "blocked_by": {"type": "string"},
+                            "switched_to": {"type": "string"},
+                        },
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "추가 메모나 블로커 (선택)",
+                    },
+                },
+                "required": ["session_summary", "first_next_action"],
+            },
+        ),
         # ── 기타 ─────────────────────────────────────────────────────────────
         types.Tool(
             name="anchor_run",
@@ -263,13 +307,88 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextC
             text = f"오류: {get_last_restore_error()}"
         return [types.TextContent(type="text", text=text)]
 
+    # ── handoff_create ─────────────────────────────────────────────────────
+    if name == "handoff_create":
+        from vibelign.commands.vib_transfer_cmd import (
+            _build_context_content,
+            _get_changed_files,
+            _get_recent_checkpoints,
+        )
+        from datetime import datetime as _dt
+
+        session_summary = str(arguments.get("session_summary", ""))
+        first_next_action = str(arguments.get("first_next_action", ""))
+        completed_work = arguments.get("completed_work")
+        unfinished_work = arguments.get("unfinished_work")
+        raw_dc = arguments.get("decision_context")
+        notes = arguments.get("notes")
+
+        if not session_summary or not first_next_action:
+            return [types.TextContent(
+                type="text",
+                text="오류: session_summary와 first_next_action은 필수 항목입니다.",
+            )]
+
+        # 체크포인트 참조
+        checkpoints = _get_recent_checkpoints(root, n=1)
+        latest_cp = checkpoints[0]["message"] if checkpoints else None
+
+        # summary에 notes 병합
+        full_summary = session_summary
+        if notes:
+            full_summary = f"{session_summary} | {notes}"
+
+        decision_context = None
+        if isinstance(raw_dc, dict):
+            decision_context = {
+                "tried": str(raw_dc.get("tried", "") or "(not provided)"),
+                "blocked_by": str(raw_dc.get("blocked_by", "") or "(not provided)"),
+                "switched_to": str(raw_dc.get("switched_to", "") or "(not provided)"),
+            }
+
+        handoff_data = {
+            "generated_at": _dt.now().strftime("%Y-%m-%d %H:%M"),
+            "source": "mcp_provided",
+            "quality": "ai-drafted",
+            "session_summary": full_summary,
+            "changed_files": _get_changed_files(root),
+            "completed_work": str(completed_work) if completed_work else None,
+            "unfinished_work": str(unfinished_work) if unfinished_work else None,
+            "first_next_action": first_next_action,
+            "decision_context": decision_context,
+            "latest_checkpoint": latest_cp,
+        }
+
+        from vibelign.commands.vib_transfer_cmd import _inject_agents_handoff_instruction
+
+        content = _build_context_content(root, handoff_data=handoff_data)
+        ctx_path = root / "PROJECT_CONTEXT.md"
+        ctx_path.write_text(content, encoding="utf-8")
+        _inject_agents_handoff_instruction(root)
+        return [types.TextContent(
+            type="text",
+            text=(
+                "✓ Session Handoff 블록 생성 완료\n"
+                f"  파일: {ctx_path}\n"
+                "  새 AI에게 PROJECT_CONTEXT.md 상단의 Session Handoff 블록을 읽혀주세요."
+            ),
+        )]
+
     # ── project_context_get ────────────────────────────────────────────────
     if name == "project_context_get":
-        from vibelign.commands.vib_transfer_cmd import _build_context_content
+        from vibelign.commands.vib_transfer_cmd import _build_context_content, _TRANSFER_MARKER
 
         compact = bool(arguments.get("compact", False))
         full = bool(arguments.get("full", False))
-        content = _build_context_content(root, compact=compact, full=full)
+        ctx_path = root / "PROJECT_CONTEXT.md"
+
+        # 파일이 있으면 그대로 읽어서 반환 (handoff 블록 보존)
+        # compact/full 옵션은 파일이 없을 때만 재생성에 사용됨
+        if ctx_path.exists() and not compact and not full:
+            content = ctx_path.read_text(encoding="utf-8")
+        else:
+            content = _build_context_content(root, compact=compact, full=full)
+
         return [types.TextContent(type="text", text=content)]
 
     # ── doctor_run ─────────────────────────────────────────────────────────

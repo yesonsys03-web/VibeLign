@@ -478,14 +478,23 @@ def build_parser():
         ),
         epilog=(
             "이렇게 쓰세요:\n"
-            "  vib transfer              기본 생성\n"
-            "  vib transfer --compact    경량 버전 (토큰 절약)\n"
-            "  vib transfer --full       핵심 파일 전체 포함\n"
-            "  vib transfer --out ctx.md 파일명 지정"
+            "  vib transfer                       기본 생성\n"
+            "  vib transfer --compact             경량 버전 (토큰 절약)\n"
+            "  vib transfer --full                핵심 파일 전체 포함\n"
+            "  vib transfer --handoff             AI 전환용 Session Handoff 블록 포함\n"
+            "  vib transfer --handoff --print     Handoff 요약을 콘솔에도 출력\n"
+            "  vib transfer --handoff --no-prompt 프롬프트 없이 자동 생성\n"
+            "  vib transfer --out ctx.md          파일명 지정\n"
+            "\n"
+            "주의: --handoff와 --compact/--full은 함께 쓸 수 없습니다."
         ),
     )
     p.add_argument("--compact", action="store_true", help="경량 버전 (토큰 최소화)")
     p.add_argument("--full", action="store_true", help="핵심 파일 전체 포함")
+    p.add_argument("--handoff", action="store_true", help="AI 전환용 Session Handoff 블록 포함")
+    p.add_argument("--print", dest="print_mode", action="store_true", help="Handoff 요약을 콘솔에 출력 (--handoff 전용)")
+    p.add_argument("--no-prompt", dest="no_prompt", action="store_true", help="프롬프트 없이 자동 생성 (--handoff 전용)")
+    p.add_argument("--dry-run", dest="dry_run", action="store_true", help="파일 저장 없이 handoff 내용 미리 보기")
     p.add_argument("--out", default=None, help="출력 파일명 (기본: PROJECT_CONTEXT.md)")
     p.set_defaults(func=run_transfer)
 

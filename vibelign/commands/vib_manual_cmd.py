@@ -14,7 +14,7 @@ from rich import box
 console = Console()
 
 
-class ManualEntry(TypedDict):
+class ManualEntry(TypedDict, total=False):
     emoji: str
     title: str
     one_line: str
@@ -22,6 +22,7 @@ class ManualEntry(TypedDict):
     when: list[str]
     examples: list[tuple[str, str]]
     options: list[tuple[str, str]]
+    notes: list[str]  # 알아두면 좋은 동작 설명 (선택)
 
 
 # ──────────────────────────────────────────────
@@ -539,36 +540,94 @@ MANUAL: dict[str, ManualEntry] = {
     "transfer": {
         "emoji": "🔄",
         "title": "vib transfer",
-        "one_line": "AI 툴 전환 시 맥락 파일을 만들어요",
+        "one_line": "AI 툴을 바꿀 때 맥락 파일을 만들어요",
         "what": (
-            "Claude Code → Cursor → Windsurf 등 AI 툴을 바꿀 때\n"
-            "프로젝트 맥락을 즉시 전달해줘요.\n"
-            "PROJECT_CONTEXT.md 파일 하나만 있으면 어떤 AI든 바로 이어서 작업 가능해요."
+            "AI한테 코딩을 시키다 보면 대화창이 꽉 차거나\n"
+            "다른 AI 툴로 바꿔야 할 때가 있어요.\n"
+            "그럴 때 새 AI한테 '지금까지 뭘 했는지, 다음에 뭘 해야 하는지'\n"
+            "한 번에 알려주는 파일을 만들어줘요.\n"
+            "\n"
+            "만들어지는 파일: PROJECT_CONTEXT.md\n"
+            "\n"
+            "--handoff 옵션을 쓰면 맨 위에 'Session Handoff' 블록이 생겨요.\n"
+            "새 AI는 이 블록만 읽어도 바로 이어서 작업할 수 있어요."
         ),
         "when": [
-            "AI 툴을 바꾸기 직전에",
+            "AI 대화창이 꽉 차서 새 채팅을 열어야 할 때",
+            "Claude → Cursor 같이 AI 툴을 바꾸기 직전에",
             "다른 사람에게 프로젝트를 넘길 때",
-            "새 AI 채팅에 프로젝트 맥락을 전달하고 싶을 때",
+            "새 AI 채팅에 프로젝트 설명을 자동으로 전달하고 싶을 때",
         ],
         "examples": [
-            ("vib transfer", "기본 생성 (PROJECT_CONTEXT.md)"),
-            ("vib transfer --compact", "경량 버전 (토큰 절약)"),
-            ("vib transfer --full", "핵심 파일 전체 포함"),
-            ("vib transfer --out ctx.md", "파일명 지정"),
+            ("vib transfer", "기본 생성 (PROJECT_CONTEXT.md 만들기)"),
+            ("vib transfer --compact", "가벼운 버전 (토큰 절약)"),
+            ("vib transfer --full", "파일 트리를 더 깊이 포함"),
+            ("vib transfer --handoff", "AI 전환용 인수인계 블록 포함"),
+            ("vib transfer --handoff --print", "인수인계 내용을 화면에도 출력"),
+            ("vib transfer --handoff --no-prompt", "질문 없이 자동으로 만들기"),
+            ("vib transfer --handoff --dry-run", "저장 없이 내용 미리 보기"),
+            ("vib transfer --out ctx.md", "파일 이름 바꾸기"),
         ],
         "options": [
             (
                 "--compact",
-                "토큰을 최소화한 경량 버전을 만들어요.\n무료 플랜에서 쓸 때 좋아요.",
+                "파일 크기를 줄여서 토큰을 아껴요.\n"
+                "파일 트리를 얕게만 보여줘요 (깊이 2단계).\n"
+                "무료 플랜이나 토큰이 부족할 때 좋아요.",
             ),
             (
                 "--full",
-                "핵심 파일을 더 깊이 포함해요.\n더 자세한 맥락이 필요할 때 써요.",
+                "파일 트리를 더 깊이까지 보여줘요 (깊이 4단계).\n"
+                "프로젝트가 복잡하거나 AI한테 더 많은 구조를 알려주고 싶을 때 써요.",
+            ),
+            (
+                "--handoff",
+                "AI를 바꾸거나 새 채팅을 열기 직전에 쓰는 옵션이에요.\n"
+                "파일 맨 위에 'Session Handoff' 블록을 넣어줘요.\n"
+                "새 AI한테 '오늘 뭘 했는지, 다음에 뭘 해야 하는지' 한 줄로 알려줄 수 있어요.\n"
+                "⚠️ --compact, --full 과 같이 쓸 수 없어요.",
+            ),
+            (
+                "--print",
+                "--handoff 와 함께 써요.\n"
+                "인수인계 내용을 파일에 저장하면서 화면에도 바로 출력해줘요.\n"
+                "새 AI 채팅창에 복붙하기 편해요.",
+            ),
+            (
+                "--no-prompt",
+                "--handoff 와 함께 써요.\n"
+                "보통은 '다음 AI가 뭘 해야 해?' 하고 물어보는데\n"
+                "이 옵션을 쓰면 아무것도 안 물어보고 자동으로 만들어줘요.\n"
+                "모르는 내용은 '(not provided)' 라고 표시돼요.",
             ),
             (
                 "--out 파일명",
-                "출력 파일명을 지정해요.\n기본값은 PROJECT_CONTEXT.md예요.",
+                "저장할 파일 이름을 바꿀 수 있어요.\n"
+                "기본값은 PROJECT_CONTEXT.md예요.\n"
+                "예: --out handoff.md",
             ),
+            (
+                "--dry-run",
+                "파일을 실제로 저장하지 않고 '이런 내용이 들어갈 거예요'를 미리 보여줘요.\n"
+                "마치 게임에서 아이템 설명 읽고 살지 말지 결정하는 것처럼,\n"
+                "handoff 내용을 확인하고 나서 진짜로 실행할 수 있어요.\n"
+                "--handoff 와 함께 쓰는 게 가장 유용해요.",
+            ),
+            (
+                "--help",
+                "transfer 명령어의 옵션 목록을 보여줘요.\n"
+                "뭘 써야 할지 모를 때 먼저 확인해보세요.",
+            ),
+        ],
+        "notes": [
+            "Cursor처럼 MCP를 지원하는 AI 툴이 컨텍스트를 요청하면,\n"
+            "     VibeLign이 파일을 새로 만들지 않고 저장된 PROJECT_CONTEXT.md를 그대로 전달해요.\n"
+            "     그래서 handoff 블록이 날아가지 않아요.",
+            "--handoff 실행 후 vib checkpoint를 돌리면 handoff 블록이 사라져요.\n"
+            "     그럴 때 경고가 뜨니까, AI 전환 직전에 --handoff를 다시 실행하면 돼요.",
+            "--handoff를 실행하면 AGENTS.md에 규칙이 자동으로 추가돼요:\n"
+            "     '새 채팅 열면 PROJECT_CONTEXT.md 먼저 읽어라'\n"
+            "     Cursor, Antigravity, OpenCode 등 AGENTS.md를 읽는 AI 툴이 자동으로 인지해요.",
         ],
     },
     "completion": {
@@ -905,7 +964,7 @@ def _render_command(key: str) -> None:
         console.print(tbl)
 
     # 옵션 설명
-    if m["options"]:
+    if m.get("options"):
         console.print()
         console.print("  [bold blue]⚙️  옵션 설명[/bold blue]")
         tbl = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
@@ -914,6 +973,13 @@ def _render_command(key: str) -> None:
         for opt, desc in m["options"]:
             tbl.add_row(opt, desc)
         console.print(tbl)
+
+    # 알아두면 좋은 것
+    if m.get("notes"):
+        console.print()
+        console.print("  [bold yellow]📝 알아두면 좋은 것[/bold yellow]")
+        for note in m["notes"]:
+            console.print(f"     [dim]•[/dim]  {note}")
 
     console.print()
 

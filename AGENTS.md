@@ -178,3 +178,13 @@ User: "바이브라인 언두해줘"
 
 See `AI_DEV_SYSTEM_SINGLE_FILE.md` for the complete ruleset.
 
+<!-- VibeLign Handoff Instruction -->
+## AI 전환 / Session Handoff
+
+새 채팅을 열거나 다른 AI 툴로 이동했을 때:
+
+1. `PROJECT_CONTEXT.md` 파일을 가장 먼저 읽으세요.
+2. 파일 맨 위의 `## Session Handoff` 블록을 확인하세요.
+3. `Next action` 항목에 적힌 작업부터 시작하세요.
+
+> 이 지시는 `vib transfer --handoff` 실행 시 자동으로 추가됩니다.

@@ -139,7 +139,8 @@ vib start
 | `vib bench` | 앵커가 얼마나 효과적인지 테스트 |
 | `vib manual` | 상세 사용 설명서 보기 |
 | `vib rules` | AI 개발 규칙 전체 보기 |
-| `vib transfer` | AI 도구 바꿀 때 프로젝트 정보 이어받기 |
+| `vib transfer` | AI 도구 전환용 `PROJECT_CONTEXT.md` 생성 |
+| `vib transfer --handoff` | Session Handoff 블록 추가 — 새 AI가 바로 이어서 작업 가능 |
 | `vib completion` | 탭 누르면 자동완성되게 설정 |
 | `vib install` | 설치 방법을 단계별로 알려줌 |
 
@@ -165,6 +166,10 @@ vib checkpoint "로그인 기능 완성!"
 
 # 실수했으면
 vib undo
+
+# 토큰 한도 도달 또는 AI 툴 전환 전에
+vib transfer --handoff    # Session Handoff 블록 생성
+# 새 AI에게: "PROJECT_CONTEXT.md 상단의 Session Handoff 블록 먼저 읽어줘"
 ```
 
 이제 `vib start`를 실행하면 Git 저장소에서는 비밀정보 커밋 보호도 자동으로 켜져요.
