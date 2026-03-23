@@ -99,6 +99,8 @@ def run_install_guide(args) -> None:
     clack_info('"스크립트 경고 뜸"   →  --no-warn-script-location 옵션 추가')
     clack_info('"uv tool install 후 vib 안 됨"')
     clack_info("                     →  uv tool update-shell  실행 후 터미널 재시작")
+    clack_info("                        bash에서 안 되면: bash 안에서 uv tool update-shell 재실행")
+    clack_info("                        또는: echo 'export PATH=\"$HOME/.local/bin:$PATH\"' >> ~/.bashrc")
     clack_info("uv 설치 실패         →  https://docs.astral.sh/uv/getting-started/installation/")
 
     cli_print("")

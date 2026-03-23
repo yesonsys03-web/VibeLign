@@ -226,6 +226,10 @@ uv tool install vibelign
 > uv tool update-shell
 > ```
 > Then close and reopen your terminal. `vib` will work after that.
+> If you use **bash**, run `uv tool update-shell` from inside bash, or:
+> ```bash
+> echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+> ```
 
 ### Option 2: pip
 ```bash
