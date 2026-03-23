@@ -97,6 +97,8 @@ def run_install_guide(args) -> None:
     clack_warn("     Scripts 경로는 pip 설치 시 뜨는 WARNING 메시지에 정확히 나와 있어요!")
     clack_info("  5. 터미널을 완전히 껐다 다시 켜기")
     clack_info('"스크립트 경고 뜸"   →  --no-warn-script-location 옵션 추가')
+    clack_info('"uv tool install 후 vib 안 됨"')
+    clack_info("                     →  uv tool update-shell  실행 후 터미널 재시작")
     clack_info("uv 설치 실패         →  https://docs.astral.sh/uv/getting-started/installation/")
 
     cli_print("")
