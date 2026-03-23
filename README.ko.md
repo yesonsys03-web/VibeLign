@@ -226,6 +226,10 @@ uv tool install vibelign
 > uv tool update-shell
 > ```
 > 그 다음 터미널 껐다 다시 켜면 `vib` 바로 사용 가능해요.
+> **bash 쉘**을 쓴다면 bash 안에서 `uv tool update-shell`을 실행하거나:
+> ```bash
+> echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+> ```
 
 ### 방법 2: pip
 ```bash
