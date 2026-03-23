@@ -580,6 +580,53 @@ All other commands continue to work.
 
 ---
 
+## `vib transfer`
+
+Generates `PROJECT_CONTEXT.md` — a single file that lets another AI tool immediately understand your project.
+
+```bash
+vib transfer              # generate PROJECT_CONTEXT.md
+vib transfer --compact    # smaller version (saves tokens)
+vib transfer --full       # includes deeper file tree
+```
+
+**Switching AI tools or hitting a token limit?**
+
+Use `--handoff` to add a short Session Handoff block at the top of `PROJECT_CONTEXT.md`.
+The new AI reads the handoff block first and continues work immediately.
+
+```bash
+vib transfer --handoff             # interactive: asks what the next AI should do first
+vib transfer --handoff --no-prompt # automatic: fills what it can from repo signals
+vib transfer --handoff --print     # also prints a short summary to the console
+```
+
+**`checkpoint` vs `transfer --handoff` — what's the difference?**
+
+| | `vib checkpoint` | `vib transfer --handoff` |
+|---|---|---|
+| Purpose | Save current state (restore point) | Pass context to next AI tool |
+| Output | Compressed snapshot in `.vibelign/` | Session Handoff block in `PROJECT_CONTEXT.md` |
+| Use when | Before AI edits anything | Before switching AI tools or hitting a token limit |
+| Undoable | Yes — `vib undo` restores it | No — it is a context file, not a save |
+
+**Flow when hitting a token limit:**
+
+```bash
+# Current session is about to run out of tokens
+vib transfer --handoff     # generates handoff (you enter one-line next action)
+
+# Open a new AI chat or switch tools
+# Tell the new AI: "Read PROJECT_CONTEXT.md first — especially the Session Handoff block at the top"
+# The new AI reads the handoff block and continues immediately
+```
+
+> **Note:** Running `vib checkpoint` after `vib transfer --handoff` will overwrite the handoff block,
+> because checkpoint regenerates `PROJECT_CONTEXT.md`. Run `vib transfer --handoff` right before
+> switching to a new AI session.
+
+---
+
 ## 4. Recommended project rules
 
 Best results come from these conventions:

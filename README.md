@@ -139,7 +139,8 @@ vib start
 | `vib bench` | Test how effective anchors are |
 | `vib manual` | Show detailed user guide |
 | `vib rules` | Show all AI development rules |
-| `vib transfer` | Keep project info when switching AI tools |
+| `vib transfer` | Generate `PROJECT_CONTEXT.md` for switching AI tools |
+| `vib transfer --handoff` | Add Session Handoff block so a new AI can continue immediately |
 | `vib completion` | Set up tab autocomplete |
 | `vib install` | Show step-by-step installation guide |
 
@@ -165,6 +166,10 @@ vib checkpoint "login feature done!"
 
 # If something broke
 vib undo
+
+# Hitting a token limit or switching AI tools?
+vib transfer --handoff    # generates a Session Handoff block
+# Then tell the new AI: "Read PROJECT_CONTEXT.md first"
 ```
 
 `vib start` now also enables Git secret protection automatically when your project uses Git.

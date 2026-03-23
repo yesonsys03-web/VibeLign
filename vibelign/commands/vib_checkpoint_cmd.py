@@ -47,6 +47,10 @@ def run_vib_checkpoint(args: Any) -> None:
     try:
         from vibelign.commands.vib_transfer_cmd import _build_context_content
         ctx_path = root / "PROJECT_CONTEXT.md"
+        # handoff 블록이 있으면 덮어쓰기 전에 경고
+        if ctx_path.exists() and "## Session Handoff" in ctx_path.read_text(encoding="utf-8"):
+            print("  ⚠️  handoff 블록이 있었는데 체크포인트로 덮어써집니다.")
+            print("     AI 전환 전에 다시 `vib transfer --handoff`를 실행하세요.")
         ctx_path.write_text(_build_context_content(root), encoding="utf-8")
         print("  📄 PROJECT_CONTEXT.md 자동 갱신 완료")
     except Exception:
