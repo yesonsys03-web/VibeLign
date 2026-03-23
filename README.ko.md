@@ -221,6 +221,12 @@ vib secrets --staged
 uv tool install vibelign
 ```
 
+> **설치 후 "is not on your PATH" 경고가 뜨면:**
+> ```bash
+> uv tool update-shell
+> ```
+> 그 다음 터미널 껐다 다시 켜면 `vib` 바로 사용 가능해요.
+
 ### 방법 2: pip
 ```bash
 pip install vibelign
