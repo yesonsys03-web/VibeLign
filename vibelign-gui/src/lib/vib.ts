@@ -1,0 +1,76 @@
+// === ANCHOR: VIB_BRIDGE_START ===
+/**
+ * Tauri IPC 브리지 — Rust의 run_vib / get_vib_path command 호출.
+ * 모든 vib CLI 접근은 이 모듈을 통한다.
+ */
+import { invoke } from "@tauri-apps/api/core";
+
+export interface VibResult {
+  ok: boolean;
+  stdout: string;
+  stderr: string;
+  exit_code: number;
+}
+
+/** vib 실행 파일 경로 반환. 없으면 null. */
+export async function getVibPath(): Promise<string | null> {
+  return invoke<string | null>("get_vib_path");
+}
+
+/** vib CLI 실행. */
+export async function runVib(
+  args: string[],
+  cwd?: string,
+  env?: Record<string, string>
+): Promise<VibResult> {
+  return invoke<VibResult>("run_vib", { args, cwd: cwd ?? null, env: env ?? null });
+}
+
+// ─── 편의 함수 ─────────────────────────────────────────────────────────────────
+
+export async function vibStart(cwd: string): Promise<VibResult> {
+  return runVib(["start"], cwd);
+}
+
+export async function doctorJson(cwd: string): Promise<unknown> {
+  const res = await runVib(["doctor", "--json"], cwd);
+  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  const parsed = JSON.parse(res.stdout);
+  // vib doctor --json 은 {"ok": true, "data": {...}} envelope 반환
+  return parsed.data ?? parsed;
+}
+
+export async function doctorPlanJson(cwd: string): Promise<unknown> {
+  const res = await runVib(["doctor", "--plan", "--json"], cwd);
+  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  return JSON.parse(res.stdout);
+}
+
+export async function doctorApply(cwd: string, apiKey?: string): Promise<unknown> {
+  const env = apiKey ? { ANTHROPIC_API_KEY: apiKey } : undefined;
+  const res = await runVib(["doctor", "--apply", "--force", "--json"], cwd, env);
+  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  return JSON.parse(res.stdout);
+}
+
+export async function checkpointCreate(cwd: string, message: string): Promise<unknown> {
+  const res = await runVib(["checkpoint", message, "--json"], cwd);
+  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  return JSON.parse(res.stdout);
+}
+
+export async function checkpointList(cwd: string): Promise<unknown> {
+  const res = await runVib(["checkpoint", "list", "--json"], cwd);
+  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  return JSON.parse(res.stdout);
+}
+
+export async function undoCheckpoint(cwd: string, checkpointId: string): Promise<unknown> {
+  const res = await runVib(
+    ["undo", "--checkpoint-id", checkpointId, "--force", "--json"],
+    cwd
+  );
+  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  return JSON.parse(res.stdout);
+}
+// === ANCHOR: VIB_BRIDGE_END ===

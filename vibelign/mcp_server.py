@@ -240,6 +240,46 @@ async def list_tools() -> list[types.Tool]:
             description="VibeLign 현재 설정을 반환합니다.",
             inputSchema={"type": "object", "properties": {}},
         ),
+        # ── Action Engine ───────────────────────────────────────────────────
+        types.Tool(
+            name="doctor_plan",
+            description="프로젝트 분석 결과를 실행 가능한 단계 목록(Plan)으로 반환합니다. 파일 수정 없음.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "strict": {
+                        "type": "boolean",
+                        "description": "엄격 모드 (기본값: false)",
+                    }
+                },
+            },
+        ),
+        types.Tool(
+            name="doctor_patch",
+            description="Plan의 각 Action에 대한 변경 예정 미리보기를 반환합니다. 파일 수정 없음.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "strict": {
+                        "type": "boolean",
+                        "description": "엄격 모드 (기본값: false)",
+                    }
+                },
+            },
+        ),
+        types.Tool(
+            name="doctor_apply",
+            description="Plan을 실행합니다. checkpoint 자동 생성 후 add_anchor 등 안전한 action만 적용.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "strict": {
+                        "type": "boolean",
+                        "description": "엄격 모드 (기본값: false)",
+                    }
+                },
+            },
+        ),
     ]
 
 
@@ -558,6 +598,52 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextC
             ]
         text = meta.config_path.read_text(encoding="utf-8")
         return [types.TextContent(type="text", text=text)]
+
+    # ── doctor_plan ────────────────────────────────────────────────────────
+    if name == "doctor_plan":
+        import json as _json
+        from vibelign.core.doctor_v2 import analyze_project_v2
+        from vibelign.action_engine.action_planner import generate_plan
+
+        strict = bool(arguments.get("strict", False))
+        report = analyze_project_v2(root, strict=strict)
+        plan = generate_plan(report)
+        return [types.TextContent(type="text", text=_json.dumps(plan.to_dict(), indent=2, ensure_ascii=False))]
+
+    # ── doctor_patch ───────────────────────────────────────────────────────
+    if name == "doctor_patch":
+        from vibelign.core.doctor_v2 import analyze_project_v2
+        from vibelign.action_engine.action_planner import generate_plan
+        from vibelign.action_engine.generators.patch_generator import generate_patch_preview
+
+        strict = bool(arguments.get("strict", False))
+        report = analyze_project_v2(root, strict=strict)
+        plan = generate_plan(report)
+        preview = generate_patch_preview(plan, root)
+        return [types.TextContent(type="text", text=preview)]
+
+    # ── doctor_apply ───────────────────────────────────────────────────────
+    if name == "doctor_apply":
+        import json as _json
+        from vibelign.core.doctor_v2 import analyze_project_v2
+        from vibelign.action_engine.action_planner import generate_plan
+        from vibelign.action_engine.executors.action_executor import execute_plan
+
+        strict = bool(arguments.get("strict", False))
+        report = analyze_project_v2(root, strict=strict)
+        plan = generate_plan(report)
+        result = execute_plan(plan, root, force=True, quiet=True)
+        output = {
+            "ok": not result.aborted,
+            "checkpoint_id": result.checkpoint_id,
+            "done": result.done_count,
+            "manual": result.manual_count,
+            "results": [
+                {"action_type": r.action.action_type, "status": r.status, "detail": r.detail}
+                for r in result.results
+            ],
+        }
+        return [types.TextContent(type="text", text=_json.dumps(output, indent=2, ensure_ascii=False))]
 
     return [types.TextContent(type="text", text=f"알 수 없는 도구: {name}")]
 

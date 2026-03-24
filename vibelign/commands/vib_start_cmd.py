@@ -224,6 +224,13 @@ def _ensure_rule_files(root: Path, overwrite: bool = True) -> Dict[str, List[str
             backup.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
             path.write_text(content, encoding="utf-8")
             updated.append(fname)
+        else:
+            # 파일이 있고 --force 없을 때: VibeLign 섹션이 없으면 append
+            existing = path.read_text(encoding="utf-8", errors="ignore")
+            if "VibeLign" not in existing:
+                separator = "\n\n---\n\n" if existing.strip() else ""
+                path.write_text(existing + separator + content, encoding="utf-8")
+                updated.append(fname)
     return {"created": created, "updated": updated}
 
 

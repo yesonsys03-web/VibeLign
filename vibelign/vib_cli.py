@@ -189,7 +189,8 @@ def build_parser():
             '  vib checkpoint "로그인 완성"  메시지와 함께 저장'
         ),
     )
-    p.add_argument("message", nargs="*", help="저장할 메시지 (안 써도 돼요)")
+    p.add_argument("message", nargs="*", help="저장할 메시지 (안 써도 돼요) / 'list'로 목록 조회")
+    p.add_argument("--json", action="store_true", help="결과를 JSON으로 반환")
     p.set_defaults(func=run_vib_checkpoint)
 
     p = sub.add_parser(
@@ -200,11 +201,15 @@ def build_parser():
         ),
         epilog=(
             "이렇게 쓰세요:\n"
-            "  vib undo         마지막 저장으로 되돌리기\n"
-            "  vib undo --list  저장 목록 보기"
+            "  vib undo                                마지막 저장으로 되돌리기\n"
+            "  vib undo --list                         저장 목록 보기\n"
+            "  vib undo --checkpoint-id <id> --force   ID로 바로 복원 (확인 생략)"
         ),
     )
     p.add_argument("--list", action="store_true", help="체크포인트 목록 보기")
+    p.add_argument("--checkpoint-id", metavar="ID", help="복원할 체크포인트 ID (GUI용)")
+    p.add_argument("--force", action="store_true", help="확인 프롬프트 생략")
+    p.add_argument("--json", action="store_true", help="결과를 JSON으로 반환")
     p.set_defaults(func=run_vib_undo)
 
     p = sub.add_parser(
@@ -277,7 +282,8 @@ def build_parser():
             "  vib doctor             기본 점검\n"
             "  vib doctor --strict    꼼꼼하게 점검\n"
             "  vib doctor --detailed  자세한 설명 포함\n"
-            "  vib doctor --fix       앵커 없는 파일에 자동으로 앵커 추가"
+            "  vib doctor --fix       앵커 없는 파일에 자동으로 앵커 추가\n"
+            "  vib doctor --plan      실행 계획 출력 (파일 수정 없음)"
         ),
     )
     p.add_argument("--json", action="store_true", help="JSON으로 출력")
@@ -288,6 +294,11 @@ def build_parser():
         "--fix", action="store_true", help="앵커 없는 파일에 자동으로 앵커 추가"
     )
     p.add_argument("--write-report", action="store_true", help="결과를 파일로 저장")
+    _plan_group = p.add_mutually_exclusive_group()
+    _plan_group.add_argument("--plan", action="store_true", help="실행 계획 출력 (파일 수정 없음)")
+    _plan_group.add_argument("--patch", action="store_true", help="변경 예정 diff 출력 (파일 수정 없음)")
+    _plan_group.add_argument("--apply", action="store_true", help="자동 리팩토링 실행")
+    p.add_argument("--force", action="store_true", help="--apply 확인 프롬프트 생략")
     p.set_defaults(func=run_vib_doctor)
 
     p = sub.add_parser(
