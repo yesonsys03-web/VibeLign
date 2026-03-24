@@ -1,0 +1,403 @@
+/* === ANCHOR: BRUTALISM_CSS_START === */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;600;700&display=swap');
+
+:root {
+  --bg: #FEFBF0;
+  --black: #1A1A1A;
+  --white: #FFFFFF;
+  --primary: #F5621E;       /* 오렌지 */
+  --primary-light: #FF8F5E;
+  --terminal-bg: #1E2216;   /* 다크 올리브 */
+  --terminal-green: #7DFF6B;
+  --red: #FF4D4D;
+  --pink: #FF4D8B;
+  --purple: #7B4DFF;
+  --blue: #4D9FFF;
+  --green: #4DFF91;
+  --gray: #E8E4D8;
+  --gray-dark: #999;
+  --border: 2px solid #1A1A1A;
+  --border-sm: 1px solid #1A1A1A;
+  --shadow: 4px 4px 0px #1A1A1A;
+  --shadow-sm: 2px 2px 0px #1A1A1A;
+  --shadow-lg: 6px 6px 0px #1A1A1A;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  font-family: 'Space Grotesk', sans-serif;
+  background: var(--bg);
+  color: var(--black);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+/* ─── 타이포그래피 ────────────────────────────────────────────────────────────── */
+.mono { font-family: 'IBM Plex Mono', monospace; }
+
+.heading-xl {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.heading-lg {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ─── 배지 ────────────────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: var(--border-sm);
+  background: var(--primary);
+  color: var(--white);
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 4px 10px;
+  letter-spacing: 0.05em;
+}
+
+.badge-ghost {
+  background: transparent;
+  color: var(--black);
+}
+
+/* ─── 버튼 ─────────────────────────────────────────────────────────────────── */
+.btn {
+  border: var(--border);
+  box-shadow: var(--shadow);
+  border-radius: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 9px 18px;
+  cursor: pointer;
+  background: var(--primary);
+  color: var(--white);
+  transition: transform 0.05s, box-shadow 0.05s;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.btn:hover  { transform: translate(2px, 2px); box-shadow: var(--shadow-sm); }
+.btn:active { transform: translate(4px, 4px); box-shadow: none; }
+.btn:disabled { opacity: 0.45; pointer-events: none; }
+
+.btn-black  { background: var(--black); color: var(--white); }
+.btn-white  { background: var(--white); color: var(--black); }
+.btn-danger { background: var(--red); color: var(--white); }
+.btn-ghost  { background: transparent; color: var(--black); box-shadow: var(--shadow-sm); }
+.btn-ghost:hover { background: var(--gray); }
+
+.btn-sm { padding: 5px 12px; font-size: 11px; box-shadow: var(--shadow-sm); }
+.btn-sm:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #1A1A1A; }
+
+/* ─── 카드 ─────────────────────────────────────────────────────────────────── */
+.card {
+  border: var(--border);
+  box-shadow: var(--shadow);
+  background: var(--white);
+  padding: 16px;
+}
+.card:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--shadow-lg);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+/* 기능 카드 (컬러 헤더) */
+.feature-card {
+  border: var(--border);
+  box-shadow: var(--shadow);
+  background: var(--white);
+  overflow: hidden;
+}
+
+.feature-card-header {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: var(--border);
+}
+
+.feature-card-icon {
+  width: 28px;
+  height: 28px;
+  border: var(--border-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.feature-card-body {
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #555;
+  line-height: 1.5;
+}
+
+/* ─── 터미널 박스 ─────────────────────────────────────────────────────────────── */
+.terminal {
+  background: var(--terminal-bg);
+  border: var(--border);
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: #d4d0c8;
+  line-height: 1.8;
+}
+
+.terminal-prompt {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.terminal-check {
+  color: var(--terminal-green);
+}
+
+.terminal-header {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.terminal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #555;
+}
+.terminal-dot.red   { background: #FF5F57; }
+.terminal-dot.yellow { background: #FEBC2E; }
+.terminal-dot.green  { background: #28C840; }
+
+/* ─── 타이틀바 ──────────────────────────────────────────────────────────────── */
+.title-bar {
+  height: 44px;
+  background: var(--black);
+  color: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  flex-shrink: 0;
+  border-bottom: var(--border);
+}
+
+.title-bar .app-name {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: var(--white);
+}
+
+.title-bar .title-center {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: #888;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}
+
+.title-bar .window-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.title-bar .window-controls button {
+  border: var(--border-sm);
+  border-color: #444;
+  background: transparent;
+  color: #aaa;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.title-bar .window-controls button:hover { background: #333; color: #fff; }
+
+/* ─── 네비게이션 탭 ─────────────────────────────────────────────────────────── */
+.nav-tabs {
+  display: flex;
+  border-bottom: var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.nav-tab {
+  padding: 10px 20px;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  border: none;
+  border-right: var(--border);
+  background: transparent;
+  color: var(--black);
+  font-family: 'Space Grotesk', sans-serif;
+}
+.nav-tab:hover  { background: var(--gray); }
+.nav-tab.active { background: var(--primary); color: var(--white); }
+
+/* ─── 스코어 뱃지 ────────────────────────────────────────────────────────────── */
+.score-badge {
+  display: inline-block;
+  border: var(--border);
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 3px 10px;
+  box-shadow: var(--shadow-sm);
+}
+.score-high   { background: var(--green); }
+.score-medium { background: #FFD166; }
+.score-low    { background: var(--red); color: var(--white); }
+
+/* ─── 이슈 아이템 ────────────────────────────────────────────────────────────── */
+.issue-item {
+  border: var(--border);
+  box-shadow: var(--shadow-sm);
+  padding: 11px 14px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--white);
+}
+.issue-severity {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700;
+  font-size: 10px;
+  padding: 2px 6px;
+  border: var(--border-sm);
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.sev-high   { background: var(--red);    color: var(--white); }
+.sev-med    { background: var(--primary); color: var(--white); }
+.sev-low    { background: #FFD166; }
+.sev-info   { background: var(--blue);   color: var(--white); }
+
+/* ─── 체크포인트 아이템 ──────────────────────────────────────────────────────── */
+.checkpoint-item {
+  border: var(--border);
+  box-shadow: var(--shadow-sm);
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--white);
+}
+.checkpoint-dot {
+  width: 10px;
+  height: 10px;
+  border: var(--border-sm);
+  border-radius: 50%;
+  background: var(--terminal-green);
+  flex-shrink: 0;
+}
+
+/* ─── 입력 필드 ──────────────────────────────────────────────────────────────── */
+.input-field {
+  border: var(--border);
+  box-shadow: var(--shadow-sm);
+  padding: 8px 12px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  background: var(--white);
+  outline: none;
+  width: 100%;
+  color: var(--black);
+}
+.input-field:focus { box-shadow: var(--shadow); }
+
+/* ─── 레이아웃 ────────────────────────────────────────────────────────────────── */
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.page-content { flex: 1; overflow-y: auto; padding: 20px; }
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: var(--border);
+}
+
+.page-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700;
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ─── 로딩 스피너 ────────────────────────────────────────────────────────────── */
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── 알림 배너 ──────────────────────────────────────────────────────────────── */
+.alert {
+  border: var(--border);
+  padding: 9px 14px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.alert-error   { background: var(--red);    color: var(--white); }
+.alert-success { background: var(--green); }
+.alert-warn    { background: var(--primary); color: var(--white); }
+
+/* ─── 스크롤바 ───────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--gray); }
+::-webkit-scrollbar-thumb { background: var(--black); }
+
+/* === ANCHOR: BRUTALISM_CSS_END === */

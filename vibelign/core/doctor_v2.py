@@ -279,7 +279,23 @@ def _render_prepared_tool_lines(stats: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def analyze_project_v2(root: Path, strict: bool = False) -> DoctorV2Report:
+def analyze_project_v2(root: Path, strict: bool = False, force: bool = False) -> DoctorV2Report:
+    from vibelign.core.analysis_cache import load_analysis_cache, save_analysis_cache
+    from vibelign.core.meta_paths import MetaPaths
+    from datetime import datetime, timezone
+
+    meta = MetaPaths(root)
+    cached = load_analysis_cache(meta.analysis_cache_path, root, force=force)
+    if cached is not None:
+        return DoctorV2Report(
+            project_score=cached["project_score"],
+            status=cached["status"],
+            anchor_coverage=cached["anchor_coverage"],
+            stats=cached["stats"],
+            issues=cached["issues"],
+            recommended_actions=cached["recommended_actions"],
+        )
+
     legacy = analyze_project(root, strict=strict)
     project_score = max(0, 100 - (legacy.score * 4))
     status = _build_status(project_score)
@@ -306,7 +322,7 @@ def analyze_project_v2(root: Path, strict: bool = False) -> DoctorV2Report:
         suggestions.append("vib start 를 다시 실행하면 자동으로 고쳐져요")
     _append_mcp_issues(issues, suggestions, mcp_status)
     _append_prepared_tool_issues(issues, suggestions, prepared_tool_status)
-    return DoctorV2Report(
+    report = DoctorV2Report(
         project_score=project_score,
         status=status,
         anchor_coverage=coverage,
@@ -314,6 +330,10 @@ def analyze_project_v2(root: Path, strict: bool = False) -> DoctorV2Report:
         issues=_issue_details(issues, suggestions),
         recommended_actions=_recommended_actions(suggestions),
     )
+    generated_at = datetime.now(timezone.utc).isoformat()
+    meta.ensure_vibelign_dir()
+    save_analysis_cache(meta.analysis_cache_path, root, report.to_dict(), generated_at)
+    return report
 
 
 def build_doctor_envelope(root: Path, strict: bool = False) -> Dict[str, Any]:

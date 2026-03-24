@@ -4,8 +4,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from vibelign.action_engine.action_planner import generate_plan
+from vibelign.action_engine.executors.action_executor import execute_plan
+from vibelign.action_engine.generators.patch_generator import generate_patch_preview
 from vibelign.core.doctor_v2 import (
     DoctorV2Report,
+    analyze_project_v2,
     build_doctor_envelope,
     render_doctor_json,
     render_doctor_markdown,
@@ -56,8 +60,135 @@ def _run_fix(root: Path) -> None:
         clack_info("앵커를 추가할 수 있는 파일이 없었어요.")
 
 
+def _run_plan(root: Path, strict: bool, as_json: bool) -> None:
+    """실행 계획 출력 — 파일 수정 없음."""
+    from vibelign.terminal_render import clack_step
+
+    if not as_json:
+        clack_step("프로젝트 분석 중...")
+    report = analyze_project_v2(root, strict=strict)
+    plan = generate_plan(report)
+
+    if as_json:
+        import json as _json
+        print(_json.dumps(plan.to_dict(), indent=2, ensure_ascii=False))
+        return
+
+    lines = [
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "VibeLign 실행 계획 (--plan)",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "",
+        f"현재 점수: {plan.source_score} / 100",
+        f"실행 단계: {len(plan.actions)}개",
+        "",
+    ]
+    if not plan.actions:
+        lines.append("✓ 지금 당장 할 일이 없어요. 프로젝트 상태가 좋아요!")
+    else:
+        for i, action in enumerate(plan.actions, 1):
+            cmd_hint = f"  → {action.command}" if action.command else ""
+            path_hint = f" ({action.target_path})" if action.target_path else ""
+            lines.append(f"{i}. [{action.action_type}]{path_hint}")
+            lines.append(f"   {action.description[:80]}")
+            if cmd_hint:
+                lines.append(cmd_hint)
+    if plan.warnings:
+        lines.extend(["", "⚠️  주의:"])
+        for w in plan.warnings:
+            lines.append(f"  - {w}")
+    lines.extend(["", "※ 이 계획은 파일을 수정하지 않아요. 적용하려면 vib doctor --apply 를 사용하세요."])
+    print_ai_response("\n".join(lines) + "\n")
+
+
+def _run_patch(root: Path, strict: bool, as_json: bool) -> None:
+    """변경 예정 미리보기 출력 — 파일 수정 없음."""
+    from vibelign.terminal_render import clack_step
+
+    if not as_json:
+        clack_step("프로젝트 분석 중...")
+    report = analyze_project_v2(root, strict=strict)
+    plan = generate_plan(report)
+
+    if as_json:
+        import json as _json
+        preview_lines = []
+        for action in plan.actions:
+            preview_lines.append(action.to_dict())
+        print(_json.dumps({"ok": True, "plan": plan.to_dict()}, indent=2, ensure_ascii=False))
+        return
+
+    preview = generate_patch_preview(plan, root)
+    print_ai_response(preview)
+
+
+def _run_apply(root: Path, strict: bool, as_json: bool, force: bool = False) -> None:
+    """자동 리팩토링 실행 — checkpoint 생성 후 적용."""
+    import json as _json
+    from vibelign.terminal_render import clack_step, clack_success, clack_info, clack_warn
+
+    def _step(msg: str) -> None:
+        if not as_json:
+            clack_step(msg)
+
+    _step("프로젝트 분석 중...")
+    report = analyze_project_v2(root, strict=strict)
+    plan = generate_plan(report)
+
+    if not plan.actions:
+        msg = "실행할 항목이 없습니다. 프로젝트 상태가 좋아요!"
+        if as_json:
+            print(_json.dumps({"ok": True, "message": msg}, ensure_ascii=False))
+        else:
+            clack_success(msg)
+        return
+
+    result = execute_plan(plan, root, force=force, quiet=as_json)
+
+    if result.aborted:
+        if as_json:
+            print(_json.dumps({"ok": False, "error": "aborted"}, ensure_ascii=False))
+        else:
+            clack_warn("취소됐습니다.")
+        return
+
+    if as_json:
+        print(_json.dumps({
+            "ok": True,
+            "checkpoint_id": result.checkpoint_id,
+            "done": result.done_count,
+            "manual": result.manual_count,
+            "results": [{"action_type": r.action.action_type, "status": r.status, "detail": r.detail} for r in result.results],
+        }, indent=2, ensure_ascii=False))
+        return
+
+    print()
+    clack_success(f"완료: {result.done_count}개 자동 적용, {result.manual_count}개 수동 필요")
+    if result.checkpoint_id:
+        clack_info(f"복원하려면: vib undo --checkpoint-id {result.checkpoint_id} --force")
+
+    manual_items = [r for r in result.results if r.status == "manual"]
+    if manual_items:
+        print("\n수동으로 실행하세요:")
+        for r in manual_items:
+            print(f"  {r.detail}")
+
+
 def run_vib_doctor(args: Any) -> None:
     root = Path.cwd()
+
+    if getattr(args, "plan", False):
+        _run_plan(root, strict=args.strict, as_json=args.json)
+        return
+
+    if getattr(args, "patch", False):
+        _run_patch(root, strict=args.strict, as_json=args.json)
+        return
+
+    if getattr(args, "apply", False):
+        _run_apply(root, strict=args.strict, as_json=args.json, force=getattr(args, "force", False))
+        return
+
     envelope = build_doctor_envelope(root, strict=args.strict)
     report = envelope["data"]
     meta = MetaPaths(root)
