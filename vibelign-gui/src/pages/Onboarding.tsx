@@ -6,7 +6,7 @@ import { getVibPath, vibStart, saveApiKey } from "../lib/vib";
 interface OnboardingProps {
   onComplete: (projectDir: string, apiKey: string | null) => void;
   onResume?: (dir: string) => void;
-  initialDir?: string | null;
+  recentDirs?: string[];
 }
 
 const FEATURE_CARDS = [
@@ -25,13 +25,14 @@ const TERMINAL_LINES = [
   { type: "check",  text: "AI에게 코드맵만 주세요!" },
 ];
 
-export default function Onboarding({ onComplete, onResume, initialDir }: OnboardingProps) {
+export default function Onboarding({ onComplete, onResume, recentDirs = [] }: OnboardingProps) {
   const [vibFound, setVibFound] = useState<string | null>(null);
   const [vibChecking, setVibChecking] = useState(true);
-  const [selectedDir, setSelectedDir] = useState(initialDir ?? "");
+  const [selectedDir, setSelectedDir] = useState("");
   const [starting, setStarting] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
+  const [recentOpen, setRecentOpen] = useState(true);
 
   useEffect(() => {
     getVibPath().then((p) => { setVibFound(p); setVibChecking(false); });
@@ -59,33 +60,54 @@ export default function Onboarding({ onComplete, onResume, initialDir }: Onboard
       {/* ─── 상단: 스크롤 가능 영역 ──────────────────────────────── */}
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 20px 10px" }}>
 
-        {/* 재진입 카드 — 이전 프로젝트가 있을 때만 표시 */}
-        {initialDir && onResume && (
-          <div
-            className="feature-card"
-            style={{ marginBottom: 12, cursor: "pointer" }}
-            onClick={() => onResume(initialDir)}
-          >
-            <div className="feature-card-header" style={{ background: "#4D9FFF18", padding: "8px 12px" }}>
+        {/* RECENT 카드 — 최근 프로젝트 접이식 */}
+        {recentDirs.length > 0 && onResume && (
+          <div className="feature-card" style={{ marginBottom: 12 }}>
+            {/* 헤더 (클릭 시 접기/펼치기) */}
+            <div
+              className="feature-card-header"
+              style={{ background: "#4D9FFF18", padding: "8px 12px", cursor: "pointer" }}
+              onClick={() => setRecentOpen((o) => !o)}
+            >
               <div className="feature-card-icon"
-                style={{ background: "#4D9FFF", color: "#fff", borderColor: "#4D9FFF", width: 24, height: 24, fontSize: 14, fontWeight: 900 }}>
-                ▶
+                style={{ background: "#4D9FFF", color: "#fff", borderColor: "#4D9FFF", width: 24, height: 24, fontSize: 11, fontWeight: 900 }}>
+                ⊞
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontWeight: 900, fontSize: 13, color: "#4D9FFF", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {initialDir.split("/").filter(Boolean).at(-1)}
-                  </span>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "#4D9FFF", background: "#4D9FFF22", padding: "1px 6px", flexShrink: 0, border: "1px solid #4D9FFF55" }}>
-                    진행 중
-                  </span>
-                </div>
-                <div style={{ fontSize: 10, color: "#666", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>
-                  {initialDir}
-                </div>
-              </div>
-              <div style={{ fontSize: 11, color: "#4D9FFF", fontWeight: 700, flexShrink: 0 }}>이어서 작업 ▶</div>
+              <div style={{ fontWeight: 700, fontSize: 11, flex: 1 }}>최근 프로젝트</div>
+              <div style={{ fontSize: 10, color: "#4D9FFF", fontWeight: 700, marginRight: 8 }}>{recentDirs.length}개</div>
+              <div style={{ fontSize: 11, color: "#666" }}>{recentOpen ? "▲" : "▼"}</div>
             </div>
+            {/* 목록 */}
+            {recentOpen && (
+              <div className="feature-card-body" style={{ padding: 0 }}>
+                {recentDirs.map((dir, i) => (
+                  <div
+                    key={dir}
+                    onClick={() => onResume(dir)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "7px 12px", cursor: "pointer",
+                      borderTop: i > 0 ? "1px solid #1A1A1A" : undefined,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#4D9FFF11")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+                  >
+                    <span style={{ fontWeight: 900, fontSize: 12, color: "#4D9FFF", flexShrink: 0, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160 }}>
+                      {dir.split("/").filter(Boolean).at(-1)}
+                    </span>
+                    {i === 0 && (
+                      <span style={{ fontSize: 9, fontWeight: 700, color: "#4D9FFF", background: "#4D9FFF22", padding: "1px 6px", flexShrink: 0, border: "1px solid #4D9FFF55" }}>
+                        진행 중
+                      </span>
+                    )}
+                    <span style={{ fontSize: 10, color: "#555", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {dir}
+                    </span>
+                    <span style={{ fontSize: 11, color: "#4D9FFF", fontWeight: 700, flexShrink: 0 }}>▶</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

@@ -76,6 +76,14 @@ export async function undoCheckpoint(cwd: string, checkpointId: string): Promise
 
 // ─── API 키 관리 ────────────────────────────────────────────────────────────────
 
+export async function saveRecentProjects(dirs: string[]): Promise<void> {
+  return invoke<void>("save_recent_projects", { dirs });
+}
+
+export async function loadRecentProjects(): Promise<string[]> {
+  return invoke<string[]>("load_recent_projects");
+}
+
 export async function saveApiKey(key: string): Promise<void> {
   return invoke<void>("save_api_key", { key });
 }
