@@ -1,9 +1,11 @@
 // === ANCHOR: APP_START ===
-import { useState, Component, ReactNode } from "react";
+import { useState, useEffect, Component, ReactNode } from "react";
 import CustomTitleBar from "./components/CustomTitleBar";
 import Onboarding from "./pages/Onboarding";
 import Doctor from "./pages/Doctor";
 import Checkpoints from "./pages/Checkpoints";
+import Settings from "./pages/Settings";
+import { loadApiKey } from "./lib/vib";
 import "./styles/brutalism.css";
 import "./App.css";
 
@@ -45,11 +47,16 @@ class ErrorBoundary extends Component<
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
-type Page = "doctor" | "checkpoints";
+type Page = "doctor" | "checkpoints" | "settings";
 
 export default function App() {
   const [projectDir, setProjectDir] = useState<string | null>(null);
   const [page, setPage] = useState<Page>("doctor");
+  const [apiKey, setApiKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadApiKey().then((k) => setApiKey(k ?? null)).catch(() => {});
+  }, []);
 
   return (
     <div className="app-layout">
@@ -69,6 +76,9 @@ export default function App() {
               <button className={`nav-tab ${page === "checkpoints" ? "active" : ""}`} onClick={() => setPage("checkpoints")}>
                 Checkpoints
               </button>
+              <button className={`nav-tab ${page === "settings" ? "active" : ""}`} onClick={() => setPage("settings")}>
+                ⚙
+              </button>
               <div style={{ flex: 1 }} />
               <button
                 className="nav-tab"
@@ -81,8 +91,9 @@ export default function App() {
 
             <div style={{ flex: 1, overflow: "hidden" }}>
               <ErrorBoundary>
-                {page === "doctor" && <Doctor projectDir={projectDir} />}
+                {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} />}
                 {page === "checkpoints" && <Checkpoints projectDir={projectDir} />}
+                {page === "settings" && <Settings apiKey={apiKey} onApiKeyChange={setApiKey} />}
               </ErrorBoundary>
             </div>
           </>

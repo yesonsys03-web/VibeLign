@@ -73,4 +73,18 @@ export async function undoCheckpoint(cwd: string, checkpointId: string): Promise
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
   return JSON.parse(res.stdout);
 }
+
+// ─── API 키 관리 ────────────────────────────────────────────────────────────────
+
+export async function saveApiKey(key: string): Promise<void> {
+  return invoke<void>("save_api_key", { key });
+}
+
+export async function loadApiKey(): Promise<string | null> {
+  return invoke<string | null>("load_api_key");
+}
+
+export async function deleteApiKey(): Promise<void> {
+  return invoke<void>("delete_api_key");
+}
 // === ANCHOR: VIB_BRIDGE_END ===

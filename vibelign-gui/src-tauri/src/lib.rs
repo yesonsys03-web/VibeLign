@@ -85,6 +85,52 @@ async fn run_vib(
     })
 }
 
+// ─── API 키 저장소 ─────────────────────────────────────────────────────────────
+
+fn config_path() -> Option<PathBuf> {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .ok()?;
+    let dir = PathBuf::from(home).join(".vibelign");
+    std::fs::create_dir_all(&dir).ok()?;
+    Some(dir.join("gui_config.json"))
+}
+
+#[tauri::command]
+fn save_api_key(key: String) -> Result<(), String> {
+    let path = config_path().ok_or("홈 디렉터리를 찾을 수 없습니다")?;
+    let existing = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .unwrap_or(serde_json::json!({}));
+    let mut data = existing;
+    data["anthropic_api_key"] = serde_json::Value::String(key);
+    std::fs::write(&path, data.to_string()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_api_key() -> Option<String> {
+    let path = config_path()?;
+    let text = std::fs::read_to_string(&path).ok()?;
+    let data: serde_json::Value = serde_json::from_str(&text).ok()?;
+    data["anthropic_api_key"].as_str().map(String::from)
+}
+
+#[tauri::command]
+fn delete_api_key() -> Result<(), String> {
+    let path = config_path().ok_or("홈 디렉터리를 찾을 수 없습니다")?;
+    if !path.exists() {
+        return Ok(());
+    }
+    let text = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let mut data: serde_json::Value =
+        serde_json::from_str(&text).unwrap_or(serde_json::json!({}));
+    if let Some(obj) = data.as_object_mut() {
+        obj.remove("anthropic_api_key");
+    }
+    std::fs::write(&path, data.to_string()).map_err(|e| e.to_string())
+}
+
 // ─── 앱 진입점 ─────────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -92,7 +138,13 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![get_vib_path, run_vib])
+        .invoke_handler(tauri::generate_handler![
+            get_vib_path,
+            run_vib,
+            save_api_key,
+            load_api_key,
+            delete_api_key,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
