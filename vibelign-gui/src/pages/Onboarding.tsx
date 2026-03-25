@@ -66,17 +66,25 @@ export default function Onboarding({ onComplete, onResume, initialDir }: Onboard
             style={{ marginBottom: 12, cursor: "pointer" }}
             onClick={() => onResume(initialDir)}
           >
-            <div className="feature-card-header" style={{ background: "#4DFF9118", padding: "8px 12px" }}>
+            <div className="feature-card-header" style={{ background: "#4D9FFF18", padding: "8px 12px" }}>
               <div className="feature-card-icon"
-                style={{ background: "#4DFF91", color: "#1A1A1A", borderColor: "#4DFF91", width: 24, height: 24, fontSize: 14, fontWeight: 900 }}>
+                style={{ background: "#4D9FFF", color: "#fff", borderColor: "#4D9FFF", width: 24, height: 24, fontSize: 14, fontWeight: 900 }}>
                 ▶
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 11 }}>이어서 작업</div>
-                <div style={{ fontSize: 10, color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontWeight: 900, fontSize: 13, color: "#4D9FFF", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {initialDir.split("/").filter(Boolean).at(-1)}
+                  </span>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "#4D9FFF", background: "#4D9FFF22", padding: "1px 6px", flexShrink: 0, border: "1px solid #4D9FFF55" }}>
+                    진행 중
+                  </span>
+                </div>
+                <div style={{ fontSize: 10, color: "#666", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>
                   {initialDir}
                 </div>
               </div>
+              <div style={{ fontSize: 11, color: "#4D9FFF", fontWeight: 700, flexShrink: 0 }}>이어서 작업 ▶</div>
             </div>
           </div>
         )}
