@@ -1,20 +1,23 @@
 // === ANCHOR: SETTINGS_START ===
 import { useState, useEffect } from "react";
-import { saveApiKey, deleteApiKey, getVibPath } from "../lib/vib";
+import { saveApiKey, deleteApiKey, getVibPath, getEnvKeyStatus } from "../lib/vib";
 
 interface SettingsProps {
   apiKey: string | null;
   onApiKeyChange: (key: string | null) => void;
+  projectDir?: string | null;
 }
 
-export default function Settings({ apiKey, onApiKeyChange }: SettingsProps) {
+export default function Settings({ apiKey, onApiKeyChange, projectDir }: SettingsProps) {
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [vibPath, setVibPath] = useState<string | null>(null);
+  const [envKeys, setEnvKeys] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     getVibPath().then(setVibPath).catch(() => setVibPath(null));
+    getEnvKeyStatus().then(setEnvKeys).catch(() => {});
   }, []);
 
   async function handleSave() {
@@ -55,6 +58,36 @@ export default function Settings({ apiKey, onApiKeyChange }: SettingsProps) {
       </div>
 
       <div className="page-content" style={{ padding: "20px" }}>
+        {/* CONFIG STATUS 카드 */}
+        <div className="card" style={{ marginBottom: 20, background: "#1E2216", borderColor: "#333" }}>
+          <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 10, textTransform: "uppercase", letterSpacing: 1, color: "#7DFF6B", fontFamily: "IBM Plex Mono, monospace" }}>
+            CONFIG STATUS
+          </div>
+          {/* 환경변수 API 키 */}
+          {["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GLM_API_KEY", "MOONSHOT_API_KEY"].map((key) => {
+            const ok = !!envKeys[key];
+            return (
+              <div key={key} style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 5, fontFamily: "IBM Plex Mono, monospace", fontSize: 11 }}>
+                <span style={{ color: ok ? "#4DFF91" : "#FF4D4D", fontWeight: 700, flexShrink: 0 }}>{ok ? "●" : "○"}</span>
+                <span style={{ color: ok ? "#E8FFE0" : "#555", width: 180, flexShrink: 0 }}>{key}</span>
+                <span style={{ color: ok ? "#4DFF91" : "#444" }}>{ok ? "설정됨" : "없음"}</span>
+              </div>
+            );
+          })}
+          <div style={{ borderTop: "1px solid #333", margin: "10px 0" }} />
+          {/* vib 경로 & 프로젝트 */}
+          {[
+            { label: "vib", ok: !!vibPath, value: vibPath ?? "감지 안됨" },
+            { label: "project", ok: !!projectDir, value: projectDir ?? "없음" },
+          ].map(({ label, ok, value }) => (
+            <div key={label} style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 5, fontFamily: "IBM Plex Mono, monospace", fontSize: 11 }}>
+              <span style={{ color: ok ? "#4DFF91" : "#FF4D4D", fontWeight: 700, flexShrink: 0 }}>{ok ? "●" : "○"}</span>
+              <span style={{ color: "#555", width: 180, flexShrink: 0 }}>{label}</span>
+              <span style={{ color: ok ? "#E8FFE0" : "#444", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</span>
+            </div>
+          ))}
+        </div>
+
         {/* API 키 섹션 */}
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>

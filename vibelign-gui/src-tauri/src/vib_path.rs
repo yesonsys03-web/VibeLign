@@ -3,6 +3,7 @@
 //!
 //! GUI 앱은 터미널 shell 환경을 상속받지 않아서 PATH에서 vib를 찾지 못할 수 있다.
 //! 탐색 우선순위:
+//!  0. <app>/binaries/vib         (번들 sidecar — Python 불필요)
 //!  1. ~/.local/bin/vib          (uv tool install, Linux/macOS)
 //!  2. ~/Library/Python/*/bin/vib (macOS pip)
 //!  3. %APPDATA%\Python\*\Scripts\vib.exe (Windows)
@@ -13,6 +14,25 @@ use std::process::Command;
 
 /// vib 실행 파일 경로를 찾는다. 없으면 None.
 pub fn find_vib() -> Option<PathBuf> {
+    // 0. 번들 sidecar — 앱 실행파일 옆에 있는 vib (Python 불필요)
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            // Tauri sidecar: vib-{target-triple} 또는 vib
+            let candidates = [
+                dir.join(format!("vib-{}", std::env::consts::ARCH.to_string()
+                    + "-" + std::env::consts::OS + if cfg!(target_os="macos") { "-darwin" } else { "" })),
+                dir.join("vib"),
+                #[cfg(target_os = "windows")]
+                dir.join("vib.exe"),
+            ];
+            for candidate in &candidates {
+                if candidate.exists() {
+                    return Some(candidate.clone());
+                }
+            }
+        }
+    }
+
     // 1. ~/.local/bin/vib  (uv tool install, Linux/macOS)
     if let Some(home) = home_dir() {
         let candidate = home.join(".local").join("bin").join("vib");

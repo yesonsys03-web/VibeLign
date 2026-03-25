@@ -31,3 +31,5 @@ vibelign_exports/
 .vibelign/checkpoints/
 VibeLign_dev_plan/
 .vibelign/scan_cache.json
+dist/
+build/
