@@ -1,10 +1,10 @@
 // === ANCHOR: ONBOARDING_START ===
 import { useState, useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { getVibPath, vibStart } from "../lib/vib";
+import { getVibPath, vibStart, saveApiKey } from "../lib/vib";
 
 interface OnboardingProps {
-  onComplete: (projectDir: string) => void;
+  onComplete: (projectDir: string, apiKey: string | null) => void;
 }
 
 const FEATURE_CARDS = [
@@ -28,10 +28,33 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [vibChecking, setVibChecking] = useState(true);
   const [selectedDir, setSelectedDir] = useState("");
   const [starting, setStarting] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [savingKey, setSavingKey] = useState(false);
 
   useEffect(() => {
     getVibPath().then((p) => { setVibFound(p); setVibChecking(false); });
   }, []);
+
+  async function handleStart() {
+    setStarting(true);
+    await vibStart(selectedDir);
+    setStarting(false);
+    setStep(2);
+  }
+
+  async function handleFinish(withKey: boolean) {
+    let key: string | null = null;
+    if (withKey && apiKeyInput.trim()) {
+      setSavingKey(true);
+      try {
+        await saveApiKey(apiKeyInput.trim());
+        key = apiKeyInput.trim();
+      } catch { /* 저장 실패해도 계속 */ }
+      setSavingKey(false);
+    }
+    onComplete(selectedDir, key);
+  }
 
   async function pickFolder() {
     const dir = await open({ directory: true, multiple: false, title: "프로젝트 폴더 선택" });
@@ -102,40 +125,74 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
       {/* ─── 하단: 항상 보이는 고정 영역 ────────────────────────── */}
       <div style={{ flexShrink: 0, borderTop: "2px solid #1A1A1A", padding: "12px 20px 14px", background: "var(--bg)" }}>
-        {/* VIB 상태 + 폴더 선택 */}
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-          <span className="label" style={{ flexShrink: 0 }}>VIB CLI</span>
-          {vibChecking ? (
-            <span className="spinner" />
-          ) : vibFound ? (
-            <span className="badge" style={{ fontSize: 10, background: "#4DFF91", color: "#1A1A1A" }}>발견됨</span>
-          ) : (
-            <span className="badge" style={{ fontSize: 10, background: "#FF4D4D" }}>미설치 — pip install vibelign</span>
-          )}
-          <div style={{ flex: 1 }} />
-          <input
-            className="input-field"
-            value={selectedDir}
-            onChange={(e) => setSelectedDir(e.target.value)}
-            placeholder="프로젝트 폴더 경로..."
-            style={{ flex: 2, maxWidth: 320 }}
-          />
-          <button className="btn btn-ghost btn-sm" onClick={pickFolder} style={{ flexShrink: 0 }}>탐색</button>
-        </div>
-
-        <button
-          className="btn btn-black"
-          style={{ width: "100%", padding: "10px", fontSize: 13 }}
-          disabled={!vibFound || !selectedDir || starting}
-          onClick={async () => {
-            setStarting(true);
-            await vibStart(selectedDir);
-            setStarting(false);
-            onComplete(selectedDir);
-          }}
-        >
-          {starting ? <><span className="spinner" style={{ marginRight: 8 }} />초기화 중...</> : "시작하기 ▶"}
-        </button>
+        {step === 1 ? (
+          <>
+            {/* Step 1: VIB 상태 + 폴더 선택 */}
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+              <span className="label" style={{ flexShrink: 0 }}>VIB CLI</span>
+              {vibChecking ? (
+                <span className="spinner" />
+              ) : vibFound ? (
+                <span className="badge" style={{ fontSize: 10, background: "#4DFF91", color: "#1A1A1A" }}>발견됨</span>
+              ) : (
+                <span className="badge" style={{ fontSize: 10, background: "#FF4D4D" }}>미설치 — pip install vibelign</span>
+              )}
+              <div style={{ flex: 1 }} />
+              <input
+                className="input-field"
+                value={selectedDir}
+                onChange={(e) => setSelectedDir(e.target.value)}
+                placeholder="프로젝트 폴더 경로..."
+                style={{ flex: 2, maxWidth: 320 }}
+              />
+              <button className="btn btn-ghost btn-sm" onClick={pickFolder} style={{ flexShrink: 0 }}>탐색</button>
+            </div>
+            <button
+              className="btn btn-black"
+              style={{ width: "100%", padding: "10px", fontSize: 13 }}
+              disabled={!vibFound || !selectedDir || starting}
+              onClick={handleStart}
+            >
+              {starting ? <><span className="spinner" style={{ marginRight: 8 }} />초기화 중...</> : "시작하기 ▶"}
+            </button>
+          </>
+        ) : (
+          <>
+            {/* Step 2: API 키 입력 */}
+            <div style={{ marginBottom: 8, fontWeight: 700, fontSize: 12 }}>
+              Anthropic API 키 <span style={{ color: "#555", fontWeight: 400 }}>(선택 사항 — AI 기능에 필요)</span>
+            </div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <input
+                type="password"
+                className="input-field"
+                placeholder="sk-ant-..."
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleFinish(true)}
+                style={{ flex: 1 }}
+                autoFocus
+              />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                className="btn btn-black"
+                style={{ flex: 1, padding: "10px", fontSize: 13 }}
+                disabled={savingKey || !apiKeyInput.trim()}
+                onClick={() => handleFinish(true)}
+              >
+                {savingKey ? <span className="spinner" /> : "저장하고 시작 ▶"}
+              </button>
+              <button
+                className="btn btn-ghost"
+                style={{ padding: "10px 16px", fontSize: 12 }}
+                onClick={() => handleFinish(false)}
+              >
+                건너뛰기
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
