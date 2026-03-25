@@ -74,6 +74,22 @@ export async function undoCheckpoint(cwd: string, checkpointId: string): Promise
   return JSON.parse(res.stdout);
 }
 
+export async function vibGuard(cwd: string): Promise<{ status: string; summary: string; recommendations: string[] }> {
+  const res = await runVib(["guard", "--json"], cwd);
+  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  const parsed = JSON.parse(res.stdout);
+  const data = parsed.data ?? parsed;
+  return { status: data.status ?? "unknown", summary: data.summary ?? "", recommendations: data.recommendations ?? [] };
+}
+
+export async function vibScan(cwd: string): Promise<VibResult> {
+  return runVib(["scan"], cwd);
+}
+
+export async function vibTransfer(cwd: string): Promise<VibResult> {
+  return runVib(["transfer"], cwd);
+}
+
 // ─── API 키 관리 ────────────────────────────────────────────────────────────────
 
 export async function saveRecentProjects(dirs: string[]): Promise<void> {
