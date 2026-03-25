@@ -1,6 +1,6 @@
 // === ANCHOR: HOME_START ===
 import { useState } from "react";
-import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch, openFolder, checkpointCreate, GuardResult } from "../lib/vib";
+import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch, openFolder, checkpointCreate, runVib, GuardResult } from "../lib/vib";
 
 type CardState = "idle" | "loading" | "done" | "error";
 type View = "home" | "manual_list" | "manual_detail";
@@ -778,6 +778,8 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
   const [cpMsg, setCpMsg]                 = useState("");
   const [cpState, setCpState]             = useState<CardState>("idle");
   const [error, setError]                 = useState<string | null>(null);
+  const [cmdStates, setCmdStates]         = useState<Record<string, CardState>>({});
+  const [cmdOutputs, setCmdOutputs]       = useState<Record<string, string>>({});
 
   async function handleGuard() {
     setGuardState("loading"); setGuardResult(null); setError(null);
@@ -824,6 +826,20 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
       if (!r.ok) throw new Error(r.stderr || `exit ${r.exit_code}`);
       setTransferState("done");
     } catch (e) { setError(String(e)); setTransferState("error"); }
+  }
+
+  async function handleRunCmd(name: string) {
+    setCmdStates(s => ({ ...s, [name]: "loading" }));
+    setCmdOutputs(o => ({ ...o, [name]: "" }));
+    try {
+      const r = await runVib([name], projectDir);
+      setCmdStates(s => ({ ...s, [name]: r.ok ? "done" : "error" }));
+      setCmdOutputs(o => ({ ...o, [name]: r.ok ? (r.stdout.trim() || "완료") : (r.stderr.trim() || `exit ${r.exit_code}`) }));
+      setTimeout(() => setCmdStates(s => ({ ...s, [name]: "idle" })), 3000);
+    } catch (e) {
+      setCmdStates(s => ({ ...s, [name]: "error" }));
+      setCmdOutputs(o => ({ ...o, [name]: String(e) }));
+    }
   }
 
   function guardColor(status: string) {
@@ -1198,26 +1214,72 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
             </div>
           </div>
 
-          {/* ── 메뉴얼 ── */}
-          <div className="feature-card" style={{ cursor: "pointer" }}
-            onClick={() => setView("manual_list")}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#1A1A1A08")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "")}>
-            <div className="feature-card-header" style={{ background: "#4DFF9118", padding: "10px 14px" }}>
+          {/* ── 히스토리 ── */}
+          <div className="feature-card" style={{ cursor: "default" }}>
+            <div className="feature-card-header" style={{ background: "#7B4DFF18", padding: "10px 14px" }}>
               <div className="feature-card-icon"
-                style={{ background: "#1A1A1A", color: "#4DFF91", borderColor: "#1A1A1A", width: 28, height: 28, fontSize: 14, fontWeight: 900 }}>?</div>
-              <div style={{ fontWeight: 700, fontSize: 12, flex: 1 }}>메뉴얼</div>
-              <span style={{ fontSize: 9, fontWeight: 700, color: "#888" }}>{COMMANDS.length}개</span>
+                style={{ background: "#7B4DFF", color: "#fff", borderColor: "#7B4DFF", width: 28, height: 28, fontSize: 14, fontWeight: 900 }}>🕓</div>
+              <div style={{ fontWeight: 700, fontSize: 12, flex: 1 }}>히스토리</div>
+              {(cmdStates["history"] ?? "idle") === "done" && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>}
             </div>
             <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
-              <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>모든 커맨드 보기</div>
-              <button className="btn btn-sm" style={{ width: "100%", background: "#1A1A1A", color: "#4DFF91", border: "2px solid #1A1A1A" }}>
-                열기 ▶
+              <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>
+                {cmdOutputs["history"] && (cmdStates["history"] ?? "idle") !== "idle"
+                  ? cmdOutputs["history"].slice(0, 60) + (cmdOutputs["history"].length > 60 ? "…" : "")
+                  : "체크포인트 변경 이력 보기"}
+              </div>
+              <button className="btn btn-sm" style={{ width: "100%", background: "#7B4DFF", color: "#fff", border: "2px solid #1A1A1A" }}
+                disabled={(cmdStates["history"] ?? "idle") === "loading"} onClick={() => handleRunCmd("history")}>
+                {(cmdStates["history"] ?? "idle") === "loading" ? <span className="spinner" /> : "HISTORY ▶"}
               </button>
             </div>
           </div>
 
         </div>
+
+        {/* ── 커맨드 섹션 ── */}
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#888", letterSpacing: "0.08em", marginBottom: 6, paddingLeft: 2 }}>
+            커맨드
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+            {((() => {
+              const EXCLUDE = ["scan","watch","guard","checkpoint","transfer","history","start","doctor","config","rules","install"];
+              const ORDER = ["undo","protect","ask","patch","secrets","anchor","export","explain","manual"];
+              return COMMANDS.filter(c => !EXCLUDE.includes(c.name)).sort((a, b) => ORDER.indexOf(a.name) - ORDER.indexOf(b.name));
+            })()).map(cmd => {
+              const st = cmdStates[cmd.name] ?? "idle";
+              const out = cmdOutputs[cmd.name] ?? "";
+              return (
+                <div key={cmd.name} className="feature-card" style={{ cursor: "default" }}>
+                  <div className="feature-card-header" style={{ background: cmd.color + "18", padding: "8px 12px" }}>
+                    <div className="feature-card-icon" style={{
+                      background: cmd.color, color: "#fff", borderColor: cmd.color,
+                      width: 22, height: 22, fontSize: 11, fontWeight: 900,
+                    }}>{cmd.icon}</div>
+                    <div style={{ fontWeight: 700, fontSize: 11, flex: 1 }}>{cmd.title}</div>
+                    {st === "done" && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>}
+                    {st === "error" && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#FF4D4D", color: "#fff", border: "1px solid #1A1A1A" }}>오류</span>}
+                  </div>
+                  <div className="feature-card-body" style={{ padding: "6px 12px 8px" }}>
+                    <div style={{ fontSize: 10, color: "#777", marginBottom: 6, lineHeight: 1.3 }}>
+                      {out && st !== "idle" ? out.slice(0, 60) + (out.length > 60 ? "…" : "") : cmd.short}
+                    </div>
+                    <button
+                      className="btn btn-sm"
+                      style={{ width: "100%", background: cmd.color, color: cmd.color === "#FFD166" || cmd.color === "#FFE44D" ? "#1A1A1A" : "#fff", border: "2px solid #1A1A1A", fontSize: 10 }}
+                      disabled={st === "loading"}
+                      onClick={() => cmd.name === "manual" ? setView("manual_list") : handleRunCmd(cmd.name)}
+                    >
+                      {st === "loading" ? <span className="spinner" /> : `${cmd.name.toUpperCase()} ▶`}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
       </div>
     </div>
   );
