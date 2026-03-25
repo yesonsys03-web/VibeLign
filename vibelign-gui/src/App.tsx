@@ -79,6 +79,7 @@ export default function App() {
           <Onboarding
             initialDir={lastDir}
             onComplete={(dir, key) => { setProjectDir(dir); setLastDir(dir); setApiKey(key); }}
+            onResume={(dir) => { setProjectDir(dir); setLastDir(dir); }}
           />
         ) : (
           <>
