@@ -5,6 +5,7 @@ import { getVibPath, vibStart, saveApiKey } from "../lib/vib";
 
 interface OnboardingProps {
   onComplete: (projectDir: string, apiKey: string | null) => void;
+  onResume?: (dir: string) => void;
   initialDir?: string | null;
 }
 
@@ -24,7 +25,7 @@ const TERMINAL_LINES = [
   { type: "check",  text: "AI에게 코드맵만 주세요!" },
 ];
 
-export default function Onboarding({ onComplete, initialDir }: OnboardingProps) {
+export default function Onboarding({ onComplete, onResume, initialDir }: OnboardingProps) {
   const [vibFound, setVibFound] = useState<string | null>(null);
   const [vibChecking, setVibChecking] = useState(true);
   const [selectedDir, setSelectedDir] = useState(initialDir ?? "");
@@ -57,6 +58,28 @@ export default function Onboarding({ onComplete, initialDir }: OnboardingProps) 
 
       {/* ─── 상단: 스크롤 가능 영역 ──────────────────────────────── */}
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 20px 10px" }}>
+
+        {/* 재진입 카드 — 이전 프로젝트가 있을 때만 표시 */}
+        {initialDir && onResume && (
+          <div
+            className="feature-card"
+            style={{ marginBottom: 12, cursor: "pointer" }}
+            onClick={() => onResume(initialDir)}
+          >
+            <div className="feature-card-header" style={{ background: "#4DFF9118", padding: "8px 12px" }}>
+              <div className="feature-card-icon"
+                style={{ background: "#4DFF91", color: "#1A1A1A", borderColor: "#4DFF91", width: 24, height: 24, fontSize: 14, fontWeight: 900 }}>
+                ▶
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 11 }}>이어서 작업</div>
+                <div style={{ fontSize: 10, color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {initialDir}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 배지 + 헤더 */}
         <div style={{ marginBottom: 12 }}>
