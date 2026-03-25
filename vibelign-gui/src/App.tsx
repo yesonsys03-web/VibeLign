@@ -6,7 +6,7 @@ import Doctor from "./pages/Doctor";
 import Home from "./pages/Home";
 import Checkpoints from "./pages/Checkpoints";
 import Settings from "./pages/Settings";
-import { loadApiKey, loadRecentProjects, saveRecentProjects } from "./lib/vib";
+import { loadApiKey, loadRecentProjects, saveRecentProjects, stopWatch } from "./lib/vib";
 import "./styles/brutalism.css";
 import "./App.css";
 
@@ -105,7 +105,7 @@ export default function App() {
               <button
                 className="nav-tab"
                 style={{ borderRight: "none", fontSize: 11, color: "#777" }}
-                onClick={() => setProjectDir(null)}
+                onClick={() => { stopWatch().catch(() => {}); setProjectDir(null); setPage("home"); }}
               >
                 {projectDir.split("/").slice(-1)[0]} ↩
               </button>
