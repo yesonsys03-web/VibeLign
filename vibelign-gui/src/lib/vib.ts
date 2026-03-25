@@ -4,6 +4,11 @@
  * 모든 vib CLI 접근은 이 모듈을 통한다.
  */
 import { invoke } from "@tauri-apps/api/core";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
+
+export async function openFolder(path: string): Promise<void> {
+  return revealItemInDir(path);
+}
 
 export interface VibResult {
   ok: boolean;

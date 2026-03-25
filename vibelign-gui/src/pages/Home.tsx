@@ -1,6 +1,6 @@
 // === ANCHOR: HOME_START ===
 import { useState } from "react";
-import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch } from "../lib/vib";
+import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch, openFolder } from "../lib/vib";
 
 type CardState = "idle" | "loading" | "done" | "error";
 
@@ -243,6 +243,29 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
                 onClick={handleTransfer}
               >
                 {transferState === "loading" ? <span className="spinner" /> : "TRANSFER ▶"}
+              </button>
+            </div>
+          </div>
+
+          {/* ── 폴더 열기 ────────────────────────────────────────── */}
+          <div className="feature-card" style={{ cursor: "default", gridColumn: "1 / -1" }}>
+            <div className="feature-card-header" style={{ background: "#FFE44D18", padding: "10px 14px" }}>
+              <div className="feature-card-icon"
+                style={{ background: "#FFE44D", color: "#1A1A1A", borderColor: "#FFE44D", width: 28, height: 28, fontSize: 14, fontWeight: 900 }}>
+                ⌂
+              </div>
+              <div style={{ fontWeight: 700, fontSize: 12, flex: 1 }}>폴더 열기</div>
+              <code style={{ fontSize: 10, color: "#888", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>
+                {projectDir}
+              </code>
+            </div>
+            <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
+              <button
+                className="btn btn-sm"
+                style={{ width: "100%", background: "#FFE44D", color: "#1A1A1A", border: "2px solid #1A1A1A", fontWeight: 700 }}
+                onClick={() => openFolder(projectDir).catch(() => {})}
+              >
+                Finder / 탐색기에서 열기 ▶
               </button>
             </div>
           </div>
