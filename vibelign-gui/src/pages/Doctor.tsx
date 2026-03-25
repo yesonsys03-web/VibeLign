@@ -81,6 +81,14 @@ export default function Doctor({ projectDir, apiKey }: DoctorProps) {
     return "score-low";
   }
 
+  function inferSeverity(issue: Issue): string {
+    if (issue.severity) return issue.severity;
+    const t = issue.found.toLowerCase();
+    if (t.includes("너무 깁니다") || t.includes("너무 많이")) return "medium";
+    if (t.includes("없어요") || t.includes("등록")) return "low";
+    return "low";
+  }
+
   function sevClass(sev?: string) {
     const s = (sev ?? "").toLowerCase();
     if (s === "high")                  return "sev-high";
@@ -164,7 +172,7 @@ export default function Doctor({ projectDir, apiKey }: DoctorProps) {
                 <div className="terminal-dot green" />
               </div>
               <div><span className="terminal-prompt">$ </span>vib doctor --json</div>
-              <div><span className="terminal-check">✓ </span>앵커 커버리지: {Math.round(report.anchor_coverage * 100)}%</div>
+              <div><span className="terminal-check">✓ </span>앵커 커버리지: {report.anchor_coverage}%</div>
               <div><span className="terminal-check">✓ </span>이슈: {report.issues.length}개</div>
               <div><span className="terminal-check">✓ </span>프로젝트 점수: {report.project_score} / 100</div>
             </div>
@@ -178,8 +186,8 @@ export default function Doctor({ projectDir, apiKey }: DoctorProps) {
             ) : (
               report.issues.map((issue, i) => (
                 <div className="issue-item" key={i}>
-                  <span className={`issue-severity ${sevClass(issue.severity)}`}>
-                    {(issue.severity ?? "INFO").toUpperCase()}
+                  <span className={`issue-severity ${sevClass(inferSeverity(issue))}`}>
+                    {inferSeverity(issue).toUpperCase()}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 12 }}>{issue.found}</div>
