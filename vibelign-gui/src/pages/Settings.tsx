@@ -1,6 +1,6 @@
 // === ANCHOR: SETTINGS_START ===
-import { useState } from "react";
-import { saveApiKey, deleteApiKey } from "../lib/vib";
+import { useState, useEffect } from "react";
+import { saveApiKey, deleteApiKey, getVibPath } from "../lib/vib";
 
 interface SettingsProps {
   apiKey: string | null;
@@ -11,6 +11,11 @@ export default function Settings({ apiKey, onApiKeyChange }: SettingsProps) {
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [vibPath, setVibPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    getVibPath().then(setVibPath).catch(() => setVibPath(null));
+  }, []);
 
   async function handleSave() {
     const key = input.trim();
@@ -121,6 +126,41 @@ export default function Settings({ apiKey, onApiKeyChange }: SettingsProps) {
         <div style={{ fontSize: 11, color: "#555", lineHeight: 1.6 }}>
           API 키는 <code style={{ color: "#888" }}>~/.vibelign/gui_config.json</code>에 저장됩니다.<br />
           <code style={{ color: "#888" }}>vib patch --ai</code>, <code style={{ color: "#888" }}>vib doctor --apply</code> 등 AI 기능에 사용됩니다.
+        </div>
+
+        {/* vib 경로 섹션 */}
+        <div className="card" style={{ marginTop: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
+            VIB CLI 경로
+          </div>
+          <div style={{ fontSize: 12, marginBottom: 6 }}>
+            상태:{" "}
+            {vibPath ? (
+              <span style={{ color: "#4DFF91", fontWeight: 700 }}>감지됨</span>
+            ) : (
+              <span style={{ color: "#FF4D4D", fontWeight: 700 }}>찾을 수 없음</span>
+            )}
+          </div>
+          {vibPath ? (
+            <div
+              style={{
+                background: "#1A1A1A",
+                border: "1px solid #333",
+                padding: "6px 10px",
+                fontFamily: "IBM Plex Mono, monospace",
+                fontSize: 11,
+                color: "#7DFF6B",
+                wordBreak: "break-all",
+              }}
+            >
+              {vibPath}
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, color: "#777", lineHeight: 1.6 }}>
+              <code style={{ color: "#888" }}>pip install vibelign</code> 으로 설치 후 재시작하세요.<br />
+              설치 가이드: <code style={{ color: "#888" }}>vib install</code>
+            </div>
+          )}
         </div>
       </div>
     </div>
