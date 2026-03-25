@@ -1,3 +1,4 @@
+# === ANCHOR: GIT_HOOKS_START ===
 from __future__ import annotations
 
 import os
@@ -12,12 +13,15 @@ _HOOK_MARKER = "# vibelign: secrets-pre-commit v1"
 
 
 @dataclass(frozen=True)
+# === ANCHOR: GIT_HOOKS_HOOKINSTALLRESULT_START ===
 class HookInstallResult:
     status: str
     path: Path | None
     detail: str | None = None
+# === ANCHOR: GIT_HOOKS_HOOKINSTALLRESULT_END ===
 
 
+# === ANCHOR: GIT_HOOKS__RUN_GIT_PATH_START ===
 def _run_git_path(root: Path, *args: str) -> str | None:
     try:
         completed = subprocess.run(
@@ -30,8 +34,10 @@ def _run_git_path(root: Path, *args: str) -> str | None:
     except (FileNotFoundError, subprocess.CalledProcessError):
         return None
     return completed.stdout.strip() or None
+# === ANCHOR: GIT_HOOKS__RUN_GIT_PATH_END ===
 
 
+# === ANCHOR: GIT_HOOKS_GET_HOOKS_DIR_START ===
 def get_hooks_dir(root: Path) -> Path | None:
     hooks_path = _run_git_path(root, "rev-parse", "--git-path", "hooks")
     if not hooks_path:
@@ -40,8 +46,10 @@ def get_hooks_dir(root: Path) -> Path | None:
     if not hooks_dir.is_absolute():
         hooks_dir = root / hooks_dir
     return hooks_dir
+# === ANCHOR: GIT_HOOKS_GET_HOOKS_DIR_END ===
 
 
+# === ANCHOR: GIT_HOOKS__HOOK_SCRIPT_START ===
 def _hook_script(preferred_command: str | None) -> str:
     commands = []
     if preferred_command:
@@ -64,8 +72,10 @@ def _hook_script(preferred_command: str | None) -> str:
             "",
         ]
     )
+# === ANCHOR: GIT_HOOKS__HOOK_SCRIPT_END ===
 
 
+# === ANCHOR: GIT_HOOKS_INSTALL_PRE_COMMIT_SECRET_HOOK_START ===
 def install_pre_commit_secret_hook(root: Path) -> HookInstallResult:
     hooks_dir = get_hooks_dir(root)
     if hooks_dir is None:
@@ -100,8 +110,10 @@ def install_pre_commit_secret_hook(root: Path) -> HookInstallResult:
                 status="chmod-failed", path=hook_path, detail=str(exc)
             )
     return HookInstallResult(status=status, path=hook_path)
+# === ANCHOR: GIT_HOOKS_INSTALL_PRE_COMMIT_SECRET_HOOK_END ===
 
 
+# === ANCHOR: GIT_HOOKS_UNINSTALL_PRE_COMMIT_SECRET_HOOK_START ===
 def uninstall_pre_commit_secret_hook(root: Path) -> HookInstallResult:
     hooks_dir = get_hooks_dir(root)
     if hooks_dir is None:
@@ -117,3 +129,5 @@ def uninstall_pre_commit_secret_hook(root: Path) -> HookInstallResult:
 
     hook_path.unlink()
     return HookInstallResult(status="removed", path=hook_path)
+# === ANCHOR: GIT_HOOKS_UNINSTALL_PRE_COMMIT_SECRET_HOOK_END ===
+# === ANCHOR: GIT_HOOKS_END ===
