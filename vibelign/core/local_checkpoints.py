@@ -20,6 +20,7 @@ IGNORED_DIRS = {
     "node_modules",
     "dist",
     "build",
+    "target",
     ".pytest_cache",
     ".mypy_cache",
     ".idea",
