@@ -51,6 +51,7 @@ type Page = "doctor" | "checkpoints" | "settings";
 
 export default function App() {
   const [projectDir, setProjectDir] = useState<string | null>(null);
+  const [lastDir, setLastDir] = useState<string | null>(null);
   const [page, setPage] = useState<Page>("doctor");
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [prevPage, setPrevPage] = useState<Page>("doctor");
@@ -75,7 +76,10 @@ export default function App() {
 
       <ErrorBoundary>
         {!projectDir ? (
-          <Onboarding onComplete={(dir, key) => { setProjectDir(dir); setApiKey(key); }} />
+          <Onboarding
+            initialDir={lastDir}
+            onComplete={(dir, key) => { setProjectDir(dir); setLastDir(dir); setApiKey(key); }}
+          />
         ) : (
           <>
             <div className="nav-tabs" style={{ paddingLeft: 8 }}>

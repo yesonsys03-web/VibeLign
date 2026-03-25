@@ -5,6 +5,7 @@ import { getVibPath, vibStart, saveApiKey } from "../lib/vib";
 
 interface OnboardingProps {
   onComplete: (projectDir: string, apiKey: string | null) => void;
+  initialDir?: string | null;
 }
 
 const FEATURE_CARDS = [
@@ -23,10 +24,10 @@ const TERMINAL_LINES = [
   { type: "check",  text: "AI에게 코드맵만 주세요!" },
 ];
 
-export default function Onboarding({ onComplete }: OnboardingProps) {
+export default function Onboarding({ onComplete, initialDir }: OnboardingProps) {
   const [vibFound, setVibFound] = useState<string | null>(null);
   const [vibChecking, setVibChecking] = useState(true);
-  const [selectedDir, setSelectedDir] = useState("");
+  const [selectedDir, setSelectedDir] = useState(initialDir ?? "");
   const [starting, setStarting] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
