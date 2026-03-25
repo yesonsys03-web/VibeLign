@@ -31,6 +31,7 @@ html, body {
   background: var(--bg);
   color: var(--black);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   user-select: none;
   overflow: hidden;
 }
@@ -80,6 +81,8 @@ html, body {
 
 /* ─── 버튼 ─────────────────────────────────────────────────────────────────── */
 .btn {
+  -webkit-appearance: none;
+  appearance: none;
   border: var(--border);
   box-shadow: var(--shadow);
   border-radius: 0;
@@ -396,6 +399,7 @@ html, body {
 .alert-warn    { background: var(--primary); color: var(--white); }
 
 /* ─── 스크롤바 ───────────────────────────────────────────────────────────────── */
+* { scrollbar-width: thin; scrollbar-color: var(--black) var(--gray); }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--gray); }
 ::-webkit-scrollbar-thumb { background: var(--black); }
