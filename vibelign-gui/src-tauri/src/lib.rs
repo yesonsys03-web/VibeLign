@@ -97,6 +97,31 @@ fn config_path() -> Option<PathBuf> {
 }
 
 #[tauri::command]
+fn save_recent_projects(dirs: Vec<String>) -> Result<(), String> {
+    let path = config_path().ok_or("홈 디렉터리를 찾을 수 없습니다")?;
+    let existing = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .unwrap_or(serde_json::json!({}));
+    let mut data = existing;
+    data["recent_projects"] = serde_json::Value::Array(
+        dirs.into_iter().map(serde_json::Value::String).collect(),
+    );
+    std::fs::write(&path, data.to_string()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_recent_projects() -> Vec<String> {
+    let path = match config_path() { Some(p) => p, None => return vec![] };
+    let text = match std::fs::read_to_string(&path) { Ok(t) => t, Err(_) => return vec![] };
+    let data: serde_json::Value = match serde_json::from_str(&text) { Ok(v) => v, Err(_) => return vec![] };
+    data["recent_projects"]
+        .as_array()
+        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .unwrap_or_default()
+}
+
+#[tauri::command]
 fn save_api_key(key: String) -> Result<(), String> {
     let path = config_path().ok_or("홈 디렉터리를 찾을 수 없습니다")?;
     let existing = std::fs::read_to_string(&path)
@@ -144,6 +169,8 @@ pub fn run() {
             save_api_key,
             load_api_key,
             delete_api_key,
+            save_recent_projects,
+            load_recent_projects,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

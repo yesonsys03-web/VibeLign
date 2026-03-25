@@ -5,7 +5,7 @@ import Onboarding from "./pages/Onboarding";
 import Doctor from "./pages/Doctor";
 import Checkpoints from "./pages/Checkpoints";
 import Settings from "./pages/Settings";
-import { loadApiKey } from "./lib/vib";
+import { loadApiKey, loadRecentProjects, saveRecentProjects } from "./lib/vib";
 import "./styles/brutalism.css";
 import "./App.css";
 
@@ -51,14 +51,21 @@ type Page = "doctor" | "checkpoints" | "settings";
 
 export default function App() {
   const [projectDir, setProjectDir] = useState<string | null>(null);
-  const [lastDir, setLastDir] = useState<string | null>(null);
+  const [recentDirs, setRecentDirs] = useState<string[]>([]);
   const [page, setPage] = useState<Page>("doctor");
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [prevPage, setPrevPage] = useState<Page>("doctor");
 
   useEffect(() => {
     loadApiKey().then((k) => setApiKey(k ?? null)).catch(() => {});
+    loadRecentProjects().then(setRecentDirs).catch(() => {});
   }, []);
+
+  function addToRecent(dir: string) {
+    const next = [dir, ...recentDirs.filter((d) => d !== dir)].slice(0, 5);
+    setRecentDirs(next);
+    saveRecentProjects(next).catch(() => {});
+  }
 
   function openSettings() {
     setPrevPage(page === "settings" ? prevPage : page);
@@ -77,9 +84,9 @@ export default function App() {
       <ErrorBoundary>
         {!projectDir ? (
           <Onboarding
-            initialDir={lastDir}
-            onComplete={(dir, key) => { setProjectDir(dir); setLastDir(dir); setApiKey(key); }}
-            onResume={(dir) => { setProjectDir(dir); setLastDir(dir); }}
+            recentDirs={recentDirs}
+            onComplete={(dir, key) => { addToRecent(dir); setProjectDir(dir); if (key) setApiKey(key); }}
+            onResume={(dir) => { addToRecent(dir); setProjectDir(dir); }}
           />
         ) : (
           <>
