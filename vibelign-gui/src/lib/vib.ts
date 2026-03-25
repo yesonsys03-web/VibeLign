@@ -77,12 +77,31 @@ export async function undoCheckpoint(cwd: string, checkpointId: string): Promise
   return JSON.parse(res.stdout);
 }
 
-export async function vibGuard(cwd: string): Promise<{ status: string; summary: string; recommendations: string[] }> {
+export interface GuardIssue { found: string; next_step: string; path: string }
+export interface GuardResult {
+  status: string;
+  summary: string;
+  recommendations: string[];
+  issues: GuardIssue[];
+}
+
+export async function vibGuard(cwd: string): Promise<GuardResult> {
   const res = await runVib(["guard", "--json"], cwd);
-  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
-  const parsed = JSON.parse(res.stdout);
+  const raw = res.stdout.trim();
+  if (!raw) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  const parsed = JSON.parse(raw);
   const data = parsed.data ?? parsed;
-  return { status: data.status ?? "unknown", summary: data.summary ?? "", recommendations: data.recommendations ?? [] };
+  const issues: GuardIssue[] = (data.doctor?.issues ?? []).map((i: any) => ({
+    found: i.found ?? "",
+    next_step: i.next_step ?? "",
+    path: i.path ?? "",
+  }));
+  return {
+    status: data.status ?? "unknown",
+    summary: data.summary ?? "",
+    recommendations: data.recommendations ?? [],
+    issues,
+  };
 }
 
 export async function vibScan(cwd: string): Promise<VibResult> {
@@ -125,5 +144,9 @@ export async function loadApiKey(): Promise<string | null> {
 
 export async function deleteApiKey(): Promise<void> {
   return invoke<void>("delete_api_key");
+}
+
+export async function getEnvKeyStatus(): Promise<Record<string, boolean>> {
+  return invoke<Record<string, boolean>>("get_env_key_status");
 }
 // === ANCHOR: VIB_BRIDGE_END ===

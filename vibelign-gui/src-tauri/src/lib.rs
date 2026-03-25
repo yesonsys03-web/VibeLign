@@ -229,6 +229,23 @@ fn delete_api_key() -> Result<(), String> {
     std::fs::write(&path, data.to_string()).map_err(|e| e.to_string())
 }
 
+// ─── 환경변수 API 키 상태 ──────────────────────────────────────────────────────
+
+/// ANTHROPIC/OPENAI/GEMINI/GLM/MOONSHOT 환경변수 설정 여부를 반환한다.
+#[tauri::command]
+fn get_env_key_status() -> HashMap<String, bool> {
+    let keys = [
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "GEMINI_API_KEY",
+        "GLM_API_KEY",
+        "MOONSHOT_API_KEY",
+    ];
+    keys.iter()
+        .map(|k| (k.to_string(), !std::env::var(k).unwrap_or_default().is_empty()))
+        .collect()
+}
+
 // ─── 앱 진입점 ─────────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -249,6 +266,7 @@ pub fn run() {
             stop_watch,
             watch_status,
             open_folder,
+            get_env_key_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
