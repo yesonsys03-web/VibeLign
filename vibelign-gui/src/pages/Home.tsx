@@ -263,7 +263,7 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
               <button
                 className="btn btn-sm"
                 style={{ width: "100%", background: "#FFE44D", color: "#1A1A1A", border: "2px solid #1A1A1A", fontWeight: 700 }}
-                onClick={() => openFolder(projectDir).catch(() => {})}
+                onClick={() => openFolder(projectDir).catch((e) => setError(String(e)))}
               >
                 Finder / 탐색기에서 열기 ▶
               </button>

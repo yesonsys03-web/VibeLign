@@ -7,6 +7,31 @@ use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 
+// ─── 폴더 열기 ────────────────────────────────────────────────────────────────
+
+#[tauri::command]
+fn open_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    std::process::Command::new("open")
+        .arg(&path)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+
+    #[cfg(target_os = "windows")]
+    std::process::Command::new("explorer")
+        .arg(&path)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+
+    #[cfg(target_os = "linux")]
+    std::process::Command::new("xdg-open")
+        .arg(&path)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
 // ─── Watch 프로세스 State ──────────────────────────────────────────────────────
 
 struct WatchState(Mutex<Option<std::process::Child>>);
@@ -223,6 +248,7 @@ pub fn run() {
             start_watch,
             stop_watch,
             watch_status,
+            open_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
