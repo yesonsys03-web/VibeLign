@@ -53,20 +53,29 @@ export default function App() {
   const [projectDir, setProjectDir] = useState<string | null>(null);
   const [page, setPage] = useState<Page>("doctor");
   const [apiKey, setApiKey] = useState<string | null>(null);
+  const [prevPage, setPrevPage] = useState<Page>("doctor");
 
   useEffect(() => {
     loadApiKey().then((k) => setApiKey(k ?? null)).catch(() => {});
   }, []);
 
+  function openSettings() {
+    setPrevPage(page === "settings" ? prevPage : page);
+    setPage("settings");
+  }
+
   return (
     <div className="app-layout">
       <ErrorBoundary>
-        <CustomTitleBar projectDir={projectDir} />
+        <CustomTitleBar
+          projectDir={projectDir}
+          onSettings={projectDir ? openSettings : undefined}
+        />
       </ErrorBoundary>
 
       <ErrorBoundary>
         {!projectDir ? (
-          <Onboarding onComplete={(dir) => setProjectDir(dir)} />
+          <Onboarding onComplete={(dir, key) => { setProjectDir(dir); setApiKey(key); }} />
         ) : (
           <>
             <div className="nav-tabs" style={{ paddingLeft: 8 }}>
@@ -75,9 +84,6 @@ export default function App() {
               </button>
               <button className={`nav-tab ${page === "checkpoints" ? "active" : ""}`} onClick={() => setPage("checkpoints")}>
                 Checkpoints
-              </button>
-              <button className={`nav-tab ${page === "settings" ? "active" : ""}`} onClick={() => setPage("settings")}>
-                ⚙
               </button>
               <div style={{ flex: 1 }} />
               <button
@@ -93,7 +99,20 @@ export default function App() {
               <ErrorBoundary>
                 {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} />}
                 {page === "checkpoints" && <Checkpoints projectDir={projectDir} />}
-                {page === "settings" && <Settings apiKey={apiKey} onApiKeyChange={setApiKey} />}
+                {page === "settings" && (
+                  <>
+                    <div style={{ padding: "8px 12px 0", borderBottom: "2px solid #1A1A1A" }}>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setPage(prevPage)}
+                        style={{ fontSize: 11 }}
+                      >
+                        ← 뒤로
+                      </button>
+                    </div>
+                    <Settings apiKey={apiKey} onApiKeyChange={setApiKey} />
+                  </>
+                )}
               </ErrorBoundary>
             </div>
           </>
