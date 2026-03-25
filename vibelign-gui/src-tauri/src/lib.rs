@@ -3,8 +3,56 @@ mod vib_path;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
+
+// ─── Watch 프로세스 State ──────────────────────────────────────────────────────
+
+struct WatchState(Mutex<Option<std::process::Child>>);
+
+impl Drop for WatchState {
+    fn drop(&mut self) {
+        if let Ok(mut guard) = self.0.lock() {
+            if let Some(mut child) = guard.take() {
+                let _ = child.kill();
+            }
+        }
+    }
+}
+
+#[tauri::command]
+fn start_watch(state: tauri::State<WatchState>, cwd: String) -> Result<(), String> {
+    let vib = vib_path::find_vib().ok_or("vib 실행 파일을 찾을 수 없습니다")?;
+    // 기존 watch가 있으면 먼저 중지
+    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
+    if let Some(ref mut child) = *guard {
+        let _ = child.kill();
+    }
+    let child = std::process::Command::new(&vib)
+        .arg("watch")
+        .current_dir(PathBuf::from(&cwd))
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    *guard = Some(child);
+    Ok(())
+}
+
+#[tauri::command]
+fn stop_watch(state: tauri::State<WatchState>) -> Result<(), String> {
+    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
+    if let Some(mut child) = guard.take() {
+        let _ = child.kill();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn watch_status(state: tauri::State<WatchState>) -> bool {
+    state.0.lock()
+        .map(|g| g.is_some())
+        .unwrap_or(false)
+}
 
 // ─── 타입 정의 ─────────────────────────────────────────────────────────────────
 
@@ -163,6 +211,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(WatchState(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             get_vib_path,
             run_vib,
@@ -171,6 +220,9 @@ pub fn run() {
             delete_api_key,
             save_recent_projects,
             load_recent_projects,
+            start_watch,
+            stop_watch,
+            watch_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

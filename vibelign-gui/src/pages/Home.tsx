@@ -1,6 +1,6 @@
 // === ANCHOR: HOME_START ===
 import { useState } from "react";
-import { vibGuard, vibScan, vibTransfer } from "../lib/vib";
+import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch } from "../lib/vib";
 
 type CardState = "idle" | "loading" | "done" | "error";
 
@@ -10,11 +10,14 @@ interface HomeProps {
 }
 
 export default function Home({ projectDir, onNavigate }: HomeProps) {
-  const [guardState, setGuardState]     = useState<CardState>("idle");
-  const [guardResult, setGuardResult]   = useState<{ status: string; summary: string } | null>(null);
-  const [scanState, setScanState]       = useState<CardState>("idle");
+  const [guardState, setGuardState]       = useState<CardState>("idle");
+  const [guardResult, setGuardResult]     = useState<{ status: string; summary: string } | null>(null);
+  const [scanState, setScanState]         = useState<CardState>("idle");
+  const [watchOn, setWatchOn]             = useState(false);
+  const [watchLoading, setWatchLoading]   = useState(false);
+  const [mapMode, setMapMode]             = useState<"manual" | "auto">("manual");
   const [transferState, setTransferState] = useState<CardState>("idle");
-  const [error, setError]               = useState<string | null>(null);
+  const [error, setError]                 = useState<string | null>(null);
 
   async function handleGuard() {
     setGuardState("loading");
@@ -43,6 +46,24 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
     }
   }
 
+  async function handleToggleWatch() {
+    setWatchLoading(true);
+    setError(null);
+    try {
+      if (watchOn) {
+        await stopWatch();
+        setWatchOn(false);
+      } else {
+        await startWatch(projectDir);
+        setWatchOn(true);
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setWatchLoading(false);
+    }
+  }
+
   async function handleTransfer() {
     setTransferState("loading");
     setError(null);
@@ -57,52 +78,10 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
   }
 
   function guardColor(status: string) {
-    if (status === "pass")   return "#4DFF91";
-    if (status === "warn")   return "#FFD166";
+    if (status === "pass") return "#4DFF91";
+    if (status === "warn") return "#FFD166";
     return "#FF4D4D";
   }
-
-  const CARDS = [
-    {
-      icon: "MAP", color: "#F5621E",
-      title: "코드맵 생성",
-      desc: "앵커 스캔 + 코드맵 갱신",
-      state: scanState,
-      doneMsg: "코드맵 갱신 완료",
-      action: handleScan,
-      btnLabel: "SCAN ▶",
-    },
-    {
-      icon: "♥", color: "#FF4D8B",
-      title: "AI 폭주 방지",
-      desc: guardResult
-        ? guardResult.summary
-        : "현재 프로젝트 상태 점검",
-      state: guardState,
-      doneMsg: guardResult ? `상태: ${guardResult.status.toUpperCase()}` : "완료",
-      doneColor: guardResult ? guardColor(guardResult.status) : "#4DFF91",
-      action: handleGuard,
-      btnLabel: "GUARD ▶",
-    },
-    {
-      icon: "↺", color: "#7B4DFF",
-      title: "원클릭 복구",
-      desc: "체크포인트 목록으로 이동",
-      state: "idle" as CardState,
-      doneMsg: "",
-      action: () => onNavigate("checkpoints"),
-      btnLabel: "열기 ▶",
-    },
-    {
-      icon: "⇄", color: "#4D9FFF",
-      title: "AI 이동 자유",
-      desc: "PROJECT_CONTEXT.md 생성",
-      state: transferState,
-      doneMsg: "맥락 파일 생성 완료",
-      action: handleTransfer,
-      btnLabel: "TRANSFER ▶",
-    },
-  ];
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -114,37 +93,160 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
 
       <div className="page-content">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          {CARDS.map((card) => (
-            <div className="feature-card" key={card.icon} style={{ cursor: "default" }}>
-              <div className="feature-card-header" style={{ background: card.color + "18", padding: "10px 14px" }}>
-                <div className="feature-card-icon"
-                  style={{ background: card.color, color: "#fff", borderColor: card.color, width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>
-                  {card.icon}
-                </div>
-                <div style={{ fontWeight: 700, fontSize: 12, flex: 1 }}>{card.title}</div>
-                {card.state === "done" && (
-                  <span style={{
-                    fontSize: 9, fontWeight: 700, padding: "2px 6px",
-                    background: (card as { doneColor?: string }).doneColor ?? "#4DFF91",
-                    color: "#1A1A1A", border: "1px solid #1A1A1A",
-                  }}>
-                    {card.doneMsg}
-                  </span>
-                )}
+
+          {/* ── 코드맵 생성 ────────────────────────────────────── */}
+          <div className="feature-card" style={{ cursor: "default" }}>
+            <div className="feature-card-header" style={{ background: "#F5621E18", padding: "10px 14px" }}>
+              <div className="feature-card-icon"
+                style={{ background: "#F5621E", color: "#fff", borderColor: "#F5621E", width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>
+                MAP
               </div>
-              <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
-                <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>{card.desc}</div>
-                <button
-                  className="btn btn-sm"
-                  style={{ width: "100%", background: card.color, color: "#fff", border: "2px solid #1A1A1A" }}
-                  disabled={card.state === "loading"}
-                  onClick={card.action}
-                >
-                  {card.state === "loading" ? <span className="spinner" /> : card.btnLabel}
-                </button>
-              </div>
+              <div style={{ fontWeight: 700, fontSize: 12, flex: 1 }}>코드맵 생성</div>
+              {watchOn && (
+                <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>
+                  감시 중
+                </span>
+              )}
+              {mapMode === "manual" && scanState === "done" && !watchOn && (
+                <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>
+                  갱신 완료
+                </span>
+              )}
             </div>
-          ))}
+            <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
+              {/* 수동/자동 탭 */}
+              <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+                {(["manual", "auto"] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setMapMode(m)}
+                    style={{
+                      flex: 1, fontSize: 10, fontWeight: 700, padding: "3px 0",
+                      border: "2px solid #1A1A1A",
+                      background: mapMode === m ? "#1A1A1A" : "#fff",
+                      color: mapMode === m ? "#fff" : "#1A1A1A",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {m === "manual" ? "수동" : "자동"}
+                  </button>
+                ))}
+              </div>
+              {mapMode === "manual" ? (
+                <>
+                  <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>앵커 스캔 + 코드맵 1회 갱신</div>
+                  <button
+                    className="btn btn-sm"
+                    style={{ width: "100%", background: "#F5621E", color: "#fff", border: "2px solid #1A1A1A" }}
+                    disabled={scanState === "loading"}
+                    onClick={handleScan}
+                  >
+                    {scanState === "loading" ? <span className="spinner" /> : "SCAN ▶"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>
+                    {watchOn ? "파일 변경 시 코드맵 자동 갱신 중" : "실시간 감시 시작 (vib watch)"}
+                  </div>
+                  <button
+                    className="btn btn-sm"
+                    style={{
+                      width: "100%", border: "2px solid #1A1A1A",
+                      background: watchOn ? "#FF4D4D" : "#F5621E",
+                      color: "#fff",
+                    }}
+                    disabled={watchLoading}
+                    onClick={handleToggleWatch}
+                  >
+                    {watchLoading ? <span className="spinner" /> : watchOn ? "STOP ■" : "WATCH ▶"}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* ── AI 폭주 방지 ────────────────────────────────────── */}
+          <div className="feature-card" style={{ cursor: "default" }}>
+            <div className="feature-card-header" style={{ background: "#FF4D8B18", padding: "10px 14px" }}>
+              <div className="feature-card-icon"
+                style={{ background: "#FF4D8B", color: "#fff", borderColor: "#FF4D8B", width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>
+                ♥
+              </div>
+              <div style={{ fontWeight: 700, fontSize: 12, flex: 1 }}>AI 폭주 방지</div>
+              {guardState === "done" && guardResult && (
+                <span style={{
+                  fontSize: 9, fontWeight: 700, padding: "2px 6px",
+                  background: guardColor(guardResult.status),
+                  color: "#1A1A1A", border: "1px solid #1A1A1A",
+                }}>
+                  {guardResult.status.toUpperCase()}
+                </span>
+              )}
+            </div>
+            <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
+              <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>
+                {guardResult ? guardResult.summary : "현재 프로젝트 상태 점검"}
+              </div>
+              <button
+                className="btn btn-sm"
+                style={{ width: "100%", background: "#FF4D8B", color: "#fff", border: "2px solid #1A1A1A" }}
+                disabled={guardState === "loading"}
+                onClick={handleGuard}
+              >
+                {guardState === "loading" ? <span className="spinner" /> : "GUARD ▶"}
+              </button>
+            </div>
+          </div>
+
+          {/* ── 원클릭 복구 ─────────────────────────────────────── */}
+          <div className="feature-card" style={{ cursor: "default" }}>
+            <div className="feature-card-header" style={{ background: "#7B4DFF18", padding: "10px 14px" }}>
+              <div className="feature-card-icon"
+                style={{ background: "#7B4DFF", color: "#fff", borderColor: "#7B4DFF", width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>
+                ↺
+              </div>
+              <div style={{ fontWeight: 700, fontSize: 12, flex: 1 }}>원클릭 복구</div>
+            </div>
+            <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
+              <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>체크포인트 목록으로 이동</div>
+              <button
+                className="btn btn-sm"
+                style={{ width: "100%", background: "#7B4DFF", color: "#fff", border: "2px solid #1A1A1A" }}
+                onClick={() => onNavigate("checkpoints")}
+              >
+                열기 ▶
+              </button>
+            </div>
+          </div>
+
+          {/* ── AI 이동 자유 ─────────────────────────────────────── */}
+          <div className="feature-card" style={{ cursor: "default" }}>
+            <div className="feature-card-header" style={{ background: "#4D9FFF18", padding: "10px 14px" }}>
+              <div className="feature-card-icon"
+                style={{ background: "#4D9FFF", color: "#fff", borderColor: "#4D9FFF", width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>
+                ⇄
+              </div>
+              <div style={{ fontWeight: 700, fontSize: 12, flex: 1 }}>AI 이동 자유</div>
+              {transferState === "done" && (
+                <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>
+                  생성 완료
+                </span>
+              )}
+            </div>
+            <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
+              <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>PROJECT_CONTEXT.md 생성</div>
+              <button
+                className="btn btn-sm"
+                style={{ width: "100%", background: "#4D9FFF", color: "#fff", border: "2px solid #1A1A1A" }}
+                disabled={transferState === "loading"}
+                onClick={handleTransfer}
+              >
+                {transferState === "loading" ? <span className="spinner" /> : "TRANSFER ▶"}
+              </button>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>

@@ -90,6 +90,18 @@ export async function vibTransfer(cwd: string): Promise<VibResult> {
   return runVib(["transfer"], cwd);
 }
 
+export async function startWatch(cwd: string): Promise<void> {
+  return invoke<void>("start_watch", { cwd });
+}
+
+export async function stopWatch(): Promise<void> {
+  return invoke<void>("stop_watch");
+}
+
+export async function watchStatus(): Promise<boolean> {
+  return invoke<boolean>("watch_status");
+}
+
 // ─── API 키 관리 ────────────────────────────────────────────────────────────────
 
 export async function saveRecentProjects(dirs: string[]): Promise<void> {
