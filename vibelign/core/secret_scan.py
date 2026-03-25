@@ -1,3 +1,4 @@
+# === ANCHOR: SECRET_SCAN_START ===
 from __future__ import annotations
 
 import re
@@ -44,23 +45,30 @@ _BINARY_SECRET_PATHS = {
 _BINARY_SECRET_SUFFIXES = (".pem", ".key", ".p12", ".pfx")
 
 
+# === ANCHOR: SECRET_SCAN_SECRETFINDING_START ===
 @dataclass(frozen=True)
 class SecretFinding:
     path: str
     rule_id: str
     line_number: int | None
     snippet: str
+# === ANCHOR: SECRET_SCAN_SECRETFINDING_END ===
 
 
+# === ANCHOR: SECRET_SCAN_SECRETSCANRESULT_START ===
 @dataclass(frozen=True)
 class SecretScanResult:
     findings: list[SecretFinding]
 
+    # === ANCHOR: SECRET_SCAN_HAS_FINDINGS_START ===
     @property
     def has_findings(self) -> bool:
         return bool(self.findings)
+    # === ANCHOR: SECRET_SCAN_HAS_FINDINGS_END ===
+# === ANCHOR: SECRET_SCAN_SECRETSCANRESULT_END ===
 
 
+# === ANCHOR: SECRET_SCAN__RUN_GIT_START ===
 def _run_git(root: Path, args: list[str]) -> str:
     completed = subprocess.run(
         ["git", *args],
@@ -70,8 +78,10 @@ def _run_git(root: Path, args: list[str]) -> str:
         text=True,
     )
     return completed.stdout
+# === ANCHOR: SECRET_SCAN__RUN_GIT_END ===
 
 
+# === ANCHOR: SECRET_SCAN__LOOKS_LIKE_SECRET_FILE_START ===
 def _looks_like_secret_file(path: str) -> bool:
     name = path.replace("\\", "/")
     basename = Path(name).name
@@ -81,28 +91,37 @@ def _looks_like_secret_file(path: str) -> bool:
         or name.endswith(_BINARY_SECRET_SUFFIXES)
         or basename.endswith(_BINARY_SECRET_SUFFIXES)
     )
+# === ANCHOR: SECRET_SCAN__LOOKS_LIKE_SECRET_FILE_END ===
 
 
+# === ANCHOR: SECRET_SCAN__IS_PLACEHOLDER_START ===
 def _is_placeholder(value: str) -> bool:
     normalized = value.strip().strip("\"'").upper()
     return normalized in _PLACEHOLDER_VALUES or normalized.startswith("YOUR_")
+# === ANCHOR: SECRET_SCAN__IS_PLACEHOLDER_END ===
 
 
+# === ANCHOR: SECRET_SCAN__REDACT_START ===
 def _redact(text: str) -> str:
     compact = " ".join(text.strip().split())
     if len(compact) <= 4:
         return "[redacted]"
     return f"...{compact[-4:]}"
+# === ANCHOR: SECRET_SCAN__REDACT_END ===
 
 
+# === ANCHOR: SECRET_SCAN__EXTRACT_ADDED_LINE_START ===
 def _extract_added_line(line: str) -> str | None:
     if not line.startswith("+") or line.startswith("+++"):
         return None
     return line[1:]
+# === ANCHOR: SECRET_SCAN__EXTRACT_ADDED_LINE_END ===
 
 
+# === ANCHOR: SECRET_SCAN_SCAN_UNIFIED_DIFF_FOR_SECRETS_START ===
 def scan_unified_diff_for_secrets(
     diff_text: str, path_hint: str
+# === ANCHOR: SECRET_SCAN_SCAN_UNIFIED_DIFF_FOR_SECRETS_END ===
 ) -> list[SecretFinding]:
     findings: list[SecretFinding] = []
     current_line_number: int | None = None
@@ -161,6 +180,7 @@ def scan_unified_diff_for_secrets(
     return findings
 
 
+# === ANCHOR: SECRET_SCAN_SCAN_STAGED_SECRETS_START ===
 def scan_staged_secrets(root: Path) -> SecretScanResult:
     findings: list[SecretFinding] = []
     names_output = _run_git(root, ["diff", "--cached", "--name-only", "-z"])
@@ -183,3 +203,5 @@ def scan_staged_secrets(root: Path) -> SecretScanResult:
         findings.extend(scan_unified_diff_for_secrets(diff_text, path))
 
     return SecretScanResult(findings=findings)
+# === ANCHOR: SECRET_SCAN_SCAN_STAGED_SECRETS_END ===
+# === ANCHOR: SECRET_SCAN_END ===

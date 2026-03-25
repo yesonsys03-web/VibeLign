@@ -1,3 +1,4 @@
+# === ANCHOR: ANCHOR_TOOLS_START ===
 from pathlib import Path
 import json
 import re
@@ -40,20 +41,27 @@ CONST_FUNC_RE = re.compile(
 )
 
 
+# === ANCHOR: ANCHOR_TOOLS_BUILD_ANCHOR_NAME_START ===
 def build_anchor_name(path: Path) -> str:
     return re.sub(
         r"[^A-Z0-9_]", "_", path.stem.upper().replace("-", "_").replace(" ", "_")
     )
+# === ANCHOR: ANCHOR_TOOLS_BUILD_ANCHOR_NAME_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_NORMALIZE_ANCHOR_NAME_START ===
 def normalize_anchor_name(name: str) -> str:
     return re.sub(r"[^A-Z0-9_]", "_", name.upper())
+# === ANCHOR: ANCHOR_TOOLS_NORMALIZE_ANCHOR_NAME_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_BUILD_SYMBOL_ANCHOR_NAME_START ===
 def build_symbol_anchor_name(path: Path, symbol_name: str) -> str:
     return f"{build_anchor_name(path)}_{normalize_anchor_name(symbol_name)}"
+# === ANCHOR: ANCHOR_TOOLS_BUILD_SYMBOL_ANCHOR_NAME_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_BUILD_ANCHOR_BLOCK_START ===
 def build_anchor_block(path: Path):
     prefix = COMMENT_PREFIX.get(path.suffix.lower(), "#")
     name = build_anchor_name(path)
@@ -61,8 +69,10 @@ def build_anchor_block(path: Path):
         f"{prefix} === ANCHOR: {name}_START ===",
         f"{prefix} === ANCHOR: {name}_END ===",
     )
+# === ANCHOR: ANCHOR_TOOLS_BUILD_ANCHOR_BLOCK_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_PREVIEW_ANCHOR_TARGETS_START ===
 def preview_anchor_targets(root: Path, allowed_exts=None):
     targets = []
     for path in iter_source_files(root):
@@ -72,10 +82,13 @@ def preview_anchor_targets(root: Path, allowed_exts=None):
         if text and "ANCHOR:" not in text:
             targets.append(path)
     return targets
+# === ANCHOR: ANCHOR_TOOLS_PREVIEW_ANCHOR_TARGETS_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_ANCHOR_RECOMMENDATION_DETAILS_START ===
 def anchor_recommendation_details(
     root: Path, path: Path, project_map: Optional[ProjectMapSnapshot] = None
+# === ANCHOR: ANCHOR_TOOLS_ANCHOR_RECOMMENDATION_DETAILS_END ===
 ) -> dict[str, object]:
     rel = str(path.relative_to(root))
     text = safe_read_text(path)
@@ -137,10 +150,12 @@ def anchor_recommendation_details(
     }
 
 
+# === ANCHOR: ANCHOR_TOOLS_RECOMMEND_ANCHOR_TARGETS_START ===
 def recommend_anchor_targets(
     root: Path,
     allowed_exts=None,
     project_map: Optional[ProjectMapSnapshot] = None,
+# === ANCHOR: ANCHOR_TOOLS_RECOMMEND_ANCHOR_TARGETS_END ===
 ) -> list[dict[str, Any]]:
     recommendations = []
     for path in preview_anchor_targets(root, allowed_exts=allowed_exts):
@@ -155,6 +170,7 @@ def recommend_anchor_targets(
     return recommendations
 
 
+# === ANCHOR: ANCHOR_TOOLS__PYTHON_SYMBOL_BLOCKS_START ===
 def _python_symbol_blocks(text: str):
     lines = text.splitlines()
     blocks = []
@@ -183,8 +199,10 @@ def _python_symbol_blocks(text: str):
             end_idx -= 1
         blocks.append((idx, end_idx, symbol_name, match.group(1)))
     return blocks
+# === ANCHOR: ANCHOR_TOOLS__PYTHON_SYMBOL_BLOCKS_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS__JS_SYMBOL_BLOCKS_START ===
 def _js_symbol_blocks(text: str):
     lines = text.splitlines()
     blocks = []
@@ -231,8 +249,10 @@ def _js_symbol_blocks(text: str):
             end_idx -= 1
         blocks.append((idx, end_idx, symbol_name, indent))
     return blocks
+# === ANCHOR: ANCHOR_TOOLS__JS_SYMBOL_BLOCKS_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_INSERT_PYTHON_SYMBOL_ANCHORS_START ===
 def insert_python_symbol_anchors(path: Path) -> bool:
     if path.suffix.lower() != ".py":
         return False
@@ -265,8 +285,10 @@ def insert_python_symbol_anchors(path: Path) -> bool:
         print(f"경고: {path}에 심볼 앵커를 쓸 수 없습니다: {e}")
         return False
     return True
+# === ANCHOR: ANCHOR_TOOLS_INSERT_PYTHON_SYMBOL_ANCHORS_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_INSERT_JS_SYMBOL_ANCHORS_START ===
 def insert_js_symbol_anchors(path: Path) -> bool:
     if path.suffix.lower() not in {".js", ".ts", ".jsx", ".tsx"}:
         return False
@@ -299,8 +321,10 @@ def insert_js_symbol_anchors(path: Path) -> bool:
         print(f"경고: {path}에 JS/TS 심볼 앵커를 쓸 수 없습니다: {e}")
         return False
     return True
+# === ANCHOR: ANCHOR_TOOLS_INSERT_JS_SYMBOL_ANCHORS_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_INSERT_MODULE_ANCHORS_START ===
 def insert_module_anchors(path: Path) -> bool:
     text = safe_read_text(path)
     if not text:
@@ -340,8 +364,10 @@ def insert_module_anchors(path: Path) -> bool:
         print(f"경고: {path}에 앵커를 쓸 수 없습니다: {e}")
         return False
     return True
+# === ANCHOR: ANCHOR_TOOLS_INSERT_MODULE_ANCHORS_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHORS_START ===
 def extract_anchors(path: Path) -> list[str]:
     anchors = []
     for match in ANCHOR_RE.finditer(safe_read_text(path)):
@@ -349,8 +375,10 @@ def extract_anchors(path: Path) -> list[str]:
         base = re.sub(r"_(START|END)$", "", raw).rstrip("_")
         anchors.append(base)
     return list(dict.fromkeys(anchors))
+# === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHORS_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_SUGGEST_ANCHOR_NAMES_START ===
 def suggest_anchor_names(path: Path) -> list[str]:
     text = safe_read_text(path)
     if not text:
@@ -368,8 +396,10 @@ def suggest_anchor_names(path: Path) -> list[str]:
         if name and not name.startswith("__")
     ]
     return list(dict.fromkeys(normalized[:24]))
+# === ANCHOR: ANCHOR_TOOLS_SUGGEST_ANCHOR_NAMES_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_COLLECT_ANCHOR_INDEX_START ===
 def collect_anchor_index(root: Path, allowed_exts=None) -> dict[str, list[str]]:
     if allowed_exts is None:
         from vibelign.core.fast_tools import has_rg, grep_anchors_rg
@@ -385,10 +415,13 @@ def collect_anchor_index(root: Path, allowed_exts=None) -> dict[str, list[str]]:
         if anchors:
             index[str(path.relative_to(root))] = anchors
     return index
+# === ANCHOR: ANCHOR_TOOLS_COLLECT_ANCHOR_INDEX_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_COLLECT_ANCHOR_METADATA_START ===
 def collect_anchor_metadata(
     root: Path, allowed_exts=None
+# === ANCHOR: ANCHOR_TOOLS_COLLECT_ANCHOR_METADATA_END ===
 ) -> dict[str, dict[str, list[str]]]:
     metadata = {}
     for path in iter_source_files(root):
@@ -404,6 +437,7 @@ def collect_anchor_metadata(
     return metadata
 
 
+# === ANCHOR: ANCHOR_TOOLS_LOAD_ANCHOR_META_START ===
 def load_anchor_meta(root: Path) -> dict[str, dict]:
     """anchor_meta.json 로드. 없으면 빈 딕셔너리 반환."""
     from vibelign.core.meta_paths import MetaPaths
@@ -414,8 +448,10 @@ def load_anchor_meta(root: Path) -> dict[str, dict]:
         return json.loads(meta.anchor_meta_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
+# === ANCHOR: ANCHOR_TOOLS_LOAD_ANCHOR_META_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_SAVE_ANCHOR_META_START ===
 def save_anchor_meta(root: Path, data: dict[str, dict]) -> None:
     """anchor_meta.json 저장."""
     from vibelign.core.meta_paths import MetaPaths
@@ -424,14 +460,17 @@ def save_anchor_meta(root: Path, data: dict[str, dict]) -> None:
     meta.anchor_meta_path.write_text(
         json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
+# === ANCHOR: ANCHOR_TOOLS_SAVE_ANCHOR_META_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_SET_ANCHOR_INTENT_START ===
 def set_anchor_intent(
     root: Path,
     anchor_name: str,
     intent: str,
     connects: Optional[list[str]] = None,
     warning: Optional[str] = None,
+# === ANCHOR: ANCHOR_TOOLS_SET_ANCHOR_INTENT_END ===
 ) -> None:
     """특정 앵커에 의도(intent) 정보를 저장한다."""
     data = load_anchor_meta(root)
@@ -445,11 +484,14 @@ def set_anchor_intent(
     save_anchor_meta(root, data)
 
 
+# === ANCHOR: ANCHOR_TOOLS_GET_ANCHOR_INTENT_START ===
 def get_anchor_intent(root: Path, anchor_name: str) -> dict:
     """특정 앵커의 의도 정보를 반환. 없으면 빈 딕셔너리."""
     return load_anchor_meta(root).get(anchor_name, {})
+# === ANCHOR: ANCHOR_TOOLS_GET_ANCHOR_INTENT_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHOR_LINE_RANGES_START ===
 def extract_anchor_line_ranges(path: Path) -> dict[str, tuple[int, int]]:
     """각 앵커의 START~END 줄 번호 반환. {anchor_name: (start_line, end_line)} (1-based)"""
     text = safe_read_text(path)
@@ -469,8 +511,10 @@ def extract_anchor_line_ranges(path: Path) -> dict[str, tuple[int, int]]:
             if name in starts:
                 ranges[name] = (starts.pop(name), i)
     return ranges
+# === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHOR_LINE_RANGES_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHOR_BLOCKS_START ===
 def extract_anchor_blocks(path: Path) -> dict[str, str]:
     """각 앵커의 START~END 사이 코드를 추출. {anchor_name: code}"""
     text = safe_read_text(path)
@@ -494,8 +538,10 @@ def extract_anchor_blocks(path: Path) -> dict[str, str]:
         if current_anchor is not None:
             current_lines.append(line)
     return blocks
+# === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHOR_BLOCKS_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_GENERATE_ANCHOR_INTENTS_WITH_AI_START ===
 def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
     """AI를 사용해 anchor intent를 자동 생성하고 저장. 반환: 등록된 intent 수"""
     from vibelign.core.ai_explain import generate_text_with_ai, has_ai_provider
@@ -536,8 +582,10 @@ def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
     for anchor, intent in parsed.items():
         set_anchor_intent(root, anchor, intent)
     return len(parsed)
+# === ANCHOR: ANCHOR_TOOLS_GENERATE_ANCHOR_INTENTS_WITH_AI_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_STRIP_ANCHORS_START ===
 def strip_anchors(path: Path) -> bool:
     """파일에서 모든 앵커 줄을 제거한다. 변경이 있으면 True를 반환."""
     text = safe_read_text(path)
@@ -553,8 +601,10 @@ def strip_anchors(path: Path) -> bool:
         print(f"경고: {path} 앵커 제거 실패: {e}")
         return False
     return True
+# === ANCHOR: ANCHOR_TOOLS_STRIP_ANCHORS_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_VALIDATE_ANCHOR_FILE_START ===
 def validate_anchor_file(path: Path) -> list[str]:
     text = safe_read_text(path)
     if not text:
@@ -571,3 +621,5 @@ def validate_anchor_file(path: Path) -> list[str]:
     if not start_markers and not end_markers:
         problems.append("앵커가 없습니다")
     return problems
+# === ANCHOR: ANCHOR_TOOLS_VALIDATE_ANCHOR_FILE_END ===
+# === ANCHOR: ANCHOR_TOOLS_END ===

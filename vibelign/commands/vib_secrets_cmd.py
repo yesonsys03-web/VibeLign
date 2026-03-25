@@ -1,3 +1,4 @@
+# === ANCHOR: VIB_SECRETS_CMD_START ===
 from argparse import Namespace
 from pathlib import Path
 
@@ -16,14 +17,17 @@ from vibelign.terminal_render import (
 )
 
 
+# === ANCHOR: VIB_SECRETS_CMD__PRINT_FINDINGS_START ===
 def _print_findings(findings: list[SecretFinding]) -> None:
     for finding in findings:
         location = finding.path
         if finding.line_number is not None:
             location += f":{finding.line_number}"
         clack_warn(f"{location} [{finding.rule_id}] {finding.snippet}")
+# === ANCHOR: VIB_SECRETS_CMD__PRINT_FINDINGS_END ===
 
 
+# === ANCHOR: VIB_SECRETS_CMD_RUN_VIB_SECRETS_START ===
 def run_vib_secrets(args: Namespace) -> None:
     root = Path.cwd()
 
@@ -87,3 +91,5 @@ def run_vib_secrets(args: Namespace) -> None:
         raise SystemExit(1)
 
     clack_success("staged 변경사항에서 비밀정보를 찾지 못했어요.")
+# === ANCHOR: VIB_SECRETS_CMD_RUN_VIB_SECRETS_END ===
+# === ANCHOR: VIB_SECRETS_CMD_END ===
