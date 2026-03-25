@@ -29,6 +29,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [selectedDir, setSelectedDir] = useState("");
   const [starting, setStarting] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
+  const [apiKeyOpen, setApiKeyOpen] = useState(false);
 
   useEffect(() => {
     getVibPath().then((p) => { setVibFound(p); setVibChecking(false); });
@@ -96,7 +97,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         </div>
 
         {/* 기능 카드 그리드 */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
           {FEATURE_CARDS.map((card) => (
             <div className="feature-card" key={card.icon}>
               <div className="feature-card-header" style={{ background: card.color + "18", padding: "8px 12px" }}>
@@ -109,6 +110,40 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               <div className="feature-card-body" style={{ padding: "6px 12px", fontSize: 11 }}>{card.desc}</div>
             </div>
           ))}
+        </div>
+
+        {/* API 키 카드 */}
+        <div className="feature-card" style={{ cursor: "pointer" }}
+          onClick={() => setApiKeyOpen((o) => !o)}>
+          <div className="feature-card-header" style={{ background: "#FFE44D18", padding: "8px 12px" }}>
+            <div className="feature-card-icon"
+              style={{ background: "#FFE44D", color: "#1A1A1A", borderColor: "#FFE44D", width: 24, height: 24, fontSize: 12, fontWeight: 900 }}>
+              KEY
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 11, flex: 1 }}>Anthropic API Key</div>
+            <div style={{ fontSize: 10, color: apiKeyInput.trim() ? "#4DFF91" : "#888", fontWeight: 700 }}>
+              {apiKeyInput.trim() ? "설정됨 ✓" : "미설정 (선택)"}
+            </div>
+            <div style={{ fontSize: 11, color: "#666", marginLeft: 8 }}>{apiKeyOpen ? "▲" : "▼"}</div>
+          </div>
+          {apiKeyOpen && (
+            <div className="feature-card-body"
+              style={{ padding: "8px 12px" }}
+              onClick={(e) => e.stopPropagation()}>
+              <input
+                type="password"
+                className="input-field"
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                placeholder="sk-ant-api03-..."
+                style={{ width: "100%", fontSize: 11, boxSizing: "border-box" }}
+                autoFocus
+              />
+              <div style={{ fontSize: 10, color: "#666", marginTop: 4 }}>
+                AI 기능(vib patch --ai 등)에 사용됩니다. 나중에 ⚙ 설정에서 변경 가능.
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -133,19 +168,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             style={{ flex: 2, maxWidth: 320 }}
           />
           <button className="btn btn-ghost btn-sm" onClick={pickFolder} style={{ flexShrink: 0 }}>탐색</button>
-        </div>
-
-        {/* API 키 입력 (선택) */}
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-          <span className="label" style={{ flexShrink: 0 }}>API KEY</span>
-          <input
-            type="password"
-            className="input-field"
-            value={apiKeyInput}
-            onChange={(e) => setApiKeyInput(e.target.value)}
-            placeholder="sk-ant-... (선택 사항 — AI 기능에 필요)"
-            style={{ flex: 1 }}
-          />
         </div>
 
         <button
