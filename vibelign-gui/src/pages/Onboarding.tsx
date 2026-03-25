@@ -60,57 +60,6 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
       {/* ─── 상단: 스크롤 가능 영역 ──────────────────────────────── */}
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 20px 10px" }}>
 
-        {/* RECENT 카드 — 최근 프로젝트 접이식 */}
-        {recentDirs.length > 0 && onResume && (
-          <div className="feature-card" style={{ marginBottom: 12 }}>
-            {/* 헤더 (클릭 시 접기/펼치기) */}
-            <div
-              className="feature-card-header"
-              style={{ background: "#4D9FFF18", padding: "8px 12px", cursor: "pointer" }}
-              onClick={() => setRecentOpen((o) => !o)}
-            >
-              <div className="feature-card-icon"
-                style={{ background: "#4D9FFF", color: "#fff", borderColor: "#4D9FFF", width: 24, height: 24, fontSize: 11, fontWeight: 900 }}>
-                ⊞
-              </div>
-              <div style={{ fontWeight: 700, fontSize: 11, flex: 1 }}>최근 프로젝트</div>
-              <div style={{ fontSize: 10, color: "#4D9FFF", fontWeight: 700, marginRight: 8 }}>{recentDirs.length}개</div>
-              <div style={{ fontSize: 11, color: "#666" }}>{recentOpen ? "▲" : "▼"}</div>
-            </div>
-            {/* 목록 */}
-            {recentOpen && (
-              <div className="feature-card-body" style={{ padding: 0 }}>
-                {recentDirs.map((dir, i) => (
-                  <div
-                    key={dir}
-                    onClick={() => onResume(dir)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 8,
-                      padding: "7px 12px", cursor: "pointer",
-                      borderTop: i > 0 ? "1px solid #1A1A1A" : undefined,
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#4D9FFF11")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-                  >
-                    <span style={{ fontWeight: 900, fontSize: 12, color: "#4D9FFF", flexShrink: 0, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160 }}>
-                      {dir.split("/").filter(Boolean).at(-1)}
-                    </span>
-                    {i === 0 && (
-                      <span style={{ fontSize: 9, fontWeight: 700, color: "#4D9FFF", background: "#4D9FFF22", padding: "1px 6px", flexShrink: 0, border: "1px solid #4D9FFF55" }}>
-                        진행 중
-                      </span>
-                    )}
-                    <span style={{ fontSize: 10, color: "#555", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {dir}
-                    </span>
-                    <span style={{ fontSize: 11, color: "#4D9FFF", fontWeight: 700, flexShrink: 0 }}>▶</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* 배지 + 헤더 */}
         <div style={{ marginBottom: 12 }}>
           <div className="badge" style={{ marginBottom: 10, fontSize: 10 }}>
@@ -202,7 +151,44 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
       </div>
 
       {/* ─── 하단: 항상 보이는 고정 영역 ────────────────────────── */}
-      <div style={{ flexShrink: 0, borderTop: "2px solid #1A1A1A", padding: "12px 20px 14px", background: "var(--bg)" }}>
+      <div style={{ flexShrink: 0, borderTop: "2px solid #1A1A1A", background: "var(--bg)" }}>
+
+        {/* RECENT 섹션 */}
+        {recentDirs.length > 0 && onResume && (
+          <div style={{ borderBottom: "2px solid #1A1A1A" }}>
+            <div
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 20px", cursor: "pointer", background: "#4D9FFF11" }}
+              onClick={() => setRecentOpen((o) => !o)}
+            >
+              <span style={{ fontSize: 11, color: "#4D9FFF", fontWeight: 900 }}>⊞</span>
+              <span style={{ fontSize: 11, fontWeight: 700, flex: 1 }}>최근 프로젝트</span>
+              <span style={{ fontSize: 10, color: "#4D9FFF", fontWeight: 700, marginRight: 6 }}>{recentDirs.length}개</span>
+              <span style={{ fontSize: 11, color: "#666" }}>{recentOpen ? "▲" : "▼"}</span>
+            </div>
+            {recentOpen && recentDirs.map((dir, i) => (
+              <div
+                key={dir}
+                onClick={() => onResume(dir)}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 20px", cursor: "pointer", borderTop: "1px solid #1A1A1A" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#4D9FFF11")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+              >
+                <span style={{ fontWeight: 900, fontSize: 12, color: "#4D9FFF", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 140 }}>
+                  {dir.split("/").filter(Boolean).at(-1)}
+                </span>
+                {i === 0 && (
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "#4D9FFF", background: "#4D9FFF22", padding: "1px 5px", border: "1px solid #4D9FFF55", flexShrink: 0 }}>
+                    진행 중
+                  </span>
+                )}
+                <span style={{ fontSize: 10, color: "#555", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dir}</span>
+                <span style={{ fontSize: 11, color: "#4D9FFF", fontWeight: 700, flexShrink: 0 }}>▶</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ padding: "12px 20px 14px" }}>
         {/* VIB 상태 + 폴더 선택 */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
           <span className="label" style={{ flexShrink: 0 }}>VIB CLI</span>
@@ -232,6 +218,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
         >
           {starting ? <><span className="spinner" style={{ marginRight: 8 }} />초기화 중...</> : "시작하기 ▶"}
         </button>
+        </div>
       </div>
     </div>
   );
