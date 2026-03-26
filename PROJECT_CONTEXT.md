@@ -10,16 +10,16 @@
 ## Session Handoff
 > ⚠️ This block is session-specific and time-sensitive. Read this first.
 
-Generated: 2026-03-26 15:29
-Handoff source: file_fallback
-Handoff quality: auto-drafted
-Latest checkpoint: 커맨드카드_플래그추가완료
+Generated: 2026-03-26 23:23
+Handoff source: opencode_manual_handoff
+Handoff quality: verified
+Latest checkpoint: patch_정확도_hardening_완료
 
-- Today's work: feat: 홈 화면 커맨드 섹션 추가 + 카드 재배치, docs: update session handoff in PROJECT_CONTEXT.md, gui수정, feat: Guard 모달 + PyInstaller sidecar + Settings CONFIG STATUS 개선, feat: GUI 커맨드 메뉴얼 전체 + 홈 체크포인트 UI + Settings vib경로 + 크로스플랫폼 CSS
-- Changed files: `AI_DEV_SYSTEM_SINGLE_FILE.md`, `PROJECT_CONTEXT.md`, `vibelign-gui/.omc/state/idle-notif-cooldown.json`, `vibelign-gui/src-tauri/build.rs`, `vibelign-gui/src-tauri/src/lib.rs` … (+5)
-- Completed work: (not provided)
-- Unfinished work: (not provided)
-- Next action: (not provided)
+- Today's work: vib patch 타기팅 정확도 hardening 완료 — path/anchor/suggested-anchor/intent 매칭을 토큰 기반으로 정리하고, handoff prompt contract 헤더를 복구함
+- Changed files: `vibelign/core/patch_suggester.py`, `vibelign/core/project_map.py`, `vibelign/commands/vib_patch_cmd.py`, `tests/test_patch_targeting_regressions.py`, `PROJECT_CONTEXT.md`
+- Completed work: gui→guide 오탐 계열 원인 분석 및 수정 완료, 한국어 조사/alias 정규화 추가, project_map category fallback 추가, regression 테스트 추가, prompt contract 테스트 복구, 관련 검증 48/48 passed
+- Unfinished work: patch 정확도 수정 범위 기준으로는 없음. 단, working tree에는 이번 작업과 무관한 수정 파일(`AI_DEV_SYSTEM_SINGLE_FILE.md`, `vibelign-gui/src/pages/Settings.tsx`)이 함께 남아 있어 추후 분리 검토 필요
+- Next action: 사용자가 원하면 변경사항 검토 후 커밋 준비. 커밋은 명시 요청이 있을 때만 진행
 
 ---
 
