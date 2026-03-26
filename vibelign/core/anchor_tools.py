@@ -79,7 +79,7 @@ def preview_anchor_targets(root: Path, allowed_exts=None):
         if allowed_exts is not None and path.suffix.lower() not in allowed_exts:
             continue
         text = safe_read_text(path)
-        if text and "ANCHOR:" not in text:
+        if text and "=== ANCHOR:" not in text:
             targets.append(path)
     return targets
 # === ANCHOR: ANCHOR_TOOLS_PREVIEW_ANCHOR_TARGETS_END ===
