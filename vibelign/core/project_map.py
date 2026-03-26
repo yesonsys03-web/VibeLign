@@ -38,7 +38,19 @@ class ProjectMapSnapshot:
             return "service"
         if rel_path in self.core_modules:
             return "logic"
+        file_entry = self.files.get(rel_path)
+        if isinstance(file_entry, dict):
+            category = file_entry.get("category")
+            if category == "entry":
+                return "entry file"
+            if category == "ui":
+                return "ui"
+            if category == "service":
+                return "service"
+            if category == "core":
+                return "logic"
         return None
+
     # === ANCHOR: PROJECT_MAP_CLASSIFY_PATH_END ===
 
     # === ANCHOR: PROJECT_MAP_ANCHOR_PRIORITY_START ===
@@ -52,10 +64,11 @@ class ProjectMapSnapshot:
             score += 3
         if rel_path in self.service_modules:
             score += 2
-# === ANCHOR: PROJECT_MAP_PROJECTMAPSNAPSHOT_END ===
+        # === ANCHOR: PROJECT_MAP_PROJECTMAPSNAPSHOT_END ===
         if rel_path in self.core_modules:
             score += 2
         return score
+
     # === ANCHOR: PROJECT_MAP_ANCHOR_PRIORITY_END ===
 
 
@@ -79,6 +92,7 @@ def load_project_map(root: Path) -> tuple[Optional[ProjectMapSnapshot], Optional
         if not isinstance(raw, list):
             return frozenset()
         return frozenset(str(item) for item in raw if isinstance(item, str))
+
     # === ANCHOR: PROJECT_MAP__VALUES_END ===
 
     file_count = payload.get("file_count", 0)
@@ -115,17 +129,21 @@ def load_project_map(root: Path) -> tuple[Optional[ProjectMapSnapshot], Optional
             tree=tree,
             files=files,
         ),
-# === ANCHOR: PROJECT_MAP_LOAD_PROJECT_MAP_END ===
+        # === ANCHOR: PROJECT_MAP_LOAD_PROJECT_MAP_END ===
         None,
     )
 
 
 # === ANCHOR: PROJECT_MAP_ENRICH_CHANGE_KIND_START ===
 def enrich_change_kind(
-    snapshot: Optional[ProjectMapSnapshot], rel_path: str, fallback_kind: str
-# === ANCHOR: PROJECT_MAP_ENRICH_CHANGE_KIND_END ===
+    snapshot: Optional[ProjectMapSnapshot],
+    rel_path: str,
+    fallback_kind: str,
+    # === ANCHOR: PROJECT_MAP_ENRICH_CHANGE_KIND_END ===
 ) -> str:
     if snapshot is None:
         return fallback_kind
     return snapshot.classify_path(rel_path) or fallback_kind
+
+
 # === ANCHOR: PROJECT_MAP_END ===

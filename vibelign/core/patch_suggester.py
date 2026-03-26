@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 import json
 from dataclasses import dataclass, asdict
-from typing import Optional
+from typing import Any, Iterable, Optional, Union
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_map import ProjectMapSnapshot, load_project_map
 from vibelign.core.project_scan import iter_source_files, relpath_str
@@ -53,28 +53,174 @@ class PatchSuggestion:
         return asdict(self)
 
 
-def tokenize(text):
-    return re.findall(r"[a-zA-Z_]+|[가-힣]+", text.lower())
+_KOREAN_PARTICLE_SUFFIXES = (
+    "으로",
+    "에서",
+    "에게",
+    "한테",
+    "까지",
+    "부터",
+    "처럼",
+    "보다",
+    "라고",
+    "이라",
+    "라서",
+    "이다",
+    "입니다",
+    "였다",
+    "했다",
+    "하면",
+    "하며",
+    "하고",
+    "이고",
+    "이며",
+    "에는",
+    "에는",
+    "에는",
+    "에는",
+    "에는",
+    "에서",
+    "에게",
+    "께서",
+    "와는",
+    "과는",
+    "와의",
+    "과의",
+    "와",
+    "과",
+    "을",
+    "를",
+    "이",
+    "가",
+    "은",
+    "는",
+    "에",
+    "로",
+    "도",
+    "만",
+)
+
+_TOKEN_ALIASES = {
+    "홈": ["home"],
+    "홈화면": ["home", "screen", "page"],
+    "메인화면": ["main", "home", "screen", "page"],
+    "화면": ["screen", "page", "ui"],
+    "버전": ["version"],
+    "설정": ["settings", "config"],
+    "설치": ["install"],
+    "안내": ["guide"],
+    "가이드": ["guide"],
+}
+
+_LOW_SIGNAL_TOKENS = {
+    "name",
+    "function",
+    "module",
+    "file",
+    "page",
+    "screen",
+    "component",
+    "cmd",
+    "run",
+    "main",
+    "lib",
+    "src",
+    "app",
+}
 
 
-def _score_anchor_names(anchor_names, request_tokens, label):
+def _split_identifier_parts(text: str) -> list[str]:
+    parts = re.findall(r"[a-z]+|[0-9]+|[가-힣]+", text.lower())
+    return [part for part in parts if part]
+
+
+def _normalize_korean_token(token: str) -> list[str]:
+    values = [token]
+    for suffix in sorted(_KOREAN_PARTICLE_SUFFIXES, key=len, reverse=True):
+        if len(token) > len(suffix) + 1 and token.endswith(suffix):
+            trimmed = token[: -len(suffix)]
+            values.append(trimmed)
+            break
+    return values
+
+
+def _expand_token(token: str) -> list[str]:
+    expanded: list[str] = []
+    for candidate in _normalize_korean_token(token):
+        expanded.append(candidate)
+        expanded.extend(_split_identifier_parts(candidate))
+        expanded.extend(_TOKEN_ALIASES.get(candidate, []))
+    seen: set[str] = set()
+    result: list[str] = []
+    for item in expanded:
+        if item and item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
+
+def tokenize(text: str) -> list[str]:
+    raw_tokens = re.findall(r"[a-zA-Z0-9_]+|[가-힣]+", text.lower())
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for raw in raw_tokens:
+        for token in _expand_token(raw):
+            if token not in seen:
+                seen.add(token)
+                tokens.append(token)
+    return tokens
+
+
+def _path_tokens(path: Union[Path, str]) -> set[str]:
+    raw_tokens = re.findall(r"[a-zA-Z0-9]+|[가-힣]+", str(path).lower())
+    tokens: set[str] = set()
+    for raw in raw_tokens:
+        for token in _expand_token(raw):
+            tokens.add(token)
+    return tokens
+
+
+def _meaningful_overlap(
+    request_tokens: Iterable[str], candidate_tokens: Iterable[str]
+) -> list[str]:
+    candidate_set = set(candidate_tokens)
+    matches = [token for token in request_tokens if token in candidate_set]
+    return list(dict.fromkeys(matches))
+
+
+def _intent_tokens(text: str) -> set[str]:
+    tokens: set[str] = set()
+    for raw in re.findall(r"[a-zA-Z0-9_]+|[가-힣]+", text.lower()):
+        for token in _expand_token(raw):
+            tokens.add(token)
+    return tokens
+
+
+def _anchor_quality_penalty(anchor_tokens: set[str]) -> int:
+    informative = [token for token in anchor_tokens if token not in _LOW_SIGNAL_TOKENS]
+    if not informative:
+        return 3
+    if len(informative) == 1 and len(next(iter(informative), "")) <= 3:
+        return 1
+    return 0
+
+
+def _score_anchor_names(
+    anchor_names: Iterable[str], request_tokens: Iterable[str], label: str
+) -> tuple[int, list[str]]:
     score = 0
     rationale = []
     for anchor in anchor_names:
-        al = anchor.lower()
+        anchor_tokens = _path_tokens(anchor)
         local_score = 0
-        local_matches = []
-        match_count = 0
-        for token in request_tokens:
-            if token in al:
-                local_score += 3
-                match_count += 1
-                local_matches.append(token)
+        local_matches = _meaningful_overlap(request_tokens, anchor_tokens)
+        match_count = len(local_matches)
+        local_score += match_count * 3
         if label == "추천 앵커":
             if anchor.startswith("_"):
                 local_score -= 2
             if any(
-                part in al
+                part in anchor_tokens
                 for part in [
                     "load",
                     "get",
@@ -88,6 +234,8 @@ def _score_anchor_names(anchor_names, request_tokens, label):
                 local_score -= 1
             if match_count < 2:
                 local_score -= 3
+        else:
+            local_score -= _anchor_quality_penalty(anchor_tokens)
         if local_score > 0:
             score = max(score, local_score)
             joined = ", ".join(dict.fromkeys(local_matches))
@@ -96,20 +244,37 @@ def _score_anchor_names(anchor_names, request_tokens, label):
 
 
 _UI_REQUEST_KEYWORDS = [
-    "progress", "ui", "button", "dialog", "window", "layout",
-    "sidebar", "panel", "widget", "screen", "render",
-    "버튼", "색상", "화면", "창", "레이아웃", "디자인", "스타일", "폰트", "크기", "컬러", "사이즈",
+    "progress",
+    "ui",
+    "button",
+    "dialog",
+    "window",
+    "layout",
+    "sidebar",
+    "panel",
+    "widget",
+    "screen",
+    "render",
+    "버튼",
+    "색상",
+    "화면",
+    "창",
+    "레이아웃",
+    "디자인",
+    "스타일",
+    "폰트",
+    "크기",
+    "컬러",
+    "사이즈",
 ]
 
 
-def _is_ui_request(request_tokens):
-    return any(
-        any(kw in tok or tok in kw for kw in _UI_REQUEST_KEYWORDS)
-        for tok in request_tokens
-    )
+def _is_ui_request(request_tokens: Iterable[str]) -> bool:
+    token_set = set(request_tokens)
+    return any(kw in token_set for kw in _UI_REQUEST_KEYWORDS)
 
 
-def _is_service_request(request_tokens):
+def _is_service_request(request_tokens: Iterable[str]) -> bool:
     return any(
         tok in request_tokens
         for tok in ["service", "auth", "login", "api", "worker", "guard", "schedule"]
@@ -118,16 +283,17 @@ def _is_service_request(request_tokens):
 
 def score_path(
     path: Path,
-    request_tokens,
+    request_tokens: list[str],
     rel_path: str,
-    anchor_meta=None,
+    anchor_meta: Optional[dict[str, list[str]]] = None,
     project_map: Optional[ProjectMapSnapshot] = None,
-    intent_meta: Optional[dict] = None,
-):
+    intent_meta: Optional[dict[str, dict[str, Any]]] = None,
+) -> tuple[int, list[str]]:
     score = 0
     rationale = []
     pt = str(path).lower()
     stem = path.stem.lower()
+    path_tokens = _path_tokens(rel_path)
 
     if path.name in LOW_PRIORITY_NAMES:
         score -= 6
@@ -141,22 +307,23 @@ def score_path(
         score -= 5
         rationale.append("docs/test 경로라 우선순위 낮음")
 
-    for token in request_tokens:
-        if token and token in pt:
+    path_matches = _meaningful_overlap(request_tokens, path_tokens)
+    for token in path_matches:
+        if token:
             score += 3
             rationale.append(f"경로에 키워드 '{token}'이 포함됨")
     for key, hints in KEYWORD_HINTS.items():
         if key in request_tokens:
             for hint in hints:
-                if hint in pt:
+                if hint in path_tokens:
                     score += 2
                     rationale.append(f"'{key}' 키워드 계열인 '{hint}'와 경로가 일치")
-    if stem in request_tokens:
+    if stem in request_tokens or stem in path_tokens.intersection(set(request_tokens)):
         score += 4
         rationale.append(f"파일명 '{stem}'이 요청과 직접 일치")
     ui_request = _is_ui_request(request_tokens)
     if ui_request and any(
-        tok in pt
+        tok in path_tokens
         for tok in ["ui", "window", "dialog", "widget", "render", "terminal", "panel"]
     ):
         score += 3
@@ -183,7 +350,8 @@ def score_path(
                 "Project Map 에서 큰 파일로 표시되어 수정 후보로 우선 검토함"
             )
     if any(
-        tok in stem for tok in ["worker", "service", "window", "scheduler", "backup"]
+        tok in path_tokens
+        for tok in ["worker", "service", "window", "scheduler", "backup"]
     ):
         score += 1
     if isinstance(anchor_meta, dict):
@@ -204,25 +372,62 @@ def score_path(
             intent = meta_entry.get("intent", "").lower()
             if not intent:
                 continue
-            intent_tokens = re.findall(r"[a-zA-Z_가-힣]+", intent)
-            matched = [t for t in request_tokens if t in intent_tokens or t in intent]
+            intent_tokens = _intent_tokens(intent)
+            matched = _meaningful_overlap(request_tokens, intent_tokens)
             if matched:
                 score += len(matched) * 3
-                rationale.append(f"앵커 intent에 키워드 '{', '.join(matched)}'이 포함됨")
+                rationale.append(
+                    f"앵커 intent에 키워드 '{', '.join(matched)}'이 포함됨"
+                )
                 break
     return score, rationale
 
 
-_UI_STYLE_TOKENS = {"색상", "주황색", "파란색", "빨간색", "초록색", "노란색", "보라색", "폰트", "스타일", "디자인", "크기", "굵기", "투명도", "배경색", "글자색", "컬러", "사이즈", "보색"}
-_LOGIC_INTENT_TOKENS = {"번역", "api", "번역문", "번역기", "변환", "처리", "관리", "요청", "응답", "저장", "로드"}
+_UI_STYLE_TOKENS = {
+    "색상",
+    "주황색",
+    "파란색",
+    "빨간색",
+    "초록색",
+    "노란색",
+    "보라색",
+    "폰트",
+    "스타일",
+    "디자인",
+    "크기",
+    "굵기",
+    "투명도",
+    "배경색",
+    "글자색",
+    "컬러",
+    "사이즈",
+    "보색",
+}
+_LOGIC_INTENT_TOKENS = {
+    "번역",
+    "api",
+    "번역문",
+    "번역기",
+    "변환",
+    "처리",
+    "관리",
+    "요청",
+    "응답",
+    "저장",
+    "로드",
+}
 
 
-def _has_style_token(request_tokens) -> bool:
+def _has_style_token(request_tokens: Iterable[str]) -> bool:
     """조사가 붙은 토큰도 포함해서 스타일 키워드 존재 여부 확인"""
     return any(style in tok for tok in request_tokens for style in _UI_STYLE_TOKENS)
 
 
-def choose_anchor(anchors, request_tokens, anchor_meta: Optional[dict] = None):
+def choose_anchor(
+    anchors: list[str],
+    request_tokens: list[str],
+    anchor_meta: Optional[dict[str, dict[str, Any]]] = None,
+) -> tuple[str, list[str]]:
     if not anchors:
         return "[먼저 앵커를 추가하세요]", ["이 파일에는 아직 앵커가 없습니다"]
     is_style_request = _has_style_token(request_tokens)
@@ -232,29 +437,30 @@ def choose_anchor(anchors, request_tokens, anchor_meta: Optional[dict] = None):
     for anchor in anchors:
         score = 0
         rationale = []
-        al = anchor.lower()
-        for token in request_tokens:
-            if token in al:
-                score += 3
-                rationale.append(f"앵커에 키워드 '{token}'이 포함됨")
-        if "core" in al or "logic" in al or "worker" in al:
+        anchor_tokens = _path_tokens(anchor)
+        for token in _meaningful_overlap(request_tokens, anchor_tokens):
+            score += 3
+            rationale.append(f"앵커에 키워드 '{token}'이 포함됨")
+        score -= _anchor_quality_penalty(anchor_tokens)
+        if any(token in anchor_tokens for token in ["core", "logic", "worker"]):
             score += 1
         # intent 정보가 있으면 자연어 매칭 점수 추가
         if anchor_meta and anchor in anchor_meta:
             meta = anchor_meta[anchor]
             intent = meta.get("intent", "").lower()
             if intent:
-                intent_tokens = re.findall(r"[a-zA-Z_가-힣]+", intent)
-                for token in request_tokens:
-                    if token in intent_tokens or token in intent:
-                        score += 4
-                        rationale.append(
-                            f"앵커 의도('{intent[:30]}...')에 키워드 '{token}'이 포함됨"
-                            if len(intent) > 30
-                            else f"앵커 의도('{intent}')에 키워드 '{token}'이 포함됨"
-                        )
+                intent_tokens = _intent_tokens(intent)
+                for token in _meaningful_overlap(request_tokens, intent_tokens):
+                    score += 4
+                    rationale.append(
+                        f"앵커 의도('{intent[:30]}...')에 키워드 '{token}'이 포함됨"
+                        if len(intent) > 30
+                        else f"앵커 의도('{intent}')에 키워드 '{token}'이 포함됨"
+                    )
                 # 스타일 요청인데 intent가 로직 성격이면 페널티
-                if is_style_request and any(t in intent for t in _LOGIC_INTENT_TOKENS):
+                if is_style_request and any(
+                    t in intent_tokens for t in _LOGIC_INTENT_TOKENS
+                ):
                     score -= 5
                     rationale.append("스타일 요청인데 로직 성격 앵커라 우선순위 낮춤")
             warning = meta.get("warning")
@@ -269,7 +475,9 @@ def choose_anchor(anchors, request_tokens, anchor_meta: Optional[dict] = None):
     return best_anchor, best_rationale
 
 
-def choose_suggested_anchor(suggested_anchors, request_tokens):
+def choose_suggested_anchor(
+    suggested_anchors: list[str], request_tokens: list[str]
+) -> tuple[Optional[str], list[str]]:
     if not suggested_anchors:
         return None, []
     best_anchor = suggested_anchors[0]
@@ -278,18 +486,17 @@ def choose_suggested_anchor(suggested_anchors, request_tokens):
     for anchor in suggested_anchors:
         score = 0
         rationale = []
-        al = anchor.lower()
-        match_count = 0
-        for token in request_tokens:
-            if token in al:
-                score += 3
-                match_count += 1
-                rationale.append(f"추천 앵커에 키워드 '{token}'이 포함됨")
+        anchor_tokens = _path_tokens(anchor)
+        matches = _meaningful_overlap(request_tokens, anchor_tokens)
+        match_count = len(matches)
+        for token in matches:
+            score += 3
+            rationale.append(f"추천 앵커에 키워드 '{token}'이 포함됨")
         if anchor.startswith("_"):
             score -= 2
             rationale.append("내부 helper 성격 이름이라 우선순위 낮춤")
         if any(
-            part in al
+            part in anchor_tokens
             for part in ["load", "get", "build", "run", "parse", "flush", "normalize"]
         ):
             score -= 1
@@ -306,7 +513,7 @@ def choose_suggested_anchor(suggested_anchors, request_tokens):
     return best_anchor, best_rationale
 
 
-def load_anchor_metadata(root: Path):
+def load_anchor_metadata(root: Path) -> dict[str, dict[str, list[str]]]:
     meta = MetaPaths(root)
     if not meta.anchor_index_path.exists():
         return {}
@@ -318,8 +525,9 @@ def load_anchor_metadata(root: Path):
     return files if isinstance(files, dict) else {}
 
 
-def suggest_patch(root: Path, request: str):
+def suggest_patch(root: Path, request: str) -> PatchSuggestion:
     from vibelign.core.anchor_tools import load_anchor_meta
+
     request_tokens = tokenize(request)
     metadata = load_anchor_metadata(root)
     anchor_meta = load_anchor_meta(root)
@@ -348,6 +556,7 @@ def suggest_patch(root: Path, request: str):
 
     scored.sort(key=lambda x: (-x[0], str(x[1])))
     best_score, best_path, reasons = scored[0]
+    second_score = scored[1][0] if len(scored) > 1 else None
     anchors = extract_anchors(best_path)
     anchor, ar = choose_anchor(anchors, request_tokens, anchor_meta)
     if anchor == "[먼저 앵커를 추가하세요]":
@@ -364,6 +573,15 @@ def suggest_patch(root: Path, request: str):
             anchor = f"[추천 앵커: {suggested_anchor}]"
             ar = suggested_rationale
     confidence = "high" if best_score >= 8 else "medium" if best_score >= 4 else "low"
+    if (
+        second_score is not None
+        and best_score >= 4
+        and (best_score - second_score) <= 1
+    ):
+        confidence = "low"
+        reasons = reasons[:4] + [
+            f"상위 후보 점수 차이가 작음 ({best_score} vs {second_score}) — 위치 확인이 더 필요함"
+        ]
     return PatchSuggestion(
         request, relpath_str(root, best_path), anchor, confidence, reasons[:5] + ar[:3]
     )
