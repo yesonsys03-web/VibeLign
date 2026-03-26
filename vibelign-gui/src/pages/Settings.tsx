@@ -2,6 +2,14 @@
 import { useState, useEffect } from "react";
 import { saveApiKey, deleteApiKey, getVibPath, getEnvKeyStatus } from "../lib/vib";
 
+const PROVIDER_MODELS: Record<string, string[]> = {
+  ANTHROPIC: ["claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"],
+  OPENAI: ["gpt-4o", "gpt-4o-mini", "o1", "o3-mini"],
+  GEMINI: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-pro-exp-02-05"],
+  GLM: ["glm-4-plus", "glm-4-flash", "glm-4-air"],
+  MOONSHOT: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
+};
+
 interface SettingsProps {
   apiKey: string | null;
   onApiKeyChange: (key: string | null) => void;
@@ -14,6 +22,20 @@ export default function Settings({ apiKey, onApiKeyChange, projectDir }: Setting
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [vibPath, setVibPath] = useState<string | null>(null);
   const [envKeys, setEnvKeys] = useState<Record<string, boolean>>({});
+  const [models, setModels] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem("vibelign_llm_models");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const handleModelChange = (provider: string, model: string) => {
+    const newModels = { ...models, [provider]: model };
+    setModels(newModels);
+    localStorage.setItem("vibelign_llm_models", JSON.stringify(newModels));
+  };
 
   useEffect(() => {
     getVibPath().then(setVibPath).catch(() => setVibPath(null));
@@ -63,14 +85,40 @@ export default function Settings({ apiKey, onApiKeyChange, projectDir }: Setting
           <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 10, textTransform: "uppercase", letterSpacing: 1, color: "#7DFF6B", fontFamily: "IBM Plex Mono, monospace" }}>
             CONFIG STATUS
           </div>
-          {/* 환경변수 API 키 */}
+          {/* 환경변수 API 키 및 모델 선택 */}
           {["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GLM_API_KEY", "MOONSHOT_API_KEY"].map((key) => {
             const ok = !!envKeys[key];
+            const providerName = key.replace("_API_KEY", "");
+            const availableModels = PROVIDER_MODELS[providerName] || [];
+            const selectedModel = models[providerName] || "";
             return (
               <div key={key} style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 5, fontFamily: "IBM Plex Mono, monospace", fontSize: 11 }}>
                 <span style={{ color: ok ? "#4DFF91" : "#FF4D4D", fontWeight: 700, flexShrink: 0 }}>{ok ? "●" : "○"}</span>
-                <span style={{ color: ok ? "#E8FFE0" : "#555", width: 180, flexShrink: 0 }}>{key}</span>
-                <span style={{ color: ok ? "#4DFF91" : "#444" }}>{ok ? "설정됨" : "없음"}</span>
+                <span style={{ color: ok ? "#E8FFE0" : "#555", width: 140, flexShrink: 0 }}>{key}</span>
+                <span style={{ color: ok ? "#4DFF91" : "#444", width: 40, flexShrink: 0 }}>{ok ? "설정됨" : "없음"}</span>
+                {availableModels.length > 0 && (
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => handleModelChange(providerName, e.target.value)}
+                    style={{
+                      background: "#1A1A1A",
+                      color: "#7DFF6B",
+                      border: "1px solid #333",
+                      borderRadius: 4,
+                      padding: "2px 6px",
+                      fontFamily: "inherit",
+                      fontSize: 10,
+                      outline: "none",
+                      cursor: "pointer",
+                      marginLeft: "auto"
+                    }}
+                  >
+                    <option value="">기본 모델</option>
+                    {availableModels.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                )}
               </div>
             );
           })}
