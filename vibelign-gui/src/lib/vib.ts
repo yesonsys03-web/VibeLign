@@ -4,6 +4,12 @@
  * 모든 vib CLI 접근은 이 모듈을 통한다.
  */
 import { invoke } from "@tauri-apps/api/core";
+import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
+
+export async function pickFile(defaultPath?: string): Promise<string | null> {
+  const result = await dialogOpen({ multiple: false, defaultPath: defaultPath ?? undefined });
+  return typeof result === "string" ? result : null;
+}
 export async function openFolder(path: string): Promise<void> {
   return invoke<void>("open_folder", { path });
 }
@@ -85,8 +91,12 @@ export interface GuardResult {
   issues: GuardIssue[];
 }
 
-export async function vibGuard(cwd: string): Promise<GuardResult> {
-  const res = await runVib(["guard", "--json"], cwd);
+export async function vibGuard(cwd: string, opts?: { strict?: boolean; sinceMinutes?: number; writeReport?: boolean }): Promise<GuardResult> {
+  const args = ["guard", "--json"];
+  if (opts?.strict) args.push("--strict");
+  if (opts?.sinceMinutes) args.push("--since-minutes", String(opts.sinceMinutes));
+  if (opts?.writeReport) args.push("--write-report");
+  const res = await runVib(args, cwd);
   const raw = res.stdout.trim();
   if (!raw) throw new Error(res.stderr || `exit ${res.exit_code}`);
   const parsed = JSON.parse(raw);
@@ -108,8 +118,12 @@ export async function vibScan(cwd: string): Promise<VibResult> {
   return runVib(["scan"], cwd);
 }
 
-export async function vibTransfer(cwd: string): Promise<VibResult> {
-  return runVib(["transfer"], cwd);
+export async function vibTransfer(cwd: string, opts?: { handoff?: boolean; compact?: boolean; full?: boolean }): Promise<VibResult> {
+  const args = ["transfer"];
+  if (opts?.handoff) { args.push("--handoff"); args.push("--no-prompt"); }
+  if (opts?.compact) args.push("--compact");
+  if (opts?.full) args.push("--full");
+  return runVib(args, cwd);
 }
 
 export async function startWatch(cwd: string): Promise<void> {

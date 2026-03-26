@@ -1,3 +1,4 @@
+# === ANCHOR: EXPORT_CMD_START ===
 from pathlib import Path
 
 from vibelign.core.ai_dev_system import AI_DEV_SYSTEM_CONTENT
@@ -390,6 +391,7 @@ _VIBELIGN_CURSOR_MARKER = "# --- VibeLign Rules (vibelign export cursor) ---"
 _VIBELIGN_AGENTS_MARKER = "<!-- VibeLign Rules (vib export) -->"
 
 
+# === ANCHOR: EXPORT_CMD__WRITE_AGENTS_MD_START ===
 def _write_agents_md(root) -> str:
     """AGENTS.md 에 VibeLign 규칙을 씁니다.
     반환값: 'created' | 'appended' | 'skipped'
@@ -407,8 +409,10 @@ def _write_agents_md(root) -> str:
             f"{_VIBELIGN_AGENTS_MARKER}\n{AGENTS_MD_CONTENT}\n", encoding="utf-8"
         )
         return "created"
+# === ANCHOR: EXPORT_CMD__WRITE_AGENTS_MD_END ===
 
 
+# === ANCHOR: EXPORT_CMD__WRITE_CLAUDE_MD_START ===
 def _write_claude_md(root) -> str:
     """CLAUDE.md 에 VibeLign 규칙을 씁니다. (Claude Code 자동 읽음)
     반환값: 'created' | 'appended' | 'skipped'
@@ -426,8 +430,10 @@ def _write_claude_md(root) -> str:
             f"{_VIBELIGN_CLAUDE_MARKER}\n{_CLAUDE_MD_CONTENT}\n", encoding="utf-8"
         )
         return "created"
+# === ANCHOR: EXPORT_CMD__WRITE_CLAUDE_MD_END ===
 
 
+# === ANCHOR: EXPORT_CMD__WRITE_OPENCODE_MD_START ===
 def _write_opencode_md(root) -> str:
     """OPENCODE.md 에 VibeLign 규칙을 씁니다. (OpenCode 자동 읽음)
     반환값: 'created' | 'appended' | 'skipped'
@@ -445,8 +451,10 @@ def _write_opencode_md(root) -> str:
             f"{_VIBELIGN_OPENCODE_MARKER}\n{_OPENCODE_MD_CONTENT}\n", encoding="utf-8"
         )
         return "created"
+# === ANCHOR: EXPORT_CMD__WRITE_OPENCODE_MD_END ===
 
 
+# === ANCHOR: EXPORT_CMD__WRITE_CURSORRULES_START ===
 def _write_cursorrules(root) -> str:
     """.cursorrules 파일에 VibeLign 규칙을 씁니다.
     반환값: 'created' | 'appended' | 'skipped'
@@ -464,18 +472,25 @@ def _write_cursorrules(root) -> str:
             f"{_VIBELIGN_CURSOR_MARKER}\n{_CURSOR_RULES}\n", encoding="utf-8"
         )
         return "created"
+# === ANCHOR: EXPORT_CMD__WRITE_CURSORRULES_END ===
 
 
+# === ANCHOR: EXPORT_CMD_WRITE_CLAUDE_MD_START ===
 def write_claude_md(root: Path) -> str:
     return _write_claude_md(root)
+# === ANCHOR: EXPORT_CMD_WRITE_CLAUDE_MD_END ===
 
 
+# === ANCHOR: EXPORT_CMD_WRITE_OPENCODE_MD_START ===
 def write_opencode_md(root: Path) -> str:
     return _write_opencode_md(root)
+# === ANCHOR: EXPORT_CMD_WRITE_OPENCODE_MD_END ===
 
 
+# === ANCHOR: EXPORT_CMD_WRITE_CURSORRULES_START ===
 def write_cursorrules(root: Path) -> str:
     return _write_cursorrules(root)
+# === ANCHOR: EXPORT_CMD_WRITE_CURSORRULES_END ===
 
 
 TEMPLATES = {
@@ -507,6 +522,7 @@ TEMPLATES = {
 }
 
 
+# === ANCHOR: EXPORT_CMD_EXPORT_TOOL_FILES_START ===
 def export_tool_files(root: Path, tool: str, overwrite: bool = True) -> str:
     export_root = root / "vibelign_exports" / tool
     export_root.mkdir(parents=True, exist_ok=True)
@@ -521,8 +537,10 @@ def export_tool_files(root: Path, tool: str, overwrite: bool = True) -> str:
             encoding="utf-8",
         )
     return str(export_root)
+# === ANCHOR: EXPORT_CMD_EXPORT_TOOL_FILES_END ===
 
 
+# === ANCHOR: EXPORT_CMD_RUN_EXPORT_START ===
 def run_export(args):
     root = Path.cwd()
 
@@ -580,3 +598,5 @@ def run_export(args):
 
     elif args.tool == "codex":
         print("참고: Codex는 AGENTS.md를 자동으로 읽어요")
+# === ANCHOR: EXPORT_CMD_RUN_EXPORT_END ===
+# === ANCHOR: EXPORT_CMD_END ===

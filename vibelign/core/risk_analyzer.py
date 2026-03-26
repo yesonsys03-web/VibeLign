@@ -58,7 +58,7 @@ def analyze_project(root: Path, strict=False):
             add_issue(report, f"{rel} 파일이 많이 깁니다 ({lines}줄) — AI가 엉뚱한 곳을 고칠 수 있어요", f"{name}을 여러 파일로 나누는 걸 강력히 권장해요", 3)
         elif lines >= 500:
             add_issue(report, f"{rel} 파일이 조금 깁니다 ({lines}줄)", f"{name}을 여러 파일로 나누는 걸 고려해보세요", 2)
-        if lines > anchor_limit and "ANCHOR:" not in text:
+        if lines > anchor_limit and "=== ANCHOR:" not in text:
             missing_anchor_files += 1
             add_issue(report, f"{rel}에 안전 구역 표시(앵커)가 없어요", f"{name}에 앵커를 추가하면 AI가 딱 그 부분만 안전하게 고칠 수 있어요 — vib anchor --suggest", 2)
         if fn_count >= (18 if strict else 25):

@@ -123,6 +123,7 @@ async fn run_vib(
     tauri::async_runtime::spawn_blocking(move || {
         let mut cmd = std::process::Command::new(&vib);
         cmd.args(&args);
+        cmd.stdin(std::process::Stdio::null());
 
         if let Some(dir) = cwd {
             cmd.current_dir(PathBuf::from(dir));

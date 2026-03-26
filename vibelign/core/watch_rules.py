@@ -124,7 +124,7 @@ def classify_event(
             "hash_utils.py나 backup_worker.py처럼 역할이 명확한 이름으로 바꾸세요.",
         )
 
-    if new_lines > anchor_limit and "ANCHOR:" not in text:
+    if new_lines > anchor_limit and "=== ANCHOR:" not in text:
         add(
             "WARN",
             f"{name}에 앵커가 없습니다",

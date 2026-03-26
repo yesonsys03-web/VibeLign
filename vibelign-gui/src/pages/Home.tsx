@@ -1,9 +1,13 @@
 // === ANCHOR: HOME_START ===
 import { useState } from "react";
-import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch, openFolder, checkpointCreate, runVib, GuardResult } from "../lib/vib";
+import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch, openFolder, checkpointCreate, runVib, pickFile, GuardResult } from "../lib/vib";
 
 type CardState = "idle" | "loading" | "done" | "error";
 type View = "home" | "manual_list" | "manual_detail";
+type FlagDef =
+  | { type: "bool"; key: string; label: string }
+  | { type: "text"; key: string; label: string; placeholder?: string; required?: boolean }
+  | { type: "select"; key: string; label: string; required?: boolean; options: { v: string; l: string }[] };
 type GuideLine = { t: "info" | "code" | "label" | "error" | "warn"; v: string };
 type GuideStep = { step: string; title: string; subtitle?: string; optional?: boolean; warn?: string; lines: GuideLine[] };
 
@@ -212,6 +216,16 @@ const COMMANDS = [
         ],
       },
     ] as GuideStep[],
+    flags: [
+      { type: "select" as const, key: "_mode", label: "모드", options: [
+        { v: "", l: "기본" },
+        { v: "--suggest", l: "추천" },
+        { v: "--suggest --dry-run", l: "추천 미리보기" },
+        { v: "--auto --dry-run", l: "자동 미리보기" },
+        { v: "--auto --json", l: "자동 삽입" },
+        { v: "--validate", l: "검증" },
+      ]},
+    ] as FlagDef[],
   },
   {
     name: "scan", icon: "🔍", color: "#F5621E",
@@ -340,6 +354,13 @@ const COMMANDS = [
         ],
       },
     ] as GuideStep[],
+    flags: [
+      { type: "text" as const, key: "_request", label: "요청", placeholder: "로그인 버튼 추가...", required: true },
+      { type: "bool" as const, key: "ai", label: "--ai" },
+      { type: "bool" as const, key: "preview", label: "--preview" },
+      { type: "bool" as const, key: "copy", label: "--copy" },
+      { type: "bool" as const, key: "write-report", label: "--write-report" },
+    ] as FlagDef[],
   },
   {
     name: "protect", icon: "🔒", color: "#FF4D4D",
@@ -368,6 +389,12 @@ const COMMANDS = [
         ],
       },
     ] as GuideStep[],
+    flags: [
+      { type: "text" as const, key: "_file", label: "파일", placeholder: ".env" },
+      { type: "select" as const, key: "_action", label: "", options: [
+        { v: "", l: "보호" }, { v: "--list", l: "목록" }, { v: "--remove", l: "해제" },
+      ]},
+    ] as FlagDef[],
   },
   {
     name: "secrets", icon: "🔑", color: "#FFE44D",
@@ -399,6 +426,11 @@ const COMMANDS = [
         ],
       },
     ] as GuideStep[],
+    flags: [
+      { type: "select" as const, key: "_mode", label: "모드", options: [
+        { v: "--staged", l: "staged 검사" }, { v: "--install-hook", l: "훅 설치" }, { v: "--uninstall-hook", l: "훅 제거" },
+      ]},
+    ] as FlagDef[],
   },
   {
     name: "explain", icon: "💬", color: "#7B4DFF",
@@ -431,6 +463,13 @@ const COMMANDS = [
         ],
       },
     ] as GuideStep[],
+    flags: [
+      { type: "text" as const, key: "_file", label: "파일", placeholder: "main.py" },
+      { type: "bool" as const, key: "ai", label: "--ai" },
+      { type: "text" as const, key: "since-minutes", label: "분", placeholder: "120" },
+      { type: "bool" as const, key: "write-report", label: "--write-report" },
+      { type: "bool" as const, key: "json", label: "--json" },
+    ] as FlagDef[],
   },
   {
     name: "install", icon: "📦", color: "#4DFF91",
@@ -564,6 +603,11 @@ const COMMANDS = [
         ],
       },
     ] as GuideStep[],
+    flags: [
+      { type: "text" as const, key: "_file", label: "파일", placeholder: "main.py", required: true },
+      { type: "text" as const, key: "_question", label: "질문", placeholder: "이거 뭐해?" },
+      { type: "bool" as const, key: "write", label: "파일 저장" },
+    ] as FlagDef[],
   },
   {
     name: "config", icon: "🔑", color: "#FFD166",
@@ -631,6 +675,12 @@ const COMMANDS = [
         ],
       },
     ] as GuideStep[],
+    flags: [
+      { type: "select" as const, key: "_tool", label: "도구", required: true, options: [
+        { v: "", l: "선택..." }, { v: "claude", l: "Claude" }, { v: "opencode", l: "OpenCode" },
+        { v: "cursor", l: "Cursor" }, { v: "antigravity", l: "Antigravity" }, { v: "codex", l: "Codex" },
+      ]},
+    ] as FlagDef[],
   },
   {
     name: "manual", icon: "📖", color: "#FF4D8B",
@@ -780,11 +830,16 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
   const [error, setError]                 = useState<string | null>(null);
   const [cmdStates, setCmdStates]         = useState<Record<string, CardState>>({});
   const [cmdOutputs, setCmdOutputs]       = useState<Record<string, string>>({});
+  const [cmdFlagValues, setCmdFlagValues]     = useState<Record<string, Record<string, string | boolean>>>({});
+  const [guardStrict, setGuardStrict]         = useState(false);
+  const [transferHandoff, setTransferHandoff] = useState(false);
+  const [transferCompact, setTransferCompact] = useState(false);
+  const [outputModal, setOutputModal]         = useState<{ name: string; content: string } | null>(null);
 
   async function handleGuard() {
     setGuardState("loading"); setGuardResult(null); setError(null);
     try {
-      const r = await vibGuard(projectDir);
+      const r = await vibGuard(projectDir, { strict: guardStrict });
       setGuardResult(r);
       setGuardModal(true);
       setGuardState("done");
@@ -822,19 +877,66 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
   async function handleTransfer() {
     setTransferState("loading"); setError(null);
     try {
-      const r = await vibTransfer(projectDir);
+      const r = await vibTransfer(projectDir, { handoff: transferHandoff, compact: transferCompact });
       if (!r.ok) throw new Error(r.stderr || `exit ${r.exit_code}`);
       setTransferState("done");
     } catch (e) { setError(String(e)); setTransferState("error"); }
   }
 
+  function buildCmdArgs(name: string): string[] | null {
+    const cmd = COMMANDS.find(c => c.name === name);
+    const flags = (cmd as any)?.flags as FlagDef[] | undefined;
+    if (!flags?.length) return [name];
+
+    const fvals = cmdFlagValues[name] ?? {};
+    const args: string[] = [name];
+    let positional: string | null = null;
+
+    for (const fd of flags) {
+      const val: string | boolean = fvals[fd.key] ?? (fd.type === "bool" ? false : "");
+      if (fd.key === "_mode" || fd.key === "_action") {
+        if (val) args.push(...String(val).split(" ").filter(Boolean));
+      } else if (fd.key === "_file" || fd.key === "_request" || fd.key === "_tool") {
+        if (val) positional = String(val).trim();
+      } else if (fd.key === "_question") {
+        if (val) args.push(String(val).trim());
+      } else if (fd.type === "bool" && val) {
+        args.push(`--${fd.key}`);
+      } else if (fd.type === "text" && val) {
+        args.push(`--${fd.key}`, String(val));
+      }
+    }
+
+    for (const fd of flags) {
+      if ((fd as any).required) {
+        const val = fvals[fd.key] ?? "";
+        if (!val) return null;
+      }
+    }
+
+    if (positional) args.splice(1, 0, positional);
+    return args;
+  }
+
   async function handleRunCmd(name: string) {
+    if (name === "undo") { onNavigate("checkpoints"); return; }
+    const args = buildCmdArgs(name);
+    if (!args) {
+      setCmdStates(s => ({ ...s, [name]: "error" }));
+      setCmdOutputs(o => ({ ...o, [name]: "필수 항목을 입력해주세요" }));
+      return;
+    }
     setCmdStates(s => ({ ...s, [name]: "loading" }));
     setCmdOutputs(o => ({ ...o, [name]: "" }));
     try {
-      const r = await runVib([name], projectDir);
+      const r = await runVib(args, projectDir);
       setCmdStates(s => ({ ...s, [name]: r.ok ? "done" : "error" }));
-      setCmdOutputs(o => ({ ...o, [name]: r.ok ? (r.stdout.trim() || "완료") : (r.stderr.trim() || `exit ${r.exit_code}`) }));
+      const stdoutContent = r.stdout.trim();
+      const output = stdoutContent || (r.ok ? "완료" : (r.stderr.trim() || `exit ${r.exit_code}`));
+      setCmdOutputs(o => ({ ...o, [name]: output }));
+      if (stdoutContent.length > 60) {
+        setOutputModal({ name, content: stdoutContent });
+      }
       setTimeout(() => setCmdStates(s => ({ ...s, [name]: "idle" })), 3000);
     } catch (e) {
       setCmdStates(s => ({ ...s, [name]: "error" }));
@@ -1070,6 +1172,25 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
           </div>
         </div>
       )}
+      {/* ── 커맨드 결과 모달 ── */}
+      {outputModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+          onClick={() => setOutputModal(null)}>
+          <div style={{ background: "#FEFBF0", border: "3px solid #1A1A1A", boxShadow: "8px 8px 0 #1A1A1A", width: "100%", maxWidth: 560, maxHeight: "80vh", display: "flex", flexDirection: "column" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ background: "#1A1A1A", padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontFamily: "IBM Plex Mono, monospace", fontWeight: 700, fontSize: 13, color: "#fff", letterSpacing: 2 }}>{outputModal.name.toUpperCase()} 결과</span>
+              <button onClick={() => setOutputModal(null)} style={{ background: "transparent", border: "1px solid #555", color: "#aaa", cursor: "pointer", padding: "2px 8px", fontSize: 14, fontWeight: 700 }}>✕</button>
+            </div>
+            <div style={{ overflowY: "auto", padding: "16px 20px" }}>
+              <pre style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, lineHeight: 1.7, color: "#1A1A1A", whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>{outputModal.content}</pre>
+            </div>
+            <div style={{ padding: "10px 20px", borderTop: "2px solid #1A1A1A", display: "flex", justifyContent: "flex-end" }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setOutputModal(null)}>닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="page-header" style={{ padding: "14px 20px 12px" }}>
         <span className="page-title">HOME</span>
       </div>
@@ -1131,6 +1252,14 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
               <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>
                 {guardResult ? guardResult.summary.slice(0, 60) + "…" : "프로젝트 상태 점검"}
               </div>
+              <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+                <button onClick={() => setGuardStrict(s => !s)} style={{
+                  fontSize: 9, fontWeight: 700, padding: "2px 8px",
+                  border: "2px solid #1A1A1A",
+                  background: guardStrict ? "#1A1A1A" : "#fff",
+                  color: guardStrict ? "#fff" : "#1A1A1A", cursor: "pointer",
+                }}>--strict</button>
+              </div>
               <div style={{ display: "flex", gap: 6 }}>
                 <button className="btn btn-sm" style={{ flex: 1, background: "#FF4D8B", color: "#fff", border: "2px solid #1A1A1A" }}
                   disabled={guardState === "loading"} onClick={handleGuard}>
@@ -1189,6 +1318,20 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
             </div>
             <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
               <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>PROJECT_CONTEXT 생성</div>
+              <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+                <button onClick={() => setTransferHandoff(s => !s)} style={{
+                  flex: 1, fontSize: 9, fontWeight: 700, padding: "2px 0",
+                  border: "2px solid #1A1A1A",
+                  background: transferHandoff ? "#1A1A1A" : "#fff",
+                  color: transferHandoff ? "#fff" : "#1A1A1A", cursor: "pointer",
+                }}>--handoff</button>
+                <button onClick={() => setTransferCompact(s => !s)} style={{
+                  flex: 1, fontSize: 9, fontWeight: 700, padding: "2px 0",
+                  border: "2px solid #1A1A1A",
+                  background: transferCompact ? "#1A1A1A" : "#fff",
+                  color: transferCompact ? "#fff" : "#1A1A1A", cursor: "pointer",
+                }}>--compact</button>
+              </div>
               <button className="btn btn-sm" style={{ width: "100%", background: "#4D9FFF", color: "#fff", border: "2px solid #1A1A1A" }}
                 disabled={transferState === "loading"} onClick={handleTransfer}>
                 {transferState === "loading" ? <span className="spinner" /> : "TRANSFER ▶"}
@@ -1262,17 +1405,70 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
                     {st === "error" && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#FF4D4D", color: "#fff", border: "1px solid #1A1A1A" }}>오류</span>}
                   </div>
                   <div className="feature-card-body" style={{ padding: "6px 12px 8px" }}>
-                    <div style={{ fontSize: 10, color: "#777", marginBottom: 6, lineHeight: 1.3 }}>
-                      {out && st !== "idle" ? out.slice(0, 60) + (out.length > 60 ? "…" : "") : cmd.short}
+                    {!((cmd as any).flags as FlagDef[] | undefined)?.some((f: FlagDef) => f.type === "text" || f.type === "select") && (
+                      <div style={{ fontSize: 10, color: "#777", marginBottom: 6, lineHeight: 1.3 }}>
+                        {out && st !== "idle" ? out.slice(0, 60) + (out.length > 60 ? "…" : "") : cmd.short}
+                      </div>
+                    )}
+                    {((cmd as any).flags as FlagDef[] | undefined)?.map((fd: FlagDef, fi: number) => {
+                      const fvals = cmdFlagValues[cmd.name] ?? {};
+                      const val: string | boolean = fvals[fd.key] ?? (fd.type === "bool" ? false : (fd.type === "select" && fd.options.length > 0 ? fd.options[0].v : ""));
+                      if (fd.type === "bool") return (
+                        <button key={fi} onClick={() => setCmdFlagValues(m => ({ ...m, [cmd.name]: { ...(m[cmd.name] ?? {}), [fd.key]: !val } }))} style={{
+                          fontSize: 9, fontWeight: 700, padding: "2px 6px", marginRight: 4, marginBottom: 4,
+                          border: "2px solid #1A1A1A",
+                          background: val ? "#1A1A1A" : "#fff",
+                          color: val ? "#fff" : "#1A1A1A", cursor: "pointer",
+                        }}>{fd.label}</button>
+                      );
+                      if (fd.type === "text") return (
+                        <div key={fi} style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+                          <input value={String(val)} onChange={e => setCmdFlagValues(m => ({ ...m, [cmd.name]: { ...(m[cmd.name] ?? {}), [fd.key]: e.target.value } }))} placeholder={(fd as any).placeholder} style={{
+                            flex: 1, fontSize: 10, padding: "3px 6px",
+                            border: "2px solid #1A1A1A", boxSizing: "border-box" as const,
+                            fontFamily: "IBM Plex Mono, monospace", background: "#fff", minWidth: 0,
+                          }} />
+                          {fd.key === "_file" && (
+                            <button onClick={async () => {
+                              const picked = await pickFile(projectDir);
+                              if (picked) {
+                                const rel = picked.startsWith(projectDir + "/") ? picked.slice(projectDir.length + 1) : picked;
+                                setCmdFlagValues(m => ({ ...m, [cmd.name]: { ...(m[cmd.name] ?? {}), [fd.key]: rel } }));
+                              }
+                            }} style={{ padding: "2px 6px", border: "2px solid #1A1A1A", background: "#fff", cursor: "pointer", fontSize: 13, flexShrink: 0 }}>📁</button>
+                          )}
+                        </div>
+                      );
+                      if (fd.type === "select") return (
+                        <select key={fi} value={String(val)} onChange={e => setCmdFlagValues(m => ({ ...m, [cmd.name]: { ...(m[cmd.name] ?? {}), [fd.key]: e.target.value } }))} style={{
+                          width: "100%", fontSize: 10, padding: "3px 6px", marginBottom: 4,
+                          border: "2px solid #1A1A1A", boxSizing: "border-box" as const,
+                          fontFamily: "IBM Plex Mono, monospace", cursor: "pointer", background: "#fff",
+                        }}>
+                          {fd.options.map((o: { v: string; l: string }) => <option key={o.v} value={o.v}>{o.l}</option>)}
+                        </select>
+                      );
+                      return null;
+                    })}
+                    {out && st !== "idle" && ((cmd as any).flags as FlagDef[] | undefined)?.some((f: FlagDef) => f.type === "text" || f.type === "select") && (
+                      <div style={{ fontSize: 9, color: st === "error" ? "#FF4D4D" : "#555", marginBottom: 4 }}>
+                        {out.slice(0, 60) + (out.length > 60 ? "…" : "")}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button
+                        className="btn btn-sm"
+                        style={{ flex: 1, background: cmd.color, color: cmd.color === "#FFD166" || cmd.color === "#FFE44D" ? "#1A1A1A" : "#fff", border: "2px solid #1A1A1A", fontSize: 10 }}
+                        disabled={st === "loading"}
+                        onClick={() => cmd.name === "manual" ? setView("manual_list") : handleRunCmd(cmd.name)}
+                      >
+                        {st === "loading" ? <span className="spinner" /> : `${cmd.name.toUpperCase()} ▶`}
+                      </button>
+                      {out && out.length > 60 && (
+                        <button className="btn btn-ghost btn-sm" style={{ fontSize: 9, border: "2px solid #1A1A1A", flexShrink: 0 }}
+                          onClick={() => setOutputModal({ name: cmd.name, content: out })}>결과</button>
+                      )}
                     </div>
-                    <button
-                      className="btn btn-sm"
-                      style={{ width: "100%", background: cmd.color, color: cmd.color === "#FFD166" || cmd.color === "#FFE44D" ? "#1A1A1A" : "#fff", border: "2px solid #1A1A1A", fontSize: 10 }}
-                      disabled={st === "loading"}
-                      onClick={() => cmd.name === "manual" ? setView("manual_list") : handleRunCmd(cmd.name)}
-                    >
-                      {st === "loading" ? <span className="spinner" /> : `${cmd.name.toUpperCase()} ▶`}
-                    </button>
                   </div>
                 </div>
               );
