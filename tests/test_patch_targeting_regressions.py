@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from vibelign.commands.vib_patch_cmd import _build_patch_data_with_options
 from vibelign.core.patch_suggester import choose_anchor, suggest_patch
 
 
@@ -355,6 +356,434 @@ class PatchTargetingRegressionTest(unittest.TestCase):
 
             self.assertEqual(result.target_file, "vibelign-gui/src/App.tsx")
             self.assertEqual(result.target_anchor, "CHECKPOINTS")
+
+    def test_nav_tabs_request_prefers_app_over_titlebar(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta_dir = root / ".vibelign"
+            meta_dir.mkdir(exist_ok=True)
+            (meta_dir / "project_map.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "project_name": root.name,
+                        "entry_files": ["vibelign-gui/src/App.tsx"],
+                        "ui_modules": [
+                            "vibelign-gui/src/pages/Home.tsx",
+                            "vibelign-gui/src/components/CustomTitleBar.tsx",
+                        ],
+                        "core_modules": [],
+                        "service_modules": [],
+                        "large_files": [],
+                        "file_count": 2,
+                        "anchor_index": {
+                            "vibelign-gui/src/App.tsx": ["NAV_TABS"],
+                            "vibelign-gui/src/pages/Home.tsx": ["HOME"],
+                            "vibelign-gui/src/components/CustomTitleBar.tsx": [
+                                "CUSTOM_TITLEBAR"
+                            ],
+                        },
+                        "files": {
+                            "vibelign-gui/src/App.tsx": {
+                                "category": "entry",
+                                "anchors": ["NAV_TABS"],
+                                "line_count": 240,
+                            },
+                            "vibelign-gui/src/components/CustomTitleBar.tsx": {
+                                "category": "ui",
+                                "anchors": ["CUSTOM_TITLEBAR"],
+                                "line_count": 70,
+                            },
+                            "vibelign-gui/src/pages/Home.tsx": {
+                                "category": "ui",
+                                "anchors": ["HOME"],
+                                "line_count": 500,
+                            },
+                        },
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/App.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/App.tsx").write_text(
+                "// === ANCHOR: NAV_TABS_START ===\n"
+                "export function App() {\n"
+                '  return <div className="nav-tabs">HOME | DOCTOR | CHECKPOINTS</div>;\n'
+                "}\n"
+                "// === ANCHOR: NAV_TABS_END ===\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/components/CustomTitleBar.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/components/CustomTitleBar.tsx").write_text(
+                "// === ANCHOR: CUSTOM_TITLEBAR_START ===\n"
+                "export default function CustomTitleBar() {\n"
+                '  return <div className="title-bar">VIBELIGN</div>;\n'
+                "}\n"
+                "// === ANCHOR: CUSTOM_TITLEBAR_END ===\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/pages/Home.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/pages/Home.tsx").write_text(
+                "// === ANCHOR: HOME_START ===\n"
+                "export default function Home() {\n"
+                "  return <div>Manual card</div>;\n"
+                "}\n"
+                "// === ANCHOR: HOME_END ===\n",
+                encoding="utf-8",
+            )
+
+            result = suggest_patch(
+                root,
+                "카드 메뉴얼은 상단 메뉴 홈 | DOCTOR | CHECKPOINTS 옆으로 가는게 좋을 거 같아",
+            )
+
+            self.assertEqual(result.target_file, "vibelign-gui/src/App.tsx")
+            self.assertEqual(result.target_anchor, "NAV_TABS")
+
+    def test_nav_tabs_request_prefers_app_over_home_page(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta_dir = root / ".vibelign"
+            meta_dir.mkdir(exist_ok=True)
+            (meta_dir / "project_map.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "project_name": root.name,
+                        "entry_files": ["vibelign-gui/src/App.tsx"],
+                        "ui_modules": ["vibelign-gui/src/pages/Home.tsx"],
+                        "core_modules": [],
+                        "service_modules": [],
+                        "large_files": [],
+                        "file_count": 2,
+                        "anchor_index": {
+                            "vibelign-gui/src/App.tsx": ["NAV_TABS"],
+                            "vibelign-gui/src/pages/Home.tsx": ["HOME"],
+                        },
+                        "files": {
+                            "vibelign-gui/src/App.tsx": {
+                                "category": "entry",
+                                "anchors": ["NAV_TABS"],
+                                "line_count": 141,
+                            },
+                            "vibelign-gui/src/pages/Home.tsx": {
+                                "category": "ui",
+                                "anchors": ["HOME"],
+                                "line_count": 1483,
+                            },
+                        },
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/App.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/App.tsx").write_text(
+                "// === ANCHOR: NAV_TABS_START ===\n"
+                "export default function App() {\n"
+                '  return <div className="nav-tabs">HOME | DOCTOR | CHECKPOINTS</div>;\n'
+                "}\n"
+                "// === ANCHOR: NAV_TABS_END ===\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/pages/Home.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/pages/Home.tsx").write_text(
+                "// === ANCHOR: HOME_START ===\n"
+                "export default function Home() {\n"
+                "  return <div>Home</div>;\n"
+                "}\n"
+                "// === ANCHOR: HOME_END ===\n",
+                encoding="utf-8",
+            )
+
+            result = suggest_patch(
+                root,
+                "카드 메뉴얼은 상단 메뉴 홈 | DOCTOR | CHECKPOINTS 옆으로 가는게 좋을 거 같아.",
+            )
+
+            self.assertEqual(result.target_file, "vibelign-gui/src/App.tsx")
+            self.assertEqual(result.target_anchor, "NAV_TABS")
+
+    def test_composite_move_request_preserves_manual_behavior(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta_dir = root / ".vibelign"
+            meta_dir.mkdir(exist_ok=True)
+            (meta_dir / "project_map.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "project_name": root.name,
+                        "entry_files": ["vibelign-gui/src/App.tsx"],
+                        "ui_modules": ["vibelign-gui/src/pages/Home.tsx"],
+                        "core_modules": [],
+                        "service_modules": [],
+                        "large_files": [],
+                        "file_count": 2,
+                        "anchor_index": {
+                            "vibelign-gui/src/App.tsx": ["NAV_TABS"],
+                            "vibelign-gui/src/pages/Home.tsx": ["HOME"],
+                        },
+                        "files": {
+                            "vibelign-gui/src/App.tsx": {
+                                "category": "entry",
+                                "anchors": ["NAV_TABS"],
+                                "line_count": 141,
+                            },
+                            "vibelign-gui/src/pages/Home.tsx": {
+                                "category": "ui",
+                                "anchors": ["HOME"],
+                                "line_count": 1483,
+                            },
+                        },
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/App.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/App.tsx").write_text(
+                "// === ANCHOR: APP_START ===\n"
+                "export default function App() {\n"
+                '  return <div className="nav-tabs">HOME | DOCTOR | CHECKPOINTS</div>;\n'
+                "}\n"
+                "// === ANCHOR: APP_END ===\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/pages/Home.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/pages/Home.tsx").write_text(
+                "// === ANCHOR: HOME_START ===\n"
+                "export default function Home() {\n"
+                "  return <div>Manual card</div>;\n"
+                "}\n"
+                "// === ANCHOR: HOME_END ===\n",
+                encoding="utf-8",
+            )
+
+            request = (
+                "프로젝트 홈에서 메뉴얼 카드 삭제하고 상단 메뉴의 CHECKPOINTS 옆으로 이동시켜. "
+                "그리고 클릭하면 메뉴얼 화면으로 이동해야 돼."
+            )
+            result = _build_patch_data_with_options(
+                root, request, use_ai=False, quiet_ai=True
+            )["patch_plan"]
+
+            self.assertEqual(result["request"], request)
+            self.assertEqual(result["target_file"], "vibelign-gui/src/pages/Home.tsx")
+            self.assertEqual(result["target_anchor"], "HOME")
+            self.assertEqual(
+                result["destination_target_file"], "vibelign-gui/src/App.tsx"
+            )
+            self.assertEqual(result["destination_target_anchor"], "APP")
+            self.assertEqual(result["patch_points"]["operation"], "move")
+            self.assertEqual(
+                result["patch_points"]["behavior_constraint"],
+                "클릭하면 메뉴얼 화면으로 이동해야 돼.",
+            )
+            self.assertIn(
+                "Behavior preservation: 클릭하면 메뉴얼 화면으로 이동해야 돼.",
+                result["constraints"],
+            )
+
+    def test_builder_move_request_matches_standalone_target(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta_dir = root / ".vibelign"
+            meta_dir.mkdir(exist_ok=True)
+            (meta_dir / "project_map.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "project_name": root.name,
+                        "entry_files": ["vibelign-gui/src/App.tsx"],
+                        "ui_modules": [
+                            "vibelign-gui/src/components/CustomTitleBar.tsx"
+                        ],
+                        "core_modules": [],
+                        "service_modules": [],
+                        "large_files": [],
+                        "file_count": 2,
+                        "anchor_index": {
+                            "vibelign-gui/src/App.tsx": ["NAV_TABS"],
+                            "vibelign-gui/src/components/CustomTitleBar.tsx": [
+                                "CUSTOM_TITLEBAR"
+                            ],
+                        },
+                        "files": {
+                            "vibelign-gui/src/App.tsx": {
+                                "category": "entry",
+                                "anchors": ["NAV_TABS"],
+                                "line_count": 240,
+                            },
+                            "vibelign-gui/src/components/CustomTitleBar.tsx": {
+                                "category": "ui",
+                                "anchors": ["CUSTOM_TITLEBAR"],
+                                "line_count": 70,
+                            },
+                        },
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/App.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/App.tsx").write_text(
+                "// === ANCHOR: NAV_TABS_START ===\n"
+                "export function App() {\n"
+                '  return <div className="nav-tabs">HOME | DOCTOR | CHECKPOINTS</div>;\n'
+                "}\n"
+                "// === ANCHOR: NAV_TABS_END ===\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/components/CustomTitleBar.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/components/CustomTitleBar.tsx").write_text(
+                "// === ANCHOR: CUSTOM_TITLEBAR_START ===\n"
+                "export default function CustomTitleBar() {\n"
+                '  return <div className="title-bar">VIBELIGN</div>;\n'
+                "}\n"
+                "// === ANCHOR: CUSTOM_TITLEBAR_END ===\n",
+                encoding="utf-8",
+            )
+
+            request = "카드 메뉴얼은 상단 메뉴 홈 | DOCTOR | CHECKPOINTS 옆으로 가는게 좋을 거 같아."
+            builder = _build_patch_data_with_options(
+                root, request, use_ai=True, quiet_ai=True
+            )
+
+            self.assertEqual(builder["patch_plan"]["patch_points"]["operation"], "move")
+            self.assertEqual(
+                builder["patch_plan"]["destination_target_file"],
+                "vibelign-gui/src/App.tsx",
+            )
+            self.assertEqual(
+                builder["patch_plan"]["destination_target_anchor"], "NAV_TABS"
+            )
+
+    def test_card_manual_placement_prefers_app_over_command_modules(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta_dir = root / ".vibelign"
+            meta_dir.mkdir(exist_ok=True)
+            (meta_dir / "project_map.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "project_name": root.name,
+                        "entry_files": [],
+                        "ui_modules": [
+                            "vibelign-gui/src/pages/Home.tsx",
+                            "vibelign-gui/src/components/CustomTitleBar.tsx",
+                            "vibelign-gui/src/App.tsx",
+                        ],
+                        "core_modules": ["vibelign/commands/vib_patch_cmd.py"],
+                        "service_modules": [],
+                        "large_files": [],
+                        "file_count": 4,
+                        "anchor_index": {
+                            "vibelign-gui/src/pages/Home.tsx": ["HOME"],
+                            "vibelign-gui/src/components/CustomTitleBar.tsx": [
+                                "CUSTOM_TITLEBAR"
+                            ],
+                            "vibelign-gui/src/App.tsx": ["APP"],
+                            "vibelign/commands/vib_patch_cmd.py": ["VIB_PATCH_CMD"],
+                        },
+                        "files": {
+                            "vibelign-gui/src/pages/Home.tsx": {
+                                "category": "ui",
+                                "anchors": ["HOME"],
+                                "line_count": 260,
+                            },
+                            "vibelign-gui/src/components/CustomTitleBar.tsx": {
+                                "category": "ui",
+                                "anchors": ["CUSTOM_TITLEBAR"],
+                                "line_count": 36,
+                            },
+                            "vibelign-gui/src/App.tsx": {
+                                "category": "ui",
+                                "anchors": ["APP"],
+                                "line_count": 141,
+                            },
+                            "vibelign/commands/vib_patch_cmd.py": {
+                                "category": "core",
+                                "anchors": ["VIB_PATCH_CMD"],
+                                "line_count": 689,
+                            },
+                        },
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/pages/Home.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/pages/Home.tsx").write_text(
+                "// === ANCHOR: HOME_START ===\n"
+                "export function HomePage() {\n"
+                "  return <div>Home</div>;\n"
+                "}\n"
+                "// === ANCHOR: HOME_END ===\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/components/CustomTitleBar.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/components/CustomTitleBar.tsx").write_text(
+                "// === ANCHOR: CUSTOM_TITLEBAR_START ===\n"
+                "export default function CustomTitleBar() {\n"
+                "  return <div>VIBELIGN</div>;\n"
+                "}\n"
+                "// === ANCHOR: CUSTOM_TITLEBAR_END ===\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/App.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/App.tsx").write_text(
+                "// === ANCHOR: APP_START ===\n"
+                "export function App() {\n"
+                '  return <div className="nav-tabs">HOME | DOCTOR | CHECKPOINTS</div>;\n'
+                "}\n"
+                "// === ANCHOR: APP_END ===\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign/commands/vib_patch_cmd.py").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign/commands/vib_patch_cmd.py").write_text(
+                "# === ANCHOR: VIB_PATCH_CMD_START ===\n"
+                "def run_vib_patch():\n"
+                "    return None\n"
+                "# === ANCHOR: VIB_PATCH_CMD_END ===\n",
+                encoding="utf-8",
+            )
+
+            result = suggest_patch(
+                root,
+                "카드 메뉴얼은 상단 메뉴 홈 | DOCTOR | CHECKPOINTS 옆으로 가는게 좋을 거 같아.",
+            )
+
+            self.assertEqual(result.target_file, "vibelign-gui/src/App.tsx")
+            self.assertEqual(result.target_anchor, "APP")
 
 
 if __name__ == "__main__":

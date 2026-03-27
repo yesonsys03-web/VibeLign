@@ -47,6 +47,7 @@ class VibPatchContractV0Test(unittest.TestCase):
             self.assertIn(contract["status"], {"READY", "NEEDS_CLARIFICATION"})
             self.assertEqual(contract["contract_version"], "0.1")
             self.assertEqual(contract["codespeak_contract_version"], 0)
+            self.assertIn("intent_ir", contract)
             self.assertIn("layer", contract["codespeak_parts"])
             self.assertIn("title", contract["user_status"])
             self.assertIn("reason", contract["user_status"])
@@ -55,6 +56,8 @@ class VibPatchContractV0Test(unittest.TestCase):
             self.assertTrue(isinstance(contract["allowed_ops"], list))
             self.assertTrue(isinstance(contract["preconditions"], list))
             self.assertTrue(isinstance(contract["verification"]["commands"], list))
+            self.assertIn("schema_version", payload["data"]["patch_plan"])
+            self.assertIn("patch_points", payload["data"]["patch_plan"])
 
     def test_vib_patch_json_marks_missing_anchor_as_needs_clarification(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -232,6 +235,18 @@ class VibPatchContractV0Test(unittest.TestCase):
                 contract["scope"]["destination_target_file"], "vibelign-gui/src/App.tsx"
             )
             self.assertEqual(contract["scope"]["destination_anchor_status"], "ok")
+            self.assertEqual(
+                payload["data"]["patch_plan"]["intent_ir"]["operation"], "move"
+            )
+            self.assertEqual(
+                payload["data"]["patch_plan"]["source_resolution"]["role"], "source"
+            )
+            self.assertEqual(
+                payload["data"]["patch_plan"]["destination_resolution"]["role"],
+                "destination",
+            )
+            self.assertEqual(contract["move_summary"]["operation"], "move")
+            self.assertIn("intent_ir", contract)
             self.assertIn(
                 "vibelign-gui/src/App.tsx", contract["scope"]["allowed_files"]
             )

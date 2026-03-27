@@ -6,7 +6,7 @@ import Doctor from "./pages/Doctor";
 import Home from "./pages/Home";
 import Checkpoints from "./pages/Checkpoints";
 import Settings from "./pages/Settings";
-import { loadApiKey, loadRecentProjects, saveRecentProjects, stopWatch } from "./lib/vib";
+import { loadApiKey, loadRecentProjects, saveRecentProjects, stopWatch, openFolder } from "./lib/vib";
 import "./styles/brutalism.css";
 import "./App.css";
 
@@ -48,7 +48,7 @@ class ErrorBoundary extends Component<
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
-type Page = "home" | "doctor" | "checkpoints" | "settings";
+type Page = "home" | "manual" | "doctor" | "checkpoints" | "settings";
 
 export default function App() {
   const [projectDir, setProjectDir] = useState<string | null>(null);
@@ -101,6 +101,12 @@ export default function App() {
               <button className={`nav-tab ${page === "checkpoints" ? "active" : ""}`} onClick={() => setPage("checkpoints")}>
                 Checkpoints
               </button>
+              <button className={`nav-tab ${page === "manual" ? "active" : ""}`} onClick={() => setPage("manual")}>
+                메뉴얼
+              </button>
+              <button className="nav-tab" onClick={() => openFolder(projectDir).catch(() => {})}>
+                폴더열기
+              </button>
               <div style={{ flex: 1 }} />
               <button
                 className="nav-tab"
@@ -113,7 +119,8 @@ export default function App() {
 
             <div style={{ flex: 1, overflow: "hidden" }}>
               <ErrorBoundary>
-                {page === "home" && <Home projectDir={projectDir} onNavigate={setPage} />}
+                {page === "home" && <Home key="home" projectDir={projectDir} onNavigate={setPage} />}
+                {page === "manual" && <Home key="manual" projectDir={projectDir} onNavigate={setPage} initialView="manual_list" />}
                 {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} />}
                 {page === "checkpoints" && <Checkpoints projectDir={projectDir} />}
                 {page === "settings" && (
