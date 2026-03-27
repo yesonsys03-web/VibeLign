@@ -222,6 +222,140 @@ class PatchTargetingRegressionTest(unittest.TestCase):
         self.assertEqual(anchor, "HOME_PANEL")
         self.assertTrue(any("gui" in item or "version" in item for item in rationale))
 
+    def test_navigation_destination_prefers_app_over_content_page(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta_dir = root / ".vibelign"
+            meta_dir.mkdir(exist_ok=True)
+            (meta_dir / "project_map.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "project_name": root.name,
+                        "entry_files": ["vibelign-gui/src/App.tsx"],
+                        "ui_modules": ["vibelign-gui/src/pages/Checkpoints.tsx"],
+                        "core_modules": [],
+                        "service_modules": [],
+                        "large_files": [],
+                        "file_count": 2,
+                        "anchor_index": {
+                            "vibelign-gui/src/App.tsx": ["CHECKPOINTS"],
+                            "vibelign-gui/src/pages/Checkpoints.tsx": [
+                                "CHECKPOINTS_PAGE"
+                            ],
+                        },
+                        "files": {
+                            "vibelign-gui/src/App.tsx": {
+                                "category": "entry",
+                                "anchors": ["CHECKPOINTS"],
+                                "line_count": 200,
+                            },
+                            "vibelign-gui/src/pages/Checkpoints.tsx": {
+                                "category": "ui",
+                                "anchors": ["CHECKPOINTS_PAGE"],
+                                "line_count": 140,
+                            },
+                        },
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/App.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/App.tsx").write_text(
+                "// === ANCHOR: CHECKPOINTS_START ===\n"
+                "export function App() {\n"
+                "  return <nav>CHECKPOINTS</nav>;\n"
+                "}\n"
+                "// === ANCHOR: CHECKPOINTS_END ===\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/pages/Checkpoints.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/pages/Checkpoints.tsx").write_text(
+                "// === ANCHOR: CHECKPOINTS_PAGE_START ===\n"
+                "export function CheckpointsPage() {\n"
+                "  return <div>Checkpoints page</div>;\n"
+                "}\n"
+                "// === ANCHOR: CHECKPOINTS_PAGE_END ===\n",
+                encoding="utf-8",
+            )
+
+            result = suggest_patch(
+                root,
+                "상단 메뉴 CHECKPOINTS",
+            )
+
+            self.assertEqual(result.target_file, "vibelign-gui/src/App.tsx")
+            self.assertEqual(result.target_anchor, "CHECKPOINTS")
+
+    def test_navigation_destination_avoids_backend_checkpoints_module(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta_dir = root / ".vibelign"
+            meta_dir.mkdir(exist_ok=True)
+            (meta_dir / "project_map.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "project_name": root.name,
+                        "entry_files": ["vibelign-gui/src/App.tsx"],
+                        "ui_modules": ["vibelign-gui/src/pages/Home.tsx"],
+                        "core_modules": ["vibelign/core/local_checkpoints.py"],
+                        "service_modules": [],
+                        "large_files": [],
+                        "file_count": 3,
+                        "anchor_index": {
+                            "vibelign-gui/src/App.tsx": ["CHECKPOINTS"],
+                            "vibelign/core/local_checkpoints.py": ["LOCAL_CHECKPOINTS"],
+                        },
+                        "files": {
+                            "vibelign-gui/src/App.tsx": {
+                                "category": "entry",
+                                "anchors": ["CHECKPOINTS"],
+                                "line_count": 200,
+                            },
+                            "vibelign/core/local_checkpoints.py": {
+                                "category": "core",
+                                "anchors": ["LOCAL_CHECKPOINTS"],
+                                "line_count": 160,
+                            },
+                        },
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/App.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/App.tsx").write_text(
+                "// === ANCHOR: CHECKPOINTS_START ===\n"
+                "export function App() {\n"
+                "  return <nav>CHECKPOINTS</nav>;\n"
+                "}\n"
+                "// === ANCHOR: CHECKPOINTS_END ===\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign/core/local_checkpoints.py").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign/core/local_checkpoints.py").write_text(
+                "# === ANCHOR: LOCAL_CHECKPOINTS_START ===\n"
+                "def list_local_checkpoints():\n"
+                "    return []\n"
+                "# === ANCHOR: LOCAL_CHECKPOINTS_END ===\n",
+                encoding="utf-8",
+            )
+
+            result = suggest_patch(root, "상단 메뉴 CHECKPOINTS")
+
+            self.assertEqual(result.target_file, "vibelign-gui/src/App.tsx")
+            self.assertEqual(result.target_anchor, "CHECKPOINTS")
+
 
 if __name__ == "__main__":
     unittest.main()

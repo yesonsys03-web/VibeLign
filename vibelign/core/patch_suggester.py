@@ -2,6 +2,7 @@
 from pathlib import Path
 import re
 import json
+import importlib
 from dataclasses import dataclass, asdict
 from typing import Any, Iterable, Optional, Union
 from vibelign.core.meta_paths import MetaPaths
@@ -98,6 +99,7 @@ _KOREAN_PARTICLE_SUFFIXES = (
     "로",
     "도",
     "만",
+    "의",
 )
 
 _TOKEN_ALIASES = {
@@ -105,6 +107,8 @@ _TOKEN_ALIASES = {
     "홈화면": ["home", "screen", "page"],
     "메인화면": ["main", "home", "screen", "page"],
     "화면": ["screen", "page", "ui"],
+    "첫화면": ["onboarding", "screen"],
+    "시작화면": ["onboarding", "screen"],
     "버전": ["version"],
     "설정": ["settings", "config"],
     "설치": ["install"],
@@ -268,6 +272,41 @@ _UI_REQUEST_KEYWORDS = [
     "사이즈",
 ]
 
+_NAVIGATION_REQUEST_KEYWORDS = {
+    "menu",
+    "nav",
+    "tab",
+    "header",
+    "toolbar",
+    "sidebar",
+    "navbar",
+    "상단",
+    "메뉴",
+    "탭",
+    "네비게이션",
+    "탑",
+}
+
+_NAVIGATION_FILE_HINTS = {
+    "app",
+    "layout",
+    "nav",
+    "navbar",
+    "header",
+    "menu",
+    "toolbar",
+    "sidebar",
+}
+
+_BACKEND_CHECKPOINT_HINTS = {
+    "checkpoint",
+    "checkpoints",
+    "local_checkpoints",
+    "rollback",
+    "restore",
+    "backup",
+}
+
 
 def _is_ui_request(request_tokens: Iterable[str]) -> bool:
     token_set = set(request_tokens)
@@ -279,6 +318,11 @@ def _is_service_request(request_tokens: Iterable[str]) -> bool:
         tok in request_tokens
         for tok in ["service", "auth", "login", "api", "worker", "guard", "schedule"]
     )
+
+
+def _is_navigation_request(request_tokens: Iterable[str]) -> bool:
+    token_set = set(request_tokens)
+    return any(kw in token_set for kw in _NAVIGATION_REQUEST_KEYWORDS)
 
 
 def score_path(
@@ -322,6 +366,8 @@ def score_path(
         score += 4
         rationale.append(f"파일명 '{stem}'이 요청과 직접 일치")
     ui_request = _is_ui_request(request_tokens)
+    nav_request = _is_navigation_request(request_tokens)
+    map_kind = None
     if ui_request and any(
         tok in path_tokens
         for tok in ["ui", "window", "dialog", "widget", "render", "terminal", "panel"]
@@ -349,6 +395,23 @@ def score_path(
             rationale.append(
                 "Project Map 에서 큰 파일로 표시되어 수정 후보로 우선 검토함"
             )
+    if nav_request:
+        if project_map is not None and rel_path in project_map.entry_files:
+            score += 10
+            rationale.append("탑/메뉴 이동 요청이라 entry file 이 우선 후보임")
+        if any(token in path_tokens for token in _NAVIGATION_FILE_HINTS):
+            score += 8
+            rationale.append("탑/메뉴 구조를 가진 파일이라 목적지 후보로 적합함")
+        if any(token in path_tokens for token in _BACKEND_CHECKPOINT_HINTS):
+            score -= 20
+            rationale.append(
+                "탑/메뉴 요청인데 백엔드 체크포인트 파일이라 목적지 후보에서 제외"
+            )
+        if map_kind == "ui" and not any(
+            token in path_tokens for token in _NAVIGATION_FILE_HINTS
+        ):
+            score -= 2
+            rationale.append("탑/메뉴 요청인데 콘텐츠형 UI 파일이라 우선순위를 낮춤")
     if any(
         tok in path_tokens
         for tok in ["worker", "service", "window", "scheduler", "backup"]
@@ -368,7 +431,14 @@ def score_path(
             score += suggested_score + 2
             rationale.extend(suggested_rationale)
     if isinstance(intent_meta, dict):
+        file_anchors = (
+            set(anchor_meta.get("anchors", []))
+            if isinstance(anchor_meta, dict)
+            else set()
+        )
         for anchor_name, meta_entry in intent_meta.items():
+            if file_anchors and anchor_name not in file_anchors:
+                continue
             intent = meta_entry.get("intent", "").lower()
             if not intent:
                 continue
@@ -525,7 +595,62 @@ def load_anchor_metadata(root: Path) -> dict[str, dict[str, list[str]]]:
     return files if isinstance(files, dict) else {}
 
 
-def suggest_patch(root: Path, request: str) -> PatchSuggestion:
+def _ai_select_file(
+    request: str,
+    candidates: list,
+    root: Path,
+    request_tokens: list[str],
+    anchor_meta: dict,
+    project_map: Optional[Any] = None,
+) -> Optional[tuple]:
+    """confidence가 낮을 때 AI에게 후보 파일 중 최적 파일을 선택하게 한다.
+
+    키워드 기반 상위 후보 + ui_modules 전체를 AI에 노출해 keyword mismatch를 보완한다.
+    """
+    try:
+        ai_explain = importlib.import_module("vibelign.core.ai_explain")
+        if not ai_explain.has_ai_provider():
+            return None
+
+        # 후보 풀 구성: 상위 점수 파일 + ui_modules (중복 제거)
+        pool: list[Path] = [path for (_, path, _) in candidates[:5]]
+        if project_map is not None:
+            for rel in getattr(project_map, "ui_modules", set()):
+                p = root / rel
+                if p not in pool and p.exists():
+                    pool.append(p)
+
+        lines = []
+        for i, path in enumerate(pool, 1):
+            rel = relpath_str(root, path)
+            anchors = extract_anchors(path)
+            anchor_names = ", ".join(anchors[:3]) if anchors else "없음"
+            lines.append(f"{i}. {rel}  (앵커: {anchor_names})")
+
+        candidates_text = "\n".join(lines)
+        prompt = (
+            f"사용자 코드 수정 요청: {request}\n\n"
+            f"아래 후보 파일 중 수정해야 할 파일을 하나만 골라주세요.\n"
+            f"JSON만 출력하세요. 설명 없이 딱 JSON만.\n\n"
+            f"후보:\n{candidates_text}\n\n"
+            f'출력 형식: {{"index": 1}}'
+        )
+        text, _ = ai_explain.generate_text_with_ai(prompt, quiet=True)
+        if not text:
+            return None
+        m = re.search(r'\{\s*"index"\s*:\s*(\d+)\s*\}', text)
+        if not m:
+            return None
+        idx = int(m.group(1)) - 1
+        if 0 <= idx < len(pool):
+            selected_path = pool[idx]
+            return selected_path, ["AI가 후보 파일 중 가장 적합한 파일을 선택함"]
+        return None
+    except Exception:
+        return None
+
+
+def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggestion:
     from vibelign.core.anchor_tools import load_anchor_meta
 
     request_tokens = tokenize(request)
@@ -582,6 +707,16 @@ def suggest_patch(root: Path, request: str) -> PatchSuggestion:
         reasons = reasons[:4] + [
             f"상위 후보 점수 차이가 작음 ({best_score} vs {second_score}) — 위치 확인이 더 필요함"
         ]
+    if use_ai and confidence == "low" and len(request_tokens) >= 5:
+        ai_result = _ai_select_file(
+            request, scored[:5], root, request_tokens, anchor_meta, project_map
+        )
+        if ai_result:
+            best_path, ai_reasons = ai_result
+            anchors = extract_anchors(best_path)
+            anchor, ar = choose_anchor(anchors, request_tokens, anchor_meta)
+            reasons = ai_reasons
+            confidence = "medium"
     return PatchSuggestion(
         request, relpath_str(root, best_path), anchor, confidence, reasons[:5] + ar[:3]
     )
