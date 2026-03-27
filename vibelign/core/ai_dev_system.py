@@ -107,6 +107,14 @@ If `.vibelign/project_map.json` exists:
 - Check `.vibelign/anchor_meta.json` for anchor intent and cross-file dependencies (`@CONNECTS`)
 - Do not modify files outside the categories relevant to the request
 
+### VibeLign patch-specific rules
+
+- 복합 요청은 `intent / source / destination / behavior_constraint`로 먼저 분해한다.
+- `삭제`와 `이동`이 같이 나오면 기능 삭제가 아니라 위치 이동 + 보존 제약인지 먼저 확인한다.
+- `source`와 `destination`은 같은 규칙으로 취급하지 말고 역할별로 따로 해석한다.
+- patch contract나 코드스픽 구조가 바뀌면 관련 테스트와 문서도 같이 갱신한다.
+- 용어는 공통 문서와 glossary 기준으로 맞춘다.
+
 ---
 
 ## 4. Structure Safety Rules
