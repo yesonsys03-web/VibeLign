@@ -6,62 +6,298 @@ from typing import Optional
 
 
 ACTION_MAP = {
-    "add": ["add", "insert", "create", "append", "new", "make", "build",
-            "추가", "넣어", "만들어", "생성", "넣기", "추가해", "만들기"],
-    "remove": ["remove", "delete", "drop", "clear", "clean",
-               "삭제", "제거", "지워", "없애", "지우기", "삭제해"],
-    "fix": ["fix", "repair", "resolve", "debug", "handle", "catch",
-            "수정", "고쳐", "해결", "버그", "고치기", "수정해", "고쳐줘"],
-    "update": ["update", "change", "edit", "modify", "improve", "enhance", "upgrade",
-               "변경", "바꿔", "키워", "줄여", "수정해", "바꾸기", "변경해", "업데이트"],
-    "split": ["split", "separate", "divide", "extract", "refactor",
-              "분리", "나눠", "쪼개", "추출", "리팩토링"],
-    "apply": ["apply", "set", "enable", "activate",
-              "적용", "설정", "활성화", "켜줘", "적용해"],
+    "add": [
+        "add",
+        "insert",
+        "create",
+        "append",
+        "new",
+        "make",
+        "build",
+        "추가",
+        "넣어",
+        "만들어",
+        "생성",
+        "넣기",
+        "추가해",
+        "만들기",
+    ],
+    "remove": [
+        "remove",
+        "delete",
+        "drop",
+        "clear",
+        "clean",
+        "삭제",
+        "제거",
+        "지워",
+        "없애",
+        "지우기",
+        "삭제해",
+    ],
+    "move": [
+        "move",
+        "move to",
+        "relocate",
+        "transfer",
+        "reposition",
+        "이동",
+        "옮겨",
+        "옮기",
+        "배치",
+        "이관",
+        "이동해",
+        "옮겨줘",
+    ],
+    "fix": [
+        "fix",
+        "repair",
+        "resolve",
+        "debug",
+        "handle",
+        "catch",
+        "수정",
+        "고쳐",
+        "해결",
+        "버그",
+        "고치기",
+        "수정해",
+        "고쳐줘",
+    ],
+    "update": [
+        "update",
+        "change",
+        "edit",
+        "modify",
+        "improve",
+        "enhance",
+        "upgrade",
+        "변경",
+        "바꿔",
+        "키워",
+        "줄여",
+        "수정해",
+        "바꾸기",
+        "변경해",
+        "업데이트",
+    ],
+    "split": [
+        "split",
+        "separate",
+        "divide",
+        "extract",
+        "refactor",
+        "분리",
+        "나눠",
+        "쪼개",
+        "추출",
+        "리팩토링",
+    ],
+    "apply": [
+        "apply",
+        "set",
+        "enable",
+        "activate",
+        "적용",
+        "설정",
+        "활성화",
+        "켜줘",
+        "적용해",
+    ],
 }
 
 LAYER_MAP = {
     "ui": [
-        "button", "window", "dialog", "layout", "sidebar", "toolbar",
-        "panel", "screen", "render", "widget", "progress", "menu",
-        "버튼", "화면", "창", "레이아웃", "메뉴", "패널", "툴바", "사이드바",
-        "팝업", "모달", "탭", "아이콘", "폼", "입력", "목록", "리스트",
-        "진행바", "진행표시", "체크박스", "체크", "드롭다운", "셀렉트",
-        "슬라이더", "스크롤", "토글", "찾아보기", "선택창", "업로드",
-        "라디오", "스피너", "배지", "툴팁", "헤더", "푸터", "네비게이션",
+        "button",
+        "window",
+        "dialog",
+        "layout",
+        "sidebar",
+        "toolbar",
+        "panel",
+        "screen",
+        "render",
+        "widget",
+        "progress",
+        "menu",
+        "버튼",
+        "화면",
+        "창",
+        "레이아웃",
+        "메뉴",
+        "패널",
+        "툴바",
+        "사이드바",
+        "팝업",
+        "모달",
+        "탭",
+        "아이콘",
+        "폼",
+        "입력",
+        "목록",
+        "리스트",
+        "진행바",
+        "진행표시",
+        "체크박스",
+        "체크",
+        "드롭다운",
+        "셀렉트",
+        "슬라이더",
+        "스크롤",
+        "토글",
+        "찾아보기",
+        "선택창",
+        "업로드",
+        "라디오",
+        "스피너",
+        "배지",
+        "툴팁",
+        "헤더",
+        "푸터",
+        "네비게이션",
     ],
     "service": [
-        "login", "auth", "register", "user", "session", "token", "password",
-        "로그인", "인증", "회원", "비밀번호", "세션", "가입", "로그아웃",
-        "사용자", "유저", "계정", "프로필",
+        "login",
+        "auth",
+        "register",
+        "user",
+        "session",
+        "token",
+        "password",
+        "로그인",
+        "인증",
+        "회원",
+        "비밀번호",
+        "세션",
+        "가입",
+        "로그아웃",
+        "사용자",
+        "유저",
+        "계정",
+        "프로필",
     ],
     "engine": [
-        "patch", "anchor", "guard", "scan", "analyze", "build", "compile",
-        "앵커", "패치", "스캔", "분석", "빌드", "컴파일",
+        "patch",
+        "anchor",
+        "guard",
+        "scan",
+        "analyze",
+        "build",
+        "compile",
+        "앵커",
+        "패치",
+        "스캔",
+        "분석",
+        "빌드",
+        "컴파일",
     ],
     "api": [
-        "request", "fetch", "http", "endpoint", "route", "server", "response",
-        "요청", "서버", "엔드포인트", "라우트", "응답", "api", "호출",
+        "request",
+        "fetch",
+        "http",
+        "endpoint",
+        "route",
+        "server",
+        "response",
+        "요청",
+        "서버",
+        "엔드포인트",
+        "라우트",
+        "응답",
+        "api",
+        "호출",
     ],
     "data": [
-        "db", "database", "model", "schema", "store", "cache",
-        "json", "yaml", "file", "save", "load",
-        "데이터", "데이터베이스", "모델", "저장", "불러오기", "캐시", "파일",
+        "db",
+        "database",
+        "model",
+        "schema",
+        "store",
+        "cache",
+        "json",
+        "yaml",
+        "file",
+        "save",
+        "load",
+        "데이터",
+        "데이터베이스",
+        "모델",
+        "저장",
+        "불러오기",
+        "캐시",
+        "파일",
     ],
     "cli": [
-        "command", "arg", "flag", "option", "help", "output", "print",
-        "명령어", "커맨드", "옵션", "출력", "도움말",
+        "command",
+        "arg",
+        "flag",
+        "option",
+        "help",
+        "output",
+        "print",
+        "명령어",
+        "커맨드",
+        "옵션",
+        "출력",
+        "도움말",
     ],
 }
 
 STOPWORDS = {
-    "a", "an", "the", "to", "for", "with", "and", "of", "in", "on",
-    "please", "my", "this", "that", "me",
-    "을", "를", "이", "가", "에", "에서", "으로", "로", "와", "과",
-    "좀", "해줘", "줘", "해", "주세요", "부탁", "그", "저", "제",
-    "좀더", "더", "다시", "한번", "잠깐",
-    "동일하게", "통일", "같게", "맞춰", "맞춰줘", "통일해", "통일해줘",
-    "달라", "다르게", "사이즈가", "크기가", "높이가", "너비가", "가로가", "세로가",
+    "a",
+    "an",
+    "the",
+    "to",
+    "for",
+    "with",
+    "and",
+    "of",
+    "in",
+    "on",
+    "please",
+    "my",
+    "this",
+    "that",
+    "me",
+    "을",
+    "를",
+    "이",
+    "가",
+    "에",
+    "에서",
+    "으로",
+    "로",
+    "와",
+    "과",
+    "좀",
+    "해줘",
+    "줘",
+    "해",
+    "주세요",
+    "부탁",
+    "그",
+    "저",
+    "제",
+    "좀더",
+    "더",
+    "다시",
+    "한번",
+    "잠깐",
+    "동일하게",
+    "통일",
+    "같게",
+    "맞춰",
+    "맞춰줘",
+    "통일해",
+    "통일해줘",
+    "달라",
+    "다르게",
+    "사이즈가",
+    "크기가",
+    "높이가",
+    "너비가",
+    "가로가",
+    "세로가",
 }
 
 TARGET_HINTS = {
@@ -89,6 +325,7 @@ class CodeSpeakResult:
     confidence: str
     interpretation: str
     clarifying_questions: list[str]
+    patch_points: dict[str, str]
     target_file: Optional[str] = None
     target_anchor: Optional[str] = None
 
@@ -126,6 +363,72 @@ def _infer_action(tokens: list[str]) -> tuple[str, int]:
     return "update", 0
 
 
+def _extract_patch_points(request: str, action: str) -> tuple[dict[str, str], int]:
+    normalized = re.sub(r"\s+", " ", request.strip())
+    points = {
+        "operation": action,
+        "source": "",
+        "destination": "",
+        "object": "",
+    }
+    rationale: list[str] = []
+
+    if action == "move":
+        move_patterns = [
+            re.compile(
+                r"^(?P<source>.+?)(?:을|를|은|는)\s*(?P<destination>.+?)(?:로|으로|에)\s*(?:이동|옮겨|옮기|이관|move|relocate)",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                r"^(?P<source>.+?)\s*(?:move|relocate|transfer)\s*(?:to|into)\s*(?P<destination>.+)$",
+                re.IGNORECASE,
+            ),
+        ]
+        for pattern in move_patterns:
+            match = pattern.search(normalized)
+            if match:
+                source = match.group("source").strip()
+                destination = match.group("destination").strip()
+                points["source"] = source
+                points["destination"] = destination
+                points["object"] = source
+                rationale.append("이동 요청으로 읽혀 source/destination을 분리함")
+                return points, 2
+
+    if action in {"add", "fix", "update", "apply"}:
+        object_match = re.search(
+            r"^(?P<object>.+?)(?:을|를|은|는)\s*(?:추가|넣어|만들|생성|수정|바꿔|변경|업데이트|적용)",
+            normalized,
+            re.IGNORECASE,
+        )
+        if object_match:
+            obj = object_match.group("object").strip()
+            points["source"] = obj
+            points["object"] = obj
+            rationale.append("수정 대상 객체를 추출함")
+            return points, 1
+
+    if action == "remove":
+        remove_match = re.search(
+            r"^(?P<object>.+?)(?:을|를|은|는)\s*(?:삭제|제거|지워|없애)",
+            normalized,
+            re.IGNORECASE,
+        )
+        if remove_match:
+            obj = remove_match.group("object").strip()
+            points["source"] = obj
+            points["object"] = obj
+            rationale.append("삭제 대상 객체를 추출함")
+            return points, 1
+
+    tokens = tokenize_request(request)
+    candidates = [token for token in tokens if token not in STOPWORDS]
+    if candidates:
+        points["object"] = " ".join(candidates[:3])
+    rationale.append("명시적 구조가 없어 요청 텍스트를 기준으로 보수적으로 추출함")
+    return points, 0
+
+
 def _infer_layer(tokens: list[str]) -> tuple[str, int]:
     # 정확 일치 우선
     for layer, words in LAYER_MAP.items():
@@ -159,7 +462,8 @@ def _infer_subject(tokens: list[str], layer: str, action: str) -> tuple[str, int
         all_action_words.update(words)
     excluded.update(all_action_words)
     candidates = [
-        token for token in tokens
+        token
+        for token in tokens
         if token not in excluded
         and not any(w in token for w in all_action_words if len(w) >= 2)
     ]
@@ -178,7 +482,9 @@ def build_codespeak(request: str, root: Optional[Path] = None) -> CodeSpeakResul
     layer, layer_score = _infer_layer(tokens)
     target = _infer_target(tokens, layer)
     subject, subject_score = _infer_subject(tokens, layer, action)
+    patch_points, points_score = _extract_patch_points(request, action)
     total = action_score + layer_score + subject_score
+    total += points_score
     confidence = "high" if total >= 5 else "medium" if total >= 3 else "low"
     clarifying_questions = []
     if confidence == "low":
@@ -194,6 +500,7 @@ def build_codespeak(request: str, root: Optional[Path] = None) -> CodeSpeakResul
     if root is not None:
         try:
             from vibelign.core.patch_suggester import suggest_patch
+
             suggestion = suggest_patch(root, request)
             target_file = suggestion.target_file
             target_anchor = suggestion.target_anchor
@@ -209,6 +516,7 @@ def build_codespeak(request: str, root: Optional[Path] = None) -> CodeSpeakResul
         confidence=confidence,
         interpretation=interpretation,
         clarifying_questions=clarifying_questions,
+        patch_points=patch_points,
         target_file=target_file,
         target_anchor=target_anchor,
     )

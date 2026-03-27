@@ -51,13 +51,17 @@ def _parse_codespeak_text(text: str) -> Optional[Dict[str, Any]]:
     if not isinstance(parsed, dict):
         return None
     return cast(Dict[str, Any], parsed)
+
+
 # === ANCHOR: AI_CODESPEAK__PARSE_CODESPEAK_TEXT_END ===
 
 
 # === ANCHOR: AI_CODESPEAK_ENHANCE_CODESPEAK_WITH_AI_START ===
 def enhance_codespeak_with_ai(
-    request: str, rule_result: CodeSpeakResult, quiet: bool = False
-# === ANCHOR: AI_CODESPEAK_ENHANCE_CODESPEAK_WITH_AI_END ===
+    request: str,
+    rule_result: CodeSpeakResult,
+    quiet: bool = False,
+    # === ANCHOR: AI_CODESPEAK_ENHANCE_CODESPEAK_WITH_AI_END ===
 ) -> Optional[CodeSpeakResult]:
     prompt = build_codespeak_ai_prompt(request, rule_result)
     ai_explain = importlib.import_module("vibelign.core.ai_explain")
@@ -91,5 +95,8 @@ def enhance_codespeak_with_ai(
         clarifying_questions=[
             str(item) for item in clarifying_questions if isinstance(item, str)
         ],
+        patch_points=dict(getattr(rule_result, "patch_points", {})),
     )
+
+
 # === ANCHOR: AI_CODESPEAK_END ===
