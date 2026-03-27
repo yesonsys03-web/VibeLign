@@ -136,6 +136,14 @@ vib start
 | `vib anchor` | AI가 수정해도 되는 곳을 표시해줌 |
 | `vib scan` | 파일 정리 + 최신 상태 확인 |
 
+### VibeLign patch 규칙
+
+- 복합 요청은 `intent / source / destination / behavior_constraint`로 먼저 분해한다.
+- `삭제`와 `이동`이 같이 나오면, 사용자가 분명히 삭제를 원하지 않는 한 이동 + 보존으로 본다.
+- `source`와 `destination`은 같은 규칙으로 처리하지 말고 역할별로 따로 해석한다.
+- patch contract나 codespeak 구조가 바뀌면 테스트와 문서도 같이 갱신한다.
+- 용어는 공통 문서와 glossary 기준으로 맞춘다.
+
 ### 확인하고 검증할 때
 
 | 명령어 | 하는 일 |

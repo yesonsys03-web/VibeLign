@@ -10,34 +10,78 @@ from datetime import datetime
 from pathlib import Path
 
 from vibelign.core.local_checkpoints import list_checkpoints, friendly_time
-from vibelign.terminal_render import clack_intro, clack_step, clack_success, clack_info, clack_outro
+from vibelign.terminal_render import (
+    clack_intro,
+    clack_step,
+    clack_success,
+    clack_info,
+    clack_outro,
+)
 
 # PROJECT_CONTEXT.md 에 추가되는 마커 (중복 생성 방지용)
 _TRANSFER_MARKER = "<!-- VibeLign Transfer Context -->"
 
 # 무시할 디렉토리 (local_checkpoints.py의 IGNORED_DIRS와 동일)
 _SKIP_DIRS = {
-    ".git", ".venv", "venv", "env", "__pycache__",
-    "node_modules", "dist", "build", ".pytest_cache",
-    ".mypy_cache", ".idea", ".vscode", ".sisyphus",
+    ".git",
+    ".venv",
+    "venv",
+    "env",
+    "__pycache__",
+    "node_modules",
+    "dist",
+    "build",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".idea",
+    ".vscode",
+    ".sisyphus",
     ".vibelign",
 }
 
 # 무시할 파일 확장자
 _SKIP_EXTS = {
-    ".pyc", ".pyo", ".pyd", ".so", ".dylib", ".dll",
-    ".jpg", ".jpeg", ".png", ".gif", ".svg", ".ico",
-    ".zip", ".tar", ".gz", ".lock", ".egg-info",
+    ".pyc",
+    ".pyo",
+    ".pyd",
+    ".so",
+    ".dylib",
+    ".dll",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".svg",
+    ".ico",
+    ".zip",
+    ".tar",
+    ".gz",
+    ".lock",
+    ".egg-info",
 }
 
 # 핵심 파일로 판단하는 파일명 패턴 (우선순위 높음)
 _KEY_FILE_NAMES = {
-    "main.py", "app.py", "index.py", "server.py",
-    "index.js", "app.js", "main.js",
-    "index.ts", "app.ts", "main.ts",
-    "main.go", "main.rs", "Main.java",
-    "pyproject.toml", "package.json", "Cargo.toml", "go.mod",
-    "README.md", "AGENTS.md", "CLAUDE.md",
+    "main.py",
+    "app.py",
+    "index.py",
+    "server.py",
+    "index.js",
+    "app.js",
+    "main.js",
+    "index.ts",
+    "app.ts",
+    "main.ts",
+    "main.go",
+    "main.rs",
+    "Main.java",
+    "pyproject.toml",
+    "package.json",
+    "Cargo.toml",
+    "go.mod",
+    "README.md",
+    "AGENTS.md",
+    "CLAUDE.md",
 }
 
 # handoff에서 무시할 경로 접두어
@@ -50,7 +94,10 @@ def _get_changed_files(root: Path) -> list[str]:
     try:
         r1 = subprocess.run(
             ["git", "diff", "--name-only", "HEAD"],
-            capture_output=True, text=True, cwd=root, timeout=5,
+            capture_output=True,
+            text=True,
+            cwd=root,
+            timeout=5,
         )
         for f in r1.stdout.splitlines():
             f = f.strip()
@@ -59,7 +106,10 @@ def _get_changed_files(root: Path) -> list[str]:
 
         r2 = subprocess.run(
             ["git", "status", "--porcelain"],
-            capture_output=True, text=True, cwd=root, timeout=5,
+            capture_output=True,
+            text=True,
+            cwd=root,
+            timeout=5,
         )
         for line in r2.stdout.splitlines():
             if len(line) > 3:
@@ -71,7 +121,8 @@ def _get_changed_files(root: Path) -> list[str]:
 
     # 시스템 파일 제거
     files = [
-        f for f in files
+        f
+        for f in files
         if not any(f.startswith(p) for p in _HANDOFF_SKIP_PREFIXES)
         and not f.endswith((".pyc", ".pyo"))
     ]
@@ -92,6 +143,7 @@ def _detect_project_name(root: Path) -> str:
     pkg_json = root / "package.json"
     if pkg_json.exists():
         import json
+
         try:
             data = json.loads(pkg_json.read_text(encoding="utf-8"))
             if "name" in data:
@@ -141,10 +193,13 @@ def _build_file_tree(root: Path, max_depth: int = 3) -> str:
             entries = sorted(path.iterdir(), key=lambda p: (p.is_file(), p.name))
         except PermissionError:
             return
-        entries = [e for e in entries
-                   if e.name not in _SKIP_DIRS
-                   and e.suffix not in _SKIP_EXTS
-                   and not e.name.startswith(".")]
+        entries = [
+            e
+            for e in entries
+            if e.name not in _SKIP_DIRS
+            and e.suffix not in _SKIP_EXTS
+            and not e.name.startswith(".")
+        ]
         for i, entry in enumerate(entries):
             connector = "└── " if i == len(entries) - 1 else "├── "
             if entry.is_dir():
@@ -165,15 +220,18 @@ def _get_recent_checkpoints(root: Path, n: int = 5) -> list[dict]:
     """최근 N개 체크포인트 가져오기."""
     try:
         from vibelign.commands.vib_history_cmd import _clean_msg
+
         checkpoints = list_checkpoints(root)
         recent = checkpoints[:n]  # 최신 순 (list_checkpoints는 이미 최신순)
         result = []
         for cp in recent:
-            result.append({
-                "time": friendly_time(cp.created_at),
-                "message": _clean_msg(cp.message),
-                "id": cp.checkpoint_id,
-            })
+            result.append(
+                {
+                    "time": friendly_time(cp.created_at),
+                    "message": _clean_msg(cp.message),
+                    "id": cp.checkpoint_id,
+                }
+            )
         return result
     except Exception:
         return []
@@ -215,6 +273,7 @@ def _detect_run_commands(root: Path) -> list[str]:
         pkg = root / "package.json"
         try:
             import json
+
             data = json.loads(pkg.read_text(encoding="utf-8"))
             scripts = data.get("scripts", {})
             if "dev" in scripts:
@@ -239,7 +298,9 @@ def _build_handoff_block(data: dict) -> str:
     """Session Handoff 블록 생성 (12줄 이하, 5 bullets 이하 목표)."""
     lines: list[str] = []
     lines.append("## Session Handoff")
-    lines.append("> ⚠️ This block is session-specific and time-sensitive. Read this first.")
+    lines.append(
+        "> ⚠️ This block is session-specific and time-sensitive. Read this first."
+    )
     lines.append("")
     lines.append(f"Generated: {data.get('generated_at', '')}")
     lines.append(f"Handoff source: {data.get('source', 'file_fallback')}")
@@ -247,6 +308,19 @@ def _build_handoff_block(data: dict) -> str:
 
     cp_ref = data.get("latest_checkpoint") or "(not provided)"
     lines.append(f"Latest checkpoint: {cp_ref}")
+    lines.append("")
+
+    lines.append("VibeLign patch rules")
+    lines.append(
+        "- Split composite requests into intent / source / destination / behavior_constraint"
+    )
+    lines.append(
+        "- Treat delete + move as move + preservation unless removal is explicit"
+    )
+    lines.append("- Resolve source and destination by role, not with one shared rule")
+    lines.append(
+        "- If patch contract or codespeak shape changes, update tests and docs together"
+    )
     lines.append("")
 
     # Bullet section (max 5)
@@ -407,7 +481,10 @@ def _get_recent_commits(root: Path, n: int = 5) -> list[str]:
     try:
         result = subprocess.run(
             ["git", "log", f"--max-count={n * 2}", "--pretty=format:%s", "--no-merges"],
-            capture_output=True, text=True, cwd=root, timeout=5,
+            capture_output=True,
+            text=True,
+            cwd=root,
+            timeout=5,
         )
         messages = [m.strip() for m in result.stdout.splitlines() if m.strip()]
         # vibelign 자동 커밋 제외
@@ -469,7 +546,9 @@ def _inject_agents_handoff_instruction(root: Path) -> None:
     text = agents_path.read_text(encoding="utf-8")
     if _AGENTS_HANDOFF_MARKER in text:
         return  # 이미 있음
-    agents_path.write_text(text.rstrip() + "\n\n" + _AGENTS_HANDOFF_BLOCK, encoding="utf-8")
+    agents_path.write_text(
+        text.rstrip() + "\n\n" + _AGENTS_HANDOFF_BLOCK, encoding="utf-8"
+    )
 
 
 def _collect_handoff_data_from_cli(root: Path, no_prompt: bool) -> dict:
@@ -505,7 +584,10 @@ def _collect_handoff_data_from_cli(root: Path, no_prompt: bool) -> dict:
     clack_info("")
     clack_info("  📋 자동 감지 현황:")
     if changed_files:
-        clack_info(f"     변경 파일: {', '.join(changed_files[:4])}" + (" …" if len(changed_files) > 4 else ""))
+        clack_info(
+            f"     변경 파일: {', '.join(changed_files[:4])}"
+            + (" …" if len(changed_files) > 4 else "")
+        )
     else:
         clack_info("     변경 파일: (없음)")
     if latest_cp:
@@ -642,9 +724,13 @@ def run_transfer(args) -> None:
     clack_info("")
     clack_info("  💡 사용법:")
     if handoff:
-        clack_info("     새 AI에게 PROJECT_CONTEXT.md 상단의 Session Handoff 블록을 읽혀주세요.")
+        clack_info(
+            "     새 AI에게 PROJECT_CONTEXT.md 상단의 Session Handoff 블록을 읽혀주세요."
+        )
     else:
         clack_info("     AI 툴에서 이 프로젝트 폴더를 열면 자동으로 읽혀요.")
         clack_info("     또는 새 AI 채팅에 PROJECT_CONTEXT.md 내용을 붙여넣으세요.")
     clack_outro("이제 어떤 AI 툴에서든 바로 이어서 작업할 수 있어요!")
+
+
 # === ANCHOR: VIB_TRANSFER_CMD_END ===

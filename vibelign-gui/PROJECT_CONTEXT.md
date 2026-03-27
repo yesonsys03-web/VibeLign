@@ -101,6 +101,14 @@ vibelign-gui/
 (AGENTS.md 없음 — `vib start` 실행 권장)
 ```
 
+### 5-1. VibeLign patch-specific rules
+
+- 복합 요청은 `intent / source / destination / behavior_constraint`로 먼저 분해한다.
+- `삭제`와 `이동`이 같이 나오면 기능 삭제가 아니라 위치 이동 + 보존 제약인지 먼저 확인한다.
+- `source`와 `destination`은 같은 규칙으로 취급하지 말고 역할별로 따로 해석한다.
+- patch contract나 코드스픽 구조가 바뀌면 관련 테스트와 문서도 같이 갱신한다.
+- 용어는 프로젝트 공통 문서 기준으로 맞춘다.
+
 ---
 
 ## 6. 실행 방법

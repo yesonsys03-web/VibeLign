@@ -641,6 +641,14 @@ Best results come from these conventions:
 - prefer patch requests over vague instructions (Korean is supported)
 - run `vib guard` before another large AI change
 
+### VibeLign patch rules
+
+- Split composite requests into `intent / source / destination / behavior_constraint`.
+- If `delete` and `move` appear together, treat it as move + preservation unless the user clearly wants removal.
+- Resolve `source` and `destination` by role, not with the same rule.
+- If patch contract or codespeak shape changes, update tests and docs together.
+- Keep terminology aligned with the shared glossary and project docs.
+
 ---
 
 ## 5. Suggested installation strategy

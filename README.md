@@ -136,6 +136,14 @@ vib start
 | `vib anchor` | Mark safe areas for AI to edit |
 | `vib scan` | Clean up files + check status |
 
+### VibeLign patch rules
+
+- Split composite requests into `intent / source / destination / behavior_constraint`.
+- If `delete` and `move` appear together, treat it as move + preservation unless the user clearly wants removal.
+- Resolve `source` and `destination` by role, not with the same rule.
+- If patch contract or codespeak shape changes, update tests and docs together.
+- Keep terminology aligned with the shared glossary and project docs.
+
 ### Checking & Verification
 
 | Command | What It Does |
