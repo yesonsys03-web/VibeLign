@@ -6,9 +6,13 @@ from pathlib import Path
 from typing import Any, Dict, Optional, cast
 
 from vibelign.core.anchor_tools import extract_anchor_line_ranges
+from vibelign.core import PatchContract
+from vibelign.core import PatchPlan
 from vibelign.core.codespeak import build_codespeak, parse_codespeak_v0
 from vibelign.core.meta_paths import MetaPaths
-from vibelign.core.patch_suggester import suggest_patch
+from vibelign.core.patch_suggester import resolve_target_for_role
+from vibelign.core.patch_suggester import suggest_patch_for_role
+from vibelign.core.patch_suggester import tokenize
 from vibelign.core.project_scan import safe_read_text
 
 
@@ -113,7 +117,7 @@ def _patch_status(confidence: str, file_status: str, anchor_status: str) -> str:
 def _preconditions(target_file: str, target_anchor: str) -> list[str]:
     conditions = [f"허용된 파일은 `{target_file}` 하나뿐이어야 합니다."]
     anchor_status = _target_anchor_status(target_anchor)
-    anchor_name = _target_anchor_name(target_anchor)
+    anchor_name = _target_anchor_name(target_anchor) or ""
     if anchor_status == "ok" and anchor_name is not None:
         conditions.append(
             f"`{anchor_name}` 안전 구역이 현재 파일에 실제로 있어야 합니다."
@@ -281,7 +285,7 @@ def _build_contract(patch_plan: Dict[str, Any]) -> Dict[str, Any]:
     operation = str(patch_plan.get("patch_points", {}).get("operation", "update"))
     file_status = _target_file_status(target_file)
     anchor_status = _target_anchor_status(target_anchor)
-    anchor_name = _target_anchor_name(target_anchor)
+    anchor_name = _target_anchor_name(target_anchor) or ""
     destination_file_status = (
         _target_file_status(destination_file) if destination_file else "none"
     )
@@ -305,10 +309,6 @@ def _build_contract(patch_plan: Dict[str, Any]) -> Dict[str, Any]:
     assumptions = []
     if status == "NEEDS_CLARIFICATION":
         assumptions.append("요청 범위나 수정 위치가 아직 충분히 분명하지 않습니다.")
-        if operation == "move" and (
-            destination_file_status != "ok" or destination_anchor_status != "ok"
-        ):
-            assumptions.append("이동 대상 위치가 아직 충분히 분명하지 않습니다.")
     user_status = {
         "READY": {
             "title": "지금 바로 진행할 수 있어요",
@@ -344,47 +344,25 @@ def _build_contract(patch_plan: Dict[str, Any]) -> Dict[str, Any]:
             "지금은 바로 수정하면 안 돼요.",
             "먼저 프로젝트 상태와 대상 파일부터 다시 확인하세요.",
         ]
-    return {
-        "status": status,
-        "contract_version": "0.1",
-        "intent": str(patch_plan["interpretation"]),
-        "codespeak_contract_version": 0,
-        "codespeak_parts": codespeak_parts,
-        "patch_points": dict(patch_plan.get("patch_points") or {}),
-        "scope": {
-            "allowed_files": [
-                item
-                for item in [target_file, destination_file]
-                if item
-                and item != "[소스 파일 없음]"
-                and _target_file_status(item) == "ok"
-            ],
-            "target_file_status": file_status,
-            "target_anchor_status": anchor_status,
-            "target_anchor_name": anchor_name,
-            "destination_file_status": destination_file_status,
-            "destination_anchor_status": destination_anchor_status,
-            "destination_target_file": destination_file or None,
-            "destination_target_anchor": destination_anchor or None,
-        },
-        "allowed_ops": _allowed_ops_for_action(codespeak_parts["action"]),
-        "preconditions": _preconditions(target_file, target_anchor),
-        "expected_result": str(patch_plan["interpretation"]),
-        "assumptions": assumptions,
-        "verification": {
-            "commands": ["vib patch --preview", "vib guard --json"],
-        },
-        "actionable": status == "READY",
-        "clarifying_questions": clarifying_questions,
-        "user_status": user_status,
-        "user_guidance": user_guidance,
-        "move_summary": {
-            "operation": operation,
-            "source": str(patch_plan.get("patch_points", {}).get("source", "")),
-            "destination": destination_file
-            or str(patch_plan.get("patch_points", {}).get("destination", "")),
-        },
-    }
+    contract = PatchContract.from_context(
+        status=status,
+        patch_plan=patch_plan,
+        codespeak_parts=codespeak_parts,
+        file_status=file_status,
+        anchor_status=anchor_status,
+        anchor_name=anchor_name,
+        destination_file_status=destination_file_status,
+        destination_anchor_status=destination_anchor_status,
+        destination_file=destination_file,
+        destination_anchor=destination_anchor,
+        allowed_ops=_allowed_ops_for_action(codespeak_parts["action"]),
+        preconditions=_preconditions(target_file, target_anchor),
+        assumptions=assumptions,
+        clarifying_questions=clarifying_questions,
+        user_status=user_status,
+        user_guidance=user_guidance,
+    )
+    return contract.to_dict()
 
 
 def _render_preview(target_path: Path, target_anchor: str) -> str:
@@ -404,19 +382,51 @@ def _render_preview(target_path: Path, target_anchor: str) -> str:
     return "\n".join(lines[:10])
 
 
+def _build_constraints(codespeak: Any) -> list[str]:
+    constraints = [
+        "patch only",
+        "keep file structure",
+        "no unrelated edits",
+    ]
+    behavior_constraint = str(
+        codespeak.patch_points.get("behavior_constraint", "")
+    ).strip()
+    if behavior_constraint:
+        constraints.append(f"Behavior preservation: {behavior_constraint}")
+    return constraints
+
+
 def _build_patch_data(root: Path, request: str) -> Dict[str, Any]:
     codespeak = build_codespeak(request, root=root)
     source_text = request
+    source_resolution = None
     if codespeak.patch_points.get("operation") == "move":
         extracted_source = str(codespeak.patch_points.get("source", "")).strip()
         if extracted_source:
             source_text = extracted_source
-    suggestion = suggest_patch(root, source_text)
+            if len(tokenize(source_text)) < 4:
+                source_text = request
+    suggestion = suggest_patch_for_role(root, source_text, role="source")
+    source_resolution_obj = resolve_target_for_role(root, source_text, role="source")
+    source_resolution = (
+        source_resolution_obj.to_dict() if source_resolution_obj else None
+    )
     destination_suggestion = None
+    destination_resolution = None
     if codespeak.patch_points.get("operation") == "move":
         destination_text = str(codespeak.patch_points.get("destination", "")).strip()
         if destination_text:
-            destination_suggestion = suggest_patch(root, destination_text)
+            destination_suggestion = suggest_patch_for_role(
+                root, destination_text, role="destination"
+            )
+            destination_resolution_obj = resolve_target_for_role(
+                root, destination_text, role="destination"
+            )
+            destination_resolution = (
+                destination_resolution_obj.to_dict()
+                if destination_resolution_obj
+                else None
+            )
     confidence = suggestion.confidence
     if confidence == "high" and codespeak.confidence != "high":
         confidence = codespeak.confidence
@@ -436,33 +446,29 @@ def _build_patch_data(root: Path, request: str) -> Dict[str, Any]:
         and confidence == "low"
     ):
         confidence = "medium"
-    return {
-        "patch_plan": {
-            "schema_version": 1,
-            "request": request,
-            "interpretation": codespeak.interpretation,
-            "target_file": suggestion.target_file,
-            "target_anchor": suggestion.target_anchor,
-            "destination_target_file": getattr(
-                destination_suggestion, "target_file", None
-            ),
-            "destination_target_anchor": getattr(
-                destination_suggestion, "target_anchor", None
-            ),
-            "codespeak": codespeak.codespeak,
-            "patch_points": codespeak.patch_points,
-            "constraints": [
-                "patch only",
-                "keep file structure",
-                "no unrelated edits",
-            ],
-            "confidence": confidence,
-            "preview_available": True,
-            "clarifying_questions": codespeak.clarifying_questions,
-            "rationale": suggestion.rationale,
-            "destination_rationale": getattr(destination_suggestion, "rationale", []),
-        },
-    }
+    patch_plan = PatchPlan(
+        schema_version=1,
+        request=request,
+        interpretation=codespeak.interpretation,
+        target_file=suggestion.target_file,
+        target_anchor=suggestion.target_anchor,
+        source_resolution=source_resolution,
+        destination_target_file=getattr(destination_suggestion, "target_file", None),
+        destination_target_anchor=getattr(
+            destination_suggestion, "target_anchor", None
+        ),
+        destination_resolution=destination_resolution,
+        codespeak=codespeak.codespeak,
+        intent_ir=codespeak.intent_ir.to_dict() if codespeak.intent_ir else None,
+        patch_points=codespeak.patch_points,
+        constraints=_build_constraints(codespeak),
+        confidence=confidence,
+        preview_available=True,
+        clarifying_questions=codespeak.clarifying_questions,
+        rationale=suggestion.rationale,
+        destination_rationale=getattr(destination_suggestion, "rationale", []),
+    )
+    return {"patch_plan": patch_plan.to_dict()}
 
 
 def _build_patch_data_with_options(
@@ -470,17 +476,35 @@ def _build_patch_data_with_options(
 ) -> Dict[str, Any]:
     codespeak = build_codespeak(request, root=root)
     source_text = request
+    source_resolution = None
     if codespeak.patch_points.get("operation") == "move":
         extracted_source = str(codespeak.patch_points.get("source", "")).strip()
         if extracted_source:
             source_text = extracted_source
-    suggestion = suggest_patch(root, source_text, use_ai=use_ai)
+            if len(tokenize(source_text)) < 4:
+                source_text = request
+    suggestion = suggest_patch_for_role(root, source_text, role="source", use_ai=use_ai)
+    source_resolution_obj = resolve_target_for_role(
+        root, source_text, role="source", use_ai=use_ai
+    )
+    source_resolution = (
+        source_resolution_obj.to_dict() if source_resolution_obj else None
+    )
     destination_suggestion = None
+    destination_resolution = None
     if codespeak.patch_points.get("operation") == "move":
         destination_text = str(codespeak.patch_points.get("destination", "")).strip()
         if destination_text:
-            destination_suggestion = suggest_patch(
-                root, destination_text, use_ai=use_ai
+            destination_suggestion = suggest_patch_for_role(
+                root, destination_text, use_ai=use_ai, role="destination"
+            )
+            destination_resolution_obj = resolve_target_for_role(
+                root, destination_text, role="destination", use_ai=use_ai
+            )
+            destination_resolution = (
+                destination_resolution_obj.to_dict()
+                if destination_resolution_obj
+                else None
             )
     if use_ai:
         ai_codespeak = importlib.import_module("vibelign.core.ai_codespeak")
@@ -513,33 +537,29 @@ def _build_patch_data_with_options(
         and confidence == "low"
     ):
         confidence = "medium"
-    return {
-        "patch_plan": {
-            "schema_version": 1,
-            "request": request,
-            "interpretation": codespeak.interpretation,
-            "target_file": suggestion.target_file,
-            "target_anchor": suggestion.target_anchor,
-            "destination_target_file": getattr(
-                destination_suggestion, "target_file", None
-            ),
-            "destination_target_anchor": getattr(
-                destination_suggestion, "target_anchor", None
-            ),
-            "codespeak": codespeak.codespeak,
-            "patch_points": codespeak.patch_points,
-            "constraints": [
-                "patch only",
-                "keep file structure",
-                "no unrelated edits",
-            ],
-            "confidence": confidence,
-            "preview_available": True,
-            "clarifying_questions": codespeak.clarifying_questions,
-            "rationale": suggestion.rationale,
-            "destination_rationale": getattr(destination_suggestion, "rationale", []),
-        },
-    }
+    patch_plan = PatchPlan(
+        schema_version=1,
+        request=request,
+        interpretation=codespeak.interpretation,
+        target_file=suggestion.target_file,
+        target_anchor=suggestion.target_anchor,
+        source_resolution=source_resolution,
+        destination_target_file=getattr(destination_suggestion, "target_file", None),
+        destination_target_anchor=getattr(
+            destination_suggestion, "target_anchor", None
+        ),
+        destination_resolution=destination_resolution,
+        codespeak=codespeak.codespeak,
+        intent_ir=codespeak.intent_ir.to_dict() if codespeak.intent_ir else None,
+        patch_points=codespeak.patch_points,
+        constraints=_build_constraints(codespeak),
+        confidence=confidence,
+        preview_available=True,
+        clarifying_questions=codespeak.clarifying_questions,
+        rationale=suggestion.rationale,
+        destination_rationale=getattr(destination_suggestion, "rationale", []),
+    )
+    return {"patch_plan": patch_plan.to_dict()}
 
 
 def _render_markdown(data: Dict[str, Any], preview_text: Optional[str] = None) -> str:

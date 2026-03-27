@@ -4,6 +4,8 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Optional
 
+from vibelign.core.intent_ir import IntentIR
+
 
 ACTION_MAP = {
     "add": [
@@ -45,6 +47,11 @@ ACTION_MAP = {
         "옮겨",
         "옮기",
         "배치",
+        "옆으로",
+        "옆에",
+        "붙여",
+        "붙여줘",
+        "배치해",
         "이관",
         "이동해",
         "옮겨줘",
@@ -326,6 +333,7 @@ class CodeSpeakResult:
     interpretation: str
     clarifying_questions: list[str]
     patch_points: dict[str, str]
+    intent_ir: Optional[IntentIR] = None
     target_file: Optional[str] = None
     target_anchor: Optional[str] = None
 
@@ -370,30 +378,45 @@ def _extract_patch_points(request: str, action: str) -> tuple[dict[str, str], in
         "source": "",
         "destination": "",
         "object": "",
+        "behavior_constraint": "",
     }
     rationale: list[str] = []
 
-    if action == "move":
-        move_patterns = [
-            re.compile(
-                r"^(?P<source>.+?)(?:을|를|은|는)\s*(?P<destination>.+?)(?:로|으로|에)\s*(?:이동|옮겨|옮기|이관|move|relocate)",
-                re.IGNORECASE,
-            ),
-            re.compile(
-                r"^(?P<source>.+?)\s*(?:move|relocate|transfer)\s*(?:to|into)\s*(?P<destination>.+)$",
-                re.IGNORECASE,
-            ),
-        ]
-        for pattern in move_patterns:
-            match = pattern.search(normalized)
-            if match:
-                source = match.group("source").strip()
-                destination = match.group("destination").strip()
-                points["source"] = source
-                points["destination"] = destination
-                points["object"] = source
-                rationale.append("이동 요청으로 읽혀 source/destination을 분리함")
-                return points, 2
+    move_patterns = [
+        re.compile(
+            r"^(?P<source>.+?)\s*(?:삭제하고|빼서|지우고|제거하고|없애고)\s*(?P<destination>.+?)(?:옆으로|옆에|옆으로\s*가|옆에\s*가)\s*(?:이동시켜|이동|옮겨|옮기|이관|move|relocate|붙여|배치|배치해|두|둔|둬|가는\s*게|가는게)(?:[.!?]\s*)?(?P<behavior>.*)$",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"^(?P<source>.+?)(?:을|를|은|는)\s*(?P<destination>.+?)(?:옆으로|옆에|옆으로\s*가|옆에\s*가)\s*(?:이동시켜|가는|가는게|가는\s*것이|가는\s*것|붙여|배치|배치해|두|둬|가는\s*게)(?:[.!?]\s*)?(?P<behavior>.*)$",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"^(?P<source>.+?)(?:을|를|은|는)\s*(?P<destination>.+?)(?:로|으로|에)\s*(?:이동시켜|이동|옮겨|옮기|이관|move|relocate)(?:[.!?]\s*)?(?P<behavior>.*)$",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"^(?P<source>.+?)\s*(?:move|relocate|transfer)\s*(?:to|into)\s*(?P<destination>.+?)(?:[.!?]\s*)?(?P<behavior>.*)$",
+            re.IGNORECASE,
+        ),
+    ]
+    for pattern in move_patterns:
+        match = pattern.search(normalized)
+        if match:
+            source = match.group("source").strip()
+            destination = match.group("destination").strip()
+            behavior = match.groupdict().get("behavior", "").strip()
+            if behavior.startswith("그리고 "):
+                behavior = behavior[len("그리고 ") :].strip()
+            points["source"] = source
+            points["destination"] = destination
+            points["object"] = source
+            points["behavior_constraint"] = behavior
+            points["operation"] = "move"
+            rationale.append("복합 이동 요청으로 읽혀 source/destination을 분리함")
+            if behavior:
+                rationale.append("뒤따르는 보존 조건을 별도 제약으로 분리함")
+            return points, 2
 
     if action in {"add", "fix", "update", "apply"}:
         object_match = re.search(
@@ -483,6 +506,9 @@ def build_codespeak(request: str, root: Optional[Path] = None) -> CodeSpeakResul
     target = _infer_target(tokens, layer)
     subject, subject_score = _infer_subject(tokens, layer, action)
     patch_points, points_score = _extract_patch_points(request, action)
+    if patch_points.get("operation") == "move" and action != "move":
+        action = "move"
+        subject, subject_score = _infer_subject(tokens, layer, action)
     total = action_score + layer_score + subject_score
     total += points_score
     confidence = "high" if total >= 5 else "medium" if total >= 3 else "low"
@@ -507,6 +533,20 @@ def build_codespeak(request: str, root: Optional[Path] = None) -> CodeSpeakResul
         except Exception:
             pass
 
+    intent_ir = IntentIR(
+        raw_request=request,
+        operation=patch_points.get("operation", action),
+        source=patch_points.get("source", ""),
+        destination=patch_points.get("destination", ""),
+        behavior_constraint=patch_points.get("behavior_constraint", ""),
+        layer=layer,
+        target=target,
+        subject=subject,
+        action=action,
+        confidence=confidence,
+        clarifying_questions=clarifying_questions,
+    )
+
     return CodeSpeakResult(
         codespeak=f"{layer}.{target}.{subject}.{action}",
         layer=layer,
@@ -517,6 +557,7 @@ def build_codespeak(request: str, root: Optional[Path] = None) -> CodeSpeakResul
         interpretation=interpretation,
         clarifying_questions=clarifying_questions,
         patch_points=patch_points,
+        intent_ir=intent_ir,
         target_file=target_file,
         target_anchor=target_anchor,
     )

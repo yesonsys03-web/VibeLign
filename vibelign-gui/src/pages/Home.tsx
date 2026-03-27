@@ -1,6 +1,6 @@
 // === ANCHOR: HOME_START ===
 import { useState } from "react";
-import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch, openFolder, checkpointCreate, runVib, pickFile, GuardResult } from "../lib/vib";
+import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch, checkpointCreate, runVib, pickFile, GuardResult } from "../lib/vib";
 
 type CardState = "idle" | "loading" | "done" | "error";
 type View = "home" | "manual_list" | "manual_detail";
@@ -14,6 +14,7 @@ type GuideStep = { step: string; title: string; subtitle?: string; optional?: bo
 interface HomeProps {
   projectDir: string;
   onNavigate: (page: "checkpoints") => void;
+  initialView?: View;
 }
 
 // ── 커맨드 데이터 ──────────────────────────────────────────────────────────────
@@ -814,8 +815,8 @@ const COMMANDS = [
 ];
 
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────────
-export default function Home({ projectDir, onNavigate }: HomeProps) {
-  const [view, setView]                   = useState<View>("home");
+export default function Home({ projectDir, onNavigate, initialView = "home" }: HomeProps) {
+  const [view, setView]                   = useState<View>(initialView);
   const [selectedCmd, setSelectedCmd]     = useState<typeof COMMANDS[0] | null>(null);
   const [guardState, setGuardState]       = useState<CardState>("idle");
   const [guardResult, setGuardResult]     = useState<GuardResult | null>(null);
@@ -1198,7 +1199,7 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
       {error && <div className="alert alert-error" style={{ margin: "0 20px 8px" }}>{error}</div>}
 
       <div className="page-content">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
 
           {/* ── 코드맵 생성 ── */}
           <div className="feature-card" style={{ cursor: "default" }}>
@@ -1339,24 +1340,6 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
             </div>
           </div>
 
-          {/* ── 폴더 열기 ── */}
-          <div className="feature-card" style={{ cursor: "default" }}>
-            <div className="feature-card-header" style={{ background: "#FFE44D18", padding: "10px 14px" }}>
-              <div className="feature-card-icon"
-                style={{ background: "#FFE44D", color: "#1A1A1A", borderColor: "#FFE44D", width: 28, height: 28, fontSize: 14, fontWeight: 900 }}>⌂</div>
-              <div style={{ fontWeight: 700, fontSize: 12, flex: 1 }}>폴더 열기</div>
-            </div>
-            <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
-              <div style={{ fontSize: 10, color: "#888", marginBottom: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {projectDir.split("/").at(-1)}
-              </div>
-              <button className="btn btn-sm" style={{ width: "100%", background: "#FFE44D", color: "#1A1A1A", border: "2px solid #1A1A1A", fontWeight: 700 }}
-                onClick={() => openFolder(projectDir).catch((e) => setError(String(e)))}>
-                Finder ▶
-              </button>
-            </div>
-          </div>
-
           {/* ── 히스토리 ── */}
           <div className="feature-card" style={{ cursor: "default" }}>
             <div className="feature-card-header" style={{ background: "#7B4DFF18", padding: "10px 14px" }}>
@@ -1385,11 +1368,20 @@ export default function Home({ projectDir, onNavigate }: HomeProps) {
           <div style={{ fontSize: 10, fontWeight: 700, color: "#888", letterSpacing: "0.08em", marginBottom: 6, paddingLeft: 2 }}>
             커맨드
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             {((() => {
-              const EXCLUDE = ["scan","watch","guard","checkpoint","transfer","history","start","doctor","config","rules","install"];
-              const ORDER = ["undo","protect","ask","patch","secrets","anchor","export","explain","manual"];
-              return COMMANDS.filter(c => !EXCLUDE.includes(c.name)).sort((a, b) => ORDER.indexOf(a.name) - ORDER.indexOf(b.name));
+              const EXCLUDE = ["scan","watch","guard","checkpoint","transfer","history","start","doctor","config","rules","install","manual"];
+              const toneRank = (color: string) => {
+                if (color === "#FFE44D" || color === "#FFD166" || color === "#F5621E") return 0; // warm
+                if (color === "#FF4D4D" || color === "#FF4D8B") return 1; // red/pink
+                if (color === "#4D9FFF") return 2; // blue
+                if (color === "#7B4DFF") return 3; // purple
+                if (color === "#4DFF91") return 4; // green
+                return 5;
+              };
+              return COMMANDS
+                .filter(c => !EXCLUDE.includes(c.name))
+                .sort((a, b) => toneRank(a.color) - toneRank(b.color) || a.title.localeCompare(b.title, "ko"));
             })()).map(cmd => {
               const st = cmdStates[cmd.name] ?? "idle";
               const out = cmdOutputs[cmd.name] ?? "";

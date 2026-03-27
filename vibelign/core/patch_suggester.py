@@ -5,6 +5,7 @@ import json
 import importlib
 from dataclasses import dataclass, asdict
 from typing import Any, Iterable, Optional, Union
+from vibelign.core import TargetResolution
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_map import ProjectMapSnapshot, load_project_map
 from vibelign.core.project_scan import iter_source_files, relpath_str
@@ -55,9 +56,11 @@ class PatchSuggestion:
 
 
 _KOREAN_PARTICLE_SUFFIXES = (
+    "입니다",
     "으로",
     "에서",
     "에게",
+    "께서",
     "한테",
     "까지",
     "부터",
@@ -67,7 +70,6 @@ _KOREAN_PARTICLE_SUFFIXES = (
     "이라",
     "라서",
     "이다",
-    "입니다",
     "였다",
     "했다",
     "하면",
@@ -75,18 +77,11 @@ _KOREAN_PARTICLE_SUFFIXES = (
     "하고",
     "이고",
     "이며",
-    "에는",
-    "에는",
-    "에는",
-    "에는",
-    "에는",
-    "에서",
-    "에게",
-    "께서",
     "와는",
     "과는",
     "와의",
     "과의",
+    "에는",
     "와",
     "과",
     "을",
@@ -251,6 +246,7 @@ _UI_REQUEST_KEYWORDS = [
     "progress",
     "ui",
     "button",
+    "card",
     "dialog",
     "window",
     "layout",
@@ -270,6 +266,7 @@ _UI_REQUEST_KEYWORDS = [
     "크기",
     "컬러",
     "사이즈",
+    "카드",
 ]
 
 _NAVIGATION_REQUEST_KEYWORDS = {
@@ -298,6 +295,17 @@ _NAVIGATION_FILE_HINTS = {
     "sidebar",
 }
 
+_CHROME_FILE_HINTS = {
+    "titlebar",
+    "title-bar",
+    "window",
+    "windowcontrols",
+    "window-controls",
+    "chrome",
+    "frame",
+    "shell",
+}
+
 _BACKEND_CHECKPOINT_HINTS = {
     "checkpoint",
     "checkpoints",
@@ -305,6 +313,18 @@ _BACKEND_CHECKPOINT_HINTS = {
     "rollback",
     "restore",
     "backup",
+}
+
+_COMMAND_FILE_HINTS = {
+    "cmd",
+    "command",
+    "cli",
+    "secrets",
+    "doctor",
+    "anchor",
+    "patch",
+    "guard",
+    "scan",
 }
 
 
@@ -332,6 +352,7 @@ def score_path(
     anchor_meta: Optional[dict[str, list[str]]] = None,
     project_map: Optional[ProjectMapSnapshot] = None,
     intent_meta: Optional[dict[str, dict[str, Any]]] = None,
+    role: str = "auto",
 ) -> tuple[int, list[str]]:
     score = 0
     rationale = []
@@ -388,24 +409,75 @@ def score_path(
             score += 4
             rationale.append("Project Map 에서 service 모듈로 분류된 파일임")
         if map_kind == "logic" and not ui_request:
-            score += 2
-            rationale.append("Project Map 에서 core/logic 모듈로 분류된 파일임")
+            if nav_request:
+                score -= 4
+                rationale.append(
+                    "탭/메뉴 배치 요청인데 core/logic 파일이라 우선순위를 낮춤"
+                )
+            else:
+                score += 2
+                rationale.append("Project Map 에서 core/logic 모듈로 분류된 파일임")
         if rel_path in project_map.large_files:
             score += 1
             rationale.append(
                 "Project Map 에서 큰 파일로 표시되어 수정 후보로 우선 검토함"
             )
     if nav_request:
-        if project_map is not None and rel_path in project_map.entry_files:
-            score += 10
-            rationale.append("탑/메뉴 이동 요청이라 entry file 이 우선 후보임")
-        if any(token in path_tokens for token in _NAVIGATION_FILE_HINTS):
-            score += 8
-            rationale.append("탑/메뉴 구조를 가진 파일이라 목적지 후보로 적합함")
+        if role == "source":
+            if project_map is not None and rel_path in project_map.entry_files:
+                score -= 4
+                rationale.append(
+                    "탑/메뉴 이동 요청의 소스는 entry file 보다 내용 페이지가 우선임"
+                )
+            if stem == "app" or "nav-tabs" in pt or "navtabs" in path_tokens:
+                score -= 8
+                rationale.append(
+                    "탑/메뉴 이동 요청의 소스는 컨테이너(App/nav-tabs)보다 내용 페이지가 우선임"
+                )
+        else:
+            if project_map is not None and rel_path in project_map.entry_files:
+                score += 10
+                rationale.append("탑/메뉴 이동 요청이라 entry file 이 우선 후보임")
+            if stem == "app" or "nav-tabs" in pt or "navtabs" in path_tokens:
+                score += 6
+                rationale.append(
+                    "탑/메뉴 요청의 컨테이너(App/nav-tabs) 파일이라 목적지 후보로 강하게 적합함"
+                )
+            if any(token in path_tokens for token in _NAVIGATION_FILE_HINTS):
+                score += 8
+                rationale.append("탑/메뉴 구조를 가진 파일이라 목적지 후보로 적합함")
+        if any(token in path_tokens for token in _CHROME_FILE_HINTS):
+            score -= 16
+            rationale.append(
+                "탭 이동 요청인데 창 chrome/title bar 파일이라 우선순위를 낮춤"
+            )
+        if "/pages/" in pt or pt.startswith("pages/"):
+            if role == "source":
+                score += 4
+                rationale.append(
+                    "탑/메뉴 이동 요청의 소스로 페이지 콘텐츠 파일이 적합함"
+                )
+            else:
+                score -= 8
+                rationale.append(
+                    "탑/메뉴 요청인데 페이지 콘텐츠 파일이라 탭 컨테이너보다 우선순위를 낮춤"
+                )
+                if stem in request_tokens:
+                    score -= 4
+                    rationale.append(
+                        "탑/메뉴 요청인데 페이지 이름이 요청과 같아도 컨테이너보다 우선순위를 낮춤"
+                    )
         if any(token in path_tokens for token in _BACKEND_CHECKPOINT_HINTS):
             score -= 20
             rationale.append(
                 "탑/메뉴 요청인데 백엔드 체크포인트 파일이라 목적지 후보에서 제외"
+            )
+        if "/commands/" in pt or any(
+            token in path_tokens for token in _COMMAND_FILE_HINTS
+        ):
+            score -= 10
+            rationale.append(
+                "탭/메뉴 배치 요청인데 명령 처리 파일이라 UI 배치 후보에서 제외"
             )
         if map_kind == "ui" and not any(
             token in path_tokens for token in _NAVIGATION_FILE_HINTS
@@ -650,7 +722,9 @@ def _ai_select_file(
         return None
 
 
-def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggestion:
+def _suggest_patch_impl(
+    root: Path, request: str, use_ai: bool = True, role: str = "auto"
+) -> PatchSuggestion:
     from vibelign.core.anchor_tools import load_anchor_meta
 
     request_tokens = tokenize(request)
@@ -667,6 +741,7 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
             metadata.get(rel, {}),
             project_map,
             intent_meta=anchor_meta,
+            role=role,
         )
         scored.append((score, path, rationale))
 
@@ -719,6 +794,25 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
             confidence = "medium"
     return PatchSuggestion(
         request, relpath_str(root, best_path), anchor, confidence, reasons[:5] + ar[:3]
+    )
+
+
+def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggestion:
+    return _suggest_patch_impl(root, request, use_ai=use_ai, role="auto")
+
+
+def suggest_patch_for_role(
+    root: Path, request: str, role: str, use_ai: bool = True
+) -> PatchSuggestion:
+    return _suggest_patch_impl(root, request, use_ai=use_ai, role=role)
+
+
+def resolve_target_for_role(
+    root: Path, request: str, role: str, use_ai: bool = True
+) -> Optional[TargetResolution]:
+    suggestion = _suggest_patch_impl(root, request, use_ai=use_ai, role=role)
+    return TargetResolution.from_suggestion(
+        role=role, suggestion=suggestion, source_text=request, destination_text=request
     )
 
 
