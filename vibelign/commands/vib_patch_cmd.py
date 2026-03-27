@@ -216,12 +216,23 @@ def _build_ready_handoff(
             "",
             "Quoted user request:",
             safe_request,
-            f"File: {', '.join(contract['scope']['allowed_files'])}",
+            f"File: {patch_plan['target_file']}",
             f"Anchor: {patch_plan['target_anchor']}",
+            (
+                f"Destination file: {patch_plan['destination_target_file']}"
+                if patch_plan.get("destination_target_file")
+                else None
+            ),
+            (
+                f"Destination anchor: {patch_plan['destination_target_anchor']}"
+                if patch_plan.get("destination_target_anchor")
+                else None
+            ),
             f"Allowed ops: {', '.join(contract['allowed_ops'])}",
             f"Constraints: {', '.join(patch_plan['constraints'])}",
         ]
     )
+    prompt_lines = [line for line in prompt_lines if line is not None]
     if request_was_sanitized:
         prompt_lines.insert(
             0,
@@ -265,10 +276,23 @@ def _sanitize_request_for_handoff(request: str) -> tuple[str, bool]:
 def _build_contract(patch_plan: Dict[str, Any]) -> Dict[str, Any]:
     target_file = str(patch_plan["target_file"])
     target_anchor = str(patch_plan["target_anchor"])
+    destination_file = str(patch_plan.get("destination_target_file") or "")
+    destination_anchor = str(patch_plan.get("destination_target_anchor") or "")
+    operation = str(patch_plan.get("patch_points", {}).get("operation", "update"))
     file_status = _target_file_status(target_file)
     anchor_status = _target_anchor_status(target_anchor)
     anchor_name = _target_anchor_name(target_anchor)
+    destination_file_status = (
+        _target_file_status(destination_file) if destination_file else "none"
+    )
+    destination_anchor_status = (
+        _target_anchor_status(destination_anchor) if destination_anchor else "none"
+    )
     status = _patch_status(str(patch_plan["confidence"]), file_status, anchor_status)
+    if operation == "move" and (
+        destination_file_status != "ok" or destination_anchor_status != "ok"
+    ):
+        status = "NEEDS_CLARIFICATION"
     clarifying_questions = _augment_clarifying_questions(
         patch_plan, file_status, anchor_status
     )
@@ -281,6 +305,10 @@ def _build_contract(patch_plan: Dict[str, Any]) -> Dict[str, Any]:
     assumptions = []
     if status == "NEEDS_CLARIFICATION":
         assumptions.append("요청 범위나 수정 위치가 아직 충분히 분명하지 않습니다.")
+        if operation == "move" and (
+            destination_file_status != "ok" or destination_anchor_status != "ok"
+        ):
+            assumptions.append("이동 대상 위치가 아직 충분히 분명하지 않습니다.")
     user_status = {
         "READY": {
             "title": "지금 바로 진행할 수 있어요",
@@ -322,11 +350,22 @@ def _build_contract(patch_plan: Dict[str, Any]) -> Dict[str, Any]:
         "intent": str(patch_plan["interpretation"]),
         "codespeak_contract_version": 0,
         "codespeak_parts": codespeak_parts,
+        "patch_points": dict(patch_plan.get("patch_points") or {}),
         "scope": {
-            "allowed_files": [target_file] if file_status == "ok" else [],
+            "allowed_files": [
+                item
+                for item in [target_file, destination_file]
+                if item
+                and item != "[소스 파일 없음]"
+                and _target_file_status(item) == "ok"
+            ],
             "target_file_status": file_status,
             "target_anchor_status": anchor_status,
             "target_anchor_name": anchor_name,
+            "destination_file_status": destination_file_status,
+            "destination_anchor_status": destination_anchor_status,
+            "destination_target_file": destination_file or None,
+            "destination_target_anchor": destination_anchor or None,
         },
         "allowed_ops": _allowed_ops_for_action(codespeak_parts["action"]),
         "preconditions": _preconditions(target_file, target_anchor),
@@ -339,6 +378,12 @@ def _build_contract(patch_plan: Dict[str, Any]) -> Dict[str, Any]:
         "clarifying_questions": clarifying_questions,
         "user_status": user_status,
         "user_guidance": user_guidance,
+        "move_summary": {
+            "operation": operation,
+            "source": str(patch_plan.get("patch_points", {}).get("source", "")),
+            "destination": destination_file
+            or str(patch_plan.get("patch_points", {}).get("destination", "")),
+        },
     }
 
 
@@ -360,11 +405,37 @@ def _render_preview(target_path: Path, target_anchor: str) -> str:
 
 
 def _build_patch_data(root: Path, request: str) -> Dict[str, Any]:
-    suggestion = suggest_patch(root, request)
     codespeak = build_codespeak(request, root=root)
+    source_text = request
+    if codespeak.patch_points.get("operation") == "move":
+        extracted_source = str(codespeak.patch_points.get("source", "")).strip()
+        if extracted_source:
+            source_text = extracted_source
+    suggestion = suggest_patch(root, source_text)
+    destination_suggestion = None
+    if codespeak.patch_points.get("operation") == "move":
+        destination_text = str(codespeak.patch_points.get("destination", "")).strip()
+        if destination_text:
+            destination_suggestion = suggest_patch(root, destination_text)
     confidence = suggestion.confidence
     if confidence == "high" and codespeak.confidence != "high":
         confidence = codespeak.confidence
+    if (
+        codespeak.patch_points.get("operation") == "move"
+        and suggestion.target_file != "[소스 파일 없음]"
+        and suggestion.target_anchor not in {"[없음]", "[먼저 앵커를 추가하세요]"}
+        and destination_suggestion is not None
+        and getattr(destination_suggestion, "target_file", "")
+        not in {"", "[소스 파일 없음]"}
+        and getattr(destination_suggestion, "target_anchor", "")
+        not in {
+            "",
+            "[없음]",
+            "[먼저 앵커를 추가하세요]",
+        }
+        and confidence == "low"
+    ):
+        confidence = "medium"
     return {
         "patch_plan": {
             "schema_version": 1,
@@ -372,7 +443,14 @@ def _build_patch_data(root: Path, request: str) -> Dict[str, Any]:
             "interpretation": codespeak.interpretation,
             "target_file": suggestion.target_file,
             "target_anchor": suggestion.target_anchor,
+            "destination_target_file": getattr(
+                destination_suggestion, "target_file", None
+            ),
+            "destination_target_anchor": getattr(
+                destination_suggestion, "target_anchor", None
+            ),
             "codespeak": codespeak.codespeak,
+            "patch_points": codespeak.patch_points,
             "constraints": [
                 "patch only",
                 "keep file structure",
@@ -382,6 +460,7 @@ def _build_patch_data(root: Path, request: str) -> Dict[str, Any]:
             "preview_available": True,
             "clarifying_questions": codespeak.clarifying_questions,
             "rationale": suggestion.rationale,
+            "destination_rationale": getattr(destination_suggestion, "rationale", []),
         },
     }
 
@@ -389,8 +468,20 @@ def _build_patch_data(root: Path, request: str) -> Dict[str, Any]:
 def _build_patch_data_with_options(
     root: Path, request: str, use_ai: bool, quiet_ai: bool
 ) -> Dict[str, Any]:
-    suggestion = suggest_patch(root, request)
     codespeak = build_codespeak(request, root=root)
+    source_text = request
+    if codespeak.patch_points.get("operation") == "move":
+        extracted_source = str(codespeak.patch_points.get("source", "")).strip()
+        if extracted_source:
+            source_text = extracted_source
+    suggestion = suggest_patch(root, source_text, use_ai=use_ai)
+    destination_suggestion = None
+    if codespeak.patch_points.get("operation") == "move":
+        destination_text = str(codespeak.patch_points.get("destination", "")).strip()
+        if destination_text:
+            destination_suggestion = suggest_patch(
+                root, destination_text, use_ai=use_ai
+            )
     if use_ai:
         ai_codespeak = importlib.import_module("vibelign.core.ai_codespeak")
         ai_explain = importlib.import_module("vibelign.core.ai_explain")
@@ -406,6 +497,22 @@ def _build_patch_data_with_options(
     confidence = suggestion.confidence
     if confidence == "high" and codespeak.confidence != "high":
         confidence = codespeak.confidence
+    if (
+        codespeak.patch_points.get("operation") == "move"
+        and suggestion.target_file != "[소스 파일 없음]"
+        and suggestion.target_anchor not in {"[없음]", "[먼저 앵커를 추가하세요]"}
+        and destination_suggestion is not None
+        and getattr(destination_suggestion, "target_file", "")
+        not in {"", "[소스 파일 없음]"}
+        and getattr(destination_suggestion, "target_anchor", "")
+        not in {
+            "",
+            "[없음]",
+            "[먼저 앵커를 추가하세요]",
+        }
+        and confidence == "low"
+    ):
+        confidence = "medium"
     return {
         "patch_plan": {
             "schema_version": 1,
@@ -413,7 +520,14 @@ def _build_patch_data_with_options(
             "interpretation": codespeak.interpretation,
             "target_file": suggestion.target_file,
             "target_anchor": suggestion.target_anchor,
+            "destination_target_file": getattr(
+                destination_suggestion, "target_file", None
+            ),
+            "destination_target_anchor": getattr(
+                destination_suggestion, "target_anchor", None
+            ),
             "codespeak": codespeak.codespeak,
+            "patch_points": codespeak.patch_points,
             "constraints": [
                 "patch only",
                 "keep file structure",
@@ -423,6 +537,7 @@ def _build_patch_data_with_options(
             "preview_available": True,
             "clarifying_questions": codespeak.clarifying_questions,
             "rationale": suggestion.rationale,
+            "destination_rationale": getattr(destination_suggestion, "rationale", []),
         },
     }
 
@@ -456,7 +571,15 @@ def _render_markdown(data: Dict[str, Any], preview_text: Optional[str] = None) -
             f"- CodeSpeak : {patch_plan['codespeak']}",
             f"- 파일      : {patch_plan['target_file']}",
             f"- 앵커      : {patch_plan['target_anchor']}",
+            f"- 목적지 파일 : {patch_plan.get('destination_target_file') or '[없음]'}",
+            f"- 목적지 앵커 : {patch_plan.get('destination_target_anchor') or '[없음]'}",
             f"- 확신 정도 : {patch_plan['confidence']}",
+            "",
+            "## 정확한 수정 포인트",
+            f"- 작업 종류 : {contract['patch_points'].get('operation', 'unknown')}",
+            f"- 원래 위치 : {contract['patch_points'].get('source', '') or '[없음]'}",
+            f"- 목표 위치 : {contract['patch_points'].get('destination', '') or '[없음]'}",
+            f"- 대상 객체 : {contract['patch_points'].get('object', '') or '[없음]'}",
             "",
             "## 이 계획에서 허용하는 범위",
         ]
