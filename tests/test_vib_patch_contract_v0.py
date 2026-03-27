@@ -140,6 +140,182 @@ class VibPatchContractV0Test(unittest.TestCase):
                 "지금은 바로 AI에게 전달해도 괜찮아요.", contract["user_guidance"]
             )
 
+    def test_vib_patch_json_extracts_move_patch_points(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            page = root / "vibelign-gui/src/pages/Home.tsx"
+            page.parent.mkdir(parents=True, exist_ok=True)
+            page.write_text(
+                "// === ANCHOR: HOME_START ===\n"
+                "export function HomePage() {\n"
+                "  return <div>Home</div>;\n"
+                "}\n"
+                "// === ANCHOR: HOME_END ===\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_patch_json(
+                root,
+                SimpleNamespace(
+                    request=[
+                        "프로젝트",
+                        "홈화면의",
+                        "폴더열기",
+                        "카드를",
+                        "상단",
+                        "메뉴",
+                        "CHECKPOINTS로",
+                        "이동해줘",
+                    ],
+                    ai=False,
+                    json=True,
+                    preview=False,
+                    write_report=False,
+                ),
+            )
+
+            contract = payload["data"]["contract"]
+            patch_points = contract["patch_points"]
+            self.assertEqual(patch_points["operation"], "move")
+            self.assertIn("홈화면", patch_points["source"])
+            self.assertIn("폴더열기", patch_points["source"])
+            self.assertIn("상단 메뉴 CHECKPOINTS", patch_points["destination"])
+            self.assertIn("카드", patch_points["object"])
+
+    def test_vib_patch_json_resolves_move_destination_target(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home = root / "vibelign-gui/src/pages/Home.tsx"
+            home.parent.mkdir(parents=True, exist_ok=True)
+            home.write_text(
+                "// === ANCHOR: HOME_START ===\n"
+                "export function HomePage() {\n"
+                "  return <div>Home</div>;\n"
+                "}\n"
+                "// === ANCHOR: HOME_END ===\n",
+                encoding="utf-8",
+            )
+            app = root / "vibelign-gui/src/App.tsx"
+            app.parent.mkdir(parents=True, exist_ok=True)
+            app.write_text(
+                "// === ANCHOR: CHECKPOINTS_START ===\n"
+                "export function CheckpointsMenu() {\n"
+                "  return <nav>CHECKPOINTS</nav>;\n"
+                "}\n"
+                "// === ANCHOR: CHECKPOINTS_END ===\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_patch_json(
+                root,
+                SimpleNamespace(
+                    request=[
+                        "프로젝트",
+                        "홈화면의",
+                        "폴더열기",
+                        "카드를",
+                        "상단",
+                        "메뉴",
+                        "CHECKPOINTS로",
+                        "이동해줘",
+                    ],
+                    ai=False,
+                    json=True,
+                    preview=False,
+                    write_report=False,
+                ),
+            )
+
+            contract = payload["data"]["contract"]
+            self.assertEqual(contract["status"], "READY")
+            self.assertEqual(
+                contract["scope"]["destination_target_file"], "vibelign-gui/src/App.tsx"
+            )
+            self.assertEqual(contract["scope"]["destination_anchor_status"], "ok")
+            self.assertIn(
+                "vibelign-gui/src/App.tsx", contract["scope"]["allowed_files"]
+            )
+            self.assertIn(
+                "지금 바로 진행할 수 있어요", contract["user_status"]["title"]
+            )
+            handoff = payload["data"].get("handoff")
+            if handoff is not None:
+                prompt = handoff["prompt"]
+                self.assertIn("File: vibelign-gui/src/pages/Home.tsx", prompt)
+                self.assertIn("Destination file: vibelign-gui/src/App.tsx", prompt)
+                self.assertNotIn(
+                    "File: vibelign-gui/src/pages/Home.tsx, vibelign-gui/src/App.tsx",
+                    prompt,
+                )
+
+    def test_vib_patch_move_source_ignores_backend_checkpoint_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home = root / "vibelign-gui/src/pages/Home.tsx"
+            home.parent.mkdir(parents=True, exist_ok=True)
+            home.write_text(
+                "// === ANCHOR: HOME_START ===\n"
+                "export function HomePage() {\n"
+                "  return <div>Home</div>;\n"
+                "}\n"
+                "// === ANCHOR: HOME_END ===\n",
+                encoding="utf-8",
+            )
+            app = root / "vibelign-gui/src/App.tsx"
+            app.parent.mkdir(parents=True, exist_ok=True)
+            app.write_text(
+                "// === ANCHOR: CHECKPOINTS_START ===\n"
+                "export function App() {\n"
+                "  return <nav>CHECKPOINTS</nav>;\n"
+                "}\n"
+                "// === ANCHOR: CHECKPOINTS_END ===\n",
+                encoding="utf-8",
+            )
+            backend = root / "vibelign/core/local_checkpoints.py"
+            backend.parent.mkdir(parents=True, exist_ok=True)
+            backend.write_text(
+                "# === ANCHOR: LOCAL_CHECKPOINTS_START ===\n"
+                "def list_local_checkpoints():\n"
+                "    return []\n"
+                "# === ANCHOR: LOCAL_CHECKPOINTS_END ===\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_patch_json(
+                root,
+                SimpleNamespace(
+                    request=[
+                        "프로젝트",
+                        "홈화면의",
+                        "폴더열기",
+                        "카드를",
+                        "상단",
+                        "메뉴",
+                        "CHECKPOINTS로",
+                        "이동해줘",
+                    ],
+                    ai=False,
+                    json=True,
+                    preview=False,
+                    write_report=False,
+                ),
+            )
+
+            contract = payload["data"]["contract"]
+            self.assertEqual(contract["status"], "READY")
+            self.assertEqual(
+                payload["data"]["patch_plan"]["target_file"],
+                "vibelign-gui/src/pages/Home.tsx",
+            )
+            self.assertEqual(
+                payload["data"]["patch_plan"]["destination_target_file"],
+                "vibelign-gui/src/App.tsx",
+            )
+            self.assertNotEqual(
+                payload["data"]["patch_plan"]["target_file"],
+                "vibelign/core/local_checkpoints.py",
+            )
+
     def test_vib_patch_json_ready_status_includes_handoff_block(self):
         """Test that READY status includes AI handoff block with prompt."""
         with tempfile.TemporaryDirectory() as tmp:
