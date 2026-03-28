@@ -14,9 +14,10 @@ interface SettingsProps {
   apiKey: string | null;
   onApiKeyChange: (key: string | null) => void;
   projectDir?: string | null;
+  notice?: string | null;
 }
 
-export default function Settings({ apiKey, onApiKeyChange, projectDir }: SettingsProps) {
+export default function Settings({ apiKey, onApiKeyChange, projectDir, notice }: SettingsProps) {
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
@@ -80,6 +81,20 @@ export default function Settings({ apiKey, onApiKeyChange, projectDir }: Setting
       </div>
 
       <div className="page-content" style={{ padding: "20px" }}>
+        {notice && (
+          <div
+            className="alert"
+            style={{
+              marginBottom: 16,
+              background: "#FFF4CC",
+              border: "2px solid #1A1A1A",
+              color: "#1A1A1A",
+              fontWeight: 700,
+            }}
+          >
+            {notice}
+          </div>
+        )}
         {/* CONFIG STATUS 카드 */}
         <div className="card" style={{ marginBottom: 20, background: "#1E2216", borderColor: "#333" }}>
           <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 10, textTransform: "uppercase", letterSpacing: 1, color: "#7DFF6B", fontFamily: "IBM Plex Mono, monospace" }}>

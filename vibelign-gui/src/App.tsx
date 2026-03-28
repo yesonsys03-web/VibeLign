@@ -6,7 +6,7 @@ import Doctor from "./pages/Doctor";
 import Home from "./pages/Home";
 import Checkpoints from "./pages/Checkpoints";
 import Settings from "./pages/Settings";
-import { loadApiKey, loadRecentProjects, saveRecentProjects, stopWatch, openFolder } from "./lib/vib";
+import { getEnvKeyStatus, loadApiKey, loadRecentProjects, saveRecentProjects, stopWatch, openFolder } from "./lib/vib";
 import "./styles/brutalism.css";
 import "./App.css";
 
@@ -55,12 +55,21 @@ export default function App() {
   const [recentDirs, setRecentDirs] = useState<string[]>([]);
   const [page, setPage] = useState<Page>("home");
   const [apiKey, setApiKey] = useState<string | null>(null);
+  const [envKeyStatus, setEnvKeyStatus] = useState<Record<string, boolean>>({});
+  const [envKeyStatusLoaded, setEnvKeyStatusLoaded] = useState(false);
   const [prevPage, setPrevPage] = useState<Page>("home");
+  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
 
   useEffect(() => {
     loadApiKey().then((k) => setApiKey(k ?? null)).catch(() => {});
+    getEnvKeyStatus()
+      .then(setEnvKeyStatus)
+      .catch(() => {})
+      .finally(() => setEnvKeyStatusLoaded(true));
     loadRecentProjects().then(setRecentDirs).catch(() => {});
   }, []);
+
+  const hasAnyAiKey = Boolean(apiKey) || Object.values(envKeyStatus).some(Boolean);
 
   function addToRecent(dir: string) {
     const next = [dir, ...recentDirs.filter((d) => d !== dir)].slice(0, 5);
@@ -68,8 +77,9 @@ export default function App() {
     saveRecentProjects(next).catch(() => {});
   }
 
-  function openSettings() {
+  function openSettings(reason?: string) {
     setPrevPage(page === "settings" ? prevPage : page);
+    setSettingsNotice(reason ?? null);
     setPage("settings");
   }
 
@@ -119,8 +129,8 @@ export default function App() {
 
             <div style={{ flex: 1, overflow: "hidden" }}>
               <ErrorBoundary>
-                {page === "home" && <Home key="home" projectDir={projectDir} onNavigate={setPage} />}
-                {page === "manual" && <Home key="manual" projectDir={projectDir} onNavigate={setPage} initialView="manual_list" />}
+                {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} />}
+                {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" />}
                 {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} />}
                 {page === "checkpoints" && <Checkpoints projectDir={projectDir} />}
                 {page === "settings" && (
@@ -128,13 +138,13 @@ export default function App() {
                     <div style={{ padding: "8px 12px 0", borderBottom: "2px solid #1A1A1A" }}>
                       <button
                         className="btn btn-ghost btn-sm"
-                        onClick={() => setPage(prevPage)}
+                        onClick={() => { setSettingsNotice(null); setPage(prevPage); }}
                         style={{ fontSize: 11 }}
                       >
                         ← 뒤로
                       </button>
                     </div>
-                    <Settings apiKey={apiKey} onApiKeyChange={setApiKey} projectDir={projectDir} />
+                    <Settings apiKey={apiKey} onApiKeyChange={setApiKey} projectDir={projectDir} notice={settingsNotice} />
                   </>
                 )}
               </ErrorBoundary>

@@ -1,5 +1,5 @@
 // === ANCHOR: HOME_START ===
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch, checkpointCreate, runVib, pickFile, GuardResult } from "../lib/vib";
 
 type CardState = "idle" | "loading" | "done" | "error";
@@ -13,7 +13,11 @@ type GuideStep = { step: string; title: string; subtitle?: string; optional?: bo
 
 interface HomeProps {
   projectDir: string;
+  apiKey?: string | null;
+  hasAnyAiKey?: boolean;
+  aiKeyStatusLoaded?: boolean;
   onNavigate: (page: "checkpoints") => void;
+  onOpenSettings?: (reason?: string) => void;
   initialView?: View;
 }
 
@@ -815,7 +819,7 @@ const COMMANDS = [
 ];
 
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────────
-export default function Home({ projectDir, onNavigate, initialView = "home" }: HomeProps) {
+export default function Home({ projectDir, apiKey, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenSettings, initialView = "home" }: HomeProps) {
   const [view, setView]                   = useState<View>(initialView);
   const [selectedCmd, setSelectedCmd]     = useState<typeof COMMANDS[0] | null>(null);
   const [guardState, setGuardState]       = useState<CardState>("idle");
@@ -831,11 +835,21 @@ export default function Home({ projectDir, onNavigate, initialView = "home" }: H
   const [error, setError]                 = useState<string | null>(null);
   const [cmdStates, setCmdStates]         = useState<Record<string, CardState>>({});
   const [cmdOutputs, setCmdOutputs]       = useState<Record<string, string>>({});
+  const [cmdHasWarnings, setCmdHasWarnings] = useState<Record<string, boolean>>({});
   const [cmdFlagValues, setCmdFlagValues]     = useState<Record<string, Record<string, string | boolean>>>({});
   const [guardStrict, setGuardStrict]         = useState(false);
   const [transferHandoff, setTransferHandoff] = useState(false);
   const [transferCompact, setTransferCompact] = useState(false);
   const [outputModal, setOutputModal]         = useState<{ name: string; content: string } | null>(null);
+  const cmdIdleTimers = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    return () => {
+      Object.values(cmdIdleTimers.current).forEach((timerId) => {
+        window.clearTimeout(timerId);
+      });
+    };
+  }, []);
 
   async function handleGuard() {
     setGuardState("loading"); setGuardResult(null); setError(null);
@@ -927,21 +941,49 @@ export default function Home({ projectDir, onNavigate, initialView = "home" }: H
       setCmdOutputs(o => ({ ...o, [name]: "필수 항목을 입력해주세요" }));
       return;
     }
+    if (args.includes("--ai") && aiKeyStatusLoaded && !hasAnyAiKey) {
+      setCmdStates(s => ({ ...s, [name]: "error" }));
+      setCmdOutputs(o => ({ ...o, [name]: "API 키를 먼저 설정해주세요" }));
+      if (onOpenSettings) {
+        onOpenSettings("AI 기능을 쓰려면 먼저 설정에서 API 키를 입력해주세요.");
+      } else {
+        setError("AI 기능을 쓰려면 먼저 설정에서 API 키를 입력해주세요.");
+      }
+      return;
+    }
     setCmdStates(s => ({ ...s, [name]: "loading" }));
     setCmdOutputs(o => ({ ...o, [name]: "" }));
+    const existingTimer = cmdIdleTimers.current[name];
+    if (existingTimer !== undefined) {
+      window.clearTimeout(existingTimer);
+      delete cmdIdleTimers.current[name];
+    }
     try {
-      const r = await runVib(args, projectDir);
+      const env = args.includes("--ai") && apiKey
+        ? { ANTHROPIC_API_KEY: apiKey }
+        : undefined;
+      const r = await runVib(args, projectDir, env);
       setCmdStates(s => ({ ...s, [name]: r.ok ? "done" : "error" }));
       const stdoutContent = r.stdout.trim();
-      const output = stdoutContent || (r.ok ? "완료" : (r.stderr.trim() || `exit ${r.exit_code}`));
+      const stderrContent = r.stderr.trim();
+      const combinedOutput = [stderrContent, stdoutContent].filter(Boolean).join("\n\n");
+      const output = combinedOutput || (r.ok ? "완료" : `exit ${r.exit_code}`);
       setCmdOutputs(o => ({ ...o, [name]: output }));
-      if (stdoutContent.length > 60) {
-        setOutputModal({ name, content: stdoutContent });
+      const hasWarning = Boolean(stderrContent);
+      setCmdHasWarnings(w => ({ ...w, [name]: hasWarning }));
+      if (!r.ok || hasWarning) {
+        setOutputModal({ name, content: output });
       }
-      setTimeout(() => setCmdStates(s => ({ ...s, [name]: "idle" })), 3000);
+      if (r.ok && !hasWarning) {
+        cmdIdleTimers.current[name] = window.setTimeout(() => {
+          setCmdStates(s => ({ ...s, [name]: "idle" }));
+          delete cmdIdleTimers.current[name];
+        }, 3000);
+      }
     } catch (e) {
       setCmdStates(s => ({ ...s, [name]: "error" }));
       setCmdOutputs(o => ({ ...o, [name]: String(e) }));
+      setCmdHasWarnings(w => ({ ...w, [name]: false }));
     }
   }
 
@@ -1089,11 +1131,11 @@ export default function Home({ projectDir, onNavigate, initialView = "home" }: H
                     style={{ background: cmd.color, color: "#fff", borderColor: cmd.color, width: 26, height: 26, fontSize: 13, fontWeight: 900 }}>
                     {cmd.icon}
                   </div>
-                  <div style={{ fontWeight: 700, fontSize: 11 }}>{cmd.title}</div>
+                  <div style={{ fontWeight: 700, fontSize: 16.5 }}>{cmd.title}</div>
                 </div>
                 <div className="feature-card-body" style={{ padding: "6px 12px 8px" }}>
-                  <div style={{ fontSize: 10, color: "#555", lineHeight: 1.5 }}>{cmd.short}</div>
-                  <div style={{ marginTop: 4, fontSize: 9, fontFamily: "IBM Plex Mono, monospace", color: cmd.color, fontWeight: 700 }}>
+                  <div style={{ fontSize: 15, color: "#555", lineHeight: 1.5 }}>{cmd.short}</div>
+                  <div style={{ marginTop: 4, fontSize: 13.5, fontFamily: "IBM Plex Mono, monospace", color: cmd.color, fontWeight: 700 }}>
                     vib {cmd.name}
                   </div>
                 </div>
@@ -1206,7 +1248,7 @@ export default function Home({ projectDir, onNavigate, initialView = "home" }: H
             <div className="feature-card-header" style={{ background: "#F5621E18", padding: "10px 14px" }}>
               <div className="feature-card-icon"
                 style={{ background: "#F5621E", color: "#fff", borderColor: "#F5621E", width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>MAP</div>
-              <div style={{ fontWeight: 700, fontSize: 12, flex: 1 }}>코드맵</div>
+              <div style={{ fontWeight: 700, fontSize: 18, flex: 1 }}>코드맵</div>
               {watchOn && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>감시 중</span>}
               {mapMode === "manual" && scanState === "done" && !watchOn && (
                 <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>
@@ -1242,7 +1284,7 @@ export default function Home({ projectDir, onNavigate, initialView = "home" }: H
             <div className="feature-card-header" style={{ background: "#FF4D8B18", padding: "10px 14px" }}>
               <div className="feature-card-icon"
                 style={{ background: "#FF4D8B", color: "#fff", borderColor: "#FF4D8B", width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>♥</div>
-              <div style={{ fontWeight: 700, fontSize: 12, flex: 1 }}>AI 방지</div>
+              <div style={{ fontWeight: 700, fontSize: 18, flex: 1 }}>AI 방지</div>
               {guardState === "done" && guardResult && (
                 <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: guardColor(guardResult.status), color: "#1A1A1A", border: "1px solid #1A1A1A" }}>
                   {guardResult.status.toUpperCase()}
@@ -1250,7 +1292,7 @@ export default function Home({ projectDir, onNavigate, initialView = "home" }: H
               )}
             </div>
             <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
-              <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>
+              <div style={{ fontSize: 16.5, color: "#555", marginBottom: 8 }}>
                 {guardResult ? guardResult.summary.slice(0, 60) + "…" : "프로젝트 상태 점검"}
               </div>
               <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
@@ -1282,7 +1324,7 @@ export default function Home({ projectDir, onNavigate, initialView = "home" }: H
             <div className="feature-card-header" style={{ background: "#7B4DFF18", padding: "10px 14px" }}>
               <div className="feature-card-icon"
                 style={{ background: "#7B4DFF", color: "#fff", borderColor: "#7B4DFF", width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>💾</div>
-              <div style={{ fontWeight: 700, fontSize: 12, flex: 1 }}>체크포인트</div>
+              <div style={{ fontWeight: 700, fontSize: 18, flex: 1 }}>체크포인트</div>
               {cpState === "done" && (
                 <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>저장됨</span>
               )}
@@ -1312,13 +1354,13 @@ export default function Home({ projectDir, onNavigate, initialView = "home" }: H
             <div className="feature-card-header" style={{ background: "#4D9FFF18", padding: "10px 14px" }}>
               <div className="feature-card-icon"
                 style={{ background: "#4D9FFF", color: "#fff", borderColor: "#4D9FFF", width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>⇄</div>
-              <div style={{ fontWeight: 700, fontSize: 12, flex: 1 }}>AI 이동</div>
+              <div style={{ fontWeight: 700, fontSize: 18, flex: 1 }}>AI 이동</div>
               {transferState === "done" && (
                 <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>
               )}
             </div>
             <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
-              <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>PROJECT_CONTEXT 생성</div>
+              <div style={{ fontSize: 16.5, color: "#555", marginBottom: 8 }}>PROJECT_CONTEXT 생성</div>
               <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
                 <button onClick={() => setTransferHandoff(s => !s)} style={{
                   flex: 1, fontSize: 9, fontWeight: 700, padding: "2px 0",
@@ -1345,11 +1387,11 @@ export default function Home({ projectDir, onNavigate, initialView = "home" }: H
             <div className="feature-card-header" style={{ background: "#7B4DFF18", padding: "10px 14px" }}>
               <div className="feature-card-icon"
                 style={{ background: "#7B4DFF", color: "#fff", borderColor: "#7B4DFF", width: 28, height: 28, fontSize: 14, fontWeight: 900 }}>🕓</div>
-              <div style={{ fontWeight: 700, fontSize: 12, flex: 1 }}>히스토리</div>
+              <div style={{ fontWeight: 700, fontSize: 18, flex: 1 }}>히스토리</div>
               {(cmdStates["history"] ?? "idle") === "done" && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>}
             </div>
             <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
-              <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>
+              <div style={{ fontSize: 16.5, color: "#555", marginBottom: 8 }}>
                 {cmdOutputs["history"] && (cmdStates["history"] ?? "idle") !== "idle"
                   ? cmdOutputs["history"].slice(0, 60) + (cmdOutputs["history"].length > 60 ? "…" : "")
                   : "체크포인트 변경 이력 보기"}
@@ -1365,7 +1407,7 @@ export default function Home({ projectDir, onNavigate, initialView = "home" }: H
 
         {/* ── 커맨드 섹션 ── */}
         <div style={{ marginTop: 16 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#888", letterSpacing: "0.08em", marginBottom: 6, paddingLeft: 2 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#888", letterSpacing: "0.08em", marginBottom: 6, paddingLeft: 2 }}>
             커맨드
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
@@ -1385,6 +1427,7 @@ export default function Home({ projectDir, onNavigate, initialView = "home" }: H
             })()).map(cmd => {
               const st = cmdStates[cmd.name] ?? "idle";
               const out = cmdOutputs[cmd.name] ?? "";
+              const hasWarning = cmdHasWarnings[cmd.name] ?? false;
               return (
                 <div key={cmd.name} className="feature-card" style={{ cursor: "default" }}>
                   <div className="feature-card-header" style={{ background: cmd.color + "18", padding: "8px 12px" }}>
@@ -1392,14 +1435,15 @@ export default function Home({ projectDir, onNavigate, initialView = "home" }: H
                       background: cmd.color, color: "#fff", borderColor: cmd.color,
                       width: 22, height: 22, fontSize: 11, fontWeight: 900,
                     }}>{cmd.icon}</div>
-                    <div style={{ fontWeight: 700, fontSize: 11, flex: 1 }}>{cmd.title}</div>
-                    {st === "done" && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>}
+                    <div style={{ fontWeight: 700, fontSize: 16.5, flex: 1 }}>{cmd.title}</div>
+                    {(st === "done" || (st === "idle" && out)) && !hasWarning && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>}
+                    {hasWarning && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#FFD166", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>주의</span>}
                     {st === "error" && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#FF4D4D", color: "#fff", border: "1px solid #1A1A1A" }}>오류</span>}
                   </div>
                   <div className="feature-card-body" style={{ padding: "6px 12px 8px" }}>
                     {!((cmd as any).flags as FlagDef[] | undefined)?.some((f: FlagDef) => f.type === "text" || f.type === "select") && (
-                      <div style={{ fontSize: 10, color: "#777", marginBottom: 6, lineHeight: 1.3 }}>
-                        {out && st !== "idle" ? out.slice(0, 60) + (out.length > 60 ? "…" : "") : cmd.short}
+                      <div style={{ fontSize: 15, color: st === "error" ? "#FF4D4D" : hasWarning ? "#A05A00" : "#777", marginBottom: 6, lineHeight: 1.3 }}>
+                        {out ? out.slice(0, 60) + (out.length > 60 ? "…" : "") : cmd.short}
                       </div>
                     )}
                     {((cmd as any).flags as FlagDef[] | undefined)?.map((fd: FlagDef, fi: number) => {
@@ -1442,8 +1486,8 @@ export default function Home({ projectDir, onNavigate, initialView = "home" }: H
                       );
                       return null;
                     })}
-                    {out && st !== "idle" && ((cmd as any).flags as FlagDef[] | undefined)?.some((f: FlagDef) => f.type === "text" || f.type === "select") && (
-                      <div style={{ fontSize: 9, color: st === "error" ? "#FF4D4D" : "#555", marginBottom: 4 }}>
+                    {out && ((cmd as any).flags as FlagDef[] | undefined)?.some((f: FlagDef) => f.type === "text" || f.type === "select") && (
+                      <div style={{ fontSize: 13.5, color: st === "error" ? "#FF4D4D" : hasWarning ? "#A05A00" : "#555", marginBottom: 4 }}>
                         {out.slice(0, 60) + (out.length > 60 ? "…" : "")}
                       </div>
                     )}
@@ -1456,7 +1500,7 @@ export default function Home({ projectDir, onNavigate, initialView = "home" }: H
                       >
                         {st === "loading" ? <span className="spinner" /> : `${cmd.name.toUpperCase()} ▶`}
                       </button>
-                      {out && out.length > 60 && (
+                      {out && (
                         <button className="btn btn-ghost btn-sm" style={{ fontSize: 9, border: "2px solid #1A1A1A", flexShrink: 0 }}
                           onClick={() => setOutputModal({ name: cmd.name, content: out })}>결과</button>
                       )}
