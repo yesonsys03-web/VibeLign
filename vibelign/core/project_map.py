@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import cast
 
 from vibelign.core.meta_paths import MetaPaths
 
@@ -23,13 +23,13 @@ class ProjectMapSnapshot:
     service_modules: frozenset[str]
     large_files: frozenset[str]
     file_count: int
-    generated_at: Optional[str]
+    generated_at: str | None
     anchor_index: dict[str, list[str]] = field(default_factory=dict)
     tree: list[str] = field(default_factory=list)
-    files: dict[str, Any] = field(default_factory=dict)
+    files: dict[str, dict[str, object]] = field(default_factory=dict)
 
     # === ANCHOR: PROJECT_MAP_CLASSIFY_PATH_START ===
-    def classify_path(self, rel_path: str) -> Optional[str]:
+    def classify_path(self, rel_path: str) -> str | None:
         if rel_path in self.entry_files:
             return "entry file"
         if rel_path in self.ui_modules:
@@ -73,14 +73,19 @@ class ProjectMapSnapshot:
 
 
 # === ANCHOR: PROJECT_MAP_LOAD_PROJECT_MAP_START ===
-def load_project_map(root: Path) -> tuple[Optional[ProjectMapSnapshot], Optional[str]]:
+def load_project_map(root: Path) -> tuple[ProjectMapSnapshot | None, str | None]:
     meta = MetaPaths(root)
     if not meta.project_map_path.exists():
         return None, None
     try:
-        payload = json.loads(meta.project_map_path.read_text(encoding="utf-8"))
+        loaded = cast(
+            object, json.loads(meta.project_map_path.read_text(encoding="utf-8"))
+        )
     except (OSError, json.JSONDecodeError):
         return None, "invalid_project_map"
+    if not isinstance(loaded, dict):
+        return None, "invalid_project_map"
+    payload = cast(dict[str, object], loaded)
 
     schema_version = payload.get("schema_version")
     if schema_version not in (1, 2):
@@ -91,22 +96,38 @@ def load_project_map(root: Path) -> tuple[Optional[ProjectMapSnapshot], Optional
         raw = payload.get(name, [])
         if not isinstance(raw, list):
             return frozenset()
-        return frozenset(str(item) for item in raw if isinstance(item, str))
+        return frozenset(
+            str(item) for item in cast(list[object], raw) if isinstance(item, str)
+        )
 
     # === ANCHOR: PROJECT_MAP__VALUES_END ===
 
     file_count = payload.get("file_count", 0)
     raw_anchor_index = payload.get("anchor_index", {})
     anchor_index = (
-        {k: list(v) for k, v in raw_anchor_index.items() if isinstance(v, list)}
+        {
+            key: [
+                str(item) for item in cast(list[object], value) if isinstance(item, str)
+            ]
+            for key, value in cast(dict[str, object], raw_anchor_index).items()
+            if isinstance(value, list)
+        }
         if isinstance(raw_anchor_index, dict)
         else {}
     )
     raw_tree = payload.get("tree", [])
-    tree = raw_tree if isinstance(raw_tree, list) else []
+    tree = (
+        [str(item) for item in cast(list[object], raw_tree)]
+        if isinstance(raw_tree, list)
+        else []
+    )
     raw_files = payload.get("files", {})
-    files: dict[str, Any] = (
-        {k: v for k, v in raw_files.items() if isinstance(v, dict)}
+    files: dict[str, dict[str, object]] = (
+        {
+            key: cast(dict[str, object], value)
+            for key, value in cast(dict[str, object], raw_files).items()
+            if isinstance(value, dict)
+        }
         if isinstance(raw_files, dict)
         else {}
     )
@@ -136,7 +157,7 @@ def load_project_map(root: Path) -> tuple[Optional[ProjectMapSnapshot], Optional
 
 # === ANCHOR: PROJECT_MAP_ENRICH_CHANGE_KIND_START ===
 def enrich_change_kind(
-    snapshot: Optional[ProjectMapSnapshot],
+    snapshot: ProjectMapSnapshot | None,
     rel_path: str,
     fallback_kind: str,
     # === ANCHOR: PROJECT_MAP_ENRICH_CHANGE_KIND_END ===

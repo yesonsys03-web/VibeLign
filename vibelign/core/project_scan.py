@@ -1,4 +1,5 @@
 # === ANCHOR: PROJECT_SCAN_START ===
+from collections.abc import Generator
 from pathlib import Path
 
 IGNORED = {
@@ -37,7 +38,7 @@ SOURCE_EXTS = {
 }
 
 
-def iter_project_files(root: Path):
+def iter_project_files(root: Path) -> Generator[Path, None, None]:
     for path in root.rglob("*"):
         if any(part in IGNORED for part in path.parts):
             continue
@@ -45,8 +46,9 @@ def iter_project_files(root: Path):
             yield path
 
 
-def iter_source_files(root: Path):
+def iter_source_files(root: Path) -> Generator[Path, None, None]:
     from vibelign.core.fast_tools import has_fd, find_source_files_fd
+
     if has_fd():
         files = find_source_files_fd(root)
         if files:
@@ -78,8 +80,17 @@ def relpath_str(root: Path, path: Path) -> str:
 _ENTRY_NAMES = {"main.py", "app.py", "cli.py", "index.js", "main.ts"}
 _UI_TOKENS = ["ui", "view", "views", "window", "dialog", "widget", "screen"]
 _SERVICE_TOKENS = [
-    "service", "services", "api", "client", "server",
-    "worker", "job", "task", "queue", "auth", "data",
+    "service",
+    "services",
+    "api",
+    "client",
+    "server",
+    "worker",
+    "job",
+    "task",
+    "queue",
+    "auth",
+    "data",
 ]
 _CORE_TOKENS = ["core", "engine", "patch", "anchor", "guard"]
 
@@ -95,4 +106,6 @@ def classify_file(path: Path, rel: str) -> str:
     if any(t in low for t in _CORE_TOKENS):
         return "core"
     return "other"
+
+
 # === ANCHOR: PROJECT_SCAN_END ===

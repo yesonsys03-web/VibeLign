@@ -1,9 +1,22 @@
 # === ANCHOR: AI_CODESPEAK_START ===
 import importlib
 import json
-from typing import Any, Dict, List, Optional, cast
+from typing import Protocol, TypedDict, cast
 
 from vibelign.core.codespeak import CodeSpeakResult, parse_codespeak_v0
+
+
+class CodeSpeakPayload(TypedDict):
+    codespeak: str
+    interpretation: str
+    confidence: str
+    clarifying_questions: list[str]
+
+
+class AIExplainModule(Protocol):
+    def generate_text_with_ai(
+        self, prompt: str, quiet: bool = False
+    ) -> tuple[str, list[str]]: ...
 
 
 # === ANCHOR: AI_CODESPEAK_BUILD_CODESPEAK_AI_PROMPT_START ===
@@ -39,18 +52,37 @@ def build_codespeak_ai_prompt(request: str, rule_result: CodeSpeakResult) -> str
 
 
 # === ANCHOR: AI_CODESPEAK__PARSE_CODESPEAK_TEXT_START ===
-def _parse_codespeak_text(text: str) -> Optional[Dict[str, Any]]:
+def _parse_codespeak_text(text: str) -> CodeSpeakPayload | None:
     start = text.find("{")
     end = text.rfind("}")
     if start == -1 or end == -1 or end <= start:
         return None
     try:
-        parsed = json.loads(text[start : end + 1])
+        parsed_obj = cast(object, json.loads(text[start : end + 1]))
     except json.JSONDecodeError:
         return None
-    if not isinstance(parsed, dict):
+    if not isinstance(parsed_obj, dict):
         return None
-    return cast(Dict[str, Any], parsed)
+    parsed = cast(dict[str, object], parsed_obj)
+    codespeak = parsed.get("codespeak")
+    interpretation = parsed.get("interpretation")
+    confidence = parsed.get("confidence")
+    clarifying_raw = parsed.get("clarifying_questions", [])
+    if not isinstance(codespeak, str) or not isinstance(interpretation, str):
+        return None
+    if not isinstance(confidence, str):
+        return None
+    clarifying_questions = (
+        [item for item in cast(list[object], clarifying_raw) if isinstance(item, str)]
+        if isinstance(clarifying_raw, list)
+        else []
+    )
+    return {
+        "codespeak": codespeak,
+        "interpretation": interpretation,
+        "confidence": confidence,
+        "clarifying_questions": clarifying_questions,
+    }
 
 
 # === ANCHOR: AI_CODESPEAK__PARSE_CODESPEAK_TEXT_END ===
@@ -62,25 +94,24 @@ def enhance_codespeak_with_ai(
     rule_result: CodeSpeakResult,
     quiet: bool = False,
     # === ANCHOR: AI_CODESPEAK_ENHANCE_CODESPEAK_WITH_AI_END ===
-) -> Optional[CodeSpeakResult]:
+) -> CodeSpeakResult | None:
     prompt = build_codespeak_ai_prompt(request, rule_result)
-    ai_explain = importlib.import_module("vibelign.core.ai_explain")
+    ai_explain = cast(
+        AIExplainModule,
+        cast(object, importlib.import_module("vibelign.core.ai_explain")),
+    )
     text, _attempted = ai_explain.generate_text_with_ai(prompt, quiet=quiet)
     if not text:
         return None
     parsed = _parse_codespeak_text(text)
     if not parsed:
         return None
-    codespeak = parsed.get("codespeak")
-    interpretation = parsed.get("interpretation")
-    confidence = parsed.get("confidence")
-    clarifying_questions = parsed.get("clarifying_questions", [])
-    if not isinstance(codespeak, str) or not isinstance(interpretation, str):
+    codespeak = parsed["codespeak"]
+    interpretation = parsed["interpretation"]
+    confidence = parsed["confidence"]
+    clarifying_questions = parsed["clarifying_questions"]
+    if confidence not in {"high", "medium", "low"}:
         return None
-    if not isinstance(confidence, str) or confidence not in {"high", "medium", "low"}:
-        return None
-    if not isinstance(clarifying_questions, list):
-        clarifying_questions = []
     parts = parse_codespeak_v0(codespeak)
     if parts is None:
         return None
@@ -92,9 +123,7 @@ def enhance_codespeak_with_ai(
         action=parts["action"],
         confidence=confidence,
         interpretation=interpretation,
-        clarifying_questions=[
-            str(item) for item in clarifying_questions if isinstance(item, str)
-        ],
+        clarifying_questions=clarifying_questions,
         patch_points=dict(getattr(rule_result, "patch_points", {})),
     )
 

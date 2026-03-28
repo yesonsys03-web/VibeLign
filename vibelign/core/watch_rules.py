@@ -1,5 +1,17 @@
 from pathlib import Path
-from typing import Optional, Set
+from typing import Literal, TypedDict
+
+
+WatchLevel = Literal["HIGH", "WARN", "OK"]
+
+
+class WatchWarning(TypedDict):
+    level: WatchLevel
+    path: str
+    message: str
+    why: str
+    action: str
+
 
 ENTRY_FILES = {
     "main.py",
@@ -58,18 +70,18 @@ BIZ_HINTS = [
 def classify_event(
     path: Path,
     text: str,
-    old_lines: Optional[int],
+    old_lines: int | None,
     new_lines: int,
     strict: bool = False,
-    protected_files: Optional[Set[str]] = None,
-):
+    protected_files: set[str] | None = None,
+) -> list[WatchWarning]:
     name = path.name
-    warnings = []
+    warnings: list[WatchWarning] = []
     entry_warn = 120 if strict else 200
     entry_high = 200 if strict else 300
     anchor_limit = 40 if strict else 80
 
-    def add(level, message, why, action):
+    def add(level: WatchLevel, message: str, why: str, action: str) -> None:
         warnings.append(
             {
                 "level": level,

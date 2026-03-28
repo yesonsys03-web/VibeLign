@@ -1,5 +1,17 @@
 from dataclasses import dataclass, asdict, field
-from typing import Any, Optional
+from collections.abc import Mapping
+from typing import Protocol, cast
+
+JsonScalar = str | int | float | bool | None
+JsonValue = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+JsonObject = dict[str, JsonValue]
+
+
+class SuggestionLike(Protocol):
+    target_file: str
+    target_anchor: str
+    confidence: str
+    rationale: list[str]
 
 
 @dataclass
@@ -46,26 +58,20 @@ class TargetResolution:
     def from_suggestion(
         cls,
         role: str,
-        suggestion: object,
+        suggestion: SuggestionLike,
         source_text: str = "",
         destination_text: str = "",
-    ) -> Optional["TargetResolution"]:
-        target_file = getattr(suggestion, "target_file", None)
-        target_anchor = getattr(suggestion, "target_anchor", None)
-        confidence = getattr(suggestion, "confidence", None)
-        rationale = getattr(suggestion, "rationale", None)
-        if not isinstance(target_file, str) or not isinstance(target_anchor, str):
-            return None
-        if not isinstance(confidence, str):
-            confidence = "low"
-        if not isinstance(rationale, list):
-            rationale = []
+    ) -> "TargetResolution | None":
+        target_file = suggestion.target_file
+        target_anchor = suggestion.target_anchor
+        confidence = suggestion.confidence
+        rationale = suggestion.rationale
         return cls(
             role=role,
             target_file=target_file,
             target_anchor=target_anchor,
             confidence=confidence,
-            rationale=[str(item) for item in rationale if isinstance(item, str)],
+            rationale=rationale,
             source_text=source_text,
             destination_text=destination_text,
         )
@@ -78,12 +84,12 @@ class PatchPlan:
     interpretation: str
     target_file: str
     target_anchor: str
-    source_resolution: Optional[dict[str, Any]] = None
-    destination_target_file: Optional[str] = None
-    destination_target_anchor: Optional[str] = None
-    destination_resolution: Optional[dict[str, Any]] = None
+    source_resolution: JsonObject | None = None
+    destination_target_file: str | None = None
+    destination_target_anchor: str | None = None
+    destination_resolution: JsonObject | None = None
     codespeak: str = ""
-    intent_ir: Optional[dict[str, Any]] = None
+    intent_ir: JsonObject | None = None
     patch_points: dict[str, str] = field(default_factory=dict)
     constraints: list[str] = field(default_factory=list)
     confidence: str = "low"
@@ -92,7 +98,7 @@ class PatchPlan:
     rationale: list[str] = field(default_factory=list)
     destination_rationale: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> JsonObject:
         return asdict(self)
 
 
@@ -104,20 +110,20 @@ class PatchContract:
     codespeak_contract_version: int
     codespeak_parts: dict[str, str]
     patch_points: dict[str, str]
-    scope: dict[str, Any]
+    scope: JsonObject
     allowed_ops: list[str]
     preconditions: list[str]
     expected_result: str
     assumptions: list[str]
-    verification: dict[str, Any]
+    verification: JsonObject
     actionable: bool
     clarifying_questions: list[str]
     user_status: dict[str, str]
     user_guidance: list[str]
     move_summary: dict[str, str]
-    intent_ir: Optional[dict[str, Any]] = None
+    intent_ir: JsonObject | None = None
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> JsonObject:
         return asdict(self)
 
     @classmethod
@@ -125,7 +131,7 @@ class PatchContract:
         cls,
         *,
         status: str,
-        patch_plan: dict[str, Any],
+        patch_plan: Mapping[str, object],
         codespeak_parts: dict[str, str],
         file_status: str,
         anchor_status: str,
@@ -141,7 +147,22 @@ class PatchContract:
         user_status: dict[str, str],
         user_guidance: list[str],
     ) -> "PatchContract":
-        operation = str(patch_plan.get("patch_points", {}).get("operation", "update"))
+        patch_points_raw = patch_plan.get("patch_points")
+        patch_points_data = (
+            cast(dict[object, object], patch_points_raw)
+            if isinstance(patch_points_raw, dict)
+            else {}
+        )
+        patch_points = {
+            str(key): str(value)
+            for key, value in patch_points_data.items()
+            if isinstance(key, str) and isinstance(value, str)
+        }
+        intent_ir_raw = patch_plan.get("intent_ir")
+        intent_ir = (
+            cast(JsonObject, intent_ir_raw) if isinstance(intent_ir_raw, dict) else None
+        )
+        operation = str(patch_points.get("operation", "update"))
         if (
             status == "NEEDS_CLARIFICATION"
             and operation == "move"
@@ -156,7 +177,7 @@ class PatchContract:
             intent=str(patch_plan["interpretation"]),
             codespeak_contract_version=0,
             codespeak_parts=codespeak_parts,
-            patch_points=dict(patch_plan.get("patch_points") or {}),
+            patch_points=patch_points,
             scope={
                 "allowed_files": [
                     item
@@ -182,9 +203,9 @@ class PatchContract:
             user_guidance=user_guidance,
             move_summary={
                 "operation": operation,
-                "source": str(patch_plan.get("patch_points", {}).get("source", "")),
+                "source": str(patch_points.get("source", "")),
                 "destination": destination_file
-                or str(patch_plan.get("patch_points", {}).get("destination", "")),
+                or str(patch_points.get("destination", "")),
             },
-            intent_ir=patch_plan.get("intent_ir"),
+            intent_ir=intent_ir,
         )

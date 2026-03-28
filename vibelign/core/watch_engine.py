@@ -1,13 +1,105 @@
 # === ANCHOR: WATCH_ENGINE_START ===
-from importlib import import_module
-from pathlib import Path
-from typing import Optional
+import _thread
+import json
 import threading
 import time
+from importlib import import_module
+from pathlib import Path
+from typing import Protocol, TypedDict, cast
 
 
 from vibelign.terminal_render import cli_print
+
 print = cli_print
+
+
+class WatchConfig(TypedDict, total=False):
+    root: str
+    strict: bool
+    json: bool
+    debounce_ms: int
+    write_log: bool
+
+
+class WatchPayload(TypedDict, total=False):
+    level: str
+    path: str
+    message: str
+    why: str
+    action: str
+
+
+class _WatchdogHandlerBase:
+    def __init__(self) -> None:
+        pass
+
+
+class _WatchdogObserver(Protocol):
+    def schedule(
+        self, event_handler: object, path: str, recursive: bool = False
+    ) -> object: ...
+
+    def start(self) -> object: ...
+
+    def stop(self) -> object: ...
+
+    def join(self) -> object: ...
+
+
+class _WatchdogObserverFactory(Protocol):
+    def __call__(self) -> _WatchdogObserver: ...
+
+
+class _WatchSrcEvent(Protocol):
+    is_directory: bool
+    src_path: str
+
+
+class _WatchMovedEvent(Protocol):
+    is_directory: bool
+    dest_path: str
+
+
+def _normalize_object_dict(raw: object) -> dict[str, object] | None:
+    if not isinstance(raw, dict):
+        return None
+    source = cast(dict[object, object], raw)
+    normalized: dict[str, object] = {}
+    for key, value in source.items():
+        normalized[str(key)] = value
+    return normalized
+
+
+def _config_text(config: WatchConfig, key: str, default: str) -> str:
+    value = config.get(key, default)
+    return str(value) if value else default
+
+
+def _config_bool(config: WatchConfig, key: str, default: bool = False) -> bool:
+    return bool(config.get(key, default))
+
+
+def _config_int(config: WatchConfig, key: str, default: int) -> int:
+    value = config.get(key, default)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _import_watchdog_classes() -> tuple[
+    type[_WatchdogHandlerBase], _WatchdogObserverFactory
+]:
+    events_module = import_module("watchdog.events")
+    observers_module = import_module("watchdog.observers")
+    handler_base = cast(
+        type[_WatchdogHandlerBase], getattr(events_module, "FileSystemEventHandler")
+    )
+    observer_factory = cast(
+        _WatchdogObserverFactory, getattr(observers_module, "Observer")
+    )
+    return handler_base, observer_factory
+
 
 SOURCE_EXTS = {
     ".py",
@@ -32,24 +124,23 @@ def safe_read(path: Path) -> str:
         return path.read_text(encoding="utf-8", errors="ignore")
     except Exception:
         return ""
+
+
 # === ANCHOR: WATCH_ENGINE_SAFE_READ_END ===
 
 
 # === ANCHOR: WATCH_ENGINE_RUN_WATCH_START ===
-def run_watch(config):
+def run_watch(config: WatchConfig) -> None:
     try:
-        events_module = import_module("watchdog.events")
-        observers_module = import_module("watchdog.observers")
-        FileSystemEventHandler = events_module.FileSystemEventHandler
-        Observer = observers_module.Observer
+        file_system_event_handler_base, observer_factory = _import_watchdog_classes()
     except Exception:
         from vibelign.core.auto_install import try_install_watchdog
+
         try_install_watchdog(print, print, print)
         try:
-            events_module = import_module("watchdog.events")
-            observers_module = import_module("watchdog.observers")
-            FileSystemEventHandler = events_module.FileSystemEventHandler
-            Observer = observers_module.Observer
+            file_system_event_handler_base, observer_factory = (
+                _import_watchdog_classes()
+            )
         except Exception as e:
             raise RuntimeError(
                 "watch 모드를 사용하려면 'watchdog'을 설치해야 합니다. `pip install watchdog` 또는 `uv add watchdog`으로 설치하세요."
@@ -65,7 +156,7 @@ def run_watch(config):
     from vibelign.core.watch_reporter import emit
 
     # === ANCHOR: WATCH_ENGINE_VIBELIGNWATCHHANDLER_START ===
-    class VibeLignWatchHandler(FileSystemEventHandler):
+    class VibeLignWatchHandler(file_system_event_handler_base):
         # === ANCHOR: WATCH_ENGINE___INIT___START ===
         def __init__(
             self,
@@ -73,25 +164,25 @@ def run_watch(config):
             state_path: Path,
             strict: bool,
             json_mode: bool,
-            log_path: Optional[Path],
+            log_path: Path | None,
             debounce_ms: int = 800,
-        # === ANCHOR: WATCH_ENGINE___INIT___END ===
+            # === ANCHOR: WATCH_ENGINE___INIT___END ===
         ):
             super().__init__()
-            self.root = root
-            self.state_path = state_path
-            self.strict = strict
-            self.json_mode = json_mode
-            self.log_path = log_path
-            self.debounce_ms = debounce_ms
-            self.state = load_state(state_path)
-            self.last_seen = {}
-            self.global_timer: Optional[threading.Timer] = None
+            self.root: Path = root
+            self.state_path: Path = state_path
+            self.strict: bool = strict
+            self.json_mode: bool = json_mode
+            self.log_path: Path | None = log_path
+            self.debounce_ms: int = debounce_ms
+            self.state: dict[str, FileSnapshot] = load_state(state_path)
+            self.last_seen: dict[str, float] = {}
+            self.global_timer: threading.Timer | None = None
             self.pending_changes: list[str] = []
-            self._lock = threading.Lock()
+            self._lock: _thread.LockType = threading.Lock()
             from vibelign.core.protected_files import get_protected
 
-            self.protected = get_protected(root)
+            self.protected: set[str] = get_protected(root)
 
         # === ANCHOR: WATCH_ENGINE__ELIGIBLE_START ===
         def _eligible(self, path: Path) -> bool:
@@ -104,15 +195,17 @@ def run_watch(config):
                 and "tests" not in path.parts
                 and "docs" not in path.parts
             )
+
         # === ANCHOR: WATCH_ENGINE__ELIGIBLE_END ===
 
         # === ANCHOR: WATCH_ENGINE__DEBOUNCED_START ===
         def _debounced(self, path: Path) -> bool:
             now = time.time() * 1000
             key = str(path)
-            prev = self.last_seen.get(key, 0)
+            prev: float = self.last_seen.get(key, 0.0)
             self.last_seen[key] = now
             return (now - prev) < self.debounce_ms
+
         # === ANCHOR: WATCH_ENGINE__DEBOUNCED_END ===
 
         # === ANCHOR: WATCH_ENGINE__SCHEDULE_GLOBAL_UPDATE_START ===
@@ -126,6 +219,7 @@ def run_watch(config):
                     self._run_global_update,
                 )
                 self.global_timer.start()
+
         # === ANCHOR: WATCH_ENGINE__SCHEDULE_GLOBAL_UPDATE_END ===
 
         # === ANCHOR: WATCH_ENGINE__RUN_GLOBAL_UPDATE_START ===
@@ -137,11 +231,11 @@ def run_watch(config):
             if not changed:
                 return
             self._refresh_project_map(changed)
+
         # === ANCHOR: WATCH_ENGINE__RUN_GLOBAL_UPDATE_END ===
 
         # === ANCHOR: WATCH_ENGINE__REFRESH_PROJECT_MAP_START ===
         def _refresh_project_map(self, changed: list[str]) -> None:
-            import json
             from datetime import datetime, timezone
             from vibelign.core.meta_paths import MetaPaths
             from vibelign.core.scan_cache import incremental_scan
@@ -150,23 +244,24 @@ def run_watch(config):
             if not meta.project_map_path.exists():
                 return
             try:
-                payload = json.loads(
-                    meta.project_map_path.read_text(encoding="utf-8")
+                payload_raw = cast(
+                    object,
+                    json.loads(meta.project_map_path.read_text(encoding="utf-8")),
                 )
             except (OSError, json.JSONDecodeError):
                 return
+            payload = _normalize_object_dict(payload_raw)
+            if payload is None:
+                return
 
-            emit(
-                {
-                    "level": "OK",
-                    "path": "",
-                    "message": f"⏳ 코드맵 갱신 중... (파일 {len(changed)}개 변경)",
-                    "why": "",
-                    "action": "",
-                },
-                json_mode=self.json_mode,
-                log_path=self.log_path,
-            )
+            progress_event: WatchPayload = {
+                "level": "OK",
+                "path": "",
+                "message": f"⏳ 코드맵 갱신 중... (파일 {len(changed)}개 변경)",
+                "why": "",
+                "action": "",
+            }
+            emit(progress_event, json_mode=self.json_mode, log_path=self.log_path)
 
             try:
                 scan = incremental_scan(
@@ -195,11 +290,11 @@ def run_watch(config):
                     datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                 )
                 tmp_path = meta.project_map_path.with_suffix(".tmp")
-                tmp_path.write_text(
+                _ = tmp_path.write_text(
                     json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
                     encoding="utf-8",
                 )
-                tmp_path.replace(meta.project_map_path)
+                _ = tmp_path.replace(meta.project_map_path)
 
                 # anchor_index.json도 최신 상태로 갱신
                 anchor_index_payload = {
@@ -208,29 +303,28 @@ def run_watch(config):
                     "files": {k: {"anchors": v} for k, v in anchor_index.items()},
                 }
                 ai_tmp = meta.anchor_index_path.with_suffix(".tmp")
-                ai_tmp.write_text(
-                    json.dumps(anchor_index_payload, indent=2, ensure_ascii=False) + "\n",
+                _ = ai_tmp.write_text(
+                    json.dumps(anchor_index_payload, indent=2, ensure_ascii=False)
+                    + "\n",
                     encoding="utf-8",
                 )
-                ai_tmp.replace(meta.anchor_index_path)
+                _ = ai_tmp.replace(meta.anchor_index_path)
             except Exception:
                 return
 
-            emit(
-                {
-                    "level": "OK",
-                    "path": "",
-                    "message": f"✅ 파일 {len(changed)}개 변경 감지 → 코드맵 자동 갱신 완료",
-                    "why": "",
-                    "action": "",
-                },
-                json_mode=self.json_mode,
-                log_path=self.log_path,
-            )
+            done_event: WatchPayload = {
+                "level": "OK",
+                "path": "",
+                "message": f"✅ 파일 {len(changed)}개 변경 감지 → 코드맵 자동 갱신 완료",
+                "why": "",
+                "action": "",
+            }
+            emit(done_event, json_mode=self.json_mode, log_path=self.log_path)
+
         # === ANCHOR: WATCH_ENGINE__REFRESH_PROJECT_MAP_END ===
 
         # === ANCHOR: WATCH_ENGINE__PROCESS_START ===
-        def _process(self, src_path: str):
+        def _process(self, src_path: str) -> None:
             path = Path(src_path)
             if not self._eligible(path) or self._debounced(path):
                 return
@@ -247,61 +341,65 @@ def run_watch(config):
             old_lines = old.lines if old else None
             if old and old.sha1 == new_sha:
                 return
-            warnings = classify_event(
-                path,
-                text,
-                old_lines,
-                new_lines,
-                strict=self.strict,
-                protected_files=self.protected,
+            warnings = cast(
+                list[WatchPayload],
+                classify_event(
+                    path,
+                    text,
+                    old_lines,
+                    new_lines,
+                    strict=self.strict,
+                    protected_files=self.protected,
+                ),
             )
             if not warnings:
-                emit(
-                    {
-                        "level": "OK",
-                        "path": rel,
-                        "message": f"{rel} 변경됨",
-                        "why": "",
-                        "action": "",
-                    },
-                    json_mode=self.json_mode,
-                    log_path=self.log_path,
-                )
+                ok_event: WatchPayload = {
+                    "level": "OK",
+                    "path": rel,
+                    "message": f"{rel} 변경됨",
+                    "why": "",
+                    "action": "",
+                }
+                emit(ok_event, json_mode=self.json_mode, log_path=self.log_path)
             else:
                 for item in warnings:
                     item["path"] = rel
                     emit(item, json_mode=self.json_mode, log_path=self.log_path)
             self.state[rel] = FileSnapshot(rel, new_lines, new_sha)
             save_state(self.state_path, self.state)
-    # === ANCHOR: WATCH_ENGINE_VIBELIGNWATCHHANDLER_END ===
+            # === ANCHOR: WATCH_ENGINE_VIBELIGNWATCHHANDLER_END ===
             self._schedule_global_update(rel)
+
         # === ANCHOR: WATCH_ENGINE__PROCESS_END ===
 
         # === ANCHOR: WATCH_ENGINE_ON_MODIFIED_START ===
-        def on_modified(self, event):
+        def on_modified(self, event: _WatchSrcEvent) -> None:
             if not event.is_directory:
                 self._process(event.src_path)
+
         # === ANCHOR: WATCH_ENGINE_ON_MODIFIED_END ===
 
         # === ANCHOR: WATCH_ENGINE_ON_CREATED_START ===
-        def on_created(self, event):
+        def on_created(self, event: _WatchSrcEvent) -> None:
             if not event.is_directory:
                 self._process(event.src_path)
+
         # === ANCHOR: WATCH_ENGINE_ON_CREATED_END ===
 
         # === ANCHOR: WATCH_ENGINE_ON_MOVED_START ===
-        def on_moved(self, event):
+        def on_moved(self, event: _WatchMovedEvent) -> None:
             if not event.is_directory:
                 self._process(event.dest_path)
+
         # === ANCHOR: WATCH_ENGINE_ON_MOVED_END ===
 
-    root = Path(config["root"])
-    strict = bool(config.get("strict", False))
-    json_mode = bool(config.get("json", False))
-    debounce_ms = int(config.get("debounce_ms", 800))
-    write_log = bool(config.get("write_log", False))
+    root = Path(_config_text(config, "root", "."))
+    strict = _config_bool(config, "strict", False)
+    json_mode = _config_bool(config, "json", False)
+    debounce_ms = _config_int(config, "debounce_ms", 800)
+    write_log = _config_bool(config, "write_log", False)
     vg_dir = root / ".vibelign"
-# === ANCHOR: WATCH_ENGINE_RUN_WATCH_END ===
+    # === ANCHOR: WATCH_ENGINE_RUN_WATCH_END ===
     state_path = vg_dir / "watch_state.json"
     log_path = vg_dir / "watch.log" if write_log else None
 
@@ -315,13 +413,15 @@ def run_watch(config):
     handler = VibeLignWatchHandler(
         root, state_path, strict, json_mode, log_path, debounce_ms
     )
-    observer = Observer()
-    observer.schedule(handler, str(root), recursive=True)
-    observer.start()
+    observer = observer_factory()
+    _ = observer.schedule(handler, str(root), recursive=True)
+    _ = observer.start()
     try:
         while True:
             time.sleep(0.5)
     except KeyboardInterrupt:
-        observer.stop()
-    observer.join()
+        _ = observer.stop()
+    _ = observer.join()
+
+
 # === ANCHOR: WATCH_ENGINE_END ===
