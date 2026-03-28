@@ -1,19 +1,32 @@
 # === ANCHOR: PROTECT_CMD_START ===
+from argparse import Namespace
 from pathlib import Path
-from vibelign.core.protected_files import get_protected, save_protected
+from collections.abc import Callable
+from typing import cast
 
+from vibelign.core import protected_files as protected_files_mod
 
 
 from vibelign.terminal_render import cli_print
+
 print = cli_print
+get_protected = cast(Callable[[Path], set[str]], protected_files_mod.get_protected)
+save_protected = cast(
+    Callable[[Path, set[str]], None], protected_files_mod.save_protected
+)
+
 
 # === ANCHOR: PROTECT_CMD_RUN_PROTECT_START ===
-def run_protect(args):
+def run_protect(args: Namespace) -> None:
     root = Path.cwd()
     protected = get_protected(root)
+    file_value = getattr(args, "file", None)
+    target_input = file_value if isinstance(file_value, str) else ""
+    list_mode = bool(getattr(args, "list", False))
+    remove_mode = bool(getattr(args, "remove", False))
 
     # 파일 인자가 없거나 --list 플래그 → 목록 출력
-    if not args.file or args.list:
+    if not target_input or list_mode:
         if not protected:
             print("보호된 파일이 없습니다.")
             print()
@@ -31,7 +44,6 @@ def run_protect(args):
         return
 
     # 파일명 정규화 (프로젝트 루트 기준 상대 경로)
-    target_input = args.file
     target_path = Path(target_input)
 
     # 절대경로 또는 상대경로 처리
@@ -39,7 +51,7 @@ def run_protect(args):
         target_path = root / target_path
 
     if not target_path.exists():
-        print(f"경고: '{args.file}' 파일이 존재하지 않습니다.")
+        print(f"경고: '{target_input}' 파일이 존재하지 않습니다.")
         print("파일명과 경로를 다시 확인하세요.")
         return
 
@@ -50,7 +62,7 @@ def run_protect(args):
         return
 
     # --remove: 보호 해제
-    if args.remove:
+    if remove_mode:
         if rel in protected:
             protected.discard(rel)
             save_protected(root, protected)
@@ -71,5 +83,7 @@ def run_protect(args):
         print("이 파일이 AI에 의해 수정되면 guard와 watch가 강하게 경고합니다.")
         print("보호 목록 확인: vib protect --list")
         print("보호 해제:      vib protect --remove " + rel)
+
+
 # === ANCHOR: PROTECT_CMD_RUN_PROTECT_END ===
 # === ANCHOR: PROTECT_CMD_END ===

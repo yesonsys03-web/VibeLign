@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from argparse import Namespace
 from typing import TypedDict
 
 from rich.console import Console
@@ -571,63 +572,41 @@ MANUAL: dict[str, ManualEntry] = {
         "options": [
             (
                 "--compact",
-                "파일 크기를 줄여서 토큰을 아껴요.\n"
-                "파일 트리를 얕게만 보여줘요 (깊이 2단계).\n"
-                "무료 플랜이나 토큰이 부족할 때 좋아요.",
+                "파일 크기를 줄여서 토큰을 아껴요.\n파일 트리를 얕게만 보여줘요 (깊이 2단계).\n무료 플랜이나 토큰이 부족할 때 좋아요.",
             ),
             (
                 "--full",
-                "파일 트리를 더 깊이까지 보여줘요 (깊이 4단계).\n"
-                "프로젝트가 복잡하거나 AI한테 더 많은 구조를 알려주고 싶을 때 써요.",
+                "파일 트리를 더 깊이까지 보여줘요 (깊이 4단계).\n프로젝트가 복잡하거나 AI한테 더 많은 구조를 알려주고 싶을 때 써요.",
             ),
             (
                 "--handoff",
-                "AI를 바꾸거나 새 채팅을 열기 직전에 쓰는 옵션이에요.\n"
-                "파일 맨 위에 'Session Handoff' 블록을 넣어줘요.\n"
-                "새 AI한테 '오늘 뭘 했는지, 다음에 뭘 해야 하는지' 한 줄로 알려줄 수 있어요.\n"
-                "⚠️ --compact, --full 과 같이 쓸 수 없어요.",
+                "AI를 바꾸거나 새 채팅을 열기 직전에 쓰는 옵션이에요.\n파일 맨 위에 'Session Handoff' 블록을 넣어줘요.\n새 AI한테 '오늘 뭘 했는지, 다음에 뭘 해야 하는지' 한 줄로 알려줄 수 있어요.\n⚠️ --compact, --full 과 같이 쓸 수 없어요.",
             ),
             (
                 "--print",
-                "--handoff 와 함께 써요.\n"
-                "인수인계 내용을 파일에 저장하면서 화면에도 바로 출력해줘요.\n"
-                "새 AI 채팅창에 복붙하기 편해요.",
+                "--handoff 와 함께 써요.\n인수인계 내용을 파일에 저장하면서 화면에도 바로 출력해줘요.\n새 AI 채팅창에 복붙하기 편해요.",
             ),
             (
                 "--no-prompt",
-                "--handoff 와 함께 써요.\n"
-                "보통은 '다음 AI가 뭘 해야 해?' 하고 물어보는데\n"
-                "이 옵션을 쓰면 아무것도 안 물어보고 자동으로 만들어줘요.\n"
-                "모르는 내용은 '(not provided)' 라고 표시돼요.",
+                "--handoff 와 함께 써요.\n보통은 '다음 AI가 뭘 해야 해?' 하고 물어보는데\n이 옵션을 쓰면 아무것도 안 물어보고 자동으로 만들어줘요.\n모르는 내용은 '(not provided)' 라고 표시돼요.",
             ),
             (
                 "--out 파일명",
-                "저장할 파일 이름을 바꿀 수 있어요.\n"
-                "기본값은 PROJECT_CONTEXT.md예요.\n"
-                "예: --out handoff.md",
+                "저장할 파일 이름을 바꿀 수 있어요.\n기본값은 PROJECT_CONTEXT.md예요.\n예: --out handoff.md",
             ),
             (
                 "--dry-run",
-                "파일을 실제로 저장하지 않고 '이런 내용이 들어갈 거예요'를 미리 보여줘요.\n"
-                "마치 게임에서 아이템 설명 읽고 살지 말지 결정하는 것처럼,\n"
-                "handoff 내용을 확인하고 나서 진짜로 실행할 수 있어요.\n"
-                "--handoff 와 함께 쓰는 게 가장 유용해요.",
+                "파일을 실제로 저장하지 않고 '이런 내용이 들어갈 거예요'를 미리 보여줘요.\n마치 게임에서 아이템 설명 읽고 살지 말지 결정하는 것처럼,\nhandoff 내용을 확인하고 나서 진짜로 실행할 수 있어요.\n--handoff 와 함께 쓰는 게 가장 유용해요.",
             ),
             (
                 "--help",
-                "transfer 명령어의 옵션 목록을 보여줘요.\n"
-                "뭘 써야 할지 모를 때 먼저 확인해보세요.",
+                "transfer 명령어의 옵션 목록을 보여줘요.\n뭘 써야 할지 모를 때 먼저 확인해보세요.",
             ),
         ],
         "notes": [
-            "Cursor처럼 MCP를 지원하는 AI 툴이 컨텍스트를 요청하면,\n"
-            "     VibeLign이 파일을 새로 만들지 않고 저장된 PROJECT_CONTEXT.md를 그대로 전달해요.\n"
-            "     그래서 handoff 블록이 날아가지 않아요.",
-            "--handoff 실행 후 vib checkpoint를 돌리면 handoff 블록이 사라져요.\n"
-            "     그럴 때 경고가 뜨니까, AI 전환 직전에 --handoff를 다시 실행하면 돼요.",
-            "--handoff를 실행하면 AGENTS.md에 규칙이 자동으로 추가돼요:\n"
-            "     '새 채팅 열면 PROJECT_CONTEXT.md 먼저 읽어라'\n"
-            "     Cursor, Antigravity, OpenCode 등 AGENTS.md를 읽는 AI 툴이 자동으로 인지해요.",
+            "Cursor처럼 MCP를 지원하는 AI 툴이 컨텍스트를 요청하면,\n     VibeLign이 파일을 새로 만들지 않고 저장된 PROJECT_CONTEXT.md를 그대로 전달해요.\n     그래서 handoff 블록이 날아가지 않아요.",
+            "--handoff 실행 후 vib checkpoint를 돌리면 handoff 블록이 사라져요.\n     그럴 때 경고가 뜨니까, AI 전환 직전에 --handoff를 다시 실행하면 돼요.",
+            "--handoff를 실행하면 AGENTS.md에 규칙이 자동으로 추가돼요:\n     '새 채팅 열면 PROJECT_CONTEXT.md 먼저 읽어라'\n     Cursor, Antigravity, OpenCode 등 AGENTS.md를 읽는 AI 툴이 자동으로 인지해요.",
         ],
     },
     "completion": {
@@ -933,58 +912,63 @@ def _render_command(key: str) -> None:
         console.print("사용 가능한 커맨드: " + ", ".join(MANUAL.keys()))
         return
 
-    emoji = m["emoji"]
-    title = m["title"]
-    one_line = m["one_line"]
+    emoji = m.get("emoji", "")
+    title = m.get("title", key)
+    one_line = m.get("one_line", "")
+    what = m.get("what", "")
+    when = m.get("when", [])
+    examples = m.get("examples", [])
+    options = m.get("options", [])
+    notes = m.get("notes", [])
 
     # 헤더 패널
     header = Text()
-    header.append(f"{emoji}  ", style="bold")
-    header.append(title, style="bold cyan")
-    header.append(f"  —  {one_line}", style="dim white")
+    _ = header.append(f"{emoji}  ", style="bold")
+    _ = header.append(title, style="bold cyan")
+    _ = header.append(f"  —  {one_line}", style="dim white")
     console.print(Panel(header, border_style="cyan", padding=(0, 2)))
 
     # 이게 뭐야?
     console.print()
     console.print("  [bold yellow]💡 이게 뭐야?[/bold yellow]")
-    for line in m["what"].splitlines():
+    for line in what.splitlines():
         console.print(f"     [white]{line}[/white]")
 
     # 언제 써?
-    if m["when"]:
+    if when:
         console.print()
         console.print("  [bold green]🕐 언제 써?[/bold green]")
-        for w in m["when"]:
+        for w in when:
             console.print(f"     [dim]•[/dim]  {w}")
 
     # 이렇게 쳐봐 (MCP는 AI한테 말하는 방식)
-    if m["examples"]:
+    if examples:
         console.print()
         label = "💬  AI한테 이렇게 말해봐" if key == "mcp" else "✏️  이렇게 쳐봐"
         console.print(f"  [bold magenta]{label}[/bold magenta]")
         tbl = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
         tbl.add_column(style="bold cyan", no_wrap=True)
         tbl.add_column(style="dim white")
-        for cmd, desc in m["examples"]:
+        for cmd, desc in examples:
             tbl.add_row(cmd, f"→  {desc}")
         console.print(tbl)
 
     # 옵션 설명
-    if m.get("options"):
+    if options:
         console.print()
         console.print("  [bold blue]⚙️  옵션 설명[/bold blue]")
         tbl = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
         tbl.add_column(style="bold cyan", no_wrap=True, width=24)
         tbl.add_column(style="white")
-        for opt, desc in m["options"]:
+        for opt, desc in options:
             tbl.add_row(opt, desc)
         console.print(tbl)
 
     # 알아두면 좋은 것
-    if m.get("notes"):
+    if notes:
         console.print()
         console.print("  [bold yellow]📝 알아두면 좋은 것[/bold yellow]")
-        for note in m["notes"]:
+        for note in notes:
             console.print(f"     [dim]•[/dim]  {note}")
 
     console.print()
@@ -1020,8 +1004,8 @@ def _render_overview() -> None:
             m = MANUAL[k]
             tbl.add_row(
                 k,
-                m["emoji"],
-                m["one_line"],
+                m.get("emoji", ""),
+                m.get("one_line", ""),
             )
         console.print(tbl)
         console.print()
@@ -1054,7 +1038,9 @@ def _save_markdown() -> str:
         lines.append(f"### {group_name}\n")
         for k in keys:
             m = MANUAL[k]
-            lines.append(f"- [{m['emoji']} `vib {k}`](#{k}) — {m['one_line']}\n")
+            emoji = m.get("emoji", "")
+            one_line = m.get("one_line", "")
+            lines.append(f"- [{emoji} `vib {k}`](#{k}) — {one_line}\n")
         lines.append("\n")
 
     lines.append("---\n\n")
@@ -1063,24 +1049,30 @@ def _save_markdown() -> str:
         lines.append(f"## {group_name}\n\n")
         for k in keys:
             m = MANUAL[k]
-            emoji = m["emoji"]
-            lines.append(f"### {emoji} `{m['title']}`\n\n")
-            lines.append(f"> {m['one_line']}\n\n")
-            lines.append(f"**💡 이게 뭐야?**\n\n{m['what']}\n\n")
-            if m["when"]:
+            emoji = m.get("emoji", "")
+            title = m.get("title", f"vib {k}")
+            one_line = m.get("one_line", "")
+            what = m.get("what", "")
+            when = m.get("when", [])
+            examples = m.get("examples", [])
+            options = m.get("options", [])
+            lines.append(f"### {emoji} `{title}`\n\n")
+            lines.append(f"> {one_line}\n\n")
+            lines.append(f"**💡 이게 뭐야?**\n\n{what}\n\n")
+            if when:
                 lines.append("**🕐 언제 써?**\n\n")
-                for w in m["when"]:
+                for w in when:
                     lines.append(f"- {w}\n")
                 lines.append("\n")
-            if m["examples"]:
+            if examples:
                 lines.append("**✏️ 이렇게 쳐봐**\n\n```\n")
-                for cmd, desc in m["examples"]:
+                for cmd, desc in examples:
                     lines.append(f"{cmd}   # {desc}\n")
                 lines.append("```\n\n")
-            if m["options"]:
+            if options:
                 lines.append("**⚙️ 옵션 설명**\n\n")
                 lines.append("| 옵션 | 설명 |\n|------|------|\n")
-                for opt, desc in m["options"]:
+                for opt, desc in options:
                     desc_inline = desc.replace("\n", " ")
                     lines.append(f"| `{opt}` | {desc_inline} |\n")
                 lines.append("\n")
@@ -1089,7 +1081,7 @@ def _save_markdown() -> str:
     content = "".join(lines)
     save_path = "VIBELIGN_MANUAL.md"
     with open(save_path, "w", encoding="utf-8") as f:
-        f.write(content)
+        _ = f.write(content)
     return save_path
 
 
@@ -1098,10 +1090,11 @@ def _save_markdown() -> str:
 # ──────────────────────────────────────────────
 
 
-def run_vib_manual(args) -> None:
-    command = getattr(args, "command_name", None)
-    save = getattr(args, "save", False)
-    all_flag = getattr(args, "all", False)
+def run_vib_manual(args: Namespace) -> None:
+    command_value = getattr(args, "command_name", None)
+    command = command_value if isinstance(command_value, str) else None
+    save = bool(getattr(args, "save", False))
+    all_flag = bool(getattr(args, "all", False))
 
     if save:
         path = _save_markdown()

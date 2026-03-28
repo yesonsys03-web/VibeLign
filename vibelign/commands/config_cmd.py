@@ -1,10 +1,11 @@
 # === ANCHOR: CONFIG_CMD_START ===
+from argparse import Namespace
 import os
 import json
 import getpass
 import urllib.request
 from pathlib import Path
-from typing import Optional
+from typing import Protocol, TypedDict, cast
 
 
 from vibelign.terminal_render import (
@@ -30,7 +31,30 @@ _GEMINI_MODEL_FALLBACKS = [
 ]
 _CLEAR_GEMINI_MODEL = "__CLEAR_GEMINI_MODEL__"
 
-_PROVIDERS = [
+
+class ProviderInfo(TypedDict):
+    id: str
+    label: str
+    key_name: str
+    url: str
+
+
+class GeminiModelInfo(TypedDict, total=False):
+    name: str
+    supportedGenerationMethods: list[str]
+
+
+class GeminiModelsResponse(TypedDict, total=False):
+    models: list[GeminiModelInfo]
+
+
+class ResponseLike(Protocol):
+    def __enter__(self) -> "ResponseLike": ...
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> object: ...
+    def read(self) -> bytes: ...
+
+
+_PROVIDERS: list[ProviderInfo] = [
     {
         "id": "anthropic",
         "label": "Anthropic (Claude)",
@@ -73,11 +97,13 @@ def _get_shell_profile() -> Path:
         profile = Path("~/.bash_profile").expanduser()
         return profile if profile.exists() else Path("~/.bashrc").expanduser()
     return Path("~/.zshrc").expanduser()
+
+
 # === ANCHOR: CONFIG_CMD__GET_SHELL_PROFILE_END ===
 
 
 # === ANCHOR: CONFIG_CMD__SAVE_TO_PROFILE_START ===
-def _save_to_profile(profile: Path, key_name: str, api_key: str):
+def _save_to_profile(profile: Path, key_name: str, api_key: str) -> None:
     """셸 프로파일에 export 라인 추가 (기존 항목 교체)"""
     export_line = f'export {key_name}="{api_key}"'
 
@@ -85,7 +111,7 @@ def _save_to_profile(profile: Path, key_name: str, api_key: str):
         lines = profile.read_text(encoding="utf-8", errors="ignore").splitlines(
             keepends=True
         )
-        new_lines = []
+        new_lines: list[str] = []
         replaced = False
         for line in lines:
             if line.startswith(f"export {key_name}="):
@@ -97,9 +123,11 @@ def _save_to_profile(profile: Path, key_name: str, api_key: str):
             if new_lines and not new_lines[-1].endswith("\n"):
                 new_lines.append("\n")
             new_lines.append(export_line + "\n")
-        profile.write_text("".join(new_lines), encoding="utf-8")
+        _ = profile.write_text("".join(new_lines), encoding="utf-8")
     else:
-        profile.write_text(export_line + "\n", encoding="utf-8")
+        _ = profile.write_text(export_line + "\n", encoding="utf-8")
+
+
 # === ANCHOR: CONFIG_CMD__SAVE_TO_PROFILE_END ===
 
 
@@ -107,10 +135,13 @@ def _save_to_profile(profile: Path, key_name: str, api_key: str):
 def _fetch_gemini_models(api_key: str) -> list[str]:
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
     req = urllib.request.Request(url, method="GET")
-    with urllib.request.urlopen(req, timeout=20) as response:
-        result = json.loads(response.read())
+    response = cast(ResponseLike, urllib.request.urlopen(req, timeout=20))
+    with response:
+        payload_bytes = response.read()
+        payload = payload_bytes.decode("utf-8")
+        result = cast(GeminiModelsResponse, json.loads(payload))
 
-    models = []
+    models: list[str] = []
     for item in result.get("models", []):
         name = item.get("name", "")
         methods = item.get("supportedGenerationMethods", [])
@@ -125,25 +156,27 @@ def _fetch_gemini_models(api_key: str) -> list[str]:
             continue
         models.append(model)
 
-    ordered = []
-    seen = set()
+    ordered: list[str] = []
+    seen: set[str] = set()
     for model in _GEMINI_MODEL_FALLBACKS + sorted(models):
         if model not in seen and model in models:
             ordered.append(model)
             seen.add(model)
     return ordered
+
+
 # === ANCHOR: CONFIG_CMD__FETCH_GEMINI_MODELS_END ===
 
 
 # === ANCHOR: CONFIG_CMD__SELECT_GEMINI_MODEL_START ===
-def _select_gemini_model(api_key: Optional[str], current_model: str) -> Optional[str]:
+def _select_gemini_model(api_key: str | None, current_model: str) -> str | None:
     clack_step("Gemini 모델 설정 (선택사항)")
     if current_model:
         clack_info(f"현재 GEMINI_MODEL: {current_model}")
     else:
         clack_info(f"현재 GEMINI_MODEL: 기본값 사용 ({_DEFAULT_GEMINI_MODEL})")
 
-    models = []
+    models: list[str] = []
     source_label = "기본 추천 목록"
     if api_key:
         try:
@@ -195,11 +228,13 @@ def _select_gemini_model(api_key: Optional[str], current_model: str) -> Optional
 
     clack_warn("잘못된 선택입니다. Gemini 모델 설정을 건너뜁니다.")
     return None
+
+
 # === ANCHOR: CONFIG_CMD__SELECT_GEMINI_MODEL_END ===
 
 
 # === ANCHOR: CONFIG_CMD_RUN_CONFIG_START ===
-def run_config(args):
+def run_config(_args: Namespace) -> None:
     clack_intro("VibeLign API 키 설정")
 
     # 무료 API 안내
@@ -255,7 +290,7 @@ def run_config(args):
 
     # API 키 입력
     print()
-    collected = {}
+    collected: dict[str, str] = {}
     for p in selected:
         api_key = getpass.getpass(
             f"{p['label']} API 키를 입력하세요 (입력 내용은 표시되지 않습니다): "
@@ -311,5 +346,7 @@ def run_config(args):
 
     clack_outro("설정 완료")
     clack_info("이제 'vib ask 파일명'을 실행하면 AI가 바로 설명합니다.")
+
+
 # === ANCHOR: CONFIG_CMD_RUN_CONFIG_END ===
 # === ANCHOR: CONFIG_CMD_END ===

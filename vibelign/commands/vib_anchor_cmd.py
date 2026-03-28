@@ -2,35 +2,80 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional, Set
+from collections.abc import Iterable
+from typing import Callable, cast
 
-from vibelign.core.anchor_tools import (
-    anchor_recommendation_details,
-    collect_anchor_index,
-    collect_anchor_metadata,
-    generate_anchor_intents_with_ai,
-    get_anchor_intent,
-    insert_module_anchors,
-    load_anchor_meta,
-    preview_anchor_targets,
-    recommend_anchor_targets,
-    set_anchor_intent,
-    suggest_anchor_names,
-    validate_anchor_file,
-)
+from vibelign.core import anchor_tools as anchor_tools_mod
 from vibelign.core.meta_paths import MetaPaths
-from vibelign.core.project_map import load_project_map
+from vibelign.core.project_map import ProjectMapSnapshot, load_project_map
 
 
 from vibelign.terminal_render import cli_print
 
 print = cli_print
 
+AnchorIndex = dict[str, list[str]]
+AnchorMetaMap = dict[str, dict[str, object]]
+Recommendation = dict[str, object]
 
-def _allowed_exts(value: str) -> Optional[Set[str]]:
+
+def _collect_anchor_index(root: Path, allowed_exts: set[str] | None) -> AnchorIndex:
+    collect = cast(
+        Callable[[Path, set[str] | None], AnchorIndex],
+        cast(object, anchor_tools_mod.collect_anchor_index),
+    )
+    return collect(root, allowed_exts)
+
+
+def _collect_anchor_metadata(
+    root: Path, allowed_exts: set[str] | None
+) -> dict[str, dict[str, list[str]]]:
+    collect = cast(
+        Callable[[Path, set[str] | None], dict[str, dict[str, list[str]]]],
+        cast(object, anchor_tools_mod.collect_anchor_metadata),
+    )
+    return collect(root, allowed_exts)
+
+
+def _generate_anchor_intents_with_ai(root: Path, anchored: list[Path]) -> int:
+    return anchor_tools_mod.generate_anchor_intents_with_ai(root, anchored)
+
+
+def _insert_module_anchors(path: Path) -> bool:
+    return anchor_tools_mod.insert_module_anchors(path)
+
+
+def _load_anchor_meta(root: Path) -> AnchorMetaMap:
+    load = cast(
+        Callable[[Path], AnchorMetaMap], cast(object, anchor_tools_mod.load_anchor_meta)
+    )
+    return load(root)
+
+
+def _recommend_anchor_targets(
+    root: Path, allowed_exts: set[str] | None, project_map: ProjectMapSnapshot | None
+) -> list[Recommendation]:
+    recommend = cast(
+        Callable[
+            [Path, set[str] | None, ProjectMapSnapshot | None], list[Recommendation]
+        ],
+        cast(object, anchor_tools_mod.recommend_anchor_targets),
+    )
+    return recommend(root, allowed_exts, project_map)
+
+
+def _set_anchor_intent(root: Path, anchor_name: str, intent: str) -> None:
+    _ = anchor_tools_mod.set_anchor_intent(root, anchor_name, intent)
+
+
+def _validate_anchor_file(path: Path) -> Iterable[str]:
+    return cast(Iterable[str], anchor_tools_mod.validate_anchor_file(path))
+
+
+def _allowed_exts(value: str) -> set[str] | None:
     if not value.strip():
         return None
-    normalized = set()
+    normalized: set[str] = set()
     for ext in value.split(","):
         token = ext.strip().lower()
         if not token:
@@ -39,10 +84,13 @@ def _allowed_exts(value: str) -> Optional[Set[str]]:
     return normalized
 
 
-def _update_anchor_state(root: Path, meta: MetaPaths) -> None:
+def _update_anchor_state(_root: Path, meta: MetaPaths) -> None:
     if not meta.state_path.exists():
         return
-    state = json.loads(meta.state_path.read_text(encoding="utf-8"))
+    loaded = cast(object, json.loads(meta.state_path.read_text(encoding="utf-8")))
+    if not isinstance(loaded, dict):
+        return
+    state = cast(dict[str, object], loaded)
     state["last_anchor_run_at"] = datetime.now(timezone.utc).isoformat()
     _ = meta.state_path.write_text(
         json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -50,11 +98,11 @@ def _update_anchor_state(root: Path, meta: MetaPaths) -> None:
 
 
 def _write_anchor_index(
-    root: Path, meta: MetaPaths, allowed_exts: Optional[Set[str]]
-) -> Dict[str, list[str]]:
+    root: Path, meta: MetaPaths, allowed_exts: set[str] | None
+) -> AnchorIndex:
     meta.ensure_vibelign_dirs()
-    index = collect_anchor_index(root, allowed_exts=allowed_exts)
-    metadata = collect_anchor_metadata(root, allowed_exts=allowed_exts)
+    index = _collect_anchor_index(root, allowed_exts)
+    metadata = _collect_anchor_metadata(root, allowed_exts)
     payload = {"schema_version": 1, "anchors": index, "files": metadata}
     _ = meta.anchor_index_path.write_text(
         json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -62,26 +110,42 @@ def _write_anchor_index(
     return index
 
 
-def run_vib_anchor(args: Any) -> None:
+def run_vib_anchor(args: object) -> None:
     root = Path.cwd()
     meta = MetaPaths(root)
-    allowed_exts = _allowed_exts(args.only_ext)
+    only_ext_value = getattr(args, "only_ext", "")
+    only_ext = only_ext_value if isinstance(only_ext_value, str) else ""
+    allowed_exts = _allowed_exts(only_ext)
     project_map, _project_map_error = load_project_map(root)
+    set_intent = getattr(args, "set_intent", None)
+    intent_value = getattr(args, "intent", None)
+    intent = intent_value if isinstance(intent_value, str) else ""
+    auto_intent = bool(getattr(args, "auto_intent", False))
+    list_intent = bool(getattr(args, "list_intent", False))
+    validate = bool(getattr(args, "validate", False))
+    json_mode = bool(getattr(args, "json", False))
+    suggest_mode = bool(getattr(args, "suggest", False))
+    dry_run = bool(getattr(args, "dry_run", False))
+    auto_mode = bool(getattr(args, "auto", False))
 
-    if args.set_intent:
-        if not args.intent:
+    if isinstance(set_intent, str) and set_intent:
+        if not intent:
             print("오류: --intent 옵션으로 의도(intent) 텍스트를 입력하세요.")
-            print("예시: vib anchor --set-intent ANCHOR_NAME --intent \"버튼/레이아웃 UI 구성\"")
+            print(
+                '예시: vib anchor --set-intent ANCHOR_NAME --intent "버튼/레이아웃 UI 구성"'
+            )
             raise SystemExit(1)
-        set_anchor_intent(root, args.set_intent, args.intent)
-        print(f"✅ intent 저장 완료: [{args.set_intent}] → {args.intent}")
+        _set_anchor_intent(root, set_intent, intent)
+        print(f"✅ intent 저장 완료: [{set_intent}] → {intent}")
         return
 
-    if args.auto_intent:
+    if auto_intent:
         from vibelign.core.project_scan import iter_source_files
         from vibelign.core.anchor_tools import extract_anchors
+
         anchored = [
-            path for path in iter_source_files(root)
+            path
+            for path in iter_source_files(root)
             if (allowed_exts is None or path.suffix.lower() in allowed_exts)
             and extract_anchors(path)
         ]
@@ -89,18 +153,20 @@ def run_vib_anchor(args: Any) -> None:
             print("앵커가 있는 파일이 없습니다. 먼저 vib anchor --auto 를 실행하세요.")
             return
         print(f"🤖 AI가 {len(anchored)}개 파일의 앵커 intent를 자동 생성 중...")
-        count = generate_anchor_intents_with_ai(root, anchored)
+        count = _generate_anchor_intents_with_ai(root, anchored)
         if count:
             print(f"✅ intent 등록 완료: {count}개")
         else:
-            print("⚠️  intent 자동 생성 실패 (API 키 확인 또는 vib anchor --set-intent 로 직접 등록)")
+            print(
+                "⚠️  intent 자동 생성 실패 (API 키 확인 또는 vib anchor --set-intent 로 직접 등록)"
+            )
         return
 
-    if args.list_intent:
-        data = load_anchor_meta(root)
+    if list_intent:
+        data = _load_anchor_meta(root)
         if not data:
             print("등록된 intent가 없습니다.")
-            print("등록하려면: vib anchor --set-intent ANCHOR_NAME --intent \"설명\"")
+            print('등록하려면: vib anchor --set-intent ANCHOR_NAME --intent "설명"')
             return
         for anchor, meta_info in sorted(data.items()):
             intent = meta_info.get("intent", "")
@@ -111,14 +177,14 @@ def run_vib_anchor(args: Any) -> None:
             print(line)
         return
 
-    if args.validate:
+    if validate:
         index = _write_anchor_index(root, meta, allowed_exts)
-        problems = []
+        problems: list[str] = []
         for rel in sorted(index):
             path = root / rel
-            for problem in validate_anchor_file(path):
+            for problem in _validate_anchor_file(path):
                 problems.append(f"{rel}: {problem}")
-        if args.json:
+        if json_mode:
             print(
                 json.dumps(
                     {
@@ -142,16 +208,17 @@ def run_vib_anchor(args: Any) -> None:
         print(f"Anchor index saved: {meta.anchor_index_path.relative_to(root)}")
         return
 
-    recommendations = recommend_anchor_targets(
+    recommendations = _recommend_anchor_targets(
         root, allowed_exts=allowed_exts, project_map=project_map
     )
     targets = [root / str(item["path"]) for item in recommendations]
-    if args.suggest or args.dry_run:
+    if suggest_mode or dry_run:
         suggestions = {
-            str(item["path"]): item["suggested_anchors"] for item in recommendations
+            str(item["path"]): cast(list[str], item["suggested_anchors"])
+            for item in recommendations
         }
         _ = _write_anchor_index(root, meta, allowed_exts)
-        if args.json:
+        if json_mode:
             print(
                 json.dumps(
                     {
@@ -175,14 +242,15 @@ def run_vib_anchor(args: Any) -> None:
         for item in recommendations:
             rel = str(item["path"])
             print(f"- {rel}")
-            for reason in list(item["reasons"])[:3]:
+            reasons = cast(list[str], item.get("reasons", []))
+            for reason in reasons[:3]:
                 print(f"  - 이유: {reason}")
             for name in list(suggestions.get(rel, []))[:5]:
                 print(f"  - {name}")
         return
 
-    if not args.auto:
-        if args.json:
+    if not auto_mode:
+        if json_mode:
             print(
                 json.dumps(
                     {
@@ -210,14 +278,14 @@ def run_vib_anchor(args: Any) -> None:
             print(f"- {item['path']}")
         return
 
-    changed = []
+    changed: list[str] = []
     for path in targets:
-        if insert_module_anchors(path):
+        if _insert_module_anchors(path):
             changed.append(str(path.relative_to(root)))
     index = _write_anchor_index(root, meta, allowed_exts)
     _update_anchor_state(root, meta)
 
-    if args.json:
+    if json_mode:
         print(
             json.dumps(
                 {
@@ -235,11 +303,13 @@ def run_vib_anchor(args: Any) -> None:
         for rel in changed:
             print(f"- {rel}")
         print("🤖 AI가 앵커 intent를 자동 생성 중...")
-        count = generate_anchor_intents_with_ai(root, [root / rel for rel in changed])
+        count = _generate_anchor_intents_with_ai(root, [root / rel for rel in changed])
         if count:
             print(f"✅ intent 등록 완료: {count}개")
         else:
-            print("⚠️  intent 자동 생성 실패 (API 키 확인 또는 vib anchor --set-intent 로 직접 등록)")
+            print(
+                "⚠️  intent 자동 생성 실패 (API 키 확인 또는 vib anchor --set-intent 로 직접 등록)"
+            )
     else:
         print("앵커가 필요한 파일이 없습니다.")
     print(f"Anchor index saved: {meta.anchor_index_path.relative_to(root)}")

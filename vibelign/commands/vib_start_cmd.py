@@ -1,8 +1,10 @@
 # === ANCHOR: VIB_START_CMD_START ===
 import json
+from argparse import Namespace
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import cast
 
 from vibelign.commands.export_cmd import (
     AGENTS_MD_CONTENT,
@@ -12,16 +14,11 @@ from vibelign.commands.export_cmd import (
     write_opencode_md,
 )
 from vibelign.core.git_hooks import install_pre_commit_secret_hook
-from vibelign.commands.vib_doctor_cmd import build_doctor_envelope
+from vibelign.core.doctor_v2 import build_doctor_envelope
 from vibelign.core.ai_dev_system import AI_DEV_SYSTEM_CONTENT
-from vibelign.core.hook_setup import (
-    detect_tool,
-    is_hook_set,
-    setup_hook_if_needed,
-    remove_old_hook,
-)
+from vibelign.core.hook_setup import detect_tool, remove_old_hook, setup_hook_if_needed
 from vibelign.core.meta_paths import MetaPaths
-from vibelign.core.project_scan import iter_source_files, line_count, relpath_str
+from vibelign.core.project_scan import iter_source_files
 from vibelign.terminal_render import (
     clack_info,
     clack_intro,
@@ -61,8 +58,8 @@ _TREE_SKIP = {
 
 
 # === ANCHOR: VIB_START_CMD__BUILD_TREE_START ===
-def _build_tree(root: Path) -> List[str]:
-    lines: List[str] = []
+def _build_tree(root: Path) -> list[str]:
+    lines: list[str] = []
 
     # === ANCHOR: VIB_START_CMD__WALK_START ===
     def _walk(path: Path, depth: int) -> None:
@@ -161,8 +158,9 @@ def _status_line(status: str) -> str:
 
 
 # === ANCHOR: VIB_START_CMD__NEXT_STEP_START ===
-def _next_step(data: Dict[str, Any]) -> str:
-    actions = data.get("recommended_actions") or []
+def _next_step(data: dict[str, object]) -> str:
+    raw_actions = data.get("recommended_actions")
+    actions = cast(list[object], raw_actions) if isinstance(raw_actions, list) else []
     if actions:
         return str(actions[0])
     return "vib anchor --suggest"
@@ -195,11 +193,11 @@ def _ensure_gitignore_entry(root: Path) -> None:
     if not lines_to_add:
         return
     if not gitignore_path.exists():
-        gitignore_path.write_text("\n".join(lines_to_add) + "\n", encoding="utf-8")
+        _ = gitignore_path.write_text("\n".join(lines_to_add) + "\n", encoding="utf-8")
         return
     existing = gitignore_path.read_text(encoding="utf-8", errors="ignore")
     suffix = "" if existing.endswith("\n") or not existing else "\n"
-    gitignore_path.write_text(
+    _ = gitignore_path.write_text(
         existing + suffix + "\n".join(lines_to_add) + "\n", encoding="utf-8"
     )
 
@@ -208,29 +206,24 @@ def _ensure_gitignore_entry(root: Path) -> None:
 
 
 # === ANCHOR: VIB_START_CMD__ENSURE_RULE_FILES_START ===
-def _ensure_rule_files(root: Path, overwrite: bool = True) -> Dict[str, List[str]]:
-    created: List[str] = []
-    updated: List[str] = []
+def _ensure_rule_files(root: Path, overwrite: bool = True) -> dict[str, list[str]]:
+    created: list[str] = []
+    updated: list[str] = []
     for fname, content in [
         ("AI_DEV_SYSTEM_SINGLE_FILE.md", AI_DEV_SYSTEM_CONTENT),
         ("AGENTS.md", AGENTS_MD_CONTENT),
     ]:
         path = root / fname
         if not path.exists():
-            path.write_text(content, encoding="utf-8")
+            _ = path.write_text(content, encoding="utf-8")
             created.append(fname)
         elif overwrite:
             backup = root / (fname + "~")
-            backup.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
-            path.write_text(content, encoding="utf-8")
+            _ = backup.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+            _ = path.write_text(content, encoding="utf-8")
             updated.append(fname)
         else:
-            # 파일이 있고 --force 없을 때: VibeLign 섹션이 없으면 append
-            existing = path.read_text(encoding="utf-8", errors="ignore")
-            if "VibeLign" not in existing:
-                separator = "\n\n---\n\n" if existing.strip() else ""
-                path.write_text(existing + separator + content, encoding="utf-8")
-                updated.append(fname)
+            continue
     return {"created": created, "updated": updated}
 
 
@@ -238,36 +231,52 @@ def _ensure_rule_files(root: Path, overwrite: bool = True) -> Dict[str, List[str
 
 
 # === ANCHOR: VIB_START_CMD__BUILD_PROJECT_MAP_START ===
-def _build_project_map(root: Path, force_scan: bool = False) -> Dict[str, Any]:
+def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object]:
     from vibelign.core.meta_paths import MetaPaths
     from vibelign.core.scan_cache import incremental_scan
-    from vibelign.core.project_scan import _UI_TOKENS, _SERVICE_TOKENS, _CORE_TOKENS
+
+    ui_tokens = ["ui", "view", "views", "window", "dialog", "widget", "screen"]
+    service_tokens = [
+        "service",
+        "services",
+        "api",
+        "client",
+        "server",
+        "worker",
+        "job",
+        "task",
+        "queue",
+        "auth",
+        "data",
+    ]
+    core_tokens = ["core", "engine", "patch", "anchor", "guard"]
 
     meta = MetaPaths(root)
     meta.ensure_vibelign_dir()
     scan = incremental_scan(root, meta.scan_cache_path, force=force_scan)
 
-    entry_files: List[str] = []
-    ui_modules: List[str] = []
-    core_modules: List[str] = []
-    service_modules: List[str] = []
-    large_files: List[str] = []
-    anchor_index: Dict[str, Any] = {}
-    files: Dict[str, Any] = {}
+    entry_files: list[str] = []
+    ui_modules: list[str] = []
+    core_modules: list[str] = []
+    service_modules: list[str] = []
+    large_files: list[str] = []
+    anchor_index: dict[str, object] = {}
+    files: dict[str, object] = {}
 
     for rel, data in scan.items():
         low = rel.lower()
-        category = data["category"]
+        category = str(data["category"])
         anchors = data["anchors"]
-        lines = data["line_count"]
+        raw_lines = data["line_count"]
+        lines = raw_lines if isinstance(raw_lines, int) else 0
 
         if category == "entry":
             entry_files.append(rel)
-        if any(t in low for t in _UI_TOKENS):
+        if any(t in low for t in ui_tokens):
             ui_modules.append(rel)
-        if any(t in low for t in _CORE_TOKENS):
+        if any(t in low for t in core_tokens):
             core_modules.append(rel)
-        if any(t in low for t in _SERVICE_TOKENS):
+        if any(t in low for t in service_tokens):
             service_modules.append(rel)
         if lines >= LARGE_FILE_LINE_THRESHOLD:
             large_files.append(rel)
@@ -304,25 +313,33 @@ def _register_mcp_claude(root: Path) -> bool:
 
     if settings_path.exists():
         try:
-            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+            loaded = cast(object, json.loads(settings_path.read_text(encoding="utf-8")))
+            settings = (
+                cast(dict[str, object], loaded) if isinstance(loaded, dict) else {}
+            )
         except (json.JSONDecodeError, OSError):
             # 손상된 파일을 백업하고 새로 시작
             backup = settings_path.with_suffix(".json.bak")
-            settings_path.rename(backup)
+            _ = settings_path.rename(backup)
             clack_warn(
-                f".claude/settings.json 파일이 손상되어 백업했습니다. ({backup.name})\n"
-                "  MCP 등록을 새로 진행합니다."
+                f".claude/settings.json 파일이 손상되어 백업했습니다. ({backup.name})\n  MCP 등록을 새로 진행합니다."
             )
             settings = {}
     else:
         settings = {}
 
-    mcp_servers = settings.setdefault("mcpServers", {})
+    existing_mcp_servers = settings.get("mcpServers")
+    mcp_servers = (
+        cast(dict[str, object], existing_mcp_servers)
+        if isinstance(existing_mcp_servers, dict)
+        else {}
+    )
+    settings["mcpServers"] = mcp_servers
     if "vibelign" in mcp_servers:
         return False
 
     mcp_servers["vibelign"] = {"command": "vibelign-mcp", "args": []}
-    settings_path.write_text(
+    _ = settings_path.write_text(
         json.dumps(settings, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
@@ -336,24 +353,22 @@ def _register_mcp_cursor(root: Path) -> bool:
 
     if settings_path.exists():
         try:
-            loaded = json.loads(settings_path.read_text(encoding="utf-8"))
+            loaded = cast(object, json.loads(settings_path.read_text(encoding="utf-8")))
         except (json.JSONDecodeError, OSError):
             backup = settings_path.with_suffix(".json.bak")
-            settings_path.rename(backup)
+            _ = settings_path.rename(backup)
             clack_warn(
-                f".cursor/mcp.json 파일이 손상되어 백업했습니다. ({backup.name})\n"
-                "  MCP 등록을 새로 진행합니다."
+                f".cursor/mcp.json 파일이 손상되어 백업했습니다. ({backup.name})\n  MCP 등록을 새로 진행합니다."
             )
-            settings: Dict[str, Any] = {}
+            settings: dict[str, object] = {}
         else:
             if isinstance(loaded, dict):
-                settings = loaded
+                settings = cast(dict[str, object], loaded)
             else:
                 backup = settings_path.with_suffix(".json.bak")
-                settings_path.rename(backup)
+                _ = settings_path.rename(backup)
                 clack_warn(
-                    f".cursor/mcp.json 형식이 올바르지 않아 백업했습니다. ({backup.name})\n"
-                    "  MCP 등록을 새로 진행합니다."
+                    f".cursor/mcp.json 형식이 올바르지 않아 백업했습니다. ({backup.name})\n  MCP 등록을 새로 진행합니다."
                 )
                 settings = {}
     else:
@@ -368,7 +383,7 @@ def _register_mcp_cursor(root: Path) -> bool:
         return False
 
     mcp_servers["vibelign"] = {"command": "vibelign-mcp", "args": []}
-    settings_path.write_text(
+    _ = settings_path.write_text(
         json.dumps(settings, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
@@ -378,12 +393,12 @@ def _register_mcp_cursor(root: Path) -> bool:
 # === ANCHOR: VIB_START_CMD__REGISTER_MCP_END ===
 
 
-def _parse_start_tools(raw: Optional[str]) -> List[str]:
+def _parse_start_tools(raw: str | None) -> list[str]:
     if not raw:
         return []
 
-    selected: List[str] = []
-    seen = set()
+    selected: list[str] = []
+    seen: set[str] = set()
     for item in raw.split(","):
         tool = item.strip().lower()
         if not tool:
@@ -397,20 +412,20 @@ def _parse_start_tools(raw: Optional[str]) -> List[str]:
     return selected
 
 
-def _selected_start_tools(args: Any) -> List[str]:
+def _selected_start_tools(args: Namespace) -> list[str]:
     if getattr(args, "all_tools", False):
         return list(START_TOOL_CHOICES)
     return _parse_start_tools(getattr(args, "tools", None))
 
 
 def _configure_start_tools(
-    root: Path, tools: List[str], force: bool = False
-) -> List[str]:
-    created: List[str] = []
+    root: Path, tools: list[str], force: bool = False
+) -> list[str]:
+    created: list[str] = []
 
     for tool in tools:
         if tool == "claude":
-            export_tool_files(root, "claude", overwrite=force)
+            _ = export_tool_files(root, "claude", overwrite=force)
             result = write_claude_md(root)
             if result == "created":
                 created.append("CLAUDE.md")
@@ -421,7 +436,7 @@ def _configure_start_tools(
             continue
 
         if tool == "opencode":
-            export_tool_files(root, "opencode", overwrite=force)
+            _ = export_tool_files(root, "opencode", overwrite=force)
             result = write_opencode_md(root)
             if result == "created":
                 created.append("OPENCODE.md")
@@ -430,7 +445,7 @@ def _configure_start_tools(
             continue
 
         if tool == "cursor":
-            export_tool_files(root, "cursor", overwrite=force)
+            _ = export_tool_files(root, "cursor", overwrite=force)
             result = write_cursorrules(root)
             if result == "created":
                 created.append(".cursorrules")
@@ -441,20 +456,20 @@ def _configure_start_tools(
             continue
 
         if tool == "antigravity":
-            export_tool_files(root, "antigravity", overwrite=force)
+            _ = export_tool_files(root, "antigravity", overwrite=force)
             created.append("vibelign_exports/antigravity/")
             continue
 
         if tool == "codex":
-            export_tool_files(root, "codex", overwrite=force)
+            _ = export_tool_files(root, "codex", overwrite=force)
             created.append("vibelign_exports/codex/")
 
     return created
 
 
-def _tool_readiness(tools: List[str]) -> Dict[str, List[str]]:
-    ready = []
-    almost_ready = []
+def _tool_readiness(tools: list[str]) -> dict[str, list[str]]:
+    ready: list[str] = []
+    almost_ready: list[str] = []
 
     for tool in tools:
         label = TOOL_DISPLAY_NAMES[tool]
@@ -466,7 +481,7 @@ def _tool_readiness(tools: List[str]) -> Dict[str, List[str]]:
     return {"ready": ready, "almost_ready": almost_ready}
 
 
-def _print_tool_readiness_summary(tools: List[str]) -> None:
+def _print_tool_readiness_summary(tools: list[str]) -> None:
     if not tools:
         return
 
@@ -490,7 +505,7 @@ def _print_tool_readiness_summary(tools: List[str]) -> None:
 # === ANCHOR: VIB_START_CMD__SETUP_PROJECT_START ===
 def _setup_project(
     root: Path, meta: MetaPaths, force: bool = False
-) -> Dict[str, List[str]]:
+) -> dict[str, list[str]]:
     """프로젝트 세팅: .vibelign 디렉토리, config, state, project_map, 룰 파일, .gitignore"""
     _ensure_gitignore_entry(root)
     rule_files = _ensure_rule_files(root, overwrite=force)
@@ -499,15 +514,15 @@ def _setup_project(
 
     meta.ensure_vibelign_dirs()
     if not meta.config_path.exists():
-        meta.config_path.write_text(CONFIG_YAML, encoding="utf-8")
+        _ = meta.config_path.write_text(CONFIG_YAML, encoding="utf-8")
 
     quickstart_path = meta.vibelign_dir / "VIBELIGN_QUICKSTART.md"
     if not quickstart_path.exists():
-        quickstart_path.write_text(QUICKSTART_MD, encoding="utf-8")
+        _ = quickstart_path.write_text(QUICKSTART_MD, encoding="utf-8")
         created.append("VIBELIGN_QUICKSTART.md")
 
     project_map = _build_project_map(root)
-    meta.project_map_path.write_text(
+    _ = meta.project_map_path.write_text(
         json.dumps(project_map, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
 
@@ -520,7 +535,7 @@ def _setup_project(
             "last_anchor_run_at": None,
             "last_guard_run_at": None,
         }
-        meta.state_path.write_text(
+        _ = meta.state_path.write_text(
             json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
         created.append(str(meta.vibelign_dir.relative_to(root)) + "/")
@@ -532,7 +547,7 @@ def _setup_project(
 
 
 # === ANCHOR: VIB_START_CMD_RUN_VIB_START_START ===
-def run_vib_start(args: Any) -> None:
+def run_vib_start(args: Namespace) -> None:
     root = Path.cwd()
     meta = MetaPaths(root)
     clack_intro("VibeLign 시작 설정")
@@ -550,7 +565,7 @@ def run_vib_start(args: Any) -> None:
     tool_created = _configure_start_tools(root, selected_tools, force=force)
     if tool_created:
         setup_result["created"].extend(tool_created)
-    setup_changed: Optional[Dict[str, List[str]]] = (
+    setup_changed: dict[str, list[str]] | None = (
         setup_result
         if (is_new or setup_result["created"] or setup_result["updated"])
         else None
@@ -610,9 +625,18 @@ def run_vib_start(args: Any) -> None:
 
     # [5] 고속 도구 자동 설치 제안 (watchdog은 vib watch 실행 시에만 설치 제안)
     from vibelign.core.fast_tools import has_fd, has_rg
-    from vibelign.core.auto_install import try_install_fast_tools, ensure_pyproject_toml
+    from vibelign.core import auto_install as auto_install_mod
 
-    missing_tools = []
+    try_install_fast_tools = cast(
+        Callable[[list[str], object, object, object], None],
+        auto_install_mod.try_install_fast_tools,
+    )
+    ensure_pyproject_toml = cast(
+        Callable[[Path, object, object, object], bool],
+        auto_install_mod.ensure_pyproject_toml,
+    )
+
+    missing_tools: list[str] = []
     if not has_fd():
         missing_tools.append("fd")
     if not has_rg():
@@ -621,10 +645,11 @@ def run_vib_start(args: Any) -> None:
         try_install_fast_tools(missing_tools, clack_info, clack_warn, clack_success)
 
     # [6] pyproject.toml 없으면 생성 제안
-    ensure_pyproject_toml(root, clack_info, clack_warn, clack_success)
+    _ = ensure_pyproject_toml(root, clack_info, clack_warn, clack_success)
 
+    doctor_data = cast(dict[str, object], doctor_data)
     score = doctor_data["project_score"]
-    status = doctor_data["status"]
+    status = str(doctor_data["status"])
     clack_step("프로젝트 상태")
     clack_info(f"점수: {score} / 100")
     clack_info(_status_line(status))
@@ -659,7 +684,7 @@ def run_vib_start(args: Any) -> None:
         clack_info("  나중에 AI가 뭔가 망쳐도 지금 이 시점으로 되돌릴 수 있어요")
         try:
             answer = input("  [Y/n]: ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
+        except (EOFError, KeyboardInterrupt, OSError):
             answer = "n"
         if answer in ("", "y", "yes"):
             import types
@@ -697,8 +722,7 @@ def run_vib_start(args: Any) -> None:
             )
         else:
             clack_warn(
-                "아직 코드 파일이 없어서 앵커를 달 게 없어요. "
-                "코드를 작성한 뒤 vib anchor 를 실행하세요!"
+                "아직 코드 파일이 없어서 앵커를 달 게 없어요. 코드를 작성한 뒤 vib anchor 를 실행하세요!"
             )
 
 

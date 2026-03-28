@@ -1,8 +1,9 @@
 # === ANCHOR: VIB_DOCTOR_CMD_START ===
 import json
+from argparse import Namespace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from vibelign.action_engine.action_planner import generate_plan
 from vibelign.action_engine.executors.action_executor import execute_plan
@@ -26,7 +27,10 @@ print = cli_print
 def _update_doctor_state(meta: MetaPaths) -> None:
     if not meta.state_path.exists():
         return
-    state = json.loads(meta.state_path.read_text(encoding="utf-8"))
+    loaded = cast(object, json.loads(meta.state_path.read_text(encoding="utf-8")))
+    if not isinstance(loaded, dict):
+        return
+    state = cast(dict[str, object], loaded)
     state["last_scan_at"] = datetime.now(timezone.utc).isoformat()
     _ = meta.state_path.write_text(
         json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -39,10 +43,7 @@ def _run_fix(root: Path) -> None:
     from vibelign.core.project_scan import iter_source_files
     from vibelign.terminal_render import clack_info, clack_step, clack_success
 
-    targets = [
-        p for p in iter_source_files(root)
-        if not extract_anchors(p)
-    ]
+    targets = [p for p in iter_source_files(root) if not extract_anchors(p)]
     if not targets:
         clack_info("앵커가 없는 파일이 없어요. 이미 다 표시되어 있어요!")
         return
@@ -55,7 +56,9 @@ def _run_fix(root: Path) -> None:
             clack_info(f"  + {rel}")
             fixed += 1
     if fixed:
-        clack_success(f"앵커 {fixed}개 파일에 추가 완료! vib scan 으로 코드맵도 갱신하세요.")
+        clack_success(
+            f"앵커 {fixed}개 파일에 추가 완료! vib scan 으로 코드맵도 갱신하세요."
+        )
     else:
         clack_info("앵커를 추가할 수 있는 파일이 없었어요.")
 
@@ -71,6 +74,7 @@ def _run_plan(root: Path, strict: bool, as_json: bool) -> None:
 
     if as_json:
         import json as _json
+
         print(_json.dumps(plan.to_dict(), indent=2, ensure_ascii=False))
         return
 
@@ -97,7 +101,12 @@ def _run_plan(root: Path, strict: bool, as_json: bool) -> None:
         lines.extend(["", "⚠️  주의:"])
         for w in plan.warnings:
             lines.append(f"  - {w}")
-    lines.extend(["", "※ 이 계획은 파일을 수정하지 않아요. 적용하려면 vib doctor --apply 를 사용하세요."])
+    lines.extend(
+        [
+            "",
+            "※ 이 계획은 파일을 수정하지 않아요. 적용하려면 vib doctor --apply 를 사용하세요.",
+        ]
+    )
     print_ai_response("\n".join(lines) + "\n")
 
 
@@ -112,10 +121,15 @@ def _run_patch(root: Path, strict: bool, as_json: bool) -> None:
 
     if as_json:
         import json as _json
-        preview_lines = []
+
+        preview_lines: list[object] = []
         for action in plan.actions:
             preview_lines.append(action.to_dict())
-        print(_json.dumps({"ok": True, "plan": plan.to_dict()}, indent=2, ensure_ascii=False))
+        print(
+            _json.dumps(
+                {"ok": True, "plan": plan.to_dict()}, indent=2, ensure_ascii=False
+            )
+        )
         return
 
     preview = generate_patch_preview(plan, root)
@@ -125,7 +139,12 @@ def _run_patch(root: Path, strict: bool, as_json: bool) -> None:
 def _run_apply(root: Path, strict: bool, as_json: bool, force: bool = False) -> None:
     """자동 리팩토링 실행 — checkpoint 생성 후 적용."""
     import json as _json
-    from vibelign.terminal_render import clack_step, clack_success, clack_info, clack_warn
+    from vibelign.terminal_render import (
+        clack_step,
+        clack_success,
+        clack_info,
+        clack_warn,
+    )
 
     def _step(msg: str) -> None:
         if not as_json:
@@ -153,19 +172,36 @@ def _run_apply(root: Path, strict: bool, as_json: bool, force: bool = False) -> 
         return
 
     if as_json:
-        print(_json.dumps({
-            "ok": True,
-            "checkpoint_id": result.checkpoint_id,
-            "done": result.done_count,
-            "manual": result.manual_count,
-            "results": [{"action_type": r.action.action_type, "status": r.status, "detail": r.detail} for r in result.results],
-        }, indent=2, ensure_ascii=False))
+        print(
+            _json.dumps(
+                {
+                    "ok": True,
+                    "checkpoint_id": result.checkpoint_id,
+                    "done": result.done_count,
+                    "manual": result.manual_count,
+                    "results": [
+                        {
+                            "action_type": r.action.action_type,
+                            "status": r.status,
+                            "detail": r.detail,
+                        }
+                        for r in result.results
+                    ],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
         return
 
     print()
-    clack_success(f"완료: {result.done_count}개 자동 적용, {result.manual_count}개 수동 필요")
+    clack_success(
+        f"완료: {result.done_count}개 자동 적용, {result.manual_count}개 수동 필요"
+    )
     if result.checkpoint_id:
-        clack_info(f"복원하려면: vib undo --checkpoint-id {result.checkpoint_id} --force")
+        clack_info(
+            f"복원하려면: vib undo --checkpoint-id {result.checkpoint_id} --force"
+        )
 
     manual_items = [r for r in result.results if r.status == "manual"]
     if manual_items:
@@ -174,60 +210,70 @@ def _run_apply(root: Path, strict: bool, as_json: bool, force: bool = False) -> 
             print(f"  {r.detail}")
 
 
-def run_vib_doctor(args: Any) -> None:
+def run_vib_doctor(args: Namespace) -> None:
     root = Path.cwd()
+    strict = bool(getattr(args, "strict", False))
+    as_json = bool(getattr(args, "json", False))
+    write_report = bool(getattr(args, "write_report", False))
+    fix = bool(getattr(args, "fix", False))
+    detailed = bool(getattr(args, "detailed", False))
+    fix_hints = bool(getattr(args, "fix_hints", False))
+    plan_mode = bool(getattr(args, "plan", False))
+    patch_mode = bool(getattr(args, "patch", False))
+    apply_mode = bool(getattr(args, "apply", False))
+    force = bool(getattr(args, "force", False))
 
-    if getattr(args, "plan", False):
-        _run_plan(root, strict=args.strict, as_json=args.json)
+    if plan_mode:
+        _run_plan(root, strict=strict, as_json=as_json)
         return
 
-    if getattr(args, "patch", False):
-        _run_patch(root, strict=args.strict, as_json=args.json)
+    if patch_mode:
+        _run_patch(root, strict=strict, as_json=as_json)
         return
 
-    if getattr(args, "apply", False):
-        _run_apply(root, strict=args.strict, as_json=args.json, force=getattr(args, "force", False))
+    if apply_mode:
+        _run_apply(root, strict=strict, as_json=as_json, force=force)
         return
 
-    envelope = build_doctor_envelope(root, strict=args.strict)
-    report = envelope["data"]
+    envelope = build_doctor_envelope(root, strict=strict)
+    report = cast(dict[str, object], envelope["data"])
     meta = MetaPaths(root)
     _update_doctor_state(meta)
 
-    if args.json:
+    if as_json:
         text = render_doctor_json(envelope)
         print(text)
-        if args.write_report:
+        if write_report:
             meta.ensure_vibelign_dirs()
             _ = meta.report_path("doctor", "json").write_text(
                 text + "\n", encoding="utf-8"
             )
-        if args.strict and report["status"] in {"Risky", "High Risk"}:
+        if strict and report["status"] in {"Risky", "High Risk"}:
             raise SystemExit(1)
         return
 
     report_obj = DoctorV2Report(
-        project_score=report["project_score"],
-        status=report["status"],
-        anchor_coverage=report["anchor_coverage"],
-        stats=report["stats"],
-        issues=report["issues"],
-        recommended_actions=report["recommended_actions"],
+        project_score=cast(int, report["project_score"]),
+        status=cast(str, report["status"]),
+        anchor_coverage=cast(int, report["anchor_coverage"]),
+        stats=cast(dict[str, object], report["stats"]),
+        issues=cast(list[dict[str, object]], report["issues"]),
+        recommended_actions=cast(list[str], report["recommended_actions"]),
     )
     markdown = render_doctor_markdown(
         report=report_obj,
-        detailed=args.detailed,
-        fix_hints=args.fix_hints,
+        detailed=detailed,
+        fix_hints=fix_hints,
     )
     print_ai_response(markdown)
 
-    if getattr(args, "fix", False):
+    if fix:
         _run_fix(root)
 
-    if args.write_report:
+    if write_report:
         meta.ensure_vibelign_dirs()
         _ = meta.report_path("doctor", "md").write_text(markdown, encoding="utf-8")
-    if args.strict and report["status"] in {"Risky", "High Risk"}:
+    if strict and report["status"] in {"Risky", "High Risk"}:
         raise SystemExit(1)
 
 
