@@ -1,8 +1,8 @@
 # === ANCHOR: VIB_UNDO_CMD_START ===
+from argparse import Namespace
 import json
 import re
 from pathlib import Path
-from typing import Any
 
 from vibelign.core.local_checkpoints import (
     friendly_time,
@@ -32,16 +32,21 @@ def _clean_msg(msg: str) -> str:
     return msg or "(메시지 없음)"
 
 
-def run_vib_undo(args: Any) -> None:
+def run_vib_undo(args: Namespace) -> None:
     root = Path.cwd()
-    as_json: bool = getattr(args, "json", False)
-    checkpoint_id: str | None = getattr(args, "checkpoint_id", None)
-    force: bool = getattr(args, "force", False)
+    as_json = bool(getattr(args, "json", False))
+    checkpoint_id_value = getattr(args, "checkpoint_id", None)
+    checkpoint_id = (
+        checkpoint_id_value if isinstance(checkpoint_id_value, str) else None
+    )
+    force = bool(getattr(args, "force", False))
 
     checkpoints = list_checkpoints(root)
     if not checkpoints:
         if as_json:
-            print(json.dumps({"ok": False, "error": "no_checkpoints"}, ensure_ascii=False))
+            print(
+                json.dumps({"ok": False, "error": "no_checkpoints"}, ensure_ascii=False)
+            )
         else:
             print("저장된 체크포인트가 없습니다.")
             print("먼저 `vib checkpoint`로 현재 상태를 저장하세요.")
@@ -49,10 +54,21 @@ def run_vib_undo(args: Any) -> None:
 
     # --checkpoint-id 지정 시 대화형 선택 생략
     if checkpoint_id:
-        matched = next((cp for cp in checkpoints if cp.checkpoint_id == checkpoint_id), None)
+        matched = next(
+            (cp for cp in checkpoints if cp.checkpoint_id == checkpoint_id), None
+        )
         if matched is None:
             if as_json:
-                print(json.dumps({"ok": False, "error": "checkpoint_not_found", "checkpoint_id": checkpoint_id}, ensure_ascii=False))
+                print(
+                    json.dumps(
+                        {
+                            "ok": False,
+                            "error": "checkpoint_not_found",
+                            "checkpoint_id": checkpoint_id,
+                        },
+                        ensure_ascii=False,
+                    )
+                )
             else:
                 print(f"checkpoint_id '{checkpoint_id}'를 찾을 수 없습니다.")
             return
@@ -111,18 +127,28 @@ def run_vib_undo(args: Any) -> None:
 
     if restore_checkpoint(root, target.checkpoint_id):
         if as_json:
-            print(json.dumps({
-                "ok": True,
-                "checkpoint_id": target.checkpoint_id,
-                "message": msg,
-                "restored_at": time_label,
-            }, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {
+                        "ok": True,
+                        "checkpoint_id": target.checkpoint_id,
+                        "message": msg,
+                        "restored_at": time_label,
+                    },
+                    ensure_ascii=False,
+                )
+            )
         else:
             print(f"✓ [{time_label}] 시점으로 되돌렸습니다!")
     else:
         error = get_last_restore_error()
         if as_json:
-            print(json.dumps({"ok": False, "error": error or "restore_failed"}, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {"ok": False, "error": error or "restore_failed"},
+                    ensure_ascii=False,
+                )
+            )
         else:
             print(f"되돌리기 실패: {error}")
 

@@ -3,11 +3,12 @@
 
 from __future__ import annotations
 
-import os
+import json
 import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from typing import Protocol, TypedDict, cast
 
 from vibelign.core.local_checkpoints import list_checkpoints, friendly_time
 from vibelign.terminal_render import (
@@ -88,6 +89,115 @@ _KEY_FILE_NAMES = {
 _HANDOFF_SKIP_PREFIXES = (".vibelign", ".git", "__pycache__")
 
 
+class CheckpointSummary(TypedDict):
+    time: str
+    message: str
+    id: str
+
+
+class DecisionContext(TypedDict):
+    tried: str
+    blocked_by: str
+    switched_to: str
+
+
+class HandoffData(TypedDict, total=False):
+    generated_at: str
+    source: str
+    quality: str
+    session_summary: str | None
+    changed_files: list[str]
+    completed_work: str | None
+    unfinished_work: str | None
+    first_next_action: str | None
+    decision_context: DecisionContext | None
+    latest_checkpoint: str | None
+
+
+class TransferArgs(Protocol):
+    compact: bool
+    full: bool
+    handoff: bool
+    no_prompt: bool
+    print_mode: bool
+    dry_run: bool
+    out: str | None
+
+
+_TIMESTAMP_PATTERN = re.compile(r"\s*\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)\s*$")
+
+
+def _clean_checkpoint_message(msg: str) -> str:
+    for prefix in ("vibelign: checkpoint - ", "vibelign: checkpoint"):
+        if msg.startswith(prefix):
+            msg = msg[len(prefix) :]
+            break
+    msg = _TIMESTAMP_PATTERN.sub("", msg).strip()
+    if msg.startswith("{") or len(msg) > 200:
+        return "(자동 저장)"
+    return msg or "(메시지 없음)"
+
+
+def _read_json_object(path: Path) -> dict[str, object] | None:
+    try:
+        raw_obj = cast(object, json.loads(path.read_text(encoding="utf-8")))
+    except Exception:
+        return None
+    if not isinstance(raw_obj, dict):
+        return None
+    raw = cast(dict[object, object], raw_obj)
+    normalized: dict[str, object] = {}
+    for key, value in raw.items():
+        normalized[str(key)] = value
+    return normalized
+
+
+def _normalize_object_dict(value: object) -> dict[str, object] | None:
+    if not isinstance(value, dict):
+        return None
+    raw = cast(dict[object, object], value)
+    normalized: dict[str, object] = {}
+    for key, item in raw.items():
+        normalized[str(key)] = item
+    return normalized
+
+
+def _handoff_text(value: object, default: str = "(not provided)") -> str:
+    return value if isinstance(value, str) and value else default
+
+
+def _handoff_files(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    raw_items = cast(list[object], value)
+    items: list[str] = []
+    for item in raw_items:
+        if isinstance(item, str):
+            items.append(item)
+    return items
+
+
+def _handoff_decision_context(value: object) -> DecisionContext | None:
+    normalized = _normalize_object_dict(value)
+    if normalized is None:
+        return None
+    return {
+        "tried": _handoff_text(normalized.get("tried")),
+        "blocked_by": _handoff_text(normalized.get("blocked_by")),
+        "switched_to": _handoff_text(normalized.get("switched_to")),
+    }
+
+
+def _arg_bool(args: object, name: str) -> bool:
+    value = getattr(args, name, False)
+    return value if isinstance(value, bool) else False
+
+
+def _arg_text(args: object, name: str) -> str | None:
+    value = getattr(args, name, None)
+    return value if isinstance(value, str) else None
+
+
 def _get_changed_files(root: Path) -> list[str]:
     """git 상태에서 변경된 파일 목록 수집 (최대 10개)."""
     files: list[str] = []
@@ -142,14 +252,10 @@ def _detect_project_name(root: Path) -> str:
     # package.json에서 name 읽기
     pkg_json = root / "package.json"
     if pkg_json.exists():
-        import json
-
-        try:
-            data = json.loads(pkg_json.read_text(encoding="utf-8"))
-            if "name" in data:
-                return data["name"]
-        except Exception:
-            pass
+        data = _read_json_object(pkg_json)
+        name = data.get("name") if data is not None else None
+        if isinstance(name, str):
+            return name
 
     # 폴더 이름 사용
     return root.name
@@ -157,7 +263,7 @@ def _detect_project_name(root: Path) -> str:
 
 def _detect_tech_stack(root: Path) -> list[str]:
     """기술 스택 자동 감지."""
-    stack = []
+    stack: list[str] = []
     if (root / "pyproject.toml").exists() or (root / "setup.py").exists():
         stack.append("Python")
     if (root / "package.json").exists():
@@ -184,9 +290,9 @@ def _detect_tech_stack(root: Path) -> list[str]:
 
 def _build_file_tree(root: Path, max_depth: int = 3) -> str:
     """파일 트리 생성 (핵심 파일만, 최대 깊이 제한)."""
-    lines = []
+    lines: list[str] = []
 
-    def _walk(path: Path, prefix: str, depth: int):
+    def _walk(path: Path, prefix: str, depth: int) -> None:
         if depth > max_depth:
             return
         try:
@@ -216,19 +322,17 @@ def _build_file_tree(root: Path, max_depth: int = 3) -> str:
     return "\n".join(lines)
 
 
-def _get_recent_checkpoints(root: Path, n: int = 5) -> list[dict]:
+def _get_recent_checkpoints(root: Path, n: int = 5) -> list[CheckpointSummary]:
     """최근 N개 체크포인트 가져오기."""
     try:
-        from vibelign.commands.vib_history_cmd import _clean_msg
-
         checkpoints = list_checkpoints(root)
         recent = checkpoints[:n]  # 최신 순 (list_checkpoints는 이미 최신순)
-        result = []
+        result: list[CheckpointSummary] = []
         for cp in recent:
             result.append(
                 {
                     "time": friendly_time(cp.created_at),
-                    "message": _clean_msg(cp.message),
+                    "message": _clean_checkpoint_message(cp.message),
                     "id": cp.checkpoint_id,
                 }
             )
@@ -260,7 +364,7 @@ def _read_agents_md(root: Path) -> str:
 
 def _detect_run_commands(root: Path) -> list[str]:
     """실행 방법 자동 감지."""
-    commands = []
+    commands: list[str] = []
 
     # Python
     if (root / "pyproject.toml").exists():
@@ -271,16 +375,15 @@ def _detect_run_commands(root: Path) -> list[str]:
     # Node
     if (root / "package.json").exists():
         pkg = root / "package.json"
-        try:
-            import json
-
-            data = json.loads(pkg.read_text(encoding="utf-8"))
-            scripts = data.get("scripts", {})
-            if "dev" in scripts:
+        data = _read_json_object(pkg)
+        scripts = data.get("scripts") if data is not None else None
+        normalized_scripts = _normalize_object_dict(scripts)
+        if normalized_scripts is not None:
+            if "dev" in normalized_scripts:
                 commands.append("npm run dev")
-            elif "start" in scripts:
+            elif "start" in normalized_scripts:
                 commands.append("npm start")
-        except Exception:
+        else:
             commands.append("npm install && npm start")
 
     if not commands:
@@ -294,7 +397,7 @@ def _estimate_tokens(text: str) -> int:
     return len(text) // 4
 
 
-def _build_handoff_block(data: dict) -> str:
+def _build_handoff_block(data: HandoffData) -> str:
     """Session Handoff 블록 생성 (12줄 이하, 5 bullets 이하 목표)."""
     lines: list[str] = []
     lines.append("## Session Handoff")
@@ -302,11 +405,15 @@ def _build_handoff_block(data: dict) -> str:
         "> ⚠️ This block is session-specific and time-sensitive. Read this first."
     )
     lines.append("")
-    lines.append(f"Generated: {data.get('generated_at', '')}")
-    lines.append(f"Handoff source: {data.get('source', 'file_fallback')}")
-    lines.append(f"Handoff quality: {data.get('quality', 'auto-drafted')}")
+    lines.append(f"Generated: {_handoff_text(data.get('generated_at'), '')}")
+    lines.append(
+        f"Handoff source: {_handoff_text(data.get('source'), 'file_fallback')}"
+    )
+    lines.append(
+        f"Handoff quality: {_handoff_text(data.get('quality'), 'auto-drafted')}"
+    )
 
-    cp_ref = data.get("latest_checkpoint") or "(not provided)"
+    cp_ref = _handoff_text(data.get("latest_checkpoint"))
     lines.append(f"Latest checkpoint: {cp_ref}")
     lines.append("")
 
@@ -324,10 +431,10 @@ def _build_handoff_block(data: dict) -> str:
     lines.append("")
 
     # Bullet section (max 5)
-    summary = data.get("session_summary") or "(not provided)"
+    summary = _handoff_text(data.get("session_summary"))
     lines.append(f"- Today's work: {summary}")
 
-    changed = data.get("changed_files") or []
+    changed = _handoff_files(data.get("changed_files"))
     if changed:
         files_str = ", ".join(f"`{f}`" for f in changed[:5])
         if len(changed) > 5:
@@ -336,17 +443,17 @@ def _build_handoff_block(data: dict) -> str:
     else:
         lines.append("- Changed files: (not provided)")
 
-    completed = data.get("completed_work") or "(not provided)"
+    completed = _handoff_text(data.get("completed_work"))
     lines.append(f"- Completed work: {completed}")
 
-    unfinished = data.get("unfinished_work") or "(not provided)"
+    unfinished = _handoff_text(data.get("unfinished_work"))
     lines.append(f"- Unfinished work: {unfinished}")
 
-    next_action = data.get("first_next_action") or "(not provided)"
+    next_action = _handoff_text(data.get("first_next_action"))
     lines.append(f"- Next action: {next_action}")
 
     # Decision context (optional)
-    dc = data.get("decision_context")
+    dc = _handoff_decision_context(data.get("decision_context"))
     if dc:
         lines.append("")
         lines.append("Decision context")
@@ -362,7 +469,7 @@ def _build_context_content(
     root: Path,
     compact: bool = False,
     full: bool = False,
-    handoff_data: dict | None = None,
+    handoff_data: HandoffData | None = None,
 ) -> str:
     """PROJECT_CONTEXT.md 내용 생성."""
 
@@ -494,24 +601,24 @@ def _get_recent_commits(root: Path, n: int = 5) -> list[str]:
         return []
 
 
-def _handoff_quality(data: dict) -> tuple[str, str]:
+def _handoff_quality(data: HandoffData) -> tuple[str, str]:
     """handoff 완성도 평가. (이모지, 메시지) 반환."""
     score = 0
-    missing = []
+    missing: list[str] = []
 
-    summary = data.get("session_summary")
+    summary = _handoff_text(data.get("session_summary"), "")
     if summary and summary != "(not provided)":
         score += 40
     else:
         missing.append("오늘 한 작업 요약")
 
-    next_action = data.get("first_next_action")
+    next_action = _handoff_text(data.get("first_next_action"), "")
     if next_action and next_action != "(not provided)":
         score += 40
     else:
         missing.append("다음 AI가 할 일")
 
-    if data.get("changed_files"):
+    if _handoff_files(data.get("changed_files")):
         score += 20
 
     if score >= 80:
@@ -546,19 +653,19 @@ def _inject_agents_handoff_instruction(root: Path) -> None:
     text = agents_path.read_text(encoding="utf-8")
     if _AGENTS_HANDOFF_MARKER in text:
         return  # 이미 있음
-    agents_path.write_text(
+    _ = agents_path.write_text(
         text.rstrip() + "\n\n" + _AGENTS_HANDOFF_BLOCK, encoding="utf-8"
     )
 
 
-def _collect_handoff_data_from_cli(root: Path, no_prompt: bool) -> dict:
+def _collect_handoff_data_from_cli(root: Path, no_prompt: bool) -> HandoffData:
     """CLI 경로(파일 기반 폴백)로 handoff_data 수집."""
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
     changed_files = _get_changed_files(root)
     checkpoints = _get_recent_checkpoints(root, n=1)
     latest_cp = checkpoints[0]["message"] if checkpoints else None
 
-    data: dict = {
+    data: HandoffData = {
         "generated_at": now_str,
         "source": "file_fallback",
         "quality": "auto-drafted",
@@ -654,18 +761,18 @@ def _collect_handoff_data_from_cli(root: Path, no_prompt: bool) -> dict:
     return data
 
 
-def run_transfer(args) -> None:
+def run_transfer(args: object) -> None:
     """vib transfer 실행."""
     clack_intro("VibeLign Transfer")
 
     root = Path.cwd()
-    compact = getattr(args, "compact", False)
-    full = getattr(args, "full", False)
-    handoff = getattr(args, "handoff", False)
-    no_prompt = getattr(args, "no_prompt", False)
-    print_mode = getattr(args, "print_mode", False)
-    dry_run = getattr(args, "dry_run", False)
-    out_file = getattr(args, "out", None) or "PROJECT_CONTEXT.md"
+    compact = _arg_bool(args, "compact")
+    full = _arg_bool(args, "full")
+    handoff = _arg_bool(args, "handoff")
+    no_prompt = _arg_bool(args, "no_prompt")
+    print_mode = _arg_bool(args, "print_mode")
+    dry_run = _arg_bool(args, "dry_run")
+    out_file = _arg_text(args, "out") or "PROJECT_CONTEXT.md"
     out_path = root / out_file
 
     # --handoff와 --compact/--full 동시 사용 불가
@@ -700,7 +807,7 @@ def run_transfer(args) -> None:
         clack_outro("dry-run 완료 — 실제 저장하려면 --dry-run 없이 실행하세요.")
         return
 
-    out_path.write_text(content, encoding="utf-8")
+    _ = out_path.write_text(content, encoding="utf-8")
 
     if handoff:
         _inject_agents_handoff_instruction(root)

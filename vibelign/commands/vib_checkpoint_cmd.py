@@ -1,18 +1,42 @@
 # === ANCHOR: VIB_CHECKPOINT_CMD_START ===
+import importlib
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Protocol, cast
 
-from vibelign.core.local_checkpoints import create_checkpoint, list_checkpoints, friendly_time
-from vibelign.core.meta_paths import MetaPaths
+from vibelign.core.local_checkpoints import (
+    create_checkpoint,
+    list_checkpoints,
+)
 
 
 from vibelign.terminal_render import cli_print
+
 print = cli_print
 
 
-def _checkpoint_to_dict(cp: Any) -> dict:
+class CheckpointLike(Protocol):
+    checkpoint_id: str
+    message: str
+    created_at: str
+    pinned: bool
+    file_count: int
+    pruned_count: int
+    pruned_bytes: int
+
+
+class TransferBuilder(Protocol):
+    def __call__(
+        self,
+        root: Path,
+        compact: bool = False,
+        full: bool = False,
+        handoff_data: dict[str, object] | None = None,
+    ) -> str: ...
+
+
+def _checkpoint_to_dict(cp: CheckpointLike) -> dict[str, object]:
     return {
         "checkpoint_id": cp.checkpoint_id,
         "message": cp.message,
@@ -22,21 +46,30 @@ def _checkpoint_to_dict(cp: Any) -> dict:
     }
 
 
-def run_vib_checkpoint(args: Any) -> None:
+def run_vib_checkpoint(args: object) -> None:
     root = Path.cwd()
-    as_json: bool = getattr(args, "json", False)
+    as_json = bool(getattr(args, "json", False))
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     # `vib checkpoint list [--json]` 처리
-    message_parts = args.message if args.message else []
-    if message_parts and message_parts[0].lower() == "list":
+    message_value = getattr(args, "message", [])
+    message_parts = (
+        cast(list[object], message_value) if isinstance(message_value, list) else []
+    )
+    first_part = message_parts[0] if message_parts else None
+    if isinstance(first_part, str) and first_part.lower() == "list":
         checkpoints = list_checkpoints(root)
         if as_json:
-            print(json.dumps(
-                {"ok": True, "checkpoints": [_checkpoint_to_dict(cp) for cp in checkpoints]},
-                indent=2,
-                ensure_ascii=False,
-            ))
+            print(
+                json.dumps(
+                    {
+                        "ok": True,
+                        "checkpoints": [_checkpoint_to_dict(cp) for cp in checkpoints],
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+            )
         else:
             if not checkpoints:
                 print("저장된 체크포인트가 없습니다.")
@@ -44,13 +77,12 @@ def run_vib_checkpoint(args: Any) -> None:
             for i, cp in enumerate(checkpoints):
                 marker = "  ◀ 최근" if i == 0 else ""
                 pin = " [보호]" if cp.pinned else ""
-                time_label = friendly_time(cp.created_at)
                 print(f"  [{i + 1:2}]  {cp.checkpoint_id}  {cp.message}{pin}{marker}")
         return
 
     # 메시지 처리 — input() 없이 동작
     if message_parts:
-        user_msg = " ".join(message_parts).strip()
+        user_msg = " ".join(str(part) for part in message_parts).strip()
     else:
         user_msg = ""
 
@@ -71,24 +103,40 @@ def run_vib_checkpoint(args: Any) -> None:
     context_updated = False
     handoff_warning = False
     try:
-        from vibelign.commands.vib_transfer_cmd import _build_context_content
+        build_context_content = cast(
+            TransferBuilder,
+            getattr(
+                cast(
+                    object,
+                    importlib.import_module("vibelign.commands.vib_transfer_cmd"),
+                ),
+                "_build_context_content",
+            ),
+        )
         ctx_path = root / "PROJECT_CONTEXT.md"
-        if ctx_path.exists() and "## Session Handoff" in ctx_path.read_text(encoding="utf-8"):
+        if ctx_path.exists() and "## Session Handoff" in ctx_path.read_text(
+            encoding="utf-8"
+        ):
             handoff_warning = True
-        ctx_path.write_text(_build_context_content(root), encoding="utf-8")
+        _ = ctx_path.write_text(build_context_content(root), encoding="utf-8")
         context_updated = True
     except Exception:
         pass
 
     if as_json:
-        print(json.dumps({
-            "ok": True,
-            "message": user_msg or "(메시지 없음)",
-            "file_count": summary.file_count,
-            "pruned_count": summary.pruned_count,
-            "context_updated": context_updated,
-            "handoff_warning": handoff_warning,
-        }, ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "message": user_msg or "(메시지 없음)",
+                    "file_count": summary.file_count,
+                    "pruned_count": summary.pruned_count,
+                    "context_updated": context_updated,
+                    "handoff_warning": handoff_warning,
+                },
+                ensure_ascii=False,
+            )
+        )
         return
 
     display_msg = user_msg if user_msg else "(메시지 없음)"
@@ -97,7 +145,9 @@ def run_vib_checkpoint(args: Any) -> None:
     print(f"  파일 수: {summary.file_count}개")
     if summary.pruned_count:
         freed_kb = max(1, round(summary.pruned_bytes / 1024))
-        print(f"  오래된 체크포인트 {summary.pruned_count}개를 정리했고, 약 {freed_kb}KB를 비웠어요.")
+        print(
+            f"  오래된 체크포인트 {summary.pruned_count}개를 정리했고, 약 {freed_kb}KB를 비웠어요."
+        )
     if handoff_warning:
         print("  ⚠️  handoff 블록이 있었는데 체크포인트로 덮어써집니다.")
         print("     AI 전환 전에 다시 `vib transfer --handoff`를 실행하세요.")

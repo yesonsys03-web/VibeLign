@@ -2,13 +2,14 @@
 import json
 import importlib
 import re
+from argparse import Namespace
 from pathlib import Path
-from typing import Any, Dict, Optional, cast
+from typing import Protocol, cast
 
 from vibelign.core.anchor_tools import extract_anchor_line_ranges
 from vibelign.core import PatchContract
 from vibelign.core import PatchPlan
-from vibelign.core.codespeak import build_codespeak, parse_codespeak_v0
+from vibelign.core.codespeak import CodeSpeakResult, build_codespeak, parse_codespeak_v0
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.patch_suggester import resolve_target_for_role
 from vibelign.core.patch_suggester import suggest_patch_for_role
@@ -20,6 +21,62 @@ from vibelign.terminal_render import cli_print
 from vibelign.terminal_render import print_ai_response
 
 print = cli_print
+
+JsonScalar = str | int | float | bool | None
+JsonValue = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+JsonObject = dict[str, JsonValue]
+
+
+class SuggestionLike(Protocol):
+    target_file: str
+    target_anchor: str
+    confidence: str
+    rationale: list[str]
+
+
+class AIExplainLike(Protocol):
+    def has_ai_provider(self) -> bool: ...
+
+
+class AICodeSpeakLike(Protocol):
+    def enhance_codespeak_with_ai(
+        self,
+        request: str,
+        rule_result: object,
+        quiet: bool = False,
+    ) -> object | None: ...
+
+
+def _coerce_json_value(value: object) -> JsonValue:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, list):
+        return [_coerce_json_value(item) for item in cast(list[object], value)]
+    if isinstance(value, dict):
+        return {
+            str(key): _coerce_json_value(item)
+            for key, item in cast(dict[object, object], value).items()
+        }
+    return str(value)
+
+
+def _coerce_json_object(value: object) -> JsonObject | None:
+    if not isinstance(value, dict):
+        return None
+    return {
+        str(key): _coerce_json_value(item)
+        for key, item in cast(dict[object, object], value).items()
+    }
+
+
+def _destination_field(
+    suggestion: SuggestionLike | None,
+    field_name: str,
+) -> str | None:
+    if suggestion is None:
+        return None
+    value = getattr(suggestion, field_name, None)
+    return value if isinstance(value, str) else None
 
 
 _HANDOFF_INJECTION_PATTERNS = [
@@ -44,15 +101,15 @@ def _copy_to_clipboard(text: str) -> None:
     try:
         if sys.platform == "darwin":
             proc = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
-            proc.communicate(text.encode("utf-8"))
+            _ = proc.communicate(text.encode("utf-8"))
         elif sys.platform.startswith("linux"):
             proc = subprocess.Popen(
                 ["xclip", "-selection", "clipboard"], stdin=subprocess.PIPE
             )
-            proc.communicate(text.encode("utf-8"))
+            _ = proc.communicate(text.encode("utf-8"))
         elif sys.platform == "win32":
             proc = subprocess.Popen(["clip"], stdin=subprocess.PIPE)
-            proc.communicate(text.encode("utf-16le"))
+            _ = proc.communicate(text.encode("utf-16le"))
         else:
             from vibelign.terminal_render import clack_warn
 
@@ -97,7 +154,7 @@ def _target_anchor_status(target_anchor: str) -> str:
     return "ok"
 
 
-def _target_anchor_name(target_anchor: str) -> Optional[str]:
+def _target_anchor_name(target_anchor: str) -> str | None:
     if target_anchor.startswith("[추천 앵커: ") and target_anchor.endswith("]"):
         return target_anchor[len("[추천 앵커: ") : -1]
     status = _target_anchor_status(target_anchor)
@@ -118,13 +175,13 @@ def _preconditions(target_file: str, target_anchor: str) -> list[str]:
     conditions = [f"허용된 파일은 `{target_file}` 하나뿐이어야 합니다."]
     anchor_status = _target_anchor_status(target_anchor)
     anchor_name = _target_anchor_name(target_anchor) or ""
-    if anchor_status == "ok" and anchor_name is not None:
+    if anchor_status == "ok" and anchor_name:
         conditions.append(
             f"`{anchor_name}` 안전 구역이 현재 파일에 실제로 있어야 합니다."
         )
     elif anchor_status == "missing":
         conditions.append("실행 전에 먼저 앵커를 추가해야 합니다.")
-    elif anchor_status == "suggested" and anchor_name is not None:
+    elif anchor_status == "suggested" and anchor_name:
         conditions.append(
             f"실행 전에 추천 앵커 `{anchor_name}` 를 먼저 만들어야 합니다."
         )
@@ -132,12 +189,14 @@ def _preconditions(target_file: str, target_anchor: str) -> list[str]:
 
 
 def _augment_clarifying_questions(
-    patch_plan: Dict[str, Any], file_status: str, anchor_status: str
+    patch_plan: dict[str, object], file_status: str, anchor_status: str
 ) -> list[str]:
+    raw_questions = patch_plan.get("clarifying_questions", [])
+    question_items = (
+        cast(list[object], raw_questions) if isinstance(raw_questions, list) else []
+    )
     questions = [
-        str(item)
-        for item in patch_plan.get("clarifying_questions", [])
-        if isinstance(item, str) and item.strip()
+        str(item) for item in question_items if isinstance(item, str) and item.strip()
     ]
     target_file = str(patch_plan.get("target_file", ""))
     target_anchor = str(patch_plan.get("target_anchor", ""))
@@ -173,12 +232,16 @@ def _augment_clarifying_questions(
 
 
 def _build_ready_handoff(
-    contract: Dict[str, Any], patch_plan: Dict[str, Any]
-) -> Dict[str, Any]:
+    contract: dict[str, object], patch_plan: dict[str, object]
+) -> dict[str, object]:
     root = Path.cwd()
     meta = MetaPaths(root)
 
-    prompt_lines = []
+    prompt_lines: list[str | None] = []
+    allowed_ops = cast(list[object], contract.get("allowed_ops", []))
+    constraints = cast(list[object], patch_plan.get("constraints", []))
+    scope = cast(dict[str, object], contract.get("scope", {}))
+    verification = cast(dict[str, object], contract.get("verification", {}))
 
     # 앵커 메타 정보가 있으면 target_anchor의 intent/connects/warning 포함
     anchor_name = str(patch_plan.get("target_anchor", ""))
@@ -186,13 +249,24 @@ def _build_ready_handoff(
         anchor_meta_path = meta.vibelign_dir / "anchor_meta.json"
         if anchor_meta_path.exists():
             try:
-                anchor_meta = json.loads(anchor_meta_path.read_text(encoding="utf-8"))
-                meta_entry = anchor_meta.get(anchor_name, {})
+                loaded = cast(
+                    object, json.loads(anchor_meta_path.read_text(encoding="utf-8"))
+                )
+                anchor_meta = (
+                    cast(dict[str, object], loaded) if isinstance(loaded, dict) else {}
+                )
+                meta_entry_raw = anchor_meta.get(anchor_name, {})
+                meta_entry = (
+                    cast(dict[str, object], meta_entry_raw)
+                    if isinstance(meta_entry_raw, dict)
+                    else {}
+                )
                 if meta_entry.get("intent"):
                     prompt_lines.append(f"Anchor intent: {meta_entry['intent']}")
                 if meta_entry.get("connects"):
+                    connects = cast(list[object], meta_entry.get("connects", []))
                     prompt_lines.append(
-                        f"Connected anchors (may be affected): {', '.join(meta_entry['connects'])}"
+                        f"Connected anchors (may be affected): {', '.join(str(item) for item in connects)}"
                     )
                 if meta_entry.get("warning"):
                     prompt_lines.append(f"Warning: {meta_entry['warning']}")
@@ -232,8 +306,8 @@ def _build_ready_handoff(
                 if patch_plan.get("destination_target_anchor")
                 else None
             ),
-            f"Allowed ops: {', '.join(contract['allowed_ops'])}",
-            f"Constraints: {', '.join(patch_plan['constraints'])}",
+            f"Allowed ops: {', '.join(str(item) for item in allowed_ops)}",
+            f"Constraints: {', '.join(str(item) for item in constraints)}",
         ]
     )
     prompt_lines = [line for line in prompt_lines if line is not None]
@@ -246,12 +320,12 @@ def _build_ready_handoff(
         "ready": True,
         "target_file": patch_plan["target_file"],
         "target_anchor": patch_plan["target_anchor"],
-        "allowed_files": contract["scope"]["allowed_files"],
-        "allowed_ops": contract["allowed_ops"],
-        "preconditions": contract["preconditions"],
-        "constraints": patch_plan["constraints"],
-        "verification": contract["verification"]["commands"],
-        "prompt": "\n".join(prompt_lines),
+        "allowed_files": scope.get("allowed_files", []),
+        "allowed_ops": allowed_ops,
+        "preconditions": contract.get("preconditions", []),
+        "constraints": constraints,
+        "verification": verification.get("commands", []),
+        "prompt": "\n".join(cast(list[str], prompt_lines)),
     }
 
 
@@ -260,7 +334,7 @@ def _sanitize_request_for_handoff(request: str) -> tuple[str, bool]:
     cleaned = "".join(ch for ch in cleaned if ch == "\n" or ch == "\t" or ord(ch) >= 32)
 
     changed = False
-    safe_lines = []
+    safe_lines: list[str] = []
     for line in cleaned.split("\n"):
         stripped = line.strip()
         if stripped and any(
@@ -277,12 +351,13 @@ def _sanitize_request_for_handoff(request: str) -> tuple[str, bool]:
     return json.dumps(safe_request, ensure_ascii=False, indent=2), changed
 
 
-def _build_contract(patch_plan: Dict[str, Any]) -> Dict[str, Any]:
+def _build_contract(patch_plan: dict[str, object]) -> dict[str, object]:
     target_file = str(patch_plan["target_file"])
     target_anchor = str(patch_plan["target_anchor"])
     destination_file = str(patch_plan.get("destination_target_file") or "")
     destination_anchor = str(patch_plan.get("destination_target_anchor") or "")
-    operation = str(patch_plan.get("patch_points", {}).get("operation", "update"))
+    patch_points = cast(dict[str, object], patch_plan.get("patch_points", {}))
+    operation = str(patch_points.get("operation", "update"))
     file_status = _target_file_status(target_file)
     anchor_status = _target_anchor_status(target_anchor)
     anchor_name = _target_anchor_name(target_anchor) or ""
@@ -306,7 +381,7 @@ def _build_contract(patch_plan: Dict[str, Any]) -> Dict[str, Any]:
         "subject": "request",
         "action": "update",
     }
-    assumptions = []
+    assumptions: list[str] = []
     if status == "NEEDS_CLARIFICATION":
         assumptions.append("요청 범위나 수정 위치가 아직 충분히 분명하지 않습니다.")
     user_status = {
@@ -362,7 +437,7 @@ def _build_contract(patch_plan: Dict[str, Any]) -> Dict[str, Any]:
         user_status=user_status,
         user_guidance=user_guidance,
     )
-    return contract.to_dict()
+    return cast(dict[str, object], contract.to_dict())
 
 
 def _render_preview(target_path: Path, target_anchor: str) -> str:
@@ -382,98 +457,22 @@ def _render_preview(target_path: Path, target_anchor: str) -> str:
     return "\n".join(lines[:10])
 
 
-def _build_constraints(codespeak: Any) -> list[str]:
+def _build_constraints(codespeak: object) -> list[str]:
     constraints = [
         "patch only",
         "keep file structure",
         "no unrelated edits",
     ]
-    behavior_constraint = str(
-        codespeak.patch_points.get("behavior_constraint", "")
-    ).strip()
+    patch_points = cast(dict[str, object], getattr(codespeak, "patch_points"))
+    behavior_constraint = str(patch_points.get("behavior_constraint", "")).strip()
     if behavior_constraint:
         constraints.append(f"Behavior preservation: {behavior_constraint}")
     return constraints
 
 
-def _build_patch_data(root: Path, request: str) -> Dict[str, Any]:
-    codespeak = build_codespeak(request, root=root)
-    source_text = request
-    source_resolution = None
-    if codespeak.patch_points.get("operation") == "move":
-        extracted_source = str(codespeak.patch_points.get("source", "")).strip()
-        if extracted_source:
-            source_text = extracted_source
-            if len(tokenize(source_text)) < 4:
-                source_text = request
-    suggestion = suggest_patch_for_role(root, source_text, role="source")
-    source_resolution_obj = resolve_target_for_role(root, source_text, role="source")
-    source_resolution = (
-        source_resolution_obj.to_dict() if source_resolution_obj else None
-    )
-    destination_suggestion = None
-    destination_resolution = None
-    if codespeak.patch_points.get("operation") == "move":
-        destination_text = str(codespeak.patch_points.get("destination", "")).strip()
-        if destination_text:
-            destination_suggestion = suggest_patch_for_role(
-                root, destination_text, role="destination"
-            )
-            destination_resolution_obj = resolve_target_for_role(
-                root, destination_text, role="destination"
-            )
-            destination_resolution = (
-                destination_resolution_obj.to_dict()
-                if destination_resolution_obj
-                else None
-            )
-    confidence = suggestion.confidence
-    if confidence == "high" and codespeak.confidence != "high":
-        confidence = codespeak.confidence
-    if (
-        codespeak.patch_points.get("operation") == "move"
-        and suggestion.target_file != "[소스 파일 없음]"
-        and suggestion.target_anchor not in {"[없음]", "[먼저 앵커를 추가하세요]"}
-        and destination_suggestion is not None
-        and getattr(destination_suggestion, "target_file", "")
-        not in {"", "[소스 파일 없음]"}
-        and getattr(destination_suggestion, "target_anchor", "")
-        not in {
-            "",
-            "[없음]",
-            "[먼저 앵커를 추가하세요]",
-        }
-        and confidence == "low"
-    ):
-        confidence = "medium"
-    patch_plan = PatchPlan(
-        schema_version=1,
-        request=request,
-        interpretation=codespeak.interpretation,
-        target_file=suggestion.target_file,
-        target_anchor=suggestion.target_anchor,
-        source_resolution=source_resolution,
-        destination_target_file=getattr(destination_suggestion, "target_file", None),
-        destination_target_anchor=getattr(
-            destination_suggestion, "target_anchor", None
-        ),
-        destination_resolution=destination_resolution,
-        codespeak=codespeak.codespeak,
-        intent_ir=codespeak.intent_ir.to_dict() if codespeak.intent_ir else None,
-        patch_points=codespeak.patch_points,
-        constraints=_build_constraints(codespeak),
-        confidence=confidence,
-        preview_available=True,
-        clarifying_questions=codespeak.clarifying_questions,
-        rationale=suggestion.rationale,
-        destination_rationale=getattr(destination_suggestion, "rationale", []),
-    )
-    return {"patch_plan": patch_plan.to_dict()}
-
-
 def _build_patch_data_with_options(
     root: Path, request: str, use_ai: bool, quiet_ai: bool
-) -> Dict[str, Any]:
+) -> dict[str, object]:
     codespeak = build_codespeak(request, root=root)
     source_text = request
     source_resolution = None
@@ -487,7 +486,7 @@ def _build_patch_data_with_options(
     source_resolution_obj = resolve_target_for_role(
         root, source_text, role="source", use_ai=use_ai
     )
-    source_resolution = (
+    source_resolution = _coerce_json_object(
         source_resolution_obj.to_dict() if source_resolution_obj else None
     )
     destination_suggestion = None
@@ -501,14 +500,20 @@ def _build_patch_data_with_options(
             destination_resolution_obj = resolve_target_for_role(
                 root, destination_text, role="destination", use_ai=use_ai
             )
-            destination_resolution = (
+            destination_resolution = _coerce_json_object(
                 destination_resolution_obj.to_dict()
                 if destination_resolution_obj
                 else None
             )
     if use_ai:
-        ai_codespeak = importlib.import_module("vibelign.core.ai_codespeak")
-        ai_explain = importlib.import_module("vibelign.core.ai_explain")
+        ai_codespeak = cast(
+            AICodeSpeakLike,
+            cast(object, importlib.import_module("vibelign.core.ai_codespeak")),
+        )
+        ai_explain = cast(
+            AIExplainLike,
+            cast(object, importlib.import_module("vibelign.core.ai_explain")),
+        )
         if ai_explain.has_ai_provider():
             try:
                 enhanced = ai_codespeak.enhance_codespeak_with_ai(
@@ -517,7 +522,7 @@ def _build_patch_data_with_options(
             except Exception:
                 enhanced = None
             if enhanced is not None:
-                codespeak = enhanced
+                codespeak = cast(CodeSpeakResult, enhanced)
     confidence = suggestion.confidence
     if confidence == "high" and codespeak.confidence != "high":
         confidence = codespeak.confidence
@@ -544,13 +549,17 @@ def _build_patch_data_with_options(
         target_file=suggestion.target_file,
         target_anchor=suggestion.target_anchor,
         source_resolution=source_resolution,
-        destination_target_file=getattr(destination_suggestion, "target_file", None),
-        destination_target_anchor=getattr(
-            destination_suggestion, "target_anchor", None
+        destination_target_file=_destination_field(
+            destination_suggestion, "target_file"
+        ),
+        destination_target_anchor=_destination_field(
+            destination_suggestion, "target_anchor"
         ),
         destination_resolution=destination_resolution,
         codespeak=codespeak.codespeak,
-        intent_ir=codespeak.intent_ir.to_dict() if codespeak.intent_ir else None,
+        intent_ir=_coerce_json_object(
+            codespeak.intent_ir.to_dict() if codespeak.intent_ir else None
+        ),
         patch_points=codespeak.patch_points,
         constraints=_build_constraints(codespeak),
         confidence=confidence,
@@ -562,27 +571,40 @@ def _build_patch_data_with_options(
     return {"patch_plan": patch_plan.to_dict()}
 
 
-def _render_markdown(data: Dict[str, Any], preview_text: Optional[str] = None) -> str:
-    patch_plan = data["patch_plan"]
-    contract = cast(Dict[str, Any], data.get("contract") or _build_contract(patch_plan))
-    handoff = cast(Optional[Dict[str, Any]], data.get("handoff"))
-    lines = [
+def _render_markdown(data: dict[str, object], preview_text: str | None = None) -> str:
+    patch_plan = cast(dict[str, object], data["patch_plan"])
+    contract = cast(
+        dict[str, object], data.get("contract") or _build_contract(patch_plan)
+    )
+    handoff = cast(dict[str, object] | None, data.get("handoff"))
+    user_status = cast(dict[str, object], contract.get("user_status", {}))
+    patch_points = cast(dict[str, object], contract.get("patch_points", {}))
+    scope = cast(dict[str, object], contract.get("scope", {}))
+    verification = cast(dict[str, object], contract.get("verification", {}))
+    user_guidance = cast(list[object], contract.get("user_guidance", []))
+    clarifying_questions = cast(list[object], contract.get("clarifying_questions", []))
+    preconditions = cast(list[object], contract.get("preconditions", []))
+    allowed_ops = cast(list[object], contract.get("allowed_ops", []))
+    rationale = cast(list[object], patch_plan.get("rationale", []))
+    allowed_files = cast(list[object], scope.get("allowed_files", []))
+    verification_commands = cast(list[object], verification.get("commands", []))
+    lines: list[str] = [
         "# VibeLign 패치 계획",
         "",
-        f"지금 상태: {contract['user_status']['title']}",
+        f"지금 상태: {user_status.get('title', '')}",
         "",
-        contract["user_status"]["reason"],
+        str(user_status.get("reason", "")),
         "",
     ]
     if contract["status"] == "NEEDS_CLARIFICATION":
         lines.append("## 먼저 이렇게 해보세요")
-        lines.extend(f"- {item}" for item in contract["user_guidance"])
+        lines.extend(f"- {item}" for item in user_guidance)
         lines.extend(["", "## 먼저 확인하면 좋은 질문"])
-        lines.extend(f"- {item}" for item in contract["clarifying_questions"])
+        lines.extend(f"- {item}" for item in clarifying_questions)
         lines.append("")
     else:
         lines.append("## 이제 이렇게 진행하면 돼요")
-        lines.extend(f"- {item}" for item in contract["user_guidance"])
+        lines.extend(f"- {item}" for item in user_guidance)
         lines.append("")
 
     lines.extend(
@@ -596,41 +618,41 @@ def _render_markdown(data: Dict[str, Any], preview_text: Optional[str] = None) -
             f"- 확신 정도 : {patch_plan['confidence']}",
             "",
             "## 정확한 수정 포인트",
-            f"- 작업 종류 : {contract['patch_points'].get('operation', 'unknown')}",
-            f"- 원래 위치 : {contract['patch_points'].get('source', '') or '[없음]'}",
-            f"- 목표 위치 : {contract['patch_points'].get('destination', '') or '[없음]'}",
-            f"- 대상 객체 : {contract['patch_points'].get('object', '') or '[없음]'}",
+            f"- 작업 종류 : {patch_points.get('operation', 'unknown')}",
+            f"- 원래 위치 : {patch_points.get('source', '') or '[없음]'}",
+            f"- 목표 위치 : {patch_points.get('destination', '') or '[없음]'}",
+            f"- 대상 객체 : {patch_points.get('object', '') or '[없음]'}",
             "",
             "## 이 계획에서 허용하는 범위",
         ]
     )
-    for item in contract["scope"]["allowed_files"]:
+    for item in allowed_files:
         lines.append(f"- 허용된 파일: {item}")
     lines.extend(
         [
-            f"- 파일 상태: {contract['scope']['target_file_status']}",
-            f"- 안전 구역 상태: {contract['scope']['target_anchor_status']}",
+            f"- 파일 상태: {scope.get('target_file_status', '')}",
+            f"- 안전 구역 상태: {scope.get('target_anchor_status', '')}",
             "",
             "## 이 계획이 바로 실행되려면",
         ]
     )
-    lines.extend(f"- {item}" for item in contract["preconditions"])
+    lines.extend(f"- {item}" for item in preconditions)
     lines.extend(["", "## 허용된 수정 방식"])
-    lines.extend(f"- {item}" for item in contract["allowed_ops"])
+    lines.extend(f"- {item}" for item in allowed_ops)
     lines.extend(["", "## 왜 이렇게 골랐는지"])
-    lines.extend(f"- {item}" for item in patch_plan["rationale"])
+    lines.extend(f"- {item}" for item in rationale)
     if contract["clarifying_questions"] and contract["status"] != "NEEDS_CLARIFICATION":
         lines.extend(["", "## 먼저 확인하면 좋은 질문"])
-        lines.extend(f"- {item}" for item in contract["clarifying_questions"])
+        lines.extend(f"- {item}" for item in clarifying_questions)
     if preview_text is not None:
         lines.extend(["", "## 미리 보기", "```text", preview_text, "```"])
     lines.extend(["", "## 검증할 때 쓸 명령"])
-    lines.extend(f"- {item}" for item in contract["verification"]["commands"])
+    lines.extend(f"- {item}" for item in verification_commands)
     lines.extend(
         [
             "",
             f"## 다음에 할 일",
-            contract["user_status"]["next_step"],
+            str(user_status.get("next_step", "")),
         ]
     )
     if contract["status"] == "READY" and handoff is not None:
@@ -649,25 +671,35 @@ def _render_markdown(data: Dict[str, Any], preview_text: Optional[str] = None) -
     return "\n".join(lines) + "\n"
 
 
-def run_vib_patch(args: Any) -> None:
+def run_vib_patch(args: Namespace | object) -> None:
     root = Path.cwd()
-    request = " ".join(args.request).strip()
-    data = _build_patch_data_with_options(
-        root, request, use_ai=args.ai, quiet_ai=args.json
+    request_value = getattr(args, "request", [])
+    request_parts = (
+        cast(list[object], request_value) if isinstance(request_value, list) else []
     )
-    patch_plan = data["patch_plan"]
-    data["contract"] = _build_contract(patch_plan)
-    if data["contract"]["status"] == "READY":
-        data["handoff"] = _build_ready_handoff(data["contract"], patch_plan)
+    request = " ".join(str(part) for part in request_parts).strip()
+    data = _build_patch_data_with_options(
+        root,
+        request,
+        use_ai=bool(getattr(args, "ai", False)),
+        quiet_ai=bool(getattr(args, "json", False)),
+    )
+    patch_plan = cast(dict[str, object], data["patch_plan"])
+    contract = _build_contract(patch_plan)
+    data["contract"] = contract
+    if contract["status"] == "READY":
+        data["handoff"] = _build_ready_handoff(contract, patch_plan)
     preview_text = None
-    target_path = root / patch_plan["target_file"]
-    if args.preview and target_path.exists():
-        preview_text = _render_preview(target_path, patch_plan["target_anchor"])
+    target_file = str(patch_plan["target_file"])
+    target_anchor = str(patch_plan["target_anchor"])
+    target_path = root / target_file
+    if bool(getattr(args, "preview", False)) and target_path.exists():
+        preview_text = _render_preview(target_path, target_anchor)
         data["preview"] = {
             "schema_version": 1,
             "format": "ascii",
-            "target_file": patch_plan["target_file"],
-            "target_anchor": patch_plan["target_anchor"],
+            "target_file": target_file,
+            "target_anchor": target_anchor,
             "before_summary": "현재 파일 일부 미리보기입니다.",
             "after_summary": "AI 편집 전에 이 구역을 검토하세요.",
             "confidence": patch_plan["confidence"],
@@ -677,10 +709,10 @@ def run_vib_patch(args: Any) -> None:
     envelope = {"ok": True, "error": None, "data": data}
     meta = MetaPaths(root)
 
-    if args.json:
+    if bool(getattr(args, "json", False)):
         text = json.dumps(envelope, indent=2, ensure_ascii=False)
         print(text)
-        if args.write_report:
+        if bool(getattr(args, "write_report", False)):
             meta.ensure_vibelign_dirs()
             _ = meta.report_path("patch", "json").write_text(
                 text + "\n", encoding="utf-8"
@@ -689,13 +721,13 @@ def run_vib_patch(args: Any) -> None:
 
     markdown = _render_markdown(data, preview_text=preview_text)
     print_ai_response(markdown)
-    if args.write_report:
+    if bool(getattr(args, "write_report", False)):
         meta.ensure_vibelign_dirs()
         _ = meta.report_path("patch", "md").write_text(markdown, encoding="utf-8")
 
     # --copy: handoff 프롬프트를 클립보드에 복사
     if getattr(args, "copy", False):
-        handoff = data.get("handoff")
+        handoff = cast(dict[str, object] | None, data.get("handoff"))
         if handoff and handoff.get("prompt"):
             _copy_to_clipboard(str(handoff["prompt"]))
         else:
