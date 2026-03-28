@@ -1,10 +1,17 @@
 # === ANCHOR: VIB_GUARD_CMD_START ===
 import json
+from collections.abc import Sequence
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Protocol, TypedDict, cast
 
-from vibelign.core.change_explainer import explain_from_git, explain_from_mtime
+from vibelign.core.change_explainer import (
+    FileSummary,
+    explain_from_git,
+    explain_from_mtime,
+)
 from vibelign.core.doctor_v2 import analyze_project_v2
+from vibelign.core.guard_report import GuardReport
 from vibelign.core.guard_report import combine_guard
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.protected_files import get_protected, is_protected
@@ -17,19 +24,68 @@ from vibelign.terminal_render import cli_print
 print = cli_print
 
 
+class GuardDoctorData(TypedDict):
+    project_score: int
+    status: str
+    issues: list[object]
+    recommended_actions: list[str]
+
+
+class GuardExplainData(TypedDict):
+    source: str
+    risk_level: str
+    files: list[FileSummary]
+    summary: str
+
+
+class GuardData(TypedDict):
+    status: str
+    strict: bool
+    blocked: bool
+    project_score: int
+    project_status: str
+    change_risk_level: str
+    summary: str
+    recommendations: list[str]
+    protected_violations: list[str]
+    doctor: dict[str, object] | GuardDoctorData
+    explain: GuardExplainData
+
+
+class GuardError(TypedDict):
+    code: str
+    message: str
+    hint: str
+
+
+class GuardEnvelope(TypedDict):
+    ok: bool
+    error: GuardError | None
+    data: GuardData
+
+
+class GuardArgs(Protocol):
+    strict: bool
+    since_minutes: int
+    json: bool
+    write_report: bool
+
+
 # === ANCHOR: VIB_GUARD_CMD__GUARD_STATUS_START ===
-def _guard_status(report) -> str:
+def _guard_status(report: GuardReport) -> str:
     if report.blocked:
         return "fail"
     if report.overall_level == "WARNING":
         return "warn"
     return "pass"
+
+
 # === ANCHOR: VIB_GUARD_CMD__GUARD_STATUS_END ===
 
 
 # === ANCHOR: VIB_GUARD_CMD__REWRITE_RECOMMENDATIONS_START ===
-def _rewrite_recommendations(recommendations: List[str]) -> List[str]:
-    rewritten = []
+def _rewrite_recommendations(recommendations: list[str]) -> list[str]:
+    rewritten: list[str] = []
     for item in recommendations:
         rewritten.append(
             item.replace("`vibelign anchor`", "`vib anchor --suggest`")
@@ -37,71 +93,53 @@ def _rewrite_recommendations(recommendations: List[str]) -> List[str]:
             .replace("vibelign", "vib")
         )
     return rewritten
+
+
 # === ANCHOR: VIB_GUARD_CMD__REWRITE_RECOMMENDATIONS_END ===
 
 
 # === ANCHOR: VIB_GUARD_CMD__PROTECTED_VIOLATIONS_START ===
-def _protected_violations(root: Path, explain_report) -> List[str]:
+def _protected_violations(
+    root: Path, explain_files: Sequence[FileSummary]
+) -> list[str]:
     protected = get_protected(root)
     if not protected:
         return []
-    violations = []
-    for item in explain_report.to_dict().get("files", []):
-        path = item.get("path")
-        if isinstance(path, str) and is_protected(path, protected):
+    violations: list[str] = []
+    for item in explain_files:
+        path = item["path"]
+        if is_protected(path, protected):
             violations.append(path)
     return violations
+
+
 # === ANCHOR: VIB_GUARD_CMD__PROTECTED_VIOLATIONS_END ===
 
 
 # === ANCHOR: VIB_GUARD_CMD__BUILD_GUARD_ENVELOPE_START ===
 def _build_guard_envelope(
-    root: Path, strict: bool, since_minutes: int
-# === ANCHOR: VIB_GUARD_CMD__BUILD_GUARD_ENVELOPE_END ===
-) -> Dict[str, Any]:
+    root: Path,
+    strict: bool,
+    since_minutes: int,
+    # === ANCHOR: VIB_GUARD_CMD__BUILD_GUARD_ENVELOPE_END ===
+) -> GuardEnvelope:
     legacy_doctor = analyze_project(root, strict=strict)
-    explain_report = explain_from_git(root) or explain_from_mtime(
-        root, since_minutes=since_minutes
-    )
+    explain_report = explain_from_git(root)
     if explain_report is None:
-        return {
-            "ok": False,
-            "error": {
-                "code": "guard_explain_unavailable",
-                "message": "guard용 변경 설명 데이터를 만들지 못했습니다.",
-                "hint": "vib doctor 로 상태를 확인한 뒤 다시 실행해보세요.",
-            },
-            "data": {
-                "status": "fail",
-                "strict": strict,
-                "blocked": True,
-                "project_score": 0,
-                "project_status": "High Risk",
-                "change_risk_level": "HIGH",
-                "summary": "guard 설명 데이터를 만들지 못해 안전하게 실패 처리했습니다.",
-                "recommendations": ["vib doctor 로 작업 상태를 확인해보세요."],
-                "protected_violations": [],
-                "doctor": {
-                    "project_score": 0,
-                    "status": "High Risk",
-                    "issues": [],
-                    "recommended_actions": [],
-                },
-                "explain": {
-                    "source": "fallback",
-                    "risk_level": "HIGH",
-                    "files": [],
-                    "summary": "설명 데이터를 만들지 못했습니다.",
-                },
-            },
-        }
+        explain_report = explain_from_mtime(root, since_minutes=since_minutes)
     legacy_guard = combine_guard(legacy_doctor, explain_report)
     doctor_v2 = analyze_project_v2(root, strict=strict)
-    violations = _protected_violations(root, explain_report)
+    violations = _protected_violations(root, explain_report.files)
     status = _guard_status(legacy_guard)
     if strict and status == "warn":
         status = "fail"
-    data = {
+    explain_data: GuardExplainData = {
+        "source": explain_report.source,
+        "risk_level": explain_report.risk_level,
+        "files": explain_report.files,
+        "summary": explain_report.summary,
+    }
+    data: GuardData = {
         "status": status,
         "strict": strict,
         "blocked": legacy_guard.blocked or (strict and status == "fail"),
@@ -112,18 +150,13 @@ def _build_guard_envelope(
         "recommendations": _rewrite_recommendations(legacy_guard.recommendations),
         "protected_violations": violations,
         "doctor": doctor_v2.to_dict(),
-        "explain": {
-            "source": explain_report.source,
-            "risk_level": explain_report.risk_level,
-            "files": explain_report.files,
-            "summary": explain_report.summary,
-        },
+        "explain": explain_data,
     }
     return {"ok": True, "error": None, "data": data}
 
 
 # === ANCHOR: VIB_GUARD_CMD__RENDER_MARKDOWN_START ===
-def _render_markdown(data: Dict[str, Any]) -> str:
+def _render_markdown(data: GuardData) -> str:
     status_label = {
         "pass": "통과",
         "warn": "주의",
@@ -163,33 +196,48 @@ def _render_markdown(data: Dict[str, Any]) -> str:
     else:
         lines.append("- 최근에 바뀐 파일이 없습니다.")
     return "\n".join(lines) + "\n"
+
+
 # === ANCHOR: VIB_GUARD_CMD__RENDER_MARKDOWN_END ===
 
 
 # === ANCHOR: VIB_GUARD_CMD__UPDATE_GUARD_STATE_START ===
-def _update_guard_state(root: Path, meta: MetaPaths) -> None:
+def _update_guard_state(meta: MetaPaths, quiet: bool = False) -> None:
     if not meta.state_path.exists():
         return
-    state = json.loads(meta.state_path.read_text(encoding="utf-8"))
-    state["last_guard_run_at"] = (
-        __import__("datetime")
-        .datetime.now(__import__("datetime").timezone.utc)
-        .isoformat()
-    )
-    _ = meta.state_path.write_text(
-        json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
+    try:
+        raw_state_obj = cast(
+            object, json.loads(meta.state_path.read_text(encoding="utf-8"))
+        )
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        if not quiet:
+            print("가드 상태 파일을 읽지 못해 마지막 실행 시간 기록은 건너뜁니다.")
+        return
+    if not isinstance(raw_state_obj, dict):
+        return
+    raw_state = cast(dict[object, object], raw_state_obj)
+    state = {str(key): value for key, value in raw_state.items()}
+    state["last_guard_run_at"] = datetime.now(timezone.utc).isoformat()
+    try:
+        _ = meta.state_path.write_text(
+            json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+    except OSError:
+        if not quiet:
+            print("가드 상태 파일을 저장하지 못해 마지막 실행 시간 기록은 건너뜁니다.")
+
+
 # === ANCHOR: VIB_GUARD_CMD__UPDATE_GUARD_STATE_END ===
 
 
 # === ANCHOR: VIB_GUARD_CMD_RUN_VIB_GUARD_START ===
-def run_vib_guard(args: Any) -> None:
+def run_vib_guard(args: GuardArgs) -> None:
     root = Path.cwd()
     meta = MetaPaths(root)
     envelope = _build_guard_envelope(
         root, strict=args.strict, since_minutes=args.since_minutes
     )
-    _update_guard_state(root, meta)
+    _update_guard_state(meta, quiet=args.json)
     if args.json:
         text = json.dumps(envelope, indent=2, ensure_ascii=False)
         print(text)
@@ -208,5 +256,7 @@ def run_vib_guard(args: Any) -> None:
         _ = meta.report_path("guard", "md").write_text(markdown, encoding="utf-8")
     if envelope["data"]["status"] == "fail":
         raise SystemExit(1)
+
+
 # === ANCHOR: VIB_GUARD_CMD_RUN_VIB_GUARD_END ===
 # === ANCHOR: VIB_GUARD_CMD_END ===
