@@ -2,7 +2,6 @@
 import re
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Optional
 
 from vibelign.core.intent_ir import IntentIR
 
@@ -333,15 +332,15 @@ class CodeSpeakResult:
     interpretation: str
     clarifying_questions: list[str]
     patch_points: dict[str, str]
-    intent_ir: Optional[IntentIR] = None
-    target_file: Optional[str] = None
-    target_anchor: Optional[str] = None
+    intent_ir: IntentIR | None = None
+    target_file: str | None = None
+    target_anchor: str | None = None
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, object]:
         return asdict(self)
 
 
-def parse_codespeak_v0(codespeak: str) -> Optional[dict[str, str]]:
+def parse_codespeak_v0(codespeak: str) -> dict[str, str] | None:
     match = CODESPEAK_V0_RE.fullmatch(codespeak.strip())
     if match is None:
         return None
@@ -499,7 +498,7 @@ def _infer_subject(tokens: list[str], layer: str, action: str) -> tuple[str, int
     return "_".join(candidates[:2]), 1
 
 
-def build_codespeak(request: str, root: Optional[Path] = None) -> CodeSpeakResult:
+def build_codespeak(request: str, root: Path | None = None) -> CodeSpeakResult:
     tokens = tokenize_request(request)
     action, action_score = _infer_action(tokens)
     layer, layer_score = _infer_layer(tokens)
