@@ -79,7 +79,7 @@ export default function App() {
 
   function openSettings(reason?: string) {
     setPrevPage(page === "settings" ? prevPage : page);
-    setSettingsNotice(reason ?? null);
+    setSettingsNotice(typeof reason === "string" ? reason : null);
     setPage("settings");
   }
 
@@ -88,7 +88,7 @@ export default function App() {
       <ErrorBoundary>
         <CustomTitleBar
           projectDir={projectDir}
-          onSettings={projectDir ? openSettings : undefined}
+          onSettings={projectDir ? () => openSettings() : undefined}
         />
       </ErrorBoundary>
 
