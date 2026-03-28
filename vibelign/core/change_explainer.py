@@ -1,10 +1,14 @@
 # === ANCHOR: CHANGE_EXPLAINER_START ===
 from dataclasses import dataclass, asdict, field
-import re, subprocess, time
+import subprocess
+import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+
 from vibelign.core.project_map import enrich_change_kind, load_project_map
 from vibelign.core.project_scan import iter_project_files, relpath_str
+
+FileSummary = dict[str, str]
 
 
 @dataclass
@@ -27,10 +31,10 @@ class ExplainReport:
     why_it_might_matter: list[str] = field(default_factory=list)
     risk_level: str = "LOW"
     rollback_hint: str = ""
-    files: list[dict[str, Any]] = field(default_factory=list)
+    files: list[FileSummary] = field(default_factory=list)
 
     # === ANCHOR: CHANGE_EXPLAINER_TO_DICT_START ===
-    def to_dict(self):
+    def to_dict(self) -> dict[str, object]:
         # === ANCHOR: CHANGE_EXPLAINER_EXPLAINREPORT_END ===
         return asdict(self)
 
@@ -50,7 +54,7 @@ def _risk_label(level: str) -> str:
 
 
 # === ANCHOR: CHANGE_EXPLAINER_CLASSIFY_PATH_START ===
-def classify_path(rel: str):
+def classify_path(rel: str) -> str:
     low = rel.lower()
     if any(
         low.endswith(name)
@@ -93,7 +97,7 @@ def classify_path(rel: str):
 
 
 # === ANCHOR: CHANGE_EXPLAINER_RISK_FROM_ITEMS_START ===
-def risk_from_items(items):
+def risk_from_items(items: Sequence[ChangeItem]) -> str:
     if not items:
         return "LOW"
     score = 0
@@ -145,7 +149,7 @@ def _decode_git_path(path: str) -> str:
 
 
 # === ANCHOR: CHANGE_EXPLAINER__RUN_GIT_START ===
-def _run_git(root: Path, args):
+def _run_git(root: Path, args: Sequence[str]) -> tuple[bool, str]:
     try:
         proc = subprocess.run(
             ["git", *args],
@@ -167,7 +171,7 @@ def _run_git(root: Path, args):
 
 
 # === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FROM_GIT_START ===
-def explain_from_git(root: Path):
+def explain_from_git(root: Path) -> ExplainReport | None:
     ok, out = _run_git(root, ["status", "--porcelain", "--", "."])
     if not ok:
         return None
@@ -177,7 +181,7 @@ def explain_from_git(root: Path):
     import unicodedata
 
     cwd_dir_entry = unicodedata.normalize("NFC", root.name + "/")
-    items = []
+    items: list[ChangeItem] = []
     for line in out.splitlines():
         if not line.strip():
             continue
@@ -280,8 +284,7 @@ def _korean_diff_explanation(
     if import_add or import_del:
         if import_add and import_del:
             what.append(
-                f"사용하는 외부 도구(import)가 바뀌었어요 "
-                f"— {len(import_del)}개 제거, {len(import_add)}개 추가"
+                f"사용하는 외부 도구(import)가 바뀌었어요 — {len(import_del)}개 제거, {len(import_add)}개 추가"
             )
         elif import_add:
             what.append(f"새 외부 도구(import)가 {len(import_add)}개 추가됐어요")
@@ -338,7 +341,7 @@ def _korean_diff_explanation(
 
 
 # === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FILE_FROM_GIT_START ===
-def explain_file_from_git(root: Path, rel_path: str):
+def explain_file_from_git(root: Path, rel_path: str) -> ExplainReport | None:
     """특정 파일의 git diff 를 분석해 ExplainReport 반환. git 없으면 None."""
     project_map, _project_map_error = load_project_map(root)
     item_kind = enrich_change_kind(project_map, rel_path, classify_path(rel_path))
@@ -457,10 +460,10 @@ def explain_file_from_mtime(
 
 
 # === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FROM_MTIME_START ===
-def explain_from_mtime(root: Path, since_minutes=120):
+def explain_from_mtime(root: Path, since_minutes: int = 120) -> ExplainReport:
     cutoff = time.time() - since_minutes * 60
     project_map, _project_map_error = load_project_map(root)
-    items = []
+    items: list[ChangeItem] = []
     for path in iter_project_files(root):
         try:
             if path.stat().st_mtime >= cutoff and path.suffix.lower() in {

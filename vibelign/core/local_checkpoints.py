@@ -3,10 +3,11 @@ import hashlib
 import json
 import re
 import shutil
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Set, cast
+from typing import cast
 
 from vibelign.core.meta_paths import MetaPaths
 
@@ -92,7 +93,7 @@ def _is_safe_checkpoint_id(checkpoint_id: str) -> bool:
     return bool(_SAFE_CHECKPOINT_ID_RE.fullmatch(checkpoint_id))
 
 
-def _resolve_relative_path(base: Path, rel: str) -> Optional[Path]:
+def _resolve_relative_path(base: Path, rel: str) -> Path | None:
     rel_path = Path(rel)
     if rel_path.is_absolute() or ".." in rel_path.parts:
         return None
@@ -168,8 +169,8 @@ def _files_dir(snapshot_dir: Path) -> Path:
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS__CURRENT_FILE_MAP_START ===
-def _current_file_map(root: Path) -> Dict[str, Dict[str, object]]:
-    mapping: Dict[str, Dict[str, object]] = {}
+def _current_file_map(root: Path) -> dict[str, dict[str, object]]:
+    mapping: dict[str, dict[str, object]] = {}
     for path in iter_snapshot_files(root):
         rel = str(path.relative_to(root))
         try:
@@ -189,12 +190,13 @@ def _current_file_map(root: Path) -> Dict[str, Dict[str, object]]:
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS__LOAD_MANIFEST_START ===
-def _load_manifest(snapshot_dir: Path) -> Optional[Dict[str, object]]:
+def _load_manifest(snapshot_dir: Path) -> dict[str, object] | None:
     manifest_path = _manifest_path(snapshot_dir)
     if not manifest_path.exists():
         return None
     try:
-        return json.loads(manifest_path.read_text(encoding="utf-8"))
+        loaded = cast(object, json.loads(manifest_path.read_text(encoding="utf-8")))
+        return cast(dict[str, object], loaded) if isinstance(loaded, dict) else None
     except (OSError, json.JSONDecodeError):
         return None
 
@@ -203,11 +205,14 @@ def _load_manifest(snapshot_dir: Path) -> Optional[Dict[str, object]]:
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS__MANIFEST_FILES_START ===
-def _manifest_files(manifest: Dict[str, object]) -> List[Dict[str, object]]:
+def _manifest_files(manifest: dict[str, object]) -> list[dict[str, object]]:
     raw_files = manifest.get("files", [])
     if not isinstance(raw_files, list):
         return []
-    return [item for item in raw_files if isinstance(item, dict)]
+    raw_items = cast(list[object], raw_files)
+    return [
+        cast(dict[str, object], item) for item in raw_items if isinstance(item, dict)
+    ]
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS__MANIFEST_FILES_END ===
@@ -231,7 +236,7 @@ def _coerce_int(value: object) -> int:
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS__PARSE_CHECKPOINT_TIME_START ===
-def _parse_checkpoint_time(value: str) -> Optional[datetime]:
+def _parse_checkpoint_time(value: str) -> datetime | None:
     try:
         return datetime.strptime(value, "%Y%m%dT%H%M%S%fZ").replace(tzinfo=timezone.utc)
     except ValueError:
@@ -267,11 +272,11 @@ def friendly_time(created_at: str) -> str:
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS_LIST_CHECKPOINTS_START ===
-def list_checkpoints(root: Path) -> List[CheckpointSummary]:
+def list_checkpoints(root: Path) -> list[CheckpointSummary]:
     meta = MetaPaths(root)
     if not meta.checkpoints_dir.exists():
         return []
-    summaries: List[CheckpointSummary] = []
+    summaries: list[CheckpointSummary] = []
     for snapshot_dir in sorted(meta.checkpoints_dir.iterdir(), reverse=True):
         if not snapshot_dir.is_dir():
             continue
@@ -295,7 +300,7 @@ def list_checkpoints(root: Path) -> List[CheckpointSummary]:
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS__LATEST_MANIFEST_START ===
-def _latest_manifest(root: Path) -> Optional[Dict[str, object]]:
+def _latest_manifest(root: Path) -> dict[str, object] | None:
     checkpoints = list_checkpoints(root)
     if not checkpoints:
         return None
@@ -307,7 +312,7 @@ def _latest_manifest(root: Path) -> Optional[Dict[str, object]]:
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS__MANIFEST_FILE_MAP_START ===
-def _manifest_file_map(manifest: Dict[str, object]) -> Dict[str, Dict[str, object]]:
+def _manifest_file_map(manifest: dict[str, object]) -> dict[str, dict[str, object]]:
     files = _manifest_files(manifest)
     return {str(item["path"]): item for item in files if "path" in item}
 
@@ -337,7 +342,7 @@ def _extract_tag(message: str) -> str:
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS_CREATE_CHECKPOINT_START ===
-def create_checkpoint(root: Path, message: str) -> Optional[CheckpointSummary]:
+def create_checkpoint(root: Path, message: str) -> CheckpointSummary | None:
     meta = MetaPaths(root)
     meta.ensure_vibelign_dirs()
     current_files = _current_file_map(root)
@@ -363,7 +368,7 @@ def create_checkpoint(root: Path, message: str) -> Optional[CheckpointSummary]:
         return None
 
     files_dir.mkdir(parents=True, exist_ok=True)
-    snapshot_files: Dict[str, Dict[str, object]] = {}
+    snapshot_files: dict[str, dict[str, object]] = {}
     for rel, item in current_files.items():
         src = root / rel
         dst = _resolve_relative_path(files_dir, rel)
@@ -372,7 +377,7 @@ def create_checkpoint(root: Path, message: str) -> Optional[CheckpointSummary]:
             return None
         dst.parent.mkdir(parents=True, exist_ok=True)
         try:
-            shutil.copy2(src, dst)
+            _ = shutil.copy2(src, dst)
         except FileNotFoundError:
             continue
         except OSError:
@@ -444,8 +449,8 @@ def restore_checkpoint(root: Path, checkpoint_id: str) -> bool:
     files = _manifest_files(manifest)
     files_dir = _files_dir(snapshot_dir).resolve()
     root_resolved = root.resolve()
-    snapshot_files: Set[str] = set()
-    validated_sources: Dict[str, Path] = {}
+    snapshot_files: set[str] = set()
+    validated_sources: dict[str, Path] = {}
     for item in files:
         rel_obj = item.get("path")
         if not isinstance(rel_obj, str) or not rel_obj:
@@ -481,7 +486,7 @@ def restore_checkpoint(root: Path, checkpoint_id: str) -> bool:
         if dst is None:
             return _set_restore_error("복구 위치가 이상해서 멈췄어요.")
         dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
+        _ = shutil.copy2(src, dst)
 
     return True
 
@@ -494,7 +499,7 @@ def prune_checkpoints(
     root: Path,
     policy: RetentionPolicy = DEFAULT_RETENTION_POLICY,
     # === ANCHOR: LOCAL_CHECKPOINTS_PRUNE_CHECKPOINTS_END ===
-) -> Dict[str, int]:
+) -> dict[str, int]:
     checkpoints = list_checkpoints(root)
     now = datetime.now(timezone.utc)
     has_old_checkpoint = any(
@@ -510,11 +515,11 @@ def prune_checkpoints(
     ):
         return {"count": 0, "bytes": 0}
 
-    protected_ids: Set[str] = set()
+    protected_ids: set[str] = set()
     protected_ids.update(cp.checkpoint_id for cp in checkpoints[: policy.keep_latest])
 
-    seen_days: Set[str] = set()
-    seen_weeks: Set[str] = set()
+    seen_days: set[str] = set()
+    seen_weeks: set[str] = set()
     for cp in checkpoints:
         cp_time = _parse_checkpoint_time(cp.created_at)
         if cp.pinned:

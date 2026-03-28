@@ -2,7 +2,7 @@
 import json
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import cast
 
 from vibelign.core.anchor_tools import extract_anchors
 from vibelign.core.project_map import load_project_map
@@ -24,11 +24,11 @@ class DoctorV2Report:
     project_score: int
     status: str
     anchor_coverage: int
-    stats: Dict[str, Any]
-    issues: List[Dict[str, Any]]
-    recommended_actions: List[str]
+    stats: dict[str, object]
+    issues: list[dict[str, object]]
+    recommended_actions: list[str]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         return asdict(self)
 
 
@@ -36,13 +36,13 @@ class DoctorV2Report:
 class MCPToolConfig:
     label: str
     config_path: Path
-    signals: List[Path]
+    signals: list[Path]
 
 
 @dataclass(frozen=True)
 class PreparedToolConfig:
     label: str
-    required_paths: List[Path]
+    required_paths: list[Path]
     setup_command: str
 
 
@@ -93,8 +93,10 @@ def _anchor_coverage(root: Path) -> int:
     return round((covered / len(source_files)) * 100)
 
 
-def _issue_details(issues: List[str], suggestions: List[str]) -> List[Dict[str, Any]]:
-    details: List[Dict[str, Any]] = []
+def _issue_details(
+    issues: list[str], suggestions: list[str]
+) -> list[dict[str, object]]:
+    details: list[dict[str, object]] = []
     for index, issue in enumerate(issues):
         rel = issue.split("에 ", 1)[0]
         next_step = (
@@ -115,8 +117,8 @@ def _issue_details(issues: List[str], suggestions: List[str]) -> List[Dict[str, 
     return details
 
 
-def _recommended_actions(legacy_suggestions: List[str]) -> List[str]:
-    actions: List[str] = []
+def _recommended_actions(legacy_suggestions: list[str]) -> list[str]:
+    actions: list[str] = []
     seen: set[str] = set()
     for suggestion in legacy_suggestions:
         if "앵커" in suggestion:
@@ -139,10 +141,10 @@ def _is_mcp_tool_enabled(root: Path, tool_name: str) -> bool:
     return any((root / signal).exists() for signal in tool.signals)
 
 
-def _read_mcp_server_status(root: Path, tool_name: str) -> Dict[str, Any]:
+def _read_mcp_server_status(root: Path, tool_name: str) -> dict[str, object]:
     tool = MCP_TOOL_CONFIGS[tool_name]
     config_path = root / tool.config_path
-    status = {
+    status: dict[str, object] = {
         "enabled": _is_mcp_tool_enabled(root, tool_name),
         "registered": False,
         "config_path": str(tool.config_path),
@@ -155,14 +157,15 @@ def _read_mcp_server_status(root: Path, tool_name: str) -> Dict[str, Any]:
     if not config_path.exists():
         return status
     try:
-        loaded = json.loads(config_path.read_text(encoding="utf-8"))
+        loaded = cast(object, json.loads(config_path.read_text(encoding="utf-8")))
     except (json.JSONDecodeError, OSError):
         status["state"] = "invalid_json"
         return status
     if not isinstance(loaded, dict):
         status["state"] = "invalid_json"
         return status
-    mcp_servers = loaded.get("mcpServers")
+    loaded_dict = cast(dict[str, object], loaded)
+    mcp_servers = loaded_dict.get("mcpServers")
     if not isinstance(mcp_servers, dict):
         status["state"] = "missing_server"
         return status
@@ -174,15 +177,15 @@ def _read_mcp_server_status(root: Path, tool_name: str) -> Dict[str, Any]:
     return status
 
 
-def _collect_mcp_status(root: Path) -> Dict[str, Dict[str, Any]]:
+def _collect_mcp_status(root: Path) -> dict[str, dict[str, object]]:
     return {
         tool_name: _read_mcp_server_status(root, tool_name)
         for tool_name in MCP_TOOL_CONFIGS
     }
 
 
-def _collect_prepared_tool_status(root: Path) -> Dict[str, Dict[str, Any]]:
-    status_map: Dict[str, Dict[str, Any]] = {}
+def _collect_prepared_tool_status(root: Path) -> dict[str, dict[str, object]]:
+    status_map: dict[str, dict[str, object]] = {}
     for tool_name, tool in PREPARED_TOOL_CONFIGS.items():
         missing = [
             str(path) for path in tool.required_paths if not (root / path).exists()
@@ -208,7 +211,7 @@ def _collect_prepared_tool_status(root: Path) -> Dict[str, Dict[str, Any]]:
 
 
 def _append_mcp_issues(
-    issues: List[str], suggestions: List[str], mcp_status: Dict[str, Dict[str, Any]]
+    issues: list[str], suggestions: list[str], mcp_status: dict[str, dict[str, object]]
 ) -> None:
     for tool_name, status in mcp_status.items():
         if not status["enabled"] or status["registered"]:
@@ -228,28 +231,36 @@ def _append_mcp_issues(
 
 
 def _append_prepared_tool_issues(
-    issues: List[str],
-    suggestions: List[str],
-    prepared_status: Dict[str, Dict[str, Any]],
+    issues: list[str],
+    suggestions: list[str],
+    prepared_status: dict[str, dict[str, object]],
 ) -> None:
     for tool_name, status in prepared_status.items():
         if not status["enabled"] or status["ready"]:
             continue
-        missing = ", ".join(str(path) for path in status["missing"])
+        raw_missing = status.get("missing", [])
+        missing_items = (
+            cast(list[object], raw_missing) if isinstance(raw_missing, list) else []
+        )
+        missing = ", ".join(str(path) for path in missing_items)
         issues.append(f"{status['label']} 준비 파일이 일부 없어요 ({missing})")
         suggestions.append(
             f"`{PREPARED_TOOL_CONFIGS[tool_name].setup_command}` 를 다시 실행하면 {status['label']} 준비 파일을 자동으로 채워줘요"
         )
 
 
-def _render_mcp_lines(stats: Dict[str, Any]) -> List[str]:
+def _render_mcp_lines(stats: dict[str, object]) -> list[str]:
     raw = stats.get("mcp_status")
     if not isinstance(raw, dict):
         return []
-    lines: List[str] = []
+    raw_statuses = cast(dict[str, object], raw)
+    lines: list[str] = []
     for tool_name in MCP_TOOL_CONFIGS:
-        status = raw.get(tool_name)
-        if not isinstance(status, dict) or not status.get("enabled"):
+        raw_status = raw_statuses.get(tool_name)
+        if not isinstance(raw_status, dict):
+            continue
+        status = cast(dict[str, object], raw_status)
+        if not status.get("enabled"):
             continue
         label = str(status.get("label") or tool_name)
         state = status.get("state")
@@ -262,14 +273,18 @@ def _render_mcp_lines(stats: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _render_prepared_tool_lines(stats: Dict[str, Any]) -> List[str]:
+def _render_prepared_tool_lines(stats: dict[str, object]) -> list[str]:
     raw = stats.get("prepared_tool_status")
     if not isinstance(raw, dict):
         return []
-    lines: List[str] = []
+    raw_statuses = cast(dict[str, object], raw)
+    lines: list[str] = []
     for tool_name in PREPARED_TOOL_CONFIGS:
-        status = raw.get(tool_name)
-        if not isinstance(status, dict) or not status.get("enabled"):
+        raw_status = raw_statuses.get(tool_name)
+        if not isinstance(raw_status, dict):
+            continue
+        status = cast(dict[str, object], raw_status)
+        if not status.get("enabled"):
             continue
         label = str(status.get("label") or tool_name)
         if status.get("ready"):
@@ -279,7 +294,9 @@ def _render_prepared_tool_lines(stats: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def analyze_project_v2(root: Path, strict: bool = False, force: bool = False) -> DoctorV2Report:
+def analyze_project_v2(
+    root: Path, strict: bool = False, force: bool = False
+) -> DoctorV2Report:
     from vibelign.core.analysis_cache import load_analysis_cache, save_analysis_cache
     from vibelign.core.meta_paths import MetaPaths
     from datetime import datetime, timezone
@@ -287,13 +304,19 @@ def analyze_project_v2(root: Path, strict: bool = False, force: bool = False) ->
     meta = MetaPaths(root)
     cached = load_analysis_cache(meta.analysis_cache_path, root, force=force)
     if cached is not None:
+        cached_score = cached.get("project_score")
+        cached_status = cached.get("status")
+        cached_coverage = cached.get("anchor_coverage")
+        cached_stats = cast(dict[str, object], cached.get("stats", {}))
+        cached_issues = cast(list[dict[str, object]], cached.get("issues", []))
+        cached_actions = cast(list[str], cached.get("recommended_actions", []))
         return DoctorV2Report(
-            project_score=cached["project_score"],
-            status=cached["status"],
-            anchor_coverage=cached["anchor_coverage"],
-            stats=cached["stats"],
-            issues=cached["issues"],
-            recommended_actions=cached["recommended_actions"],
+            project_score=cached_score if isinstance(cached_score, int) else 0,
+            status=cached_status if isinstance(cached_status, str) else "High Risk",
+            anchor_coverage=cached_coverage if isinstance(cached_coverage, int) else 0,
+            stats=cached_stats,
+            issues=cached_issues,
+            recommended_actions=cached_actions,
         )
 
     legacy = analyze_project(root, strict=strict)
@@ -336,7 +359,7 @@ def analyze_project_v2(root: Path, strict: bool = False, force: bool = False) ->
     return report
 
 
-def build_doctor_envelope(root: Path, strict: bool = False) -> Dict[str, Any]:
+def build_doctor_envelope(root: Path, strict: bool = False) -> dict[str, object]:
     report = analyze_project_v2(root, strict=strict)
     return {"ok": True, "error": None, "data": report.to_dict()}
 
@@ -407,7 +430,7 @@ def render_doctor_markdown(
     return "\n".join(lines) + "\n"
 
 
-def render_doctor_json(envelope: Dict[str, Any]) -> str:
+def render_doctor_json(envelope: dict[str, object]) -> str:
     return json.dumps(envelope, indent=2, ensure_ascii=False)
 
 

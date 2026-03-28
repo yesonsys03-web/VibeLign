@@ -1,5 +1,7 @@
-from dataclasses import dataclass, asdict, field
-from typing import Any, Optional
+from dataclasses import asdict, dataclass, field
+
+JsonScalar = str | int | float | bool | None
+JsonValue = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
 
 
 @dataclass
@@ -9,12 +11,12 @@ class PatchPlan:
     interpretation: str
     target_file: str
     target_anchor: str
-    source_resolution: Optional[dict[str, Any]] = None
-    destination_target_file: Optional[str] = None
-    destination_target_anchor: Optional[str] = None
-    destination_resolution: Optional[dict[str, Any]] = None
+    source_resolution: dict[str, JsonValue] | None = None
+    destination_target_file: str | None = None
+    destination_target_anchor: str | None = None
+    destination_resolution: dict[str, JsonValue] | None = None
     codespeak: str = ""
-    intent_ir: Optional[dict[str, Any]] = None
+    intent_ir: dict[str, JsonValue] | None = None
     patch_points: dict[str, str] = field(default_factory=dict)
     constraints: list[str] = field(default_factory=list)
     confidence: str = "low"
@@ -23,5 +25,5 @@ class PatchPlan:
     rationale: list[str] = field(default_factory=list)
     destination_rationale: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, JsonValue]:
         return asdict(self)
