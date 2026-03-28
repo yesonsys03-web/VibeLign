@@ -18,6 +18,8 @@ class HookInstallResult:
     status: str
     path: Path | None
     detail: str | None = None
+
+
 # === ANCHOR: GIT_HOOKS_HOOKINSTALLRESULT_END ===
 
 
@@ -34,6 +36,8 @@ def _run_git_path(root: Path, *args: str) -> str | None:
     except (FileNotFoundError, subprocess.CalledProcessError):
         return None
     return completed.stdout.strip() or None
+
+
 # === ANCHOR: GIT_HOOKS__RUN_GIT_PATH_END ===
 
 
@@ -46,12 +50,14 @@ def get_hooks_dir(root: Path) -> Path | None:
     if not hooks_dir.is_absolute():
         hooks_dir = root / hooks_dir
     return hooks_dir
+
+
 # === ANCHOR: GIT_HOOKS_GET_HOOKS_DIR_END ===
 
 
 # === ANCHOR: GIT_HOOKS__HOOK_SCRIPT_START ===
 def _hook_script(preferred_command: str | None) -> str:
-    commands = []
+    commands: list[str] = []
     if preferred_command:
         commands.extend([f"if {preferred_command}; then", "  exit 0", "fi"])
     return "\n".join(
@@ -72,6 +78,8 @@ def _hook_script(preferred_command: str | None) -> str:
             "",
         ]
     )
+
+
 # === ANCHOR: GIT_HOOKS__HOOK_SCRIPT_END ===
 
 
@@ -100,7 +108,7 @@ def install_pre_commit_secret_hook(root: Path) -> HookInstallResult:
     else:
         status = "installed"
 
-    hook_path.write_text(_hook_script(preferred_command), encoding="utf-8")
+    _ = hook_path.write_text(_hook_script(preferred_command), encoding="utf-8")
     if os.name != "nt":
         try:
             current_mode = hook_path.stat().st_mode
@@ -110,6 +118,8 @@ def install_pre_commit_secret_hook(root: Path) -> HookInstallResult:
                 status="chmod-failed", path=hook_path, detail=str(exc)
             )
     return HookInstallResult(status=status, path=hook_path)
+
+
 # === ANCHOR: GIT_HOOKS_INSTALL_PRE_COMMIT_SECRET_HOOK_END ===
 
 
@@ -129,5 +139,7 @@ def uninstall_pre_commit_secret_hook(root: Path) -> HookInstallResult:
 
     hook_path.unlink()
     return HookInstallResult(status="removed", path=hook_path)
+
+
 # === ANCHOR: GIT_HOOKS_UNINSTALL_PRE_COMMIT_SECRET_HOOK_END ===
 # === ANCHOR: GIT_HOOKS_END ===

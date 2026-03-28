@@ -1,11 +1,15 @@
 # === ANCHOR: AUTO_INSTALL_START ===
 """고속 도구(fd, ripgrep) 및 watchdog 자동 설치 유틸리티."""
+
 from __future__ import annotations
 
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 from typing import Callable
+
+PrintFn = Callable[[str], None]
 
 
 # === ANCHOR: AUTO_INSTALL__ASK_YN_START ===
@@ -14,8 +18,10 @@ def _ask_yn(prompt: str) -> bool:
     try:
         ans = input(prompt).strip().lower()
         return ans in ("y", "yes")
-    except (EOFError, KeyboardInterrupt):
+    except (EOFError, KeyboardInterrupt, OSError):
         return False
+
+
 # === ANCHOR: AUTO_INSTALL__ASK_YN_END ===
 
 
@@ -27,6 +33,8 @@ def _run_visible(cmd: list[str]) -> bool:
         return result.returncode == 0
     except (FileNotFoundError, OSError):
         return False
+
+
 # === ANCHOR: AUTO_INSTALL__RUN_VISIBLE_END ===
 
 
@@ -49,6 +57,8 @@ def _detect_pkg_manager() -> str | None:
         if shutil.which(mgr):
             return mgr
     return None
+
+
 # === ANCHOR: AUTO_INSTALL__DETECT_PKG_MANAGER_END ===
 
 
@@ -63,7 +73,9 @@ def _install_cmd(pkg_manager: str, tools: list[str]) -> list[str] | None:
         return ["brew", "install"] + pkgs if pkgs else None
 
     if pkg_manager == "winget":
-        pkgs = (["sharkdp.fd"] if has_fd else []) + (["BurntSushi.ripgrep.MSVC"] if has_rg else [])
+        pkgs = (["sharkdp.fd"] if has_fd else []) + (
+            ["BurntSushi.ripgrep.MSVC"] if has_rg else []
+        )
         return ["winget", "install"] + pkgs if pkgs else None
 
     if pkg_manager in ("apt", "dnf"):
@@ -76,44 +88,53 @@ def _install_cmd(pkg_manager: str, tools: list[str]) -> list[str] | None:
         return ["sudo", "pacman", "-S", "--noconfirm"] + pkgs if pkgs else None
 
     return None
+
+
 # === ANCHOR: AUTO_INSTALL__INSTALL_CMD_END ===
 
 
 # === ANCHOR: AUTO_INSTALL__TRY_INSTALL_HOMEBREW_START ===
 def _try_install_homebrew(
-    clack_info: Callable,
-    clack_warn: Callable,
-    clack_success: Callable,
-# === ANCHOR: AUTO_INSTALL__TRY_INSTALL_HOMEBREW_END ===
+    clack_info: PrintFn,
+    clack_warn: PrintFn,
+    clack_success: PrintFn,
+    # === ANCHOR: AUTO_INSTALL__TRY_INSTALL_HOMEBREW_END ===
 ) -> bool:
     """Mac에 Homebrew가 없을 때 설치를 제안. 성공 여부 반환."""
     clack_warn("Homebrew(Mac 패키지 관리자)가 설치되어 있지 않아요.")
     clack_info("  fd와 ripgrep을 설치하려면 Homebrew가 먼저 필요해요.")
-    clack_info('  설치 명령어: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"')
+    clack_info(
+        '  설치 명령어: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+    )
 
     if not _ask_yn("  지금 Homebrew를 설치할까요? [y/N] "):
         clack_info("건너뜀. 나중에 https://brew.sh 에서 설치하세요.")
         return False
 
     clack_info("Homebrew 설치 중... (시간이 좀 걸릴 수 있어요)")
-    ok = _run_visible([
-        "/bin/bash", "-c",
-        "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)",
-    ])
+    ok = _run_visible(
+        [
+            "/bin/bash",
+            "-c",
+            "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)",
+        ]
+    )
     if ok and shutil.which("brew"):
         clack_success("Homebrew 설치 완료!")
         return True
-    clack_warn("Homebrew 설치에 실패했어요. https://brew.sh 를 직접 방문해서 설치하세요.")
+    clack_warn(
+        "Homebrew 설치에 실패했어요. https://brew.sh 를 직접 방문해서 설치하세요."
+    )
     return False
 
 
 # === ANCHOR: AUTO_INSTALL_TRY_INSTALL_FAST_TOOLS_START ===
 def try_install_fast_tools(
     missing_tools: list[str],
-    clack_info: Callable,
-    clack_warn: Callable,
-    clack_success: Callable,
-# === ANCHOR: AUTO_INSTALL_TRY_INSTALL_FAST_TOOLS_END ===
+    clack_info: PrintFn,
+    clack_warn: PrintFn,
+    clack_success: PrintFn,
+    # === ANCHOR: AUTO_INSTALL_TRY_INSTALL_FAST_TOOLS_END ===
 ) -> None:
     """fd/ripgrep이 없을 때 y/N 프롬프트로 설치를 제안."""
     if not missing_tools:
@@ -132,7 +153,9 @@ def try_install_fast_tools(
 
     if pkg_manager is None:
         clack_warn("자동 설치를 지원하지 않는 환경이에요.")
-        clack_info("  직접 설치: https://github.com/sharkdp/fd  /  https://github.com/BurntSushi/ripgrep")
+        clack_info(
+            "  직접 설치: https://github.com/sharkdp/fd  /  https://github.com/BurntSushi/ripgrep"
+        )
         return
 
     cmd = _install_cmd(pkg_manager, missing_tools)
@@ -154,27 +177,31 @@ def try_install_fast_tools(
 
 # === ANCHOR: AUTO_INSTALL_ENSURE_PYPROJECT_START ===
 def ensure_pyproject_toml(
-    root,
-    clack_info: Callable,
-    clack_warn: Callable,
-    clack_success: Callable,
+    root: Path,
+    clack_info: PrintFn,
+    _clack_warn: PrintFn,
+    clack_success: PrintFn,
 ) -> bool:
     """pyproject.toml이 없으면 y/N 프롬프트로 생성을 제안. 생성하면 True 반환."""
-    from pathlib import Path
-    pyproject_path = Path(root) / "pyproject.toml"
+    pyproject_path = root / "pyproject.toml"
     if pyproject_path.exists():
         return False
 
     clack_info("📦 pyproject.toml 파일이 없어요.")
     clack_info("  이 파일이 없으면 uv run 으로 파이썬 파일을 실행할 수 없어요.")
     if not _ask_yn("  지금 기본 파일을 만들까요? [y/N] "):
-        clack_info("건너뜀. 나중에 pyproject.toml을 직접 만들거나 `uv init`으로 생성하세요.")
+        clack_info(
+            "건너뜀. 나중에 pyproject.toml을 직접 만들거나 `uv init`으로 생성하세요."
+        )
         return False
 
     # 폴더명을 프로젝트명으로 사용 (공백·특수문자 → 하이픈)
     import re
-    folder_name = Path(root).name
-    project_name = re.sub(r"[^a-zA-Z0-9가-힣]+", "-", folder_name).strip("-") or "my-project"
+
+    folder_name = root.name
+    project_name = (
+        re.sub(r"[^a-zA-Z0-9가-힣]+", "-", folder_name).strip("-") or "my-project"
+    )
 
     # uv / pip 둘 다 호환되는 최소 pyproject.toml
     content = f"""[project]
@@ -183,22 +210,27 @@ version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = []
 """
-    pyproject_path.write_text(content, encoding="utf-8")
+    _ = pyproject_path.write_text(content, encoding="utf-8")
     clack_success(f"pyproject.toml 생성 완료! (프로젝트명: {project_name})")
     return True
+
+
 # === ANCHOR: AUTO_INSTALL_ENSURE_PYPROJECT_END ===
 
 
 # === ANCHOR: AUTO_INSTALL_TRY_INSTALL_WATCHDOG_START ===
 def try_install_watchdog(
-    clack_info: Callable,
-    clack_warn: Callable,
-    clack_success: Callable,
-# === ANCHOR: AUTO_INSTALL_TRY_INSTALL_WATCHDOG_END ===
+    clack_info: PrintFn,
+    clack_warn: PrintFn,
+    clack_success: PrintFn,
+    # === ANCHOR: AUTO_INSTALL_TRY_INSTALL_WATCHDOG_END ===
 ) -> None:
     """watchdog이 없을 때 y/N 프롬프트로 설치를 제안."""
     try:
-        import watchdog  # noqa: F401
+        import watchdog as _watchdog
+
+        _ = _watchdog
+
         return
     except ImportError:
         pass
@@ -210,7 +242,9 @@ def try_install_watchdog(
     else:
         cmd = [sys.executable, "-m", "pip", "install", "watchdog"]
     clack_info("⚡ watchdog 이(가) 설치되어 있지 않아요.")
-    clack_info("  설치하면 vib watch 로 파일 변경을 실시간 감지할 수 있어요. (없어도 정상 작동해요)")
+    clack_info(
+        "  설치하면 vib watch 로 파일 변경을 실시간 감지할 수 있어요. (없어도 정상 작동해요)"
+    )
     if not _ask_yn(f"  지금 설치할까요? ({' '.join(cmd)}) [y/N] "):
         clack_info("건너뜀. 나중에 `pip install watchdog`으로 설치하세요.")
         return
@@ -220,4 +254,6 @@ def try_install_watchdog(
         clack_success("watchdog 설치 완료!")
     else:
         clack_warn("설치에 실패했어요. `pip install watchdog`을 직접 실행하세요.")
+
+
 # === ANCHOR: AUTO_INSTALL_END ===

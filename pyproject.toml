@@ -38,4 +38,10 @@ vibelign-mcp = "vibelign.mcp_server:main"
 include = ["vibelign*"]
 
 [tool.pyright]
-exclude = [".venv", "build"]
+exclude = [
+    ".venv",
+    ".vibelign",
+    "build",
+    "tests/benchmark",
+    "vibelign-gui/src-tauri/target",
+]
