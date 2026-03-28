@@ -1,22 +1,149 @@
 # === ANCHOR: ASK_CMD_START ===
+from collections.abc import Iterable
 import os
 import json
 import importlib
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Protocol, TypedDict, cast
 
 from vibelign.terminal_render import (
     print_ai_response,
     print_attempted_providers,
     print_provider_status,
     should_use_rich,
-
 )
 
 from vibelign.terminal_render import cli_print
+
 print = cli_print
+
+
+class AskArgs(Protocol):
+    file: str
+    question: list[str] | None
+    write: bool
+
+
+class ChatMessage(TypedDict):
+    role: str
+    content: str
+
+
+class OpenAICompatibleRequest(TypedDict):
+    model: str
+    messages: list[ChatMessage]
+    max_tokens: int
+
+
+class OpenAIMessage(TypedDict):
+    content: str
+
+
+class OpenAIChoice(TypedDict):
+    message: OpenAIMessage
+
+
+class OpenAIResponse(TypedDict):
+    choices: list[OpenAIChoice]
+
+
+class GeminiPart(TypedDict):
+    text: str
+
+
+class GeminiContent(TypedDict):
+    parts: list[GeminiPart]
+
+
+class GeminiCandidate(TypedDict):
+    content: GeminiContent
+
+
+class GeminiResponse(TypedDict):
+    candidates: list[GeminiCandidate]
+
+
+class AnthropicTextStream(Protocol):
+    text_stream: object
+
+    def __enter__(self) -> "AnthropicTextStream": ...
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> bool | None: ...
+
+
+class AnthropicMessages(Protocol):
+    def stream(
+        self,
+        *,
+        model: str,
+        max_tokens: int,
+        system: str,
+        messages: list[ChatMessage],
+    ) -> AnthropicTextStream: ...
+
+
+class AnthropicClient(Protocol):
+    messages: AnthropicMessages
+
+
+class AnthropicModule(Protocol):
+    def Anthropic(self, *, api_key: str) -> AnthropicClient: ...
+
+
+class UrlopenResponse(Protocol):
+    def read(self) -> bytes: ...
+
+    def __enter__(self) -> "UrlopenResponse": ...
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> bool | None: ...
+
+
+def _load_json_object(raw: bytes) -> dict[str, object] | None:
+    parsed = cast(object, json.loads(raw))
+    if not isinstance(parsed, dict):
+        return None
+    source = cast(dict[object, object], parsed)
+    normalized: dict[str, object] = {}
+    for key, value in source.items():
+        normalized[str(key)] = value
+    return normalized
+
+
+def _extract_openai_text(result: dict[str, object]) -> str | None:
+    choices = result.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return None
+    first = cast(object, choices[0])
+    if not isinstance(first, dict):
+        return None
+    message = cast(dict[object, object], first).get("message")
+    if not isinstance(message, dict):
+        return None
+    content = cast(dict[object, object], message).get("content")
+    return content if isinstance(content, str) else None
+
+
+def _extract_gemini_text(result: dict[str, object]) -> str | None:
+    candidates = result.get("candidates")
+    if not isinstance(candidates, list) or not candidates:
+        return None
+    first = cast(object, candidates[0])
+    if not isinstance(first, dict):
+        return None
+    content = cast(dict[object, object], first).get("content")
+    if not isinstance(content, dict):
+        return None
+    parts = cast(dict[object, object], content).get("parts")
+    if not isinstance(parts, list) or not parts:
+        return None
+    first_part = cast(object, parts[0])
+    if not isinstance(first_part, dict):
+        return None
+    text = cast(dict[object, object], first_part).get("text")
+    return text if isinstance(text, str) else None
+
 
 MAX_LINES = 300  # 너무 긴 파일은 앞부분만 사용
 DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview"
@@ -55,6 +182,8 @@ def _format_gemini_error(error: Exception, model: str) -> str:
                 message.append(f"응답 본문: {detail}")
             return "\n".join(message)
     return f"Gemini API 호출 실패: {error}"
+
+
 # === ANCHOR: ASK_CMD__FORMAT_GEMINI_ERROR_END ===
 
 
@@ -89,8 +218,8 @@ _SECTION_SPECS = [
 
 
 # === ANCHOR: ASK_CMD__BUILD_RESPONSE_FORMAT_START ===
-def _build_response_format(selected: list[int], question: Optional[str] = None) -> str:
-    sections = []
+def _build_response_format(selected: list[int], question: str | None = None) -> str:
+    sections: list[str] = []
     for index in selected:
         title, guide = _SECTION_SPECS[index]
         sections.append(f"{title}\n- {guide}")
@@ -99,6 +228,8 @@ def _build_response_format(selected: list[int], question: Optional[str] = None) 
             "## 5. 추가 질문 답변\n- 사용자가 따로 묻는 질문에 직접 답해주세요."
         )
     return "\n\n".join(sections)
+
+
 # === ANCHOR: ASK_CMD__BUILD_RESPONSE_FORMAT_END ===
 
 
@@ -114,6 +245,8 @@ def _has_api_key() -> bool:
             "MOONSHOT_API_KEY",
         ]
     )
+
+
 # === ANCHOR: ASK_CMD__HAS_API_KEY_END ===
 
 
@@ -139,8 +272,11 @@ def _build_file_header(rel_path: str, content: str, line_count: int) -> str:
 
 # === ANCHOR: ASK_CMD__BUILD_FOCUSED_PROMPT_START ===
 def _build_focused_prompt(
-    rel_path: str, content: str, line_count: int, selected: list[int]
-# === ANCHOR: ASK_CMD__BUILD_FOCUSED_PROMPT_END ===
+    rel_path: str,
+    content: str,
+    line_count: int,
+    selected: list[int],
+    # === ANCHOR: ASK_CMD__BUILD_FOCUSED_PROMPT_END ===
 ) -> str:
     header = _build_file_header(rel_path, content, line_count)
     section_format = _build_response_format(selected)
@@ -161,8 +297,11 @@ def _build_focused_prompt(
 
 # === ANCHOR: ASK_CMD__BUILD_PROMPT_START ===
 def _build_prompt(
-    rel_path: str, content: str, line_count: int, question: Optional[str]
-# === ANCHOR: ASK_CMD__BUILD_PROMPT_END ===
+    rel_path: str,
+    content: str,
+    line_count: int,
+    question: str | None,
+    # === ANCHOR: ASK_CMD__BUILD_PROMPT_END ===
 ) -> str:
     header = _build_file_header(rel_path, content, line_count)
     specific_q = f"\n특히 이 부분이 궁금합니다: {question}\n" if question else ""
@@ -184,11 +323,14 @@ def _build_prompt(
 
 # === ANCHOR: ASK_CMD__CALL_OPENAI_COMPATIBLE_START ===
 def _call_openai_compatible(
-    api_key: str, base_url: str, model: str, prompt: str
-# === ANCHOR: ASK_CMD__CALL_OPENAI_COMPATIBLE_END ===
+    api_key: str,
+    base_url: str,
+    model: str,
+    prompt: str,
+    # === ANCHOR: ASK_CMD__CALL_OPENAI_COMPATIBLE_END ===
 ) -> bool:
     """OpenAI 호환 API 공통 호출 (OpenAI / GLM / Kimi)"""
-    data = {
+    data: OpenAICompatibleRequest = {
         "model": model,
         "messages": [
             {"role": "system", "content": _SYSTEM_PROMPT},
@@ -205,9 +347,12 @@ def _call_openai_compatible(
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=60) as response:
-        result = json.loads(response.read())
-        text = result["choices"][0]["message"]["content"]
+    with cast(UrlopenResponse, urllib.request.urlopen(req, timeout=60)) as response:
+        raw = response.read()
+        result = _load_json_object(raw)
+        text = _extract_openai_text(result or {})
+        if text is None:
+            raise RuntimeError("OpenAI 호환 응답에서 내용을 찾지 못했습니다.")
         print_ai_response(text)
     return True
 
@@ -219,7 +364,8 @@ def _try_anthropic(prompt: str, attempted: list[str]) -> bool:
         return False
     model = "claude-haiku-4-5"
     try:
-        anthropic_module = cast(Any, importlib.import_module("anthropic"))
+        anthropic_raw = cast(object, importlib.import_module("anthropic"))
+        anthropic_module = cast(AnthropicModule, anthropic_raw)
     except ImportError:
         return False
     try:
@@ -228,14 +374,17 @@ def _try_anthropic(prompt: str, attempted: list[str]) -> bool:
         print_provider_status("Anthropic", model)
         print("AI가 파일을 분석하고 있습니다...\n")
         rich_output = should_use_rich()
-        chunks = []
+        chunks: list[str] = []
         with client.messages.stream(
             model=model,
             max_tokens=2048,
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": prompt}],
         ) as stream:
-            for text in stream.text_stream:
+            iterator = cast(Iterable[object], stream.text_stream)
+            for text in iterator:
+                if not isinstance(text, str):
+                    continue
                 if rich_output:
                     chunks.append(text)
                 else:
@@ -249,6 +398,8 @@ def _try_anthropic(prompt: str, attempted: list[str]) -> bool:
     except Exception as e:
         print(f"Anthropic API 호출 실패: {e}\n")
         return False
+
+
 # === ANCHOR: ASK_CMD__TRY_ANTHROPIC_END ===
 
 
@@ -262,7 +413,7 @@ def _try_openai(prompt: str, attempted: list[str]) -> bool:
         attempted.append(f"OpenAI ({model})")
         print_provider_status("OpenAI", model)
         print("AI가 파일을 분석하고 있습니다...\n")
-        _call_openai_compatible(
+        _ = _call_openai_compatible(
             api_key=api_key,
             base_url="https://api.openai.com/v1",
             model=model,
@@ -273,6 +424,8 @@ def _try_openai(prompt: str, attempted: list[str]) -> bool:
     except Exception as e:
         print(f"OpenAI API 호출 실패: {e}\n")
         return False
+
+
 # === ANCHOR: ASK_CMD__TRY_OPENAI_END ===
 
 
@@ -297,15 +450,20 @@ def _try_gemini(prompt: str, attempted: list[str]) -> bool:
         attempted.append(f"Gemini ({model})")
         print_provider_status("Gemini", model)
         print("AI가 파일을 분석하고 있습니다...\n")
-        with urllib.request.urlopen(req, timeout=60) as response:
-            result = json.loads(response.read())
-            text = result["candidates"][0]["content"]["parts"][0]["text"]
+        with cast(UrlopenResponse, urllib.request.urlopen(req, timeout=60)) as response:
+            raw = response.read()
+            result = _load_json_object(raw)
+            text = _extract_gemini_text(result or {})
+            if text is None:
+                raise RuntimeError("Gemini 응답에서 내용을 찾지 못했습니다.")
             print_ai_response(text)
         print()
         return True
     except Exception as e:
         print(_format_gemini_error(e, model) + "\n")
         return False
+
+
 # === ANCHOR: ASK_CMD__TRY_GEMINI_END ===
 
 
@@ -319,7 +477,7 @@ def _try_glm(prompt: str, attempted: list[str]) -> bool:
         attempted.append(f"GLM ({model})")
         print_provider_status("GLM", model)
         print("AI가 파일을 분석하고 있습니다...\n")
-        _call_openai_compatible(
+        _ = _call_openai_compatible(
             api_key=api_key,
             base_url="https://open.bigmodel.cn/api/paas/v4",
             model=model,
@@ -330,6 +488,8 @@ def _try_glm(prompt: str, attempted: list[str]) -> bool:
     except Exception as e:
         print(f"GLM API 호출 실패: {e}\n")
         return False
+
+
 # === ANCHOR: ASK_CMD__TRY_GLM_END ===
 
 
@@ -343,7 +503,7 @@ def _try_kimi(prompt: str, attempted: list[str]) -> bool:
         attempted.append(f"Kimi ({model})")
         print_provider_status("Kimi", model)
         print("AI가 파일을 분석하고 있습니다...\n")
-        _call_openai_compatible(
+        _ = _call_openai_compatible(
             api_key=api_key,
             base_url="https://api.moonshot.cn/v1",
             model=model,
@@ -354,11 +514,13 @@ def _try_kimi(prompt: str, attempted: list[str]) -> bool:
     except Exception as e:
         print(f"Kimi API 호출 실패: {e}\n")
         return False
+
+
 # === ANCHOR: ASK_CMD__TRY_KIMI_END ===
 
 
 # === ANCHOR: ASK_CMD_RUN_ASK_START ===
-def run_ask(args):
+def run_ask(args: AskArgs) -> None:
     root = Path.cwd()
     target_input = args.file
 
@@ -416,7 +578,7 @@ def run_ask(args):
 
     # AI API 직접 호출 시도 (설정된 키 순서대로)
     if not args.write:
-        attempted = []
+        attempted: list[str] = []
         if (
             _try_anthropic(prompt, attempted)
             or _try_openai(prompt, attempted)
@@ -436,7 +598,7 @@ def run_ask(args):
         out = root / "VIBELIGN_ASK.md"
         if out.exists():
             print(f"경고: 기존 {out.name} 파일을 덮어씁니다")
-        out.write_text(prompt, encoding="utf-8")
+        _ = out.write_text(prompt, encoding="utf-8")
         print(f"{out.name}에 저장했습니다.")
         print()
         print("이 파일 내용을 복사해서 AI 툴(OpenCode, Claude 등)에 붙여넣으세요.")
@@ -449,5 +611,7 @@ def run_ask(args):
         print(prompt)
         print()
         print("파일로 저장하려면: vib ask " + target_input + " --write")
+
+
 # === ANCHOR: ASK_CMD_RUN_ASK_END ===
 # === ANCHOR: ASK_CMD_END ===

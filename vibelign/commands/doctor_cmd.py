@@ -1,6 +1,7 @@
 # === ANCHOR: DOCTOR_CMD_START ===
 import json
 from pathlib import Path
+from typing import Protocol
 from vibelign.core.risk_analyzer import analyze_project
 from vibelign.terminal_render import print_ai_response
 
@@ -10,8 +11,13 @@ from vibelign.terminal_render import cli_print
 print = cli_print
 
 
+class DoctorArgs(Protocol):
+    strict: bool
+    json: bool
+
+
 # === ANCHOR: DOCTOR_CMD_RUN_DOCTOR_START ===
-def run_doctor(args):
+def run_doctor(args: DoctorArgs) -> None:
     report = analyze_project(Path.cwd(), strict=args.strict)
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
@@ -41,5 +47,7 @@ def run_doctor(args):
     for i, suggestion in enumerate(report.suggestions, 1):
         lines.append(f"{i}. {suggestion}")
     print_ai_response("\n".join(lines) + "\n")
+
+
 # === ANCHOR: DOCTOR_CMD_RUN_DOCTOR_END ===
 # === ANCHOR: DOCTOR_CMD_END ===
