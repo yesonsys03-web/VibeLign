@@ -128,6 +128,28 @@ def classify_event(
                 "시작 코드는 작게 유지하고 기능 로직은 밖으로 빼세요.",
             )
 
+    # 진입 파일 이름이 아닌 모든 감시 대상 소스: 줄 수 증가·대형 파일 (사용자가 새로 만든 파일 포함)
+    if old_lines is not None and new_lines > old_lines and name not in ENTRY_FILES:
+        growth = new_lines - old_lines
+        gen_warn_lines = 500 if strict else 700
+        gen_high_lines = 800 if strict else 1000
+        gen_warn_growth = 60 if strict else 100
+        gen_high_growth = 120 if strict else 180
+        if new_lines >= gen_high_lines and growth >= gen_high_growth:
+            add(
+                "HIGH",
+                f"{name}이 {old_lines}줄에서 {new_lines}줄로 크게 늘었습니다",
+                "단일 파일이 계속 비대해지면 AI·리뷰 비용이 커지고 충돌이 잦아집니다.",
+                "역할별 모듈·컴포넌트로 분리하고, 프로젝트는 eslint max-lines 등으로 파일 크기를 제한하세요.",
+            )
+        elif new_lines >= gen_warn_lines and growth >= gen_warn_growth:
+            add(
+                "WARN",
+                f"{name}이 {old_lines}줄에서 {new_lines}줄로 늘었습니다",
+                "파일이 커지고 있습니다. 새 기능은 별도 파일로 나누는 편이 안전합니다.",
+                "데이터·UI 조각은 `*.ts`/하위 컴포넌트로 옮기세요.",
+            )
+
     if name in CATCH_ALL:
         add(
             "WARN",

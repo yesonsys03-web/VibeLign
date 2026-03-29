@@ -41,6 +41,13 @@ This file is automatically read by OpenCode, Claude Code, and other AI coding to
 - Respect anchor boundaries (`ANCHOR: NAME_START` / `ANCHOR: NAME_END`)
 - Keep entry files (main.py, index.js, etc.) small and focused
 
+## Module boundaries and file size
+
+- Keep code that changes together cohesive (same module or directory when sensible).
+- Prefer discoverable paths and names; split when responsibility diverges or tests need isolation.
+- Respect project lint and `watch_rules` limits on file length; prefer new files over bloating an existing one.
+- For very large UI or Python modules, use sub-anchors until split; keep patch targets small.
+
 ## Two Modification Modes
 
 ### Mode 1 — Normal AI edit (default)
@@ -131,6 +138,9 @@ _RULES = """\
 6. **새 파일을 임의로 생성하지 마세요** — 명시적 요청이 있을 때만 생성
 7. **임포트 구조를 바꾸지 마세요** — 명시적 허락 없이 변경 금지
 8. **코드맵을 먼저 읽으세요** — `.vibelign/project_map.json`에서 파일 구조와 앵커 위치를 확인
+9. **응집도** — 같이 바뀌는 코드는 한 모듈·디렉터리에 두고, 책임이 갈라지면 분리
+10. **이름·경로** — 기능을 경로·이름만으로 찾을 수 있게
+11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할; `vib patch`는 작은 `target_anchor`가 안전
 """
 
 _SETUP = """\
@@ -247,6 +257,9 @@ _CURSOR_RULES = """\
 6. **새 파일을 임의로 생성하지 마세요** — 명시적 요청이 있을 때만 생성
 7. **임포트 구조를 바꾸지 마세요** — 명시적 허락 없이 변경 금지
 8. **코드맵을 먼저 읽으세요** — `.vibelign/project_map.json`에서 파일 구조와 앵커 위치를 확인
+9. **응집도** — 같이 바뀌는 코드는 한 모듈·디렉터리에 두고, 책임이 갈라지면 분리
+10. **이름·경로** — 기능을 경로·이름만으로 찾을 수 있게
+11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할; `vib patch`는 작은 `target_anchor`가 안전
 """
 
 _ANTIGRAVITY_TASK = """\
@@ -353,6 +366,9 @@ _CLAUDE_MD_CONTENT = """\
 6. **새 파일을 임의로 생성하지 마세요** — 명시적 요청이 있을 때만 생성
 7. **임포트 구조를 바꾸지 마세요** — 명시적 허락 없이 변경 금지
 8. **코드맵을 먼저 읽으세요** — `.vibelign/project_map.json`에서 파일 구조와 앵커 위치를 확인
+9. **응집도** — 같이 바뀌는 코드는 한 모듈·디렉터리에 두고, 책임이 갈라지면 분리
+10. **이름·경로** — 기능을 경로·이름만으로 찾을 수 있게
+11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할; `vib patch`는 작은 `target_anchor`가 안전
 
 ## 작업 흐름
 
@@ -381,6 +397,9 @@ _OPENCODE_MD_CONTENT = """\
 6. **새 파일을 임의로 생성하지 마세요** — 명시적 요청이 있을 때만 생성
 7. **임포트 구조를 바꾸지 마세요** — 명시적 허락 없이 변경 금지
 8. **코드맵을 먼저 읽으세요** — `.vibelign/project_map.json`에서 파일 구조와 앵커 위치를 확인
+9. **응집도** — 같이 바뀌는 코드는 한 모듈·디렉터리에 두고, 책임이 갈라지면 분리
+10. **이름·경로** — 기능을 경로·이름만으로 찾을 수 있게
+11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할; `vib patch`는 작은 `target_anchor`가 안전
 
 ## 작업 흐름
 

@@ -26,13 +26,23 @@ export async function getVibPath(): Promise<string | null> {
   return invoke<string | null>("get_vib_path");
 }
 
+/** GUI에서 캡처한 문자열이 터미널에서 Rich 없이 볼 때와 같도록 plain 출력을 강제한다. */
+const GUI_VIB_PLAIN_ENV: Record<string, string> = {
+  VIBELIGN_ASK_PLAIN: "1",
+  NO_COLOR: "1",
+};
+
 /** vib CLI 실행. */
 export async function runVib(
   args: string[],
   cwd?: string,
   env?: Record<string, string>
 ): Promise<VibResult> {
-  return invoke<VibResult>("run_vib", { args, cwd: cwd ?? null, env: env ?? null });
+  return invoke<VibResult>("run_vib", {
+    args,
+    cwd: cwd ?? null,
+    env: { ...GUI_VIB_PLAIN_ENV, ...(env ?? {}) },
+  });
 }
 
 // ─── 편의 함수 ─────────────────────────────────────────────────────────────────

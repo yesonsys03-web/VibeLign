@@ -342,19 +342,23 @@ def _get_recent_checkpoints(root: Path, n: int = 5) -> list[CheckpointSummary]:
 
 
 def _read_agents_md(root: Path) -> str:
-    """AGENTS.md 핵심 내용 읽기 (Core Rules 섹션만)."""
+    """AGENTS.md 핵심 내용 읽기 (Core Rules + Module boundaries까지, Two Modification Modes 전)."""
     agents_path = root / "AGENTS.md"
     if not agents_path.exists():
         return "(AGENTS.md 없음 — `vib start` 실행 권장)"
 
     text = agents_path.read_text(encoding="utf-8", errors="ignore")
 
-    # Core Rules 섹션만 추출
-    m = re.search(r"## Core Rules\n(.*?)(?=\n##|\Z)", text, re.DOTALL)
+    # Core Rules부터 Two Modification Modes 직전까지 (중간의 ## Module boundaries 등 포함)
+    m = re.search(
+        r"## Core Rules\n(.*?)(?=\n## Two Modification Modes|\Z)",
+        text,
+        re.DOTALL,
+    )
     if m:
         rules_text = m.group(1).strip()
-        # 최대 10줄로 제한
-        lines = rules_text.split("\n")[:10]
+        # 핸드오프 본문이 과도해지지 않도록 상한
+        lines = rules_text.split("\n")[:40]
         return "\n".join(lines)
 
     # 없으면 앞 20줄만

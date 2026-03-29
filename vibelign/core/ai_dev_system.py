@@ -71,6 +71,19 @@ Examples:
 - UI file → UI only
 - config file → configuration only
 
+### Module boundaries and file size (cohesion)
+
+- Prefer keeping code that changes together in the same module or directory; split when responsibilities clearly diverge.
+- Prefer paths and names that make a feature discoverable without opening many unrelated files.
+- If a file grows large, prefer adding new behavior in a new file or module rather than expanding the same file indefinitely (project checks such as ESLint `max-lines` and `watch_rules` may flag this).
+- Extract pieces that need isolated tests or reuse across features.
+- Avoid over-splitting: if understanding one feature requires hopping across many tiny files with no clear story, prefer a slightly larger cohesive unit.
+
+### Large pages or modules (e.g. major UI pages)
+
+- Do not treat one outer anchor as the only safe zone for an entire very large file; prefer sub-anchors per major section until the file can be split.
+- `vib patch` / CodeSpeak targeting works best when `target_anchor` spans a small, stable region.
+
 ---
 
 ## 3. Anchor Rules

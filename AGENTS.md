@@ -13,6 +13,13 @@ This file is automatically read by OpenCode, Claude Code, and other AI coding to
 - Respect anchor boundaries (`ANCHOR: NAME_START` / `ANCHOR: NAME_END`)
 - Keep entry files (main.py, index.js, etc.) small and focused
 
+## Module boundaries and file size
+
+- Keep code that changes together cohesive (same module or directory when sensible).
+- Prefer discoverable paths and names; split when responsibility diverges or tests need isolation.
+- Respect project lint and `watch_rules` limits on file length; prefer new files over bloating an existing one.
+- For very large UI or Python modules, use sub-anchors until split; keep patch targets small.
+
 ## Two Modification Modes
 
 ### Mode 1 — Normal AI edit (default)
@@ -103,6 +110,13 @@ This file is automatically read by OpenCode, Claude Code, and other AI coding to
 - Do not modify unrelated modules
 - Respect anchor boundaries (`ANCHOR: NAME_START` / `ANCHOR: NAME_END`)
 - Keep entry files (main.py, index.js, etc.) small and focused
+
+## Module boundaries and file size
+
+- Keep code that changes together cohesive (same module or directory when sensible).
+- Prefer discoverable paths and names; split when responsibility diverges or tests need isolation.
+- Respect project lint and `watch_rules` limits on file length; prefer new files over bloating an existing one.
+- For very large UI or Python modules, use sub-anchors until split; keep patch targets small.
 
 ## Two Modification Modes
 
