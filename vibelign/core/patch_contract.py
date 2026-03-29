@@ -111,7 +111,7 @@ class PatchContract:
             preconditions=preconditions,
             expected_result=str(patch_plan["interpretation"]),
             assumptions=assumptions,
-            verification={"commands": ["vib patch --preview", "vib guard --json"]},
+            verification={"commands": []},
             actionable=status == "READY",
             clarifying_questions=clarifying_questions,
             user_status=user_status,
