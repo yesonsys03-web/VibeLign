@@ -822,6 +822,49 @@ const COMMANDS = [
 
 const PATCH_COMMAND = COMMANDS.find((c) => c.name === "patch")!;
 
+/** CLI stdout/stderr와 동일한 본문을 그대로 보여 주는 터미널 스타일 블록 (줄바꿈·공백 유지). */
+function GuiCliOutputBlock({
+  text,
+  placeholder,
+  variant = "default",
+}: {
+  text: string;
+  placeholder: string;
+  variant?: "default" | "error" | "warn";
+}) {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    if (!placeholder) return null;
+    return (
+      <div style={{ fontSize: 15, color: "#555", marginBottom: 6, lineHeight: 1.35 }}>
+        {placeholder}
+      </div>
+    );
+  }
+  const color = variant === "error" ? "#FF4D4D" : variant === "warn" ? "#A05A00" : "#1A1A1A";
+  return (
+    <pre
+      style={{
+        margin: "0 0 8px 0",
+        padding: "8px 10px",
+        maxHeight: 280,
+        overflowY: "auto",
+        fontFamily: "IBM Plex Mono, monospace",
+        fontSize: 10,
+        lineHeight: 1.45,
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
+        background: "#fff",
+        border: "2px solid #1A1A1A",
+        color,
+        boxSizing: "border-box",
+      }}
+    >
+      {text}
+    </pre>
+  );
+}
+
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────────
 export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenSettings, initialView = "home" }: HomeProps) {
   const [view, setView]                   = useState<View>(initialView);
@@ -1419,18 +1462,38 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
                 <div className="feature-card-icon"
                   style={{ background: "#7B4DFF", color: "#fff", borderColor: "#7B4DFF", width: 28, height: 28, fontSize: 14, fontWeight: 900 }}>🕓</div>
                 <div style={{ fontWeight: 700, fontSize: 18, flex: 1 }}>히스토리</div>
-                {(cmdStates["history"] ?? "idle") === "done" && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>}
+                {(((cmdStates["history"] ?? "idle") === "done") || ((cmdStates["history"] ?? "idle") === "idle" && cmdOutputs["history"])) && !(cmdHasWarnings["history"] ?? false) && (
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>
+                )}
+                {(cmdHasWarnings["history"] ?? false) && (
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#FFD166", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>주의</span>
+                )}
+                {(cmdStates["history"] ?? "idle") === "error" && (
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#FF4D4D", color: "#fff", border: "1px solid #1A1A1A" }}>오류</span>
+                )}
               </div>
               <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
-                <div style={{ fontSize: 16.5, color: "#555", marginBottom: 8 }}>
-                  {cmdOutputs["history"] && (cmdStates["history"] ?? "idle") !== "idle"
-                    ? cmdOutputs["history"].slice(0, 60) + (cmdOutputs["history"].length > 60 ? "…" : "")
-                    : "체크포인트 변경 이력 보기"}
+                <GuiCliOutputBlock
+                  text={cmdOutputs["history"] ?? ""}
+                  placeholder="체크포인트 변경 이력 보기"
+                  variant={
+                    (cmdStates["history"] ?? "idle") === "error"
+                      ? "error"
+                      : (cmdHasWarnings["history"] ?? false)
+                        ? "warn"
+                        : "default"
+                  }
+                />
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button className="btn btn-sm" style={{ flex: 1, background: "#7B4DFF", color: "#fff", border: "2px solid #1A1A1A" }}
+                    disabled={(cmdStates["history"] ?? "idle") === "loading"} onClick={() => handleRunCmd("history")}>
+                    {(cmdStates["history"] ?? "idle") === "loading" ? <span className="spinner" /> : "HISTORY ▶"}
+                  </button>
+                  {cmdOutputs["history"] && (
+                    <button className="btn btn-ghost btn-sm" style={{ fontSize: 9, border: "2px solid #1A1A1A", flexShrink: 0 }}
+                      onClick={() => setOutputModal({ name: "history", content: cmdOutputs["history"] })}>결과</button>
+                  )}
                 </div>
-                <button className="btn btn-sm" style={{ width: "100%", background: "#7B4DFF", color: "#fff", border: "2px solid #1A1A1A" }}
-                  disabled={(cmdStates["history"] ?? "idle") === "loading"} onClick={() => handleRunCmd("history")}>
-                  {(cmdStates["history"] ?? "idle") === "loading" ? <span className="spinner" /> : "HISTORY ▶"}
-                </button>
               </div>
             </div>
             {(() => {
@@ -1452,9 +1515,11 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
                   </div>
                   <div className="feature-card-body" style={{ padding: "6px 12px 8px" }}>
                     {!((cmd as any).flags as FlagDef[] | undefined)?.some((f: FlagDef) => f.type === "text" || f.type === "select") && (
-                      <div style={{ fontSize: 15, color: st === "error" ? "#FF4D4D" : hasWarning ? "#A05A00" : "#777", marginBottom: 6, lineHeight: 1.3 }}>
-                        {out ? out.slice(0, 60) + (out.length > 60 ? "…" : "") : cmd.short}
-                      </div>
+                      <GuiCliOutputBlock
+                        text={out}
+                        placeholder={cmd.short}
+                        variant={st === "error" ? "error" : hasWarning ? "warn" : "default"}
+                      />
                     )}
                     {((cmd as any).flags as FlagDef[] | undefined)?.map((fd: FlagDef, fi: number) => {
                       const fvals = cmdFlagValues[cmd.name] ?? {};
@@ -1497,9 +1562,11 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
                       return null;
                     })}
                     {out && ((cmd as any).flags as FlagDef[] | undefined)?.some((f: FlagDef) => f.type === "text" || f.type === "select") && (
-                      <div style={{ fontSize: 13.5, color: st === "error" ? "#FF4D4D" : hasWarning ? "#A05A00" : "#555", marginBottom: 4 }}>
-                        {out.slice(0, 60) + (out.length > 60 ? "…" : "")}
-                      </div>
+                      <GuiCliOutputBlock
+                        text={out}
+                        placeholder=""
+                        variant={st === "error" ? "error" : hasWarning ? "warn" : "default"}
+                      />
                     )}
                     <div style={{ display: "flex", gap: 4 }}>
                       <button
@@ -1560,9 +1627,11 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
                   </div>
                   <div className="feature-card-body" style={{ padding: "6px 12px 8px" }}>
                     {!((cmd as any).flags as FlagDef[] | undefined)?.some((f: FlagDef) => f.type === "text" || f.type === "select") && (
-                      <div style={{ fontSize: 15, color: st === "error" ? "#FF4D4D" : hasWarning ? "#A05A00" : "#777", marginBottom: 6, lineHeight: 1.3 }}>
-                        {out ? out.slice(0, 60) + (out.length > 60 ? "…" : "") : cmd.short}
-                      </div>
+                      <GuiCliOutputBlock
+                        text={out}
+                        placeholder={cmd.short}
+                        variant={st === "error" ? "error" : hasWarning ? "warn" : "default"}
+                      />
                     )}
                     {((cmd as any).flags as FlagDef[] | undefined)?.map((fd: FlagDef, fi: number) => {
                       const fvals = cmdFlagValues[cmd.name] ?? {};
@@ -1605,9 +1674,11 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
                       return null;
                     })}
                     {out && ((cmd as any).flags as FlagDef[] | undefined)?.some((f: FlagDef) => f.type === "text" || f.type === "select") && (
-                      <div style={{ fontSize: 13.5, color: st === "error" ? "#FF4D4D" : hasWarning ? "#A05A00" : "#555", marginBottom: 4 }}>
-                        {out.slice(0, 60) + (out.length > 60 ? "…" : "")}
-                      </div>
+                      <GuiCliOutputBlock
+                        text={out}
+                        placeholder=""
+                        variant={st === "error" ? "error" : hasWarning ? "warn" : "default"}
+                      />
                     )}
                     <div style={{ display: "flex", gap: 4 }}>
                       <button

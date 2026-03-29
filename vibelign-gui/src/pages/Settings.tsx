@@ -60,6 +60,15 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
     return "";
   }
 
+  /** CONFIG STATUS와 동일한 환경변수 키명 (예: GEMINI → GEMINI_API_KEY). */
+  function envKeyNameForProvider(providerId: string): string {
+    return `${providerId}_API_KEY`;
+  }
+
+  function hasEnvProviderKey(providerId: string): boolean {
+    return Boolean(envKeys[envKeyNameForProvider(providerId)]);
+  }
+
   async function handleSaveProvider(provider: string) {
     const key = (inputs[provider] ?? "").trim();
     if (!key) return;
@@ -177,6 +186,7 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
           </div>
           {GUI_KEY_PROVIDERS.map((p, idx) => {
             const sk = savedKey(p.id);
+            const envOnly = !sk && hasEnvProviderKey(p.id);
             return (
               <div
                 key={p.id}
@@ -191,6 +201,8 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
                   상태:{" "}
                   {sk ? (
                     <span style={{ color: "#4DFF91", fontWeight: 700 }}>저장됨 ({sk.slice(0, 8)}…)</span>
+                  ) : envOnly ? (
+                    <span style={{ color: "#4DFF91", fontWeight: 700 }}>설정됨 (환경 변수)</span>
                   ) : (
                     <span style={{ color: "#FF4D4D", fontWeight: 700 }}>미설정</span>
                   )}
