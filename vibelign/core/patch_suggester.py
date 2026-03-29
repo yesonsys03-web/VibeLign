@@ -11,6 +11,7 @@ from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_map import ProjectMapSnapshot, load_project_map
 from vibelign.core.project_scan import iter_source_files, relpath_str
 from vibelign.core.anchor_tools import AnchorMetaEntry, extract_anchors
+from vibelign.core.ui_label_index import load_ui_label_index, score_boost_for_ui_labels
 
 KEYWORD_HINTS = {
     "progress": [
@@ -792,6 +793,7 @@ def _suggest_patch_impl(
     metadata = load_anchor_metadata(root)
     anchor_meta = load_anchor_meta(root)
     project_map, _project_map_error = load_project_map(root)
+    label_index = load_ui_label_index(root)
     scored: list[ScoredPath] = []
     for path in iter_source_files(root):
         rel = relpath_str(root, path)
@@ -804,6 +806,9 @@ def _suggest_patch_impl(
             intent_meta=anchor_meta,
             role=role,
         )
+        lb, lr = score_boost_for_ui_labels(rel, request_tokens, label_index)
+        score += lb
+        rationale = [*rationale, *lr]
         scored.append((score, path, rationale))
 
     if not scored:

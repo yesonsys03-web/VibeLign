@@ -1,6 +1,7 @@
 // === ANCHOR: HOME_START ===
 import { useEffect, useRef, useState } from "react";
-import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch, checkpointCreate, runVib, pickFile, GuardResult } from "../lib/vib";
+import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch, checkpointCreate, runVib, pickFile, GuardResult, buildGuiAiEnv } from "../lib/vib";
+import pkg from "../../package.json";
 
 type CardState = "idle" | "loading" | "done" | "error";
 type View = "home" | "manual_list" | "manual_detail";
@@ -14,6 +15,7 @@ type GuideStep = { step: string; title: string; subtitle?: string; optional?: bo
 interface HomeProps {
   projectDir: string;
   apiKey?: string | null;
+  providerKeys?: Record<string, string>;
   hasAnyAiKey?: boolean;
   aiKeyStatusLoaded?: boolean;
   onNavigate: (page: "checkpoints") => void;
@@ -818,8 +820,10 @@ const COMMANDS = [
   },
 ];
 
+const PATCH_COMMAND = COMMANDS.find((c) => c.name === "patch")!;
+
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────────
-export default function Home({ projectDir, apiKey, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenSettings, initialView = "home" }: HomeProps) {
+export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenSettings, initialView = "home" }: HomeProps) {
   const [view, setView]                   = useState<View>(initialView);
   const [selectedCmd, setSelectedCmd]     = useState<typeof COMMANDS[0] | null>(null);
   const [guardState, setGuardState]       = useState<CardState>("idle");
@@ -959,9 +963,7 @@ export default function Home({ projectDir, apiKey, hasAnyAiKey = false, aiKeySta
       delete cmdIdleTimers.current[name];
     }
     try {
-      const env = args.includes("--ai") && apiKey
-        ? { ANTHROPIC_API_KEY: apiKey }
-        : undefined;
+      const env = args.includes("--ai") ? buildGuiAiEnv(providerKeys, apiKey) : undefined;
       const r = await runVib(args, projectDir, env);
       setCmdStates(s => ({ ...s, [name]: r.ok ? "done" : "error" }));
       const stdoutContent = r.stdout.trim();
@@ -1236,6 +1238,27 @@ export default function Home({ projectDir, apiKey, hasAnyAiKey = false, aiKeySta
       )}
       <div className="page-header" style={{ padding: "14px 20px 12px" }}>
         <span className="page-title">HOME</span>
+        <div
+          className="terminal"
+          style={{
+            padding: "6px 10px",
+            fontSize: 10,
+            fontWeight: 700,
+            lineHeight: 1.4,
+            flexShrink: 0,
+          }}
+          title="VibeLign GUI 버전"
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+            <div className="terminal-header" style={{ marginBottom: 0 }}>
+              <div className="terminal-dot red" />
+              <div className="terminal-dot yellow" />
+              <div className="terminal-dot green" />
+            </div>
+            <span style={{ color: "#b8b4b0" }}>바이브라인</span>
+            <span style={{ color: "#F5621E" }}>v{pkg.version}</span>
+          </div>
+        </div>
       </div>
 
       {error && <div className="alert alert-error" style={{ margin: "0 20px 8px" }}>{error}</div>}
@@ -1382,25 +1405,120 @@ export default function Home({ projectDir, apiKey, hasAnyAiKey = false, aiKeySta
             </div>
           </div>
 
-          {/* ── 히스토리 ── */}
-          <div className="feature-card" style={{ cursor: "default" }}>
-            <div className="feature-card-header" style={{ background: "#7B4DFF18", padding: "10px 14px" }}>
-              <div className="feature-card-icon"
-                style={{ background: "#7B4DFF", color: "#fff", borderColor: "#7B4DFF", width: 28, height: 28, fontSize: 14, fontWeight: 900 }}>🕓</div>
-              <div style={{ fontWeight: 700, fontSize: 18, flex: 1 }}>히스토리</div>
-              {(cmdStates["history"] ?? "idle") === "done" && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>}
-            </div>
-            <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
-              <div style={{ fontSize: 16.5, color: "#555", marginBottom: 8 }}>
-                {cmdOutputs["history"] && (cmdStates["history"] ?? "idle") !== "idle"
-                  ? cmdOutputs["history"].slice(0, 60) + (cmdOutputs["history"].length > 60 ? "…" : "")
-                  : "체크포인트 변경 이력 보기"}
+          {/* ── 히스토리 + 패치 (한 행: 히스토리 왼쪽, 패치 오른쪽) ── */}
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 8,
+            }}
+          >
+            <div className="feature-card" style={{ cursor: "default" }}>
+              <div className="feature-card-header" style={{ background: "#7B4DFF18", padding: "10px 14px" }}>
+                <div className="feature-card-icon"
+                  style={{ background: "#7B4DFF", color: "#fff", borderColor: "#7B4DFF", width: 28, height: 28, fontSize: 14, fontWeight: 900 }}>🕓</div>
+                <div style={{ fontWeight: 700, fontSize: 18, flex: 1 }}>히스토리</div>
+                {(cmdStates["history"] ?? "idle") === "done" && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>}
               </div>
-              <button className="btn btn-sm" style={{ width: "100%", background: "#7B4DFF", color: "#fff", border: "2px solid #1A1A1A" }}
-                disabled={(cmdStates["history"] ?? "idle") === "loading"} onClick={() => handleRunCmd("history")}>
-                {(cmdStates["history"] ?? "idle") === "loading" ? <span className="spinner" /> : "HISTORY ▶"}
-              </button>
+              <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
+                <div style={{ fontSize: 16.5, color: "#555", marginBottom: 8 }}>
+                  {cmdOutputs["history"] && (cmdStates["history"] ?? "idle") !== "idle"
+                    ? cmdOutputs["history"].slice(0, 60) + (cmdOutputs["history"].length > 60 ? "…" : "")
+                    : "체크포인트 변경 이력 보기"}
+                </div>
+                <button className="btn btn-sm" style={{ width: "100%", background: "#7B4DFF", color: "#fff", border: "2px solid #1A1A1A" }}
+                  disabled={(cmdStates["history"] ?? "idle") === "loading"} onClick={() => handleRunCmd("history")}>
+                  {(cmdStates["history"] ?? "idle") === "loading" ? <span className="spinner" /> : "HISTORY ▶"}
+                </button>
+              </div>
             </div>
+            {(() => {
+              const cmd = PATCH_COMMAND;
+              const st = cmdStates[cmd.name] ?? "idle";
+              const out = cmdOutputs[cmd.name] ?? "";
+              const hasWarning = cmdHasWarnings[cmd.name] ?? false;
+              return (
+                <div className="feature-card" style={{ cursor: "default" }}>
+                  <div className="feature-card-header" style={{ background: cmd.color + "18", padding: "8px 12px" }}>
+                    <div className="feature-card-icon" style={{
+                      background: cmd.color, color: "#fff", borderColor: cmd.color,
+                      width: 22, height: 22, fontSize: 11, fontWeight: 900,
+                    }}>{cmd.icon}</div>
+                    <div style={{ fontWeight: 700, fontSize: 16.5, flex: 1 }}>{cmd.title}</div>
+                    {(st === "done" || (st === "idle" && out)) && !hasWarning && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>}
+                    {hasWarning && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#FFD166", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>주의</span>}
+                    {st === "error" && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#FF4D4D", color: "#fff", border: "1px solid #1A1A1A" }}>오류</span>}
+                  </div>
+                  <div className="feature-card-body" style={{ padding: "6px 12px 8px" }}>
+                    {!((cmd as any).flags as FlagDef[] | undefined)?.some((f: FlagDef) => f.type === "text" || f.type === "select") && (
+                      <div style={{ fontSize: 15, color: st === "error" ? "#FF4D4D" : hasWarning ? "#A05A00" : "#777", marginBottom: 6, lineHeight: 1.3 }}>
+                        {out ? out.slice(0, 60) + (out.length > 60 ? "…" : "") : cmd.short}
+                      </div>
+                    )}
+                    {((cmd as any).flags as FlagDef[] | undefined)?.map((fd: FlagDef, fi: number) => {
+                      const fvals = cmdFlagValues[cmd.name] ?? {};
+                      const val: string | boolean = fvals[fd.key] ?? (fd.type === "bool" ? false : (fd.type === "select" && fd.options.length > 0 ? fd.options[0].v : ""));
+                      if (fd.type === "bool") return (
+                        <button key={fi} onClick={() => setCmdFlagValues(m => ({ ...m, [cmd.name]: { ...(m[cmd.name] ?? {}), [fd.key]: !val } }))} style={{
+                          fontSize: 9, fontWeight: 700, padding: "2px 6px", marginRight: 4, marginBottom: 4,
+                          border: "2px solid #1A1A1A",
+                          background: val ? "#1A1A1A" : "#fff",
+                          color: val ? "#fff" : "#1A1A1A", cursor: "pointer",
+                        }}>{fd.label}</button>
+                      );
+                      if (fd.type === "text") return (
+                        <div key={fi} style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+                          <input value={String(val)} onChange={e => setCmdFlagValues(m => ({ ...m, [cmd.name]: { ...(m[cmd.name] ?? {}), [fd.key]: e.target.value } }))} placeholder={(fd as any).placeholder} style={{
+                            flex: 1, fontSize: 10, padding: "3px 6px",
+                            border: "2px solid #1A1A1A", boxSizing: "border-box" as const,
+                            fontFamily: "IBM Plex Mono, monospace", background: "#fff", minWidth: 0,
+                          }} />
+                          {fd.key === "_file" && (
+                            <button onClick={async () => {
+                              const picked = await pickFile(projectDir);
+                              if (picked) {
+                                const rel = picked.startsWith(projectDir + "/") ? picked.slice(projectDir.length + 1) : picked;
+                                setCmdFlagValues(m => ({ ...m, [cmd.name]: { ...(m[cmd.name] ?? {}), [fd.key]: rel } }));
+                              }
+                            }} style={{ padding: "2px 6px", border: "2px solid #1A1A1A", background: "#fff", cursor: "pointer", fontSize: 13, flexShrink: 0 }}>📁</button>
+                          )}
+                        </div>
+                      );
+                      if (fd.type === "select") return (
+                        <select key={fi} value={String(val)} onChange={e => setCmdFlagValues(m => ({ ...m, [cmd.name]: { ...(m[cmd.name] ?? {}), [fd.key]: e.target.value } }))} style={{
+                          width: "100%", fontSize: 10, padding: "3px 6px", marginBottom: 4,
+                          border: "2px solid #1A1A1A", boxSizing: "border-box" as const,
+                          fontFamily: "IBM Plex Mono, monospace", cursor: "pointer", background: "#fff",
+                        }}>
+                          {fd.options.map((o: { v: string; l: string }) => <option key={o.v} value={o.v}>{o.l}</option>)}
+                        </select>
+                      );
+                      return null;
+                    })}
+                    {out && ((cmd as any).flags as FlagDef[] | undefined)?.some((f: FlagDef) => f.type === "text" || f.type === "select") && (
+                      <div style={{ fontSize: 13.5, color: st === "error" ? "#FF4D4D" : hasWarning ? "#A05A00" : "#555", marginBottom: 4 }}>
+                        {out.slice(0, 60) + (out.length > 60 ? "…" : "")}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button
+                        className="btn btn-sm"
+                        style={{ flex: 1, background: cmd.color, color: cmd.color === "#FFD166" || cmd.color === "#FFE44D" ? "#1A1A1A" : "#fff", border: "2px solid #1A1A1A", fontSize: 10 }}
+                        disabled={st === "loading"}
+                        onClick={() => handleRunCmd(cmd.name)}
+                      >
+                        {st === "loading" ? <span className="spinner" /> : `${cmd.name.toUpperCase()} ▶`}
+                      </button>
+                      {out && (
+                        <button className="btn btn-ghost btn-sm" style={{ fontSize: 9, border: "2px solid #1A1A1A", flexShrink: 0 }}
+                          onClick={() => setOutputModal({ name: cmd.name, content: out })}>결과</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
         </div>
@@ -1412,7 +1530,7 @@ export default function Home({ projectDir, apiKey, hasAnyAiKey = false, aiKeySta
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             {((() => {
-              const EXCLUDE = ["scan","watch","guard","checkpoint","transfer","history","start","doctor","config","rules","install","manual"];
+              const EXCLUDE = ["scan","watch","guard","checkpoint","transfer","history","patch","start","doctor","config","rules","install","manual"];
               const toneRank = (color: string) => {
                 if (color === "#FFE44D" || color === "#FFD166" || color === "#F5621E") return 0; // warm
                 if (color === "#FF4D4D" || color === "#FF4D8B") return 1; // red/pink

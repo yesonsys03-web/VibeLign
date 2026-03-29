@@ -8,6 +8,7 @@ import urllib.request
 from pathlib import Path
 from typing import Protocol, TypedDict, cast
 
+from vibelign.core.http_retry import urlopen_read_with_retry
 from vibelign.terminal_render import (
     print_ai_response,
     print_attempted_providers,
@@ -161,6 +162,7 @@ def _format_gemini_error(error: Exception, model: str) -> str:
         if error.code == 429:
             message = [
                 f"Gemini API 호출 실패: HTTP 429 Too Many Requests (model={model})",
+                "클라이언트에서 지수 백오프로 자동 재시도한 뒤에도 실패한 경우입니다.",
                 "잠시 후 다시 시도하거나, 다른 Gemini 모델을 쓰려면 `GEMINI_MODEL` 환경변수를 설정하세요.",
                 "계속 반복되면 Google AI Studio에서 rate limit / quota / billing 상태를 확인하세요.",
             ]
@@ -450,13 +452,12 @@ def _try_gemini(prompt: str, attempted: list[str]) -> bool:
         attempted.append(f"Gemini ({model})")
         print_provider_status("Gemini", model)
         print("AI가 파일을 분석하고 있습니다...\n")
-        with cast(UrlopenResponse, urllib.request.urlopen(req, timeout=60)) as response:
-            raw = response.read()
-            result = _load_json_object(raw)
-            text = _extract_gemini_text(result or {})
-            if text is None:
-                raise RuntimeError("Gemini 응답에서 내용을 찾지 못했습니다.")
-            print_ai_response(text)
+        raw = urlopen_read_with_retry(req, timeout=60)
+        result = _load_json_object(raw)
+        text = _extract_gemini_text(result or {})
+        if text is None:
+            raise RuntimeError("Gemini 응답에서 내용을 찾지 못했습니다.")
+        print_ai_response(text)
         print()
         return True
     except Exception as e:

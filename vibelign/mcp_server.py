@@ -158,9 +158,38 @@ async def list_tools() -> list[types.Tool]:
                     "request": {
                         "type": "string",
                         "description": "수정 요청 (예: '로그인 버튼 크기 키워줘')",
-                    }
+                    },
+                    "lazy_fanout": {
+                        "type": "boolean",
+                        "description": (
+                            "다중 의도가 있을 때 첫 의도만 상세 계획하고 "
+                            "나머지는 pending_sub_intents로 돌려 비용을 줄임"
+                        ),
+                    },
                 },
                 "required": ["request"],
+            },
+        ),
+        types.Tool(
+            name="patch_apply",
+            description=(
+                "Strict Patch JSON을 validator 규칙으로 검증한 뒤 정확히 한 번 매치될 때만 적용합니다. "
+                "적용 직전에 자동 checkpoint를 생성합니다. "
+                "dry_run=true이면 검증만 하고 파일을 쓰지 않으며 checkpoint도 만들지 않습니다."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "strict_patch": {
+                        "type": "object",
+                        "description": "patch_get 또는 handoff prompt에서 얻은 Strict Patch JSON",
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "true면 검증만 수행 (워크스페이스 변경·checkpoint 없음)",
+                    },
+                },
+                "required": ["strict_patch"],
             },
         ),
         # ── 핸드오프 ─────────────────────────────────────────────────────────
@@ -350,6 +379,7 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextC
     # ── handoff_create ─────────────────────────────────────────────────────
     if name == "handoff_create":
         from vibelign.commands.vib_transfer_cmd import (
+            HandoffData,
             _build_context_content,
             _get_changed_files,
             _get_recent_checkpoints,
@@ -364,10 +394,12 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextC
         notes = arguments.get("notes")
 
         if not session_summary or not first_next_action:
-            return [types.TextContent(
-                type="text",
-                text="오류: session_summary와 first_next_action은 필수 항목입니다.",
-            )]
+            return [
+                types.TextContent(
+                    type="text",
+                    text="오류: session_summary와 first_next_action은 필수 항목입니다.",
+                )
+            ]
 
         # 체크포인트 참조
         checkpoints = _get_recent_checkpoints(root, n=1)
@@ -386,37 +418,52 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextC
                 "switched_to": str(raw_dc.get("switched_to", "") or "(not provided)"),
             }
 
-        handoff_data = {
-            "generated_at": _dt.now().strftime("%Y-%m-%d %H:%M"),
-            "source": "mcp_provided",
-            "quality": "ai-drafted",
-            "session_summary": full_summary,
-            "changed_files": _get_changed_files(root),
-            "completed_work": str(completed_work) if completed_work else None,
-            "unfinished_work": str(unfinished_work) if unfinished_work else None,
-            "first_next_action": first_next_action,
-            "decision_context": decision_context,
-            "latest_checkpoint": latest_cp,
-        }
+        handoff_data = cast(
+            HandoffData,
+            cast(
+                object,
+                {
+                    "generated_at": _dt.now().strftime("%Y-%m-%d %H:%M"),
+                    "source": "mcp_provided",
+                    "quality": "ai-drafted",
+                    "session_summary": full_summary,
+                    "changed_files": _get_changed_files(root),
+                    "completed_work": str(completed_work) if completed_work else None,
+                    "unfinished_work": str(unfinished_work)
+                    if unfinished_work
+                    else None,
+                    "first_next_action": first_next_action,
+                    "decision_context": decision_context,
+                    "latest_checkpoint": latest_cp,
+                },
+            ),
+        )
 
-        from vibelign.commands.vib_transfer_cmd import _inject_agents_handoff_instruction
+        from vibelign.commands.vib_transfer_cmd import (
+            _inject_agents_handoff_instruction,
+        )
 
         content = _build_context_content(root, handoff_data=handoff_data)
         ctx_path = root / "PROJECT_CONTEXT.md"
         ctx_path.write_text(content, encoding="utf-8")
         _inject_agents_handoff_instruction(root)
-        return [types.TextContent(
-            type="text",
-            text=(
-                "✓ Session Handoff 블록 생성 완료\n"
-                f"  파일: {ctx_path}\n"
-                "  새 AI에게 PROJECT_CONTEXT.md 상단의 Session Handoff 블록을 읽혀주세요."
-            ),
-        )]
+        return [
+            types.TextContent(
+                type="text",
+                text=(
+                    "✓ Session Handoff 블록 생성 완료\n"
+                    f"  파일: {ctx_path}\n"
+                    "  새 AI에게 PROJECT_CONTEXT.md 상단의 Session Handoff 블록을 읽혀주세요."
+                ),
+            )
+        ]
 
     # ── project_context_get ────────────────────────────────────────────────
     if name == "project_context_get":
-        from vibelign.commands.vib_transfer_cmd import _build_context_content, _TRANSFER_MARKER
+        from vibelign.commands.vib_transfer_cmd import (
+            _build_context_content,
+            _TRANSFER_MARKER,
+        )
 
         compact = bool(arguments.get("compact", False))
         full = bool(arguments.get("full", False))
@@ -479,17 +526,39 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextC
 
     # ── patch_get ──────────────────────────────────────────────────────────
     if name == "patch_get":
-        from vibelign.commands.vib_patch_cmd import _build_patch_data, _build_contract
+        from vibelign.commands.vib_patch_cmd import _build_patch_data
 
         request = str(arguments.get("request", ""))
         if not request:
-            return [types.TextContent(type="text", text="오류: request가 필요합니다.")]
-        data = _build_patch_data(root, request)
-        patch_plan = data["patch_plan"]
-        contract = _build_contract(patch_plan)
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "ok": False,
+                            "error": "request가 필요합니다.",
+                            "data": None,
+                        },
+                        indent=2,
+                        ensure_ascii=False,
+                    ),
+                )
+            ]
+        lazy_fanout = bool(arguments.get("lazy_fanout"))
+        data = _build_patch_data(root, request, lazy_fanout=lazy_fanout)
+        patch_plan = cast(dict[str, object], data["patch_plan"])
+        contract = cast(dict[str, object], data["contract"])
+        scope = cast(dict[str, object], contract.get("scope", {}))
         result = {
+            "schema_version": patch_plan["schema_version"],
             "target_file": patch_plan["target_file"],
             "target_anchor": patch_plan["target_anchor"],
+            "steps": patch_plan.get("steps"),
+            "sub_intents": patch_plan.get("sub_intents"),
+            "pending_sub_intents": patch_plan.get("pending_sub_intents"),
+            "strict_patch": data.get("strict_patch"),
+            "destination_target_file": scope.get("destination_target_file"),
+            "destination_target_anchor": scope.get("destination_target_anchor"),
             "codespeak": patch_plan["codespeak"],
             "interpretation": patch_plan["interpretation"],
             "confidence": patch_plan["confidence"],
@@ -497,8 +566,48 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextC
             "allowed_ops": contract["allowed_ops"],
             "status": contract["status"],
             "clarifying_questions": contract["clarifying_questions"],
+            "move_summary": contract.get("move_summary"),
             "rationale": patch_plan["rationale"],
         }
+        return [
+            types.TextContent(
+                type="text",
+                text=json.dumps(result, indent=2, ensure_ascii=False),
+            )
+        ]
+
+    if name == "patch_apply":
+        from vibelign.core.strict_patch import apply_strict_patch
+
+        raw_patch = arguments.get("strict_patch")
+        if isinstance(raw_patch, str):
+            try:
+                strict_patch = cast(dict[str, object], json.loads(raw_patch))
+            except json.JSONDecodeError:
+                strict_patch = None
+        elif isinstance(raw_patch, dict):
+            strict_patch = cast(dict[str, object], raw_patch)
+        else:
+            strict_patch = None
+        if strict_patch is None:
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "ok": False,
+                            "error": "strict_patch JSON object가 필요합니다.",
+                        },
+                        indent=2,
+                        ensure_ascii=False,
+                    ),
+                )
+            ]
+        result = apply_strict_patch(
+            root,
+            strict_patch,
+            dry_run=bool(arguments.get("dry_run")),
+        )
         return [
             types.TextContent(
                 type="text",
@@ -608,13 +717,20 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextC
         strict = bool(arguments.get("strict", False))
         report = analyze_project_v2(root, strict=strict)
         plan = generate_plan(report)
-        return [types.TextContent(type="text", text=_json.dumps(plan.to_dict(), indent=2, ensure_ascii=False))]
+        return [
+            types.TextContent(
+                type="text",
+                text=_json.dumps(plan.to_dict(), indent=2, ensure_ascii=False),
+            )
+        ]
 
     # ── doctor_patch ───────────────────────────────────────────────────────
     if name == "doctor_patch":
         from vibelign.core.doctor_v2 import analyze_project_v2
         from vibelign.action_engine.action_planner import generate_plan
-        from vibelign.action_engine.generators.patch_generator import generate_patch_preview
+        from vibelign.action_engine.generators.patch_generator import (
+            generate_patch_preview,
+        )
 
         strict = bool(arguments.get("strict", False))
         report = analyze_project_v2(root, strict=strict)
@@ -639,11 +755,19 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextC
             "done": result.done_count,
             "manual": result.manual_count,
             "results": [
-                {"action_type": r.action.action_type, "status": r.status, "detail": r.detail}
+                {
+                    "action_type": r.action.action_type,
+                    "status": r.status,
+                    "detail": r.detail,
+                }
                 for r in result.results
             ],
         }
-        return [types.TextContent(type="text", text=_json.dumps(output, indent=2, ensure_ascii=False))]
+        return [
+            types.TextContent(
+                type="text", text=_json.dumps(output, indent=2, ensure_ascii=False)
+            )
+        ]
 
     return [types.TextContent(type="text", text=f"알 수 없는 도구: {name}")]
 

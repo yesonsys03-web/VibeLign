@@ -1,6 +1,6 @@
 // === ANCHOR: SETTINGS_START ===
 import { useState, useEffect } from "react";
-import { saveApiKey, deleteApiKey, getVibPath, getEnvKeyStatus } from "../lib/vib";
+import { saveProviderApiKey, deleteProviderApiKey, getVibPath, getEnvKeyStatus } from "../lib/vib";
 
 const PROVIDER_MODELS: Record<string, string[]> = {
   ANTHROPIC: ["claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"],
@@ -10,15 +10,25 @@ const PROVIDER_MODELS: Record<string, string[]> = {
   MOONSHOT: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
 };
 
+const GUI_KEY_PROVIDERS: { id: string; label: string; placeholder: string }[] = [
+  { id: "ANTHROPIC", label: "Anthropic", placeholder: "sk-ant-..." },
+  { id: "OPENAI", label: "OpenAI", placeholder: "sk-..." },
+  { id: "GEMINI", label: "Google Gemini", placeholder: "API 키 문자열" },
+  { id: "GLM", label: "GLM", placeholder: "..." },
+  { id: "MOONSHOT", label: "Moonshot", placeholder: "..." },
+];
+
 interface SettingsProps {
   apiKey: string | null;
   onApiKeyChange: (key: string | null) => void;
+  providerKeys: Record<string, string>;
+  onKeysUpdated: () => void | Promise<void>;
   projectDir?: string | null;
   notice?: string | null;
 }
 
-export default function Settings({ apiKey, onApiKeyChange, projectDir, notice }: SettingsProps) {
-  const [input, setInput] = useState("");
+export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysUpdated, projectDir, notice }: SettingsProps) {
+  const [inputs, setInputs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [vibPath, setVibPath] = useState<string | null>(null);
@@ -43,16 +53,24 @@ export default function Settings({ apiKey, onApiKeyChange, projectDir, notice }:
     getEnvKeyStatus().then(setEnvKeys).catch(() => {});
   }, []);
 
-  async function handleSave() {
-    const key = input.trim();
+  function savedKey(provider: string): string {
+    const v = providerKeys[provider]?.trim();
+    if (v) return v;
+    if (provider === "ANTHROPIC" && apiKey) return apiKey;
+    return "";
+  }
+
+  async function handleSaveProvider(provider: string) {
+    const key = (inputs[provider] ?? "").trim();
     if (!key) return;
     setSaving(true);
     setMsg(null);
     try {
-      await saveApiKey(key);
-      onApiKeyChange(key);
-      setInput("");
-      setMsg({ type: "ok", text: "API 키 저장 완료." });
+      await saveProviderApiKey(provider, key);
+      setInputs((prev) => ({ ...prev, [provider]: "" }));
+      if (provider === "ANTHROPIC") onApiKeyChange(key);
+      await onKeysUpdated();
+      setMsg({ type: "ok", text: `${provider} API 키를 저장했어요.` });
     } catch (e) {
       setMsg({ type: "err", text: String(e) });
     } finally {
@@ -60,13 +78,14 @@ export default function Settings({ apiKey, onApiKeyChange, projectDir, notice }:
     }
   }
 
-  async function handleDelete() {
+  async function handleDeleteProvider(provider: string) {
     setSaving(true);
     setMsg(null);
     try {
-      await deleteApiKey();
-      onApiKeyChange(null);
-      setMsg({ type: "ok", text: "API 키 삭제 완료." });
+      await deleteProviderApiKey(provider);
+      if (provider === "ANTHROPIC") onApiKeyChange(null);
+      await onKeysUpdated();
+      setMsg({ type: "ok", text: `${provider} API 키를 삭제했어요.` });
     } catch (e) {
       setMsg({ type: "err", text: String(e) });
     } finally {
@@ -151,64 +170,70 @@ export default function Settings({ apiKey, onApiKeyChange, projectDir, notice }:
           ))}
         </div>
 
-        {/* API 키 섹션 */}
+        {/* API 키 섹션 (제공자별) */}
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
-            Anthropic API Key
+            API 키 (제공자별)
           </div>
-
-          {/* 현재 상태 */}
-          <div style={{ marginBottom: 12, fontSize: 12 }}>
-            상태:{" "}
-            {apiKey ? (
-              <span style={{ color: "#4DFF91", fontWeight: 700 }}>
-                저장됨 ({apiKey.slice(0, 8)}…)
-              </span>
-            ) : (
-              <span style={{ color: "#FF4D4D", fontWeight: 700 }}>미설정</span>
-            )}
-          </div>
-
-          {/* 입력 */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-            <input
-              type="password"
-              placeholder="sk-ant-..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSave()}
-              style={{
-                flex: 1,
-                background: "#1E2216",
-                border: "2px solid #333",
-                color: "#E8FFE0",
-                fontFamily: "IBM Plex Mono, monospace",
-                fontSize: 12,
-                padding: "6px 10px",
-                outline: "none",
-              }}
-            />
-            <button
-              className="btn btn-sm"
-              onClick={handleSave}
-              disabled={saving || !input.trim()}
-            >
-              {saving ? <span className="spinner" /> : "저장"}
-            </button>
-          </div>
-
-          {/* 삭제 */}
-          {apiKey && (
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={handleDelete}
-              disabled={saving}
-              style={{ fontSize: 11, color: "#FF4D4D" }}
-            >
-              API 키 삭제
-            </button>
-          )}
-
+          {GUI_KEY_PROVIDERS.map((p, idx) => {
+            const sk = savedKey(p.id);
+            return (
+              <div
+                key={p.id}
+                style={{
+                  marginBottom: 18,
+                  paddingBottom: 16,
+                  borderBottom: idx < GUI_KEY_PROVIDERS.length - 1 ? "1px solid #2a2a2a" : "none",
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 8, color: "#7DFF6B" }}>{p.label}</div>
+                <div style={{ marginBottom: 8, fontSize: 12 }}>
+                  상태:{" "}
+                  {sk ? (
+                    <span style={{ color: "#4DFF91", fontWeight: 700 }}>저장됨 ({sk.slice(0, 8)}…)</span>
+                  ) : (
+                    <span style={{ color: "#FF4D4D", fontWeight: 700 }}>미설정</span>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  <input
+                    type="password"
+                    placeholder={p.placeholder}
+                    value={inputs[p.id] ?? ""}
+                    onChange={(e) => setInputs((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                    onKeyDown={(e) => e.key === "Enter" && handleSaveProvider(p.id)}
+                    style={{
+                      flex: 1,
+                      background: "#1E2216",
+                      border: "2px solid #333",
+                      color: "#E8FFE0",
+                      fontFamily: "IBM Plex Mono, monospace",
+                      fontSize: 12,
+                      padding: "6px 10px",
+                      outline: "none",
+                    }}
+                  />
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => handleSaveProvider(p.id)}
+                    disabled={saving || !(inputs[p.id] ?? "").trim()}
+                  >
+                    {saving ? <span className="spinner" /> : "저장"}
+                  </button>
+                </div>
+                {sk && (
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => handleDeleteProvider(p.id)}
+                    disabled={saving}
+                    style={{ fontSize: 11, color: "#FF4D4D" }}
+                  >
+                    {p.label} 키 삭제
+                  </button>
+                )}
+              </div>
+            );
+          })}
           {msg && (
             <div
               className={`alert ${msg.type === "ok" ? "alert-success" : "alert-error"}`}
@@ -220,8 +245,8 @@ export default function Settings({ apiKey, onApiKeyChange, projectDir, notice }:
         </div>
 
         <div style={{ fontSize: 11, color: "#555", lineHeight: 1.6 }}>
-          API 키는 <code style={{ color: "#888" }}>~/.vibelign/gui_config.json</code>에 저장됩니다.<br />
-          <code style={{ color: "#888" }}>vib patch --ai</code>, <code style={{ color: "#888" }}>vib doctor --apply</code> 등 AI 기능에 사용됩니다.
+          키는 <code style={{ color: "#888" }}>~/.vibelign/gui_config.json</code>의 <code style={{ color: "#888" }}>provider_api_keys</code>에 저장됩니다 (Anthropic은 기존 <code style={{ color: "#888" }}>anthropic_api_key</code>와 동기화).<br />
+          <code style={{ color: "#888" }}>vib patch --ai</code>, <code style={{ color: "#888" }}>vib doctor --apply</code> 실행 시 GUI에 저장된 키가 해당 환경변수로 전달됩니다.
         </div>
 
         {/* vib 경로 섹션 */}

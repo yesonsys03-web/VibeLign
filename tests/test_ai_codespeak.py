@@ -1,5 +1,6 @@
 import unittest
 import importlib
+from typing import cast
 from unittest.mock import patch
 
 from vibelign.core.codespeak import build_codespeak
@@ -21,7 +22,19 @@ class AiCodeSpeakTest(unittest.TestCase):
         text = 'before {"codespeak":"ui.component.progress_bar.add","interpretation":"ok","confidence":"high","clarifying_questions":[]} after'
         parsed = _parse_codespeak_text(text)
         self.assertIsNotNone(parsed)
-        self.assertEqual(parsed["codespeak"], "ui.component.progress_bar.add")
+        self.assertEqual(cast(str, parsed["codespeak"]), "ui.component.progress_bar.add")
+
+    def test_parse_codespeak_text_extracts_optional_patch_points(self):
+        text = (
+            '{"codespeak":"ui.component.progress_bar.add","interpretation":"ok",'
+            '"confidence":"high","clarifying_questions":[],'
+            '"patch_points":{"destination":"상단 메뉴","source":"progress bar"}}'
+        )
+        parsed = _parse_codespeak_text(text)
+        self.assertIsNotNone(parsed)
+        pp = parsed.get("patch_points") if parsed else None
+        self.assertIsInstance(pp, dict)
+        self.assertEqual(cast(dict[str, str], pp)["destination"], "상단 메뉴")
 
     def test_invalid_ai_codespeak_v0_is_rejected(self):
         rule_result = build_codespeak("add progress bar")
@@ -36,6 +49,29 @@ class AiCodeSpeakTest(unittest.TestCase):
                 "add progress bar", rule_result, quiet=True
             )
         self.assertIsNone(result)
+
+    def test_ai_enhancement_rebuilds_patch_points_and_intent_ir(self):
+        rule_result = build_codespeak("add progress bar")
+        with patch(
+            "vibelign.core.ai_explain.generate_text_with_ai",
+            return_value=(
+                '{"codespeak":"ui.component.progress_bar.move","interpretation":"progress bar를 다른 위치로 이동하는 요청으로 해석했습니다.","confidence":"high","clarifying_questions":[]}',
+                True,
+            ),
+        ):
+            result = _ai_codespeak.enhance_codespeak_with_ai(
+                "progress bar를 상단 메뉴로 이동해줘", rule_result, quiet=True
+            )
+        self.assertIsNotNone(result)
+        if result is None:
+            self.fail("enhance_codespeak_with_ai should return an enhanced result")
+        self.assertEqual(result.patch_points["operation"], "move")
+        self.assertIn("상단 메뉴", result.patch_points["destination"])
+        intent_ir = result.intent_ir
+        if intent_ir is None:
+            self.fail("AI-enhanced result should preserve rebuilt intent_ir")
+        self.assertEqual(intent_ir.operation, "move")
+        self.assertEqual(intent_ir.destination, result.patch_points["destination"])
 
 
 if __name__ == "__main__":

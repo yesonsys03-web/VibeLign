@@ -2,8 +2,11 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from typing import cast
+from unittest.mock import patch
 
 from vibelign.commands.vib_patch_cmd import _build_patch_data_with_options
+from vibelign.core.codespeak import build_codespeak_result
 from vibelign.core.patch_suggester import choose_anchor, suggest_patch
 
 
@@ -51,6 +54,12 @@ class PatchTargetingRegressionTest(unittest.TestCase):
                 }
             )
             + "\n",
+            encoding="utf-8",
+        )
+        # 자동 UI 라벨 인덱스 생성 시 TSX의 "version" 등이 «버전» 별칭과 맞물려
+        # 점수·confidence가 의도치 않게 올라가므로, 픽스처에서는 빈 인덱스로 고정한다.
+        (meta_dir / "ui_label_index.json").write_text(
+            json.dumps({"schema_version": 1, "labels": {}}) + "\n",
             encoding="utf-8",
         )
         (meta_dir / "anchor_index.json").write_text(
@@ -591,9 +600,16 @@ class PatchTargetingRegressionTest(unittest.TestCase):
             )
             self.assertEqual(result["destination_target_anchor"], "APP")
             self.assertEqual(result["patch_points"]["operation"], "move")
+            steps = cast(list[dict[str, object]], result["steps"])
+            self.assertEqual(len(steps), 1)
+            self.assertEqual(steps[0]["target_file"], result["target_file"])
+            self.assertEqual(steps[0]["target_anchor"], result["target_anchor"])
             self.assertEqual(
                 result["patch_points"]["behavior_constraint"],
                 "클릭하면 메뉴얼 화면으로 이동해야 돼.",
+            )
+            self.assertEqual(
+                steps[0]["search_fingerprint"], result["patch_points"]["source"]
             )
             self.assertIn(
                 "Behavior preservation: 클릭하면 메뉴얼 화면으로 이동해야 돼.",
@@ -670,6 +686,11 @@ class PatchTargetingRegressionTest(unittest.TestCase):
             )
 
             self.assertEqual(builder["patch_plan"]["patch_points"]["operation"], "move")
+            steps = cast(list[dict[str, object]], builder["patch_plan"]["steps"])
+            self.assertEqual(len(steps), 1)
+            self.assertEqual(
+                steps[0]["target_file"], builder["patch_plan"]["target_file"]
+            )
             self.assertEqual(
                 builder["patch_plan"]["destination_target_file"],
                 "vibelign-gui/src/App.tsx",
@@ -677,6 +698,169 @@ class PatchTargetingRegressionTest(unittest.TestCase):
             self.assertEqual(
                 builder["patch_plan"]["destination_target_anchor"], "NAV_TABS"
             )
+
+    def test_ai_move_upgrade_recomputes_destination_targeting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta_dir = root / ".vibelign"
+            meta_dir.mkdir(exist_ok=True)
+            (meta_dir / "project_map.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "project_name": root.name,
+                        "entry_files": ["vibelign-gui/src/App.tsx"],
+                        "ui_modules": ["vibelign-gui/src/pages/Home.tsx"],
+                        "core_modules": [],
+                        "service_modules": [],
+                        "large_files": [],
+                        "file_count": 2,
+                        "anchor_index": {
+                            "vibelign-gui/src/App.tsx": ["NAV_TABS"],
+                            "vibelign-gui/src/pages/Home.tsx": ["HOME"],
+                        },
+                        "files": {
+                            "vibelign-gui/src/App.tsx": {
+                                "category": "entry",
+                                "anchors": ["NAV_TABS"],
+                                "line_count": 240,
+                            },
+                            "vibelign-gui/src/pages/Home.tsx": {
+                                "category": "ui",
+                                "anchors": ["HOME"],
+                                "line_count": 120,
+                            },
+                        },
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/App.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/App.tsx").write_text(
+                "// === ANCHOR: NAV_TABS_START ===\n"
+                "export function App() {\n"
+                '  return <div className="nav-tabs">HOME | DOCTOR | CHECKPOINTS</div>;\n'
+                "}\n"
+                "// === ANCHOR: NAV_TABS_END ===\n",
+                encoding="utf-8",
+            )
+            (root / "vibelign-gui/src/pages/Home.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/pages/Home.tsx").write_text(
+                "// === ANCHOR: HOME_START ===\n"
+                "export default function Home() {\n"
+                "  return <div>Manual card</div>;\n"
+                "}\n"
+                "// === ANCHOR: HOME_END ===\n",
+                encoding="utf-8",
+            )
+
+            request = "manual card를 상단 메뉴 CHECKPOINTS 옆으로 옮겨줘"
+
+            base_result = build_codespeak_result(
+                request,
+                codespeak="ui.component.manual_card.update",
+                interpretation="manual card를 업데이트하는 요청으로 해석했습니다.",
+                confidence="medium",
+                clarifying_questions=[],
+            )
+            if base_result is None:
+                self.fail("build_codespeak_result should return a baseline rule result")
+
+            with (
+                patch(
+                    "vibelign.commands.vib_patch_cmd.build_codespeak",
+                    return_value=base_result,
+                ),
+                patch(
+                    "vibelign.core.ai_explain.has_ai_provider",
+                    return_value=True,
+                ),
+                patch(
+                    "vibelign.core.ai_explain.generate_text_with_ai",
+                    return_value=(
+                        '{"codespeak":"ui.component.manual_card.move","interpretation":"메뉴얼 카드를 상단 메뉴로 이동하는 요청으로 해석했습니다.","confidence":"high","clarifying_questions":[]}',
+                        True,
+                    ),
+                ),
+            ):
+                builder = _build_patch_data_with_options(
+                    root,
+                    request,
+                    use_ai=True,
+                    quiet_ai=True,
+                )
+
+            patch_plan = cast(dict[str, object], builder["patch_plan"])
+            patch_points = cast(dict[str, object], patch_plan["patch_points"])
+            destination_resolution = cast(
+                dict[str, object], patch_plan["destination_resolution"]
+            )
+            intent_ir = cast(dict[str, object], patch_plan["intent_ir"])
+            self.assertEqual(patch_points["operation"], "move")
+            steps = cast(list[dict[str, object]], patch_plan["steps"])
+            self.assertEqual(len(steps), 1)
+            self.assertEqual(steps[0]["status"], "READY")
+            self.assertEqual(steps[0]["search_fingerprint"], patch_points["source"])
+            self.assertEqual(
+                patch_plan["destination_target_file"], "vibelign-gui/src/App.tsx"
+            )
+            self.assertEqual(patch_plan["destination_target_anchor"], "NAV_TABS")
+            self.assertEqual(destination_resolution["role"], "destination")
+            self.assertEqual(intent_ir["operation"], "move")
+
+    def test_move_without_source_fingerprint_needs_clarification(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            page = root / "vibelign-gui/src/pages/Home.tsx"
+            page.parent.mkdir(parents=True, exist_ok=True)
+            page.write_text(
+                "// === ANCHOR: HOME_START ===\n"
+                "export function HomePage() {\n"
+                "  return <div>Home</div>;\n"
+                "}\n"
+                "// === ANCHOR: HOME_END ===\n",
+                encoding="utf-8",
+            )
+            app = root / "vibelign-gui/src/App.tsx"
+            app.parent.mkdir(parents=True, exist_ok=True)
+            app.write_text(
+                "// === ANCHOR: CHECKPOINTS_START ===\n"
+                "export function CheckpointsMenu() {\n"
+                "  return <nav>CHECKPOINTS</nav>;\n"
+                "}\n"
+                "// === ANCHOR: CHECKPOINTS_END ===\n",
+                encoding="utf-8",
+            )
+
+            with patch(
+                "vibelign.commands.vib_patch_cmd.build_codespeak",
+                return_value=cast(
+                    object,
+                    build_codespeak_result(
+                        "이걸 상단 메뉴 CHECKPOINTS로 옮겨줘",
+                        codespeak="ui.component.card.move",
+                        interpretation="카드를 상단 메뉴로 이동하는 요청으로 해석했습니다.",
+                        confidence="high",
+                        clarifying_questions=[],
+                    ),
+                ),
+            ):
+                builder = _build_patch_data_with_options(
+                    root,
+                    "이걸 상단 메뉴 CHECKPOINTS로 옮겨줘",
+                    use_ai=False,
+                    quiet_ai=True,
+                )
+
+            patch_plan = cast(dict[str, object], builder["patch_plan"])
+            step = cast(dict[str, object], patch_plan["steps"][0])
+            self.assertEqual(step["status"], "NEEDS_CLARIFICATION")
+            self.assertIsNone(step["search_fingerprint"])
 
     def test_card_manual_placement_prefers_app_over_command_modules(self):
         with tempfile.TemporaryDirectory() as tmp:
