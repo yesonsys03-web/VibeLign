@@ -832,7 +832,13 @@ function GuiCliOutputBlock({
   placeholder: string;
   variant?: "default" | "error" | "warn";
 }) {
+  const [folded, setFolded] = useState(false);
   const trimmed = text.trim();
+
+  useEffect(() => {
+    setFolded(false);
+  }, [text]);
+
   if (!trimmed) {
     if (!placeholder) return null;
     return (
@@ -843,25 +849,42 @@ function GuiCliOutputBlock({
   }
   const color = variant === "error" ? "#FF4D4D" : variant === "warn" ? "#A05A00" : "#1A1A1A";
   return (
-    <pre
-      style={{
-        margin: "0 0 8px 0",
-        padding: "8px 10px",
-        maxHeight: 280,
-        overflowY: "auto",
-        fontFamily: "IBM Plex Mono, monospace",
-        fontSize: 10,
-        lineHeight: 1.45,
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word",
-        background: "#fff",
-        border: "2px solid #1A1A1A",
-        color,
-        boxSizing: "border-box",
-      }}
-    >
-      {text}
-    </pre>
+    <div style={{ margin: "0 0 8px 0" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => setFolded((f) => !f)}
+          style={{ fontSize: 9, fontWeight: 700, padding: "2px 10px", border: "2px solid #1A1A1A", cursor: "pointer" }}
+        >
+          {folded ? "펼치기" : "접기"}
+        </button>
+      </div>
+      {!folded && (
+        <pre
+          style={{
+            margin: 0,
+            padding: "8px 10px",
+            maxHeight: 280,
+            overflowY: "auto",
+            fontFamily: "IBM Plex Mono, monospace",
+            fontSize: 10,
+            lineHeight: 1.45,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            background: "#fff",
+            border: "2px solid #1A1A1A",
+            color,
+            boxSizing: "border-box",
+          }}
+        >
+          {text}
+        </pre>
+      )}
+      {folded && (
+        <div style={{ fontSize: 10, color: "#888", fontWeight: 600, padding: "4px 2px 0" }}>결과가 접혀 있어요.</div>
+      )}
+    </div>
   );
 }
 
@@ -1176,7 +1199,10 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
                     style={{ background: cmd.color, color: "#fff", borderColor: cmd.color, width: 26, height: 26, fontSize: 13, fontWeight: 900 }}>
                     {cmd.icon}
                   </div>
-                  <div style={{ fontWeight: 700, fontSize: 16.5 }}>{cmd.title}</div>
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                    <span style={{ fontWeight: 700, fontSize: 16.5, flexShrink: 0 }}>{cmd.title}</span>
+                    <span style={{ fontSize: 9, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>{cmd.short}</span>
+                  </div>
                 </div>
                 <div className="feature-card-body" style={{ padding: "6px 12px 8px" }}>
                   <div style={{ fontSize: 15, color: "#555", lineHeight: 1.5 }}>{cmd.short}</div>
@@ -1314,7 +1340,12 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
             <div className="feature-card-header" style={{ background: "#F5621E18", padding: "10px 14px" }}>
               <div className="feature-card-icon"
                 style={{ background: "#F5621E", color: "#fff", borderColor: "#F5621E", width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>MAP</div>
-              <div style={{ fontWeight: 700, fontSize: 18, flex: 1 }}>코드맵</div>
+              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <span style={{ fontWeight: 700, fontSize: 18, flexShrink: 0 }}>코드맵</span>
+                <span style={{ fontSize: 10, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>
+                  복잡한 코드가 서로 어떻게 연결되어 있는지 한눈에 보여주는 지도
+                </span>
+              </div>
               {watchOn && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>감시 중</span>}
               {mapMode === "manual" && scanState === "done" && !watchOn && (
                 <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>
@@ -1350,7 +1381,12 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
             <div className="feature-card-header" style={{ background: "#FF4D8B18", padding: "10px 14px" }}>
               <div className="feature-card-icon"
                 style={{ background: "#FF4D8B", color: "#fff", borderColor: "#FF4D8B", width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>♥</div>
-              <div style={{ fontWeight: 700, fontSize: 18, flex: 1 }}>AI 방지</div>
+              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <span style={{ fontWeight: 700, fontSize: 18, flexShrink: 0 }}>AI 방지</span>
+                <span style={{ fontSize: 10, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>
+                  AI가 코드를 이상하게 바꿨는지, 몸 검진하듯 살펴봐요
+                </span>
+              </div>
               {guardState === "done" && guardResult && (
                 <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: guardColor(guardResult.status), color: "#1A1A1A", border: "1px solid #1A1A1A" }}>
                   {guardResult.status.toUpperCase()}
@@ -1390,7 +1426,12 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
             <div className="feature-card-header" style={{ background: "#7B4DFF18", padding: "10px 14px" }}>
               <div className="feature-card-icon"
                 style={{ background: "#7B4DFF", color: "#fff", borderColor: "#7B4DFF", width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>💾</div>
-              <div style={{ fontWeight: 700, fontSize: 18, flex: 1 }}>체크포인트</div>
+              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <span style={{ fontWeight: 700, fontSize: 18, flexShrink: 0 }}>체크포인트</span>
+                <span style={{ fontSize: 10, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>
+                  지금 코드 모습을 저장해 두면 나중에 그때로 되돌릴 수 있어요 (게임 세이브 같아요)
+                </span>
+              </div>
               {cpState === "done" && (
                 <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>저장됨</span>
               )}
@@ -1420,7 +1461,12 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
             <div className="feature-card-header" style={{ background: "#4D9FFF18", padding: "10px 14px" }}>
               <div className="feature-card-icon"
                 style={{ background: "#4D9FFF", color: "#fff", borderColor: "#4D9FFF", width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>⇄</div>
-              <div style={{ fontWeight: 700, fontSize: 18, flex: 1 }}>AI 이동</div>
+              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <span style={{ fontWeight: 700, fontSize: 18, flexShrink: 0 }}>AI 이동</span>
+                <span style={{ fontSize: 10, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>
+                  다른 AI 앱으로 넘어갈 때, 지금까지 한 일을 한 장 요약으로 만들어 줘요
+                </span>
+              </div>
               {transferState === "done" && (
                 <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>
               )}
@@ -1461,7 +1507,12 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
               <div className="feature-card-header" style={{ background: "#7B4DFF18", padding: "10px 14px" }}>
                 <div className="feature-card-icon"
                   style={{ background: "#7B4DFF", color: "#fff", borderColor: "#7B4DFF", width: 28, height: 28, fontSize: 14, fontWeight: 900 }}>🕓</div>
-                <div style={{ fontWeight: 700, fontSize: 18, flex: 1 }}>히스토리</div>
+                <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                  <span style={{ fontWeight: 700, fontSize: 18, flexShrink: 0 }}>히스토리</span>
+                  <span style={{ fontSize: 10, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>
+                    저장이 언제 찍혔는지 시간 순으로 보여 줘요
+                  </span>
+                </div>
                 {(((cmdStates["history"] ?? "idle") === "done") || ((cmdStates["history"] ?? "idle") === "idle" && cmdOutputs["history"])) && !(cmdHasWarnings["history"] ?? false) && (
                   <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>
                 )}
@@ -1508,7 +1559,10 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
                       background: cmd.color, color: "#fff", borderColor: cmd.color,
                       width: 22, height: 22, fontSize: 11, fontWeight: 900,
                     }}>{cmd.icon}</div>
-                    <div style={{ fontWeight: 700, fontSize: 16.5, flex: 1 }}>{cmd.title}</div>
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                      <span style={{ fontWeight: 700, fontSize: 16.5, flexShrink: 0 }}>{cmd.title}</span>
+                      <span style={{ fontSize: 9, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>{cmd.short}</span>
+                    </div>
                     {(st === "done" || (st === "idle" && out)) && !hasWarning && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>}
                     {hasWarning && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#FFD166", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>주의</span>}
                     {st === "error" && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#FF4D4D", color: "#fff", border: "1px solid #1A1A1A" }}>오류</span>}
@@ -1620,7 +1674,10 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
                       background: cmd.color, color: "#fff", borderColor: cmd.color,
                       width: 22, height: 22, fontSize: 11, fontWeight: 900,
                     }}>{cmd.icon}</div>
-                    <div style={{ fontWeight: 700, fontSize: 16.5, flex: 1 }}>{cmd.title}</div>
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                      <span style={{ fontWeight: 700, fontSize: 16.5, flexShrink: 0 }}>{cmd.title}</span>
+                      <span style={{ fontSize: 9, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>{cmd.short}</span>
+                    </div>
                     {(st === "done" || (st === "idle" && out)) && !hasWarning && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>}
                     {hasWarning && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#FFD166", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>주의</span>}
                     {st === "error" && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#FF4D4D", color: "#fff", border: "1px solid #1A1A1A" }}>오류</span>}

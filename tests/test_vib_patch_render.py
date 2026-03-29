@@ -117,7 +117,7 @@ class VibPatchRenderTest(unittest.TestCase):
         self.assertIn("CodeSpeak: ui.login.button.update", handoff["prompt"])
         self.assertNotIn("Return the edit as strict patch JSON", handoff["prompt"])
 
-    def test_build_ready_handoff_includes_apply_notes_when_strict_patch(self):
+    def test_build_ready_handoff_omits_strict_apply_footer_when_strict_patch(self):
         patch_plan = {
             "request": "로그인 버튼 색상을 파란색으로 바꿔줘",
             "interpretation": "로그인 버튼 색상을 바꾸는 요청으로 이해했습니다.",
@@ -147,10 +147,11 @@ class VibPatchRenderTest(unittest.TestCase):
         handoff = _build_ready_handoff(
             _build_contract(patch_plan), patch_plan, strict_patch
         )
-        self.assertIn("vib patch --apply-strict", handoff["prompt"])
-        self.assertIn("--dry-run", handoff["prompt"])
-        self.assertIn("patch_apply", handoff["prompt"])
-        self.assertIn("strict_patch", handoff["prompt"])
+        self.assertNotIn("vib patch --apply-strict", handoff["prompt"])
+        self.assertNotIn("--dry-run", handoff["prompt"])
+        self.assertNotIn("patch_apply", handoff["prompt"])
+        self.assertNotIn("Strict patch JSON", handoff["prompt"])
+        self.assertNotIn("Verification (after editing", handoff["prompt"])
         self.assertNotIn('"search":', handoff["prompt"])
 
     def test_build_ready_handoff_hides_instruction_like_request_lines(self):

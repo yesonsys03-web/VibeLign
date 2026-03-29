@@ -1,7 +1,38 @@
 // === ANCHOR: ONBOARDING_START ===
 import { useState, useEffect } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
-import { getVibPath, vibStart, saveApiKey } from "../lib/vib";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { getVibPath, vibStart } from "../lib/vib";
+
+const VIBELIGN_GITHUB_URL = "https://github.com/yesonsys03-web/VibeLign.git";
+
+/** Threads 프로필(웹). 본인 @아이디에 맞게 이 한 줄만 수정하면 됩니다. */
+const VIBELIGN_THREADS_PROFILE_URL = "https://www.threads.net/@jongjatdon";
+
+/** 바이브라인 깃허브 카드 헤더 — Threads / 선택 버튼 공통 */
+const githubCardHeaderBtnStyle = {
+  fontSize: 10,
+  fontWeight: 700,
+  padding: "3px 10px",
+  border: "2px solid #1A1A1A",
+  flexShrink: 0,
+} as const;
+
+/** Simple Icons (Threads) — viewBox 0 0 24 24 */
+function ThreadsIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="currentColor"
+      aria-hidden
+    >
+      <path d="M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.879-6.43 2.525-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.589 12c.027 3.086.718 5.496 2.057 7.164 1.43 1.783 3.631 2.698 6.54 2.717 2.623-.02 4.358-.631 5.8-2.045 1.647-1.613 1.618-3.593 1.09-4.798-.31-.71-.873-1.3-1.634-1.75-.192 1.352-.622 2.446-1.284 3.272-.886 1.102-2.14 1.704-3.73 1.79-1.202.065-2.361-.218-3.259-.801-1.063-.689-1.685-1.74-1.752-2.964-.065-1.19.408-2.285 1.33-3.082.88-.76 2.119-1.207 3.583-1.291a13.853 13.853 0 0 1 3.02.142c-.126-.742-.375-1.332-.75-1.757-.513-.586-1.308-.883-2.359-.89h-.029c-.844 0-1.992.232-2.721 1.32L7.734 7.847c.98-1.454 2.568-2.256 4.478-2.256h.044c3.194.02 5.097 1.975 5.287 5.388.108.046.216.094.321.142 1.49.7 2.58 1.761 3.154 3.07.797 1.82.871 4.79-1.548 7.158-1.85 1.81-4.094 2.628-7.277 2.65Zm1.003-11.69c-.242 0-.487.007-.739.021-1.836.103-2.98.946-2.916 2.143.067 1.256 1.452 1.839 2.784 1.767 1.224-.065 2.818-.543 3.086-3.71a10.5 10.5 0 0 0-2.215-.221z" />
+    </svg>
+  );
+}
 
 interface OnboardingProps {
   onComplete: (projectDir: string, apiKey: string | null) => void;
@@ -25,13 +56,76 @@ const TERMINAL_LINES = [
   { type: "check",  text: "AI에게 코드맵만 주세요!" },
 ];
 
+/** 온보딩 — 바이브라인 첫걸음 (아코디언 + 스텝) */
+const ONBOARDING_GUIDE_STEPS: {
+  title: string;
+  lines: string[];
+  bullets?: string[];
+  code?: string;
+  hint?: string;
+}[] = [
+  {
+    title: "바이브라인이 뭐예요?",
+    lines: [
+      "AI가 코드를 고칠 때 어디까지 건드려도 되는지 정해 주고, 망가졌는지 검사하고, 되돌릴 수 있게 도와주는 도구예요.",
+      "코드를 대신 짜 주진 않아요. 안전하게 같이 일하는 도우미에 가깝습니다.",
+    ],
+  },
+  {
+    title: "어떤 폴더를 열면 되나요?",
+    lines: [
+      "지금 작업 중인 코드가 있는 폴더를 고르면 됩니다. 새 빈 폴더보다는, 보통 git을 쓰는 프로젝트 루트가 잘 맞아요.",
+    ],
+    hint: "아래 「최근 프로젝트」가 있으면 한 번에 다시 열 수 있어요.",
+  },
+  {
+    title: "처음에는 start 한 번",
+    lines: [
+      "터미널에서 그 폴더로 들어간 뒤 vib start 를 한 번 실행해요. 그러면 AI가 읽을 규칙 파일과 .vibelign 폴더가 생겨요.",
+      "이 GUI에서 폴더만 고른 상태라도, 나중에 터미널에서 같은 폴더로 가서 실행하면 돼요.",
+    ],
+    code: "vib start",
+  },
+  {
+    title: "API 키는 꼭일까요?",
+    lines: [
+      "필수는 아니에요. 다만 vib patch --ai 같이 AI에게 더 맡기는 기능을 쓰려면 API 키가 필요해요.",
+      "⚙ 설정에서 Anthropic 등 API 키를 넣을 수 있어요.",
+    ],
+  },
+  {
+    title: "홈에서 자주 쓰는 것",
+    lines: ["프로젝트를 연 뒤 홈 화면에서 이런 순서로 익혀 보면 좋아요."],
+    bullets: [
+      "코드맵 — 구조를 한눈에 (파일을 많이 바꾼 뒤 갱신하면 좋아요)",
+      "패치 — 말로 바꿀 내용을 넣으면 어디를 고치면 될지 계획이 나와요",
+      "AI 방지(guard) — AI가 고친 뒤 이상한지 점검",
+      "체크포인트 — 지금 상태 저장 (게임 세이브 같아요)",
+    ],
+  },
+  {
+    title: "잘못됐으면",
+    lines: [
+      "먼저 가드로 확인해 보고, 안 되면 되돌리기(undo)를 생각하면 돼요.",
+      "그전에 체크포인트를 자주 찍어 두면 훨씬 안심돼요.",
+    ],
+  },
+  {
+    title: "커맨드가 더 궁금하면",
+    lines: [
+      "앱 안 MANUAL 화면에서 커맨드마다 짧은 설명을 볼 수 있어요. 터미널에서는 vib manual 도 있어요.",
+    ],
+  },
+];
+
 export default function Onboarding({ onComplete, onResume, recentDirs = [] }: OnboardingProps) {
   const [vibFound, setVibFound] = useState<string | null>(null);
   const [vibChecking, setVibChecking] = useState(true);
   const [selectedDir, setSelectedDir] = useState("");
   const [starting, setStarting] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState("");
-  const [apiKeyOpen, setApiKeyOpen] = useState(false);
+  const [githubOpen, setGithubOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(true);
+  const [guideStep, setGuideStep] = useState(0);
   const [recentOpen, setRecentOpen] = useState(true);
 
   useEffect(() => {
@@ -41,16 +135,12 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   async function handleStart() {
     setStarting(true);
     await vibStart(selectedDir);
-    let key: string | null = null;
-    if (apiKeyInput.trim()) {
-      try { await saveApiKey(apiKeyInput.trim()); key = apiKeyInput.trim(); } catch { /* 무시 */ }
-    }
     setStarting(false);
-    onComplete(selectedDir, key);
+    onComplete(selectedDir, null);
   }
 
   async function pickFolder() {
-    const dir = await open({ directory: true, multiple: false, title: "프로젝트 폴더 선택" });
+    const dir = await openDialog({ directory: true, multiple: false, title: "프로젝트 폴더 선택" });
     if (typeof dir === "string") setSelectedDir(dir);
   }
 
@@ -115,36 +205,219 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
           ))}
         </div>
 
-        {/* API 키 카드 */}
-        <div className="feature-card" style={{ cursor: "pointer" }}
-          onClick={() => setApiKeyOpen((o) => !o)}>
-          <div className="feature-card-header" style={{ background: "#FFE44D18", padding: "8px 12px" }}>
-            <div className="feature-card-icon"
-              style={{ background: "#FFE44D", color: "#1A1A1A", borderColor: "#FFE44D", width: 24, height: 24, fontSize: 12, fontWeight: 900 }}>
-              KEY
+        {/* 바이브라인 GitHub 카드 */}
+        <div className="feature-card" style={{ cursor: "default" }}>
+          <div
+            className="feature-card-header"
+            style={{ background: "#24292f18", padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}
+          >
+            <div
+              className="feature-card-icon"
+              style={{
+                background: "#24292f",
+                color: "#fff",
+                borderColor: "#24292f",
+                width: 24,
+                height: 24,
+                fontSize: 10,
+                fontWeight: 900,
+              }}
+            >
+              GH
             </div>
-            <div style={{ fontWeight: 700, fontSize: 11, flex: 1 }}>Anthropic API Key</div>
-            <div style={{ fontSize: 10, color: apiKeyInput.trim() ? "#4DFF91" : "#888", fontWeight: 700 }}>
-              {apiKeyInput.trim() ? "설정됨 ✓" : "미설정 (선택)"}
-            </div>
-            <div style={{ fontSize: 11, color: "#666", marginLeft: 8 }}>{apiKeyOpen ? "▲" : "▼"}</div>
+            <div style={{ fontWeight: 700, fontSize: 11, flex: 1 }}>바이브라인 깃허브</div>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              title="Threads (@jongjatdon)"
+              aria-label="Threads 프로필 열기"
+              style={{
+                ...githubCardHeaderBtnStyle,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                openUrl(VIBELIGN_THREADS_PROFILE_URL).catch(() => {});
+              }}
+            >
+              <ThreadsIcon size={14} />
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={githubCardHeaderBtnStyle}
+              onClick={(e) => {
+                e.stopPropagation();
+                setGithubOpen((o) => !o);
+              }}
+            >
+              선택
+            </button>
+            <div style={{ fontSize: 11, color: "#666", flexShrink: 0 }}>{githubOpen ? "▲" : "▼"}</div>
           </div>
-          {apiKeyOpen && (
-            <div className="feature-card-body"
-              style={{ padding: "8px 12px" }}
-              onClick={(e) => e.stopPropagation()}>
-              <input
-                type="password"
-                className="input-field"
-                value={apiKeyInput}
-                onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder="sk-ant-api03-..."
-                style={{ width: "100%", fontSize: 11, boxSizing: "border-box" }}
-                autoFocus
-              />
-              <div style={{ fontSize: 10, color: "#666", marginTop: 4 }}>
-                AI 기능(vib patch --ai 등)에 사용됩니다. 나중에 ⚙ 설정에서 변경 가능.
+          {githubOpen && (
+            <div className="feature-card-body" style={{ padding: "10px 12px" }}>
+              <div style={{ fontSize: 10, color: "#666", marginBottom: 8, lineHeight: 1.45 }}>
+                소스 코드와 이슈는 GitHub에서 확인할 수 있어요. 아래 주소를 누르면 브라우저가 열려요.
               </div>
+              <button
+                type="button"
+                onClick={() => openUrl(VIBELIGN_GITHUB_URL).catch(() => {})}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  fontFamily: "IBM Plex Mono, monospace",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "#0969da",
+                  background: "#fff",
+                  border: "2px solid #1A1A1A",
+                  padding: "8px 10px",
+                  cursor: "pointer",
+                  wordBreak: "break-all",
+                  boxSizing: "border-box",
+                }}
+              >
+                {VIBELIGN_GITHUB_URL}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 바이브라인 첫걸음 — 아코디언 + 스텝 */}
+        <div
+          className="feature-card"
+          style={{ cursor: "pointer", marginTop: 8 }}
+          onClick={() => setGuideOpen((o) => !o)}
+        >
+          <div className="feature-card-header" style={{ background: "#F5621E18", padding: "8px 12px" }}>
+            <div
+              className="feature-card-icon"
+              style={{
+                background: "#F5621E",
+                color: "#fff",
+                borderColor: "#F5621E",
+                width: 24,
+                height: 24,
+                fontSize: 12,
+                fontWeight: 900,
+              }}
+            >
+              📖
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 11, flex: 1 }}>바이브라인 첫걸음</div>
+            <div style={{ fontSize: 10, color: "#888", fontWeight: 700 }}>
+              {guideStep + 1}/{ONBOARDING_GUIDE_STEPS.length}
+            </div>
+            <div style={{ fontSize: 11, color: "#666", marginLeft: 8 }}>{guideOpen ? "▲" : "▼"}</div>
+          </div>
+          {guideOpen && (
+            <div
+              className="feature-card-body"
+              style={{ padding: "10px 12px 12px" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {(() => {
+                const step = ONBOARDING_GUIDE_STEPS[guideStep]!;
+                return (
+                  <>
+                    <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 8, color: "#1A1A1A" }}>
+                      {step.title}
+                    </div>
+                    {step.lines.map((line, i) => (
+                      <div key={i} style={{ fontSize: 11, color: "#444", lineHeight: 1.55, marginBottom: 6 }}>
+                        {line}
+                      </div>
+                    ))}
+                    {step.bullets && step.bullets.length > 0 && (
+                      <ul style={{ margin: "6px 0 0 0", paddingLeft: 18, fontSize: 11, color: "#444", lineHeight: 1.5 }}>
+                        {step.bullets.map((b, i) => (
+                          <li key={i} style={{ marginBottom: 4 }}>{b}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {step.code && (
+                      <pre
+                        style={{
+                          margin: "8px 0 0 0",
+                          padding: "8px 10px",
+                          fontFamily: "IBM Plex Mono, monospace",
+                          fontSize: 10,
+                          background: "#fff",
+                          border: "2px solid #1A1A1A",
+                          color: "#1A1A1A",
+                        }}
+                      >
+                        {step.code}
+                      </pre>
+                    )}
+                    {step.hint && (
+                      <div style={{ fontSize: 10, color: "#888", fontWeight: 600, marginTop: 8, lineHeight: 1.45 }}>
+                        💡 {step.hint}
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        marginTop: 12,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        style={{ fontSize: 10, border: "2px solid #1A1A1A", minWidth: 72 }}
+                        disabled={guideStep <= 0}
+                        onClick={() => setGuideStep((s) => Math.max(0, s - 1))}
+                      >
+                        이전
+                      </button>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, flex: 1, justifyContent: "center", flexWrap: "wrap" }}>
+                        {ONBOARDING_GUIDE_STEPS.map((_, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            aria-label={`${i + 1}단계`}
+                            onClick={() => setGuideStep(i)}
+                            style={{
+                              width: 8,
+                              height: 8,
+                              padding: 0,
+                              border: "2px solid #1A1A1A",
+                              borderRadius: 999,
+                              background: i === guideStep ? "#F5621E" : "#fff",
+                              cursor: "pointer",
+                              flexShrink: 0,
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        style={{
+                          fontSize: 10,
+                          background: "#F5621E",
+                          color: "#fff",
+                          border: "2px solid #1A1A1A",
+                          minWidth: 72,
+                        }}
+                        disabled={guideStep >= ONBOARDING_GUIDE_STEPS.length - 1}
+                        onClick={() =>
+                          setGuideStep((s) => Math.min(ONBOARDING_GUIDE_STEPS.length - 1, s + 1))
+                        }
+                      >
+                        다음
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>

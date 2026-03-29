@@ -323,7 +323,7 @@ def _apply_multi_intent_gate(
 def _build_ready_handoff(
     contract: dict[str, object],
     patch_plan: dict[str, object],
-    strict_patch: dict[str, object] | None = None,
+    _strict_patch: dict[str, object] | None = None,
 ) -> dict[str, object]:
     root = Path.cwd()
     meta = MetaPaths(root)
@@ -334,7 +334,6 @@ def _build_ready_handoff(
     scope = cast(dict[str, object], contract.get("scope", {}))
     verification = cast(dict[str, object], contract.get("verification", {}))
     preconditions = cast(list[object], contract.get("preconditions", []))
-    verification_cmds = cast(list[object], verification.get("commands", []))
     allowed_files_scope = cast(list[object], scope.get("allowed_files", []))
 
     # 앵커 메타 정보가 있으면 target_anchor의 intent/connects/warning 포함
@@ -433,23 +432,6 @@ def _build_ready_handoff(
         prompt_lines.append("")
         prompt_lines.append("Preconditions:")
         prompt_lines.extend(f"- {item}" for item in preconditions)
-    if verification_cmds:
-        prompt_lines.append("")
-        prompt_lines.append("Verification (after editing, same repo root):")
-        prompt_lines.extend(f"- {item}" for item in verification_cmds)
-    if strict_patch is not None:
-        prompt_lines.extend(
-            [
-                "",
-                "Strict patch JSON (for `vib patch --apply-strict` / MCP patch_apply) is not "
-                "included here to keep this handoff short. Use the `strict_patch` object from "
-                "`vib patch \"…\" --json` (or your tool’s JSON export), fill every `replace` "
-                "field, then run:",
-                "- CLI: vib patch --apply-strict path/to/filled.json",
-                "- CLI (validate only): vib patch --apply-strict path/to/filled.json --dry-run",
-                '- MCP: patch_apply with {"strict_patch": <object>, "dry_run": true|false}',
-            ]
-        )
     prompt_lines = [line for line in prompt_lines if line is not None]
     if request_was_sanitized:
         prompt_lines.insert(
@@ -1065,18 +1047,15 @@ def _render_markdown(data: dict[str, object], preview_text: str | None = None) -
         dict[str, object], data.get("contract") or _build_contract(patch_plan)
     )
     handoff = cast(dict[str, object] | None, data.get("handoff"))
-    strict_patch = cast(dict[str, object] | None, data.get("strict_patch"))
     user_status = cast(dict[str, object], contract.get("user_status", {}))
     patch_points = cast(dict[str, object], contract.get("patch_points", {}))
     scope = cast(dict[str, object], contract.get("scope", {}))
-    verification = cast(dict[str, object], contract.get("verification", {}))
     user_guidance = cast(list[object], contract.get("user_guidance", []))
     clarifying_questions = cast(list[object], contract.get("clarifying_questions", []))
     preconditions = cast(list[object], contract.get("preconditions", []))
     allowed_ops = cast(list[object], contract.get("allowed_ops", []))
     rationale = cast(list[object], patch_plan.get("rationale", []))
     allowed_files = cast(list[object], scope.get("allowed_files", []))
-    verification_commands = cast(list[object], verification.get("commands", []))
     lines: list[str] = [
         "# VibeLign 패치 계획",
         "",
@@ -1135,17 +1114,6 @@ def _render_markdown(data: dict[str, object], preview_text: str | None = None) -
         lines.extend(f"- {item}" for item in clarifying_questions)
     if preview_text is not None:
         lines.extend(["", "## 미리 보기", "```text", preview_text, "```"])
-    if strict_patch is not None:
-        lines.extend(
-            [
-                "",
-                "## Strict Patch (기계 적용용)",
-                "전체 JSON은 `vib patch \"요청\" --json` 결과의 `strict_patch` 필드를 사용하세요.",
-                "각 `replace`를 채운 뒤 `vib patch --apply-strict 파일.json` 또는 MCP `patch_apply`로 적용할 수 있어요.",
-            ]
-        )
-    lines.extend(["", "## 검증할 때 쓸 명령"])
-    lines.extend(f"- {item}" for item in verification_commands)
     lines.extend(
         [
             "",
