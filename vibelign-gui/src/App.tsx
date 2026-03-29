@@ -6,7 +6,7 @@ import Doctor from "./pages/Doctor";
 import Home from "./pages/Home";
 import Checkpoints from "./pages/Checkpoints";
 import Settings from "./pages/Settings";
-import { getEnvKeyStatus, loadApiKey, loadRecentProjects, saveRecentProjects, stopWatch, openFolder } from "./lib/vib";
+import { getEnvKeyStatus, loadApiKey, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, stopWatch, openFolder } from "./lib/vib";
 import "./styles/brutalism.css";
 import "./App.css";
 
@@ -55,13 +55,24 @@ export default function App() {
   const [recentDirs, setRecentDirs] = useState<string[]>([]);
   const [page, setPage] = useState<Page>("home");
   const [apiKey, setApiKey] = useState<string | null>(null);
+  const [providerKeys, setProviderKeys] = useState<Record<string, string>>({});
   const [envKeyStatus, setEnvKeyStatus] = useState<Record<string, boolean>>({});
   const [envKeyStatusLoaded, setEnvKeyStatusLoaded] = useState(false);
   const [prevPage, setPrevPage] = useState<Page>("home");
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
 
+  async function refreshAiKeys() {
+    try {
+      const [k, pk] = await Promise.all([loadApiKey(), loadProviderApiKeys()]);
+      setApiKey(k ?? null);
+      setProviderKeys(pk ?? {});
+    } catch {
+      /* ignore */
+    }
+  }
+
   useEffect(() => {
-    loadApiKey().then((k) => setApiKey(k ?? null)).catch(() => {});
+    refreshAiKeys();
     getEnvKeyStatus()
       .then(setEnvKeyStatus)
       .catch(() => {})
@@ -69,7 +80,8 @@ export default function App() {
     loadRecentProjects().then(setRecentDirs).catch(() => {});
   }, []);
 
-  const hasAnyAiKey = Boolean(apiKey) || Object.values(envKeyStatus).some(Boolean);
+  const hasGuiProviderKey = Object.values(providerKeys).some((v) => Boolean(v?.trim()));
+  const hasAnyAiKey = Boolean(apiKey) || hasGuiProviderKey || Object.values(envKeyStatus).some(Boolean);
 
   function addToRecent(dir: string) {
     const next = [dir, ...recentDirs.filter((d) => d !== dir)].slice(0, 5);
@@ -129,9 +141,9 @@ export default function App() {
 
             <div style={{ flex: 1, overflow: "hidden" }}>
               <ErrorBoundary>
-                {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} />}
-                {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" />}
-                {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} />}
+                {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} />}
+                {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" />}
+                {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} />}
                 {page === "checkpoints" && <Checkpoints projectDir={projectDir} />}
                 {page === "settings" && (
                   <>
@@ -144,7 +156,7 @@ export default function App() {
                         ← 뒤로
                       </button>
                     </div>
-                    <Settings apiKey={apiKey} onApiKeyChange={setApiKey} projectDir={projectDir} notice={settingsNotice} />
+                    <Settings apiKey={apiKey} onApiKeyChange={setApiKey} providerKeys={providerKeys} onKeysUpdated={refreshAiKeys} projectDir={projectDir} notice={settingsNotice} />
                   </>
                 )}
               </ErrorBoundary>

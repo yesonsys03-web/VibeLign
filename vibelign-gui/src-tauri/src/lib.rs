@@ -195,24 +195,68 @@ fn load_recent_projects() -> Vec<String> {
         .unwrap_or_default()
 }
 
+fn read_gui_config() -> serde_json::Value {
+    let path = match config_path() {
+        Some(p) => p,
+        None => return serde_json::json!({}),
+    };
+    let text = std::fs::read_to_string(&path).unwrap_or_default();
+    match serde_json::from_str::<serde_json::Value>(&text) {
+        Ok(v) if v.is_object() => v,
+        _ => serde_json::json!({}),
+    }
+}
+
+fn write_gui_config(data: &serde_json::Value) -> Result<(), String> {
+    let path = config_path().ok_or("홈 디렉터리를 찾을 수 없습니다")?;
+    std::fs::write(&path, data.to_string()).map_err(|e| e.to_string())
+}
+
+/// `provider_api_keys` + 레거시 `anthropic_api_key`를 합친 맵.
+fn provider_keys_from_config(data: &serde_json::Value) -> HashMap<String, String> {
+    let mut out = HashMap::new();
+    if let Some(obj) = data.get("provider_api_keys").and_then(|v| v.as_object()) {
+        for (k, v) in obj {
+            if let Some(s) = v.as_str() {
+                if !s.is_empty() {
+                    out.insert(k.to_uppercase(), s.to_string());
+                }
+            }
+        }
+    }
+    if let Some(s) = data.get("anthropic_api_key").and_then(|v| v.as_str()) {
+        if !s.is_empty() {
+            out.entry("ANTHROPIC".into()).or_insert_with(|| s.to_string());
+        }
+    }
+    out
+}
+
 #[tauri::command]
 fn save_api_key(key: String) -> Result<(), String> {
-    let path = config_path().ok_or("홈 디렉터리를 찾을 수 없습니다")?;
-    let existing = std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
-        .unwrap_or(serde_json::json!({}));
-    let mut data = existing;
-    data["anthropic_api_key"] = serde_json::Value::String(key);
-    std::fs::write(&path, data.to_string()).map_err(|e| e.to_string())
+    let mut data = read_gui_config();
+    data["anthropic_api_key"] = serde_json::Value::String(key.clone());
+    let pk = data
+        .as_object_mut()
+        .unwrap()
+        .entry("provider_api_keys")
+        .or_insert(serde_json::json!({}));
+    if let Some(obj) = pk.as_object_mut() {
+        obj.insert(
+            "ANTHROPIC".into(),
+            serde_json::Value::String(key),
+        );
+    }
+    write_gui_config(&data)
 }
 
 #[tauri::command]
 fn load_api_key() -> Option<String> {
-    let path = config_path()?;
-    let text = std::fs::read_to_string(&path).ok()?;
-    let data: serde_json::Value = serde_json::from_str(&text).ok()?;
-    data["anthropic_api_key"].as_str().map(String::from)
+    let data = read_gui_config();
+    provider_keys_from_config(&data)
+        .get("ANTHROPIC")
+        .cloned()
+        .or_else(|| data["anthropic_api_key"].as_str().map(String::from))
 }
 
 #[tauri::command]
@@ -221,13 +265,63 @@ fn delete_api_key() -> Result<(), String> {
     if !path.exists() {
         return Ok(());
     }
-    let text = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let mut data: serde_json::Value =
-        serde_json::from_str(&text).unwrap_or(serde_json::json!({}));
+    let mut data = read_gui_config();
     if let Some(obj) = data.as_object_mut() {
         obj.remove("anthropic_api_key");
     }
-    std::fs::write(&path, data.to_string()).map_err(|e| e.to_string())
+    if let Some(obj) = data
+        .get_mut("provider_api_keys")
+        .and_then(|v| v.as_object_mut())
+    {
+        obj.remove("ANTHROPIC");
+    }
+    write_gui_config(&data)
+}
+
+#[tauri::command]
+fn save_provider_api_key(provider: String, key: String) -> Result<(), String> {
+    let provider = provider.to_uppercase();
+    let key = key.trim().to_string();
+    if key.is_empty() {
+        return Err("키가 비어 있습니다".into());
+    }
+    let mut data = read_gui_config();
+    let pk = data
+        .as_object_mut()
+        .unwrap()
+        .entry("provider_api_keys")
+        .or_insert(serde_json::json!({}));
+    if let Some(obj) = pk.as_object_mut() {
+        obj.insert(provider.clone(), serde_json::Value::String(key.clone()));
+    }
+    if provider == "ANTHROPIC" {
+        data["anthropic_api_key"] = serde_json::Value::String(key);
+    }
+    write_gui_config(&data)
+}
+
+#[tauri::command]
+fn delete_provider_api_key(provider: String) -> Result<(), String> {
+    let provider = provider.to_uppercase();
+    let mut data = read_gui_config();
+    if let Some(obj) = data
+        .get_mut("provider_api_keys")
+        .and_then(|v| v.as_object_mut())
+    {
+        obj.remove(&provider);
+    }
+    if provider == "ANTHROPIC" {
+        if let Some(obj) = data.as_object_mut() {
+            obj.remove("anthropic_api_key");
+        }
+    }
+    write_gui_config(&data)
+}
+
+#[tauri::command]
+fn load_provider_api_keys() -> HashMap<String, String> {
+    let data = read_gui_config();
+    provider_keys_from_config(&data)
 }
 
 // ─── 환경변수 API 키 상태 ──────────────────────────────────────────────────────
@@ -261,6 +355,9 @@ pub fn run() {
             save_api_key,
             load_api_key,
             delete_api_key,
+            save_provider_api_key,
+            delete_provider_api_key,
+            load_provider_api_keys,
             save_recent_projects,
             load_recent_projects,
             start_watch,

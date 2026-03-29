@@ -355,13 +355,32 @@ def build_parser():
             "이렇게 쓰세요:\n"
             '  vib patch "로그인 버튼 추가"           수정 계획\n'
             '  vib patch "버그 수정" --ai             AI가 분석\n'
-            '  vib patch "사이드바 제거" --preview    미리 보기'
+            '  vib patch "사이드바 제거" --preview    미리 보기\n'
+            "  vib patch --apply-strict patch.json   strict_patch JSON 적용\n"
+            "  vib patch --apply-strict patch.json --dry-run   검증만 (파일·체크포인트 없음)\n"
+            "  vib patch --lazy-fanout --json \"A 그리고 B\"   다중 의도 시 첫 조각만 상세 계획"
         ),
     )
-    p.add_argument("request", nargs="+", help="수정 요청 (말로 써주세요)")
+    p.add_argument(
+        "--apply-strict",
+        metavar="FILE",
+        default=None,
+        help="strict_patch JSON 파일을 검증 후 워크스페이스에 적용",
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="--apply-strict와 함께: 검증만 하고 디스크에 쓰지 않음",
+    )
+    p.add_argument("request", nargs="*", help="수정 요청 (--apply-strict 없을 때 필요)")
     p.add_argument("--ai", action="store_true", help="AI가 더 정확하게 분석")
     p.add_argument("--json", action="store_true", help="JSON으로 출력")
     p.add_argument("--preview", action="store_true", help="수정 미리 보기")
+    p.add_argument(
+        "--lazy-fanout",
+        action="store_true",
+        help="다중 의도 시 첫 의도만 계획하고 나머지는 pending_sub_intents로 표시",
+    )
     p.add_argument("--write-report", action="store_true", help="결과를 파일로 저장")
     p.add_argument(
         "--copy", action="store_true", help="AI 전달용 프롬프트를 클립보드에 복사"

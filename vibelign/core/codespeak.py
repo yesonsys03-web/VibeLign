@@ -4,6 +4,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 
 from vibelign.core.intent_ir import IntentIR
+from vibelign.core.request_normalizer import normalize_user_request
 
 
 ACTION_MAP = {
@@ -289,15 +290,6 @@ STOPWORDS = {
     "다시",
     "한번",
     "잠깐",
-    "동일하게",
-    "통일",
-    "같게",
-    "맞춰",
-    "맞춰줘",
-    "통일해",
-    "통일해줘",
-    "달라",
-    "다르게",
     "사이즈가",
     "크기가",
     "높이가",
@@ -332,12 +324,86 @@ class CodeSpeakResult:
     interpretation: str
     clarifying_questions: list[str]
     patch_points: dict[str, str]
+    sub_intents: list[str] | None = None
     intent_ir: IntentIR | None = None
     target_file: str | None = None
     target_anchor: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
+
+
+_PATCH_POINT_KEYS = (
+    "operation",
+    "source",
+    "destination",
+    "object",
+    "behavior_constraint",
+)
+
+
+def _merge_ai_patch_points(
+    rule_points: dict[str, str], ai_points: dict[str, str]
+) -> dict[str, str]:
+    """규칙 추출이 비어 있는 필드만 AI 출력으로 채운다 (덮어쓰기 최소화)."""
+    out = dict(rule_points)
+    for key in _PATCH_POINT_KEYS:
+        ai_val = str(ai_points.get(key, "")).strip()
+        if not ai_val:
+            continue
+        cur = str(out.get(key, "")).strip()
+        if not cur:
+            out[key] = ai_val
+    return out
+
+
+def build_codespeak_result(
+    request: str,
+    *,
+    codespeak: str,
+    interpretation: str,
+    confidence: str,
+    clarifying_questions: list[str],
+    sub_intents: list[str] | None = None,
+    target_file: str | None = None,
+    target_anchor: str | None = None,
+    patch_points_override: dict[str, str] | None = None,
+) -> CodeSpeakResult | None:
+    parts = parse_codespeak_v0(codespeak)
+    if parts is None:
+        return None
+    action = parts["action"]
+    patch_points, _points_score = _extract_patch_points(request, action)
+    if patch_points_override:
+        patch_points = _merge_ai_patch_points(patch_points, patch_points_override)
+    intent_ir = IntentIR(
+        raw_request=request,
+        operation=patch_points.get("operation", action),
+        source=patch_points.get("source", ""),
+        destination=patch_points.get("destination", ""),
+        behavior_constraint=patch_points.get("behavior_constraint", ""),
+        layer=parts["layer"],
+        target=parts["target"],
+        subject=parts["subject"],
+        action=action,
+        confidence=confidence,
+        clarifying_questions=clarifying_questions,
+    )
+    return CodeSpeakResult(
+        codespeak=codespeak,
+        layer=parts["layer"],
+        target=parts["target"],
+        subject=parts["subject"],
+        action=action,
+        confidence=confidence,
+        interpretation=interpretation,
+        clarifying_questions=clarifying_questions,
+        patch_points=patch_points,
+        sub_intents=sub_intents,
+        intent_ir=intent_ir,
+        target_file=target_file,
+        target_anchor=target_anchor,
+    )
 
 
 def parse_codespeak_v0(codespeak: str) -> dict[str, str] | None:
@@ -353,6 +419,35 @@ def is_valid_codespeak_v0(codespeak: str) -> bool:
 
 def tokenize_request(text: str) -> list[str]:
     return re.findall(r"[a-zA-Z_가-힣]+", text.lower())
+
+
+def normalize_request_text(text: str) -> str:
+    s, _ = normalize_user_request(text)
+    return s
+
+
+def _looks_like_behavior_clause(text: str) -> bool:
+    normalized = text.strip().lower()
+    return any(
+        marker in normalized
+        for marker in [
+            "클릭하면",
+            "유지",
+            "보존",
+            "해야 돼",
+            "해야해",
+            "해야 해",
+            "해야 합니다",
+            "해야합니다",
+            "동작해야",
+            "동작해",
+        ]
+    )
+
+
+def split_request_into_sub_intents(text: str) -> list[str]:
+    _, parts = normalize_user_request(text)
+    return parts
 
 
 def _infer_action(tokens: list[str]) -> tuple[str, int]:
@@ -499,12 +594,14 @@ def _infer_subject(tokens: list[str], layer: str, action: str) -> tuple[str, int
 
 
 def build_codespeak(request: str, root: Path | None = None) -> CodeSpeakResult:
-    tokens = tokenize_request(request)
+    normalized_request, sub_intents = normalize_user_request(request)
+    primary_request = sub_intents[0] if sub_intents else normalized_request
+    tokens = tokenize_request(primary_request)
     action, action_score = _infer_action(tokens)
     layer, layer_score = _infer_layer(tokens)
     target = _infer_target(tokens, layer)
     subject, subject_score = _infer_subject(tokens, layer, action)
-    patch_points, points_score = _extract_patch_points(request, action)
+    patch_points, points_score = _extract_patch_points(primary_request, action)
     if patch_points.get("operation") == "move" and action != "move":
         action = "move"
         subject, subject_score = _infer_subject(tokens, layer, action)
@@ -512,54 +609,44 @@ def build_codespeak(request: str, root: Path | None = None) -> CodeSpeakResult:
     total += points_score
     confidence = "high" if total >= 5 else "medium" if total >= 3 else "low"
     clarifying_questions = []
+    if len(sub_intents) > 1:
+        confidence = "low"
+        clarifying_questions.append(
+            "지금 요청에는 수정 의도가 여러 개 섞여 있어요. 우선 한 번에 한 가지 변경만 말해줄 수 있나요?"
+        )
     if confidence == "low":
-        clarifying_questions = [
+        for question in [
             "어느 화면이나 파일을 바꾸고 싶은지 더 구체적으로 말해줄 수 있나요?",
             "추가인지 수정인지, 또는 버그 수정인지 알려줄 수 있나요?",
-        ]
-    interpretation = (
-        f"'{request}' 요청을 {layer} 영역의 {subject} {action} 작업으로 해석했습니다."
-    )
+        ]:
+            if question not in clarifying_questions:
+                clarifying_questions.append(question)
+    interpretation = f"'{primary_request}' 요청을 {layer} 영역의 {subject} {action} 작업으로 해석했습니다."
     target_file = None
     target_anchor = None
     if root is not None:
         try:
             from vibelign.core.patch_suggester import suggest_patch
 
-            suggestion = suggest_patch(root, request)
+            suggestion = suggest_patch(root, primary_request)
             target_file = suggestion.target_file
             target_anchor = suggestion.target_anchor
         except Exception:
             pass
 
-    intent_ir = IntentIR(
-        raw_request=request,
-        operation=patch_points.get("operation", action),
-        source=patch_points.get("source", ""),
-        destination=patch_points.get("destination", ""),
-        behavior_constraint=patch_points.get("behavior_constraint", ""),
-        layer=layer,
-        target=target,
-        subject=subject,
-        action=action,
-        confidence=confidence,
-        clarifying_questions=clarifying_questions,
-    )
-
-    return CodeSpeakResult(
+    result = build_codespeak_result(
+        primary_request,
         codespeak=f"{layer}.{target}.{subject}.{action}",
-        layer=layer,
-        target=target,
-        subject=subject,
-        action=action,
-        confidence=confidence,
         interpretation=interpretation,
+        confidence=confidence,
         clarifying_questions=clarifying_questions,
-        patch_points=patch_points,
-        intent_ir=intent_ir,
+        sub_intents=sub_intents if len(sub_intents) > 1 else None,
         target_file=target_file,
         target_anchor=target_anchor,
     )
+    if result is None:
+        raise ValueError("build_codespeak generated an invalid codespeak result")
+    return result
 
 
 # === ANCHOR: CODESPEAK_END ===

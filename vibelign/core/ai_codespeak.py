@@ -1,16 +1,29 @@
 # === ANCHOR: AI_CODESPEAK_START ===
 import importlib
 import json
-from typing import Protocol, TypedDict, cast
+from typing import Protocol, cast
 
-from vibelign.core.codespeak import CodeSpeakResult, parse_codespeak_v0
+from vibelign.core.codespeak import CodeSpeakResult, build_codespeak_result
+
+_AI_PATCH_POINT_KEYS = (
+    "operation",
+    "source",
+    "destination",
+    "object",
+    "behavior_constraint",
+)
 
 
-class CodeSpeakPayload(TypedDict):
-    codespeak: str
-    interpretation: str
-    confidence: str
-    clarifying_questions: list[str]
+def _coerce_ai_patch_points(raw: object) -> dict[str, str] | None:
+    if not isinstance(raw, dict):
+        return None
+    data = cast(dict[str, object], raw)
+    out: dict[str, str] = {}
+    for key in _AI_PATCH_POINT_KEYS:
+        val = data.get(key)
+        if isinstance(val, str) and val.strip():
+            out[key] = val.strip()
+    return out or None
 
 
 class AIExplainModule(Protocol):
@@ -28,6 +41,9 @@ def build_codespeak_ai_prompt(request: str, rule_result: CodeSpeakResult) -> str
 - JSON만 출력하세요.
 - 형식은 다음 키를 반드시 포함하세요:
   codespeak, interpretation, confidence, clarifying_questions
+- 선택 키 patch_points: 객체이며 문자열 필드만 사용합니다.
+  (operation, source, destination, object, behavior_constraint)
+  규칙 추출이 비어 있을 때만 채워 넣으세요. 확실하지 않으면 생략합니다.
 - `codespeak`는 layer.target.subject.action 형식만 허용합니다.
 - confidence 는 high, medium, low 중 하나입니다.
 - clarifying_questions 는 문자열 배열입니다.
@@ -52,7 +68,7 @@ def build_codespeak_ai_prompt(request: str, rule_result: CodeSpeakResult) -> str
 
 
 # === ANCHOR: AI_CODESPEAK__PARSE_CODESPEAK_TEXT_START ===
-def _parse_codespeak_text(text: str) -> CodeSpeakPayload | None:
+def _parse_codespeak_text(text: str) -> dict[str, object] | None:
     start = text.find("{")
     end = text.rfind("}")
     if start == -1 or end == -1 or end <= start:
@@ -77,12 +93,16 @@ def _parse_codespeak_text(text: str) -> CodeSpeakPayload | None:
         if isinstance(clarifying_raw, list)
         else []
     )
-    return {
+    out: dict[str, object] = {
         "codespeak": codespeak,
         "interpretation": interpretation,
         "confidence": confidence,
         "clarifying_questions": clarifying_questions,
     }
+    pp = _coerce_ai_patch_points(parsed.get("patch_points"))
+    if pp:
+        out["patch_points"] = pp
+    return out
 
 
 # === ANCHOR: AI_CODESPEAK__PARSE_CODESPEAK_TEXT_END ===
@@ -106,25 +126,22 @@ def enhance_codespeak_with_ai(
     parsed = _parse_codespeak_text(text)
     if not parsed:
         return None
-    codespeak = parsed["codespeak"]
-    interpretation = parsed["interpretation"]
-    confidence = parsed["confidence"]
-    clarifying_questions = parsed["clarifying_questions"]
+    codespeak = cast(str, parsed["codespeak"])
+    interpretation = cast(str, parsed["interpretation"])
+    confidence = cast(str, parsed["confidence"])
+    clarifying_questions = cast(list[str], parsed["clarifying_questions"])
     if confidence not in {"high", "medium", "low"}:
         return None
-    parts = parse_codespeak_v0(codespeak)
-    if parts is None:
-        return None
-    return CodeSpeakResult(
+    pp_override = cast(dict[str, str] | None, parsed.get("patch_points"))
+    return build_codespeak_result(
+        request,
         codespeak=codespeak,
-        layer=parts["layer"],
-        target=parts["target"],
-        subject=parts["subject"],
-        action=parts["action"],
-        confidence=confidence,
         interpretation=interpretation,
+        confidence=confidence,
         clarifying_questions=clarifying_questions,
-        patch_points=dict(getattr(rule_result, "patch_points", {})),
+        target_file=getattr(rule_result, "target_file", None),
+        target_anchor=getattr(rule_result, "target_anchor", None),
+        patch_points_override=pp_override,
     )
 
 

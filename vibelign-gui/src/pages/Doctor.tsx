@@ -1,6 +1,6 @@
 // === ANCHOR: DOCTOR_START ===
 import { useState, useEffect, useCallback } from "react";
-import { doctorJson, doctorPlanJson, doctorApply } from "../lib/vib";
+import { doctorJson, doctorPlanJson, doctorApply, buildGuiAiEnv } from "../lib/vib";
 
 interface Issue {
   severity?: string;
@@ -36,9 +36,10 @@ type View = "report" | "plan";
 interface DoctorProps {
   projectDir: string;
   apiKey?: string | null;
+  providerKeys?: Record<string, string>;
 }
 
-export default function Doctor({ projectDir, apiKey }: DoctorProps) {
+export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps) {
   const [view, setView] = useState<View>("report");
   const [report, setReport] = useState<DoctorReport | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -101,7 +102,7 @@ export default function Doctor({ projectDir, apiKey }: DoctorProps) {
     setApplying(true);
     setApplyMsg(null);
     try {
-      const result = await doctorApply(projectDir, apiKey ?? undefined) as { ok: boolean; done?: number; manual?: number };
+      const result = await doctorApply(projectDir, buildGuiAiEnv(providerKeys, apiKey)) as { ok: boolean; done?: number; manual?: number };
       if (result.ok) {
         setApplyMsg(`완료: ${result.done ?? 0}개 자동 적용, ${result.manual ?? 0}개 수동 필요`);
         loadReport();

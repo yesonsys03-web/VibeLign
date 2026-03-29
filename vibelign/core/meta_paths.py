@@ -55,6 +55,10 @@ class MetaPaths:
     def analysis_cache_path(self) -> Path:
         return self.vibelign_dir / "analysis_cache.json"
 
+    @property
+    def ui_label_index_path(self) -> Path:
+        return self.vibelign_dir / "ui_label_index.json"
+
     def ensure_vibelign_dirs(self) -> None:
         self.vibelign_dir.mkdir(parents=True, exist_ok=True)
         self.checkpoints_dir.mkdir(parents=True, exist_ok=True)
