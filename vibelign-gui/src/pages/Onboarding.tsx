@@ -123,6 +123,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   const [vibChecking, setVibChecking] = useState(true);
   const [selectedDir, setSelectedDir] = useState("");
   const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
   const [githubOpen, setGithubOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(true);
   const [guideStep, setGuideStep] = useState(0);
@@ -134,8 +135,13 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
 
   async function handleStart() {
     setStarting(true);
-    await vibStart(selectedDir);
+    setStartError(null);
+    const r = await vibStart(selectedDir);
     setStarting(false);
+    if (!r.ok) {
+      setStartError(r.stderr || r.stdout || "vib start 실행에 실패했어요.");
+      return;
+    }
     onComplete(selectedDir, null);
   }
 
@@ -482,6 +488,17 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
           />
           <button className="btn btn-ghost btn-sm" onClick={pickFolder} style={{ flexShrink: 0 }}>탐색</button>
         </div>
+
+        {startError && (
+          <div
+            className="alert alert-error"
+            style={{ margin: "10px 0 12px", padding: 12, fontSize: 11, whiteSpace: "pre-wrap" }}
+          >
+            시작 실패
+            {"\n"}
+            {startError}
+          </div>
+        )}
 
         <button
           className="btn btn-black"

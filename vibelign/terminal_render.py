@@ -643,7 +643,16 @@ def print_ai_response(
     flush_section()
 
     if not renderables:
-        builtins.print(text)
+        try:
+            builtins.print(text)
+        except UnicodeEncodeError:
+            # Windows GUI/콘솔에서 기본 인코딩이 cp949 같은 경우,
+            # 일부 유니코드 문자가 출력 중 UnicodeEncodeError를 유발할 수 있어요.
+            enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+            safe = text.encode(enc, errors="replace").decode(
+                enc, errors="replace"
+            )
+            builtins.print(safe)
         return
 
     _ = rich_console.print(rich_mod["Group"](*renderables))
@@ -671,14 +680,27 @@ def cli_print(
 
     if should_use_rich():
         if "\n" in text:
-            print_ai_response(text, use_rich=True)
-            return
+            try:
+                print_ai_response(text, use_rich=True)
+                return
+            except UnicodeEncodeError:
+                # rich 출력 도중 cp949 등 인코딩 불가 문자가 있으면 크래시가 날 수 있어요.
+                # plain 출력(치환)으로 폴백합니다.
+                pass
         rich_mod = _load_rich()
         if rich_mod is not None:
-            _ = rich_mod["Console"]().print(text, markup=False)
-            return
+            try:
+                _ = rich_mod["Console"]().print(text, markup=False)
+                return
+            except UnicodeEncodeError:
+                pass
 
-    plain_print(text)
+    try:
+        plain_print(text)
+    except UnicodeEncodeError:
+        enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+        safe = text.encode(enc, errors="replace").decode(enc, errors="replace")
+        plain_print(safe)
 
 
 # === ANCHOR: TERMINAL_RENDER__CLACK_LINE_START ===
@@ -701,14 +723,35 @@ def _clack_line(
     line = f"{symbol} {message}"
     use_rich = console is not None or should_use_rich()
     if not use_rich:
-        plain_print(line)
+        try:
+            plain_print(line)
+        except UnicodeEncodeError:
+            enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+            safe = line.encode(enc, errors="replace").decode(
+                enc, errors="replace"
+            )
+            plain_print(safe)
         return
     rich_mod = _load_rich()
     if rich_mod is None:
-        plain_print(line)
+        try:
+            plain_print(line)
+        except UnicodeEncodeError:
+            enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+            safe = line.encode(enc, errors="replace").decode(
+                enc, errors="replace"
+            )
+            plain_print(safe)
         return
     rich_console = _get_console(rich_mod, console)
-    _ = rich_console.print(rich_mod["Text"](line, style=_clack_style(message, style)))
+    try:
+        _ = rich_console.print(
+            rich_mod["Text"](line, style=_clack_style(message, style))
+        )
+    except UnicodeEncodeError:
+        enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+        safe = line.encode(enc, errors="replace").decode(enc, errors="replace")
+        plain_print(safe)
 
 
 # === ANCHOR: TERMINAL_RENDER_CLACK_INTRO_START ===
