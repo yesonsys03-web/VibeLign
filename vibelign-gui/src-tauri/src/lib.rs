@@ -54,11 +54,14 @@ fn start_watch(state: tauri::State<WatchState>, cwd: String) -> Result<(), Strin
     if let Some(ref mut child) = *guard {
         let _ = child.kill();
     }
-    let child = std::process::Command::new(&vib)
-        .arg("watch")
-        .current_dir(PathBuf::from(&cwd))
-        .spawn()
-        .map_err(|e| e.to_string())?;
+    let mut watch_cmd = std::process::Command::new(&vib);
+    watch_cmd.arg("watch").current_dir(PathBuf::from(&cwd));
+    #[cfg(target_os = "windows")]
+    {
+        watch_cmd.env("PYTHONUTF8", "1");
+        watch_cmd.env("PYTHONIOENCODING", "utf-8");
+    }
+    let child = watch_cmd.spawn().map_err(|e| e.to_string())?;
     *guard = Some(child);
     Ok(())
 }
@@ -127,6 +130,13 @@ async fn run_vib(
 
         if let Some(dir) = cwd {
             cmd.current_dir(PathBuf::from(dir));
+        }
+
+        // Windows에서 Python 서브프로세스의 stdout 인코딩을 UTF-8로 강제 설정
+        #[cfg(target_os = "windows")]
+        {
+            cmd.env("PYTHONUTF8", "1");
+            cmd.env("PYTHONIOENCODING", "utf-8");
         }
 
         if let Some(env_map) = env {

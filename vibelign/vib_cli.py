@@ -970,6 +970,14 @@ def _install_completion_powershell(parser, clack_info, clack_success, clack_warn
 
 
 def main():
+    # Windows에서 subprocess로 실행될 때 stdout/stderr가 기본 cp1252/cp949로
+    # 설정되어 한글이 깨지는 문제를 방지합니다.
+    if sys.platform == "win32":
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+        except AttributeError:
+            pass
     parser = build_parser()
     # eval "$(vib completion)" 지원: stdout이 파이프면 스크립트 직접 출력
     if len(sys.argv) == 2 and sys.argv[1] == "completion" and not sys.stdout.isatty():
