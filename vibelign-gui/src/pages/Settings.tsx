@@ -150,15 +150,21 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
           </div>
           {/* 환경변수 API 키 및 모델 선택 */}
           {["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GLM_API_KEY", "MOONSHOT_API_KEY"].map((key) => {
-            const ok = !!envKeys[key];
             const providerName = key.replace("_API_KEY", "");
+            const envOk = !!envKeys[key];
+            const guiOk = Boolean(savedKey(providerName));
+            const ok = envOk || guiOk;
             const availableModels = PROVIDER_MODELS[providerName] || [];
             const selectedModel = models[providerName] || "";
+            const sources: string[] = [];
+            if (envOk) sources.push("환경 변수");
+            if (guiOk) sources.push("GUI 저장");
+            const statusText = ok ? `설정됨 (${sources.join(" · ")})` : "없음";
             return (
               <div key={key} style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 5, fontFamily: "IBM Plex Mono, monospace", fontSize: 11 }}>
                 <span style={{ color: ok ? "#4DFF91" : "#FF4D4D", fontWeight: 700, flexShrink: 0 }}>{ok ? "●" : "○"}</span>
                 <span style={{ color: ok ? "#E8FFE0" : "#555", width: 140, flexShrink: 0 }}>{key}</span>
-                <span style={{ color: ok ? "#4DFF91" : "#444", width: 40, flexShrink: 0 }}>{ok ? "설정됨" : "없음"}</span>
+                <span style={{ color: ok ? "#4DFF91" : "#444", flexShrink: 0 }}>{statusText}</span>
                 {availableModels.length > 0 && (
                   <select
                     value={selectedModel}

@@ -30,6 +30,11 @@ export async function getVibPath(): Promise<string | null> {
 const GUI_VIB_PLAIN_ENV: Record<string, string> = {
   VIBELIGN_ASK_PLAIN: "1",
   NO_COLOR: "1",
+  // Windows에서는 기본 stdout 인코딩이 cp949인 경우가 많아서,
+  // Rust(tauri)가 UTF-8로 디코딩할 때 한글이 깨지는 문제가 생길 수 있어요.
+  // vib 프로세스의 출력 인코딩을 UTF-8로 강제합니다.
+  PYTHONUTF8: "1",
+  PYTHONIOENCODING: "utf-8",
 };
 
 /** vib CLI 실행. */

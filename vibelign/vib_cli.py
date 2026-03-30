@@ -784,8 +784,18 @@ Register-ArgumentCompleter -Native -CommandName vib -ScriptBlock {{
                 [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
             }}
     }} else {{
-        $cmd = $words[1].Value
-        if ($cmdOpts.ContainsKey($cmd)) {{
+        # PowerShell의 CommandElements는 "vib" 실행파일 토큰을 포함할 수도/제외할 수도 있어요.
+        # 첫 토큰이 vib라면 subcommand은 words[1], 아니면 words[0]를 subcommand 키로 봐서 안전하게 처리합니다.
+        $first = $words[0].Value
+        $firstLower = ($first.ToString()).ToLowerInvariant()
+        $cmd = $null
+        if ($firstLower -eq "vib" -or $firstLower -eq "vib.exe") {{
+            $cmd = $words[1].Value
+        }} else {{
+            $cmd = $first
+        }}
+
+        if ($cmd -and $cmdOpts.ContainsKey($cmd)) {{
             $cmdOpts[$cmd] | Where-Object {{ $_ -like "$wordToComplete*" }} |
                 ForEach-Object {{
                     [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
