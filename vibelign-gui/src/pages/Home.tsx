@@ -1789,7 +1789,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             {((() => {
-              const EXCLUDE = ["scan","watch","guard","checkpoint","transfer","history","patch","start","doctor","config","rules","install","manual"];
+              const EXCLUDE = ["scan","watch","guard","checkpoint","transfer","history","patch","start","doctor","config","rules","install","manual","policy"];
               const toneRank = (color: string) => {
                 if (color === "#FFE44D" || color === "#FFD166" || color === "#F5621E") return 0; // warm
                 if (color === "#FF4D4D" || color === "#FF4D8B") return 1; // red/pink
