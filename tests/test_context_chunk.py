@@ -35,6 +35,33 @@ class ContextChunkTest(unittest.TestCase):
         self.assertIn("def deep():", out)
         self.assertIn("vibelign: module preamble", out)
 
+    def test_python_ast_ignores_fake_def_inside_docstring(self) -> None:
+        filler = "\n".join([f"# filler line {i}" for i in range(70)])
+        content = (
+            '"""Docstring with a fake def line.\n'
+            "def fake_helper():\n"
+            "    return 'not real code'\n"
+            '"""\n'
+            "import os\n"
+            "VALUE = 1\n"
+            "\n"
+            f"{filler}\n"
+            "\n"
+            "# === ANCHOR: REAL_START ===\n"
+            "def real_helper():\n"
+            "    return os.name\n"
+            "# === ANCHOR: REAL_END ===\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ast_docstring.py"
+            path.write_text(content, encoding="utf-8")
+            out = fetch_anchor_context_window(path, "REAL", pad_before=4, pad_after=3)
+        self.assertIsNotNone(out)
+        assert out is not None
+        self.assertIn("import os", out)
+        self.assertIn("VALUE = 1", out)
+        self.assertIn("def real_helper()", out)
+
     def test_python_no_duplicate_preamble_when_window_starts_at_top(self) -> None:
         content = (
             "# === ANCHOR: TOP_START ===\n"

@@ -341,7 +341,7 @@ def analyze_project_v2(
         issues.append(".vibelign/project_map.json 파일의 버전이 맞지 않아요")
         suggestions.append("vib start 를 다시 실행하면 자동으로 고쳐져요")
     elif project_map_error == "invalid_project_map":
-        issues.append(".vibelign/project_map.json 파일을 읽을 수 없어요")
+        issues.append(".vibelign/project_map.json 파일을 읽을 수 없습니다")
         suggestions.append("vib start 를 다시 실행하면 자동으로 고쳐져요")
     _append_mcp_issues(issues, suggestions, mcp_status)
     _append_prepared_tool_issues(issues, suggestions, prepared_tool_status)

@@ -2,7 +2,8 @@
 import importlib
 import json
 from pathlib import Path
-from typing import NotRequired, Protocol, TypedDict, cast
+from typing import Protocol, TypedDict, cast
+from typing_extensions import NotRequired
 
 from vibelign.core.change_explainer import (
     FileSummary,
