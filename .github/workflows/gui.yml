@@ -56,7 +56,8 @@ jobs:
             librsvg2-dev \
             libjavascriptcoregtk-4.1-dev \
             libsoup-3.0-dev \
-            patchelf
+            patchelf \
+            rpm
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -95,6 +96,7 @@ jobs:
           path: |
             vibelign-gui/src-tauri/target/release/bundle/deb/*.deb
             vibelign-gui/src-tauri/target/release/bundle/appimage/*.AppImage
+            vibelign-gui/src-tauri/target/release/bundle/rpm/*.rpm
           if-no-files-found: warn
 
       - name: Upload Windows artifacts
