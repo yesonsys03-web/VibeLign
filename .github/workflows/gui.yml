@@ -66,6 +66,7 @@ jobs:
           TRIPLE=$(rustc -vV | sed -n 's/^host: //p')
           EXT=""
           if [[ "$TRIPLE" == *"windows"* ]]; then EXT=".exe"; fi
+          mkdir -p src-tauri/binaries
           touch "src-tauri/binaries/vib-${TRIPLE}${EXT}"
           chmod +x "src-tauri/binaries/vib-${TRIPLE}${EXT}" 2>/dev/null || true
 
