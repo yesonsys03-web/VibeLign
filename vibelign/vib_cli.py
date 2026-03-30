@@ -880,6 +880,27 @@ def _install_completion_powershell(parser, clack_info, clack_success, clack_warn
     import os
     from pathlib import Path
 
+    def _resolve_vib_dir() -> Path:
+        # vib를 "cd해서 vib.exe 실행"하는 경우 sys.argv[0]는 보통 파일명만 들어옵니다.
+        # 이 때는 현재 작업 폴더가 vib.exe가 있는 위치라고 보고 처리해요.
+        argv0 = Path(sys.argv[0])
+        try_paths = []
+        try_paths.append(argv0)
+        try_paths.append(argv0.with_suffix(".exe"))
+        if argv0.is_absolute():
+            try_paths.append(argv0.parent)
+        try_paths = [p for p in try_paths if str(p)]
+
+        for p in try_paths:
+            try:
+                if p.exists() and p.is_file():
+                    return p.resolve().parent
+            except Exception:
+                pass
+
+        # 최후 fallback: vib.exe를 실행한 당시의 cwd를 사용
+        return Path.cwd().resolve()
+
     script = _generate_powershell_script(parser)
 
     comp_dir = Path.home() / ".vibelign"
@@ -902,17 +923,37 @@ def _install_completion_powershell(parser, clack_info, clack_success, clack_warn
     profile.parent.mkdir(parents=True, exist_ok=True)
 
     source_line = f'. "{comp_file}"'
+    vib_dir = _resolve_vib_dir()
+    # CMD/PowerShell 양쪽에서 vib.exe를 찾을 수 있게, 사용자 PATH에 영구 반영을 시도합니다.
+    # 실패해도 PowerShell 프로필 쪽에만 로컬로라도 연결될 수 있게 동작은 유지됩니다.
+    path_bootstrap_line = f'$env:Path = "{vib_dir};$env:Path"'
+    try:
+        current_path = os.environ.get("PATH", "")
+        if str(vib_dir).lower() not in current_path.lower().split(";"):
+            # setx는 새 터미널에서 반영됩니다.
+            import subprocess
+
+            new_path = current_path.rstrip(";") + ";" + str(vib_dir)
+            _ = subprocess.run(["setx", "PATH", new_path], capture_output=True, text=True)
+    except Exception:
+        # 경로 추가가 실패해도, 최소한 PowerShell 자동완성은 동작하게 남깁니다.
+        pass
+
     profile_text = (
         profile.read_text(encoding="utf-8", errors="ignore") if profile.exists() else ""
     )
 
-    if str(comp_file) in profile_text:
+    if str(comp_file) in profile_text and path_bootstrap_line in profile_text:
         clack_success(
             "자동완성 스크립트를 갱신했어요! 새 PowerShell 창을 열면 적용돼요."
         )
     else:
         with open(profile, "a", encoding="utf-8") as f:
-            f.write(f"\n# VibeLign 탭 자동완성\n{source_line}\n")
+            f.write("\n# VibeLign PATH/탭 자동완성\n")
+            if path_bootstrap_line not in profile_text:
+                f.write(f"{path_bootstrap_line}\n")
+            if str(comp_file) not in profile_text:
+                f.write(f"{source_line}\n")
         clack_success(f"자동완성 설정 완료! ({profile}에 추가)")
         clack_info("새 PowerShell 창을 열면 vib + 탭키로 명령어가 자동 완성돼요.")
         clack_info(f"지금 바로 쓰려면: . {profile}")

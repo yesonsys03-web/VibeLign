@@ -18,6 +18,10 @@ jobs:
   build:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    env:
+      # GitHub Actions 기본 CI=1 때문에 tauri-cli가 `--ci`에 숫자를 넣는 식으로 깨질 수 있어요.
+      # 로컬에서 `CI=false`로 해결됐던 경로를 그대로 맞춥니다.
+      CI: "false"
     strategy:
       fail-fast: false
       matrix:
@@ -78,7 +82,12 @@ jobs:
           EXT=""
           if [[ "$TRIPLE" == *"windows"* ]]; then EXT=".exe"; fi
           mkdir -p vibelign-gui/src-tauri/binaries
+          # 기존(트리플) 파일명도 유지하지만,
+          # Tauri는 외부 바이너리를 번들로 넣고(preset: binaries/vib),
+          # 앱 실행 시에는 vib.exe/vib도 같이 찾아요.
           cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib-${TRIPLE}${EXT}"
+          cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib${EXT}"
+          cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib"
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
