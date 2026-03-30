@@ -6,7 +6,8 @@ import json
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Literal, NotRequired, Protocol, TypedDict, cast
+from typing import Literal, Protocol, TypedDict, cast
+from typing_extensions import NotRequired
 
 from vibelign.terminal_render import (
     clack_info,

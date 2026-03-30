@@ -1,9 +1,11 @@
 """Tests for vib transfer --handoff functionality."""
+
 import argparse
 import unittest.mock as mock
-import pytest
 from pathlib import Path
+from typing import cast
 
+from vibelign.commands.vib_transfer_cmd import HandoffData
 from vibelign.commands.vib_transfer_cmd import (
     _build_context_content,
     _build_handoff_block,
@@ -12,8 +14,8 @@ from vibelign.commands.vib_transfer_cmd import (
 )
 
 
-def _make_handoff_data(**kwargs):
-    base = {
+def _make_handoff_data(**kwargs: object) -> HandoffData:
+    base: dict[str, object] = {
         "generated_at": "2026-03-23 12:00",
         "source": "file_fallback",
         "quality": "auto-drafted",
@@ -26,10 +28,11 @@ def _make_handoff_data(**kwargs):
         "latest_checkpoint": None,
     }
     base.update(kwargs)
-    return base
+    return cast(HandoffData, cast(object, base))
 
 
 # ── _build_handoff_block ────────────────────────────────────────────────────
+
 
 def test_handoff_block_required_fields():
     data = _make_handoff_data(
@@ -86,9 +89,7 @@ def test_handoff_block_no_decision_context_section_when_absent():
 
 
 def test_handoff_block_changed_files_capped_at_five():
-    data = _make_handoff_data(
-        changed_files=[f"file{i}.py" for i in range(8)]
-    )
+    data = _make_handoff_data(changed_files=[f"file{i}.py" for i in range(8)])
     block = _build_handoff_block(data)
     # Should show first 5 files and an ellipsis count
     assert "(+3)" in block
@@ -104,6 +105,7 @@ def test_handoff_block_latest_checkpoint_not_provided_when_absent():
 
 
 # ── _build_context_content ──────────────────────────────────────────────────
+
 
 def test_context_content_without_handoff_has_no_session_block(tmp_path):
     content = _build_context_content(tmp_path)
@@ -140,6 +142,7 @@ def test_checkpoint_compat_signature_unchanged(tmp_path):
 
 # ── _get_changed_files ──────────────────────────────────────────────────────
 
+
 def test_get_changed_files_no_crash_outside_git(tmp_path):
     files = _get_changed_files(tmp_path)
     assert isinstance(files, list)
@@ -160,6 +163,7 @@ def test_get_changed_files_excludes_system_paths(tmp_path):
 
 # ── vib checkpoint 호환성 ────────────────────────────────────────────────────
 
+
 def test_checkpoint_regenerates_context_without_handoff_block(tmp_path):
     """vib checkpoint이 _build_context_content(root)를 호출해도 handoff 블록이 없어야 함."""
     # vib_checkpoint_cmd.py 는 handoff_data 없이 _build_context_content(root) 호출
@@ -173,15 +177,22 @@ def test_handoff_content_does_not_break_checkpoint_flow(tmp_path):
     content_default = _build_context_content(tmp_path)
     content_explicit_none = _build_context_content(tmp_path, handoff_data=None)
     # 두 결과의 Session Handoff 포함 여부가 동일해야 함
-    assert ("## Session Handoff" in content_default) == ("## Session Handoff" in content_explicit_none)
+    assert ("## Session Handoff" in content_default) == (
+        "## Session Handoff" in content_explicit_none
+    )
 
 
 # ── 불가 플래그 조합 ──────────────────────────────────────────────────────────
 
+
 def _make_args(**kwargs):
     defaults = dict(
-        compact=False, full=False, handoff=False,
-        no_prompt=False, print_mode=False, out=None,
+        compact=False,
+        full=False,
+        handoff=False,
+        no_prompt=False,
+        print_mode=False,
+        out=None,
     )
     defaults.update(kwargs)
     return argparse.Namespace(**defaults)
@@ -192,7 +203,9 @@ def test_handoff_with_compact_prints_error(tmp_path, capsys):
     with mock.patch("os.getcwd", return_value=str(tmp_path)):
         run_transfer(args)
     captured = capsys.readouterr()
-    assert "오류" in captured.out or "오류" in captured.err or True  # clack_info goes to stdout via cli_print
+    assert (
+        "오류" in captured.out or "오류" in captured.err or True
+    )  # clack_info goes to stdout via cli_print
 
 
 def test_handoff_with_full_aborts_without_writing(tmp_path, capsys):
@@ -205,6 +218,7 @@ def test_handoff_with_full_aborts_without_writing(tmp_path, capsys):
 
 
 # ── handoff 없는 정상 transfer ──────────────────────────────────────────────
+
 
 def test_normal_transfer_writes_file(tmp_path):
     out_path = tmp_path / "PROJECT_CONTEXT.md"

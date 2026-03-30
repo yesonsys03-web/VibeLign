@@ -7,6 +7,7 @@ AST 없이도 import/export·전역 전처리 구간을 앞에 붙여 Generator 
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -31,17 +32,31 @@ _TOP_LEVEL_FN_OR_CLASS_TS = re.compile(
 def _python_head_exclusive_end(lines: list[str], *, max_scan: int) -> int:
     """첫 top-level def/class 직전 인덱스(0-based, exclusive 상한). 없으면 max_scan까지."""
     lim = min(len(lines), max_scan)
-    for i in range(lim):
-        if _TOP_LEVEL_DEF_PY.match(lines[i]):
-            return i
+    text = "".join(lines)
+    try:
+        module = ast.parse(text)
+    except SyntaxError:
+        for i in range(lim):
+            if _TOP_LEVEL_DEF_PY.match(lines[i]):
+                return i
+        return lim
+
+    for node in module.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            return min(max(node.lineno - 1, 0), lim)
     return lim
+
+
 # === ANCHOR: CONTEXT_CHUNK__PYTHON_HEAD_EXCLUSIVE_END_END ===
 
 
 # === ANCHOR: CONTEXT_CHUNK__PYTHON_PREFIX_LINES_BEFORE_START ===
 def _python_prefix_lines_before(
-    lines: list[str], window_start_idx: int, *, max_prefix: int
-# === ANCHOR: CONTEXT_CHUNK__PYTHON_PREFIX_LINES_BEFORE_END ===
+    lines: list[str],
+    window_start_idx: int,
+    *,
+    max_prefix: int,
+    # === ANCHOR: CONTEXT_CHUNK__PYTHON_PREFIX_LINES_BEFORE_END ===
 ) -> list[str]:
     """윈도우 시작(window_start_idx) 앞 구간 중, 컨텍스트에 붙일 상단 줄들."""
     if window_start_idx <= 0:
@@ -63,13 +78,18 @@ def _js_ts_head_exclusive_end(lines: list[str], *, max_scan: int) -> int:
         if _TOP_LEVEL_FN_OR_CLASS_TS.match(lines[i]):
             return i
     return lim
+
+
 # === ANCHOR: CONTEXT_CHUNK__JS_TS_HEAD_EXCLUSIVE_END_END ===
 
 
 # === ANCHOR: CONTEXT_CHUNK__JS_TS_PREFIX_LINES_BEFORE_START ===
 def _js_ts_prefix_lines_before(
-    lines: list[str], window_start_idx: int, *, max_prefix: int
-# === ANCHOR: CONTEXT_CHUNK__JS_TS_PREFIX_LINES_BEFORE_END ===
+    lines: list[str],
+    window_start_idx: int,
+    *,
+    max_prefix: int,
+    # === ANCHOR: CONTEXT_CHUNK__JS_TS_PREFIX_LINES_BEFORE_END ===
 ) -> list[str]:
     if window_start_idx <= 0:
         return []
@@ -91,12 +111,17 @@ def fetch_anchor_context_window(
     pad_after: int = DEFAULT_PAD_AFTER,
     py_prefix_max_lines: int = DEFAULT_PY_PREFIX_MAX_LINES,
     js_ts_prefix_max_lines: int = DEFAULT_JS_TS_PREFIX_MAX_LINES,
-# === ANCHOR: CONTEXT_CHUNK_FETCH_ANCHOR_CONTEXT_WINDOW_END ===
+    # === ANCHOR: CONTEXT_CHUNK_FETCH_ANCHOR_CONTEXT_WINDOW_END ===
 ) -> str | None:
-    if not path.is_file() or not anchor_name or anchor_name in {
-        "[없음]",
-        "[먼저 앵커를 추가하세요]",
-    }:
+    if (
+        not path.is_file()
+        or not anchor_name
+        or anchor_name
+        in {
+            "[없음]",
+            "[먼저 앵커를 추가하세요]",
+        }
+    ):
         return None
     ranges = extract_anchor_line_ranges(path)
     if anchor_name not in ranges:
@@ -136,4 +161,6 @@ def fetch_anchor_context_window(
             )
             return (prefix + sep + body).strip()
     return body
+
+
 # === ANCHOR: CONTEXT_CHUNK_END ===

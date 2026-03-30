@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import cast
 
@@ -27,12 +29,65 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 import mcp.types as types
 
+from vibelign.core.meta_paths import MetaPaths
+
 
 app = Server("vibelign")
 
 
 def _root() -> Path:
     return Path.cwd()
+
+
+_PATCH_SESSION_KEY = "patch_session"
+
+
+def _load_state(meta: MetaPaths) -> dict[str, object]:
+    if not meta.state_path.exists():
+        return {}
+    try:
+        raw_state = json.loads(meta.state_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return {}
+    if not isinstance(raw_state, dict):
+        return {}
+    return {
+        str(key): value for key, value in cast(dict[object, object], raw_state).items()
+    }
+
+
+def _save_state(meta: MetaPaths, state: dict[str, object]) -> None:
+    meta.ensure_vibelign_dirs()
+    meta.state_path.write_text(
+        json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+
+
+def _load_patch_session(meta: MetaPaths) -> dict[str, object] | None:
+    state = _load_state(meta)
+    session = state.get(_PATCH_SESSION_KEY)
+    if not isinstance(session, dict):
+        return None
+    return {
+        str(key): value for key, value in cast(dict[object, object], session).items()
+    }
+
+
+def _save_patch_session(meta: MetaPaths, session: dict[str, object] | None) -> None:
+    state = _load_state(meta)
+    if session is None:
+        state.pop(_PATCH_SESSION_KEY, None)
+    else:
+        state[_PATCH_SESSION_KEY] = session
+    _save_state(meta, state)
+
+
+def _patch_session_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _new_patch_session_id() -> str:
+    return uuid.uuid4().hex
 
 
 # === ANCHOR: MCP_SERVER_LIST_TOOLS_START ===
@@ -489,12 +544,24 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextC
     # ── guard_check ────────────────────────────────────────────────────────
     if name == "guard_check":
         from vibelign.commands.vib_guard_cmd import _build_guard_envelope
+        from vibelign.core.meta_paths import MetaPaths
 
         strict = bool(arguments.get("strict", False))
         since_minutes = int(cast(int | str, arguments.get("since_minutes", 30)))
+        meta = MetaPaths(root)
         envelope = _build_guard_envelope(
             root, strict=strict, since_minutes=since_minutes
         )
+        session = _load_patch_session(meta)
+        if session is not None and bool(session.get("needs_verification")):
+            raw_data = cast(object, envelope.get("data", {}))
+            data = raw_data if isinstance(raw_data, dict) else {}
+            data = cast(dict[str, object], data)
+            if str(data.get("status", "")) != "fail":
+                session["needs_verification"] = False
+                session["verified_at"] = _patch_session_now()
+                session["guard_status"] = str(data.get("status", ""))
+                _save_patch_session(meta, session)
         return [
             types.TextContent(
                 type="text",
@@ -527,6 +594,7 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextC
     # ── patch_get ──────────────────────────────────────────────────────────
     if name == "patch_get":
         from vibelign.commands.vib_patch_cmd import _build_patch_data
+        from vibelign.core.meta_paths import MetaPaths
 
         request = str(arguments.get("request", ""))
         if not request:
@@ -545,10 +613,43 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextC
                 )
             ]
         lazy_fanout = bool(arguments.get("lazy_fanout"))
+        meta = MetaPaths(root)
+        active_session = _load_patch_session(meta)
+        verification_blocked = bool(
+            active_session and active_session.get("needs_verification")
+        )
         data = _build_patch_data(root, request, lazy_fanout=lazy_fanout)
         patch_plan = cast(dict[str, object], data["patch_plan"])
         contract = cast(dict[str, object], data["contract"])
         scope = cast(dict[str, object], contract.get("scope", {}))
+        session = active_session if isinstance(active_session, dict) else None
+        step_list = cast(list[object], patch_plan.get("steps") or [])
+        sub_intents = [
+            str(item)
+            for item in cast(list[object], patch_plan.get("sub_intents") or [])
+            if str(item).strip()
+        ]
+        pending_sub_intents = [
+            str(item)
+            for item in cast(list[object], patch_plan.get("pending_sub_intents") or [])
+            if str(item).strip()
+        ]
+        if not verification_blocked and (len(step_list) > 1 or pending_sub_intents):
+            session = {
+                "session_id": str(
+                    (active_session or {}).get("session_id") or _new_patch_session_id()
+                ),
+                "request": request,
+                "target_file": patch_plan["target_file"],
+                "target_anchor": patch_plan["target_anchor"],
+                "sub_intents": sub_intents,
+                "pending_sub_intents": pending_sub_intents,
+                "step_count": len(step_list),
+                "needs_verification": False,
+                "active": True,
+                "updated_at": _patch_session_now(),
+            }
+            _save_patch_session(meta, session)
         result = {
             "schema_version": patch_plan["schema_version"],
             "target_file": patch_plan["target_file"],
@@ -569,6 +670,22 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextC
             "move_summary": contract.get("move_summary"),
             "rationale": patch_plan["rationale"],
         }
+        if verification_blocked:
+            result["session"] = active_session
+            result["status"] = "NEEDS_CLARIFICATION"
+            contract["status"] = "NEEDS_CLARIFICATION"
+            questions = cast(list[object], result.get("clarifying_questions") or [])
+            questions = [str(item) for item in questions if str(item).strip()]
+            blocked_question = (
+                "이전 패치를 적용한 뒤 아직 guard_check로 검증하지 않았어요. "
+                "다음 단계로 가기 전에 guard_check를 먼저 실행해 주세요."
+            )
+            if blocked_question not in questions:
+                questions.append(blocked_question)
+            result["clarifying_questions"] = questions
+            result["session_blocked"] = True
+        elif session is not None:
+            result["session"] = session
         return [
             types.TextContent(
                 type="text",
@@ -578,6 +695,7 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextC
 
     if name == "patch_apply":
         from vibelign.core.strict_patch import apply_strict_patch
+        from vibelign.core.meta_paths import MetaPaths
 
         raw_patch = arguments.get("strict_patch")
         if isinstance(raw_patch, str):
@@ -608,6 +726,20 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextC
             strict_patch,
             dry_run=bool(arguments.get("dry_run")),
         )
+        meta = MetaPaths(root)
+        session = _load_patch_session(meta)
+        if (
+            session is not None
+            and bool(result.get("ok"))
+            and not bool(result.get("dry_run"))
+        ):
+            session["needs_verification"] = True
+            session["verified_at"] = None
+            session["last_applied_at"] = _patch_session_now()
+            session["applied_operation_count"] = result.get("applied_operation_count")
+            session["active"] = True
+            _save_patch_session(meta, session)
+            result["session"] = session
         return [
             types.TextContent(
                 type="text",

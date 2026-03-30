@@ -441,8 +441,8 @@ def _render_bullet_list(rich_mod: RichModule, items: list[str]) -> object:
     for item in items:
         item_style = _severity_style(item)
         line = rich_mod["Text"]()
-        _ = line.append("▸ ", style=item_style or "bold cyan")
-        _ = line.append(item, style=item_style or "bright_white")
+        _ = line.append("- ", style=item_style or "bold cyan")
+        _ = line.append(item, style=item_style or "white")
         group_items.append(rich_mod["Padding"](line, pad=(0, 0, 0, 2)))
     return rich_mod["Group"](*group_items)
 
@@ -458,7 +458,7 @@ def _render_ordered_list(rich_mod: RichModule, items: list[str]) -> object:
         item_style = _severity_style(item)
         line = rich_mod["Text"]()
         _ = line.append(f"{index}. ", style=item_style or "bold magenta")
-        _ = line.append(item, style=item_style or "bright_white")
+        _ = line.append(item, style=item_style or "white")
         group_items.append(rich_mod["Padding"](line, pad=(0, 0, 0, 2)))
     return rich_mod["Group"](*group_items)
 

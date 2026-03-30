@@ -68,6 +68,23 @@ vib undo
 
 ## 3. Command reference
 
+### VibeLign policy card
+
+This card explains the rules that keep AI edits safe and predictable.
+
+| Policy | What it means |
+|--------|---------------|
+| Request decomposition | AI should split each request into `intent / source / destination / behavior_constraint`. |
+| Narrow scope first | Prefer one file, one anchor, one clear change. Do not let AI spread edits across unrelated code. |
+| No out-of-bound edits | Only `target_file` and `target_anchor` are allowed. Everything else stays untouched. |
+| Move/delete preservation | If `delete` and `move` are both present, treat it as move + preservation unless the user explicitly wants removal. |
+| Source/destination by role | Resolve source and destination independently based on their roles. |
+| Strict patch + guard | Build safe patch plans, then verify and checkpoint after applying. |
+| Contract changes require tests/docs | If patch contract or CodeSpeak shape changes, update tests and docs together. |
+| Protected files stay protected | Respect `protect`-ed files and other sensitive files like `.env` or config files. |
+
+See also: `AGENTS.md`, `README.md` `VibeLign patch rules`, `PROJECT_CONTEXT.md`, `AI_DEV_SYSTEM_SINGLE_FILE.md`, `VIBELIGN_PATCH_REQUEST.md`, `VIBELIGN_GUARD.md`.
+
 ---
 
 ## `vib init`

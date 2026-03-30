@@ -818,6 +818,138 @@ const COMMANDS = [
       },
     ] as GuideStep[],
   },
+  {
+    name: "policy", icon: "🧭", color: "#4D9FFF",
+    title: "정책",
+    short: "AI가 지켜야 할 핵심 신뢰 규칙",
+    desc: "VibeLign이 AI를 어떻게 제한하고 안전하게 쓰게 하는지, `AI_DEV_SYSTEM_SINGLE_FILE.md`의 핵심 정책을 중학생도 읽을 수 있게 정리한 카드예요.",
+    usage: "vib manual policy",
+    tips: ["AI가 한 파일에 몰빵하지 못하게 막아요", "작게 고치고, 관계없는 건 건드리지 않아요", "정책이 바뀌면 문서와 테스트도 같이 맞춰요"],
+    guide: [
+      {
+        step: "핵심 원칙", title: "AI는 빠르지만, 안전이 먼저예요",
+        lines: [
+          { t: "info", v: "가장 중요한 규칙은: 가장 작고 안전한 패치만 적용하기예요." },
+          { t: "info", v: "AI는 요청을 intent / source / destination / behavior_constraint로 쪼개서 이해해요." },
+          { t: "info", v: "수정은 한 파일, 한 앵커처럼 좁게 시작해요." },
+          { t: "info", v: "target_file과 target_anchor 밖은 건드리지 않아요." },
+          { t: "info", v: "관련 없는 파일이나 모듈은 절대 같이 건드리지 않아요." },
+        ],
+      },
+      {
+        step: "패치 우선", title: "말보다 패치가 먼저예요",
+        lines: [
+          { t: "info", v: "파일 전체를 다시 쓰지 않고, 필요한 부분만 조금 고쳐요." },
+          { t: "info", v: "한 번에 이것저것 많이 바꾸지 않고, 한 가지 작업만 집중해요." },
+          { t: "info", v: "불필요한 정리나 이름 바꾸기는 요청받았을 때만 해요." },
+          { t: "info", v: "파일을 옮기거나 지우는 일도 꼭 필요할 때만 해요." },
+        ],
+      },
+      {
+        step: "요청 해석", title: "요청은 먼저 안전한 말로 나눠요",
+        lines: [
+          { t: "label", v: "분해 단위" },
+          { t: "info", v: "intent / source / destination / behavior_constraint 로 나눠서 봐요." },
+          { t: "label", v: "move + delete" },
+          { t: "info", v: "명시적 삭제가 아니면 이동 + 보존으로 처리해요." },
+          { t: "label", v: "source / destination" },
+          { t: "info", v: "같은 규칙을 쓰지 않고 역할에 맞게 따로 판단해요." },
+        ],
+      },
+      {
+        step: "수정 방식", title: "일반 수정과 안전 수정은 달라요",
+        lines: [
+          { t: "code", v: '"로그인 버튼 색 파란색으로 바꿔줘"' },
+          { t: "info", v: "→ 일반 수정: AI가 직접 처리해요." },
+          { t: "code", v: '"바이브라인으로 로그인 버튼 색 파란색으로 바꿔줘"' },
+          { t: "info", v: "→ 안전 수정: patch_get → guard_check → checkpoint_create 흐름으로 처리해요." },
+        ],
+      },
+      {
+        step: "파일 구조", title: "큰 파일과 애매한 이름을 막아요",
+        lines: [
+          { t: "label", v: "진입 파일" },
+          { t: "info", v: "main.py, index.js 같은 시작 파일은 작게 유지해요." },
+          { t: "label", v: "역할 분리" },
+          { t: "info", v: "UI와 비즈니스 로직은 분리해요." },
+          { t: "error", v: "금지: utils.py / helpers.py / misc.py 같은 모호한 이름" },
+          { t: "info", v: "권장: backup_worker.py / translation_pipeline.py 같은 구체적인 이름" },
+        ],
+      },
+      {
+        step: "함수 설계", title: "한 함수는 한 가지 일만 해요",
+        lines: [
+          { t: "info", v: "40줄이 넘으면 분리 고려, 80줄이 넘으면 반드시 분리해요." },
+          { t: "info", v: "load_config(), parse_excel_row(), validate_input_path()처럼 이름이 설명적이어야 해요." },
+          { t: "error", v: "do_stuff(), process(), handle(), run_all() 같은 이름은 피하세요." },
+          { t: "error", v: "순환 import는 금지예요." },
+        ],
+      },
+      {
+        step: "유지보수", title: "바꾸면 같이 바꿔야 하는 것들이 있어요",
+        lines: [
+          { t: "error", v: "매직 넘버 금지 — 상수로 이름을 붙여요." },
+          { t: "info", v: "에러 메시지는 사람이 읽을 수 있게 써요." },
+          { t: "error", v: "except: pass 같은 조용한 실패는 안 돼요." },
+          { t: "info", v: "죽은 코드, 오래된 주석, 쓰지 않는 import는 같이 정리해요." },
+          { t: "info", v: "새 패키지를 추가하면 pyproject.toml도 함께 업데이트해요." },
+          { t: "info", v: "코드가 바뀌면 주석도 같이 바꿔요." },
+        ],
+      },
+      {
+        step: "검증 / 보호", title: "수정 뒤엔 꼭 확인하고 저장해요",
+        lines: [
+          { t: "info", v: "AI 작업 전에 checkpoint로 저장해요." },
+          { t: "info", v: "수정 후에는 guard로 이상 여부를 확인해요." },
+          { t: "info", v: "protect 된 파일과 .env 같은 중요한 파일은 우회해서 건드리면 안 돼요." },
+          { t: "info", v: "기능이 바뀌면 관련 테스트와 문서도 같이 바꿔요." },
+          { t: "info", v: "뭔가 바뀌면 왜 바뀌었는지 설명할 수 있어야 해요." },
+        ],
+      },
+      {
+        step: "비개발자 배려", title: "코드 몰라도 이해되게 만들어요",
+        lines: [
+          { t: "info", v: "구조는 예측 가능해야 해요." },
+          { t: "info", v: "숨은 부작용은 줄여요." },
+          { t: "info", v: "말로 설명하기 쉬운 코드를 좋아해요." },
+          { t: "info", v: "원래 잘 되던 흐름은 되도록 유지해요." },
+        ],
+      },
+      {
+        step: "추천 작업 순서", title: "이 순서대로 하면 안전해요",
+        lines: [
+          { t: "code", v: "vib doctor --strict" },
+          { t: "code", v: "vib anchor" },
+          { t: "code", v: 'vib patch "your request here"' },
+          { t: "code", v: "vib explain --write-report" },
+          { t: "code", v: "vib guard --strict --write-report" },
+        ],
+      },
+      {
+        step: "도구별 참고", title: "어떤 AI를 쓰는지도 같이 봐요",
+        lines: [
+          { t: "info", v: "OpenCode, Claude Code, Cursor, Antigravity마다 참고 문서가 달라요." },
+          { t: "info", v: "도구별로 export 문서와 setup 문서를 같이 읽어야 해요." },
+          { t: "info", v: "환경에 맞는 규칙 파일도 같이 써요." },
+        ],
+      },
+      {
+        step: "기본 지시문", title: "AI에게 이렇게 부탁하면 돼요",
+        lines: [
+          { t: "code", v: "Follow AI_DEV_SYSTEM_SINGLE_FILE.md." },
+          { t: "info", v: "Task / Target file / Target anchor / Constraints / Goal 을 적어요." },
+          { t: "info", v: "패치만 하라고, 관계없는 파일은 건드리지 말라고 적어요." },
+        ],
+      },
+      {
+        step: "마지막 원칙", title: "빠른 것보다 안전한 게 더 좋아요",
+        lines: [
+          { t: "info", v: "AI가 빨리 고치는 것도 좋지만, 안전하게 고치는 게 더 중요해요." },
+          { t: "info", v: "속도와 구조가 싸우면 구조를 먼저 지켜요." },
+        ],
+      },
+    ] as GuideStep[],
+  },
 ];
 
 const PATCH_COMMAND = COMMANDS.find((c) => c.name === "patch")!;
@@ -978,7 +1110,13 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
     let positional: string | null = null;
 
     for (const fd of flags) {
-      const val: string | boolean = fvals[fd.key] ?? (fd.type === "bool" ? false : "");
+      const val: string | boolean =
+        fvals[fd.key] ??
+        (fd.type === "bool"
+          ? false
+          : fd.type === "select" && fd.options.length > 0
+            ? fd.options[0].v
+            : "");
       if (fd.key === "_mode" || fd.key === "_action") {
         if (val) args.push(...String(val).split(" ").filter(Boolean));
       } else if (fd.key === "_file" || fd.key === "_request" || fd.key === "_tool") {

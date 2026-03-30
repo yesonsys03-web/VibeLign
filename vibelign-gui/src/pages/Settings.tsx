@@ -1,5 +1,5 @@
 // === ANCHOR: SETTINGS_START ===
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { saveProviderApiKey, deleteProviderApiKey, getVibPath, getEnvKeyStatus } from "../lib/vib";
 
 const PROVIDER_MODELS: Record<string, string[]> = {
@@ -68,6 +68,26 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
   function hasEnvProviderKey(providerId: string): boolean {
     return Boolean(envKeys[envKeyNameForProvider(providerId)]);
   }
+
+  const configuredSecretRows = useMemo(() => {
+    return GUI_KEY_PROVIDERS.flatMap((p) => {
+      const sk = savedKey(p.id);
+      const env = hasEnvProviderKey(p.id);
+      if (!sk && !env) return [];
+      const sources: string[] = [];
+      if (env) sources.push("환경 변수");
+      if (sk) sources.push("GUI 저장");
+      return [
+        {
+          id: p.id,
+          label: p.label,
+          envKey: envKeyNameForProvider(p.id),
+          sources,
+          preview: sk ? `${sk.slice(0, 8)}…` : null,
+        },
+      ];
+    });
+  }, [providerKeys, apiKey, envKeys]);
 
   async function handleSaveProvider(provider: string) {
     const key = (inputs[provider] ?? "").trim();
@@ -177,6 +197,50 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
               <span style={{ color: ok ? "#E8FFE0" : "#444", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</span>
             </div>
           ))}
+        </div>
+
+        {/* 로컬에 설정된 API 키(시크릿) 요약 — 전체 값은 표시하지 않음 */}
+        <div className="card" style={{ marginBottom: 20, background: "#1E2216", borderColor: "#333" }}>
+          <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1, color: "#7DFF6B", fontFamily: "IBM Plex Mono, monospace" }}>
+            LOCAL SECRETS (설정됨)
+          </div>
+          <div style={{ fontSize: 10, color: "#666", marginBottom: 10, lineHeight: 1.5 }}>
+            GUI 저장소·환경 변수 기준입니다. 키 전체는 노출하지 않습니다. 레포(GitHub 등)에 커밋하지 마세요.
+          </div>
+          {configuredSecretRows.length === 0 ? (
+            <div style={{ fontSize: 11, color: "#777", fontFamily: "IBM Plex Mono, monospace" }}>
+              설정된 항목이 없습니다. 아래에서 저장하거나 터미널 환경 변수를 설정하세요.
+            </div>
+          ) : (
+            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+              {configuredSecretRows.map((row, idx) => (
+                <li
+                  key={row.id}
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "baseline",
+                    gap: 8,
+                    marginBottom: 8,
+                    paddingBottom: 8,
+                    borderBottom: idx < configuredSecretRows.length - 1 ? "1px solid #2a2a2a" : "none",
+                    fontFamily: "IBM Plex Mono, monospace",
+                    fontSize: 11,
+                  }}
+                >
+                  <span style={{ color: "#4DFF91", fontWeight: 700, flexShrink: 0 }}>●</span>
+                  <span style={{ color: "#E8FFE0", minWidth: 120, flexShrink: 0 }}>{row.label}</span>
+                  <span style={{ color: "#888", flexShrink: 0 }}>{row.envKey}</span>
+                  <span style={{ color: "#7DFF6B", flexShrink: 0 }}>{row.sources.join(" · ")}</span>
+                  {row.preview && (
+                    <span style={{ color: "#AAA", marginLeft: "auto" }} title="GUI에 저장된 키 앞부분만 표시">
+                      {row.preview}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* API 키 섹션 (제공자별) */}

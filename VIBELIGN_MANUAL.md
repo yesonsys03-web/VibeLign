@@ -3,7 +3,29 @@
 
 ---
 
+## 🧭 VibeLign 규칙/정책 카드
+
+> **이 도구의 핵심은 “AI를 믿는 게 아니라, AI를 제한하는 것”이에요.**
+
+| 정책 | 한 줄 설명 |
+|------|-----------|
+| **요청 분해** | AI는 말을 그대로 믿지 않고 `intent / source / destination / behavior_constraint`로 쪼개서 해석해요. |
+| **단일 파일/단일 앵커 우선** | 수정 대상은 가능한 한 하나의 파일, 하나의 앵커로 좁혀요. 코드 한 파일에 몰빵해서 넓게 바꾸지 못하게 막아요. |
+| **경계 밖 수정 금지** | `target_file`과 `target_anchor` 밖은 건드리지 않아요. 관련 없는 파일/로직은 건드리면 안 돼요. |
+| **move/delete 보존 규칙** | `delete`와 `move`가 같이 나오면, 명시적 삭제가 아닌 한 **이동 + 보존**으로 처리해요. |
+| **source/destination 분리** | 소스와 목적지는 같은 규칙으로 처리하지 않고, 역할에 맞게 따로 판단해요. |
+| **strict patch + guard** | 수정은 안전한 패치 계획으로 만들고, 적용 뒤에는 `guard`/`checkpoint`로 검증하고 저장해요. |
+| **계약 바뀌면 테스트도 같이** | patch contract, CodeSpeak, MCP shape가 바뀌면 테스트와 문서도 같이 업데이트해요. |
+| **보호 파일 존중** | `.env`, 설정 파일, 중요한 파일은 `protect`로 잠글 수 있고 AI가 우회해서는 안 돼요. |
+
+**상세 원문**: `AGENTS.md`, `README.md`의 `VibeLign patch rules`, `PROJECT_CONTEXT.md`, `AI_DEV_SYSTEM_SINGLE_FILE.md`, `VIBELIGN_PATCH_REQUEST.md`, `VIBELIGN_GUARD.md`
+
+---
+
 ## 목차
+
+### 🧭 먼저 보는 규칙
+- [🧭 VibeLign 규칙/정책 카드](#vibelign-규칙정책-카드) — AI가 지켜야 할 핵심 신뢰 규칙을 한눈에 봐요
 
 ### 🏁 처음 시작
 - [🚀 `vib start`](#start) — 처음 시작할 때 딱 한 번만 실행해요
