@@ -26,6 +26,10 @@ The goal is simple:
 
 Do not rewrite entire files unless the user explicitly asks for a rewrite.
 
+### AI 응답 스타일
+
+가능한 한 간결하게 응답하고, 불필요한 인사나 부연을 생략해.
+
 ---
 
 ## 1. Patch-First Editing Rules
