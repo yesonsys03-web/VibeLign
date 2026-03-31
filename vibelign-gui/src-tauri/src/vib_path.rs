@@ -109,4 +109,71 @@ fn home_dir() -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
     return std::env::var("USERPROFILE").ok().map(PathBuf::from);
 }
+
+/// vib CLI를 터미널에서 바로 사용할 수 있도록 PATH에 설치한다.
+/// - macOS/Linux: ~/.local/bin/vib 복사 + .zshrc/.bashrc에 PATH 라인 추가
+/// - Windows: %LOCALAPPDATA%\Programs\VibeLign\vib.exe 복사 + 레지스트리 user PATH 추가
+pub fn install_cli_to_path() -> Result<String, String> {
+    let vib = find_vib().ok_or("번들된 vib 실행 파일을 찾을 수 없습니다")?;
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let home = home_dir().ok_or("홈 디렉터리를 찾을 수 없습니다")?;
+        let local_bin = home.join(".local").join("bin");
+        std::fs::create_dir_all(&local_bin).map_err(|e| e.to_string())?;
+
+        // 바이너리 복사 (항상 최신으로 덮어씀)
+        let dest = local_bin.join("vib");
+        std::fs::copy(&vib, &dest).map_err(|e| format!("바이너리 복사 실패: {}", e))?;
+        std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755))
+            .map_err(|e| e.to_string())?;
+
+        // .zshrc / .bashrc 에 PATH 라인 추가 (중복 방지)
+        let path_line = r#"export PATH="$HOME/.local/bin:$PATH"  # VibeLign CLI"#;
+        for rc in &[".zshrc", ".bashrc"] {
+            let rc_path = home.join(rc);
+            if rc_path.exists() || *rc == ".zshrc" {
+                let existing = std::fs::read_to_string(&rc_path).unwrap_or_default();
+                if !existing.contains(".local/bin") {
+                    let mut content = existing;
+                    if !content.ends_with('\n') { content.push('\n'); }
+                    content.push_str(&format!("\n{}\n", path_line));
+                    std::fs::write(&rc_path, content).map_err(|e| e.to_string())?;
+                }
+            }
+        }
+
+        return Ok(format!("vib CLI 설치 완료: {}", dest.display()));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let local_app_data = std::env::var("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .or_else(|_| home_dir().ok_or("".to_string()).map(|h| h.join("AppData").join("Local")))
+            .map_err(|_| "LOCALAPPDATA를 찾을 수 없습니다".to_string())?;
+
+        let dest_dir = local_app_data.join("Programs").join("VibeLign");
+        std::fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
+
+        let dest = dest_dir.join("vib.exe");
+        std::fs::copy(&vib, &dest).map_err(|e| format!("바이너리 복사 실패: {}", e))?;
+
+        // 레지스트리 user PATH에 추가 (PowerShell)
+        let dir_str = dest_dir.to_string_lossy().to_string();
+        let ps_script = format!(
+            r#"$old = [Environment]::GetEnvironmentVariable('Path','User'); if ($old -notlike '*VibeLign*') {{ [Environment]::SetEnvironmentVariable('Path', $old + ';{dir}', 'User') }}"#,
+            dir = dir_str
+        );
+        let _ = Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &ps_script])
+            .output();
+
+        return Ok(format!("vib CLI 설치 완료: {}", dest.display()));
+    }
+
+    Ok("지원하지 않는 플랫폼입니다".to_string())
+}
 // === ANCHOR: VIB_PATH_END ===

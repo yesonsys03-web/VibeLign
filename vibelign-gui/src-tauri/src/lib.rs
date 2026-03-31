@@ -100,6 +100,12 @@ fn get_vib_path() -> Option<String> {
     vib_path::find_vib().map(|p| p.to_string_lossy().into_owned())
 }
 
+/// vib CLI를 터미널 PATH에 설치한다 (앱 시작 시 자동 호출).
+#[tauri::command]
+fn setup_cli_path() -> Result<String, String> {
+    vib_path::install_cli_to_path()
+}
+
 /// vib CLI를 실행하고 결과를 반환한다.
 ///
 /// - `args`: `["doctor", "--json"]` 등
@@ -358,9 +364,15 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .setup(|_app| {
+            // 앱 시작 시 vib CLI를 터미널 PATH에 자동 설치
+            let _ = vib_path::install_cli_to_path();
+            Ok(())
+        })
         .manage(WatchState(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             get_vib_path,
+            setup_cli_path,
             run_vib,
             save_api_key,
             load_api_key,
