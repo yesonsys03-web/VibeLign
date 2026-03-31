@@ -19,8 +19,9 @@ pub fn find_vib() -> Option<PathBuf> {
         if let Some(dir) = exe.parent() {
             // Tauri sidecar: vib-{target-triple} 또는 vib
             let candidates = [
-                dir.join(format!("vib-{}", std::env::consts::ARCH.to_string()
-                    + "-" + std::env::consts::OS + if cfg!(target_os="macos") { "-darwin" } else { "" })),
+                // 컴파일 타임에 확정된 Rust 타겟 트리플 사용
+                // e.g. vib-aarch64-apple-darwin / vib-x86_64-pc-windows-msvc / vib-x86_64-unknown-linux-gnu
+                dir.join(format!("vib-{}", env!("TARGET_TRIPLE"))),
                 dir.join("vib"),
                 #[cfg(target_os = "windows")]
                 dir.join("vib.exe"),
