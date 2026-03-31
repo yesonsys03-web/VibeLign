@@ -65,6 +65,8 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'x86_64-apple-darwin,aarch64-apple-darwin' || '' }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -77,17 +79,20 @@ jobs:
         run: |
           pip install pyinstaller
           pip install -e .
-          pyinstaller vib.spec --distpath dist-vib --noconfirm
-          TRIPLE=$(rustc -vV | sed -n 's/^host: //p')
-          EXT=""
-          if [[ "$TRIPLE" == *"windows"* ]]; then EXT=".exe"; fi
           mkdir -p vibelign-gui/src-tauri/binaries
-          # 기존(트리플) 파일명도 유지하지만,
-          # Tauri는 외부 바이너리를 번들로 넣고(preset: binaries/vib),
-          # 앱 실행 시에는 vib.exe/vib도 같이 찾아요.
-          cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib-${TRIPLE}${EXT}"
-          cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib${EXT}"
-          cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib"
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            pyinstaller vib.spec --distpath dist-vib --noconfirm --target-arch universal2
+            cp "dist-vib/vib" "vibelign-gui/src-tauri/binaries/vib-universal-apple-darwin"
+            cp "dist-vib/vib" "vibelign-gui/src-tauri/binaries/vib"
+          else
+            pyinstaller vib.spec --distpath dist-vib --noconfirm
+            TRIPLE=$(rustc -vV | sed -n 's/^host: //p')
+            EXT=""
+            if [[ "$TRIPLE" == *"windows"* ]]; then EXT=".exe"; fi
+            cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib-${TRIPLE}${EXT}"
+            cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib${EXT}"
+            cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib"
+          fi
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -95,7 +100,12 @@ jobs:
           workspaces: vibelign-gui/src-tauri
 
       - name: Build Tauri app
-        run: npm run tauri build
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            npm run tauri build -- --target universal-apple-darwin
+          else
+            npm run tauri build
+          fi
 
       - name: Upload Linux artifacts
         if: runner.os == 'Linux'
@@ -124,6 +134,6 @@ jobs:
         with:
           name: vibelign-gui-macos
           path: |
-            vibelign-gui/src-tauri/target/release/bundle/dmg/*.dmg
-            vibelign-gui/src-tauri/target/release/bundle/macos/*.app
+            vibelign-gui/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            vibelign-gui/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
           if-no-files-found: warn
