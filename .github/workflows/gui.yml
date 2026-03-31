@@ -28,7 +28,7 @@ jobs:
         include:
           - os: ubuntu-latest
           - os: windows-latest
-          - os: macos-latest    # Apple Silicon (aarch64), universal2 빌드
+          - os: macos-latest    # Apple Silicon (aarch64) 네이티브 빌드
 
     defaults:
       run:
@@ -67,8 +67,6 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ runner.os == 'macOS' && 'x86_64-apple-darwin,aarch64-apple-darwin' || '' }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -88,20 +86,6 @@ jobs:
           if [[ "$TRIPLE" == *"windows"* ]]; then EXT=".exe"; fi
           cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib-${TRIPLE}${EXT}"
           cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib${EXT}"
-          # macOS: x86_64(레포 커밋) + aarch64(방금 빌드) → lipo → universal
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            if [[ -f "vibelign-gui/src-tauri/binaries/vib-x86_64-apple-darwin" ]]; then
-              lipo -create \
-                "vibelign-gui/src-tauri/binaries/vib-x86_64-apple-darwin" \
-                "vibelign-gui/src-tauri/binaries/vib-aarch64-apple-darwin" \
-                -output "vibelign-gui/src-tauri/binaries/vib-universal-apple-darwin"
-              echo "✓ universal2 sidecar created"
-            else
-              echo "WARNING: vib-x86_64-apple-darwin not found. Copying aarch64 as fallback."
-              cp "vibelign-gui/src-tauri/binaries/vib-aarch64-apple-darwin" \
-                 "vibelign-gui/src-tauri/binaries/vib-universal-apple-darwin"
-            fi
-          fi
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -110,12 +94,7 @@ jobs:
 
       - name: Build Tauri app
         shell: bash
-        run: |
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            npm run tauri build -- --target universal-apple-darwin
-          else
-            npm run tauri build
-          fi
+        run: npm run tauri build
 
       - name: Upload Linux artifacts
         if: runner.os == 'Linux'
@@ -138,12 +117,12 @@ jobs:
             vibelign-gui/src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: warn
 
-      - name: Upload macOS artifacts
+      - name: Upload macOS artifacts (Apple Silicon)
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: vibelign-gui-macos-${{ matrix.os }}
+          name: vibelign-gui-macos-arm64
           path: |
-            vibelign-gui/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
-            vibelign-gui/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
+            vibelign-gui/src-tauri/target/release/bundle/dmg/*.dmg
+            vibelign-gui/src-tauri/target/release/bundle/macos/*.app
           if-no-files-found: warn
