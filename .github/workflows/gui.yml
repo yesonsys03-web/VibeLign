@@ -96,6 +96,16 @@ jobs:
         shell: bash
         run: npm run tauri build
 
+      - name: Ad-hoc codesign macOS app bundle
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          APP=$(find src-tauri/target/release/bundle/macos -name "*.app" | head -1)
+          if [ -n "$APP" ]; then
+            codesign --force --deep --sign - "$APP"
+            echo "Signed: $APP"
+          fi
+
       - name: Upload Linux artifacts
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
@@ -117,12 +127,38 @@ jobs:
             vibelign-gui/src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: warn
 
+      - name: Prepare macOS release package
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p macos-release
+          cp -r src-tauri/target/release/bundle/dmg/*.dmg macos-release/ 2>/dev/null || true
+          cp -r src-tauri/target/release/bundle/macos/*.app macos-release/ 2>/dev/null || true
+          cp scripts/install-macos.sh macos-release/
+          chmod +x macos-release/install-macos.sh
+          cat > macos-release/README.txt << 'EOF'
+VibeLign - macOS 설치 안내
+==========================
+
+처음 실행 시 "앱이 손상되었습니다" 오류가 뜨는 경우:
+
+방법 1 - 설치 스크립트 사용 (권장)
+  터미널에서 실행:
+  bash install-macos.sh
+
+방법 2 - 수동 해결
+  터미널에서 실행:
+  xattr -rc vibelign-gui.app
+  그 후 앱을 /Applications 폴더로 이동
+
+이 오류는 Apple 공증(notarization) 없이 배포된 앱에서
+macOS Gatekeeper가 발생시키는 정상적인 보안 경고입니다.
+EOF
+
       - name: Upload macOS artifacts (Apple Silicon)
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
           name: vibelign-gui-macos-arm64
-          path: |
-            vibelign-gui/src-tauri/target/release/bundle/dmg/*.dmg
-            vibelign-gui/src-tauri/target/release/bundle/macos/*.app
+          path: vibelign-gui/macos-release/
           if-no-files-found: warn

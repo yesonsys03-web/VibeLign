@@ -58,8 +58,11 @@ fn start_watch(state: tauri::State<WatchState>, cwd: String) -> Result<(), Strin
     watch_cmd.arg("watch").current_dir(PathBuf::from(&cwd));
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         watch_cmd.env("PYTHONUTF8", "1");
         watch_cmd.env("PYTHONIOENCODING", "utf-8");
+        watch_cmd.creation_flags(CREATE_NO_WINDOW);
     }
     let child = watch_cmd.spawn().map_err(|e| e.to_string())?;
     *guard = Some(child);
@@ -138,11 +141,14 @@ async fn run_vib(
             cmd.current_dir(PathBuf::from(dir));
         }
 
-        // Windows에서 Python 서브프로세스의 stdout 인코딩을 UTF-8로 강제 설정
+        // Windows에서 Python 서브프로세스의 stdout 인코딩을 UTF-8로 강제 설정 + 콘솔 창 숨김
         #[cfg(target_os = "windows")]
         {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             cmd.env("PYTHONUTF8", "1");
             cmd.env("PYTHONIOENCODING", "utf-8");
+            cmd.creation_flags(CREATE_NO_WINDOW);
         }
 
         if let Some(env_map) = env {
