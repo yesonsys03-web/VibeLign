@@ -30,9 +30,6 @@ hidden_imports = [
     "git","gitdb","anthropic",
 ]
 
-import os
-_target_arch = os.environ.get('PYINSTALLER_TARGET_ARCH', None)
-
 a = Analysis(
     ["vibelign/__main__.py"],
     pathex=["."],
@@ -53,5 +50,5 @@ exe = EXE(
     name="vib", debug=False, bootloader_ignore_signals=False,
     strip=False, upx=True, upx_exclude=[], runtime_tmpdir=None,
     console=True, disable_windowed_traceback=False, argv_emulation=False,
-    target_arch=_target_arch, codesign_identity=None, entitlements_file=None,
+    target_arch=None, codesign_identity=None, entitlements_file=None,
 )

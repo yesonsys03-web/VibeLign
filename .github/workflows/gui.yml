@@ -25,8 +25,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        node: [20]
+        include:
+          - os: ubuntu-latest
+          - os: windows-latest
+          - os: macos-latest    # Apple Silicon (aarch64)
+          - os: macos-13        # Intel (x86_64)
 
     defaults:
       run:
@@ -39,7 +42,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 20
           cache: npm
           cache-dependency-path: vibelign-gui/package-lock.json
 
@@ -65,8 +68,6 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ runner.os == 'macOS' && 'x86_64-apple-darwin,aarch64-apple-darwin' || '' }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -80,19 +81,12 @@ jobs:
           pip install pyinstaller
           pip install -e .
           mkdir -p vibelign-gui/src-tauri/binaries
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            PYINSTALLER_TARGET_ARCH=universal2 pyinstaller vib.spec --distpath dist-vib --noconfirm
-            cp "dist-vib/vib" "vibelign-gui/src-tauri/binaries/vib-universal-apple-darwin"
-            cp "dist-vib/vib" "vibelign-gui/src-tauri/binaries/vib"
-          else
-            pyinstaller vib.spec --distpath dist-vib --noconfirm
-            TRIPLE=$(rustc -vV | sed -n 's/^host: //p')
-            EXT=""
-            if [[ "$TRIPLE" == *"windows"* ]]; then EXT=".exe"; fi
-            cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib-${TRIPLE}${EXT}"
-            cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib${EXT}"
-            cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib"
-          fi
+          pyinstaller vib.spec --distpath dist-vib --noconfirm
+          TRIPLE=$(rustc -vV | sed -n 's/^host: //p')
+          EXT=""
+          if [[ "$TRIPLE" == *"windows"* ]]; then EXT=".exe"; fi
+          cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib-${TRIPLE}${EXT}"
+          cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib${EXT}"
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -101,12 +95,7 @@ jobs:
 
       - name: Build Tauri app
         shell: bash
-        run: |
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            npm run tauri build -- --target universal-apple-darwin
-          else
-            npm run tauri build
-          fi
+        run: npm run tauri build
 
       - name: Upload Linux artifacts
         if: runner.os == 'Linux'
@@ -133,8 +122,8 @@ jobs:
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: vibelign-gui-macos
+          name: vibelign-gui-macos-${{ matrix.os }}
           path: |
-            vibelign-gui/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
-            vibelign-gui/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
+            vibelign-gui/src-tauri/target/release/bundle/dmg/*.dmg
+            vibelign-gui/src-tauri/target/release/bundle/macos/*.app
           if-no-files-found: warn
