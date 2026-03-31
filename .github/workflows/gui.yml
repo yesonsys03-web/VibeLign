@@ -81,7 +81,7 @@ jobs:
           pip install -e .
           mkdir -p vibelign-gui/src-tauri/binaries
           if [[ "$RUNNER_OS" == "macOS" ]]; then
-            pyinstaller vib.spec --distpath dist-vib --noconfirm --target-arch universal2
+            PYINSTALLER_TARGET_ARCH=universal2 pyinstaller vib.spec --distpath dist-vib --noconfirm
             cp "dist-vib/vib" "vibelign-gui/src-tauri/binaries/vib-universal-apple-darwin"
             cp "dist-vib/vib" "vibelign-gui/src-tauri/binaries/vib"
           else
@@ -100,6 +100,7 @@ jobs:
           workspaces: vibelign-gui/src-tauri
 
       - name: Build Tauri app
+        shell: bash
         run: |
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             npm run tauri build -- --target universal-apple-darwin
