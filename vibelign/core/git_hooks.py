@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 _HOOK_MARKER = "# vibelign: secrets-pre-commit v1"
+_WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,7 @@ def _run_git_path(root: Path, *args: str) -> str | None:
             check=True,
             capture_output=True,
             text=True,
+            creationflags=_WINDOWS_FLAGS,
         )
     except (FileNotFoundError, subprocess.CalledProcessError):
         return None

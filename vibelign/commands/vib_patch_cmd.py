@@ -115,7 +115,10 @@ def _copy_to_clipboard(text: str) -> None:
             )
             _ = proc.communicate(text.encode("utf-8"))
         elif sys.platform == "win32":
-            proc = subprocess.Popen(["clip"], stdin=subprocess.PIPE)
+            proc = subprocess.Popen(
+                ["clip"], stdin=subprocess.PIPE,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
             _ = proc.communicate(text.encode("utf-16le"))
         else:
             from vibelign.terminal_render import clack_warn

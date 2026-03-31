@@ -10,7 +10,10 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
+
+_WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 _ANCHOR_RE = re.compile(r"ANCHOR:\s*([A-Z0-9_]+)")
 
@@ -71,6 +74,7 @@ def _run_text_command(cmd: list[str]) -> subprocess.CompletedProcess[str] | None
             encoding="utf-8",
             errors="replace",
             timeout=60,
+            creationflags=_WINDOWS_FLAGS,
         )
     except (
         subprocess.TimeoutExpired,
