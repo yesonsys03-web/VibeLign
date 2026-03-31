@@ -8,6 +8,9 @@ from collections.abc import Sequence
 from pathlib import Path
 
 
+_WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+
 from vibelign.terminal_render import (
     clack_error,
     clack_info,
@@ -72,6 +75,7 @@ def _run_text_subprocess(
         encoding="utf-8",
         errors="replace",
         timeout=timeout,
+        creationflags=_WINDOWS_FLAGS,
     )
 
 

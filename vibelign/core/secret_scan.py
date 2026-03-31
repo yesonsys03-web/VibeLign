@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import re
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+_WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
 _ALLOW_MARKER = "vibelign: allow-secret"
@@ -76,6 +79,7 @@ def _run_git(root: Path, args: list[str]) -> str:
         check=True,
         capture_output=True,
         text=True,
+        creationflags=_WINDOWS_FLAGS,
     )
     return completed.stdout
 # === ANCHOR: SECRET_SCAN__RUN_GIT_END ===

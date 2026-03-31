@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable
 
 PrintFn = Callable[[str], None]
+_WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
 # === ANCHOR: AUTO_INSTALL__ASK_YN_START ===
@@ -29,7 +30,7 @@ def _ask_yn(prompt: str) -> bool:
 def _run_visible(cmd: list[str]) -> bool:
     """명령어를 실행하고 출력을 터미널에 그대로 표시. 성공 여부 반환."""
     try:
-        result = subprocess.run(cmd, check=False)
+        result = subprocess.run(cmd, check=False, creationflags=_WINDOWS_FLAGS)
         return result.returncode == 0
     except (FileNotFoundError, OSError):
         return False

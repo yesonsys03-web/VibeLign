@@ -6,8 +6,11 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
+
+_WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 from typing import Protocol, TypedDict, cast
 
 from vibelign.core.local_checkpoints import list_checkpoints, friendly_time
@@ -208,6 +211,7 @@ def _get_changed_files(root: Path) -> list[str]:
             text=True,
             cwd=root,
             timeout=5,
+            creationflags=_WINDOWS_FLAGS,
         )
         for f in r1.stdout.splitlines():
             f = f.strip()
@@ -220,6 +224,7 @@ def _get_changed_files(root: Path) -> list[str]:
             text=True,
             cwd=root,
             timeout=5,
+            creationflags=_WINDOWS_FLAGS,
         )
         for line in r2.stdout.splitlines():
             if len(line) > 3:
@@ -596,6 +601,7 @@ def _get_recent_commits(root: Path, n: int = 5) -> list[str]:
             text=True,
             cwd=root,
             timeout=5,
+            creationflags=_WINDOWS_FLAGS,
         )
         messages = [m.strip() for m in result.stdout.splitlines() if m.strip()]
         # vibelign 자동 커밋 제외

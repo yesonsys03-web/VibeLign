@@ -944,7 +944,7 @@ def _install_completion_powershell(parser, clack_info, clack_success, clack_warn
             import subprocess
 
             new_path = current_path.rstrip(";") + ";" + str(vib_dir)
-            _ = subprocess.run(["setx", "PATH", new_path], capture_output=True, text=True)
+            _ = subprocess.run(["setx", "PATH", new_path], capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
     except Exception:
         # 경로 추가가 실패해도, 최소한 PowerShell 자동완성은 동작하게 남깁니다.
         pass
