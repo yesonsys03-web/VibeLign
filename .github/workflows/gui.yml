@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         node: [20]
 
     defaults:
@@ -116,4 +116,14 @@ jobs:
           path: |
             vibelign-gui/src-tauri/target/release/bundle/nsis/*.exe
             vibelign-gui/src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: warn
+
+      - name: Upload macOS artifacts
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vibelign-gui-macos
+          path: |
+            vibelign-gui/src-tauri/target/release/bundle/dmg/*.dmg
+            vibelign-gui/src-tauri/target/release/bundle/macos/*.app
           if-no-files-found: warn
