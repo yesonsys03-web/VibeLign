@@ -61,6 +61,7 @@ fn start_watch(app: tauri::AppHandle, state: tauri::State<WatchState>, cwd: Stri
     watch_cmd.stdin(std::process::Stdio::piped());
     watch_cmd.stdout(std::process::Stdio::piped());
     watch_cmd.stderr(std::process::Stdio::piped());
+    watch_cmd.env("PYTHONUNBUFFERED", "1");
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
