@@ -2,10 +2,12 @@
 mod vib_path;
 
 use std::collections::HashMap;
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
+use tauri::Emitter;
 
 // ─── 폴더 열기 ────────────────────────────────────────────────────────────────
 
@@ -47,7 +49,7 @@ impl Drop for WatchState {
 }
 
 #[tauri::command]
-fn start_watch(state: tauri::State<WatchState>, cwd: String) -> Result<(), String> {
+fn start_watch(app: tauri::AppHandle, state: tauri::State<WatchState>, cwd: String) -> Result<(), String> {
     let vib = vib_path::find_vib().ok_or("vib 실행 파일을 찾을 수 없습니다")?;
     // 기존 watch가 있으면 먼저 중지
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
@@ -56,6 +58,9 @@ fn start_watch(state: tauri::State<WatchState>, cwd: String) -> Result<(), Strin
     }
     let mut watch_cmd = std::process::Command::new(&vib);
     watch_cmd.arg("watch").current_dir(PathBuf::from(&cwd));
+    watch_cmd.stdin(std::process::Stdio::piped());
+    watch_cmd.stdout(std::process::Stdio::piped());
+    watch_cmd.stderr(std::process::Stdio::piped());
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
@@ -64,8 +69,32 @@ fn start_watch(state: tauri::State<WatchState>, cwd: String) -> Result<(), Strin
         watch_cmd.env("PYTHONIOENCODING", "utf-8");
         watch_cmd.creation_flags(CREATE_NO_WINDOW);
     }
-    let child = watch_cmd.spawn().map_err(|e| e.to_string())?;
+    let mut child = watch_cmd.spawn().map_err(|e| e.to_string())?;
+    // watchdog 설치 프롬프트(y/N)에 자동으로 "y" 응답
+    if let Some(mut stdin) = child.stdin.take() {
+        use std::io::Write;
+        let _ = stdin.write_all(b"y\n");
+    }
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
     *guard = Some(child);
+    drop(guard);
+
+    if let Some(out) = stdout {
+        let app2 = app.clone();
+        std::thread::spawn(move || {
+            for line in BufReader::new(out).lines() {
+                if let Ok(l) = line { let _ = app2.emit("watch_log", l); }
+            }
+        });
+    }
+    if let Some(err) = stderr {
+        std::thread::spawn(move || {
+            for line in BufReader::new(err).lines() {
+                if let Ok(l) = line { let _ = app.emit("watch_log", l); }
+            }
+        });
+    }
     Ok(())
 }
 

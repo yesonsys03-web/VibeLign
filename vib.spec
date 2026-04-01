@@ -28,6 +28,9 @@ hidden_imports = [
     "vibelign.terminal_render","vibelign.cli","vibelign.vib_cli","vibelign.mcp_server",
     "rich","rich.console","rich.markup","rich.table","rich.panel","rich.text","rich.style","rich.theme","rich.progress",
     "git","gitdb","anthropic",
+    "watchdog","watchdog.observers","watchdog.observers.fsevents","watchdog.observers.inotify",
+    "watchdog.observers.read_directory_changes","watchdog.observers.winapi",
+    "watchdog.observers.polling","watchdog.events",
 ]
 
 a = Analysis(
