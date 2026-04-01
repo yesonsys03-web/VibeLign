@@ -111,11 +111,47 @@ fn home_dir() -> Option<PathBuf> {
     return std::env::var("USERPROFILE").ok().map(PathBuf::from);
 }
 
+/// uv tool로 설치된 Python 기반 vib를 찾는다.
+/// 사이드카(번들 바이너리)와 달리 watchdog 등 Python 패키지가 포함된 전체 환경을 가진다.
+fn find_uv_tool_vib() -> Option<PathBuf> {
+    // UV_TOOL_DIR 환경변수 우선
+    let tool_dir = if let Ok(d) = std::env::var("UV_TOOL_DIR") {
+        PathBuf::from(d)
+    } else {
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        {
+            // XDG_DATA_HOME > ~/.local/share/uv/tools
+            let base = std::env::var("XDG_DATA_HOME")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| home_dir().unwrap_or_default().join(".local").join("share"));
+            base.join("uv").join("tools")
+        }
+        #[cfg(target_os = "windows")]
+        {
+            // %APPDATA%\uv\tools
+            let base = std::env::var("APPDATA")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| home_dir().unwrap_or_default().join("AppData").join("Roaming"));
+            base.join("uv").join("tools")
+        }
+    };
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    let candidate = tool_dir.join("vibelign").join("bin").join("vib");
+    #[cfg(target_os = "windows")]
+    let candidate = tool_dir.join("vibelign").join("Scripts").join("vib.exe");
+
+    if candidate.exists() { Some(candidate) } else { None }
+}
+
 /// vib CLI를 터미널에서 바로 사용할 수 있도록 PATH에 설치한다.
 /// - macOS/Linux: ~/.local/bin/vib 복사 + .zshrc/.bashrc에 PATH 라인 추가
 /// - Windows: %LOCALAPPDATA%\Programs\VibeLign\vib.exe 복사 + 레지스트리 user PATH 추가
 pub fn install_cli_to_path() -> Result<String, String> {
-    let vib = find_vib().ok_or("번들된 vib 실행 파일을 찾을 수 없습니다")?;
+    // uv tool 버전(Python 환경 포함)을 우선 사용, 없으면 번들 사이드카로 폴백
+    let vib = find_uv_tool_vib()
+        .or_else(find_vib)
+        .ok_or("번들된 vib 실행 파일을 찾을 수 없습니다")?;
 
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
