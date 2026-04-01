@@ -9,8 +9,87 @@
 //!  3. %APPDATA%\Python\*\Scripts\vib.exe (Windows)
 //!  4. which vib / where vib     (shell 통해 fallback)
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+
+/// `export … # VibeLign CLI` 줄이 이미 있으면 스킵한다.
+fn append_vibelign_path_line(path: &Path, path_line: &str, create_if_missing: bool) -> Result<(), String> {
+    const MARKER: &str = "# VibeLign CLI";
+    if path.exists() {
+        let existing = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+        if existing.contains(MARKER) {
+            return Ok(());
+        }
+        let mut content = existing;
+        if !content.ends_with('\n') && !content.is_empty() {
+            content.push('\n');
+        }
+        content.push_str(path_line);
+        if !content.ends_with('\n') {
+            content.push('\n');
+        }
+        std::fs::write(path, content).map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    if create_if_missing {
+        let mut line = path_line.to_string();
+        if !line.ends_with('\n') {
+            line.push('\n');
+        }
+        std::fs::write(path, line).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// macOS 등에서 `.bash_profile`이 `.bashrc`를 source 하는지 대략적으로 판별한다.
+fn bash_profile_sources_bashrc(profile_content: &str) -> bool {
+    profile_content.lines().any(|raw| {
+        let t = raw.trim_start();
+        if t.is_empty() || t.starts_with('#') {
+            return false;
+        }
+        if !t.contains(".bashrc") {
+            return false;
+        }
+        t.contains("source ")
+            || t.starts_with(". ")
+            || t.contains("&& . ")
+            || t.contains("&& source ")
+    })
+}
+
+fn configure_posix_shell_path(home: &Path, path_line: &str) -> Result<(), String> {
+    // zsh (맥 기본): .zshrc 없어도 생성
+    let zshrc = home.join(".zshrc");
+    append_vibelign_path_line(&zshrc, path_line, true)?;
+
+    let bash_profile = home.join(".bash_profile");
+    let bashrc = home.join(".bashrc");
+    let profile_exists = bash_profile.exists();
+    let rc_exists = bashrc.exists();
+
+    if profile_exists && rc_exists {
+        let prof_txt = std::fs::read_to_string(&bash_profile).unwrap_or_default();
+        if bash_profile_sources_bashrc(&prof_txt) {
+            append_vibelign_path_line(&bashrc, path_line, false)?;
+        } else {
+            append_vibelign_path_line(&bash_profile, path_line, false)?;
+        }
+    } else if profile_exists {
+        append_vibelign_path_line(&bash_profile, path_line, false)?;
+    } else if rc_exists {
+        append_vibelign_path_line(&bashrc, path_line, false)?;
+    } else {
+        let default_file = if cfg!(target_os = "macos") {
+            bash_profile
+        } else {
+            bashrc
+        };
+        append_vibelign_path_line(&default_file, path_line, true)?;
+    }
+
+    Ok(())
+}
 
 /// vib 실행 파일 경로를 찾는다. 없으면 None.
 pub fn find_vib() -> Option<PathBuf> {
@@ -145,7 +224,7 @@ fn find_uv_tool_vib() -> Option<PathBuf> {
 }
 
 /// vib CLI를 터미널에서 바로 사용할 수 있도록 PATH에 설치한다.
-/// - macOS/Linux: ~/.local/bin/vib 복사 + .zshrc/.bashrc에 PATH 라인 추가
+/// - macOS/Linux: ~/.local/bin/vib 복사 + zsh(`.zshrc`) / bash(`.bash_profile`·`.bashrc`)에 PATH 추가
 /// - Windows: %LOCALAPPDATA%\Programs\VibeLign\vib.exe 복사 + 레지스트리 user PATH 추가
 pub fn install_cli_to_path() -> Result<String, String> {
     // uv tool 버전(Python 환경 포함)을 우선 사용, 없으면 번들 사이드카로 폴백
@@ -179,20 +258,8 @@ pub fn install_cli_to_path() -> Result<String, String> {
                 .map_err(|e| e.to_string())?;
         }
 
-        // .zshrc / .bashrc 에 PATH 라인 추가 (중복 방지)
         let path_line = r#"export PATH="$HOME/.local/bin:$PATH"  # VibeLign CLI"#;
-        for rc in &[".zshrc", ".bashrc"] {
-            let rc_path = home.join(rc);
-            if rc_path.exists() || *rc == ".zshrc" {
-                let existing = std::fs::read_to_string(&rc_path).unwrap_or_default();
-                if !existing.contains(".local/bin") {
-                    let mut content = existing;
-                    if !content.ends_with('\n') { content.push('\n'); }
-                    content.push_str(&format!("\n{}\n", path_line));
-                    std::fs::write(&rc_path, content).map_err(|e| e.to_string())?;
-                }
-            }
-        }
+        configure_posix_shell_path(&home, path_line)?;
 
         return Ok(format!("vib CLI 설치 완료: {}", dest.display()));
     }
