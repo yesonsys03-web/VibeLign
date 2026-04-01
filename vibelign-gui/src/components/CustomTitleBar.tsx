@@ -19,7 +19,10 @@ export default function CustomTitleBar({ projectDir, onSettings }: CustomTitleBa
 
   return (
     <div className="title-bar" onMouseDown={handleMouseDown}>
-      <span className="app-name">VIBELIGN</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <img src="/icon.png" alt="icon" style={{ width: 20, height: 20, borderRadius: 4, flexShrink: 0 }} />
+        <span className="app-name">VIBELIGN</span>
+      </div>
       {projectName && (
         <span className="title-center mono">~ /{projectName}</span>
       )}
