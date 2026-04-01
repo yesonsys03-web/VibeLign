@@ -52,8 +52,12 @@ export async function runVib(
 
 // ─── 편의 함수 ─────────────────────────────────────────────────────────────────
 
-export async function vibStart(cwd: string): Promise<VibResult> {
-  return runVib(["start"], cwd);
+export async function vibStart(cwd: string, tools?: string[]): Promise<VibResult> {
+  const args = ["start"];
+  if (tools && tools.length > 0) {
+    args.push("--tools", tools.join(","));
+  }
+  return runVib(args, cwd);
 }
 
 export async function doctorJson(cwd: string): Promise<unknown> {
