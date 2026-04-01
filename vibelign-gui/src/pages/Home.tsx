@@ -1,5 +1,6 @@
 // === ANCHOR: HOME_START ===
 import { useEffect, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch, checkpointCreate, runVib, pickFile, GuardResult, buildGuiAiEnv } from "../lib/vib";
 import pkg from "../../package.json";
 
@@ -1030,6 +1031,8 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
   const [scanState, setScanState]         = useState<CardState>("idle");
   const [watchOn, setWatchOn]             = useState(false);
   const [watchLoading, setWatchLoading]   = useState(false);
+  const [watchLogs, setWatchLogs]         = useState<string[]>([]);
+  const watchLogRef                       = useRef<HTMLDivElement>(null);
   const [mapMode, setMapMode]             = useState<"manual" | "auto">("manual");
   const [transferState, setTransferState] = useState<CardState>("idle");
   const [cpMsg, setCpMsg]                 = useState("");
@@ -1072,11 +1075,24 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
     } catch (e) { setError(String(e)); setScanState("error"); }
   }
 
+  useEffect(() => {
+    const unlisten = listen<string>("watch_log", (e) => {
+      setWatchLogs((prev) => {
+        const next = [...prev, e.payload].slice(-200);
+        return next;
+      });
+      setTimeout(() => {
+        if (watchLogRef.current) watchLogRef.current.scrollTop = watchLogRef.current.scrollHeight;
+      }, 0);
+    });
+    return () => { unlisten.then((f) => f()); };
+  }, []);
+
   async function handleToggleWatch() {
     setWatchLoading(true); setError(null);
     try {
       if (watchOn) { await stopWatch(); setWatchOn(false); }
-      else { await startWatch(projectDir); setWatchOn(true); }
+      else { setWatchLogs([]); await startWatch(projectDir); setWatchOn(true); }
     } catch (e) { setError(String(e)); }
     finally { setWatchLoading(false); }
   }
@@ -1506,10 +1522,24 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
                   {scanState === "loading" ? <span className="spinner" /> : "SCAN ▶"}
                 </button>
               ) : (
-                <button className="btn btn-sm" style={{ width: "100%", border: "2px solid #1A1A1A", background: watchOn ? "#FF4D4D" : "#F5621E", color: "#fff" }}
-                  disabled={watchLoading} onClick={handleToggleWatch}>
-                  {watchLoading ? <span className="spinner" /> : watchOn ? "STOP ■" : "WATCH ▶"}
-                </button>
+                <>
+                  <button className="btn btn-sm" style={{ width: "100%", border: "2px solid #1A1A1A", background: watchOn ? "#FF4D4D" : "#F5621E", color: "#fff" }}
+                    disabled={watchLoading} onClick={handleToggleWatch}>
+                    {watchLoading ? <span className="spinner" /> : watchOn ? "STOP ■" : "WATCH ▶"}
+                  </button>
+                  {watchOn && (
+                    <div ref={watchLogRef} style={{
+                      marginTop: 6, height: 80, overflowY: "auto", background: "#0D0D0D",
+                      border: "1px solid #333", padding: "4px 6px", fontFamily: "monospace",
+                      fontSize: 9, color: "#4DFF91", lineHeight: 1.5,
+                    }}>
+                      {watchLogs.length === 0
+                        ? <span style={{ color: "#666" }}>감시 중… 로그 대기</span>
+                        : watchLogs.map((l, i) => <div key={i}>{l}</div>)
+                      }
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
