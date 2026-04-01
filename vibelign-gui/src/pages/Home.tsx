@@ -1,7 +1,7 @@
 // === ANCHOR: HOME_START ===
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch, checkpointCreate, runVib, pickFile, GuardResult, buildGuiAiEnv } from "../lib/vib";
+import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch, watchStatus, checkpointCreate, runVib, pickFile, GuardResult, buildGuiAiEnv } from "../lib/vib";
 import pkg from "../../package.json";
 
 type CardState = "idle" | "loading" | "done" | "error";
@@ -22,6 +22,10 @@ interface HomeProps {
   onNavigate: (page: "checkpoints") => void;
   onOpenSettings?: (reason?: string) => void;
   initialView?: View;
+  watchOn?: boolean;
+  setWatchOn?: (v: boolean) => void;
+  mapMode?: "manual" | "auto";
+  setMapMode?: (v: "manual" | "auto") => void;
 }
 
 // ── 커맨드 데이터 ──────────────────────────────────────────────────────────────
@@ -1022,18 +1026,22 @@ function GuiCliOutputBlock({
 }
 
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────────
-export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenSettings, initialView = "home" }: HomeProps) {
+export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, mapMode: mapModeProp, setMapMode: setMapModeProp }: HomeProps) {
   const [view, setView]                   = useState<View>(initialView);
   const [selectedCmd, setSelectedCmd]     = useState<typeof COMMANDS[0] | null>(null);
   const [guardState, setGuardState]       = useState<CardState>("idle");
   const [guardResult, setGuardResult]     = useState<GuardResult | null>(null);
   const [guardModal, setGuardModal] = useState(false);
   const [scanState, setScanState]         = useState<CardState>("idle");
-  const [watchOn, setWatchOn]             = useState(false);
+  const [watchOnLocal, setWatchOnLocal]   = useState(watchOnProp ?? false);
+  const watchOn = watchOnProp ?? watchOnLocal;
+  const setWatchOn = (v: boolean) => { setWatchOnLocal(v); setWatchOnProp?.(v); };
   const [watchLoading, setWatchLoading]   = useState(false);
   const [watchLogs, setWatchLogs]         = useState<string[]>([]);
   const watchLogRef                       = useRef<HTMLDivElement>(null);
-  const [mapMode, setMapMode]             = useState<"manual" | "auto">("manual");
+  const [mapModeLocal, setMapModeLocal]   = useState<"manual"|"auto">(mapModeProp ?? "manual");
+  const mapMode = mapModeProp ?? mapModeLocal;
+  const setMapMode = (v: "manual"|"auto") => { setMapModeLocal(v); setMapModeProp?.(v); };
   const [transferState, setTransferState] = useState<CardState>("idle");
   const [cpMsg, setCpMsg]                 = useState("");
   const [cpState, setCpState]             = useState<CardState>("idle");
@@ -1074,6 +1082,13 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
       setScanState("done");
     } catch (e) { setError(String(e)); setScanState("error"); }
   }
+
+  useEffect(() => {
+    watchStatus().then((running) => {
+      if (running !== watchOn) setWatchOn(running);
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const unlisten = listen<string>("watch_log", (e) => {

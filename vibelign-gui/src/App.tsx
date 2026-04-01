@@ -1,5 +1,6 @@
 // === ANCHOR: APP_START ===
 import { useState, useEffect, Component, ReactNode } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import CustomTitleBar from "./components/CustomTitleBar";
 import Onboarding from "./pages/Onboarding";
 import Doctor from "./pages/Doctor";
@@ -60,6 +61,18 @@ export default function App() {
   const [envKeyStatusLoaded, setEnvKeyStatusLoaded] = useState(false);
   const [prevPage, setPrevPage] = useState<Page>("home");
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
+  const [watchOn, setWatchOn] = useState(false);
+  const [mapMode, setMapMode] = useState<"manual" | "auto">("manual");
+
+  useEffect(() => {
+    const win = getCurrentWindow();
+    const unlisten = win.onCloseRequested(async (e) => {
+      e.preventDefault();
+      await stopWatch().catch(() => {});
+      await win.destroy();
+    });
+    return () => { unlisten.then((f) => f()); };
+  }, []);
 
   async function refreshAiKeys() {
     try {
@@ -141,7 +154,7 @@ export default function App() {
 
             <div style={{ flex: 1, overflow: "hidden" }}>
               <ErrorBoundary>
-                {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} />}
+                {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} />}
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" />}
                 {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} />}
                 {page === "checkpoints" && <Checkpoints projectDir={projectDir} />}
