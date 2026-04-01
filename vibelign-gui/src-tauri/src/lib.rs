@@ -2,7 +2,7 @@
 mod vib_path;
 
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -37,6 +37,54 @@ fn open_folder(path: String) -> Result<(), String> {
 // ─── Watch 프로세스 State ──────────────────────────────────────────────────────
 
 struct WatchState(Arc<Mutex<Option<std::process::Child>>>);
+
+#[cfg(target_os = "windows")]
+fn emit_watch_log(app: &tauri::AppHandle, bytes: &[u8]) {
+    let line = String::from_utf8_lossy(bytes).trim().to_string();
+    if !line.is_empty() {
+        let _ = app.emit("watch_log", line);
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn spawn_watch_log_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        let mut reader = BufReader::new(reader);
+        let mut buf = Vec::new();
+        let mut byte = [0_u8; 1];
+
+        loop {
+            match reader.read(&mut byte) {
+                Ok(0) => {
+                    emit_watch_log(&app, &buf);
+                    break;
+                }
+                Ok(_) => match byte[0] {
+                    b'\n' | b'\r' => {
+                        emit_watch_log(&app, &buf);
+                        buf.clear();
+                    }
+                    b => buf.push(b),
+                },
+                Err(_) => {
+                    emit_watch_log(&app, &buf);
+                    break;
+                }
+            }
+        }
+    });
+}
+
+#[cfg(not(target_os = "windows"))]
+fn spawn_watch_log_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        for line in BufReader::new(reader).lines() {
+            if let Ok(line) = line {
+                let _ = app.emit("watch_log", line);
+            }
+        }
+    });
+}
 
 fn kill_watch_child(child: &mut std::process::Child) {
     #[cfg(unix)]
@@ -94,6 +142,8 @@ fn start_watch(app: tauri::AppHandle, state: tauri::State<WatchState>, cwd: Stri
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        watch_cmd.env("VIBELIGN_ASK_PLAIN", "1");
+        watch_cmd.env("NO_COLOR", "1");
         watch_cmd.env("PYTHONUTF8", "1");
         watch_cmd.env("PYTHONIOENCODING", "utf-8");
         watch_cmd.creation_flags(CREATE_NO_WINDOW);
@@ -117,18 +167,10 @@ fn start_watch(app: tauri::AppHandle, state: tauri::State<WatchState>, cwd: Stri
 
     if let Some(out) = stdout {
         let app2 = app.clone();
-        std::thread::spawn(move || {
-            for line in BufReader::new(out).lines() {
-                if let Ok(l) = line { let _ = app2.emit("watch_log", l); }
-            }
-        });
+        spawn_watch_log_thread(out, app2);
     }
     if let Some(err) = stderr {
-        std::thread::spawn(move || {
-            for line in BufReader::new(err).lines() {
-                if let Ok(l) = line { let _ = app.emit("watch_log", l); }
-            }
-        });
+        spawn_watch_log_thread(err, app);
     }
     Ok(())
 }
