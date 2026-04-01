@@ -4,10 +4,10 @@ mod vib_path;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 // ─── 폴더 열기 ────────────────────────────────────────────────────────────────
 
@@ -36,13 +36,24 @@ fn open_folder(path: String) -> Result<(), String> {
 
 // ─── Watch 프로세스 State ──────────────────────────────────────────────────────
 
-struct WatchState(Mutex<Option<std::process::Child>>);
+struct WatchState(Arc<Mutex<Option<std::process::Child>>>);
+
+fn kill_watch_child(child: &mut std::process::Child) {
+    #[cfg(unix)]
+    unsafe {
+        let pgid = child.id() as i32;
+        libc::killpg(pgid, libc::SIGKILL);
+    }
+    #[cfg(not(unix))]
+    { let _ = child.kill(); }
+    let _ = child.wait();
+}
 
 impl Drop for WatchState {
     fn drop(&mut self) {
         if let Ok(mut guard) = self.0.lock() {
             if let Some(mut child) = guard.take() {
-                let _ = child.kill();
+                kill_watch_child(&mut child);
             }
         }
     }
@@ -69,6 +80,12 @@ fn start_watch(app: tauri::AppHandle, state: tauri::State<WatchState>, cwd: Stri
         watch_cmd.env("PYTHONUTF8", "1");
         watch_cmd.env("PYTHONIOENCODING", "utf-8");
         watch_cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    // Unix: 새 프로세스 그룹 생성 → 자식까지 전체 kill 가능
+    #[cfg(unix)]
+    unsafe {
+        use std::os::unix::process::CommandExt;
+        watch_cmd.pre_exec(|| { libc::setpgid(0, 0); Ok(()) });
     }
     let mut child = watch_cmd.spawn().map_err(|e| e.to_string())?;
     // watchdog 설치 프롬프트(y/N)에 자동으로 "y" 응답
@@ -103,7 +120,7 @@ fn start_watch(app: tauri::AppHandle, state: tauri::State<WatchState>, cwd: Stri
 fn stop_watch(state: tauri::State<WatchState>) -> Result<(), String> {
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
     if let Some(mut child) = guard.take() {
-        let _ = child.kill();
+        kill_watch_child(&mut child);
     }
     Ok(())
 }
@@ -397,6 +414,9 @@ fn get_env_key_status() -> HashMap<String, bool> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let watch_inner: Arc<Mutex<Option<std::process::Child>>> = Arc::new(Mutex::new(None));
+    let watch_inner_for_exit = Arc::clone(&watch_inner);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -407,7 +427,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .manage(WatchState(Mutex::new(None)))
+        .manage(WatchState(watch_inner))
         .invoke_handler(tauri::generate_handler![
             get_vib_path,
             setup_cli_path,
@@ -426,7 +446,19 @@ pub fn run() {
             open_folder,
             get_env_key_status,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(move |_app_handle, event| {
+            match event {
+                tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. } => {
+                    if let Ok(mut guard) = watch_inner_for_exit.lock() {
+                        if let Some(mut child) = guard.take() {
+                            kill_watch_child(&mut child);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        });
 }
 // === ANCHOR: LIB_END ===
