@@ -1,6 +1,5 @@
 // === ANCHOR: APP_START ===
 import { useState, useEffect, Component, ReactNode } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import CustomTitleBar from "./components/CustomTitleBar";
 import Onboarding from "./pages/Onboarding";
 import Doctor from "./pages/Doctor";
@@ -64,15 +63,6 @@ export default function App() {
   const [watchOn, setWatchOn] = useState(false);
   const [mapMode, setMapMode] = useState<"manual" | "auto">("manual");
 
-  useEffect(() => {
-    const win = getCurrentWindow();
-    const unlisten = win.onCloseRequested(async (e) => {
-      e.preventDefault();
-      await stopWatch().catch(() => {});
-      await win.destroy();
-    });
-    return () => { unlisten.then((f) => f()); };
-  }, []);
 
   async function refreshAiKeys() {
     try {
