@@ -107,7 +107,9 @@ export async function doctorApply(cwd: string, aiEnv?: Record<string, string>): 
 export async function checkpointCreate(cwd: string, message: string): Promise<unknown> {
   const res = await runVib(["checkpoint", message, "--json"], cwd);
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
-  return JSON.parse(res.stdout);
+  const data = JSON.parse(res.stdout) as { ok?: boolean; error?: string };
+  if (data.ok === false) throw new Error(data.error ?? "checkpoint 실패");
+  return data;
 }
 
 export async function checkpointList(cwd: string): Promise<unknown> {
