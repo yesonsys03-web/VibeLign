@@ -372,7 +372,9 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|_app| {
             // 앱 시작 시 vib CLI를 터미널 PATH에 자동 설치
-            let _ = vib_path::install_cli_to_path();
+            if let Err(e) = vib_path::install_cli_to_path() {
+                eprintln!("VibeLign: CLI PATH 설치 실패 — {e}");
+            }
             Ok(())
         })
         .manage(WatchState(Mutex::new(None)))
