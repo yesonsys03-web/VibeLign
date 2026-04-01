@@ -44,7 +44,24 @@ fn kill_watch_child(child: &mut std::process::Child) {
         let pgid = child.id() as i32;
         libc::killpg(pgid, libc::SIGKILL);
     }
-    #[cfg(not(unix))]
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let pid = child.id().to_string();
+        let killed_tree = std::process::Command::new("taskkill")
+            .args(["/PID", pid.as_str(), "/T", "/F"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false);
+
+        if !killed_tree {
+            let _ = child.kill();
+        }
+    }
+    #[cfg(all(not(unix), not(target_os = "windows")))]
     { let _ = child.kill(); }
     let _ = child.wait();
 }
@@ -65,7 +82,7 @@ fn start_watch(app: tauri::AppHandle, state: tauri::State<WatchState>, cwd: Stri
     // 기존 watch가 있으면 먼저 중지
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
     if let Some(ref mut child) = *guard {
-        let _ = child.kill();
+        kill_watch_child(child);
     }
     let mut watch_cmd = std::process::Command::new(&vib);
     watch_cmd.arg("watch").current_dir(PathBuf::from(&cwd));
