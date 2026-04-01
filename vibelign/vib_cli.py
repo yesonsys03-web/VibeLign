@@ -778,23 +778,22 @@ Register-ArgumentCompleter -Native -CommandName vib -ScriptBlock {{
     }}
 
     $words = $commandAst.CommandElements
-    if ($words.Count -le 2) {{
+    # 첫 토큰이 vib/vib.exe이면 서브커맨드는 words[1], 아니면 words[0]
+    $first = ($words[0].Value).ToLowerInvariant()
+    $startIdx = if ($first -eq "vib" -or $first -eq "vib.exe") {{ 1 }} else {{ 0 }}
+    # $wordToComplete가 비어 있으면 마지막 완성 토큰 수 = Count,
+    # 비어 있지 않으면 마지막 토큰이 완성 중이므로 -1
+    $completeCount = $words.Count - (if ($wordToComplete -ne "") {{ 1 }} else {{ 0 }})
+
+    if ($completeCount -le $startIdx) {{
+        # 서브커맨드 이름을 완성 중
         $commands | Where-Object {{ $_ -like "$wordToComplete*" }} |
             ForEach-Object {{
                 [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
             }}
     }} else {{
-        # PowerShell의 CommandElements는 "vib" 실행파일 토큰을 포함할 수도/제외할 수도 있어요.
-        # 첫 토큰이 vib라면 subcommand은 words[1], 아니면 words[0]를 subcommand 키로 봐서 안전하게 처리합니다.
-        $first = $words[0].Value
-        $firstLower = ($first.ToString()).ToLowerInvariant()
-        $cmd = $null
-        if ($firstLower -eq "vib" -or $firstLower -eq "vib.exe") {{
-            $cmd = $words[1].Value
-        }} else {{
-            $cmd = $first
-        }}
-
+        # 서브커맨드가 확정됨 → 해당 서브커맨드의 옵션/플래그 완성
+        $cmd = $words[$startIdx].Value
         if ($cmd -and $cmdOpts.ContainsKey($cmd)) {{
             $cmdOpts[$cmd] | Where-Object {{ $_ -like "$wordToComplete*" }} |
                 ForEach-Object {{

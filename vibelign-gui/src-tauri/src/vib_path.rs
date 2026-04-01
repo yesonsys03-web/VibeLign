@@ -149,9 +149,11 @@ fn find_uv_tool_vib() -> Option<PathBuf> {
 /// - Windows: %LOCALAPPDATA%\Programs\VibeLign\vib.exe 복사 + 레지스트리 user PATH 추가
 pub fn install_cli_to_path() -> Result<String, String> {
     // uv tool 버전(Python 환경 포함)을 우선 사용, 없으면 번들 사이드카로 폴백
+    // 단, 소스 파일이 0 bytes이면 손상된 것으로 간주하고 건너뜀
     let vib = find_uv_tool_vib()
-        .or_else(find_vib)
-        .ok_or("번들된 vib 실행 파일을 찾을 수 없습니다")?;
+        .filter(|p| std::fs::metadata(p).map_or(false, |m| m.len() > 0))
+        .or_else(|| find_vib().filter(|p| std::fs::metadata(p).map_or(false, |m| m.len() > 0)))
+        .ok_or("유효한 vib 실행 파일을 찾을 수 없습니다 (0 bytes 또는 미설치)")?;
 
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
@@ -161,11 +163,21 @@ pub fn install_cli_to_path() -> Result<String, String> {
         let local_bin = home.join(".local").join("bin");
         std::fs::create_dir_all(&local_bin).map_err(|e| e.to_string())?;
 
-        // 바이너리 복사 (항상 최신으로 덮어씀)
+        // uv tool vib는 심볼릭 링크로 연결 (복사하면 trampoline이 venv를 못 찾음)
+        // 사이드카처럼 독립 실행 바이너리인 경우에만 복사
         let dest = local_bin.join("vib");
-        std::fs::copy(&vib, &dest).map_err(|e| format!("바이너리 복사 실패: {}", e))?;
-        std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755))
-            .map_err(|e| e.to_string())?;
+        if dest.exists() || dest.symlink_metadata().is_ok() {
+            std::fs::remove_file(&dest).map_err(|e| e.to_string())?;
+        }
+        let use_symlink = find_uv_tool_vib().map_or(false, |p| p == vib);
+        if use_symlink {
+            std::os::unix::fs::symlink(&vib, &dest)
+                .map_err(|e| format!("심볼릭 링크 생성 실패: {}", e))?;
+        } else {
+            std::fs::copy(&vib, &dest).map_err(|e| format!("바이너리 복사 실패: {}", e))?;
+            std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755))
+                .map_err(|e| e.to_string())?;
+        }
 
         // .zshrc / .bashrc 에 PATH 라인 추가 (중복 방지)
         let path_line = r#"export PATH="$HOME/.local/bin:$PATH"  # VibeLign CLI"#;

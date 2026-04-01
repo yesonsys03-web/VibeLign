@@ -124,6 +124,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   const [selectedDir, setSelectedDir] = useState("");
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [githubOpen, setGithubOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(true);
   const [guideStep, setGuideStep] = useState(0);
@@ -136,7 +137,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   async function handleStart() {
     setStarting(true);
     setStartError(null);
-    const r = await vibStart(selectedDir);
+    const r = await vibStart(selectedDir, selectedTools);
     setStarting(false);
     if (!r.ok) {
       setStartError(r.stderr || r.stdout || "vib start 실행에 실패했어요.");
@@ -487,6 +488,57 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
             style={{ flex: 2, maxWidth: 320 }}
           />
           <button className="btn btn-ghost btn-sm" onClick={pickFolder} style={{ flexShrink: 0 }}>탐색</button>
+        </div>
+
+        {/* AI 도구 선택 */}
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>
+            사용하는 AI 도구를 선택하세요 <span style={{ color: "#555" }}>(선택 안 하면 기본 설정만 생성)</span>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {(["claude", "cursor", "opencode", "antigravity", "codex"] as const).map((tool) => {
+              const label: Record<string, string> = {
+                claude: "Claude Code", cursor: "Cursor", opencode: "OpenCode",
+                antigravity: "Antigravity", codex: "Codex",
+              };
+              const active = selectedTools.includes(tool);
+              return (
+                <button
+                  key={tool}
+                  onClick={() => setSelectedTools(prev =>
+                    prev.includes(tool) ? prev.filter(t => t !== tool) : [...prev, tool]
+                  )}
+                  style={{
+                    fontSize: 11, fontWeight: 700, padding: "4px 10px",
+                    border: `2px solid ${active ? "#F5621E" : "#333"}`,
+                    background: active ? "#F5621E" : "transparent",
+                    color: active ? "#fff" : "#aaa",
+                    cursor: "pointer",
+                  }}
+                >
+                  {label[tool]}
+                </button>
+              );
+            })}
+            {(() => {
+              const ALL_TOOLS = ["claude", "cursor", "opencode", "antigravity", "codex"];
+              const allSelected = ALL_TOOLS.every(t => selectedTools.includes(t));
+              return (
+                <button
+                  onClick={() => setSelectedTools(allSelected ? [] : ALL_TOOLS)}
+                  style={{
+                    fontSize: 11, fontWeight: 700, padding: "4px 10px",
+                    border: `2px solid ${allSelected ? "#4DFF91" : "#333"}`,
+                    background: allSelected ? "#4DFF91" : "transparent",
+                    color: allSelected ? "#1A1A1A" : "#aaa",
+                    cursor: "pointer",
+                  }}
+                >
+                  {allSelected ? "전체 해제" : "전체 선택"}
+                </button>
+              );
+            })()}
+          </div>
         </div>
 
         {startError && (
