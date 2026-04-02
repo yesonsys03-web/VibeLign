@@ -189,7 +189,9 @@ def build_parser():
             '  vib checkpoint "로그인 완성"  메시지와 함께 저장'
         ),
     )
-    p.add_argument("message", nargs="*", help="저장할 메시지 (안 써도 돼요) / 'list'로 목록 조회")
+    p.add_argument(
+        "message", nargs="*", help="저장할 메시지 (안 써도 돼요) / 'list'로 목록 조회"
+    )
     p.add_argument("--json", action="store_true", help="결과를 JSON으로 반환")
     p.set_defaults(func=run_vib_checkpoint)
 
@@ -295,8 +297,12 @@ def build_parser():
     )
     p.add_argument("--write-report", action="store_true", help="결과를 파일로 저장")
     _plan_group = p.add_mutually_exclusive_group()
-    _plan_group.add_argument("--plan", action="store_true", help="실행 계획 출력 (파일 수정 없음)")
-    _plan_group.add_argument("--patch", action="store_true", help="변경 예정 diff 출력 (파일 수정 없음)")
+    _plan_group.add_argument(
+        "--plan", action="store_true", help="실행 계획 출력 (파일 수정 없음)"
+    )
+    _plan_group.add_argument(
+        "--patch", action="store_true", help="변경 예정 diff 출력 (파일 수정 없음)"
+    )
     _plan_group.add_argument("--apply", action="store_true", help="자동 리팩토링 실행")
     p.add_argument("--force", action="store_true", help="--apply 확인 프롬프트 생략")
     p.set_defaults(func=run_vib_doctor)
@@ -358,7 +364,7 @@ def build_parser():
             '  vib patch "사이드바 제거" --preview    미리 보기\n'
             "  vib patch --apply-strict patch.json   strict_patch JSON 적용\n"
             "  vib patch --apply-strict patch.json --dry-run   검증만 (파일·체크포인트 없음)\n"
-            "  vib patch --lazy-fanout --json \"A 그리고 B\"   다중 의도 시 첫 조각만 상세 계획"
+            '  vib patch --lazy-fanout --json "A 그리고 B"   다중 의도 시 첫 조각만 상세 계획'
         ),
     )
     p.add_argument(
@@ -521,10 +527,27 @@ def build_parser():
     )
     p.add_argument("--compact", action="store_true", help="경량 버전 (토큰 최소화)")
     p.add_argument("--full", action="store_true", help="핵심 파일 전체 포함")
-    p.add_argument("--handoff", action="store_true", help="AI 전환용 Session Handoff 블록 포함")
-    p.add_argument("--print", dest="print_mode", action="store_true", help="Handoff 요약을 콘솔에 출력 (--handoff 전용)")
-    p.add_argument("--no-prompt", dest="no_prompt", action="store_true", help="프롬프트 없이 자동 생성 (--handoff 전용)")
-    p.add_argument("--dry-run", dest="dry_run", action="store_true", help="파일 저장 없이 handoff 내용 미리 보기")
+    p.add_argument(
+        "--handoff", action="store_true", help="AI 전환용 Session Handoff 블록 포함"
+    )
+    p.add_argument(
+        "--print",
+        dest="print_mode",
+        action="store_true",
+        help="Handoff 요약을 콘솔에 출력 (--handoff 전용)",
+    )
+    p.add_argument(
+        "--no-prompt",
+        dest="no_prompt",
+        action="store_true",
+        help="프롬프트 없이 자동 생성 (--handoff 전용)",
+    )
+    p.add_argument(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        help="파일 저장 없이 handoff 내용 미리 보기",
+    )
     p.add_argument("--out", default=None, help="출력 파일명 (기본: PROJECT_CONTEXT.md)")
     p.set_defaults(func=run_transfer)
 
@@ -595,6 +618,7 @@ def build_parser():
     )
     p.add_argument("--all", action="store_true", help="전체 커맨드 상세 보기")
     p.add_argument("--save", action="store_true", help="VIBELIGN_MANUAL.md 파일로 저장")
+    p.add_argument("--json", action="store_true", help="매뉴얼을 JSON으로 출력")
     p.set_defaults(func=run_vib_manual)
 
     # ── AI 개발 규칙 ──
@@ -605,7 +629,7 @@ def build_parser():
     )
     p.set_defaults(
         func=lambda args: run_vib_manual(
-            type("Args", (), {"command_name": "rules", "save": False, "all": False})()
+            argparse.Namespace(command_name="rules", save=False, all=False, json=False)
         )
     )
 
@@ -943,7 +967,12 @@ def _install_completion_powershell(parser, clack_info, clack_success, clack_warn
             import subprocess
 
             new_path = current_path.rstrip(";") + ";" + str(vib_dir)
-            _ = subprocess.run(["setx", "PATH", new_path], capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+            _ = subprocess.run(
+                ["setx", "PATH", new_path],
+                capture_output=True,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
     except Exception:
         # 경로 추가가 실패해도, 최소한 PowerShell 자동완성은 동작하게 남깁니다.
         pass
@@ -973,8 +1002,12 @@ def main():
     # 설정되어 한글이 깨지는 문제를 방지합니다.
     if sys.platform == "win32":
         try:
-            sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
-            sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+            stdout_reconfigure = getattr(sys.stdout, "reconfigure", None)
+            stderr_reconfigure = getattr(sys.stderr, "reconfigure", None)
+            if callable(stdout_reconfigure):
+                stdout_reconfigure(encoding="utf-8", errors="replace")
+            if callable(stderr_reconfigure):
+                stderr_reconfigure(encoding="utf-8", errors="replace")
         except AttributeError:
             pass
     parser = build_parser()

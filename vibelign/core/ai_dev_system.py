@@ -48,6 +48,7 @@ Do not rewrite entire files unless the user explicitly asks for a rewrite.
 - keep diffs reviewable
 - keep changes easy to explain
 - prefer one focused change over many scattered changes
+- for a distinct new feature, default to a new file/module/component instead of appending it to an existing file
 
 ---
 
@@ -74,6 +75,7 @@ Examples:
 - service / worker / pipeline files → real logic
 - UI file → UI only
 - config file → configuration only
+- when a file starts accumulating a second responsibility, keep the old file as wiring and move the new behavior out
 
 ### Module boundaries and file size (cohesion)
 
@@ -155,6 +157,7 @@ Avoid the following patterns unless explicitly required:
 - separate translation logic from UI state handling
 - separate configuration from execution logic
 - separate formatting / validation / retry logic when files grow too large
+- when a file keeps growing with new features, split the new feature into a new file instead of appending more code
 
 ---
 
@@ -192,6 +195,7 @@ When editing existing code:
 - avoid turning one file into the project center of gravity
 - if a file is already large, consider splitting instead of extending it further
 - if many new functions are being added to one module, ask whether a new module boundary is more appropriate
+- for a new feature, default to a new file/module/component first; only extend the existing file for a small bug fix or a local wiring tweak
 
 ### Soft guidance
 - small file: easy to edit safely
@@ -212,6 +216,7 @@ When editing existing code:
 - one function = one clear job
 - if a function has multiple "and" steps (read AND parse AND save), split it
 - helper logic that appears in more than one place → extract into its own function
+- if an anchor starts absorbing a second feature, move the new behavior out into a new file or sub-anchor
 
 ### Function naming
 Good examples:

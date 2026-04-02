@@ -40,6 +40,7 @@ This file is automatically read by OpenCode, Claude Code, and other AI coding to
 - Do not modify unrelated modules
 - Respect anchor boundaries (`ANCHOR: NAME_START` / `ANCHOR: NAME_END`)
 - Keep entry files (main.py, index.js, etc.) small and focused
+- For a distinct new feature, prefer creating a new file/module/component instead of appending it to an existing file
 
 ## Module boundaries and file size
 
@@ -47,6 +48,7 @@ This file is automatically read by OpenCode, Claude Code, and other AI coding to
 - Prefer discoverable paths and names; split when responsibility diverges or tests need isolation.
 - Respect project lint and `watch_rules` limits on file length; prefer new files over bloating an existing one.
 - For very large UI or Python modules, use sub-anchors until split; keep patch targets small.
+- When a file starts accumulating a second responsibility, keep the old file as wiring and move the new behavior out.
 
 ## Two Modification Modes
 
@@ -141,6 +143,7 @@ _RULES = """\
 9. **응집도** — 같이 바뀌는 코드는 한 모듈·디렉터리에 두고, 책임이 갈라지면 분리
 10. **이름·경로** — 기능을 경로·이름만으로 찾을 수 있게
 11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할; `vib patch`는 작은 `target_anchor`가 안전
+12. **새 기능 기본값** — 새로운 기능은 기존 큰 파일에 덧붙이지 말고 새 파일·모듈·컴포넌트로 분리
 """
 
 _SETUP = """\
