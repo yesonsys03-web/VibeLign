@@ -94,7 +94,14 @@ jobs:
 
       - name: Build Tauri app
         shell: bash
-        run: npm run tauri build
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            for i in 1 2 3; do
+              npm run tauri build && break || (echo "Attempt $i failed, retrying in 10s..."; sleep 10)
+            done
+          else
+            npm run tauri build
+          fi
 
       - name: Ad-hoc codesign macOS app bundle
         if: runner.os == 'macOS'

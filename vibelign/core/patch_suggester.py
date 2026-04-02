@@ -770,4 +770,22 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
     )
 
 
+
+def suggest_patch_for_role(
+    root: Path, request: str, role: str, use_ai: bool = True
+) -> PatchSuggestion:
+    return suggest_patch(root, request, use_ai=use_ai)
+
+
+def resolve_target_for_role(
+    root: Path, request: str, role: str, use_ai: bool = True
+) -> "Any":
+    from vibelign.core import TargetResolution
+
+    suggestion = suggest_patch(root, request, use_ai=use_ai)
+    return TargetResolution.from_suggestion(
+        role=role, suggestion=suggestion, source_text=request, destination_text=request
+    )
+
+
 # === ANCHOR: PATCH_SUGGESTER_END ===
