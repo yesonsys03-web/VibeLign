@@ -3,8 +3,9 @@
 
 from __future__ import annotations
 
+import json
 from argparse import Namespace
-from typing import TypedDict
+from typing import Protocol, TypedDict
 
 from rich.console import Console
 from rich.panel import Panel
@@ -24,6 +25,13 @@ class ManualEntry(TypedDict, total=False):
     examples: list[tuple[str, str]]
     options: list[tuple[str, str]]
     notes: list[str]  # 알아두면 좋은 동작 설명 (선택)
+
+
+class ManualArgs(Protocol):
+    command_name: str | None
+    save: bool
+    all: bool
+    json: bool
 
 
 # ──────────────────────────────────────────────
@@ -460,10 +468,11 @@ MANUAL: dict[str, ManualEntry] = {
     "config": {
         "emoji": "🔑",
         "title": "vib config",
-        "one_line": "AI 기능을 쓰기 위한 API 키를 설정해요",
+        "one_line": "AI 기능을 쓰기 위한 API 키와 지원 모델을 설정해요",
         "what": (
             "AI 기능(ask, patch --ai 등)을 사용하려면 API 키가 필요해요.\n"
-            "이 명령어로 Anthropic(Claude) 또는 Gemini API 키를 설정할 수 있어요."
+            "이 명령어로 Anthropic(Claude) 또는 Gemini API 키를 설정할 수 있어요.\n"
+            "즉, 현재 지원하는 모델은 Claude와 Gemini예요."
         ),
         "when": [
             "처음 설치하고 AI 기능을 쓰려고 할 때",
@@ -1090,11 +1099,12 @@ def _save_markdown() -> str:
 # ──────────────────────────────────────────────
 
 
-def run_vib_manual(args: Namespace) -> None:
+def run_vib_manual(args: ManualArgs | Namespace) -> None:
     command_value = getattr(args, "command_name", None)
     command = command_value if isinstance(command_value, str) else None
     save = bool(getattr(args, "save", False))
     all_flag = bool(getattr(args, "all", False))
+    json_flag = bool(getattr(args, "json", False))
 
     if save:
         path = _save_markdown()
@@ -1104,6 +1114,16 @@ def run_vib_manual(args: Namespace) -> None:
         console.print(
             "[dim]이 파일을 AI한테 보여주면 VibeLign에 대해 더 잘 도와줄 수 있어요.[/dim]\n"
         )
+        return
+
+    if json_flag:
+        if command:
+            payload = MANUAL.get(command, {})
+        elif all_flag:
+            payload = MANUAL
+        else:
+            payload = MANUAL
+        print(json.dumps(payload, ensure_ascii=False))
         return
 
     if command:

@@ -769,6 +769,9 @@ const COMMANDS = [
           { t: "info",  v: "로직 파일: 실제 처리, 파일 읽기/쓰기, 네트워크" },
           { t: "label", v: "🔹 파일 크기 관리" },
           { t: "info",  v: "파일이 커지면 역할별로 나눠요." },
+          { t: "label", v: "🔹 기능 분리 원칙" },
+          { t: "info",  v: "새 기능은 기본적으로 새 파일/모듈/컴포넌트로 만들어요." },
+          { t: "info",  v: "파일에 두 번째 역할이 생기면, 새 로직은 밖으로 빼고 기존 파일은 연결만 담당해요." },
           { t: "error", v: "금지:  utils.py  helpers.py  misc.py  (모호한 이름)" },
           { t: "info",  v: "권장:  backup_worker.py  translation_pipeline.py  (구체적으로)" },
         ],
@@ -828,7 +831,7 @@ const COMMANDS = [
     title: "정책",
     short: "AI가 지켜야 할 핵심 신뢰 규칙",
     desc: "VibeLign이 AI를 어떻게 제한하고 안전하게 쓰게 하는지, `AI_DEV_SYSTEM_SINGLE_FILE.md`의 핵심 정책을 중학생도 읽을 수 있게 정리한 카드예요.",
-    usage: "vib manual policy",
+    usage: "vib manual rules",
     tips: ["AI가 한 파일에 몰빵하지 못하게 막아요", "작게 고치고, 관계없는 건 건드리지 않아요", "정책이 바뀌면 문서와 테스트도 같이 맞춰요"],
     guide: [
       {
@@ -877,6 +880,8 @@ const COMMANDS = [
           { t: "info", v: "main.py, index.js 같은 시작 파일은 작게 유지해요." },
           { t: "label", v: "역할 분리" },
           { t: "info", v: "UI와 비즈니스 로직은 분리해요." },
+          { t: "label", v: "기능 분리" },
+          { t: "info", v: "새 기능은 새 파일/모듈/컴포넌트로 만들고, 역할이 2개가 되면 새 로직은 밖으로 빼요." },
           { t: "error", v: "금지: utils.py / helpers.py / misc.py 같은 모호한 이름" },
           { t: "info", v: "권장: backup_worker.py / translation_pipeline.py 같은 구체적인 이름" },
         ],

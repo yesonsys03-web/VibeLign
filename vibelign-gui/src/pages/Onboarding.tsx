@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { getVibPath, vibStart } from "../lib/vib";
+import { getVibPath, loadProviderApiKeys, vibStart } from "../lib/vib";
+import { getHelpAnswer, resolveHelpAnswer } from "../lib/helpData";
 
 const VIBELIGN_GITHUB_URL = "https://github.com/yesonsys03-web/VibeLign.git";
 
@@ -129,6 +130,9 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   const [guideOpen, setGuideOpen] = useState(true);
   const [guideStep, setGuideStep] = useState(0);
   const [recentOpen, setRecentOpen] = useState(true);
+  const [helpQuestion, setHelpQuestion] = useState("");
+  const [helpAnswer, setHelpAnswer] = useState("예: 이 툴로 뭘 할 수 있어?");
+  const [helpLoading, setHelpLoading] = useState(false);
 
   useEffect(() => {
     getVibPath().then((p) => { setVibFound(p); setVibChecking(false); });
@@ -149,6 +153,31 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   async function pickFolder() {
     const dir = await openDialog({ directory: true, multiple: false, title: "프로젝트 폴더 선택" });
     if (typeof dir === "string") setSelectedDir(dir);
+  }
+
+  async function handleHelpAsk() {
+    const question = helpQuestion.trim();
+    if (!question) {
+      setHelpAnswer("질문을 입력해 주세요. 예: '이 툴로 뭘 할 수 있어?'");
+      return;
+    }
+
+    setHelpLoading(true);
+    setHelpAnswer("생각 중...");
+    try {
+      let providerKeys = null;
+      try {
+        providerKeys = await loadProviderApiKeys();
+      } catch {
+        providerKeys = null;
+      }
+
+      setHelpAnswer(await resolveHelpAnswer(question, providerKeys));
+    } catch {
+      setHelpAnswer(getHelpAnswer(question));
+    } finally {
+      setHelpLoading(false);
+    }
   }
 
   return (
@@ -210,6 +239,68 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
               <div className="feature-card-body" style={{ padding: "6px 12px", fontSize: 11 }}>{card.desc}</div>
             </div>
           ))}
+        </div>
+
+        <div className="feature-card" style={{ marginTop: 8 }}>
+          <div className="feature-card-header" style={{ background: "#4D9FFF18", padding: "8px 12px" }}>
+            <div
+              className="feature-card-icon"
+              style={{
+                background: "#4D9FFF",
+                color: "#fff",
+                borderColor: "#4D9FFF",
+                width: 24,
+                height: 24,
+                fontSize: 12,
+                fontWeight: 900,
+              }}
+            >
+              ?
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 11, flex: 1 }}>도움말 질문하기</div>
+            <div style={{ fontSize: 10, color: "#666", fontWeight: 700 }}>엔터로 답하기</div>
+          </div>
+          <div className="feature-card-body" style={{ padding: "10px 12px" }}>
+            <div style={{ fontSize: 11, color: "#444", lineHeight: 1.5, marginBottom: 8 }}>
+              궁금한 걸 그냥 말해 보세요. 예: “이 툴로 뭘 할 수 있어?”
+            </div>
+            <input
+              className="input-field"
+              value={helpQuestion}
+              onChange={(e) => setHelpQuestion(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleHelpAsk();
+                }
+              }}
+              placeholder="예: 이 툴로 뭘 할 수 있어?"
+              style={{ width: "100%", marginBottom: 8, fontSize: 11, boxSizing: "border-box" }}
+            />
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={helpLoading}
+              onClick={handleHelpAsk}
+              style={{ background: "#4D9FFF", color: "#fff", border: "2px solid #1A1A1A", fontSize: 10 }}
+            >
+              {helpLoading ? "생각 중..." : "답하기 ▶"}
+            </button>
+            <div
+              style={{
+                marginTop: 10,
+                padding: "10px 12px",
+                border: "2px solid #1A1A1A",
+                background: "#fff",
+                fontSize: 11,
+                lineHeight: 1.55,
+                whiteSpace: "pre-wrap",
+                color: "#1A1A1A",
+              }}
+            >
+              {helpAnswer}
+            </div>
+          </div>
         </div>
 
         {/* 바이브라인 GitHub 카드 */}

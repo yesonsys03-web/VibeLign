@@ -216,6 +216,23 @@ export async function loadProviderApiKeys(): Promise<Record<string, string>> {
   return invoke<Record<string, string>>("load_provider_api_keys");
 }
 
+export async function getManualJson(): Promise<Record<string, unknown>> {
+  const res = await runVib(["manual", "--json"]);
+  const raw = res.stdout.trim();
+  if (!raw) {
+    throw new Error(res.stderr || `exit ${res.exit_code}`);
+  }
+  const parsed = JSON.parse(raw) as unknown;
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    const data = parsed as Record<string, unknown>;
+    if ("data" in data && data.data && typeof data.data === "object" && !Array.isArray(data.data)) {
+      return data.data as Record<string, unknown>;
+    }
+    return data;
+  }
+  throw new Error("manual json parse failed");
+}
+
 export async function getEnvKeyStatus(): Promise<Record<string, boolean>> {
   return invoke<Record<string, boolean>>("get_env_key_status");
 }
