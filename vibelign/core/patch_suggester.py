@@ -1,17 +1,14 @@
 # === ANCHOR: PATCH_SUGGESTER_START ===
-from collections.abc import Iterable, Mapping
 from pathlib import Path
-import importlib
-import json
 import re
+import json
+import importlib
 from dataclasses import dataclass, asdict
-from typing import Protocol, TypeAlias, cast
-from vibelign.core import TargetResolution
+from typing import Any, Iterable, Optional, Union
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_map import ProjectMapSnapshot, load_project_map
 from vibelign.core.project_scan import iter_source_files, relpath_str
-from vibelign.core.anchor_tools import AnchorMetaEntry, extract_anchors
-from vibelign.core.ui_label_index import load_ui_label_index, score_boost_for_ui_labels
+from vibelign.core.anchor_tools import extract_anchors
 
 KEYWORD_HINTS = {
     "progress": [
@@ -43,48 +40,6 @@ KEYWORD_HINTS = {
 }
 
 LOW_PRIORITY_NAMES = {"__init__.py", "__init__.js", "__init__.ts"}
-
-AnchorIndexEntry: TypeAlias = dict[str, list[str]]
-AnchorIndexMap: TypeAlias = dict[str, AnchorIndexEntry]
-AnchorIntentEntry: TypeAlias = AnchorMetaEntry
-AnchorIntentMap: TypeAlias = Mapping[str, AnchorIntentEntry]
-ScoredPath: TypeAlias = tuple[int, Path, list[str]]
-AISelectedPath: TypeAlias = tuple[Path, list[str]]
-
-
-class AIExplainModule(Protocol):
-    def has_ai_provider(self) -> bool: ...
-
-    def generate_text_with_ai(
-        self, prompt: str, quiet: bool = False
-    ) -> tuple[str | None, object]: ...
-
-
-def _normalize_object_dict(value: object) -> dict[str, object] | None:
-    if not isinstance(value, dict):
-        return None
-    raw = cast(dict[object, object], value)
-    normalized: dict[str, object] = {}
-    for key, item in raw.items():
-        normalized[str(key)] = item
-    return normalized
-
-
-def _normalize_string_list(value: object) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    raw = cast(list[object], value)
-    return [item for item in raw if isinstance(item, str)]
-
-
-def _normalize_anchor_index_entry(value: object) -> AnchorIndexEntry | None:
-    data = _normalize_object_dict(value)
-    if data is None:
-        return None
-    return {
-        "anchors": _normalize_string_list(data.get("anchors")),
-        "suggested_anchors": _normalize_string_list(data.get("suggested_anchors")),
-    }
 
 
 @dataclass
@@ -133,7 +88,7 @@ _KOREAN_PARTICLE_SUFFIXES = (
     "이",
     "가",
     "은",
-    "는",
+    "는",어
     "에",
     "로",
     "도",
@@ -173,7 +128,7 @@ _LOW_SIGNAL_TOKENS = {
 
 
 def _split_identifier_parts(text: str) -> list[str]:
-    parts: list[str] = re.findall(r"[a-z]+|[0-9]+|[가-힣]+", text.lower())
+    parts = re.findall(r"[a-z]+|[0-9]+|[가-힣]+", text.lower())
     return [part for part in parts if part]
 
 
@@ -203,7 +158,7 @@ def _expand_token(token: str) -> list[str]:
 
 
 def tokenize(text: str) -> list[str]:
-    raw_tokens = cast(list[str], re.findall(r"[a-zA-Z0-9_]+|[가-힣]+", text.lower()))
+    raw_tokens = re.findall(r"[a-zA-Z0-9_]+|[가-힣]+", text.lower())
     tokens: list[str] = []
     seen: set[str] = set()
     for raw in raw_tokens:
@@ -214,10 +169,8 @@ def tokenize(text: str) -> list[str]:
     return tokens
 
 
-def _path_tokens(path: Path | str) -> set[str]:
-    raw_tokens = cast(
-        list[str], re.findall(r"[a-zA-Z0-9]+|[가-힣]+", str(path).lower())
-    )
+def _path_tokens(path: Union[Path, str]) -> set[str]:
+    raw_tokens = re.findall(r"[a-zA-Z0-9]+|[가-힣]+", str(path).lower())
     tokens: set[str] = set()
     for raw in raw_tokens:
         for token in _expand_token(raw):
@@ -235,8 +188,7 @@ def _meaningful_overlap(
 
 def _intent_tokens(text: str) -> set[str]:
     tokens: set[str] = set()
-    raw_tokens = cast(list[str], re.findall(r"[a-zA-Z0-9_]+|[가-힣]+", text.lower()))
-    for raw in raw_tokens:
+    for raw in re.findall(r"[a-zA-Z0-9_]+|[가-힣]+", text.lower()):
         for token in _expand_token(raw):
             tokens.add(token)
     return tokens
@@ -396,13 +348,12 @@ def score_path(
     path: Path,
     request_tokens: list[str],
     rel_path: str,
-    anchor_meta: AnchorIndexEntry | None = None,
-    project_map: ProjectMapSnapshot | None = None,
-    intent_meta: AnchorIntentMap | None = None,
-    role: str = "auto",
+    anchor_meta: Optional[dict[str, list[str]]] = None,
+    project_map: Optional[ProjectMapSnapshot] = None,
+    intent_meta: Optional[dict[str, dict[str, Any]]] = None,
 ) -> tuple[int, list[str]]:
     score = 0
-    rationale: list[str] = []
+    rationale = []
     pt = str(path).lower()
     stem = path.stem.lower()
     path_tokens = _path_tokens(rel_path)
@@ -470,50 +421,28 @@ def score_path(
                 "Project Map 에서 큰 파일로 표시되어 수정 후보로 우선 검토함"
             )
     if nav_request:
-        if role == "source":
-            if project_map is not None and rel_path in project_map.entry_files:
-                score -= 4
-                rationale.append(
-                    "탑/메뉴 이동 요청의 소스는 entry file 보다 내용 페이지가 우선임"
-                )
-            if stem == "app" or "nav-tabs" in pt or "navtabs" in path_tokens:
-                score -= 8
-                rationale.append(
-                    "탑/메뉴 이동 요청의 소스는 컨테이너(App/nav-tabs)보다 내용 페이지가 우선임"
-                )
-        else:
-            if project_map is not None and rel_path in project_map.entry_files:
-                score += 10
-                rationale.append("탑/메뉴 이동 요청이라 entry file 이 우선 후보임")
-            if stem == "app" or "nav-tabs" in pt or "navtabs" in path_tokens:
-                score += 6
-                rationale.append(
-                    "탑/메뉴 요청의 컨테이너(App/nav-tabs) 파일이라 목적지 후보로 강하게 적합함"
-                )
-            if any(token in path_tokens for token in _NAVIGATION_FILE_HINTS):
-                score += 8
-                rationale.append("탑/메뉴 구조를 가진 파일이라 목적지 후보로 적합함")
+        if project_map is not None and rel_path in project_map.entry_files:
+            score += 10
+            rationale.append("탑/메뉴 이동 요청이라 entry file 이 우선 후보임")
+        if any(token in path_tokens for token in _NAVIGATION_FILE_HINTS):
+            score += 8
+            rationale.append("탑/메뉴 구조를 가진 파일이라 목적지 후보로 적합함")
         if any(token in path_tokens for token in _CHROME_FILE_HINTS):
             score -= 16
             rationale.append(
                 "탭 이동 요청인데 창 chrome/title bar 파일이라 우선순위를 낮춤"
             )
         if "/pages/" in pt or pt.startswith("pages/"):
-            if role == "source":
-                score += 4
+            if stem in request_tokens:
+                score -= 6
                 rationale.append(
-                    "탑/메뉴 이동 요청의 소스로 페이지 콘텐츠 파일이 적합함"
+                    "탭/메뉴 요청인데 페이지 콘텐츠 파일이라 탭 컨테이너보다 우선순위를 낮춤"
                 )
-            else:
-                score -= 8
-                rationale.append(
-                    "탑/메뉴 요청인데 페이지 콘텐츠 파일이라 탭 컨테이너보다 우선순위를 낮춤"
-                )
-                if stem in request_tokens:
-                    score -= 4
-                    rationale.append(
-                        "탑/메뉴 요청인데 페이지 이름이 요청과 같아도 컨테이너보다 우선순위를 낮춤"
-                    )
+        if "nav-tabs" in pt or "navtabs" in path_tokens:
+            score += 8
+            rationale.append(
+                "탭 네비게이션 영역을 직접 포함한 파일이라 목적지 후보로 적합함"
+            )
         if any(token in path_tokens for token in _BACKEND_CHECKPOINT_HINTS):
             score -= 20
             rationale.append(
@@ -536,7 +465,7 @@ def score_path(
         for tok in ["worker", "service", "window", "scheduler", "backup"]
     ):
         score += 1
-    if anchor_meta is not None:
+    if isinstance(anchor_meta, dict):
         real_anchor_score, real_anchor_rationale = _score_anchor_names(
             anchor_meta.get("anchors", []), request_tokens, "실제 앵커"
         )
@@ -549,15 +478,16 @@ def score_path(
         elif suggested_score:
             score += suggested_score + 2
             rationale.extend(suggested_rationale)
-    if intent_meta is not None:
-        file_anchors: set[str] = (
-            set(anchor_meta.get("anchors", [])) if anchor_meta is not None else set()
+    if isinstance(intent_meta, dict):
+        file_anchors = (
+            set(anchor_meta.get("anchors", []))
+            if isinstance(anchor_meta, dict)
+            else set()
         )
         for anchor_name, meta_entry in intent_meta.items():
             if file_anchors and anchor_name not in file_anchors:
                 continue
-            raw_intent = meta_entry.get("intent")
-            intent = raw_intent.lower() if isinstance(raw_intent, str) else ""
+            intent = meta_entry.get("intent", "").lower()
             if not intent:
                 continue
             intent_tokens = _intent_tokens(intent)
@@ -614,7 +544,7 @@ def _has_style_token(request_tokens: Iterable[str]) -> bool:
 def choose_anchor(
     anchors: list[str],
     request_tokens: list[str],
-    anchor_meta: AnchorIntentMap | None = None,
+    anchor_meta: Optional[dict[str, dict[str, Any]]] = None,
 ) -> tuple[str, list[str]]:
     if not anchors:
         return "[먼저 앵커를 추가하세요]", ["이 파일에는 아직 앵커가 없습니다"]
@@ -624,7 +554,7 @@ def choose_anchor(
     best_rationale = [f"첫 번째 앵커 '{best_anchor}'를 기본값으로 선택"]
     for anchor in anchors:
         score = 0
-        rationale: list[str] = []
+        rationale = []
         anchor_tokens = _path_tokens(anchor)
         for token in _meaningful_overlap(request_tokens, anchor_tokens):
             score += 3
@@ -635,8 +565,7 @@ def choose_anchor(
         # intent 정보가 있으면 자연어 매칭 점수 추가
         if anchor_meta and anchor in anchor_meta:
             meta = anchor_meta[anchor]
-            raw_intent = meta.get("intent")
-            intent = raw_intent.lower() if isinstance(raw_intent, str) else ""
+            intent = meta.get("intent", "").lower()
             if intent:
                 intent_tokens = _intent_tokens(intent)
                 for token in _meaningful_overlap(request_tokens, intent_tokens):
@@ -653,7 +582,7 @@ def choose_anchor(
                     score -= 5
                     rationale.append("스타일 요청인데 로직 성격 앵커라 우선순위 낮춤")
             warning = meta.get("warning")
-            if isinstance(warning, str) and warning:
+            if warning:
                 rationale.append(f"⚠️ {warning}")
         if score > best_score:
             best_score = score
@@ -666,7 +595,7 @@ def choose_anchor(
 
 def choose_suggested_anchor(
     suggested_anchors: list[str], request_tokens: list[str]
-) -> tuple[str | None, list[str]]:
+) -> tuple[Optional[str], list[str]]:
     if not suggested_anchors:
         return None, []
     best_anchor = suggested_anchors[0]
@@ -674,7 +603,7 @@ def choose_suggested_anchor(
     best_rationale = [f"추천 앵커 '{best_anchor}'를 기본값으로 선택"]
     for anchor in suggested_anchors:
         score = 0
-        rationale: list[str] = []
+        rationale = []
         anchor_tokens = _path_tokens(anchor)
         matches = _meaningful_overlap(request_tokens, anchor_tokens)
         match_count = len(matches)
@@ -702,59 +631,44 @@ def choose_suggested_anchor(
     return best_anchor, best_rationale
 
 
-def load_anchor_metadata(root: Path) -> AnchorIndexMap:
+def load_anchor_metadata(root: Path) -> dict[str, dict[str, list[str]]]:
     meta = MetaPaths(root)
     if not meta.anchor_index_path.exists():
         return {}
     try:
-        payload = cast(
-            object, json.loads(meta.anchor_index_path.read_text(encoding="utf-8"))
-        )
+        payload = json.loads(meta.anchor_index_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
-    payload_obj = _normalize_object_dict(payload)
-    if payload_obj is None:
-        return {}
-    files_obj = _normalize_object_dict(payload_obj.get("files"))
-    if files_obj is None:
-        return {}
-    normalized: AnchorIndexMap = {}
-    for rel_path, entry in files_obj.items():
-        normalized_entry = _normalize_anchor_index_entry(entry)
-        if normalized_entry is not None:
-            normalized[rel_path] = normalized_entry
-    return normalized
+    files = payload.get("files", {})
+    return files if isinstance(files, dict) else {}
 
 
 def _ai_select_file(
     request: str,
-    candidates: list[ScoredPath],
+    candidates: list,
     root: Path,
-    _request_tokens: list[str],
-    _anchor_meta: AnchorIntentMap,
-    project_map: ProjectMapSnapshot | None = None,
-) -> AISelectedPath | None:
+    request_tokens: list[str],
+    anchor_meta: dict,
+    project_map: Optional[Any] = None,
+) -> Optional[tuple]:
     """confidence가 낮을 때 AI에게 후보 파일 중 최적 파일을 선택하게 한다.
 
     키워드 기반 상위 후보 + ui_modules 전체를 AI에 노출해 keyword mismatch를 보완한다.
     """
     try:
-        ai_explain_raw = cast(
-            object, importlib.import_module("vibelign.core.ai_explain")
-        )
-        ai_explain = cast(AIExplainModule, ai_explain_raw)
+        ai_explain = importlib.import_module("vibelign.core.ai_explain")
         if not ai_explain.has_ai_provider():
             return None
 
         # 후보 풀 구성: 상위 점수 파일 + ui_modules (중복 제거)
         pool: list[Path] = [path for (_, path, _) in candidates[:5]]
         if project_map is not None:
-            for rel in project_map.ui_modules:
+            for rel in getattr(project_map, "ui_modules", set()):
                 p = root / rel
                 if p not in pool and p.exists():
                     pool.append(p)
 
-        lines: list[str] = []
+        lines = []
         for i, path in enumerate(pool, 1):
             rel = relpath_str(root, path)
             anchors = extract_anchors(path)
@@ -769,7 +683,7 @@ def _ai_select_file(
             f"후보:\n{candidates_text}\n\n"
             f'출력 형식: {{"index": 1}}'
         )
-        text, _attempted = ai_explain.generate_text_with_ai(prompt, quiet=True)
+        text, _ = ai_explain.generate_text_with_ai(prompt, quiet=True)
         if not text:
             return None
         m = re.search(r'\{\s*"index"\s*:\s*(\d+)\s*\}', text)
@@ -784,17 +698,14 @@ def _ai_select_file(
         return None
 
 
-def _suggest_patch_impl(
-    root: Path, request: str, use_ai: bool = True, role: str = "auto"
-) -> PatchSuggestion:
+def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggestion:
     from vibelign.core.anchor_tools import load_anchor_meta
 
     request_tokens = tokenize(request)
     metadata = load_anchor_metadata(root)
     anchor_meta = load_anchor_meta(root)
     project_map, _project_map_error = load_project_map(root)
-    label_index = load_ui_label_index(root)
-    scored: list[ScoredPath] = []
+    scored = []
     for path in iter_source_files(root):
         rel = relpath_str(root, path)
         score, rationale = score_path(
@@ -804,11 +715,7 @@ def _suggest_patch_impl(
             metadata.get(rel, {}),
             project_map,
             intent_meta=anchor_meta,
-            role=role,
         )
-        lb, lr = score_boost_for_ui_labels(rel, request_tokens, label_index)
-        score += lb
-        rationale = [*rationale, *lr]
         scored.append((score, path, rationale))
 
     if not scored:
@@ -826,9 +733,11 @@ def _suggest_patch_impl(
     anchors = extract_anchors(best_path)
     anchor, ar = choose_anchor(anchors, request_tokens, anchor_meta)
     if anchor == "[먼저 앵커를 추가하세요]":
-        file_meta = metadata.get(relpath_str(root, best_path)) if metadata else None
+        file_meta = metadata.get(relpath_str(root, best_path), {}) if metadata else {}
         suggested = (
-            file_meta.get("suggested_anchors", []) if file_meta is not None else []
+            file_meta.get("suggested_anchors", [])
+            if isinstance(file_meta, dict)
+            else []
         )
         suggested_anchor, suggested_rationale = choose_suggested_anchor(
             suggested, request_tokens
@@ -858,25 +767,6 @@ def _suggest_patch_impl(
             confidence = "medium"
     return PatchSuggestion(
         request, relpath_str(root, best_path), anchor, confidence, reasons[:5] + ar[:3]
-    )
-
-
-def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggestion:
-    return _suggest_patch_impl(root, request, use_ai=use_ai, role="auto")
-
-
-def suggest_patch_for_role(
-    root: Path, request: str, role: str, use_ai: bool = True
-) -> PatchSuggestion:
-    return _suggest_patch_impl(root, request, use_ai=use_ai, role=role)
-
-
-def resolve_target_for_role(
-    root: Path, request: str, role: str, use_ai: bool = True
-) -> TargetResolution | None:
-    suggestion = _suggest_patch_impl(root, request, use_ai=use_ai, role=role)
-    return TargetResolution.from_suggestion(
-        role=role, suggestion=suggestion, source_text=request, destination_text=request
     )
 
 
