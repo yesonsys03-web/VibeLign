@@ -1,8 +1,10 @@
 # === ANCHOR: LOCAL_CHECKPOINTS_START ===
 import hashlib
 import json
+import os
 import re
 import shutil
+import stat
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -472,12 +474,30 @@ def restore_checkpoint(root: Path, checkpoint_id: str) -> bool:
         snapshot_files.add(rel_obj)
         validated_sources[rel_obj] = src
 
+    def _force_writable(p: Path) -> None:
+        """읽기 전용이면 쓰기 권한을 임시로 추가한다."""
+        try:
+            current = os.stat(p).st_mode
+            if not (current & stat.S_IWRITE):
+                os.chmod(p, current | stat.S_IWRITE)
+        except OSError:
+            pass
+
+    def _restore_readonly(p: Path) -> None:
+        """쓰기 권한을 제거해 읽기 전용으로 되돌린다."""
+        try:
+            current = os.stat(p).st_mode
+            os.chmod(p, current & ~(stat.S_IWRITE | stat.S_IWGRP | stat.S_IWOTH))
+        except OSError:
+            pass
+
     current_files = {str(path.relative_to(root)) for path in iter_snapshot_files(root)}
     for rel in sorted(current_files - snapshot_files, reverse=True):
         target = _resolve_relative_path(root_resolved, rel)
         if target is None:
             return _set_restore_error("지우면 안 되는 위치가 보여서 복구를 멈췄어요.")
         if target.exists():
+            _force_writable(target)
             target.unlink()
             parent = target.parent
             while (
@@ -494,7 +514,12 @@ def restore_checkpoint(root: Path, checkpoint_id: str) -> bool:
         if dst is None:
             return _set_restore_error("복구 위치가 이상해서 멈췄어요.")
         dst.parent.mkdir(parents=True, exist_ok=True)
+        was_readonly = dst.exists() and not (os.stat(dst).st_mode & stat.S_IWRITE)
+        if was_readonly:
+            _force_writable(dst)
         _ = shutil.copy2(src, dst)
+        if was_readonly:
+            _restore_readonly(dst)
 
     return True
 
