@@ -60,6 +60,19 @@ class _WatchMovedEvent(Protocol):
     dest_path: str
 
 
+class _WatchPathLike(Protocol):
+    @property
+    def parts(self) -> tuple[str, ...]: ...
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def suffix(self) -> str: ...
+
+    def is_file(self) -> bool: ...
+
+
 def _normalize_object_dict(raw: object) -> dict[str, object] | None:
     if not isinstance(raw, dict):
         return None
@@ -87,6 +100,18 @@ def _config_int(config: WatchConfig, key: str, default: int) -> int:
         return default
 
 
+def is_watchable_path(path: _WatchPathLike) -> bool:
+    if not path.is_file():
+        return False
+    if any(part.lower() in WATCH_EXCLUDED_DIRS_LOWER for part in path.parts):
+        return False
+    if path.name.lower() in WATCH_EXCLUDED_NAMES_LOWER:
+        return False
+    if path.suffix.lower() in WATCH_EXCLUDED_SUFFIXES:
+        return False
+    return True
+
+
 def _import_watchdog_classes() -> tuple[
     type[_WatchdogHandlerBase], _WatchdogObserverFactory
 ]:
@@ -101,20 +126,70 @@ def _import_watchdog_classes() -> tuple[
     return handler_base, observer_factory
 
 
-SOURCE_EXTS = {
-    ".py",
-    ".js",
-    ".ts",
-    ".jsx",
-    ".tsx",
-    ".rs",
-    ".go",
-    ".java",
-    ".cs",
-    ".cpp",
-    ".c",
-    ".hpp",
-    ".h",
+WATCH_EXCLUDED_DIRS = {
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "node_modules",
+    "dist",
+    "build",
+    ".next",
+    ".pnpm-store",
+    ".idea",
+    ".vscode",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".vibelign",
+    "coverage",
+    "target",
+    "out",
+    "bin",
+    "obj",
+}
+
+WATCH_EXCLUDED_DIRS_LOWER = {part.lower() for part in WATCH_EXCLUDED_DIRS}
+
+WATCH_EXCLUDED_NAMES = {".DS_Store", "Thumbs.db"}
+
+WATCH_EXCLUDED_NAMES_LOWER = {name.lower() for name in WATCH_EXCLUDED_NAMES}
+
+WATCH_EXCLUDED_SUFFIXES = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".ico",
+    ".svgz",
+    ".pdf",
+    ".zip",
+    ".tar",
+    ".gz",
+    ".tgz",
+    ".7z",
+    ".rar",
+    ".exe",
+    ".dll",
+    ".so",
+    ".dylib",
+    ".class",
+    ".pyc",
+    ".o",
+    ".a",
+    ".wasm",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".otf",
+    ".mp4",
+    ".mov",
+    ".webm",
+    ".mp3",
+    ".wav",
+    ".ogg",
+    ".bin",
 }
 
 
@@ -147,6 +222,7 @@ def run_watch(config: WatchConfig) -> None:
             ) from e
 
     from vibelign.core.watch_rules import classify_event
+    from vibelign.core.project_scan import relpath_str
     from vibelign.core.watch_state import (
         FileSnapshot,
         hash_text,
@@ -186,15 +262,7 @@ def run_watch(config: WatchConfig) -> None:
 
         # === ANCHOR: WATCH_ENGINE__ELIGIBLE_START ===
         def _eligible(self, path: Path) -> bool:
-            return (
-                path.is_file()
-                and path.suffix.lower() in SOURCE_EXTS
-                and ".git" not in path.parts
-                and "__pycache__" not in path.parts
-                and "node_modules" not in path.parts
-                and "tests" not in path.parts
-                and "docs" not in path.parts
-            )
+            return is_watchable_path(path)
 
         # === ANCHOR: WATCH_ENGINE__ELIGIBLE_END ===
 
@@ -331,10 +399,7 @@ def run_watch(config: WatchConfig) -> None:
             text = safe_read(path)
             if not text:
                 return
-            try:
-                rel = str(path.relative_to(self.root))
-            except Exception:
-                rel = str(path)
+            rel = relpath_str(self.root, path)
             new_lines = len(text.splitlines())
             new_sha = hash_text(text)
             old = self.state.get(rel)

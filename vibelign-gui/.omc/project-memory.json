@@ -1,0 +1,238 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1774422174354,
+  "projectRoot": "/Users/usabatch/coding/VibeLign/vibelign-gui",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "react",
+        "version": "19.1.0",
+        "category": "frontend"
+      },
+      {
+        "name": "react-dom",
+        "version": "19.1.0",
+        "category": "frontend"
+      },
+      {
+        "name": "vite",
+        "version": "7.0.4",
+        "category": "build"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "npm run build",
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": "npm run dev",
+    "scripts": {
+      "dev": "vite",
+      "build": "tsc && vite build",
+      "preview": "vite preview",
+      "tauri": "tauri"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": "type-based"
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "public",
+      "src"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "dist": {
+      "path": "dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 3,
+      "lastAccessed": 1774422174315,
+      "keyFiles": [
+        "index.html",
+        "tauri.svg",
+        "vite.svg"
+      ]
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 2,
+      "lastAccessed": 1774422174316,
+      "keyFiles": [
+        "tauri.svg",
+        "vite.svg"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 4,
+      "lastAccessed": 1774422174325,
+      "keyFiles": [
+        "App.css",
+        "App.tsx",
+        "main.tsx",
+        "vite-env.d.ts"
+      ]
+    },
+    "src-tauri": {
+      "path": "src-tauri",
+      "purpose": null,
+      "fileCount": 5,
+      "lastAccessed": 1774422174325,
+      "keyFiles": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "build.rs",
+        "tauri.conf.json"
+      ]
+    },
+    "dist/assets": {
+      "path": "dist/assets",
+      "purpose": "Static assets",
+      "fileCount": 2,
+      "lastAccessed": 1774422174326,
+      "keyFiles": [
+        "index-Cieyz4ic.js",
+        "index-D1NKVpIB.css"
+      ]
+    },
+    "src/assets": {
+      "path": "src/assets",
+      "purpose": "Static assets",
+      "fileCount": 1,
+      "lastAccessed": 1774422174327,
+      "keyFiles": [
+        "react.svg"
+      ]
+    },
+    "src/components": {
+      "path": "src/components",
+      "purpose": "UI components",
+      "fileCount": 1,
+      "lastAccessed": 1774422174327,
+      "keyFiles": [
+        "CustomTitleBar.tsx"
+      ]
+    },
+    "src/lib": {
+      "path": "src/lib",
+      "purpose": "Library code",
+      "fileCount": 1,
+      "lastAccessed": 1774422174328,
+      "keyFiles": [
+        "vib.ts"
+      ]
+    },
+    "src/pages": {
+      "path": "src/pages",
+      "purpose": "Page components",
+      "fileCount": 5,
+      "lastAccessed": 1774422174328,
+      "keyFiles": [
+        "Checkpoints.tsx",
+        "Doctor.tsx",
+        "Home.tsx"
+      ]
+    },
+    "src-tauri/src": {
+      "path": "src-tauri/src",
+      "purpose": "Source code",
+      "fileCount": 3,
+      "lastAccessed": 1774422174329,
+      "keyFiles": [
+        "lib.rs",
+        "main.rs",
+        "vib_path.rs"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/pages/Home.tsx",
+      "accessCount": 67,
+      "lastAccessed": 1775022695419,
+      "type": "file"
+    },
+    {
+      "path": "src-tauri/src/lib.rs",
+      "accessCount": 18,
+      "lastAccessed": 1775035325571,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/vib.ts",
+      "accessCount": 7,
+      "lastAccessed": 1775034412364,
+      "type": "file"
+    },
+    {
+      "path": "src/pages/Settings.tsx",
+      "accessCount": 6,
+      "lastAccessed": 1774423066692,
+      "type": "file"
+    },
+    {
+      "path": "src/styles/brutalism.css",
+      "accessCount": 4,
+      "lastAccessed": 1774422261480,
+      "type": "file"
+    },
+    {
+      "path": "src/App.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1775035209991,
+      "type": "file"
+    },
+    {
+      "path": "src/App.css",
+      "accessCount": 1,
+      "lastAccessed": 1774422235395,
+      "type": "file"
+    },
+    {
+      "path": "src-tauri/src/vib_path.rs",
+      "accessCount": 1,
+      "lastAccessed": 1774937764940,
+      "type": "file"
+    },
+    {
+      "path": "src/pages/Onboarding.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1775008819046,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

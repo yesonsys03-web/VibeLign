@@ -1,0 +1,190 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1775089880591,
+  "projectRoot": "/Users/usabatch/coding/VibeLign",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Python",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "pyproject.toml"
+        ]
+      }
+    ],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": "pytest",
+    "lintCommand": "ruff check",
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "assets",
+      "docs",
+      "tests"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "VibeLign_dev_plan": {
+      "path": "VibeLign_dev_plan",
+      "purpose": null,
+      "fileCount": 6,
+      "lastAccessed": 1775089880547,
+      "keyFiles": [
+        "patch_upgrade.md",
+        "transfer_upgrade_plan.ko.md",
+        "transfer_upgrade_plan.md",
+        "transfer_upgrade_todo.md",
+        "vib_transfer_spec.md"
+      ]
+    },
+    "assets": {
+      "path": "assets",
+      "purpose": "Static assets",
+      "fileCount": 4,
+      "lastAccessed": 1775089880548,
+      "keyFiles": [
+        "README.png",
+        "banner.svg",
+        "quickstart_en.jpeg",
+        "quickstart_kr.jpeg"
+      ]
+    },
+    "build": {
+      "path": "build",
+      "purpose": "Build output",
+      "fileCount": 0,
+      "lastAccessed": 1775089880548,
+      "keyFiles": []
+    },
+    "dist": {
+      "path": "dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 1,
+      "lastAccessed": 1775089880549,
+      "keyFiles": [
+        "vib"
+      ]
+    },
+    "dist-vib": {
+      "path": "dist-vib",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1775089880549,
+      "keyFiles": [
+        "vib"
+      ]
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 4,
+      "lastAccessed": 1775089880551,
+      "keyFiles": [
+        "MANUAL.md",
+        "TEST_REPORT.md",
+        "_config.yml",
+        "index.md"
+      ]
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 47,
+      "lastAccessed": 1775089880551,
+      "keyFiles": [
+        "NOTES.md",
+        "test_ai_codespeak.py",
+        "test_ai_explain_prompt.py",
+        "test_anchor_suggestions.py",
+        "test_anchor_tools_v2.py"
+      ]
+    },
+    "vibelign": {
+      "path": "vibelign",
+      "purpose": null,
+      "fileCount": 7,
+      "lastAccessed": 1775089880552,
+      "keyFiles": [
+        "__init__.py",
+        "__main__.py",
+        "cli.py",
+        "mcp_server.py",
+        "terminal_render.py"
+      ]
+    },
+    "vibelign-gui": {
+      "path": "vibelign-gui",
+      "purpose": null,
+      "fileCount": 11,
+      "lastAccessed": 1775089880552,
+      "keyFiles": [
+        "PROJECT_CONTEXT.md",
+        "README.md",
+        "eslint.config.js",
+        "index.html",
+        "package-lock.json"
+      ]
+    },
+    "vibelign.egg-info": {
+      "path": "vibelign.egg-info",
+      "purpose": null,
+      "fileCount": 6,
+      "lastAccessed": 1775089880552,
+      "keyFiles": [
+        "PKG-INFO",
+        "SOURCES.txt",
+        "dependency_links.txt",
+        "entry_points.txt",
+        "requires.txt"
+      ]
+    },
+    "vibelign_exports": {
+      "path": "vibelign_exports",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1775089880553,
+      "keyFiles": []
+    },
+    "vibelign-gui/build": {
+      "path": "vibelign-gui/build",
+      "purpose": "Build output",
+      "fileCount": 0,
+      "lastAccessed": 1775089880555,
+      "keyFiles": []
+    },
+    "vibelign-gui/dist": {
+      "path": "vibelign-gui/dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 4,
+      "lastAccessed": 1775089880557,
+      "keyFiles": [
+        "icon.png",
+        "index.html",
+        "tauri.svg"
+      ]
+    }
+  },
+  "hotPaths": [],
+  "userDirectives": []
+}

@@ -1,0 +1,7 @@
+{
+  "tool_name": "Read",
+  "tool_input_preview": "{\"file_path\":\"/Users/usabatch/coding/VibeLign/vibelign-gui/src/pages/Home.tsx\"}",
+  "error": "File content (36973 tokens) exceeds maximum allowed tokens (10000). Use offset and limit parameters to read specific portions of the file, or search for specific content instead of reading the whole file.",
+  "timestamp": "2026-04-01T05:49:46.581Z",
+  "retry_count": 1
+}

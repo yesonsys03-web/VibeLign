@@ -11,6 +11,7 @@ from vibelign.terminal_render import cli_print
 
 print = cli_print
 get_protected = cast(Callable[[Path], set[str]], protected_files_mod.get_protected)
+normalize_relpath = cast(Callable[[str], str], protected_files_mod.normalize_relpath)
 save_protected = cast(
     Callable[[Path, set[str]], None], protected_files_mod.save_protected
 )
@@ -56,7 +57,7 @@ def run_protect(args: Namespace) -> None:
         return
 
     try:
-        rel = str(target_path.relative_to(root))
+        rel = normalize_relpath(str(target_path.relative_to(root)))
     except ValueError:
         print(f"오류: 프로젝트 루트 밖의 파일은 보호할 수 없습니다.")
         return
