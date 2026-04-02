@@ -34,6 +34,14 @@ IGNORED_FILES = {
     "VIBELIGN_EXPLAIN.md",
     "VIBELIGN_GUARD.md",
     "VIBELIGN_ASK.md",
+    "anchor_meta.json",
+    "project_map.json",
+    "state.json",
+    "watch_state.json",
+    "watch.log",
+    "scan_cache.json",
+    "analysis_cache.json",
+    "ui_label_index.json",
 }
 
 
