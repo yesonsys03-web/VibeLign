@@ -21,6 +21,7 @@ IGNORED = {
     ".vibelign",
     ".vibelign",
 }
+IGNORED_LOWER = {part.lower() for part in IGNORED}
 SOURCE_EXTS = {
     ".py",
     ".js",
@@ -40,7 +41,7 @@ SOURCE_EXTS = {
 
 def iter_project_files(root: Path) -> Generator[Path, None, None]:
     for path in root.rglob("*"):
-        if any(part in IGNORED for part in path.parts):
+        if any(part.lower() in IGNORED_LOWER for part in path.parts):
             continue
         if path.is_file():
             yield path
@@ -72,9 +73,9 @@ def line_count(path: Path) -> int:
 
 def relpath_str(root: Path, path: Path) -> str:
     try:
-        return str(path.relative_to(root))
+        return str(path.relative_to(root)).replace("\\", "/")
     except Exception:
-        return str(path)
+        return str(path).replace("\\", "/")
 
 
 _ENTRY_NAMES = {"main.py", "app.py", "cli.py", "index.js", "main.ts"}
