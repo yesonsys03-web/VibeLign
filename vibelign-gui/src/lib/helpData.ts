@@ -1,3 +1,4 @@
+// === ANCHOR: HELPDATA_START ===
 import { getManualJson } from "./vib";
 
 export type HelpTopic = {
@@ -248,10 +249,13 @@ export const HELP_FALLBACK =
 let manualTopicsCache: HelpTopic[] | null = null;
 let manualTopicsPromise: Promise<HelpTopic[]> | null = null;
 
+// === ANCHOR: HELPDATA_NORMALIZETEXT_START ===
 function normalizeText(text: string): string {
   return text.toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
 }
+// === ANCHOR: HELPDATA_NORMALIZETEXT_END ===
 
+// === ANCHOR: HELPDATA_TOBIGRAMS_START ===
 function toBigrams(text: string): string[] {
   const chars = [...normalizeText(text)];
   if (chars.length === 0) return [];
@@ -262,7 +266,9 @@ function toBigrams(text: string): string[] {
   }
   return result;
 }
+// === ANCHOR: HELPDATA_TOBIGRAMS_END ===
 
+// === ANCHOR: HELPDATA_JACCARDSCORE_START ===
 function jaccardScore(left: string[], right: string[]): number {
   if (left.length === 0 || right.length === 0) return 0;
   const leftSet = new Set(left);
@@ -274,7 +280,9 @@ function jaccardScore(left: string[], right: string[]): number {
   const union = new Set([...leftSet, ...rightSet]).size;
   return union === 0 ? 0 : intersection / union;
 }
+// === ANCHOR: HELPDATA_JACCARDSCORE_END ===
 
+// === ANCHOR: HELPDATA_FIRSTLINE_START ===
 function firstLine(text: string | undefined): string {
   if (!text) return "";
   return text
@@ -285,20 +293,28 @@ function firstLine(text: string | undefined): string {
     ?.replace(/[。.!?]+$/, "")
     ?? "";
 }
+// === ANCHOR: HELPDATA_FIRSTLINE_END ===
 
+// === ANCHOR: HELPDATA_COMMANDLABEL_START ===
 function commandLabel(id: string): string {
   if (id === "rules") return "vib manual rules";
   return `vib ${id}`;
 }
+// === ANCHOR: HELPDATA_COMMANDLABEL_END ===
 
+// === ANCHOR: HELPDATA_ISSYNTHETICTOPIC_START ===
 function isSyntheticTopic(topic: HelpTopic): boolean {
   return SYNTHETIC_TOPIC_IDS.has(topic.id);
 }
+// === ANCHOR: HELPDATA_ISSYNTHETICTOPIC_END ===
 
+// === ANCHOR: HELPDATA_INCLUDESANY_START ===
 function includesAny(text: string, markers: string[]): boolean {
   return markers.some((marker) => text.includes(normalizeText(marker)));
 }
+// === ANCHOR: HELPDATA_INCLUDESANY_END ===
 
+// === ANCHOR: HELPDATA_TOPICALIASMARKERS_START ===
 function topicAliasMarkers(topicId: string): string[] {
   const aliases: Record<string, string[]> = {
     start: ["start", "스타트", "시작", "시작하기", "셋업", "setup", "초기설정", "초기 설정", "온보딩"],
@@ -328,14 +344,22 @@ function topicAliasMarkers(topicId: string): string[] {
 
   return aliases[topicId] ?? [];
 }
+// === ANCHOR: HELPDATA_TOPICALIASMARKERS_END ===
 
+// === ANCHOR: HELPDATA_MANUALENTRYTOTOPIC_START ===
 function manualEntryToTopic(id: string, entry: ManualEntry): HelpTopic | null {
+  // === ANCHOR: HELPDATA_TITLE_START ===
   const title = (entry.title ?? "").trim();
+  // === ANCHOR: HELPDATA_WHAT_START ===
   const what = (entry.what ?? "").trim();
+  // === ANCHOR: HELPDATA_ONELINE_START ===
   const oneLine = (entry.one_line ?? "").trim();
   if (!title && !what && !oneLine) return null;
+  // === ANCHOR: HELPDATA_TITLE_END ===
 
+  // === ANCHOR: HELPDATA_WHAT_END ===
   const summary = oneLine || firstLine(what) || `vib ${id} 설명`;
+  // === ANCHOR: HELPDATA_ONELINE_END ===
   const answerParts = [oneLine || title, what]
     .map((part) => part?.trim())
     .filter((part): part is string => Boolean(part));
@@ -365,6 +389,7 @@ function manualEntryToTopic(id: string, entry: ManualEntry): HelpTopic | null {
 
   return {
     id,
+// === ANCHOR: HELPDATA_MANUALENTRYTOTOPIC_END ===
     title: title || id,
     command: commandLabel(id),
     summary,
@@ -372,6 +397,7 @@ function manualEntryToTopic(id: string, entry: ManualEntry): HelpTopic | null {
   };
 }
 
+// === ANCHOR: HELPDATA_BUILDTOPICSFROMMANUAL_START ===
 function buildTopicsFromManual(manual: ManualRecord): HelpTopic[] {
   const manualTopics = Object.entries(manual)
     .map(([id, entry]) => manualEntryToTopic(id, entry))
@@ -418,7 +444,9 @@ function buildTopicsFromManual(manual: ManualRecord): HelpTopic[] {
 
   return [...syntheticTopics, ...manualTopics];
 }
+// === ANCHOR: HELPDATA_BUILDTOPICSFROMMANUAL_END ===
 
+// === ANCHOR: HELPDATA_LOADMANUALTOPICS_START ===
 async function loadManualTopics(): Promise<HelpTopic[]> {
   if (manualTopicsCache) {
     return manualTopicsCache;
@@ -441,7 +469,9 @@ async function loadManualTopics(): Promise<HelpTopic[]> {
 
   return manualTopicsPromise;
 }
+// === ANCHOR: HELPDATA_LOADMANUALTOPICS_END ===
 
+// === ANCHOR: HELPDATA_SCORETOPIC_START ===
 function scoreTopic(question: string, topic: HelpTopic): number {
   const questionText = normalizeText(question);
   const questionBigrams = toBigrams(questionText);
@@ -543,14 +573,18 @@ function scoreTopic(question: string, topic: HelpTopic): number {
 
   return score;
 }
+// === ANCHOR: HELPDATA_SCORETOPIC_END ===
 
+// === ANCHOR: HELPDATA_SELECTTOPICS_START ===
 function selectTopics(question: string, topics: HelpTopic[], limit = 4): Array<{ topic: HelpTopic; score: number }> {
   return topics
     .map((topic) => ({ topic, score: scoreTopic(question, topic) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
+// === ANCHOR: HELPDATA_SELECTTOPICS_END ===
 
+// === ANCHOR: HELPDATA_BUILDCONTEXT_START ===
 function buildContext(topics: Array<{ topic: HelpTopic; score: number }>): string {
   return topics
     .map(
@@ -559,7 +593,9 @@ function buildContext(topics: Array<{ topic: HelpTopic; score: number }>): strin
     )
     .join("\n\n");
 }
+// === ANCHOR: HELPDATA_BUILDCONTEXT_END ===
 
+// === ANCHOR: HELPDATA_COMPOSELOCALANSWER_START ===
 function composeLocalAnswer(question: string, topics: HelpTopic[]): string {
   const ranked = selectTopics(question, topics, 3);
   const top = ranked[0];
@@ -584,7 +620,9 @@ function composeLocalAnswer(question: string, topics: HelpTopic[]): string {
 
   return top.topic.answer;
 }
+// === ANCHOR: HELPDATA_COMPOSELOCALANSWER_END ===
 
+// === ANCHOR: HELPDATA_GETSTRONGLOCALANSWER_START ===
 function getStrongLocalAnswer(question: string, topics: HelpTopic[]): string | null {
   const ranked = selectTopics(question, topics, 2);
   const top = ranked[0];
@@ -593,13 +631,16 @@ function getStrongLocalAnswer(question: string, topics: HelpTopic[]): string | n
   const questionText = normalizeText(question);
   const title = normalizeText(top.topic.title);
   const command = normalizeText(top.topic.command);
+  // === ANCHOR: HELPDATA_STRONGNAMEHIT_START ===
   const strongNameHit = (title && questionText.includes(title)) || (command && questionText.includes(command));
   const threshold = isSyntheticTopic(top.topic) ? 0.18 : 0.14;
 
   if (strongNameHit || top.score >= threshold) {
     return top.topic.answer;
   }
+  // === ANCHOR: HELPDATA_STRONGNAMEHIT_END ===
 
+// === ANCHOR: HELPDATA_GETSTRONGLOCALANSWER_END ===
   return null;
 }
 
@@ -608,6 +649,7 @@ type GeminiResponse = { candidates?: GeminiCandidate[] };
 
 const GEMINI_HELP_MODEL = "gemini-1.5-flash";
 
+// === ANCHOR: HELPDATA_ANSWERWITHGEMINI_START ===
 async function answerWithGemini(question: string, providerKey: string, topics: HelpTopic[]): Promise<string | null> {
   const ranked = selectTopics(question, topics, 4);
   const context = buildContext(ranked);
@@ -647,16 +689,20 @@ async function answerWithGemini(question: string, providerKey: string, topics: H
 
     if (!response.ok) return null;
 
+    // === ANCHOR: HELPDATA_DATA_START ===
     const data = (await response.json()) as GeminiResponse;
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
     return text || null;
   } catch {
+    // === ANCHOR: HELPDATA_DATA_END ===
     return null;
   } finally {
     clearTimeout(timeout);
+// === ANCHOR: HELPDATA_ANSWERWITHGEMINI_END ===
   }
 }
 
+// === ANCHOR: HELPDATA_RESOLVEHELPANSWER_START ===
 export async function resolveHelpAnswer(
   question: string,
   providerKeys?: Record<string, string> | null,
@@ -678,7 +724,9 @@ export async function resolveHelpAnswer(
 
   return composeLocalAnswer(question, topics);
 }
+// === ANCHOR: HELPDATA_RESOLVEHELPANSWER_END ===
 
+// === ANCHOR: HELPDATA_GETHELPANSWER_START ===
 export function getHelpAnswer(question: string): string {
   const normalized = normalizeText(question);
   if (!normalized) {
@@ -687,3 +735,5 @@ export function getHelpAnswer(question: string): string {
 
   return composeLocalAnswer(question, FALLBACK_TOPICS);
 }
+// === ANCHOR: HELPDATA_GETHELPANSWER_END ===
+// === ANCHOR: HELPDATA_END ===

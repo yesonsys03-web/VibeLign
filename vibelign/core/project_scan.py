@@ -97,9 +97,18 @@ _CORE_TOKENS = ["core", "engine", "patch", "anchor", "guard"]
 
 
 def classify_file(path: Path, rel: str) -> str:
-    low = rel.lower()
     if path.name in _ENTRY_NAMES:
         return "entry"
+    parts = rel.replace("\\", "/").split("/")
+    dir_low = "/".join(parts[:-1]).lower()
+    if dir_low:
+        if any(t in dir_low for t in _CORE_TOKENS):
+            return "core"
+        if any(t in dir_low for t in _UI_TOKENS):
+            return "ui"
+        if any(t in dir_low for t in _SERVICE_TOKENS):
+            return "service"
+    low = rel.lower()
     if any(t in low for t in _UI_TOKENS):
         return "ui"
     if any(t in low for t in _SERVICE_TOKENS):
