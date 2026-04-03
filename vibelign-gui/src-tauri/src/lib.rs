@@ -289,6 +289,90 @@ async fn run_vib(
 
 // ─── API 키 저장소 ─────────────────────────────────────────────────────────────
 
+/// 플랫폼별 api_keys.json 경로.
+/// macOS/Linux: ~/.config/vibelign/api_keys.json
+/// Windows:     %APPDATA%\vibelign\api_keys.json
+fn keys_file_path() -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        let appdata = std::env::var("APPDATA").ok()?;
+        let dir = PathBuf::from(appdata).join("vibelign");
+        std::fs::create_dir_all(&dir).ok()?;
+        return Some(dir.join("api_keys.json"));
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let xdg_config = std::env::var("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                let home = std::env::var("HOME")
+                    .or_else(|_| std::env::var("USERPROFILE"))
+                    .unwrap_or_default();
+                PathBuf::from(home).join(".config")
+            });
+        let dir = xdg_config.join("vibelign");
+        std::fs::create_dir_all(&dir).ok()?;
+        Some(dir.join("api_keys.json"))
+    }
+}
+
+fn read_keys_file() -> HashMap<String, String> {
+    let path = match keys_file_path() { Some(p) => p, None => return HashMap::new() };
+    let text = match std::fs::read_to_string(&path) { Ok(t) => t, Err(_) => return HashMap::new() };
+    let val: serde_json::Value = match serde_json::from_str(&text) { Ok(v) => v, Err(_) => return HashMap::new() };
+    let mut out = HashMap::new();
+    if let Some(obj) = val.as_object() {
+        for (k, v) in obj {
+            if let Some(s) = v.as_str() {
+                if !s.is_empty() { out.insert(k.clone(), s.to_string()); }
+            }
+        }
+    }
+    out
+}
+
+fn write_keys_file(keys: &HashMap<String, String>) -> Result<(), String> {
+    let path = keys_file_path().ok_or("keys 파일 경로를 찾을 수 없습니다")?;
+    let val = serde_json::to_string_pretty(keys).map_err(|e| e.to_string())?;
+    std::fs::write(&path, val + "\n").map_err(|e| e.to_string())
+}
+
+fn provider_to_env_key(provider: &str) -> &'static str {
+    match provider {
+        "ANTHROPIC" => "ANTHROPIC_API_KEY",
+        "OPENAI"    => "OPENAI_API_KEY",
+        "GEMINI"    => "GEMINI_API_KEY",
+        "GLM"       => "GLM_API_KEY",
+        "MOONSHOT"  => "MOONSHOT_API_KEY",
+        _           => "",
+    }
+}
+
+fn migrate_legacy_keys() {
+    let new_path = match keys_file_path() { Some(p) => p, None => return };
+    if new_path.exists() { return; }
+    let legacy = read_gui_config();
+    let pairs: &[(&str, &str)] = &[
+        ("ANTHROPIC", "ANTHROPIC_API_KEY"),
+        ("OPENAI",    "OPENAI_API_KEY"),
+        ("GEMINI",    "GEMINI_API_KEY"),
+        ("GLM",       "GLM_API_KEY"),
+        ("MOONSHOT",  "MOONSHOT_API_KEY"),
+    ];
+    let mut migrated: HashMap<String, String> = HashMap::new();
+    if let Some(obj) = legacy.get("provider_api_keys").and_then(|v| v.as_object()) {
+        for (short, env_name) in pairs {
+            if let Some(v) = obj.get(*short).and_then(|v| v.as_str()) {
+                if !v.is_empty() { migrated.insert(env_name.to_string(), v.to_string()); }
+            }
+        }
+    }
+    if let Some(s) = legacy.get("anthropic_api_key").and_then(|v| v.as_str()) {
+        if !s.is_empty() { migrated.entry("ANTHROPIC_API_KEY".into()).or_insert_with(|| s.to_string()); }
+    }
+    if !migrated.is_empty() { let _ = write_keys_file(&migrated); }
+}
+
 fn config_path() -> Option<PathBuf> {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
@@ -362,20 +446,7 @@ fn provider_keys_from_config(data: &serde_json::Value) -> HashMap<String, String
 
 #[tauri::command]
 fn save_api_key(key: String) -> Result<(), String> {
-    let mut data = read_gui_config();
-    data["anthropic_api_key"] = serde_json::Value::String(key.clone());
-    let pk = data
-        .as_object_mut()
-        .unwrap()
-        .entry("provider_api_keys")
-        .or_insert(serde_json::json!({}));
-    if let Some(obj) = pk.as_object_mut() {
-        obj.insert(
-            "ANTHROPIC".into(),
-            serde_json::Value::String(key),
-        );
-    }
-    write_gui_config(&data)
+    save_provider_api_key("ANTHROPIC".to_string(), key)
 }
 
 #[tauri::command]
@@ -413,48 +484,48 @@ fn save_provider_api_key(provider: String, key: String) -> Result<(), String> {
     if key.is_empty() {
         return Err("키가 비어 있습니다".into());
     }
-    let mut data = read_gui_config();
-    let pk = data
-        .as_object_mut()
-        .unwrap()
-        .entry("provider_api_keys")
-        .or_insert(serde_json::json!({}));
-    if let Some(obj) = pk.as_object_mut() {
-        obj.insert(provider.clone(), serde_json::Value::String(key.clone()));
+    let env_key = provider_to_env_key(&provider);
+    if env_key.is_empty() {
+        return Err(format!("알 수 없는 provider: {provider}"));
     }
-    if provider == "ANTHROPIC" {
-        data["anthropic_api_key"] = serde_json::Value::String(key);
-    }
-    write_gui_config(&data)
+    let mut keys = read_keys_file();
+    keys.insert(env_key.to_string(), key);
+    write_keys_file(&keys)
 }
 
 #[tauri::command]
 fn delete_provider_api_key(provider: String) -> Result<(), String> {
     let provider = provider.to_uppercase();
-    let mut data = read_gui_config();
-    if let Some(obj) = data
-        .get_mut("provider_api_keys")
-        .and_then(|v| v.as_object_mut())
-    {
-        obj.remove(&provider);
+    let env_key = provider_to_env_key(&provider);
+    if env_key.is_empty() {
+        return Ok(());
     }
-    if provider == "ANTHROPIC" {
-        if let Some(obj) = data.as_object_mut() {
-            obj.remove("anthropic_api_key");
-        }
-    }
-    write_gui_config(&data)
+    let mut keys = read_keys_file();
+    keys.remove(env_key);
+    write_keys_file(&keys)
 }
 
 #[tauri::command]
 fn load_provider_api_keys() -> HashMap<String, String> {
-    let data = read_gui_config();
-    provider_keys_from_config(&data)
+    let raw = read_keys_file();
+    let pairs: &[(&str, &str)] = &[
+        ("ANTHROPIC_API_KEY", "ANTHROPIC"),
+        ("OPENAI_API_KEY",    "OPENAI"),
+        ("GEMINI_API_KEY",    "GEMINI"),
+        ("GLM_API_KEY",       "GLM"),
+        ("MOONSHOT_API_KEY",  "MOONSHOT"),
+    ];
+    let mut out = HashMap::new();
+    for (env_name, short_name) in pairs {
+        if let Some(v) = raw.get(*env_name) {
+            out.insert(short_name.to_string(), v.clone());
+        }
+    }
+    out
 }
 
-// ─── 환경변수 API 키 상태 ──────────────────────────────────────────────────────
+// ─── 환경변수 + 키 파일 API 키 상태 ───────────────────────────────────────────
 
-/// ANTHROPIC/OPENAI/GEMINI/GLM/MOONSHOT 환경변수 설정 여부를 반환한다.
 #[tauri::command]
 fn get_env_key_status() -> HashMap<String, bool> {
     let keys = [
@@ -464,8 +535,13 @@ fn get_env_key_status() -> HashMap<String, bool> {
         "GLM_API_KEY",
         "MOONSHOT_API_KEY",
     ];
+    let stored = read_keys_file();
     keys.iter()
-        .map(|k| (k.to_string(), !std::env::var(k).unwrap_or_default().is_empty()))
+        .map(|k| {
+            let from_env = !std::env::var(k).unwrap_or_default().is_empty();
+            let from_file = stored.get(*k).map(|v| !v.is_empty()).unwrap_or(false);
+            (k.to_string(), from_env || from_file)
+        })
         .collect()
 }
 
@@ -480,6 +556,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|_app| {
+            // 기존 gui_config.json 키를 api_keys.json으로 마이그레이션 (최초 1회)
+            migrate_legacy_keys();
             // 앱 시작 시 vib CLI를 터미널 PATH에 자동 설치
             if let Err(e) = vib_path::install_cli_to_path() {
                 eprintln!("VibeLign: CLI PATH 설치 실패 — {e}");
