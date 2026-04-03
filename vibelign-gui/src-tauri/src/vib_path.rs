@@ -290,6 +290,7 @@ pub fn install_cli_to_path() -> Result<String, String> {
         return Ok(format!("vib CLI 설치 완료: {}", dest.display()));
     }
 
+    #[allow(unreachable_code)]
     Ok("지원하지 않는 플랫폼입니다".to_string())
 }
 // === ANCHOR: VIB_PATH_END ===
