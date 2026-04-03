@@ -103,29 +103,10 @@ def _get_shell_profile() -> Path:
 
 
 # === ANCHOR: CONFIG_CMD__SAVE_TO_PROFILE_START ===
-def _save_to_profile(profile: Path, key_name: str, api_key: str) -> None:
-    """셸 프로파일에 export 라인 추가 (기존 항목 교체)"""
-    export_line = f'export {key_name}="{api_key}"'
-
-    if profile.exists():
-        lines = profile.read_text(encoding="utf-8", errors="ignore").splitlines(
-            keepends=True
-        )
-        new_lines: list[str] = []
-        replaced = False
-        for line in lines:
-            if line.startswith(f"export {key_name}="):
-                new_lines.append(export_line + "\n")
-                replaced = True
-            else:
-                new_lines.append(line)
-        if not replaced:
-            if new_lines and not new_lines[-1].endswith("\n"):
-                new_lines.append("\n")
-            new_lines.append(export_line + "\n")
-        _ = profile.write_text("".join(new_lines), encoding="utf-8")
-    else:
-        _ = profile.write_text(export_line + "\n", encoding="utf-8")
+def _save_to_profile(key_name: str, api_key: str) -> None:
+    """키 파일에 저장 (플랫폼 무관)."""
+    from vibelign.core.keys_store import save_key
+    save_key(key_name, api_key)
 
 
 # === ANCHOR: CONFIG_CMD__SAVE_TO_PROFILE_END ===
@@ -238,7 +219,8 @@ def run_config(_args: Namespace) -> None:
     clack_intro("VibeLign API 키 설정")
 
     # 무료 API 안내
-    if not any(os.environ.get(p["key_name"]) for p in _PROVIDERS):
+    from vibelign.core.keys_store import get_key, has_any_ai_key, keys_file_path
+    if not has_any_ai_key():
         clack_info("AI 기능을 쓰려면 API 키가 하나 이상 필요해요.")
         clack_info("무료로 시작하려면 Google AI Studio에서 Gemini 키를 받으세요:")
         clack_info("  https://aistudio.google.com/apikey")
@@ -248,10 +230,10 @@ def run_config(_args: Namespace) -> None:
     # 현재 상태 표시
     clack_step("현재 상태")
     for p in _PROVIDERS:
-        is_set = bool(os.environ.get(p["key_name"]))
+        is_set = bool(get_key(p["key_name"]))
         status = "✓ 설정됨" if is_set else "✗ 없음"
         clack_info(f"{p['key_name']:<22}: {status}")
-    gemini_model = (os.environ.get("GEMINI_MODEL") or "").strip()
+    gemini_model = (get_key("GEMINI_MODEL") or "").strip()
     if gemini_model:
         model_status = f"✓ 사용자 설정 ({gemini_model})"
     else:
@@ -303,7 +285,7 @@ def run_config(_args: Namespace) -> None:
     if includes_gemini:
         print()
         gemini_api_key = (
-            collected.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY", "")
+            collected.get("GEMINI_API_KEY") or get_key("GEMINI_API_KEY") or ""
         ).strip()
         gemini_model = _select_gemini_model(gemini_api_key, gemini_model)
         if gemini_model == _CLEAR_GEMINI_MODEL:
@@ -316,10 +298,10 @@ def run_config(_args: Namespace) -> None:
         return
 
     # 영구/임시 선택
-    profile = _get_shell_profile()
+    keys_path = keys_file_path()
     print()
     clack_step("저장 방식을 선택하세요")
-    print(f"  1. 영구 저장 ({profile} 에 저장, 새 터미널에서도 유지)")
+    print(f"  1. 영구 저장 ({keys_path} 에 저장, GUI·터미널 모두 즉시 반영)")
     print("  2. 임시 저장 (현재 터미널 세션에서만 유효한 명령어 출력)")
     print()
 
@@ -328,11 +310,10 @@ def run_config(_args: Namespace) -> None:
 
     if save_choice == "1":
         for key_name, api_key in collected.items():
-            _save_to_profile(profile, key_name, api_key)
-            clack_success(f"{key_name} → {profile} 에 저장됨")
+            _save_to_profile(key_name, api_key)
+            clack_success(f"{key_name} → {keys_path} 에 저장됨")
         print()
-        clack_info("적용하려면 새 터미널을 열거나 아래 명령어를 실행하세요:")
-        clack_info(f"source {profile}")
+        clack_info("새 터미널·GUI 재시작 없이 즉시 적용됩니다.")
     elif save_choice == "2":
         clack_info("아래 명령어를 현재 터미널에 복사해서 실행하세요:")
         print()

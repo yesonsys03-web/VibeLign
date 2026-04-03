@@ -237,16 +237,8 @@ def _build_response_format(selected: list[int], question: str | None = None) -> 
 
 # === ANCHOR: ASK_CMD__HAS_API_KEY_START ===
 def _has_api_key() -> bool:
-    return any(
-        os.environ.get(k)
-        for k in [
-            "ANTHROPIC_API_KEY",
-            "OPENAI_API_KEY",
-            "GEMINI_API_KEY",
-            "GLM_API_KEY",
-            "MOONSHOT_API_KEY",
-        ]
-    )
+    from vibelign.core.keys_store import has_any_ai_key
+    return has_any_ai_key()
 
 
 # === ANCHOR: ASK_CMD__HAS_API_KEY_END ===
@@ -361,7 +353,8 @@ def _call_openai_compatible(
 
 # === ANCHOR: ASK_CMD__TRY_ANTHROPIC_START ===
 def _try_anthropic(prompt: str, attempted: list[str]) -> bool:
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    from vibelign.core.keys_store import get_key
+    api_key = get_key("ANTHROPIC_API_KEY")
     if not api_key:
         return False
     model = "claude-haiku-4-5"
@@ -407,7 +400,8 @@ def _try_anthropic(prompt: str, attempted: list[str]) -> bool:
 
 # === ANCHOR: ASK_CMD__TRY_OPENAI_START ===
 def _try_openai(prompt: str, attempted: list[str]) -> bool:
-    api_key = os.environ.get("OPENAI_API_KEY")
+    from vibelign.core.keys_store import get_key
+    api_key = get_key("OPENAI_API_KEY")
     if not api_key:
         return False
     model = "gpt-4o-mini"
@@ -433,10 +427,11 @@ def _try_openai(prompt: str, attempted: list[str]) -> bool:
 
 # === ANCHOR: ASK_CMD__TRY_GEMINI_START ===
 def _try_gemini(prompt: str, attempted: list[str]) -> bool:
-    api_key = os.environ.get("GEMINI_API_KEY")
+    from vibelign.core.keys_store import get_key
+    api_key = get_key("GEMINI_API_KEY")
     if not api_key:
         return False
-    model = (os.environ.get("GEMINI_MODEL") or "").strip() or DEFAULT_GEMINI_MODEL
+    model = (get_key("GEMINI_MODEL") or "").strip() or DEFAULT_GEMINI_MODEL
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
         data = {
@@ -470,7 +465,8 @@ def _try_gemini(prompt: str, attempted: list[str]) -> bool:
 
 # === ANCHOR: ASK_CMD__TRY_GLM_START ===
 def _try_glm(prompt: str, attempted: list[str]) -> bool:
-    api_key = os.environ.get("GLM_API_KEY")
+    from vibelign.core.keys_store import get_key
+    api_key = get_key("GLM_API_KEY")
     if not api_key:
         return False
     model = "glm-4-flash"
@@ -496,7 +492,8 @@ def _try_glm(prompt: str, attempted: list[str]) -> bool:
 
 # === ANCHOR: ASK_CMD__TRY_KIMI_START ===
 def _try_kimi(prompt: str, attempted: list[str]) -> bool:
-    api_key = os.environ.get("MOONSHOT_API_KEY")
+    from vibelign.core.keys_store import get_key
+    api_key = get_key("MOONSHOT_API_KEY")
     if not api_key:
         return False
     model = "moonshot-v1-8k"

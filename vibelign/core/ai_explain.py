@@ -200,16 +200,8 @@ def _friendly_error(provider: str, exc: Exception) -> str:
 
 # === ANCHOR: AI_EXPLAIN_HAS_AI_PROVIDER_START ===
 def has_ai_provider() -> bool:
-    return any(
-        os.environ.get(key)
-        for key in [
-            "ANTHROPIC_API_KEY",
-            "OPENAI_API_KEY",
-            "GEMINI_API_KEY",
-            "GLM_API_KEY",
-            "MOONSHOT_API_KEY",
-        ]
-    )
+    from vibelign.core.keys_store import has_any_ai_key
+    return has_any_ai_key()
 
 
 # === ANCHOR: AI_EXPLAIN_HAS_AI_PROVIDER_END ===
@@ -305,7 +297,8 @@ def _try_anthropic(
     quiet: bool = False,
     # === ANCHOR: AI_EXPLAIN__TRY_ANTHROPIC_END ===
 ) -> str | None:
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    from vibelign.core.keys_store import get_key
+    api_key = get_key("ANTHROPIC_API_KEY")
     if not api_key:
         return None
     model = "claude-haiku-4-5"
@@ -347,7 +340,8 @@ def _try_openai(
     quiet: bool = False,
     # === ANCHOR: AI_EXPLAIN__TRY_OPENAI_END ===
 ) -> str | None:
-    api_key = os.environ.get("OPENAI_API_KEY")
+    from vibelign.core.keys_store import get_key
+    api_key = get_key("OPENAI_API_KEY")
     if not api_key:
         return None
     model = "gpt-4o-mini"
@@ -371,10 +365,11 @@ def _try_gemini(
     quiet: bool = False,
     # === ANCHOR: AI_EXPLAIN__TRY_GEMINI_END ===
 ) -> str | None:
-    api_key = os.environ.get("GEMINI_API_KEY")
+    from vibelign.core.keys_store import get_key
+    api_key = get_key("GEMINI_API_KEY")
     if not api_key:
         return None
-    model = (os.environ.get("GEMINI_MODEL") or "").strip() or "gemini-3-flash-preview"
+    model = (get_key("GEMINI_MODEL") or "").strip() or "gemini-3-flash-preview"
     try:
         attempted.append(f"Gemini ({model})")
         if not quiet:
@@ -404,7 +399,8 @@ def _try_gemini(
 
 # === ANCHOR: AI_EXPLAIN__TRY_GLM_START ===
 def _try_glm(prompt: str, attempted: list[str], quiet: bool = False) -> str | None:
-    api_key = os.environ.get("GLM_API_KEY")
+    from vibelign.core.keys_store import get_key
+    api_key = get_key("GLM_API_KEY")
     if not api_key:
         return None
     model = "glm-4-flash"
@@ -426,7 +422,8 @@ def _try_glm(prompt: str, attempted: list[str], quiet: bool = False) -> str | No
 
 # === ANCHOR: AI_EXPLAIN__TRY_KIMI_START ===
 def _try_kimi(prompt: str, attempted: list[str], quiet: bool = False) -> str | None:
-    api_key = os.environ.get("MOONSHOT_API_KEY")
+    from vibelign.core.keys_store import get_key
+    api_key = get_key("MOONSHOT_API_KEY")
     if not api_key:
         return None
     model = "moonshot-v1-8k"
