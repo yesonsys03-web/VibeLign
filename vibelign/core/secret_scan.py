@@ -2,12 +2,28 @@
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 _WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+_GIT_FALLBACK_PATHS = [
+    r"C:\Program Files\Git\cmd\git.exe",
+    r"C:\Program Files (x86)\Git\cmd\git.exe",
+]
+
+def _find_git() -> str:
+    found = shutil.which("git")
+    if found:
+        return found
+    if sys.platform == "win32":
+        for p in _GIT_FALLBACK_PATHS:
+            if Path(p).exists():
+                return p
+    raise FileNotFoundError("git 실행 파일을 찾을 수 없어요. Git을 설치하고 PATH에 추가해주세요.")
 
 
 _ALLOW_MARKER = "vibelign: allow-secret"
@@ -78,7 +94,7 @@ class SecretScanResult:
 # === ANCHOR: SECRET_SCAN__RUN_GIT_START ===
 def _run_git(root: Path, args: list[str]) -> str:
     completed = subprocess.run(
-        ["git", *args],
+        [_find_git(), *args],
         cwd=root,
         check=True,
         capture_output=True,
