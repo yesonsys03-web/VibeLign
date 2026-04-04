@@ -308,8 +308,97 @@ TARGET_HINTS = {
     "core": "patch",
 }
 
+_KO_TO_EN_SUBJECT: dict[str, str] = {
+    "온보딩": "onboarding",
+    "도움말": "help",
+    "화면": "screen",
+    "버튼": "button",
+    "카드": "card",
+    "설정": "settings",
+    "홈": "home",
+    "메뉴": "menu",
+    "탭": "tab",
+    "목록": "list",
+    "검색": "search",
+    "알림": "notification",
+    "모달": "modal",
+    "패널": "panel",
+    "헤더": "header",
+    "푸터": "footer",
+    "사이드바": "sidebar",
+    "접기": "fold",
+    "펼치기": "expand",
+    "토글": "toggle",
+    "입력": "input",
+    "폼": "form",
+    "텍스트": "text",
+    "이미지": "image",
+    "아이콘": "icon",
+    "링크": "link",
+    "뱃지": "badge",
+    "툴팁": "tooltip",
+    "드롭다운": "dropdown",
+    "체크박스": "checkbox",
+    "라디오": "radio",
+    "슬라이더": "slider",
+    "스크롤": "scroll",
+    "로딩": "loading",
+    "에러": "error",
+    "성공": "success",
+    "경고": "warning",
+    "확인": "confirm",
+    "취소": "cancel",
+    "저장": "save",
+    "삭제": "delete",
+    "추가": "add",
+    "수정": "edit",
+    "닫기": "close",
+    "열기": "open",
+    "선택": "select",
+    "제출": "submit",
+    "초기화": "reset",
+    "로그인": "login",
+    "로그아웃": "logout",
+    "프로필": "profile",
+    "대시보드": "dashboard",
+    "사용자": "user",
+    "관리자": "admin",
+    "파일": "file",
+    "폴더": "folder",
+    "프로젝트": "project",
+    "설명": "description",
+    "제목": "title",
+    "내용": "content",
+    "페이지": "page",
+    "섹션": "section",
+    "영역": "area",
+    "컨테이너": "container",
+    "레이아웃": "layout",
+    "그리드": "grid",
+    "테이블": "table",
+    "행": "row",
+    "열": "column",
+    "셀": "cell",
+}
+
+
+def _ko_to_slug(token: str) -> str:
+    """Korean token (possibly with particles) → English slug, or return as-is."""
+    # Try exact match first
+    if token in _KO_TO_EN_SUBJECT:
+        return _KO_TO_EN_SUBJECT[token]
+    # Try prefix match (strip common Korean particles: 의, 을, 를, 이, 가, 은, 는, 에, 로, 와, 과)
+    for ko, en in _KO_TO_EN_SUBJECT.items():
+        if token.startswith(ko):
+            return en
+    return token
+
 CODESPEAK_V0_RE = re.compile(
     r"^(?P<layer>[a-z][a-z0-9_]*)\.(?P<target>[a-z][a-z0-9_]*)\.(?P<subject>[a-z0-9가-힣][a-z0-9가-힣_]*)\.(?P<action>[a-z][a-z0-9_]*)$"
+)
+# Korean-free variant for newly generated CodeSpeak IDs
+CODESPEAK_V1_RE = re.compile(
+    r"^(?P<layer>[a-z][a-z0-9_]*)\.(?P<target>[a-z][a-z0-9_]*)\.(?P<subject>[a-z][a-z0-9_]*)\.(?P<action>[a-z][a-z0-9_]*)$"
 )
 
 
@@ -590,7 +679,8 @@ def _infer_subject(tokens: list[str], layer: str, action: str) -> tuple[str, int
         return "progress_bar", 2
     if len(candidates) >= 2 and candidates[0] == "side" and candidates[1] == "bar":
         return "sidebar", 2
-    return "_".join(candidates[:2]), 1
+    slugs = [_ko_to_slug(t) for t in candidates[:2]]
+    return "_".join(slugs), 1
 
 
 def build_codespeak(request: str, root: Path | None = None) -> CodeSpeakResult:
