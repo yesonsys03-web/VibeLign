@@ -33,3 +33,7 @@ VibeLign_dev_plan/
 .vibelign/scan_cache.json
 dist/
 build/
+
+# API 키 파일
+api_keys.json
+*.api_keys
