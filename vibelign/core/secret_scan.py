@@ -36,6 +36,10 @@ _HIGH_CONFIDENCE_RULES = [
     ("slack-token", re.compile(r"\bxox(?:a|b|p|r|s)-[A-Za-z0-9-]{10,}\b")),
     ("stripe-live-key", re.compile(r"\bsk_live_[A-Za-z0-9]{16,}\b")),
     ("aws-access-key", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
+    ("gemini-api-key", re.compile(r"\bAIzaSy[A-Za-z0-9_-]{33}\b")),
+    ("anthropic-api-key", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{40,}\b")),
+    ("openai-api-key", re.compile(r"\bsk-[A-Za-z0-9]{32,}\b")),
+    ("url-inline-key", re.compile(r"[?&]key=[A-Za-z0-9_-]{16,}")),
 ]
 _BINARY_SECRET_PATHS = {
     ".env",
