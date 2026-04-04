@@ -315,10 +315,21 @@ def run_config(_args: Namespace) -> None:
         print()
         clack_info("새 터미널·GUI 재시작 없이 즉시 적용됩니다.")
     elif save_choice == "2":
-        clack_info("아래 명령어를 현재 터미널에 복사해서 실행하세요:")
-        print()
-        for key_name, api_key in collected.items():
-            print(f'  export {key_name}="{api_key}"')
+        if os.name == "nt":
+            clack_info("아래 명령어를 현재 터미널에 복사해서 실행하세요 (PowerShell):")
+            print()
+            for key_name, api_key in collected.items():
+                print(f'  $env:{key_name} = "{api_key}"')
+            print()
+            clack_info("CMD(명령 프롬프트)를 사용하는 경우:")
+            print()
+            for key_name, api_key in collected.items():
+                print(f'  set {key_name}={api_key}')
+        else:
+            clack_info("아래 명령어를 현재 터미널에 복사해서 실행하세요:")
+            print()
+            for key_name, api_key in collected.items():
+                print(f'  export {key_name}="{api_key}"')
         print()
         clack_warn("새 터미널을 열면 다시 입력해야 합니다")
     else:
