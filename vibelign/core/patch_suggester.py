@@ -9,6 +9,7 @@ from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_map import ProjectMapSnapshot, load_project_map
 from vibelign.core.project_scan import iter_source_files, relpath_str
 from vibelign.core.anchor_tools import extract_anchors
+from vibelign.core.ui_label_index import load_ui_label_index, score_boost_for_ui_labels
 
 KEYWORD_HINTS = {
     "progress": [
@@ -40,6 +41,9 @@ KEYWORD_HINTS = {
 }
 
 LOW_PRIORITY_NAMES = {"__init__.py", "__init__.js", "__init__.ts"}
+
+# UI 관련 path token boost는 프론트엔드 파일에만 적용
+_FRONTEND_EXTS = {".tsx", ".jsx", ".vue", ".svelte", ".html", ".ts", ".js"}
 
 
 @dataclass
@@ -100,7 +104,7 @@ _TOKEN_ALIASES = {
     "홈": ["home"],
     "홈화면": ["home", "screen", "page"],
     "메인화면": ["main", "home", "screen", "page"],
-    "화면": ["screen", "page", "ui"],
+    "화면": ["screen", "page"],
     "첫화면": ["onboarding", "screen"],
     "시작화면": ["onboarding", "screen"],
     "버전": ["version"],
@@ -375,10 +379,13 @@ def score_path(
         if token:
             score += 3
             rationale.append(f"경로에 키워드 '{token}'이 포함됨")
+    is_frontend = path.suffix.lower() in _FRONTEND_EXTS
     for key, hints in KEYWORD_HINTS.items():
         if key in request_tokens:
             for hint in hints:
                 if hint in path_tokens:
+                    if hint == "ui" and not is_frontend:
+                        continue
                     score += 2
                     rationale.append(f"'{key}' 키워드 계열인 '{hint}'와 경로가 일치")
     if stem in request_tokens or stem in path_tokens.intersection(set(request_tokens)):
@@ -387,7 +394,7 @@ def score_path(
     ui_request = _is_ui_request(request_tokens)
     nav_request = _is_navigation_request(request_tokens)
     map_kind = None
-    if ui_request and any(
+    if ui_request and is_frontend and any(
         tok in path_tokens
         for tok in ["ui", "window", "dialog", "widget", "render", "terminal", "panel"]
     ):
@@ -660,8 +667,8 @@ def _ai_select_file(
         if not ai_explain.has_ai_provider():
             return None
 
-        # 후보 풀 구성: 상위 점수 파일 + ui_modules (중복 제거)
-        pool: list[Path] = [path for (_, path, _) in candidates[:5]]
+        # 후보 풀 구성: 상위 점수 파일 10개 + ui_modules (중복 제거)
+        pool: list[Path] = [path for (_, path, _) in candidates[:10]]
         if project_map is not None:
             for rel in getattr(project_map, "ui_modules", set()):
                 p = root / rel
@@ -672,27 +679,34 @@ def _ai_select_file(
         for i, path in enumerate(pool, 1):
             rel = relpath_str(root, path)
             anchors = extract_anchors(path)
-            anchor_names = ", ".join(anchors[:3]) if anchors else "없음"
-            lines.append(f"{i}. {rel}  (앵커: {anchor_names})")
+            anchor_names = ", ".join(anchors[:5]) if anchors else "없음"
+            try:
+                content_lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+                snippet = "\n".join(content_lines[:20])
+            except OSError:
+                snippet = ""
+            lines.append(
+                f"{i}. {rel}\n   앵커: {anchor_names}\n   내용:\n{snippet}\n"
+            )
 
-        candidates_text = "\n".join(lines)
+        candidates_text = "\n---\n".join(lines)
         prompt = (
             f"사용자 코드 수정 요청: {request}\n\n"
-            f"아래 후보 파일 중 수정해야 할 파일을 하나만 골라주세요.\n"
+            f"아래 후보 파일의 내용을 보고 수정해야 할 파일을 하나만 골라주세요.\n"
             f"JSON만 출력하세요. 설명 없이 딱 JSON만.\n\n"
-            f"후보:\n{candidates_text}\n\n"
+            f"후보:\n{candidates_text}\n"
             f'출력 형식: {{"index": 1}}'
         )
         text, _ = ai_explain.generate_text_with_ai(prompt, quiet=True)
         if not text:
             return None
-        m = re.search(r'\{\s*"index"\s*:\s*(\d+)\s*\}', text)
+        m = re.search(r'"index"\s*:\s*(\d+)', text)
         if not m:
             return None
         idx = int(m.group(1)) - 1
         if 0 <= idx < len(pool):
             selected_path = pool[idx]
-            return selected_path, ["AI가 후보 파일 중 가장 적합한 파일을 선택함"]
+            return selected_path, ["AI가 파일 내용을 분석해 가장 적합한 파일을 선택함"]
         return None
     except Exception:
         return None
@@ -705,6 +719,7 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
     metadata = load_anchor_metadata(root)
     anchor_meta = load_anchor_meta(root)
     project_map, _project_map_error = load_project_map(root)
+    ui_label_idx = load_ui_label_index(root)
     scored = []
     for path in iter_source_files(root):
         rel = relpath_str(root, path)
@@ -716,6 +731,11 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
             project_map,
             intent_meta=anchor_meta,
         )
+        if ui_label_idx:
+            ui_boost, ui_reasons = score_boost_for_ui_labels(rel, request_tokens, ui_label_idx)
+            if ui_boost:
+                score += ui_boost + 8  # 화면 노출 텍스트 일치는 강한 신호 (+4 기본 + 8 추가)
+                rationale = rationale + ui_reasons
         scored.append((score, path, rationale))
 
     if not scored:
@@ -755,7 +775,7 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
         reasons = reasons[:4] + [
             f"상위 후보 점수 차이가 작음 ({best_score} vs {second_score}) — 위치 확인이 더 필요함"
         ]
-    if use_ai and confidence == "low" and len(request_tokens) >= 5:
+    if use_ai and confidence == "low":
         ai_result = _ai_select_file(
             request, scored[:5], root, request_tokens, anchor_meta, project_map
         )
