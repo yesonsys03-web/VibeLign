@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { getVibPath, loadProviderApiKeys, vibStart, readProjectSummary } from "../lib/vib";
+import { getVibPath, loadProviderApiKeys, vibStart, readProjectSummary, checkGitInstalled } from "../lib/vib";
 import { getHelpAnswer, resolveHelpAnswer } from "../lib/helpData";
 
 const VIBELIGN_GITHUB_URL = "https://github.com/yesonsys03-web/VibeLign.git";
@@ -136,6 +136,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   const [helpQuestion, setHelpQuestion] = useState("");
   const [helpAnswer, setHelpAnswer] = useState("예: 이 툴로 뭘 할 수 있어?");
   const [helpLoading, setHelpLoading] = useState(false);
+  const [gitInstalled, setGitInstalled] = useState<boolean | null>(null);
   const [summaryIdx, setSummaryIdx] = useState(0);
   const [termLines, setTermLines] = useState<TermLine[]>(TERMINAL_LINES_DEFAULT);
   const [animStep, setAnimStep] = useState(TERMINAL_LINES_DEFAULT.length);
@@ -143,6 +144,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
 
   useEffect(() => {
     getVibPath().then((p) => { setVibFound(p); setVibChecking(false); });
+    checkGitInstalled().then(setGitInstalled).catch(() => setGitInstalled(true));
   }, []);
 
   // 최근 프로젝트 요약 로드
@@ -307,6 +309,39 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
             </div>
           </div>
         </div>
+
+        {/* Git 미설치 안내 */}
+        {gitInstalled === false && (() => {
+          const ua = navigator.userAgent.toLowerCase();
+          const isWin = ua.includes("win");
+          const isMac = ua.includes("mac");
+          const installCmd = isWin ? null : isMac ? "brew install git" : "sudo apt install git";
+          const downloadUrl = isWin
+            ? "https://git-scm.com/download/win"
+            : isMac
+            ? "https://git-scm.com/download/mac"
+            : "https://git-scm.com/download/linux";
+          return (
+            <div style={{ border: "2px solid #FFD166", background: "#FFD16611", padding: "10px 14px", marginBottom: 8, fontSize: 11 }}>
+              <div style={{ fontWeight: 800, color: "#B8860B", marginBottom: 6 }}>⚠ Git이 설치되지 않았어요</div>
+              <div style={{ color: "#555", marginBottom: 8, lineHeight: 1.55 }}>
+                일부 기능(시크릿 검사 등)에 Git이 필요해요. 핵심 기능은 Git 없이도 사용 가능합니다.
+              </div>
+              {installCmd && (
+                <div style={{ fontFamily: "IBM Plex Mono, monospace", background: "#1A1A1A", color: "#4DFF91", padding: "6px 10px", fontSize: 10, marginBottom: 8 }}>
+                  $ {installCmd}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => openUrl(downloadUrl).catch(() => {})}
+                style={{ fontSize: 10, fontWeight: 700, padding: "4px 12px", border: "2px solid #1A1A1A", background: "#FFD166", color: "#1A1A1A", cursor: "pointer" }}
+              >
+                Git 다운로드 ↗
+              </button>
+            </div>
+          );
+        })()}
 
         {/* 기능 카드 그리드 */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
