@@ -6,7 +6,7 @@ import urllib.error
 import urllib.request
 from typing import Protocol, TypedDict, cast
 
-from vibelign.core.http_retry import urlopen_read_with_retry
+from vibelign.core.http_retry import urlopen_read_with_retry, _SSL_CTX
 from vibelign.terminal_render import print_attempted_providers, print_provider_status
 
 
@@ -282,7 +282,7 @@ def _call_openai_compatible(
         },
         method="POST",
     )
-    with cast(UrlopenResponse, urllib.request.urlopen(req, timeout=60)) as response:
+    with cast(UrlopenResponse, urllib.request.urlopen(req, timeout=60, context=_SSL_CTX)) as response:
         result = _load_json_object(response.read())
         text = _extract_openai_text(result or {})
         if text is None:

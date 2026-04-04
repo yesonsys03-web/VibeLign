@@ -10,9 +10,20 @@ from __future__ import annotations
 import json
 import os
 import random
+import ssl
 import time
 import urllib.error
 import urllib.request
+
+# certifi SSL context (macOS GUI 앱 등 시스템 인증서 미포함 환경 대응)
+def _make_ssl_ctx() -> ssl.SSLContext | None:
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return None
+
+_SSL_CTX = _make_ssl_ctx()
 
 
 # === ANCHOR: HTTP_RETRY__ENV_INT_START ===
@@ -112,7 +123,7 @@ def urlopen_read_with_retry(
     last_exc: BaseException | None = None
     for attempt in range(attempts):
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
+            with urllib.request.urlopen(request, timeout=timeout, context=_SSL_CTX) as response:
                 return response.read()
         except urllib.error.HTTPError as e:
             last_exc = e
