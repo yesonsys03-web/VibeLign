@@ -149,6 +149,42 @@ def _fetch_gemini_models(api_key: str) -> list[str]:
 # === ANCHOR: CONFIG_CMD__FETCH_GEMINI_MODELS_END ===
 
 
+# === ANCHOR: CONFIG_CMD__RUN_DELETE_KEY_START ===
+def _run_delete_key() -> None:
+    from vibelign.core.keys_store import delete_key, get_key
+    all_keys = [p["key_name"] for p in _PROVIDERS] + ["GEMINI_MODEL"]
+    set_keys = [k for k in all_keys if get_key(k)]
+    if not set_keys:
+        clack_warn("삭제할 키가 없습니다.")
+        return
+    clack_step("삭제할 키를 선택하세요")
+    for i, k in enumerate(set_keys, 1):
+        print(f"  {i}. {k}")
+    print(f"  {len(set_keys) + 1}. 전체 삭제")
+    print("  0. 취소")
+    print()
+    choice = input(f"선택 (0-{len(set_keys) + 1}): ").strip()
+    if choice == "0" or not choice:
+        clack_warn("취소했습니다.")
+        return
+    try:
+        choice_num = int(choice)
+    except ValueError:
+        clack_error("잘못된 선택입니다.")
+        return
+    if choice_num == len(set_keys) + 1:
+        to_delete = set_keys
+    elif 1 <= choice_num <= len(set_keys):
+        to_delete = [set_keys[choice_num - 1]]
+    else:
+        clack_error("잘못된 선택입니다.")
+        return
+    for k in to_delete:
+        delete_key(k)
+        clack_success(f"{k} 삭제됨")
+# === ANCHOR: CONFIG_CMD__RUN_DELETE_KEY_END ===
+
+
 # === ANCHOR: CONFIG_CMD__SELECT_GEMINI_MODEL_START ===
 def _select_gemini_model(api_key: str | None, current_model: str) -> str | None:
     clack_step("Gemini 모델 설정 (선택사항)")
@@ -241,14 +277,16 @@ def run_config(_args: Namespace) -> None:
     clack_info(f"{'GEMINI_MODEL':<22}: {model_status}")
 
     # 제공자 선택
+    delete_choice = len(_PROVIDERS) + 2
     clack_step("설정할 AI 서비스를 선택하세요")
     for i, p in enumerate(_PROVIDERS, 1):
         print(f"  {i}. {p['label']:<22} ({p['url']})")
     print(f"  {len(_PROVIDERS) + 1}. 전체")
+    print(f"  {delete_choice}. 키 삭제")
     print("  0. 취소")
     print()
 
-    choice = input(f"선택 (0-{len(_PROVIDERS) + 1}): ").strip()
+    choice = input(f"선택 (0-{delete_choice}): ").strip()
 
     if choice == "0" or not choice:
         clack_warn("취소했습니다.")
@@ -260,7 +298,10 @@ def run_config(_args: Namespace) -> None:
         clack_error("잘못된 선택입니다.")
         return
 
-    if choice_num == len(_PROVIDERS) + 1:
+    if choice_num == delete_choice:
+        _run_delete_key()
+        return
+    elif choice_num == len(_PROVIDERS) + 1:
         selected = _PROVIDERS
     elif 1 <= choice_num <= len(_PROVIDERS):
         selected = [_PROVIDERS[choice_num - 1]]
