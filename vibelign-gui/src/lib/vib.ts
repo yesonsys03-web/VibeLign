@@ -236,4 +236,14 @@ export async function getManualJson(): Promise<Record<string, unknown>> {
 export async function getEnvKeyStatus(): Promise<Record<string, boolean>> {
   return invoke<Record<string, boolean>>("get_env_key_status");
 }
+
+export interface ProjectSummary {
+  project_name: string;
+  checkpoints: string[];
+  git_commits: string[];
+}
+
+export async function readProjectSummary(dir: string): Promise<ProjectSummary> {
+  return invoke<ProjectSummary>("read_project_summary", { dir });
+}
 // === ANCHOR: VIB_BRIDGE_END ===

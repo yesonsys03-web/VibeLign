@@ -545,6 +545,66 @@ fn get_env_key_status() -> HashMap<String, bool> {
         .collect()
 }
 
+// ─── 프로젝트 요약 ─────────────────────────────────────────────────────────────
+
+fn trunc(s: &str, max: usize) -> String {
+    let mut chars = s.chars();
+    let result: String = chars.by_ref().take(max).collect();
+    if chars.next().is_some() { format!("{}…", result) } else { result }
+}
+
+fn parse_checkpoints_from_ctx(content: &str) -> Vec<String> {
+    let mut in_section = false;
+    let mut results = Vec::new();
+    for line in content.lines() {
+        if line.starts_with("## 4.") { in_section = true; continue; }
+        if in_section && line.starts_with("## ") { break; }
+        if !in_section || !line.starts_with('|') { continue; }
+        let cols: Vec<&str> = line.split('|').map(|s| s.trim()).collect();
+        if cols.len() < 3 { continue; }
+        let msg = cols[2];
+        if msg.is_empty() || msg == "작업 내용" || msg.starts_with('-') || msg == "(메시지 없음)" { continue; }
+        results.push(trunc(msg, 20));
+        if results.len() >= 2 { break; }
+    }
+    results
+}
+
+#[derive(Serialize)]
+struct ProjectSummary {
+    project_name: String,
+    checkpoints: Vec<String>,
+    git_commits: Vec<String>,
+}
+
+#[tauri::command]
+fn read_project_summary(dir: String) -> ProjectSummary {
+    let path = std::path::Path::new(&dir);
+    let project_name = path.file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "프로젝트".to_string());
+
+    let git_commits = std::process::Command::new("git")
+        .args(["log", "--oneline", "-3"])
+        .current_dir(path)
+        .output()
+        .ok()
+        .map(|o| {
+            String::from_utf8_lossy(&o.stdout).lines()
+                .filter_map(|l| {
+                    let msg = l.splitn(2, ' ').nth(1).unwrap_or("").trim();
+                    if msg.is_empty() { None } else { Some(trunc(msg, 20)) }
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    let content = std::fs::read_to_string(path.join("PROJECT_CONTEXT.md")).unwrap_or_default();
+    let checkpoints = parse_checkpoints_from_ctx(&content);
+
+    ProjectSummary { project_name, checkpoints, git_commits }
+}
+
 // ─── 앱 진입점 ─────────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -582,6 +642,7 @@ pub fn run() {
             watch_status,
             open_folder,
             get_env_key_status,
+            read_project_summary,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
