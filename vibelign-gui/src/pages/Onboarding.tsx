@@ -224,7 +224,8 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
             style={{ background: "#1A1A1A", border: "2px solid #4DFF91", padding: "16px 20px", maxWidth: 340, width: "90%", fontFamily: "IBM Plex Mono, monospace" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontSize: 10, color: "#4DFF91", fontWeight: 700, marginBottom: 10 }}>▌ 상세 내용</div>
+            <div style={{ fontSize: 10, color: "#4DFF91", fontWeight: 700, marginBottom: 4 }}>▌ {termLines[0]?.text ?? "프로젝트"}</div>
+            <div style={{ fontSize: 9, color: "#666", marginBottom: 10, borderBottom: "1px solid #333", paddingBottom: 8 }}>상세 내용</div>
             <div style={{ fontSize: 11, color: "#eee", lineHeight: 1.65, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
               {termDetail}
             </div>
