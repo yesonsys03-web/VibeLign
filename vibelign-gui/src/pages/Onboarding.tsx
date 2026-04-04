@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { getVibPath, loadProviderApiKeys, vibStart } from "../lib/vib";
+import { getVibPath, loadProviderApiKeys, vibStart, readProjectSummary } from "../lib/vib";
 import { getHelpAnswer, resolveHelpAnswer } from "../lib/helpData";
 
 const VIBELIGN_GITHUB_URL = "https://github.com/yesonsys03-web/VibeLign.git";
@@ -48,7 +48,9 @@ const FEATURE_CARDS = [
   { icon: "⇄",   color: "#4D9FFF", title: "AI 이동 자유", desc: "Claude · Cursor 즉시" },
 ];
 
-const TERMINAL_LINES = [
+type TermLine = { type: "prompt" | "check" | "arrow"; text: string };
+
+const TERMINAL_LINES_DEFAULT: TermLine[] = [
   { type: "prompt", text: "vibelign start" },
   { type: "check",  text: "프로젝트 구조 스캔 완료" },
   { type: "check",  text: "앵커 18개 자동 삽입" },
@@ -134,10 +136,37 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   const [helpQuestion, setHelpQuestion] = useState("");
   const [helpAnswer, setHelpAnswer] = useState("예: 이 툴로 뭘 할 수 있어?");
   const [helpLoading, setHelpLoading] = useState(false);
+  const [summaryIdx, setSummaryIdx] = useState(0);
+  const [termLines, setTermLines] = useState<TermLine[]>(TERMINAL_LINES_DEFAULT);
+  const [animStep, setAnimStep] = useState(TERMINAL_LINES_DEFAULT.length);
 
   useEffect(() => {
     getVibPath().then((p) => { setVibFound(p); setVibChecking(false); });
   }, []);
+
+  // 최근 프로젝트 요약 로드
+  useEffect(() => {
+    if (recentDirs.length === 0) return;
+    const dir = recentDirs[summaryIdx] ?? recentDirs[0]!;
+    readProjectSummary(dir).then((s) => {
+      const lines: TermLine[] = [
+        { type: "prompt", text: s.project_name },
+        ...s.git_commits.slice(0, 3).map((c) => ({ type: "check" as const, text: c })),
+        ...s.checkpoints.slice(0, 2).map((c) => ({ type: "arrow" as const, text: c })),
+      ];
+      if (lines.length >= 2) {
+        setTermLines(lines);
+        setAnimStep(0);
+      }
+    }).catch(() => {});
+  }, [recentDirs, summaryIdx]);
+
+  // 타이핑 애니메이션
+  useEffect(() => {
+    if (animStep >= termLines.length) return;
+    const id = setTimeout(() => setAnimStep((s) => s + 1), 230);
+    return () => clearTimeout(id);
+  }, [animStep, termLines.length]);
 
   async function handleStart() {
     setStarting(true);
@@ -210,18 +239,37 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
 
             {/* 터미널 */}
             <div className="terminal" style={{ width: 240, flexShrink: 0, padding: "10px 14px" }}>
-              <div className="terminal-header" style={{ marginBottom: 8 }}>
+              <div className="terminal-header" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
                 <div className="terminal-dot red" />
                 <div className="terminal-dot yellow" />
                 <div className="terminal-dot green" />
+                {recentDirs.length > 1 && (
+                  <>
+                    <div style={{ flex: 1 }} />
+                    <button
+                      onClick={() => setSummaryIdx((i) => (i - 1 + recentDirs.length) % recentDirs.length)}
+                      style={{ background: "none", border: "none", color: "#888", cursor: "pointer", fontSize: 10, padding: "0 2px", lineHeight: 1 }}
+                    >◀</button>
+                    <span style={{ fontSize: 9, color: "#666" }}>{summaryIdx + 1}/{recentDirs.length}</span>
+                    <button
+                      onClick={() => setSummaryIdx((i) => (i + 1) % recentDirs.length)}
+                      style={{ background: "none", border: "none", color: "#888", cursor: "pointer", fontSize: 10, padding: "0 2px", lineHeight: 1 }}
+                    >▶</button>
+                  </>
+                )}
               </div>
-              {TERMINAL_LINES.map((line, i) => (
+              {termLines.slice(0, animStep).map((line, i) => (
                 <div key={i} style={{ lineHeight: 1.6 }}>
                   {line.type === "prompt"
                     ? <span><span className="terminal-prompt">$ </span>{line.text}</span>
-                    : <span><span className="terminal-check">✓ </span>{line.text}</span>}
+                    : line.type === "check"
+                    ? <span><span className="terminal-check">✓ </span>{line.text}</span>
+                    : <span><span style={{ color: "#4D9FFF", fontWeight: 700 }}>→ </span>{line.text}</span>}
                 </div>
               ))}
+              {animStep < termLines.length && (
+                <span style={{ color: "#4DFF91", fontWeight: 700, animation: "none" }}>▌</span>
+              )}
             </div>
           </div>
         </div>
