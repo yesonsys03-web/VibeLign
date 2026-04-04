@@ -114,9 +114,15 @@ def _save_to_profile(key_name: str, api_key: str) -> None:
 
 # === ANCHOR: CONFIG_CMD__FETCH_GEMINI_MODELS_START ===
 def _fetch_gemini_models(api_key: str) -> list[str]:
+    import ssl
+    try:
+        import certifi
+        ctx: ssl.SSLContext | None = ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        ctx = None
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
     req = urllib.request.Request(url, method="GET")
-    response = cast(ResponseLike, urllib.request.urlopen(req, timeout=20))
+    response = cast(ResponseLike, urllib.request.urlopen(req, timeout=20, context=ctx))
     with response:
         payload_bytes = response.read()
         payload = payload_bytes.decode("utf-8")

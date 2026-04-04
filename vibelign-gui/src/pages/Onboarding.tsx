@@ -130,6 +130,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   const [guideOpen, setGuideOpen] = useState(true);
   const [guideStep, setGuideStep] = useState(0);
   const [recentOpen, setRecentOpen] = useState(true);
+  const [helpOpen, setHelpOpen] = useState(true);
   const [helpQuestion, setHelpQuestion] = useState("");
   const [helpAnswer, setHelpAnswer] = useState("예: 이 툴로 뭘 할 수 있어?");
   const [helpLoading, setHelpLoading] = useState(false);
@@ -242,7 +243,11 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
         </div>
 
         <div className="feature-card" style={{ marginTop: 8 }}>
-          <div className="feature-card-header" style={{ background: "#4D9FFF18", padding: "8px 12px" }}>
+          <div
+            className="feature-card-header"
+            style={{ background: "#4D9FFF18", padding: "8px 12px", cursor: "pointer" }}
+            onClick={() => setHelpOpen((o) => !o)}
+          >
             <div
               className="feature-card-icon"
               style={{
@@ -258,9 +263,10 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
               ?
             </div>
             <div style={{ fontWeight: 700, fontSize: 11, flex: 1 }}>도움말 질문하기</div>
-            <div style={{ fontSize: 10, color: "#666", fontWeight: 700 }}>엔터로 답하기</div>
+            {helpOpen && <div style={{ fontSize: 10, color: "#666", fontWeight: 700 }}>엔터로 답하기</div>}
+            <div style={{ fontSize: 11, color: "#666", marginLeft: 8 }}>{helpOpen ? "▲" : "▼"}</div>
           </div>
-          <div className="feature-card-body" style={{ padding: "10px 12px" }}>
+          {helpOpen && <div className="feature-card-body" style={{ padding: "10px 12px" }}>
             <div style={{ fontSize: 11, color: "#444", lineHeight: 1.5, marginBottom: 8 }}>
               궁금한 걸 그냥 말해 보세요. 예: “이 툴로 뭘 할 수 있어?”
             </div>
@@ -300,7 +306,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
             >
               {helpAnswer}
             </div>
-          </div>
+          </div>}
         </div>
 
         {/* 바이브라인 GitHub 카드 */}
