@@ -553,7 +553,7 @@ fn trunc(s: &str, max: usize) -> String {
     if chars.next().is_some() { format!("{}…", result) } else { result }
 }
 
-fn parse_checkpoints_from_ctx(content: &str) -> Vec<String> {
+fn parse_checkpoints_from_ctx(content: &str) -> Vec<[String; 2]> {
     let mut in_section = false;
     let mut results = Vec::new();
     for line in content.lines() {
@@ -562,19 +562,27 @@ fn parse_checkpoints_from_ctx(content: &str) -> Vec<String> {
         if !in_section || !line.starts_with('|') { continue; }
         let cols: Vec<&str> = line.split('|').map(|s| s.trim()).collect();
         if cols.len() < 3 { continue; }
+        let ts = cols[1];
         let msg = cols[2];
         if msg.is_empty() || msg == "작업 내용" || msg.starts_with('-') || msg == "(메시지 없음)" { continue; }
-        results.push(trunc(msg, 20));
+        let detail = format!("{} — {}", ts, msg);
+        results.push([trunc(msg, 20), detail]);
         if results.len() >= 2 { break; }
     }
     results
 }
 
 #[derive(Serialize)]
+struct SummaryLine {
+    display: String,
+    detail: String,
+}
+
+#[derive(Serialize)]
 struct ProjectSummary {
     project_name: String,
-    checkpoints: Vec<String>,
-    git_commits: Vec<String>,
+    checkpoints: Vec<SummaryLine>,
+    git_commits: Vec<SummaryLine>,
 }
 
 #[tauri::command]
@@ -584,23 +592,36 @@ fn read_project_summary(dir: String) -> ProjectSummary {
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "프로젝트".to_string());
 
+    // git log: hash|subject|date
     let git_commits = std::process::Command::new("git")
-        .args(["log", "--oneline", "-3"])
+        .args(["log", "-3", "--pretty=format:%h|%s|%ad", "--date=short"])
         .current_dir(path)
         .output()
         .ok()
         .map(|o| {
             String::from_utf8_lossy(&o.stdout).lines()
                 .filter_map(|l| {
-                    let msg = l.splitn(2, ' ').nth(1).unwrap_or("").trim();
-                    if msg.is_empty() { None } else { Some(trunc(msg, 20)) }
+                    let parts: Vec<&str> = l.splitn(3, '|').collect();
+                    if parts.len() < 2 { return None; }
+                    let subject = parts[1].trim();
+                    if subject.is_empty() { return None; }
+                    let date = parts.get(2).copied().unwrap_or("").trim();
+                    let detail = if date.is_empty() {
+                        subject.to_string()
+                    } else {
+                        format!("{} — {}", date, subject)
+                    };
+                    Some(SummaryLine { display: trunc(subject, 20), detail })
                 })
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
 
     let content = std::fs::read_to_string(path.join("PROJECT_CONTEXT.md")).unwrap_or_default();
-    let checkpoints = parse_checkpoints_from_ctx(&content);
+    let checkpoints = parse_checkpoints_from_ctx(&content)
+        .into_iter()
+        .map(|[display, detail]| SummaryLine { display, detail })
+        .collect();
 
     ProjectSummary { project_name, checkpoints, git_commits }
 }
