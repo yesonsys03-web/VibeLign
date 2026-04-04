@@ -778,7 +778,10 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
         reasons = reasons[:4] + [
             f"상위 후보 점수 차이가 작음 ({best_score} vs {second_score}) — 위치 확인이 더 필요함"
         ]
-    if use_ai and confidence == "low":
+    # --ai 명시: confidence 무관하게 AI가 파일 선택
+    # --ai 없음: confidence LOW일 때만 AI 폴백
+    should_use_ai = use_ai or confidence == "low"
+    if should_use_ai:
         ai_result = _ai_select_file(
             request, scored, root, request_tokens, anchor_meta, project_map
         )
@@ -789,9 +792,10 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
                 anchors = extract_anchors(best_path)
                 anchor, ar = choose_anchor(anchors, request_tokens, anchor_meta)
                 reasons = ai_reasons
+                if confidence != "low":
+                    confidence = "high"  # AI가 직접 선택 시 신뢰도 유지
             else:
                 reasons = reasons[:4] + ai_reasons
-            confidence = "medium"
     return PatchSuggestion(
         request, relpath_str(root, best_path), anchor, confidence, reasons[:5] + ar[:3]
     )
