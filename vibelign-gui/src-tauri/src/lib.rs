@@ -592,7 +592,7 @@ fn read_project_summary(dir: String) -> ProjectSummary {
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "프로젝트".to_string());
 
-    // git log: hash|subject|date
+    // git log: hash|subject|date (최근 3개)
     let git_commits = std::process::Command::new("git")
         .args(["log", "-3", "--pretty=format:%h|%s|%ad", "--date=short"])
         .current_dir(path)
@@ -603,14 +603,25 @@ fn read_project_summary(dir: String) -> ProjectSummary {
                 .filter_map(|l| {
                     let parts: Vec<&str> = l.splitn(3, '|').collect();
                     if parts.len() < 2 { return None; }
+                    let hash = parts[0].trim();
                     let subject = parts[1].trim();
                     if subject.is_empty() { return None; }
                     let date = parts.get(2).copied().unwrap_or("").trim();
-                    let detail = if date.is_empty() {
-                        subject.to_string()
-                    } else {
-                        format!("{} — {}", date, subject)
-                    };
+
+                    // git show --stat: 변경 파일 목록 (on-load 프리페치)
+                    let stat = std::process::Command::new("git")
+                        .args(["show", "--stat", "--pretty=format:%b", hash])
+                        .current_dir(path)
+                        .output()
+                        .ok()
+                        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                        .unwrap_or_default();
+
+                    let mut detail = format!("{} — {}", date, subject);
+                    if !stat.is_empty() {
+                        detail.push_str(&format!("\n\n{}", stat));
+                    }
+
                     Some(SummaryLine { display: trunc(subject, 20), detail })
                 })
                 .collect::<Vec<_>>()
