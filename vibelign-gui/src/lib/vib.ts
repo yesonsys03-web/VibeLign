@@ -251,4 +251,8 @@ export interface ProjectSummary {
 export async function readProjectSummary(dir: string): Promise<ProjectSummary> {
   return invoke<ProjectSummary>("read_project_summary", { dir });
 }
+
+export async function checkGitInstalled(): Promise<boolean> {
+  return invoke<boolean>("check_git_installed");
+}
 // === ANCHOR: VIB_BRIDGE_END ===

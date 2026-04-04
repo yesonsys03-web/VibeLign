@@ -545,6 +545,17 @@ fn get_env_key_status() -> HashMap<String, bool> {
         .collect()
 }
 
+// ─── Git 설치 확인 ────────────────────────────────────────────────────────────
+
+#[tauri::command]
+fn check_git_installed() -> bool {
+    std::process::Command::new("git")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
 // ─── 프로젝트 요약 ─────────────────────────────────────────────────────────────
 
 fn trunc(s: &str, max: usize) -> String {
@@ -675,6 +686,7 @@ pub fn run() {
             open_folder,
             get_env_key_status,
             read_project_summary,
+            check_git_installed,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
