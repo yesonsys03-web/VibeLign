@@ -237,10 +237,15 @@ export async function getEnvKeyStatus(): Promise<Record<string, boolean>> {
   return invoke<Record<string, boolean>>("get_env_key_status");
 }
 
+export interface SummaryLine {
+  display: string;
+  detail: string;
+}
+
 export interface ProjectSummary {
   project_name: string;
-  checkpoints: string[];
-  git_commits: string[];
+  checkpoints: SummaryLine[];
+  git_commits: SummaryLine[];
 }
 
 export async function readProjectSummary(dir: string): Promise<ProjectSummary> {

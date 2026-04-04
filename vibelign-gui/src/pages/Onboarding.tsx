@@ -48,7 +48,7 @@ const FEATURE_CARDS = [
   { icon: "⇄",   color: "#4D9FFF", title: "AI 이동 자유", desc: "Claude · Cursor 즉시" },
 ];
 
-type TermLine = { type: "prompt" | "check" | "arrow"; text: string };
+type TermLine = { type: "prompt" | "check" | "arrow"; text: string; detail?: string };
 
 const TERMINAL_LINES_DEFAULT: TermLine[] = [
   { type: "prompt", text: "vibelign start" },
@@ -139,6 +139,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   const [summaryIdx, setSummaryIdx] = useState(0);
   const [termLines, setTermLines] = useState<TermLine[]>(TERMINAL_LINES_DEFAULT);
   const [animStep, setAnimStep] = useState(TERMINAL_LINES_DEFAULT.length);
+  const [termDetail, setTermDetail] = useState<string | null>(null);
 
   useEffect(() => {
     getVibPath().then((p) => { setVibFound(p); setVibChecking(false); });
@@ -151,8 +152,8 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
     readProjectSummary(dir).then((s) => {
       const lines: TermLine[] = [
         { type: "prompt", text: s.project_name },
-        ...s.git_commits.slice(0, 3).map((c) => ({ type: "check" as const, text: c })),
-        ...s.checkpoints.slice(0, 2).map((c) => ({ type: "arrow" as const, text: c })),
+        ...s.git_commits.slice(0, 3).map((c) => ({ type: "check" as const, text: c.display, detail: c.detail })),
+        ...s.checkpoints.slice(0, 2).map((c) => ({ type: "arrow" as const, text: c.display, detail: c.detail })),
       ];
       if (lines.length >= 2) {
         setTermLines(lines);
@@ -213,6 +214,31 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
+      {/* 터미널 줄 상세 모달 */}
+      {termDetail && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "#00000066", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setTermDetail(null)}
+        >
+          <div
+            style={{ background: "#1A1A1A", border: "2px solid #4DFF91", padding: "16px 20px", maxWidth: 340, width: "90%", fontFamily: "IBM Plex Mono, monospace" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 10, color: "#4DFF91", fontWeight: 700, marginBottom: 10 }}>▌ 상세 내용</div>
+            <div style={{ fontSize: 11, color: "#eee", lineHeight: 1.65, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+              {termDetail}
+            </div>
+            <button
+              type="button"
+              onClick={() => setTermDetail(null)}
+              style={{ marginTop: 14, fontSize: 10, background: "none", border: "1px solid #555", color: "#aaa", padding: "4px 12px", cursor: "pointer", fontFamily: "inherit" }}
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ─── 상단: 스크롤 가능 영역 ──────────────────────────────── */}
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 20px 10px" }}>
 
@@ -259,7 +285,14 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
                 )}
               </div>
               {termLines.slice(0, animStep).map((line, i) => (
-                <div key={i} style={{ lineHeight: 1.6 }}>
+                <div
+                  key={i}
+                  style={{ lineHeight: 1.6, cursor: line.detail ? "pointer" : "default", borderRadius: 2 }}
+                  title={line.detail ? "클릭하면 자세히 보기" : undefined}
+                  onClick={() => line.detail && setTermDetail(line.detail)}
+                  onMouseEnter={(e) => { if (line.detail) e.currentTarget.style.background = "#ffffff18"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = ""; }}
+                >
                   {line.type === "prompt"
                     ? <span><span className="terminal-prompt">$ </span>{line.text}</span>
                     : line.type === "check"
@@ -268,7 +301,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
                 </div>
               ))}
               {animStep < termLines.length && (
-                <span style={{ color: "#4DFF91", fontWeight: 700, animation: "none" }}>▌</span>
+                <span style={{ color: "#4DFF91", fontWeight: 700 }}>▌</span>
               )}
             </div>
           </div>
