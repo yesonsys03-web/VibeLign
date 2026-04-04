@@ -549,11 +549,29 @@ fn get_env_key_status() -> HashMap<String, bool> {
 
 #[tauri::command]
 fn check_git_installed() -> bool {
-    std::process::Command::new("git")
+    // 1. PATH에서 git 시도
+    if std::process::Command::new("git")
         .arg("--version")
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
+    {
+        return true;
+    }
+    // 2. Windows 기본 설치 경로 직접 확인
+    #[cfg(target_os = "windows")]
+    {
+        let candidates = [
+            r"C:\Program Files\Git\cmd\git.exe",
+            r"C:\Program Files (x86)\Git\cmd\git.exe",
+        ];
+        for path in &candidates {
+            if std::path::Path::new(path).exists() {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 // ─── 프로젝트 요약 ─────────────────────────────────────────────────────────────

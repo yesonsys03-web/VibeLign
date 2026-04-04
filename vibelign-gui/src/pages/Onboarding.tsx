@@ -144,7 +144,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
 
   useEffect(() => {
     getVibPath().then((p) => { setVibFound(p); setVibChecking(false); });
-    checkGitInstalled().then(setGitInstalled).catch(() => setGitInstalled(true));
+    checkGitInstalled().then(setGitInstalled).catch(() => setGitInstalled(false));
   }, []);
 
   // 최근 프로젝트 요약 로드
