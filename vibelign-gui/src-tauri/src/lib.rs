@@ -564,6 +564,7 @@ fn check_git_installed() -> bool {
         let candidates = [
             r"C:\Program Files\Git\cmd\git.exe",
             r"C:\Program Files (x86)\Git\cmd\git.exe",
+            r"C:\Program Files (Arm)\Git\cmd\git.exe",
         ];
         for path in &candidates {
             if std::path::Path::new(path).exists() {
