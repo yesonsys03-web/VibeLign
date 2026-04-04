@@ -8,7 +8,7 @@ type CardState = "idle" | "loading" | "done" | "error";
 type View = "home" | "manual_list" | "manual_detail";
 type FlagDef =
   | { type: "bool"; key: string; label: string }
-  | { type: "text"; key: string; label: string; placeholder?: string; required?: boolean }
+  | { type: "text"; key: string; label: string; placeholder?: string; required?: boolean; numeric?: boolean }
   | { type: "select"; key: string; label: string; required?: boolean; options: { v: string; l: string }[] };
 type GuideLine = { t: "info" | "code" | "label" | "error" | "warn"; v: string };
 type GuideStep = { step: string; title: string; subtitle?: string; optional?: boolean; warn?: string; lines: GuideLine[] };
@@ -478,7 +478,7 @@ const COMMANDS = [
     flags: [
       { type: "text" as const, key: "_file", label: "파일", placeholder: "main.py" },
       { type: "bool" as const, key: "ai", label: "--ai" },
-      { type: "text" as const, key: "since-minutes", label: "분", placeholder: "120" },
+      { type: "text" as const, key: "since-minutes", label: "분", placeholder: "120", numeric: true },
       { type: "bool" as const, key: "write-report", label: "--write-report" },
       { type: "bool" as const, key: "json", label: "--json" },
     ] as FlagDef[],
@@ -1162,6 +1162,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
       } else if (fd.type === "bool" && val) {
         args.push(`--${fd.key}`);
       } else if (fd.type === "text" && val) {
+        if (fd.numeric && isNaN(Number(String(val)))) continue;
         args.push(`--${fd.key}`, String(val));
       }
     }
