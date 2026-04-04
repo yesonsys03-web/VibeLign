@@ -665,7 +665,7 @@ def _ai_select_file(
     try:
         ai_explain = importlib.import_module("vibelign.core.ai_explain")
         if not ai_explain.has_ai_provider():
-            return None
+            return None, ["AI 미호출: API 키가 설정되지 않음 (vib config 로 설정)"]
 
         # 후보 풀 구성: 상위 점수 파일 10개 + ui_modules (중복 제거)
         pool: list[Path] = [path for (_, path, _) in candidates[:10]]
@@ -675,6 +675,9 @@ def _ai_select_file(
                 if p not in pool and p.exists():
                     pool.append(p)
 
+        # 파일 수에 따라 스니펫 줄 수 조정 (프롬프트 과부하 방지)
+        snippet_lines = max(5, 30 // max(len(pool), 1))
+
         lines = []
         for i, path in enumerate(pool, 1):
             rel = relpath_str(root, path)
@@ -682,7 +685,7 @@ def _ai_select_file(
             anchor_names = ", ".join(anchors[:5]) if anchors else "없음"
             try:
                 content_lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
-                snippet = "\n".join(content_lines[:20])
+                snippet = "\n".join(content_lines[:snippet_lines])
             except OSError:
                 snippet = ""
             lines.append(
@@ -777,13 +780,17 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
         ]
     if use_ai and confidence == "low":
         ai_result = _ai_select_file(
-            request, scored[:5], root, request_tokens, anchor_meta, project_map
+            request, scored, root, request_tokens, anchor_meta, project_map
         )
         if ai_result:
-            best_path, ai_reasons = ai_result
-            anchors = extract_anchors(best_path)
-            anchor, ar = choose_anchor(anchors, request_tokens, anchor_meta)
-            reasons = ai_reasons
+            ai_path_or_none, ai_reasons = ai_result
+            if ai_path_or_none is not None:
+                best_path = ai_path_or_none
+                anchors = extract_anchors(best_path)
+                anchor, ar = choose_anchor(anchors, request_tokens, anchor_meta)
+                reasons = ai_reasons
+            else:
+                reasons = reasons[:4] + ai_reasons
             confidence = "medium"
     return PatchSuggestion(
         request, relpath_str(root, best_path), anchor, confidence, reasons[:5] + ar[:3]
