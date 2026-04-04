@@ -238,7 +238,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
             </div>
 
             {/* 터미널 */}
-            <div className="terminal" style={{ width: 240, flexShrink: 0, padding: "10px 14px" }}>
+            <div className="terminal" style={{ width: 240, flexShrink: 0, padding: "10px 14px", height: 136, overflow: "hidden", boxSizing: "border-box" }}>
               <div className="terminal-header" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
                 <div className="terminal-dot red" />
                 <div className="terminal-dot yellow" />
