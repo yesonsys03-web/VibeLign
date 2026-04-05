@@ -38,7 +38,7 @@ export function useCardOrder() {
   function saveOrder(order: string[]) {
     const s = storeRef.current;
     if (!s) return;
-    s.set(STORE_KEY, order).catch(() => {});
+    s.set(STORE_KEY, order).then(() => s.save()).catch(() => {});
   }
 
   function setCardOrder(order: string[]) {
