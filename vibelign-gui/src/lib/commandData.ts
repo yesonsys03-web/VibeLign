@@ -1,0 +1,465 @@
+// === ANCHOR: COMMAND_DATA_START ===
+export type GuideLine = { t: "info" | "code" | "label" | "error" | "warn"; v: string };
+export type GuideStep = { step: string; title: string; subtitle?: string; optional?: boolean; warn?: string; lines: GuideLine[] };
+
+export type FlagDef =
+  | { type: "bool"; key: string; label: string }
+  | { type: "text"; key: string; label: string; placeholder?: string; required?: boolean; numeric?: boolean }
+  | { type: "select"; key: string; label: string; required?: boolean; options: { v: string; l: string }[] };
+
+export const COMMANDS_CORE = [
+  {
+    name: "start", icon: "▶", color: "#F5621E",
+    title: "시작하기",
+    short: "처음 딱 한 번 실행하면 끝",
+    desc: "새 프로젝트 폴더에서 처음 실행하는 커맨드예요. VibeLign이 필요한 파일을 자동으로 만들어줘요. 게임으로 치면 '새 게임 시작' 버튼이에요.",
+    usage: "vib start",
+    tips: ["프로젝트 폴더에서 딱 한 번만 실행해요", "AGENTS.md, .vibelign 폴더가 자동으로 생겨요", "AI한테 이 폴더 구조를 알려주는 파일도 만들어줘요"],
+    guide: [
+      {
+        step: "기능", title: "프로젝트 처음 세팅",
+        lines: [
+          { t: "info",  v: "프로젝트 폴더에서 딱 한 번만 실행하면 돼요." },
+          { t: "label", v: "자동으로 만들어지는 것들" },
+          { t: "info",  v: "AGENTS.md  —  AI 규칙 파일 (어떤 AI든 자동으로 읽어요)" },
+          { t: "info",  v: "AI_DEV_SYSTEM_SINGLE_FILE.md  —  상세 코딩 가이드" },
+          { t: "info",  v: ".vibelign/  —  체크포인트, 코드맵 저장 폴더" },
+        ],
+      },
+      {
+        step: "주요 옵션", title: "자주 쓰는 옵션",
+        lines: [
+          { t: "code", v: "vib start" },
+          { t: "info", v: "기본 세팅 (가장 많이 씀)" },
+          { t: "code", v: "vib start --all-tools" },
+          { t: "info", v: "Claude, Antigravity, OpenCode, Cursor, Codex 한 번에 준비" },
+          { t: "code", v: "vib start --quickstart" },
+          { t: "info", v: "세팅 + 앵커 자동 삽입까지 한 번에" },
+          { t: "code", v: "vib start --force" },
+          { t: "info", v: "기존 VibeLign 설정도 다시 생성" },
+        ],
+      },
+      {
+        step: "참고", title: "AI 도구별 준비 상태",
+        lines: [
+          { t: "info",  v: "✓  Claude, Antigravity, OpenCode  →  바로 사용 가능" },
+          { t: "info",  v: "⚠  Cursor, Codex  →  설정 화면에서 한 번 더 확인 필요" },
+          { t: "label", v: "Git 저장소라면" },
+          { t: "info",  v: "커밋 전 비밀정보 자동 검사(vib secrets)도 같이 켜줘요" },
+        ],
+      },
+    ] as GuideStep[],
+  },
+  {
+    name: "checkpoint", icon: "💾", color: "#7B4DFF",
+    title: "체크포인트",
+    short: "지금 상태를 저장 — 게임 세이브",
+    desc: "지금 코드 상태를 저장해요. AI가 코드를 망가뜨리기 전에 미리 저장해두면, 나중에 그 시점으로 되돌릴 수 있어요. 마치 게임에서 중간 저장하는 것처럼요.",
+    usage: "vib checkpoint \"기능 추가 전\"",
+    tips: ["AI한테 뭔가 시키기 전에 꼭 저장하세요", "설명을 짧게 써두면 나중에 찾기 쉬워요", "여러 번 저장해도 괜찮아요"],
+    guide: [
+      {
+        step: "기능", title: "게임 세이브처럼 저장해요",
+        lines: [
+          { t: "info",  v: "AI 작업 전에 꼭 저장하세요. 나중에 이 시점으로 되돌릴 수 있어요." },
+          { t: "info",  v: "저장 시 PROJECT_CONTEXT.md도 자동으로 갱신돼요." },
+          { t: "label", v: "메시지 없이 실행" },
+          { t: "code",  v: "vib checkpoint" },
+          { t: "info",  v: "→ 메시지 입력 화면이 나와요. 엔터만 누르면 메시지 없이 저장." },
+          { t: "label", v: "메시지 바로 지정" },
+          { t: "code",  v: 'vib checkpoint "로그인 완성"' },
+          { t: "code",  v: 'vib checkpoint "버그 수정 전"' },
+        ],
+      },
+      {
+        step: "워크플로우", title: "AI 작업과 함께 쓰는 법",
+        lines: [
+          { t: "code", v: 'vib checkpoint "작업 전"' },
+          { t: "info", v: "↓  AI 작업 수행" },
+          { t: "code", v: "vib guard" },
+          { t: "info", v: "→ 괜찮으면:    vib checkpoint \"완료\"" },
+          { t: "info", v: "→ 문제 있으면: vib undo" },
+        ],
+      },
+    ] as GuideStep[],
+  },
+  {
+    name: "undo", icon: "↩", color: "#FF4D4D",
+    title: "되돌리기",
+    short: "저장했던 그 시점으로 되돌아가기",
+    desc: "체크포인트로 저장했던 상태로 코드를 되돌려요. AI가 코드를 이상하게 바꿔놨을 때 '그냥 없던 일로 해줘!' 할 때 쓰는 커맨드예요.",
+    usage: "vib undo",
+    tips: ["실행하면 어느 시점으로 돌아갈지 고를 수 있어요", "저장 안 하고 undo하면 못 돌아가니까 checkpoint 먼저!"],
+    guide: [
+      {
+        step: "어떻게 작동해요?", title: "저장 목록에서 선택해요",
+        lines: [
+          { t: "info",  v: "실행하면 저장된 목록이 번호와 함께 나와요:" },
+          { t: "label", v: "목록 예시" },
+          { t: "info",  v: "[1] 오늘 16:52  로그인 기능 추가 전  ← 가장 최근" },
+          { t: "info",  v: "[2] 오늘 14:30  시작" },
+          { t: "info",  v: "[0] 취소" },
+          { t: "label", v: "입력 방법" },
+          { t: "info",  v: "번호 입력  →  그 시점으로 되돌아가요" },
+          { t: "info",  v: "엔터만 누르면  →  가장 최근 저장으로 되돌아가요" },
+          { t: "info",  v: "0 또는 q  →  취소" },
+        ],
+        warn: "checkpoint로 저장해뒀어야 쓸 수 있어요. 저장 안 하면 되돌릴 수 없어요.",
+      },
+    ] as GuideStep[],
+  },
+  {
+    name: "doctor", icon: "🩺", color: "#FF4D8B",
+    title: "닥터",
+    short: "프로젝트 건강 검진",
+    desc: "프로젝트 상태가 괜찮은지 검사해줘요. 점수(0~100)랑 어떤 문제가 있는지 알려줘요. 병원 건강검진처럼 '지금 코드 상태가 어때요?'를 확인하는 거예요.",
+    usage: "vib doctor",
+    tips: ["점수가 낮으면 뭘 고쳐야 하는지 알려줘요", "--strict 붙이면 더 꼼꼼하게 검사해요", "GUI에서 Doctor 탭으로도 볼 수 있어요"],
+    guide: [
+      {
+        step: "기능", title: "프로젝트 건강 점검",
+        lines: [
+          { t: "info",  v: "점수(0~100)와 문제 목록을 보여줘요." },
+          { t: "info",  v: "AI 작업 전에 실행해서 준비됐는지 확인하세요." },
+          { t: "label", v: "결과 예시" },
+          { t: "info",  v: "점수: 85/100  —  앵커 없는 파일 2개 발견" },
+        ],
+      },
+      {
+        step: "주요 옵션", title: "자주 쓰는 옵션",
+        lines: [
+          { t: "code", v: "vib doctor" },
+          { t: "info", v: "기본 점검 (점수 + 문제 목록)" },
+          { t: "code", v: "vib doctor --strict" },
+          { t: "info", v: "더 꼼꼼하게 검사 — 작은 문제도 잡아줘요" },
+          { t: "code", v: "vib doctor --fix" },
+          { t: "info", v: "앵커 없는 파일에 자동으로 앵커 추가" },
+          { t: "code", v: "vib doctor --write-report" },
+          { t: "info", v: "점검 결과를 파일로 저장" },
+        ],
+      },
+    ] as GuideStep[],
+  },
+  {
+    name: "guard", icon: "🛡", color: "#FF6B35",
+    title: "가드",
+    short: "AI가 코드 망가뜨렸는지 검사",
+    desc: "AI가 코드를 수정한 후에 이상한 짓을 했는지 체크해요. pass(괜찮음), warn(조심), fail(위험) 중 하나로 알려줘요. 경호원처럼 코드를 지켜주는 거예요.",
+    usage: "vib guard",
+    tips: ["AI 작업 끝나고 꼭 실행해보세요", "--strict 붙이면 경고도 실패로 처리해요"],
+    guide: [
+      {
+        step: "기능", title: "AI 작업 후 종합 검사",
+        lines: [
+          { t: "info",  v: "doctor(건강 점검) + explain(변경 설명)을 합친 종합 검사예요." },
+          { t: "info",  v: "AI가 코드를 수정한 후 항상 실행하세요." },
+          { t: "label", v: "결과 3가지" },
+          { t: "info",  v: "pass  —  이상 없어요 ✓" },
+          { t: "info",  v: "warn  —  주의할 점이 있어요 ⚠" },
+          { t: "info",  v: "fail  —  위험한 변경 감지 ✗" },
+        ],
+      },
+      {
+        step: "주요 옵션", title: "자주 쓰는 옵션",
+        lines: [
+          { t: "code", v: "vib guard" },
+          { t: "info", v: "기본 검사" },
+          { t: "code", v: "vib guard --strict" },
+          { t: "info", v: "더 꼼꼼하게 — 경고도 실패로 처리해요" },
+          { t: "code", v: "vib guard --write-report" },
+          { t: "info", v: "결과를 파일로 저장" },
+          { t: "code", v: "vib guard --since-minutes 60" },
+          { t: "info", v: "최근 60분 변경만 확인" },
+        ],
+      },
+    ] as GuideStep[],
+  },
+  {
+    name: "anchor", icon: "⚓", color: "#4D9FFF",
+    title: "앵커",
+    short: "AI가 건드려도 되는 구역 표시",
+    desc: "코드 파일에 'AI야, 여기 건드려도 돼!' 표시를 자동으로 달아줘요. 앵커가 있어야 AI가 정확한 위치를 찾아서 수정할 수 있어요. 지도의 위치 핀 같은 거예요.",
+    usage: "vib anchor",
+    tips: ["새 파일 만들면 꼭 실행해주세요", "파일 맨 위/아래에 주석 형태로 달려요", "AI한테 '앵커 범위 안에서만 수정해줘' 라고 하면 돼요"],
+    guide: [
+      {
+        step: "앵커란?", title: "코드 위치 표식",
+        lines: [
+          { t: "info",  v: "파일에 '여기서부터 여기까지가 이 기능이야'라는 표식이에요." },
+          { t: "info",  v: "AI가 수정할 때 정확한 위치를 찾을 수 있어요." },
+          { t: "label", v: "파일에 이렇게 달려요" },
+          { t: "code",  v: "// === ANCHOR: FUNCTION_NAME_START ===" },
+          { t: "code",  v: "// === ANCHOR: FUNCTION_NAME_END ===" },
+        ],
+      },
+      {
+        step: "주요 옵션", title: "자주 쓰는 옵션",
+        lines: [
+          { t: "code", v: "vib anchor --auto" },
+          { t: "info", v: "모든 파일에 자동으로 앵커 달기 (처음 설정 시 추천)" },
+          { t: "code", v: "vib anchor --validate" },
+          { t: "info", v: "앵커가 제대로 달려있는지 검사" },
+          { t: "code", v: "vib anchor --dry-run" },
+          { t: "info", v: "실제로 바꾸지 않고 어떻게 바뀔지 미리 보기" },
+          { t: "code", v: "vib anchor --only-ext .py" },
+          { t: "info", v: "특정 확장자 파일만 처리" },
+        ],
+      },
+    ] as GuideStep[],
+    flags: [
+      { type: "select" as const, key: "_mode", label: "모드", options: [
+        { v: "", l: "기본" },
+        { v: "--suggest", l: "추천" },
+        { v: "--suggest --dry-run", l: "추천 미리보기" },
+        { v: "--auto --dry-run", l: "자동 미리보기" },
+        { v: "--auto --json", l: "자동 삽입" },
+        { v: "--validate", l: "검증" },
+      ]},
+    ] as FlagDef[],
+  },
+  {
+    name: "scan", icon: "🔍", color: "#F5621E",
+    title: "스캔",
+    short: "코드맵 갱신 — 구조 다시 분석",
+    desc: "프로젝트 전체를 훑어서 코드맵을 새로 만들어요. 파일을 많이 바꿨거나 AI한테 새 파일을 알려주고 싶을 때 써요. 마치 내비게이션 지도를 업데이트하는 거예요.",
+    usage: "vib scan",
+    tips: ["파일 많이 바꾼 뒤에 실행하면 좋아요", "AI한테 project_map.json을 주면 전체 구조를 한 번에 파악해요"],
+    guide: [
+      {
+        step: "기능", title: "앵커 + 코드맵 한 번에 갱신",
+        lines: [
+          { t: "info", v: "앵커 검사, 앵커 인덱스 갱신, 코드맵 재생성을 한 번에 실행해요." },
+          { t: "info", v: "파일을 많이 추가/삭제했거나 뭔가 꼬인 것 같을 때 실행하세요." },
+        ],
+      },
+      {
+        step: "옵션", title: "주요 옵션",
+        lines: [
+          { t: "code", v: "vib scan" },
+          { t: "info", v: "앵커 스캔 + 코드맵 갱신" },
+          { t: "code", v: "vib scan --auto" },
+          { t: "info", v: "문제 있는 앵커 자동 수정 + 코드맵 갱신" },
+        ],
+      },
+    ] as GuideStep[],
+  },
+  {
+    name: "watch", icon: "👁", color: "#4DFF91",
+    title: "워치",
+    short: "실시간 자동 감시 모드",
+    desc: "파일이 바뀔 때마다 자동으로 코드맵을 갱신해줘요. 켜두고 AI 작업하면 항상 최신 상태가 유지돼요. 자동으로 돌아가는 CCTV 같은 거예요.",
+    usage: "vib watch",
+    tips: ["AI 작업 중에 켜두면 편해요", "Ctrl+C로 끌 수 있어요", "GUI 홈 화면에서 버튼으로도 켤 수 있어요"],
+    guide: [
+      {
+        step: "기능", title: "파일 변경 자동 감지",
+        lines: [
+          { t: "info", v: "파일이 저장될 때마다 자동으로 코드맵을 최신 상태로 유지해요." },
+          { t: "info", v: "AI가 작업하는 동안 켜두면 항상 최신 정보로 작업해요." },
+          { t: "info", v: "종료: Ctrl+C  /  GUI 홈 화면에서 버튼으로도 켤 수 있어요." },
+        ],
+      },
+      {
+        step: "옵션", title: "주요 옵션",
+        lines: [
+          { t: "code", v: "vib watch" },
+          { t: "info", v: "실시간 감시 시작 (Ctrl+C로 종료)" },
+          { t: "code", v: "vib watch --strict" },
+          { t: "info", v: "더 꼼꼼한 감시 모드" },
+          { t: "code", v: "vib watch --debounce-ms 1500" },
+          { t: "info", v: "파일 변경 후 1.5초 대기 후 처리 (기본 800ms)" },
+        ],
+      },
+    ] as GuideStep[],
+  },
+  {
+    name: "transfer", icon: "📤", color: "#4D9FFF",
+    title: "트랜스퍼",
+    short: "다른 AI 툴로 이사갈 때",
+    desc: "Claude에서 Cursor로, 또는 다른 AI 툴로 바꿀 때 '지금까지 뭘 했는지' 요약 파일을 만들어줘요. 새 AI한테 이 파일을 주면 처음부터 설명 안 해도 돼요.",
+    usage: "vib transfer",
+    tips: ["AI 툴 바꾸기 직전에 실행해요", "만들어진 PROJECT_CONTEXT.md를 새 AI에게 주세요"],
+    guide: [
+      {
+        step: "기능", title: "AI 전환용 맥락 파일 생성",
+        lines: [
+          { t: "info",  v: "AI 툴을 바꾸거나 새 채팅을 열 때 지금까지 뭘 했는지 요약 파일을 만들어요." },
+          { t: "info",  v: "만들어지는 파일: PROJECT_CONTEXT.md" },
+          { t: "info",  v: "새 AI에게 이 파일을 주면 처음부터 설명 안 해도 돼요." },
+        ],
+      },
+      {
+        step: "--handoff", title: "AI 전환 인수인계 블록",
+        lines: [
+          { t: "code", v: "vib transfer --handoff" },
+          { t: "info", v: "파일 맨 위에 'Session Handoff' 블록 추가" },
+          { t: "info", v: "오늘 뭘 했는지, 다음에 뭘 해야 하는지 한 줄로 담아줘요" },
+          { t: "code", v: "vib transfer --handoff --print" },
+          { t: "info", v: "내용을 파일 저장 + 화면에도 출력 (새 채팅에 복붙하기 편해요)" },
+          { t: "code", v: "vib transfer --handoff --dry-run" },
+          { t: "info", v: "저장 없이 내용 미리 보기" },
+        ],
+      },
+      {
+        step: "기타 옵션", title: "자주 쓰는 옵션",
+        lines: [
+          { t: "code", v: "vib transfer --compact" },
+          { t: "info", v: "가벼운 버전 (토큰 절약 — 무료 플랜에 좋아요)" },
+          { t: "code", v: "vib transfer --full" },
+          { t: "info", v: "파일 트리를 더 깊이 포함" },
+          { t: "code", v: "vib transfer --out ctx.md" },
+          { t: "info", v: "저장 파일 이름 바꾸기" },
+        ],
+      },
+    ] as GuideStep[],
+  },
+  {
+    name: "patch", icon: "🔧", color: "#FFD166",
+    title: "패치",
+    short: "말로 수정 요청 → 안전한 계획 생성",
+    desc: "수정하고 싶은 걸 말로 설명하면, 어느 파일 어느 부분을 바꿔야 하는지 계획을 세워줘요. 직접 코드를 바꾸는 게 아니라 '여기 바꾸세요' 지시서를 만들어주는 거예요.",
+    usage: "vib patch \"로그인 버튼 색깔 바꿔줘\"",
+    tips: ["코드 수정 전에 뭘 바꿔야 하는지 확인할 수 있어요", "AI한테 그대로 전달하면 돼요"],
+    guide: [
+      {
+        step: "기능", title: "말로 요청 → 수정 계획 생성",
+        lines: [
+          { t: "info",  v: "'로그인 버튼 추가해줘' 같이 말로 요청하면," },
+          { t: "info",  v: "어떤 파일의 어느 부분을 수정할지 계획을 만들어줘요." },
+          { t: "info",  v: "이 계획을 AI에게 붙여넣으면 정확하게 수정할 수 있어요." },
+          { t: "code",  v: 'vib patch "로그인 버튼 추가"' },
+        ],
+      },
+      {
+        step: "주요 옵션", title: "자주 쓰는 옵션",
+        lines: [
+          { t: "code", v: 'vib patch "요청" --ai' },
+          { t: "info", v: "AI가 코드를 더 자세히 분석해서 정확한 계획 생성 (API 키 필요)" },
+          { t: "code", v: 'vib patch "요청" --copy' },
+          { t: "info", v: "결과를 클립보드에 복사 → AI에 바로 붙여넣기" },
+          { t: "code", v: 'vib patch "요청" --preview' },
+          { t: "info", v: "수정 계획 미리 보기" },
+          { t: "code", v: 'vib patch "요청" --write-report' },
+          { t: "info", v: "결과를 파일로 저장" },
+        ],
+      },
+    ] as GuideStep[],
+    flags: [
+      { type: "text" as const, key: "_request", label: "요청", placeholder: "로그인 버튼 추가...", required: true },
+      { type: "bool" as const, key: "ai", label: "--ai" },
+      { type: "bool" as const, key: "preview", label: "--preview" },
+      { type: "bool" as const, key: "copy", label: "--copy" },
+      { type: "bool" as const, key: "write-report", label: "--write-report" },
+    ] as FlagDef[],
+  },
+  {
+    name: "protect", icon: "🔒", color: "#FF4D4D",
+    title: "프로텍트",
+    short: "중요 파일 잠금 — AI 접근 금지",
+    desc: "절대 건드리면 안 되는 파일을 잠가요. 잠긴 파일은 guard 검사에서 위반 사항으로 잡혀요. 소중한 파일에 자물쇠 채우는 거예요.",
+    usage: "vib protect 파일경로",
+    tips: ["설정 파일, 비밀 키 파일 등을 잠가두세요", "vib guard 실행할 때 잠긴 파일 건드리면 경고해줘요"],
+    guide: [
+      {
+        step: "기능", title: "파일 보호 (잠금)",
+        lines: [
+          { t: "info",  v: "절대 바뀌면 안 되는 파일을 잠가요." },
+          { t: "info",  v: "guard 실행 시 잠긴 파일이 수정됐으면 경고해줘요." },
+          { t: "code",  v: "vib protect .env" },
+          { t: "code",  v: "vib protect settings.py" },
+        ],
+      },
+      {
+        step: "관리", title: "보호 목록 관리",
+        lines: [
+          { t: "code", v: "vib protect --list" },
+          { t: "info", v: "현재 보호된 파일 목록 보기" },
+          { t: "code", v: "vib protect main.py --remove" },
+          { t: "info", v: "보호 해제" },
+        ],
+      },
+    ] as GuideStep[],
+    flags: [
+      { type: "text" as const, key: "_file", label: "파일", placeholder: ".env" },
+      { type: "select" as const, key: "_action", label: "", options: [
+        { v: "", l: "보호" }, { v: "--list", l: "목록" }, { v: "--remove", l: "해제" },
+      ]},
+    ] as FlagDef[],
+  },
+  {
+    name: "secrets", icon: "🔑", color: "#FFE44D",
+    title: "시크릿",
+    short: "API 키가 실수로 올라가는 거 막기",
+    desc: "API 키, 비밀번호 같은 걸 실수로 GitHub에 올리는 걸 막아줘요. 커밋하기 전에 자동으로 체크해서 '위험한 내용 발견!' 하고 알려줘요.",
+    usage: "vib secrets",
+    tips: ["git commit 전에 자동으로 실행되게 설정할 수 있어요", "비밀 정보가 발견되면 커밋을 막아줘요"],
+    guide: [
+      {
+        step: "기능", title: "비밀정보 커밋 방지",
+        lines: [
+          { t: "info",  v: "API 키, 토큰, .env 같은 걸 실수로 GitHub에 올리는 걸 막아줘요." },
+          { t: "info",  v: "vib start를 하면 자동으로 연결돼요. 따로 신경 쓸 일이 거의 없어요." },
+          { t: "label", v: "직접 확인하고 싶을 때" },
+          { t: "code",  v: "vib secrets --staged" },
+          { t: "info",  v: "지금 커밋하려는 내용에 비밀정보가 있는지 검사" },
+        ],
+      },
+      {
+        step: "자동 검사", title: "커밋 시 자동 검사 설정",
+        lines: [
+          { t: "code", v: "vib secrets --install-hook" },
+          { t: "info", v: "커밋할 때마다 자동 검사 켜기 (vib start가 자동으로 해줘요)" },
+          { t: "code", v: "vib secrets --uninstall-hook" },
+          { t: "info", v: "자동 검사 끄기" },
+          { t: "label", v: "오탐이 나면" },
+          { t: "info",  v: "해당 줄 끝에 추가:  # vibelign: allow-secret" },
+        ],
+      },
+    ] as GuideStep[],
+    flags: [
+      { type: "select" as const, key: "_mode", label: "모드", options: [
+        { v: "--staged", l: "staged 검사" }, { v: "--install-hook", l: "훅 설치" }, { v: "--uninstall-hook", l: "훅 제거" },
+      ]},
+    ] as FlagDef[],
+  },
+  {
+    name: "explain", icon: "💬", color: "#7B4DFF",
+    title: "익스플레인",
+    short: "뭐가 바뀌었는지 쉽게 설명",
+    desc: "최근에 바뀐 파일들을 분석해서 '이게 바뀌었어요'를 알기 쉽게 설명해줘요. AI가 뭘 했는지 한눈에 파악하고 싶을 때 써요.",
+    usage: "vib explain",
+    tips: ["AI 작업 후에 실행하면 뭐가 바뀌었는지 바로 알 수 있어요", "--since-minutes 30 하면 30분 이내 변경사항만 봐요"],
+    guide: [
+      {
+        step: "기능", title: "변경 내용 쉬운 말로 설명",
+        lines: [
+          { t: "info",  v: "최근에 코드가 어떻게 바뀌었는지 쉬운 말로 알려줘요." },
+          { t: "info",  v: "AI가 수정한 내용이 뭔지 이해하기 어려울 때 쓰세요." },
+          { t: "code",  v: "vib explain" },
+          { t: "info",  v: "전체 변경 설명 (기본 2시간 이내)" },
+          { t: "code",  v: "vib explain main.py" },
+          { t: "info",  v: "특정 파일만 설명" },
+        ],
+      },
+      {
+        step: "주요 옵션", title: "자주 쓰는 옵션",
+        lines: [
+          { t: "code", v: "vib explain --ai" },
+          { t: "info", v: "AI가 더 자세하게 분석해서 설명 (API 키 필요)" },
+          { t: "code", v: "vib explain --since-minutes 30" },
+          { t: "info", v: "최근 30분 변경만 보기" },
+          { t: "code", v: "vib explain --write-report" },
+          { t: "info", v: "설명을 파일로 저장" },
+        ],
+      },
+    ] as GuideStep[],
+    flags: [
+      { type: "text" as const, key: "_file", label: "파일", placeholder: "main.py" },
+      { type: "bool" as const, key: "ai", label: "--ai" },
+      { type: "text" as const, key: "since-minutes", label: "분", placeholder: "120", numeric: true },
+      { type: "bool" as const, key: "write-report", label: "--write-report" },
+      { type: "bool" as const, key: "json", label: "--json" },
+    ] as FlagDef[],
+  },
+];
+// === ANCHOR: COMMAND_DATA_END ===
