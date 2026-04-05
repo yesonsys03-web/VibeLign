@@ -20,7 +20,7 @@ export default function GuardCard({ projectDir, onGuardResult }: GuardCardProps)
       setLastResult(r);
       onGuardResult(r);
       setSt("done");
-    } catch (e) {
+    } catch {
       setSt("error");
     }
   }

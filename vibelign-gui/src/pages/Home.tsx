@@ -1,8 +1,7 @@
 // === ANCHOR: HOME_START ===
-import { useEffect, useRef, useState } from "react";
-import { runVib, pickFile, GuardResult, buildGuiAiEnv } from "../lib/vib";
-import { COMMANDS, CardState, FlagDef, GuideStep, buildCmdArgs } from "../lib/commands";
-import { GuiCliOutputBlock } from "../components/GuiCliOutputBlock";
+import { useState } from "react";
+import { GuardResult } from "../lib/vib";
+import { COMMANDS, GuideStep } from "../lib/commands";
 import UndoCard from "../components/cards/backup/UndoCard";
 import HistoryCard from "../components/cards/backup/HistoryCard";
 import CheckpointCard from "../components/cards/backup/CheckpointCard";
@@ -48,75 +47,8 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
   const [mapModeLocal, setMapModeLocal]   = useState<"manual"|"auto">(mapModeProp ?? "manual");
   const mapMode = mapModeProp ?? mapModeLocal;
   const setMapMode = (v: "manual"|"auto") => { setMapModeLocal(v); setMapModeProp?.(v); };
-  const [error, setError]                 = useState<string | null>(null);
-  const [cmdStates, setCmdStates]         = useState<Record<string, CardState>>({});
-  const [cmdOutputs, setCmdOutputs]       = useState<Record<string, string>>({});
-  const [cmdHasWarnings, setCmdHasWarnings] = useState<Record<string, boolean>>({});
-  const [cmdFlagValues, setCmdFlagValues]     = useState<Record<string, Record<string, string | boolean>>>({});
-  const [outputModal, setOutputModal]         = useState<{ name: string; content: string } | null>(null);
-  const cmdIdleTimers = useRef<Record<string, number>>({});
-
-  useEffect(() => {
-    return () => {
-      Object.values(cmdIdleTimers.current).forEach((timerId) => {
-        window.clearTimeout(timerId);
-      });
-    };
-  }, []);
 
 
-
-  async function handleRunCmd(name: string) {
-    if (name === "undo") { onNavigate("checkpoints"); return; }
-    const args = buildCmdArgs(name, cmdFlagValues);
-    if (!args) {
-      setCmdStates(s => ({ ...s, [name]: "error" }));
-      setCmdOutputs(o => ({ ...o, [name]: "필수 항목을 입력해주세요" }));
-      return;
-    }
-    if (args.includes("--ai") && aiKeyStatusLoaded && !hasAnyAiKey) {
-      setCmdStates(s => ({ ...s, [name]: "error" }));
-      setCmdOutputs(o => ({ ...o, [name]: "API 키를 먼저 설정해주세요" }));
-      if (onOpenSettings) {
-        onOpenSettings("AI 기능을 쓰려면 먼저 설정에서 API 키를 입력해주세요.");
-      } else {
-        setError("AI 기능을 쓰려면 먼저 설정에서 API 키를 입력해주세요.");
-      }
-      return;
-    }
-    setCmdStates(s => ({ ...s, [name]: "loading" }));
-    setCmdOutputs(o => ({ ...o, [name]: "" }));
-    const existingTimer = cmdIdleTimers.current[name];
-    if (existingTimer !== undefined) {
-      window.clearTimeout(existingTimer);
-      delete cmdIdleTimers.current[name];
-    }
-    try {
-      const env = args.includes("--ai") ? buildGuiAiEnv(providerKeys, apiKey) : undefined;
-      const r = await runVib(args, projectDir, env);
-      setCmdStates(s => ({ ...s, [name]: r.ok ? "done" : "error" }));
-      const stdoutContent = r.stdout.trim();
-      const stderrContent = r.stderr.trim();
-      const combinedOutput = [stderrContent, stdoutContent].filter(Boolean).join("\n\n");
-      const output = combinedOutput || (r.ok ? "완료" : `exit ${r.exit_code}`);
-      setCmdOutputs(o => ({ ...o, [name]: output }));
-      const hasWarning = Boolean(stderrContent);
-      setCmdHasWarnings(w => ({ ...w, [name]: hasWarning }));
-      if (!r.ok || hasWarning) {
-        setOutputModal({ name, content: output });
-      }
-      if (r.ok && !hasWarning) {
-        cmdIdleTimers.current[name] = window.setTimeout(() => {
-          setCmdStates(s => ({ ...s, [name]: "idle" }));
-          delete cmdIdleTimers.current[name];
-        }, 3000);
-      }
-    } catch (e) {
-      setCmdStates(s => ({ ...s, [name]: "error" }));
-      setCmdOutputs(o => ({ ...o, [name]: String(e) }));
-      setCmdHasWarnings(w => ({ ...w, [name]: false }));
-    }
-  }
 
   function guardColor(status: string) {
     if (status === "pass") return "#4DFF91";
@@ -349,25 +281,6 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
           </div>
         </div>
       )}
-      {/* ── 커맨드 결과 모달 ── */}
-      {outputModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
-          onClick={() => setOutputModal(null)}>
-          <div style={{ background: "#FEFBF0", border: "3px solid #1A1A1A", boxShadow: "8px 8px 0 #1A1A1A", width: "100%", maxWidth: 560, maxHeight: "80vh", display: "flex", flexDirection: "column" }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ background: "#1A1A1A", padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontFamily: "IBM Plex Mono, monospace", fontWeight: 700, fontSize: 13, color: "#fff", letterSpacing: 2 }}>{outputModal.name.toUpperCase()} 결과</span>
-              <button onClick={() => setOutputModal(null)} style={{ background: "transparent", border: "1px solid #555", color: "#aaa", cursor: "pointer", padding: "2px 8px", fontSize: 14, fontWeight: 700 }}>✕</button>
-            </div>
-            <div style={{ overflowY: "auto", padding: "16px 20px" }}>
-              <pre style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, lineHeight: 1.7, color: "#1A1A1A", whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>{outputModal.content}</pre>
-            </div>
-            <div style={{ padding: "10px 20px", borderTop: "2px solid #1A1A1A", display: "flex", justifyContent: "flex-end" }}>
-              <button className="btn btn-ghost btn-sm" onClick={() => setOutputModal(null)}>닫기</button>
-            </div>
-          </div>
-        </div>
-      )}
       <div className="page-header" style={{ padding: "14px 20px 12px" }}>
         <span className="page-title">HOME</span>
         <div
@@ -393,7 +306,6 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
         </div>
       </div>
 
-      {error && <div className="alert alert-error" style={{ margin: "0 20px 8px" }}>{error}</div>}
 
       <div className="page-content">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -454,111 +366,6 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
             <ExportCard projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={aiKeyStatusLoaded} onOpenSettings={onOpenSettings} />
             <ProtectCard projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={aiKeyStatusLoaded} onOpenSettings={onOpenSettings} />
             <SecretsCard projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={aiKeyStatusLoaded} onOpenSettings={onOpenSettings} />
-            {((() => {
-              const EXCLUDE = ["scan","watch","guard","checkpoint","transfer","history","patch","start","doctor","config","rules","install","manual","policy","undo","anchor","explain","ask","export","protect","secrets"];
-              const toneRank = (color: string) => {
-                if (color === "#FFE44D" || color === "#FFD166" || color === "#F5621E") return 0; // warm
-                if (color === "#FF4D4D" || color === "#FF4D8B") return 1; // red/pink
-                if (color === "#4D9FFF") return 2; // blue
-                if (color === "#7B4DFF") return 3; // purple
-                if (color === "#4DFF91") return 4; // green
-                return 5;
-              };
-              return COMMANDS
-                .filter(c => !EXCLUDE.includes(c.name))
-                .sort((a, b) => toneRank(a.color) - toneRank(b.color) || a.title.localeCompare(b.title, "ko"));
-            })()).map(cmd => {
-              const st = cmdStates[cmd.name] ?? "idle";
-              const out = cmdOutputs[cmd.name] ?? "";
-              const hasWarning = cmdHasWarnings[cmd.name] ?? false;
-              return (
-                <div key={cmd.name} className="feature-card" style={{ cursor: "default" }}>
-                  <div className="feature-card-header" style={{ background: cmd.color + "18", padding: "8px 12px" }}>
-                    <div className="feature-card-icon" style={{
-                      background: cmd.color, color: "#fff", borderColor: cmd.color,
-                      width: 22, height: 22, fontSize: 11, fontWeight: 900,
-                    }}>{cmd.icon}</div>
-                    <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                      <span style={{ fontWeight: 700, fontSize: 16.5, flexShrink: 0 }}>{cmd.title}</span>
-                      <span style={{ fontSize: 9, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>{cmd.short}</span>
-                    </div>
-                    {(st === "done" || (st === "idle" && out)) && !hasWarning && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>}
-                    {hasWarning && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#FFD166", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>주의</span>}
-                    {st === "error" && <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", background: "#FF4D4D", color: "#fff", border: "1px solid #1A1A1A" }}>오류</span>}
-                  </div>
-                  <div className="feature-card-body" style={{ padding: "6px 12px 8px" }}>
-                    {!((cmd as any).flags as FlagDef[] | undefined)?.some((f: FlagDef) => f.type === "text" || f.type === "select") && (
-                      <GuiCliOutputBlock
-                        text={out}
-                        placeholder={cmd.short}
-                        variant={st === "error" ? "error" : hasWarning ? "warn" : "default"}
-                      />
-                    )}
-                    {((cmd as any).flags as FlagDef[] | undefined)?.map((fd: FlagDef, fi: number) => {
-                      const fvals = cmdFlagValues[cmd.name] ?? {};
-                      const val: string | boolean = fvals[fd.key] ?? (fd.type === "bool" ? false : (fd.type === "select" && fd.options.length > 0 ? fd.options[0].v : ""));
-                      if (fd.type === "bool") return (
-                        <button key={fi} onClick={() => setCmdFlagValues(m => ({ ...m, [cmd.name]: { ...(m[cmd.name] ?? {}), [fd.key]: !val } }))} style={{
-                          fontSize: 9, fontWeight: 700, padding: "2px 6px", marginRight: 4, marginBottom: 4,
-                          border: "2px solid #1A1A1A",
-                          background: val ? "#1A1A1A" : "#fff",
-                          color: val ? "#fff" : "#1A1A1A", cursor: "pointer",
-                        }}>{fd.label}</button>
-                      );
-                      if (fd.type === "text") return (
-                        <div key={fi} style={{ display: "flex", gap: 4, marginBottom: 4 }}>
-                          <input value={String(val)} onChange={e => setCmdFlagValues(m => ({ ...m, [cmd.name]: { ...(m[cmd.name] ?? {}), [fd.key]: e.target.value } }))} placeholder={(fd as any).placeholder} style={{
-                            flex: 1, fontSize: 10, padding: "3px 6px",
-                            border: "2px solid #1A1A1A", boxSizing: "border-box" as const,
-                            fontFamily: "IBM Plex Mono, monospace", background: "#fff", minWidth: 0,
-                          }} />
-                          {fd.key === "_file" && (
-                            <button onClick={async () => {
-                              const picked = await pickFile(projectDir);
-                              if (picked) {
-                                const rel = picked.startsWith(projectDir + "/") ? picked.slice(projectDir.length + 1) : picked;
-                                setCmdFlagValues(m => ({ ...m, [cmd.name]: { ...(m[cmd.name] ?? {}), [fd.key]: rel } }));
-                              }
-                            }} style={{ padding: "2px 6px", border: "2px solid #1A1A1A", background: "#fff", cursor: "pointer", fontSize: 13, flexShrink: 0 }}>📁</button>
-                          )}
-                        </div>
-                      );
-                      if (fd.type === "select") return (
-                        <select key={fi} value={String(val)} onChange={e => setCmdFlagValues(m => ({ ...m, [cmd.name]: { ...(m[cmd.name] ?? {}), [fd.key]: e.target.value } }))} style={{
-                          width: "100%", fontSize: 10, padding: "3px 6px", marginBottom: 4,
-                          border: "2px solid #1A1A1A", boxSizing: "border-box" as const,
-                          fontFamily: "IBM Plex Mono, monospace", cursor: "pointer", background: "#fff",
-                        }}>
-                          {fd.options.map((o: { v: string; l: string }) => <option key={o.v} value={o.v}>{o.l}</option>)}
-                        </select>
-                      );
-                      return null;
-                    })}
-                    {out && ((cmd as any).flags as FlagDef[] | undefined)?.some((f: FlagDef) => f.type === "text" || f.type === "select") && (
-                      <GuiCliOutputBlock
-                        text={out}
-                        placeholder=""
-                        variant={st === "error" ? "error" : hasWarning ? "warn" : "default"}
-                      />
-                    )}
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <button
-                        className="btn btn-sm"
-                        style={{ flex: 1, background: cmd.color, color: cmd.color === "#FFD166" || cmd.color === "#FFE44D" ? "#1A1A1A" : "#fff", border: "2px solid #1A1A1A", fontSize: 10 }}
-                        disabled={st === "loading"}
-                        onClick={() => cmd.name === "manual" ? setView("manual_list") : handleRunCmd(cmd.name)}
-                      >
-                        {st === "loading" ? <span className="spinner" /> : `${cmd.name.toUpperCase()} ▶`}
-                      </button>
-                      {out && (
-                        <button className="btn btn-ghost btn-sm" style={{ fontSize: 9, border: "2px solid #1A1A1A", flexShrink: 0 }}
-                          onClick={() => setOutputModal({ name: cmd.name, content: out })}>결과</button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
 
