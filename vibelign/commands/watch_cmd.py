@@ -4,6 +4,7 @@ from pathlib import Path
 from collections.abc import Callable
 from typing import cast
 
+from vibelign.core.project_root import resolve_project_root
 
 from vibelign.terminal_render import cli_print
 
@@ -16,6 +17,7 @@ def run_watch_cmd(args: Namespace) -> None:
 
     run_watch_obj = cast(object, watch_engine_mod.run_watch)
     run_watch = cast(Callable[[dict[str, object]], None], run_watch_obj)
+    root = resolve_project_root(Path.cwd())
     try:
         run_watch(
             {
@@ -23,7 +25,7 @@ def run_watch_cmd(args: Namespace) -> None:
                 "write_log": bool(getattr(args, "write_log", False)),
                 "json": bool(getattr(args, "json", False)),
                 "debounce_ms": int(getattr(args, "debounce_ms", 0) or 0),
-                "root": str(Path.cwd()),
+                "root": str(root),
             }
         )
     except RuntimeError as e:
