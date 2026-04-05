@@ -1,11 +1,12 @@
 // === ANCHOR: HOME_START ===
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { vibScan, startWatch, stopWatch, watchStatus, checkpointCreate, runVib, pickFile, GuardResult, buildGuiAiEnv } from "../lib/vib";
+import { vibScan, startWatch, stopWatch, watchStatus, runVib, pickFile, GuardResult, buildGuiAiEnv } from "../lib/vib";
 import { COMMANDS, CardState, FlagDef, GuideStep, buildCmdArgs } from "../lib/commands";
 import { GuiCliOutputBlock } from "../components/GuiCliOutputBlock";
 import UndoCard from "../components/cards/backup/UndoCard";
 import HistoryCard from "../components/cards/backup/HistoryCard";
+import CheckpointCard from "../components/cards/backup/CheckpointCard";
 import GuardCard from "../components/cards/analysis/GuardCard";
 import AnchorCard from "../components/cards/analysis/AnchorCard";
 import PatchCard from "../components/cards/ai/PatchCard";
@@ -51,8 +52,6 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
   const [mapModeLocal, setMapModeLocal]   = useState<"manual"|"auto">(mapModeProp ?? "manual");
   const mapMode = mapModeProp ?? mapModeLocal;
   const setMapMode = (v: "manual"|"auto") => { setMapModeLocal(v); setMapModeProp?.(v); };
-  const [cpMsg, setCpMsg]                 = useState("");
-  const [cpState, setCpState]             = useState<CardState>("idle");
   const [error, setError]                 = useState<string | null>(null);
   const [cmdStates, setCmdStates]         = useState<Record<string, CardState>>({});
   const [cmdOutputs, setCmdOutputs]       = useState<Record<string, string>>({});
@@ -107,15 +106,6 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
     finally { setWatchLoading(false); }
   }
 
-  async function handleCheckpoint() {
-    if (!cpMsg.trim()) return;
-    setCpState("loading"); setError(null);
-    try {
-      await checkpointCreate(projectDir, cpMsg.trim());
-      setCpMsg(""); setCpState("done");
-      setTimeout(() => setCpState("idle"), 2000);
-    } catch (e) { setError(String(e)); setCpState("error"); }
-  }
 
   async function handleRunCmd(name: string) {
     if (name === "undo") { onNavigate("checkpoints"); return; }
@@ -511,39 +501,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
           />
 
           {/* ── 체크포인트 ── */}
-          <div className="feature-card" style={{ cursor: "default" }}>
-            <div className="feature-card-header" style={{ background: "#7B4DFF18", padding: "10px 14px" }}>
-              <div className="feature-card-icon"
-                style={{ background: "#7B4DFF", color: "#fff", borderColor: "#7B4DFF", width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>💾</div>
-              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                <span style={{ fontWeight: 700, fontSize: 18, flexShrink: 0 }}>체크포인트</span>
-                <span style={{ fontSize: 10, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>
-                  지금 코드 모습을 저장해 두면 나중에 그때로 되돌릴 수 있어요 (게임 세이브 같아요)
-                </span>
-              </div>
-              {cpState === "done" && (
-                <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>저장됨</span>
-              )}
-            </div>
-            <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
-              <input
-                className="input-field"
-                value={cpMsg}
-                onChange={(e) => setCpMsg(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleCheckpoint()}
-                placeholder="메시지 입력..."
-                style={{ width: "100%", marginBottom: 6, fontSize: 11, padding: "4px 8px", boxSizing: "border-box" }}
-              />
-              <div style={{ display: "flex", gap: 6 }}>
-                <button className="btn btn-sm" style={{ flex: 1, background: "#7B4DFF", color: "#fff", border: "2px solid #1A1A1A" }}
-                  disabled={cpState === "loading" || !cpMsg.trim()} onClick={handleCheckpoint}>
-                  {cpState === "loading" ? <span className="spinner" /> : "저장 ▶"}
-                </button>
-                <button className="btn btn-ghost btn-sm" style={{ fontSize: 10, border: "2px solid #1A1A1A" }}
-                  onClick={() => onNavigate("checkpoints")}>목록</button>
-              </div>
-            </div>
-          </div>
+          <CheckpointCard projectDir={projectDir} onNavigate={onNavigate} />
 
           {/* ── AI 이동 자유 ── */}
           <TransferCard projectDir={projectDir} />
