@@ -10,6 +10,10 @@
     "core:window:allow-close",
     "opener:default",
     "opener:allow-open-path",
-    "dialog:default"
+    "dialog:default",
+    "store:allow-load",
+    "store:allow-get",
+    "store:allow-set",
+    "store:allow-save"
   ]
 }
