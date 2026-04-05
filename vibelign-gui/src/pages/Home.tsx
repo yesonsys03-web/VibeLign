@@ -4,6 +4,13 @@ import { listen } from "@tauri-apps/api/event";
 import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch, watchStatus, checkpointCreate, runVib, pickFile, GuardResult, buildGuiAiEnv } from "../lib/vib";
 import { COMMANDS, PATCH_COMMAND, CardState, FlagDef, GuideStep, buildCmdArgs } from "../lib/commands";
 import { GuiCliOutputBlock } from "../components/GuiCliOutputBlock";
+import UndoCard from "../components/cards/backup/UndoCard";
+import AnchorCard from "../components/cards/analysis/AnchorCard";
+import ExplainCard from "../components/cards/ai/ExplainCard";
+import AskCard from "../components/cards/ai/AskCard";
+import ExportCard from "../components/cards/transfer/ExportCard";
+import ProtectCard from "../components/cards/security/ProtectCard";
+import SecretsCard from "../components/cards/security/SecretsCard";
 import pkg from "../../package.json";
 
 type View = "home" | "manual_list" | "manual_detail";
@@ -791,8 +798,15 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
             커맨드
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <UndoCard projectDir={projectDir} onNavigate={onNavigate} />
+            <AnchorCard projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={aiKeyStatusLoaded} onOpenSettings={onOpenSettings} />
+            <ExplainCard projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={aiKeyStatusLoaded} onOpenSettings={onOpenSettings} />
+            <AskCard projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={aiKeyStatusLoaded} onOpenSettings={onOpenSettings} />
+            <ExportCard projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={aiKeyStatusLoaded} onOpenSettings={onOpenSettings} />
+            <ProtectCard projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={aiKeyStatusLoaded} onOpenSettings={onOpenSettings} />
+            <SecretsCard projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={aiKeyStatusLoaded} onOpenSettings={onOpenSettings} />
             {((() => {
-              const EXCLUDE = ["scan","watch","guard","checkpoint","transfer","history","patch","start","doctor","config","rules","install","manual","policy"];
+              const EXCLUDE = ["scan","watch","guard","checkpoint","transfer","history","patch","start","doctor","config","rules","install","manual","policy","undo","anchor","explain","ask","export","protect","secrets"];
               const toneRank = (color: string) => {
                 if (color === "#FFE44D" || color === "#FFD166" || color === "#F5621E") return 0; // warm
                 if (color === "#FF4D4D" || color === "#FF4D8B") return 1; // red/pink
