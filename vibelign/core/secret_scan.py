@@ -225,6 +225,8 @@ def scan_unified_diff_for_secrets(
 
 # === ANCHOR: SECRET_SCAN_SCAN_STAGED_SECRETS_START ===
 def scan_staged_secrets(root: Path) -> SecretScanResult:
+    if not (root / ".git").is_dir():
+        return SecretScanResult(findings=[])
     findings: list[SecretFinding] = []
     names_output = _run_git(root, ["diff", "--cached", "--name-only", "-z"])
     staged_paths = [item for item in names_output.split("\0") if item]
