@@ -6,6 +6,7 @@ from vibelign.core.git_hooks import (
     install_pre_commit_secret_hook,
     uninstall_pre_commit_secret_hook,
 )
+from vibelign.core.project_root import resolve_project_root
 from vibelign.core.secret_scan import SecretFinding, scan_staged_secrets
 from vibelign.terminal_render import (
     clack_error,
@@ -24,12 +25,14 @@ def _print_findings(findings: list[SecretFinding]) -> None:
         if finding.line_number is not None:
             location += f":{finding.line_number}"
         clack_warn(f"{location} [{finding.rule_id}] {finding.snippet}")
+
+
 # === ANCHOR: VIB_SECRETS_CMD__PRINT_FINDINGS_END ===
 
 
 # === ANCHOR: VIB_SECRETS_CMD_RUN_VIB_SECRETS_START ===
 def run_vib_secrets(args: Namespace) -> None:
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
 
     if getattr(args, "install_hook", False):
         result = install_pre_commit_secret_hook(root)
@@ -91,5 +94,7 @@ def run_vib_secrets(args: Namespace) -> None:
         raise SystemExit(1)
 
     clack_success("staged 변경사항에서 비밀정보를 찾지 못했어요.")
+
+
 # === ANCHOR: VIB_SECRETS_CMD_RUN_VIB_SECRETS_END ===
 # === ANCHOR: VIB_SECRETS_CMD_END ===

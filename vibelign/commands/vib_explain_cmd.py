@@ -13,6 +13,7 @@ from vibelign.core.change_explainer import (
     explain_from_mtime,
 )
 from vibelign.core.meta_paths import MetaPaths
+from vibelign.core.project_root import resolve_project_root
 from vibelign.terminal_render import print_ai_response
 
 
@@ -67,11 +68,11 @@ def _risk_label(level: str) -> str:
 
 
 def _resolve_file_path(
-    root: Path, file_arg: str
+    root: Path, cwd: Path, file_arg: str
 ) -> tuple[str | None, Path | None, str | None]:
     """파일 인자를 절대 경로로 해석. (rel_path, abs_path, error_msg) 반환."""
     p = Path(file_arg)
-    abs_path = p if p.is_absolute() else root / p
+    abs_path = p.resolve() if p.is_absolute() else (cwd / p).resolve()
     if not abs_path.exists():
         return (
             None,
@@ -99,10 +100,10 @@ def _error_explain_data(file_arg: str) -> ExplainData:
 
 
 def _build_file_explain_envelope(
-    root: Path, file_arg: str, since_minutes: int
+    root: Path, cwd: Path, file_arg: str, since_minutes: int
 ) -> ExplainEnvelope:
     """특정 파일의 변경 설명 envelope 를 반환."""
-    rel, _abs, err = _resolve_file_path(root, file_arg)
+    rel, _abs, err = _resolve_file_path(root, cwd, file_arg)
     if err:
         return {
             "ok": False,
@@ -214,14 +215,15 @@ def _render_markdown(data: ExplainData) -> str:
 
 
 def run_vib_explain(args: ExplainArgs) -> None:
-    root = Path.cwd()
+    cwd = Path.cwd()
+    root = resolve_project_root(cwd)
     meta = MetaPaths(root)
 
     # ── 파일 인자가 있으면 파일별 explain 모드
     file_arg = args.file or ""
     if file_arg:
         envelope = _build_file_explain_envelope(
-            root, file_arg, since_minutes=args.since_minutes
+            root, cwd, file_arg, since_minutes=args.since_minutes
         )
         if not envelope["ok"]:
             err = envelope["error"]
