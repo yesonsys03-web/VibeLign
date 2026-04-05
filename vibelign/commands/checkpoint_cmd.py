@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import cast
 
 from vibelign.core.local_checkpoints import create_checkpoint
+from vibelign.core.project_root import resolve_project_root
 
 
 from vibelign.terminal_render import cli_print
@@ -14,7 +15,7 @@ print = cli_print
 
 # === ANCHOR: CHECKPOINT_CMD_RUN_CHECKPOINT_START ===
 def run_checkpoint(args: Namespace) -> None:
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     message_value = getattr(args, "message", [])
     message = (

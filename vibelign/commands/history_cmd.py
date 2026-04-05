@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Protocol
 
 from vibelign.core.local_checkpoints import list_checkpoints
+from vibelign.core.project_root import resolve_project_root
 
 
 from vibelign.terminal_render import cli_print
@@ -16,7 +17,7 @@ class HistoryArgs(Protocol):
 
 
 def run_history(_args: HistoryArgs) -> None:
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
     checkpoints = list_checkpoints(root)
     if not checkpoints:
         print("저장된 체크포인트가 없습니다.")
