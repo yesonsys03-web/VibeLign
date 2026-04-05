@@ -1,11 +1,12 @@
 // === ANCHOR: HOME_START ===
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch, watchStatus, checkpointCreate, runVib, pickFile, GuardResult, buildGuiAiEnv } from "../lib/vib";
+import { vibScan, vibTransfer, startWatch, stopWatch, watchStatus, checkpointCreate, runVib, pickFile, GuardResult, buildGuiAiEnv } from "../lib/vib";
 import { COMMANDS, PATCH_COMMAND, CardState, FlagDef, GuideStep, buildCmdArgs } from "../lib/commands";
 import { GuiCliOutputBlock } from "../components/GuiCliOutputBlock";
 import UndoCard from "../components/cards/backup/UndoCard";
 import HistoryCard from "../components/cards/backup/HistoryCard";
+import GuardCard from "../components/cards/analysis/GuardCard";
 import AnchorCard from "../components/cards/analysis/AnchorCard";
 import ExplainCard from "../components/cards/ai/ExplainCard";
 import AskCard from "../components/cards/ai/AskCard";
@@ -36,7 +37,6 @@ interface HomeProps {
 export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, mapMode: mapModeProp, setMapMode: setMapModeProp }: HomeProps) {
   const [view, setView]                   = useState<View>(initialView);
   const [selectedCmd, setSelectedCmd]     = useState<typeof COMMANDS[0] | null>(null);
-  const [guardState, setGuardState]       = useState<CardState>("idle");
   const [guardResult, setGuardResult]     = useState<GuardResult | null>(null);
   const [guardModal, setGuardModal] = useState(false);
   const [scanState, setScanState]         = useState<CardState>("idle");
@@ -57,7 +57,6 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
   const [cmdOutputs, setCmdOutputs]       = useState<Record<string, string>>({});
   const [cmdHasWarnings, setCmdHasWarnings] = useState<Record<string, boolean>>({});
   const [cmdFlagValues, setCmdFlagValues]     = useState<Record<string, Record<string, string | boolean>>>({});
-  const [guardStrict, setGuardStrict]         = useState(false);
   const [transferHandoff, setTransferHandoff] = useState(false);
   const [transferCompact, setTransferCompact] = useState(false);
   const [outputModal, setOutputModal]         = useState<{ name: string; content: string } | null>(null);
@@ -70,16 +69,6 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
       });
     };
   }, []);
-
-  async function handleGuard() {
-    setGuardState("loading"); setGuardResult(null); setError(null);
-    try {
-      const r = await vibGuard(projectDir, { strict: guardStrict });
-      setGuardResult(r);
-      setGuardModal(true);
-      setGuardState("done");
-    } catch (e) { setError(String(e)); setGuardState("error"); }
-  }
 
   async function handleScan() {
     setScanState("loading"); setError(null);
@@ -416,7 +405,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
             {/* 모달 푸터 */}
             <div style={{ padding: "12px 20px", borderTop: "2px solid #1A1A1A", display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button className="btn btn-ghost btn-sm" onClick={() => setGuardModal(false)}>닫기</button>
-              <button className="btn btn-sm" style={{ background: "#FF4D8B" }} onClick={() => { setGuardModal(false); handleGuard(); }}>다시 실행</button>
+              <button className="btn btn-sm" style={{ background: "#FF4D8B" }} onClick={() => setGuardModal(false)}>닫고 다시 실행</button>
             </div>
           </div>
         </div>
@@ -526,49 +515,10 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
           </div>
 
           {/* ── AI 폭주 방지 ── */}
-          <div className="feature-card" style={{ cursor: "default" }}>
-            <div className="feature-card-header" style={{ background: "#FF4D8B18", padding: "10px 14px" }}>
-              <div className="feature-card-icon"
-                style={{ background: "#FF4D8B", color: "#fff", borderColor: "#FF4D8B", width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>♥</div>
-              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                <span style={{ fontWeight: 700, fontSize: 18, flexShrink: 0 }}>AI 방지</span>
-                <span style={{ fontSize: 10, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>
-                  AI가 코드를 이상하게 바꿨는지, 몸 검진하듯 살펴봐요
-                </span>
-              </div>
-              {guardState === "done" && guardResult && (
-                <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: guardColor(guardResult.status), color: "#1A1A1A", border: "1px solid #1A1A1A" }}>
-                  {guardResult.status.toUpperCase()}
-                </span>
-              )}
-            </div>
-            <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
-              <div style={{ fontSize: 16.5, color: "#555", marginBottom: 8 }}>
-                {guardResult ? guardResult.summary.slice(0, 60) + "…" : "프로젝트 상태 점검"}
-              </div>
-              <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
-                <button onClick={() => setGuardStrict(s => !s)} style={{
-                  fontSize: 9, fontWeight: 700, padding: "2px 8px",
-                  border: "2px solid #1A1A1A",
-                  background: guardStrict ? "#1A1A1A" : "#fff",
-                  color: guardStrict ? "#fff" : "#1A1A1A", cursor: "pointer",
-                }}>--strict</button>
-              </div>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button className="btn btn-sm" style={{ flex: 1, background: "#FF4D8B", color: "#fff", border: "2px solid #1A1A1A" }}
-                  disabled={guardState === "loading"} onClick={handleGuard}>
-                  {guardState === "loading" ? <span className="spinner" /> : "GUARD ▶"}
-                </button>
-                {guardResult && (
-                  <button className="btn btn-ghost btn-sm" style={{ fontSize: 10, border: "2px solid #1A1A1A" }}
-                    onClick={() => setGuardModal(true)}>결과 보기</button>
-                )}
-              </div>
-              {guardState === "error" && error && (
-                <div className="alert alert-error" style={{ marginTop: 6, fontSize: 10 }}>{error}</div>
-              )}
-            </div>
-          </div>
+          <GuardCard
+            projectDir={projectDir}
+            onGuardResult={(r) => { setGuardResult(r); setGuardModal(true); }}
+          />
 
           {/* ── 체크포인트 ── */}
           <div className="feature-card" style={{ cursor: "default" }}>
