@@ -1,7 +1,23 @@
 // === ANCHOR: HOME_START ===
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
+import {
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { GuardResult } from "../lib/vib";
 import { COMMANDS, GuideStep } from "../lib/commands";
+import { useCardOrder } from "../hooks/useCardOrder";
 import UndoCard from "../components/cards/backup/UndoCard";
 import HistoryCard from "../components/cards/backup/HistoryCard";
 import CheckpointCard from "../components/cards/backup/CheckpointCard";
@@ -16,6 +32,62 @@ import ExportCard from "../components/cards/transfer/ExportCard";
 import ProtectCard from "../components/cards/security/ProtectCard";
 import SecretsCard from "../components/cards/security/SecretsCard";
 import pkg from "../../package.json";
+
+// ── 드래그 래퍼 ───────────────────────────────────────────────────────────────
+function SortableCardWrapper({ id, children }: { id: string; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        cursor: isDragging ? "grabbing" : "grab",
+        zIndex: isDragging ? 10 : undefined,
+      }}
+      {...attributes}
+      {...listeners}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ── 카드 렌더 props ────────────────────────────────────────────────────────────
+interface CardRenderProps {
+  projectDir: string;
+  apiKey?: string | null;
+  providerKeys?: Record<string, string>;
+  hasAnyAiKey: boolean;
+  aiKeyStatusLoaded: boolean;
+  onNavigate: (page: "checkpoints") => void;
+  onOpenSettings?: (reason?: string) => void;
+  watchOn: boolean;
+  setWatchOn: (v: boolean) => void;
+  mapMode: "manual" | "auto";
+  setMapMode: (v: "manual" | "auto") => void;
+  onGuardResult: (r: GuardResult) => void;
+}
+
+function renderCard(id: string, p: CardRenderProps): ReactNode {
+  switch (id) {
+    case "codemap":    return <CodemapCard projectDir={p.projectDir} watchOn={p.watchOn} setWatchOn={p.setWatchOn} mapMode={p.mapMode} setMapMode={p.setMapMode} />;
+    case "guard":      return <GuardCard projectDir={p.projectDir} onGuardResult={p.onGuardResult} />;
+    case "checkpoint": return <CheckpointCard projectDir={p.projectDir} onNavigate={p.onNavigate} />;
+    case "transfer":   return <TransferCard projectDir={p.projectDir} />;
+    case "history":    return <HistoryCard projectDir={p.projectDir} />;
+    case "patch":      return <PatchCard projectDir={p.projectDir} apiKey={p.apiKey} providerKeys={p.providerKeys} hasAnyAiKey={p.hasAnyAiKey} aiKeyStatusLoaded={p.aiKeyStatusLoaded} onOpenSettings={p.onOpenSettings} />;
+    case "undo":       return <UndoCard projectDir={p.projectDir} onNavigate={p.onNavigate} />;
+    case "anchor":     return <AnchorCard projectDir={p.projectDir} apiKey={p.apiKey} providerKeys={p.providerKeys} hasAnyAiKey={p.hasAnyAiKey} aiKeyStatusLoaded={p.aiKeyStatusLoaded} onOpenSettings={p.onOpenSettings} />;
+    case "explain":    return <ExplainCard projectDir={p.projectDir} apiKey={p.apiKey} providerKeys={p.providerKeys} hasAnyAiKey={p.hasAnyAiKey} aiKeyStatusLoaded={p.aiKeyStatusLoaded} onOpenSettings={p.onOpenSettings} />;
+    case "ask":        return <AskCard projectDir={p.projectDir} apiKey={p.apiKey} providerKeys={p.providerKeys} hasAnyAiKey={p.hasAnyAiKey} aiKeyStatusLoaded={p.aiKeyStatusLoaded} onOpenSettings={p.onOpenSettings} />;
+    case "export":     return <ExportCard projectDir={p.projectDir} apiKey={p.apiKey} providerKeys={p.providerKeys} hasAnyAiKey={p.hasAnyAiKey} aiKeyStatusLoaded={p.aiKeyStatusLoaded} onOpenSettings={p.onOpenSettings} />;
+    case "protect":    return <ProtectCard projectDir={p.projectDir} apiKey={p.apiKey} providerKeys={p.providerKeys} hasAnyAiKey={p.hasAnyAiKey} aiKeyStatusLoaded={p.aiKeyStatusLoaded} onOpenSettings={p.onOpenSettings} />;
+    case "secrets":    return <SecretsCard projectDir={p.projectDir} apiKey={p.apiKey} providerKeys={p.providerKeys} hasAnyAiKey={p.hasAnyAiKey} aiKeyStatusLoaded={p.aiKeyStatusLoaded} onOpenSettings={p.onOpenSettings} />;
+    default:           return null;
+  }
+}
 
 type View = "home" | "manual_list" | "manual_detail";
 
@@ -48,7 +120,20 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
   const mapMode = mapModeProp ?? mapModeLocal;
   const setMapMode = (v: "manual"|"auto") => { setMapModeLocal(v); setMapModeProp?.(v); };
 
+  const { cardOrder, setCardOrder, resetOrder } = useCardOrder();
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = cardOrder.indexOf(String(active.id));
+      const newIndex = cardOrder.indexOf(String(over.id));
+      setCardOrder(arrayMove(cardOrder, oldIndex, newIndex));
+    }
+  }
 
   function guardColor(status: string) {
     if (status === "pass") return "#4DFF91";
@@ -281,8 +366,17 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
           </div>
         </div>
       )}
+
       <div className="page-header" style={{ padding: "14px 20px 12px" }}>
         <span className="page-title">HOME</span>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={resetOrder}
+          style={{ fontSize: 10, padding: "2px 8px", border: "1.5px solid #ccc", color: "#888" }}
+          title="카드 순서 초기화"
+        >
+          ↺
+        </button>
         <div
           className="terminal"
           style={{
@@ -306,69 +400,35 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
         </div>
       </div>
 
-
       <div className="page-content">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-
-          {/* ── 코드맵 생성 ── */}
-          <CodemapCard
-            projectDir={projectDir}
-            watchOn={watchOn}
-            setWatchOn={setWatchOn}
-            mapMode={mapMode}
-            setMapMode={setMapMode}
-          />
-
-          {/* ── AI 폭주 방지 ── */}
-          <GuardCard
-            projectDir={projectDir}
-            onGuardResult={(r) => { setGuardResult(r); setGuardModal(true); }}
-          />
-
-          {/* ── 체크포인트 ── */}
-          <CheckpointCard projectDir={projectDir} onNavigate={onNavigate} />
-
-          {/* ── AI 이동 자유 ── */}
-          <TransferCard projectDir={projectDir} />
-
-          {/* ── 히스토리 + 패치 (한 행: 히스토리 왼쪽, 패치 오른쪽) ── */}
-          <div
-            style={{
-              gridColumn: "1 / -1",
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 8,
-            }}
-          >
-            <HistoryCard projectDir={projectDir} />
-            <PatchCard
-              projectDir={projectDir}
-              apiKey={apiKey}
-              providerKeys={providerKeys}
-              hasAnyAiKey={hasAnyAiKey}
-              aiKeyStatusLoaded={aiKeyStatusLoaded}
-              onOpenSettings={onOpenSettings}
-            />
-          </div>
-
-        </div>
-
-        {/* ── 커맨드 섹션 ── */}
-        <div style={{ marginTop: 16 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#888", letterSpacing: "0.08em", marginBottom: 6, paddingLeft: 2 }}>
-            커맨드
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <UndoCard projectDir={projectDir} onNavigate={onNavigate} />
-            <AnchorCard projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={aiKeyStatusLoaded} onOpenSettings={onOpenSettings} />
-            <ExplainCard projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={aiKeyStatusLoaded} onOpenSettings={onOpenSettings} />
-            <AskCard projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={aiKeyStatusLoaded} onOpenSettings={onOpenSettings} />
-            <ExportCard projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={aiKeyStatusLoaded} onOpenSettings={onOpenSettings} />
-            <ProtectCard projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={aiKeyStatusLoaded} onOpenSettings={onOpenSettings} />
-            <SecretsCard projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={aiKeyStatusLoaded} onOpenSettings={onOpenSettings} />
-          </div>
-        </div>
-
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={cardOrder} strategy={rectSortingStrategy}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {cardOrder.map((id) => (
+                <SortableCardWrapper key={id} id={id}>
+                  {renderCard(id, {
+                    projectDir,
+                    apiKey,
+                    providerKeys,
+                    hasAnyAiKey,
+                    aiKeyStatusLoaded,
+                    onNavigate,
+                    onOpenSettings,
+                    watchOn,
+                    setWatchOn,
+                    mapMode,
+                    setMapMode,
+                    onGuardResult: (r) => { setGuardResult(r); setGuardModal(true); },
+                  })}
+                </SortableCardWrapper>
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       </div>
     </div>
   );
