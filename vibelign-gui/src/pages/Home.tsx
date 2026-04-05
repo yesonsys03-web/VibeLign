@@ -1,7 +1,7 @@
 // === ANCHOR: HOME_START ===
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { vibScan, vibTransfer, startWatch, stopWatch, watchStatus, checkpointCreate, runVib, pickFile, GuardResult, buildGuiAiEnv } from "../lib/vib";
+import { vibScan, startWatch, stopWatch, watchStatus, checkpointCreate, runVib, pickFile, GuardResult, buildGuiAiEnv } from "../lib/vib";
 import { COMMANDS, CardState, FlagDef, GuideStep, buildCmdArgs } from "../lib/commands";
 import { GuiCliOutputBlock } from "../components/GuiCliOutputBlock";
 import UndoCard from "../components/cards/backup/UndoCard";
@@ -11,6 +11,7 @@ import AnchorCard from "../components/cards/analysis/AnchorCard";
 import PatchCard from "../components/cards/ai/PatchCard";
 import ExplainCard from "../components/cards/ai/ExplainCard";
 import AskCard from "../components/cards/ai/AskCard";
+import TransferCard from "../components/cards/transfer/TransferCard";
 import ExportCard from "../components/cards/transfer/ExportCard";
 import ProtectCard from "../components/cards/security/ProtectCard";
 import SecretsCard from "../components/cards/security/SecretsCard";
@@ -50,7 +51,6 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
   const [mapModeLocal, setMapModeLocal]   = useState<"manual"|"auto">(mapModeProp ?? "manual");
   const mapMode = mapModeProp ?? mapModeLocal;
   const setMapMode = (v: "manual"|"auto") => { setMapModeLocal(v); setMapModeProp?.(v); };
-  const [transferState, setTransferState] = useState<CardState>("idle");
   const [cpMsg, setCpMsg]                 = useState("");
   const [cpState, setCpState]             = useState<CardState>("idle");
   const [error, setError]                 = useState<string | null>(null);
@@ -58,8 +58,6 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
   const [cmdOutputs, setCmdOutputs]       = useState<Record<string, string>>({});
   const [cmdHasWarnings, setCmdHasWarnings] = useState<Record<string, boolean>>({});
   const [cmdFlagValues, setCmdFlagValues]     = useState<Record<string, Record<string, string | boolean>>>({});
-  const [transferHandoff, setTransferHandoff] = useState(false);
-  const [transferCompact, setTransferCompact] = useState(false);
   const [outputModal, setOutputModal]         = useState<{ name: string; content: string } | null>(null);
   const cmdIdleTimers = useRef<Record<string, number>>({});
 
@@ -117,15 +115,6 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
       setCpMsg(""); setCpState("done");
       setTimeout(() => setCpState("idle"), 2000);
     } catch (e) { setError(String(e)); setCpState("error"); }
-  }
-
-  async function handleTransfer() {
-    setTransferState("loading"); setError(null);
-    try {
-      const r = await vibTransfer(projectDir, { handoff: transferHandoff, compact: transferCompact });
-      if (!r.ok) throw new Error(r.stderr || `exit ${r.exit_code}`);
-      setTransferState("done");
-    } catch (e) { setError(String(e)); setTransferState("error"); }
   }
 
   async function handleRunCmd(name: string) {
@@ -557,42 +546,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
           </div>
 
           {/* ── AI 이동 자유 ── */}
-          <div className="feature-card" style={{ cursor: "default" }}>
-            <div className="feature-card-header" style={{ background: "#4D9FFF18", padding: "10px 14px" }}>
-              <div className="feature-card-icon"
-                style={{ background: "#4D9FFF", color: "#fff", borderColor: "#4D9FFF", width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>⇄</div>
-              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                <span style={{ fontWeight: 700, fontSize: 18, flexShrink: 0 }}>AI 이동</span>
-                <span style={{ fontSize: 10, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>
-                  다른 AI 앱으로 넘어갈 때, 지금까지 한 일을 한 장 요약으로 만들어 줘요
-                </span>
-              </div>
-              {transferState === "done" && (
-                <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>
-              )}
-            </div>
-            <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
-              <div style={{ fontSize: 16.5, color: "#555", marginBottom: 8 }}>PROJECT_CONTEXT 생성</div>
-              <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
-                <button onClick={() => setTransferHandoff(s => !s)} style={{
-                  flex: 1, fontSize: 9, fontWeight: 700, padding: "2px 0",
-                  border: "2px solid #1A1A1A",
-                  background: transferHandoff ? "#1A1A1A" : "#fff",
-                  color: transferHandoff ? "#fff" : "#1A1A1A", cursor: "pointer",
-                }}>--handoff</button>
-                <button onClick={() => setTransferCompact(s => !s)} style={{
-                  flex: 1, fontSize: 9, fontWeight: 700, padding: "2px 0",
-                  border: "2px solid #1A1A1A",
-                  background: transferCompact ? "#1A1A1A" : "#fff",
-                  color: transferCompact ? "#fff" : "#1A1A1A", cursor: "pointer",
-                }}>--compact</button>
-              </div>
-              <button className="btn btn-sm" style={{ width: "100%", background: "#4D9FFF", color: "#fff", border: "2px solid #1A1A1A" }}
-                disabled={transferState === "loading"} onClick={handleTransfer}>
-                {transferState === "loading" ? <span className="spinner" /> : "TRANSFER ▶"}
-              </button>
-            </div>
-          </div>
+          <TransferCard projectDir={projectDir} />
 
           {/* ── 히스토리 + 패치 (한 행: 히스토리 왼쪽, 패치 오른쪽) ── */}
           <div
