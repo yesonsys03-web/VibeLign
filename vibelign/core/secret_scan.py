@@ -114,7 +114,8 @@ def _run_git(root: Path, args: list[str]) -> str:
         return completed.stdout
     except subprocess.CalledProcessError as e:
         stderr = (e.stderr or "").strip()
-        if "not a git repository" in stderr.lower():
+        combined = (stderr + " " + (e.stdout or "")).lower()
+        if "not a git repository" in combined or ("unknown option" in combined and "cached" in combined):
             raise RuntimeError("git 저장소가 아닌 폴더예요. 먼저 git init 을 실행해 주세요.") from None
         raise RuntimeError(
             f"git 명령 실패 (exit {e.returncode})"
