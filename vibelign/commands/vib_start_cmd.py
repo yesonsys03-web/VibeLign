@@ -1,5 +1,8 @@
 # === ANCHOR: VIB_START_CMD_START ===
 import json
+import shutil
+import subprocess
+import sys
 from argparse import Namespace
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -172,6 +175,44 @@ def _next_step(data: dict[str, object]) -> str:
 # === ANCHOR: VIB_START_CMD__HAS_GIT_START ===
 def _has_git(root: Path) -> bool:
     return (root / ".git").is_dir()
+
+
+def _find_git_exe() -> str | None:
+    found = shutil.which("git")
+    if found:
+        return found
+    if sys.platform == "win32":
+        candidates = [
+            r"C:\Program Files\Git\mingw64\bin\git.exe",
+            r"C:\Program Files\Git\cmd\git.exe",
+            r"C:\Program Files (x86)\Git\mingw64\bin\git.exe",
+            r"C:\Program Files (x86)\Git\cmd\git.exe",
+            r"C:\Program Files (Arm)\Git\mingw64\bin\git.exe",
+            r"C:\Program Files (Arm)\Git\cmd\git.exe",
+        ]
+        for p in candidates:
+            if Path(p).exists():
+                return p
+    return None
+
+
+def _init_git(root: Path) -> bool:
+    """git init 실행. 성공하면 True, 실패하면 False."""
+    git = _find_git_exe()
+    if not git:
+        return False
+    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    try:
+        subprocess.run(
+            [git, "init"],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            creationflags=flags,
+        )
+        return True
+    except (subprocess.CalledProcessError, OSError):
+        return False
 
 
 # === ANCHOR: VIB_START_CMD__HAS_GIT_END ===
@@ -580,6 +621,12 @@ def run_vib_start(args: Namespace) -> None:
     hook_active = False  # PostToolUse 훅은 더 이상 사용하지 않음
     hook_label = {"claude": "Claude Code"}.get(tool, tool) if tool else None
     git_active = _has_git(root)
+    if not git_active:
+        if _init_git(root):
+            git_active = True
+            clack_success("git 저장소를 자동으로 초기화했어요 (git init)")
+        else:
+            clack_warn("git을 찾을 수 없어서 자동 초기화를 건너뜠어요. git을 설치하면 비밀정보 자동 검사 등을 쓸 수 있어요.")
     secret_hook_result = install_pre_commit_secret_hook(root) if git_active else None
 
     # [4] 출력
