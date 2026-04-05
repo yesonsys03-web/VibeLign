@@ -9,6 +9,7 @@ from vibelign.core.local_checkpoints import (
     create_checkpoint,
     list_checkpoints,
 )
+from vibelign.core.project_root import resolve_project_root
 
 
 from vibelign.terminal_render import cli_print
@@ -47,7 +48,7 @@ def _checkpoint_to_dict(cp: CheckpointLike) -> dict[str, object]:
 
 
 def run_vib_checkpoint(args: object) -> None:
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
     as_json = bool(getattr(args, "json", False))
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
 

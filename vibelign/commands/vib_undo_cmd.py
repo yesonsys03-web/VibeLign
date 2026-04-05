@@ -10,6 +10,7 @@ from vibelign.core.local_checkpoints import (
     list_checkpoints,
     restore_checkpoint,
 )
+from vibelign.core.project_root import resolve_project_root
 
 
 from vibelign.terminal_render import cli_print
@@ -33,7 +34,7 @@ def _clean_msg(msg: str) -> str:
 
 
 def run_vib_undo(args: Namespace) -> None:
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
     as_json = bool(getattr(args, "json", False))
     checkpoint_id_value = getattr(args, "checkpoint_id", None)
     checkpoint_id = (

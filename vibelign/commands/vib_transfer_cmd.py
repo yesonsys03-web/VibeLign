@@ -14,6 +14,7 @@ _WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 from typing import Protocol, TypedDict, cast
 
 from vibelign.core.local_checkpoints import list_checkpoints, friendly_time
+from vibelign.core.project_root import resolve_project_root
 from vibelign.terminal_render import (
     clack_intro,
     clack_step,
@@ -775,7 +776,7 @@ def run_transfer(args: object) -> None:
     """vib transfer 실행."""
     clack_intro("VibeLign Transfer")
 
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
     compact = _arg_bool(args, "compact")
     full = _arg_bool(args, "full")
     handoff = _arg_bool(args, "handoff")
