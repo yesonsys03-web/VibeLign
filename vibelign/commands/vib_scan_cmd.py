@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Callable, cast
 
 from vibelign.core.meta_paths import MetaPaths
+from vibelign.core.project_root import resolve_project_root
 from vibelign.terminal_render import (
     clack_info,
     clack_intro,
@@ -40,7 +41,7 @@ def run_vib_scan(args: Namespace) -> None:
     import types
     from vibelign.commands.vib_anchor_cmd import run_vib_anchor
 
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
     meta = MetaPaths(root)
 
     clack_intro("VibeLign 스캔")

@@ -16,6 +16,7 @@ from vibelign.core.doctor_v2 import (
     render_doctor_markdown,
 )
 from vibelign.core.meta_paths import MetaPaths
+from vibelign.core.project_root import resolve_project_root
 from vibelign.terminal_render import print_ai_response
 
 
@@ -211,7 +212,7 @@ def _run_apply(root: Path, strict: bool, as_json: bool, force: bool = False) -> 
 
 
 def run_vib_doctor(args: Namespace) -> None:
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
     strict = bool(getattr(args, "strict", False))
     as_json = bool(getattr(args, "json", False))
     write_report = bool(getattr(args, "write_report", False))
