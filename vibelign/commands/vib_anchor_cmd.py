@@ -8,6 +8,7 @@ from typing import Callable, cast
 from vibelign.core import anchor_tools as anchor_tools_mod
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_map import ProjectMapSnapshot, load_project_map
+from vibelign.core.project_root import resolve_project_root
 
 
 from vibelign.terminal_render import cli_print
@@ -111,7 +112,7 @@ def _write_anchor_index(
 
 
 def run_vib_anchor(args: object) -> None:
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
     meta = MetaPaths(root)
     only_ext_value = getattr(args, "only_ext", "")
     only_ext = only_ext_value if isinstance(only_ext_value, str) else ""

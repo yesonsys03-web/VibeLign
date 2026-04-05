@@ -14,6 +14,7 @@ from vibelign.core.doctor_v2 import analyze_project_v2
 from vibelign.core.guard_report import GuardReport
 from vibelign.core.guard_report import combine_guard
 from vibelign.core.meta_paths import MetaPaths
+from vibelign.core.project_root import resolve_project_root
 from vibelign.core.protected_files import get_protected, is_protected
 from vibelign.core.risk_analyzer import analyze_project
 from vibelign.terminal_render import print_ai_response
@@ -232,7 +233,7 @@ def _update_guard_state(meta: MetaPaths, quiet: bool = False) -> None:
 
 # === ANCHOR: VIB_GUARD_CMD_RUN_VIB_GUARD_START ===
 def run_vib_guard(args: GuardArgs) -> None:
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
     meta = MetaPaths(root)
     envelope = _build_guard_envelope(
         root, strict=args.strict, since_minutes=args.since_minutes
