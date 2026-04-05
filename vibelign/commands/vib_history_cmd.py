@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 
 from vibelign.core.local_checkpoints import friendly_time, list_checkpoints
+from vibelign.core.project_root import resolve_project_root
 
 
 from vibelign.terminal_render import cli_print
@@ -25,7 +26,7 @@ def _clean_msg(msg: str) -> str:
 
 
 def run_vib_history(_args: object) -> None:
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
     checkpoints = list_checkpoints(root)
     if not checkpoints:
         print("저장된 체크포인트가 없습니다.")
