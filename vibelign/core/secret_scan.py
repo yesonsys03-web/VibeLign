@@ -10,17 +10,24 @@ from pathlib import Path
 
 _WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
-_GIT_FALLBACK_PATHS = [
-    r"C:\Program Files\Git\cmd\git.exe",
-    r"C:\Program Files (x86)\Git\cmd\git.exe",
-]
-
 def _find_git() -> str:
     found = shutil.which("git")
     if found:
         return found
     if sys.platform == "win32":
-        for p in _GIT_FALLBACK_PATHS:
+        # cmd\git.exe 는 CMD 래퍼라서 PyInstaller 환경에서 exit 129 발생 가능.
+        # mingw64\bin\git.exe (실제 바이너리)를 먼저 시도.
+        candidates = [
+            r"C:\Program Files\Git\mingw64\bin\git.exe",
+            r"C:\Program Files\Git\usr\bin\git.exe",
+            r"C:\Program Files\Git\bin\git.exe",
+            r"C:\Program Files\Git\cmd\git.exe",
+            r"C:\Program Files (x86)\Git\mingw64\bin\git.exe",
+            r"C:\Program Files (x86)\Git\cmd\git.exe",
+            r"C:\Program Files (Arm)\Git\mingw64\bin\git.exe",
+            r"C:\Program Files (Arm)\Git\cmd\git.exe",
+        ]
+        for p in candidates:
             if Path(p).exists():
                 return p
     raise FileNotFoundError("git 실행 파일을 찾을 수 없어요. Git을 설치하고 PATH에 추가해주세요.")
@@ -93,15 +100,26 @@ class SecretScanResult:
 
 # === ANCHOR: SECRET_SCAN__RUN_GIT_START ===
 def _run_git(root: Path, args: list[str]) -> str:
-    completed = subprocess.run(
-        [_find_git(), *args],
-        cwd=root,
-        check=True,
-        capture_output=True,
-        text=True,
-        creationflags=_WINDOWS_FLAGS,
-    )
-    return completed.stdout
+    try:
+        completed = subprocess.run(
+            [_find_git(), *args],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=_WINDOWS_FLAGS,
+        )
+        return completed.stdout
+    except subprocess.CalledProcessError as e:
+        stderr = (e.stderr or "").strip()
+        if "not a git repository" in stderr.lower():
+            raise RuntimeError("git 저장소가 아닌 폴더예요. 먼저 git init 을 실행해 주세요.") from None
+        raise RuntimeError(
+            f"git 명령 실패 (exit {e.returncode})"
+            + (f": {stderr}" if stderr else "")
+        ) from None
 # === ANCHOR: SECRET_SCAN__RUN_GIT_END ===
 
 
