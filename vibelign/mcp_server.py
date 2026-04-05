@@ -30,13 +30,14 @@ from mcp.server.stdio import stdio_server
 import mcp.types as types
 
 from vibelign.core.meta_paths import MetaPaths
+from vibelign.core.project_root import resolve_project_root
 
 
 app = Server("vibelign")
 
 
 def _root() -> Path:
-    return Path.cwd()
+    return resolve_project_root(Path.cwd())
 
 
 _PATCH_SESSION_KEY = "patch_session"

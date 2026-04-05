@@ -11,6 +11,7 @@ from vibelign.commands.vib_start_cmd import (
     _setup_project,
 )
 from vibelign.core.meta_paths import MetaPaths
+from vibelign.core.project_root import resolve_project_root
 
 
 def _ensure_core_rule_files(root: Path) -> dict[str, list[str]]:
@@ -18,7 +19,7 @@ def _ensure_core_rule_files(root: Path) -> dict[str, list[str]]:
 
 
 def run_vib_init(args: Namespace | None) -> None:
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
     meta = MetaPaths(root)
     force = bool(getattr(args, "force", False))
     _ = _setup_project(root, meta, force=force)

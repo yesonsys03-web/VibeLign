@@ -21,6 +21,7 @@ from vibelign.core.doctor_v2 import build_doctor_envelope
 from vibelign.core.ai_dev_system import AI_DEV_SYSTEM_CONTENT
 from vibelign.core.hook_setup import detect_tool, remove_old_hook, setup_hook_if_needed
 from vibelign.core.meta_paths import MetaPaths
+from vibelign.core.project_root import resolve_project_root
 from vibelign.core.project_scan import iter_source_files
 from vibelign.terminal_render import (
     clack_info,
@@ -589,7 +590,7 @@ def _setup_project(
 
 # === ANCHOR: VIB_START_CMD_RUN_VIB_START_START ===
 def run_vib_start(args: Namespace) -> None:
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
     meta = MetaPaths(root)
     clack_intro("VibeLign 시작 설정")
     try:
@@ -626,7 +627,9 @@ def run_vib_start(args: Namespace) -> None:
             git_active = True
             clack_success("git 저장소를 자동으로 초기화했어요 (git init)")
         else:
-            clack_warn("git을 찾을 수 없어서 자동 초기화를 건너뜠어요. git을 설치하면 비밀정보 자동 검사 등을 쓸 수 있어요.")
+            clack_warn(
+                "git을 찾을 수 없어서 자동 초기화를 건너뜠어요. git을 설치하면 비밀정보 자동 검사 등을 쓸 수 있어요."
+            )
     secret_hook_result = install_pre_commit_secret_hook(root) if git_active else None
 
     # [4] 출력
