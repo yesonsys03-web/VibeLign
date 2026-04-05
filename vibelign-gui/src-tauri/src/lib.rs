@@ -699,6 +699,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .setup(|_app| {
             // 기존 gui_config.json 키를 api_keys.json으로 마이그레이션 (최초 1회)
             migrate_legacy_keys();
