@@ -6,6 +6,7 @@ from typing import cast
 
 from vibelign.core import protected_files as protected_files_mod
 from vibelign.core.protected_files import set_readonly, unset_readonly
+from vibelign.core.project_root import resolve_project_root
 
 
 from vibelign.terminal_render import cli_print
@@ -20,7 +21,8 @@ save_protected = cast(
 
 # === ANCHOR: PROTECT_CMD_RUN_PROTECT_START ===
 def run_protect(args: Namespace) -> None:
-    root = Path.cwd()
+    cwd = Path.cwd().resolve()
+    root = resolve_project_root(cwd)
     protected = get_protected(root)
     file_value = getattr(args, "file", None)
     target_input = file_value if isinstance(file_value, str) else ""
@@ -50,7 +52,7 @@ def run_protect(args: Namespace) -> None:
 
     # 절대경로 또는 상대경로 처리
     if not target_path.is_absolute():
-        target_path = root / target_path
+        target_path = cwd / target_path
 
     if not target_path.exists():
         print(f"경고: '{target_input}' 파일 또는 폴더가 존재하지 않습니다.")
@@ -81,7 +83,9 @@ def run_protect(args: Namespace) -> None:
                     except PermissionError:
                         failed += 1
             if failed:
-                print(f"경고: {failed}개 파일의 읽기 전용 해제 실패 — 권한을 확인하세요.")
+                print(
+                    f"경고: {failed}개 파일의 읽기 전용 해제 실패 — 권한을 확인하세요."
+                )
             label = "폴더" if is_dir else "파일"
             print(f"보호 해제: {rel} ({label})")
             print("이제 일반 파일로 취급됩니다.")

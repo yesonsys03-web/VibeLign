@@ -14,6 +14,7 @@ from vibelign.core import PatchPlan
 from vibelign.core import PatchStep
 from vibelign.core.codespeak import CodeSpeakResult, build_codespeak, parse_codespeak_v0
 from vibelign.core.meta_paths import MetaPaths
+from vibelign.core.project_root import resolve_project_root
 from vibelign.core.patch_suggester import resolve_target_for_role
 from vibelign.core.patch_suggester import suggest_patch_for_role
 from vibelign.core.patch_suggester import tokenize
@@ -116,7 +117,8 @@ def _copy_to_clipboard(text: str) -> None:
             _ = proc.communicate(text.encode("utf-8"))
         elif sys.platform == "win32":
             proc = subprocess.Popen(
-                ["clip"], stdin=subprocess.PIPE,
+                ["clip"],
+                stdin=subprocess.PIPE,
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
             _ = proc.communicate(text.encode("utf-16le"))
@@ -328,7 +330,7 @@ def _build_ready_handoff(
     patch_plan: dict[str, object],
     _strict_patch: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
     meta = MetaPaths(root)
 
     prompt_lines: list[str | None] = []
@@ -856,10 +858,7 @@ def _build_patch_data_with_options(
                 enhanced = None
             if enhanced is not None:
                 codespeak = cast(CodeSpeakResult, enhanced)
-    if (
-        codespeak.sub_intents
-        and len(codespeak.sub_intents) > MAX_SUB_INTENT_FANOUT
-    ):
+    if codespeak.sub_intents and len(codespeak.sub_intents) > MAX_SUB_INTENT_FANOUT:
         codespeak = replace(
             codespeak,
             sub_intents=None,
@@ -883,7 +882,9 @@ def _build_patch_data_with_options(
         pending = list(codespeak.sub_intents[1:])
         plan["pending_sub_intents"] = pending
         plan["sub_intents"] = list(codespeak.sub_intents)
-        qs = [str(x) for x in cast(list[object], plan.get("clarifying_questions") or [])]
+        qs = [
+            str(x) for x in cast(list[object], plan.get("clarifying_questions") or [])
+        ]
         qs.append(
             f"lazy fan-out: 첫 의도만 상세 계획했습니다. 나머지 {len(pending)}건은 순차적으로 patch_get 하세요."
         )
@@ -1141,7 +1142,7 @@ def _render_markdown(data: dict[str, object], preview_text: str | None = None) -
 
 
 def run_vib_patch(args: Namespace | object) -> None:
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
     apply_strict_raw = getattr(args, "apply_strict", None)
     if apply_strict_raw is not None and str(apply_strict_raw).strip():
         strict_path = Path(str(apply_strict_raw).strip())
