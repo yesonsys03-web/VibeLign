@@ -147,21 +147,36 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
     checkGitInstalled().then(setGitInstalled).catch(() => setGitInstalled(false));
   }, []);
 
-  // 최근 프로젝트 요약 로드
+  // 최근 프로젝트 요약 로드 — git repo가 아닌 경로는 건너뜀
   useEffect(() => {
     if (recentDirs.length === 0) return;
-    const dir = recentDirs[summaryIdx] ?? recentDirs[0]!;
-    readProjectSummary(dir).then((s) => {
-      const lines: TermLine[] = [
-        { type: "prompt", text: s.project_name },
-        ...s.git_commits.slice(0, 3).map((c) => ({ type: "check" as const, text: c.display, detail: c.detail })),
-        ...s.checkpoints.slice(0, 2).map((c) => ({ type: "arrow" as const, text: c.display, detail: c.detail })),
-      ];
-      if (lines.length >= 2) {
-        setTermLines(lines);
-        setAnimStep(0);
+    let cancelled = false;
+    async function load() {
+      // summaryIdx 기준으로 순서대로 시도, 유효한 데이터가 나올 때까지
+      for (let offset = 0; offset < recentDirs.length; offset++) {
+        const idx = (summaryIdx + offset) % recentDirs.length;
+        const dir = recentDirs[idx]!;
+        try {
+          const s = await readProjectSummary(dir);
+          if (cancelled) return;
+          const lines: TermLine[] = [
+            { type: "prompt", text: s.project_name },
+            ...s.git_commits.slice(0, 3).map((c) => ({ type: "check" as const, text: c.display, detail: c.detail })),
+            ...s.checkpoints.slice(0, 2).map((c) => ({ type: "arrow" as const, text: c.display, detail: c.detail })),
+          ];
+          if (lines.length >= 2) {
+            setTermLines(lines);
+            setAnimStep(0);
+            if (offset > 0) setSummaryIdx(idx); // 건너뛴 경우 idx 보정
+            return;
+          }
+        } catch {
+          // 이 경로 실패 → 다음 시도
+        }
       }
-    }).catch(() => {});
+    }
+    load();
+    return () => { cancelled = true; };
   }, [recentDirs, summaryIdx]);
 
   // 타이핑 애니메이션

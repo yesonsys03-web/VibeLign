@@ -577,6 +577,28 @@ fn check_git_installed() -> bool {
 
 // ─── 프로젝트 요약 ─────────────────────────────────────────────────────────────
 
+/// Windows에서 PATH에 git이 없을 때도 기본 설치 경로에서 찾아 반환
+fn git_cmd() -> std::process::Command {
+    // PATH에서 찾히면 바로 사용
+    if std::process::Command::new("git").arg("--version").output().map(|o| o.status.success()).unwrap_or(false) {
+        return std::process::Command::new("git");
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let candidates = [
+            r"C:\Program Files\Git\cmd\git.exe",
+            r"C:\Program Files (x86)\Git\cmd\git.exe",
+            r"C:\Program Files (Arm)\Git\cmd\git.exe",
+        ];
+        for path in &candidates {
+            if std::path::Path::new(path).exists() {
+                return std::process::Command::new(path);
+            }
+        }
+    }
+    std::process::Command::new("git") // 최후 수단 — 실패해도 에러는 호출부에서 처리
+}
+
 fn trunc(s: &str, max: usize) -> String {
     let mut chars = s.chars();
     let result: String = chars.by_ref().take(max).collect();
@@ -623,7 +645,7 @@ fn read_project_summary(dir: String) -> ProjectSummary {
         .unwrap_or_else(|| "프로젝트".to_string());
 
     // git log: hash|subject|date (최근 3개)
-    let git_commits = std::process::Command::new("git")
+    let git_commits = git_cmd()
         .args(["log", "-3", "--pretty=format:%h|%s|%ad", "--date=short"])
         .current_dir(path)
         .output()
@@ -639,7 +661,7 @@ fn read_project_summary(dir: String) -> ProjectSummary {
                     let date = parts.get(2).copied().unwrap_or("").trim();
 
                     // git show --stat: 변경 파일 목록 (on-load 프리페치)
-                    let stat = std::process::Command::new("git")
+                    let stat = git_cmd()
                         .args(["show", "--stat", "--pretty=format:%b", hash])
                         .current_dir(path)
                         .output()
