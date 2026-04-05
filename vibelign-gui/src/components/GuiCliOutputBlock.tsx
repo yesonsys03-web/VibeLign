@@ -66,4 +66,5 @@ export function GuiCliOutputBlock({
     </div>
   );
 }
+export default GuiCliOutputBlock;
 // === ANCHOR: GUI_CLI_OUTPUT_BLOCK_END ===
