@@ -5,6 +5,7 @@ import { vibGuard, vibScan, vibTransfer, startWatch, stopWatch, watchStatus, che
 import { COMMANDS, PATCH_COMMAND, CardState, FlagDef, GuideStep, buildCmdArgs } from "../lib/commands";
 import { GuiCliOutputBlock } from "../components/GuiCliOutputBlock";
 import UndoCard from "../components/cards/backup/UndoCard";
+import HistoryCard from "../components/cards/backup/HistoryCard";
 import AnchorCard from "../components/cards/analysis/AnchorCard";
 import ExplainCard from "../components/cards/ai/ExplainCard";
 import AskCard from "../components/cards/ai/AskCard";
@@ -651,50 +652,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
               gap: 8,
             }}
           >
-            <div className="feature-card" style={{ cursor: "default" }}>
-              <div className="feature-card-header" style={{ background: "#7B4DFF18", padding: "10px 14px" }}>
-                <div className="feature-card-icon"
-                  style={{ background: "#7B4DFF", color: "#fff", borderColor: "#7B4DFF", width: 28, height: 28, fontSize: 14, fontWeight: 900 }}>🕓</div>
-                <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                  <span style={{ fontWeight: 700, fontSize: 18, flexShrink: 0 }}>히스토리</span>
-                  <span style={{ fontSize: 10, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>
-                    저장이 언제 찍혔는지 시간 순으로 보여 줘요
-                  </span>
-                </div>
-                {(((cmdStates["history"] ?? "idle") === "done") || ((cmdStates["history"] ?? "idle") === "idle" && cmdOutputs["history"])) && !(cmdHasWarnings["history"] ?? false) && (
-                  <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>
-                )}
-                {(cmdHasWarnings["history"] ?? false) && (
-                  <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#FFD166", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>주의</span>
-                )}
-                {(cmdStates["history"] ?? "idle") === "error" && (
-                  <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#FF4D4D", color: "#fff", border: "1px solid #1A1A1A" }}>오류</span>
-                )}
-              </div>
-              <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
-                <GuiCliOutputBlock
-                  text={cmdOutputs["history"] ?? ""}
-                  placeholder="체크포인트 변경 이력 보기"
-                  variant={
-                    (cmdStates["history"] ?? "idle") === "error"
-                      ? "error"
-                      : (cmdHasWarnings["history"] ?? false)
-                        ? "warn"
-                        : "default"
-                  }
-                />
-                <div style={{ display: "flex", gap: 4 }}>
-                  <button className="btn btn-sm" style={{ flex: 1, background: "#7B4DFF", color: "#fff", border: "2px solid #1A1A1A" }}
-                    disabled={(cmdStates["history"] ?? "idle") === "loading"} onClick={() => handleRunCmd("history")}>
-                    {(cmdStates["history"] ?? "idle") === "loading" ? <span className="spinner" /> : "HISTORY ▶"}
-                  </button>
-                  {cmdOutputs["history"] && (
-                    <button className="btn btn-ghost btn-sm" style={{ fontSize: 9, border: "2px solid #1A1A1A", flexShrink: 0 }}
-                      onClick={() => setOutputModal({ name: "history", content: cmdOutputs["history"] })}>결과</button>
-                  )}
-                </div>
-              </div>
-            </div>
+            <HistoryCard projectDir={projectDir} />
             {(() => {
               const cmd = PATCH_COMMAND;
               const st = cmdStates[cmd.name] ?? "idle";
