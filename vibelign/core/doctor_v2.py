@@ -93,41 +93,50 @@ def _anchor_coverage(root: Path) -> int:
     return round((covered / len(source_files)) * 100)
 
 
-def _issue_details(
-    issues: list[str], suggestions: list[str]
-) -> list[dict[str, object]]:
+def _issue_details(issues: list[dict[str, object]]) -> list[dict[str, object]]:
     details: list[dict[str, object]] = []
-    for index, issue in enumerate(issues):
-        rel = issue.split("에 ", 1)[0]
-        next_step = (
-            suggestions[index]
-            if index < len(suggestions)
-            else "관련 파일을 직접 열어서 확인해보세요."
-        )
+    for issue in issues:
+        found = str(issue.get("found", ""))
+        next_step = str(issue.get("next_step", "관련 파일을 직접 열어서 확인해보세요."))
+        category = str(issue.get("category", "metadata"))
+        severity = str(issue.get("severity", "low"))
+        recommended_command = issue.get("recommended_command")
+        can_auto_fix = bool(issue.get("can_auto_fix", False))
+        auto_fix_label = issue.get("auto_fix_label")
+        path = issue.get("path")
+
+        if category == "anchor" and recommended_command is None:
+            recommended_command = "vib doctor --fix"
+            can_auto_fix = True
+            auto_fix_label = "앵커 자동 추가"
+
         details.append(
             {
-                "found": issue,
-                "why_it_matters": f"{issue} 때문에 AI가 엉뚱한 곳까지 건드리거나 코드를 더 꼬이게 만들 수 있어요.",
+                "found": found,
+                "why_it_matters": issue.get(
+                    "why_it_matters",
+                    f"{found} 때문에 AI가 엉뚱한 곳까지 건드리거나 코드를 더 꼬이게 만들 수 있어요.",
+                ),
                 "next_step": next_step,
-                "path": rel
-                if "/" in rel or rel.endswith((".py", ".js", ".ts", ".tsx", ".jsx"))
-                else None,
+                "path": path,
+                "severity": severity,
+                "category": category,
+                "recommended_command": recommended_command,
+                "can_auto_fix": can_auto_fix,
+                "auto_fix_label": auto_fix_label,
             }
         )
     return details
 
 
-def _recommended_actions(legacy_suggestions: list[str]) -> list[str]:
+def _recommended_actions(issues: list[dict[str, object]]) -> list[str]:
     actions: list[str] = []
     seen: set[str] = set()
-    for suggestion in legacy_suggestions:
-        if "앵커" in suggestion:
-            action = "vib anchor --suggest"
-        elif "분리" in suggestion or "나눠" in suggestion:
-            action = "파일이 너무 길면 기능별로 나눠보세요 (AI 실수 예방에 도움돼요)"
-        else:
-            action = suggestion
-        if action not in seen:
+    for issue in issues:
+        command = issue.get("recommended_command")
+        next_step = issue.get("next_step")
+        action = str(command or next_step or "")
+        if action and action not in seen:
             seen.add(action)
             actions.append(action)
     return actions[:6]
@@ -211,28 +220,43 @@ def _collect_prepared_tool_status(root: Path) -> dict[str, dict[str, object]]:
 
 
 def _append_mcp_issues(
-    issues: list[str], suggestions: list[str], mcp_status: dict[str, dict[str, object]]
+    issues: list[dict[str, object]], mcp_status: dict[str, dict[str, object]]
 ) -> None:
     for tool_name, status in mcp_status.items():
         if not status["enabled"] or status["registered"]:
             continue
-        config_path = status["config_path"]
-        label = status["label"]
+        config_path = str(status["config_path"])
+        label = str(status["label"])
         if status["state"] == "invalid_json":
-            issues.append(f"{config_path} 파일을 읽을 수 없어요")
-            suggestions.append(
-                f"`vib start --tools {tool_name}` 를 다시 실행하면 {label} MCP 설정을 자동으로 복구해요"
+            issues.append(
+                {
+                    "found": f"{config_path} 파일을 읽을 수 없어요",
+                    "next_step": f"{label} MCP 설정 파일을 다시 만들어야 해요.",
+                    "path": config_path,
+                    "category": "mcp",
+                    "severity": "high",
+                    "recommended_command": f"vib start --tools {tool_name}",
+                    "can_auto_fix": False,
+                    "auto_fix_label": None,
+                }
             )
             continue
-        issues.append(f"{config_path}에 vibelign MCP 등록이 없어요")
-        suggestions.append(
-            f"`vib start --tools {tool_name}` 를 실행하면 {label}에 vibelign MCP를 자동 등록해요"
+        issues.append(
+            {
+                "found": f"{config_path}에 vibelign MCP 등록이 없어요",
+                "next_step": f"`vib start --tools {tool_name}` 를 실행하면 {label}에 vibelign MCP를 자동 등록해요",
+                "path": config_path,
+                "category": "mcp",
+                "severity": "high",
+                "recommended_command": f"vib start --tools {tool_name}",
+                "can_auto_fix": False,
+                "auto_fix_label": None,
+            }
         )
 
 
 def _append_prepared_tool_issues(
-    issues: list[str],
-    suggestions: list[str],
+    issues: list[dict[str, object]],
     prepared_status: dict[str, dict[str, object]],
 ) -> None:
     for tool_name, status in prepared_status.items():
@@ -243,9 +267,18 @@ def _append_prepared_tool_issues(
             cast(list[object], raw_missing) if isinstance(raw_missing, list) else []
         )
         missing = ", ".join(str(path) for path in missing_items)
-        issues.append(f"{status['label']} 준비 파일이 일부 없어요 ({missing})")
-        suggestions.append(
-            f"`{PREPARED_TOOL_CONFIGS[tool_name].setup_command}` 를 다시 실행하면 {status['label']} 준비 파일을 자동으로 채워줘요"
+        setup_command = PREPARED_TOOL_CONFIGS[tool_name].setup_command
+        issues.append(
+            {
+                "found": f"{status['label']} 준비 파일이 일부 없어요 ({missing})",
+                "next_step": f"`{setup_command}` 를 다시 실행하면 {status['label']} 준비 파일을 자동으로 채워줘요",
+                "path": None,
+                "category": "metadata",
+                "severity": "medium",
+                "recommended_command": setup_command,
+                "can_auto_fix": False,
+                "auto_fix_label": None,
+            }
         )
 
 
@@ -332,26 +365,42 @@ def analyze_project_v2(
     stats["project_map_loaded"] = project_map is not None
     stats["mcp_status"] = mcp_status
     stats["prepared_tool_status"] = prepared_tool_status
-    issues = list(legacy.issues)
-    suggestions = list(legacy.suggestions)
+    issues: list[dict[str, object]] = list(legacy.issues)
     if project_map is not None:
         stats["project_map_file_count"] = project_map.file_count
         stats["project_map_generated_at"] = project_map.generated_at
     elif project_map_error == "unsupported_project_map_schema":
-        issues.append(".vibelign/project_map.json 파일의 버전이 맞지 않아요")
-        suggestions.append("vib start 를 다시 실행하면 자동으로 고쳐져요")
+        issues.append(
+            {
+                "found": ".vibelign/project_map.json 파일의 버전이 맞지 않아요",
+                "next_step": "vib start 를 다시 실행하면 자동으로 고쳐져요",
+                "path": ".vibelign/project_map.json",
+                "category": "metadata",
+                "severity": "medium",
+                "check_type": "unsupported_project_map_schema",
+            }
+        )
     elif project_map_error == "invalid_project_map":
-        issues.append(".vibelign/project_map.json 파일을 읽을 수 없습니다")
-        suggestions.append("vib start 를 다시 실행하면 자동으로 고쳐져요")
-    _append_mcp_issues(issues, suggestions, mcp_status)
-    _append_prepared_tool_issues(issues, suggestions, prepared_tool_status)
+        issues.append(
+            {
+                "found": ".vibelign/project_map.json 파일을 읽을 수 없습니다",
+                "next_step": "vib start 를 다시 실행하면 자동으로 고쳐져요",
+                "path": ".vibelign/project_map.json",
+                "category": "metadata",
+                "severity": "medium",
+                "check_type": "invalid_project_map",
+            }
+        )
+    _append_mcp_issues(issues, mcp_status)
+    _append_prepared_tool_issues(issues, prepared_tool_status)
+    detailed_issues = _issue_details(issues)
     report = DoctorV2Report(
         project_score=project_score,
         status=status,
         anchor_coverage=coverage,
         stats=stats,
-        issues=_issue_details(issues, suggestions),
-        recommended_actions=_recommended_actions(suggestions),
+        issues=detailed_issues,
+        recommended_actions=_recommended_actions(detailed_issues),
     )
     generated_at = datetime.now(timezone.utc).isoformat()
     meta.ensure_vibelign_dir()
