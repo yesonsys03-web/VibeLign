@@ -16,6 +16,7 @@
 - `vibelign/core/doctor_v2.py` — enrich issues with recovery metadata and render richer doctor output
 - `vibelign/core/analysis_cache.py` — invalidate old cached doctor reports after the schema change
 - `vibelign/commands/doctor_cmd.py` — keep the legacy plain `doctor` command working with structured issues
+- `vibelign/commands/guard_cmd.py` — keep the legacy plain `guard` command working with structured issues
 - `vibelign/action_engine/action_planner.py` — prefer `recommended_command` over parsing `next_step`
 - `vibelign-gui/src/pages/Doctor.tsx` — render severity/category/recovery fields directly from backend data
 - `tests/test_vib_doctor_v2.py` — contract tests for doctor envelope, cache schema, and markdown rendering
@@ -180,7 +181,11 @@ def _check_dependency_risks(root: Path) -> list[IssueDict]:
     )
 ```
 
-Use `report.issues = list({(item["found"], item.get("path")): item for item in report.issues}.values())` for deterministic dedupe.
+**CRITICAL:** Replace the existing dedupe logic `report.issues = list(dict.fromkeys(report.issues))` (line ~192). `dict.fromkeys()` requires hashable items — `list[dict]` will raise `TypeError: unhashable type: 'dict'`. Use tuple-key dedupe instead:
+
+```python
+report.issues = list({(item["found"], item.get("path")): item for item in report.issues}.values())
+```
 
 - [ ] **Step 4: Update `vibelign/core/doctor_v2.py` and `analysis_cache.py` to consume the new issue contract**
 
@@ -307,10 +312,11 @@ git commit -m "feat: add structured recovery metadata to doctor issues"
 
 ---
 
-### Task 2: Keep legacy doctor output and plan/apply plumbing compatible
+### Task 2: Keep legacy doctor/guard output and plan/apply plumbing compatible
 
 **Files:**
 - Modify: `vibelign/commands/doctor_cmd.py` (legacy plain doctor command, not `vib_doctor_cmd.py`)
+- Modify: `vibelign/commands/guard_cmd.py` (legacy plain guard command — uses `isinstance(raw_item, str)` filter that drops all dict issues)
 - Modify: `vibelign/core/doctor_v2.py`
 - Modify: `vibelign/action_engine/action_planner.py`
 - Modify: `tests/test_plain_doctor_guard_render.py`
@@ -376,7 +382,7 @@ python -m unittest \
 
 Expected: FAIL because `doctor_cmd.py` still assumes string issues and `action_planner.py` still extracts commands from `next_step`.
 
-- [ ] **Step 3: Update `doctor_cmd.py`, doctor markdown rendering, and planner command extraction**
+- [ ] **Step 3: Update `doctor_cmd.py`, `guard_cmd.py`, doctor markdown rendering, and planner command extraction**
 
 In `vibelign/commands/doctor_cmd.py`, render structured issues safely:
 
@@ -386,6 +392,18 @@ In `vibelign/commands/doctor_cmd.py`, render structured issues safely:
             lines.append(f"{i}. {issue.get('found', '')}")
         else:
             lines.append(f"{i}. {issue}")
+```
+
+In `vibelign/commands/guard_cmd.py`, fix the `isinstance(raw_item, str)` filter in `_render_markdown()` (~line 72-76) so dict issues are not silently dropped:
+
+```python
+    raw_issues = doctor_data.get("issues", [])
+    issues: list[str] = []
+    for raw_item in raw_issues:
+        if isinstance(raw_item, dict):
+            issues.append(str(raw_item.get("found", "")))
+        elif isinstance(raw_item, str):
+            issues.append(raw_item)
 ```
 
 In `vibelign/core/doctor_v2.py`, expand markdown rendering so detailed output shows the new contract:
@@ -443,8 +461,8 @@ Expected: PASS. The plain doctor command should render `issue["found"]`, and gen
 - [ ] **Step 5: Commit the compatibility layer**
 
 ```bash
-git add vibelign/commands/doctor_cmd.py vibelign/core/doctor_v2.py vibelign/action_engine/action_planner.py tests/test_plain_doctor_guard_render.py tests/test_action_planner.py
-git commit -m "fix: preserve doctor cli and plan compatibility with structured issues"
+git add vibelign/commands/doctor_cmd.py vibelign/commands/guard_cmd.py vibelign/core/doctor_v2.py vibelign/action_engine/action_planner.py tests/test_plain_doctor_guard_render.py tests/test_action_planner.py
+git commit -m "fix: preserve legacy doctor/guard cli and plan compatibility with structured issues"
 ```
 
 ---
@@ -621,7 +639,9 @@ Expected:
 - Spec coverage:
   - structured issue contract → Task 1
   - cache schema migration → Task 1
+  - risk_analyzer dedupe crash fix (dict.fromkeys → tuple-key) → Task 1
   - CLI recovery rendering → Task 2
+  - legacy guard_cmd dict compatibility → Task 2
   - GUI severity/status contract → Task 3
   - planner compatibility without full category rewrite → Task 2
   - final regression verification → Task 4
