@@ -10,12 +10,19 @@
 
 ---
 
+## Execution progress
+
+- [x] Task 1 complete — Structured doctor issue contract in Python backend
+- [x] Task 2 complete — Legacy doctor/guard compatibility and planner plumbing
+- [x] Task 3 complete — GUI Doctor page uses backend contract directly
+- [x] Task 4 complete — Final regression verification
+
 ## File map
 
 - `vibelign/core/risk_analyzer.py` — emit structured issue dictionaries instead of plain strings
 - `vibelign/core/doctor_v2.py` — enrich issues with recovery metadata and render richer doctor output
 - `vibelign/core/analysis_cache.py` — invalidate old cached doctor reports after the schema change
-- `vibelign/commands/doctor_cmd.py` — keep the legacy plain `doctor` command working with structured issues
+- `vibelign/commands/doctor_cmd.py` — keep the legacy plain `doctor` command working with structured issues (not `vib_doctor_cmd.py`)
 - `vibelign/commands/guard_cmd.py` — keep the legacy plain `guard` command working with structured issues
 - `vibelign/action_engine/action_planner.py` — prefer `recommended_command` over parsing `next_step`
 - `vibelign-gui/src/pages/Doctor.tsx` — render severity/category/recovery fields directly from backend data
