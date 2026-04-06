@@ -55,14 +55,18 @@ def _issue_to_action(issue: Dict[str, Any]) -> Action:
 
     # 실행 명령어 결정
     command: str | None = None
-    next_step: str = issue.get("next_step", "")
-    if "`" in next_step:
-        start = next_step.find("`") + 1
-        end = next_step.find("`", start)
-        if end > start:
-            command = next_step[start:end]
-    elif next_step.startswith("vib "):
-        command = next_step.strip()
+    recommended_command = issue.get("recommended_command")
+    if isinstance(recommended_command, str) and recommended_command.strip():
+        command = recommended_command.strip()
+    else:
+        next_step: str = issue.get("next_step", "")
+        if "`" in next_step:
+            start = next_step.find("`") + 1
+            end = next_step.find("`", start)
+            if end > start:
+                command = next_step[start:end]
+        elif next_step.startswith("vib "):
+            command = next_step.strip()
 
     depends_on = _ACTION_DEPENDENCY.get(action_type, [])
 
