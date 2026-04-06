@@ -206,7 +206,7 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
               report.issues.map((issue, i) => (
                 <div className="issue-item" key={i}>
                   <span className={`issue-severity ${sevClass(issue.severity)}`}>
-                    {issue.severity.toUpperCase()}
+                    {(issue.severity ?? "low").toUpperCase()}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
