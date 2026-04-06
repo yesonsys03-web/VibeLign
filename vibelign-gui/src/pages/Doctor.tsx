@@ -3,16 +3,20 @@ import { useState, useEffect, useCallback } from "react";
 import { doctorJson, doctorPlanJson, doctorApply, buildGuiAiEnv } from "../lib/vib";
 
 interface Issue {
-  severity?: string;
+  severity: "high" | "medium" | "low";
+  category?: string;
   found: string;
   why_it_matters?: string;
   next_step?: string;
-  path?: string;
+  path?: string | null;
+  recommended_command?: string | null;
+  can_auto_fix?: boolean;
+  auto_fix_label?: string | null;
 }
 
 interface DoctorReport {
   project_score: number;
-  status: string;
+  status: "Safe" | "Good" | "Caution" | "Risky" | "High Risk";
   anchor_coverage: number;
   issues: Issue[];
   recommended_actions: string[];
@@ -82,12 +86,14 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
     return "score-low";
   }
 
-  function inferSeverity(issue: Issue): string {
-    if (issue.severity) return issue.severity;
-    const t = issue.found.toLowerCase();
-    if (t.includes("너무 깁니다") || t.includes("너무 많이")) return "medium";
-    if (t.includes("없어요") || t.includes("등록")) return "low";
-    return "low";
+  function statusBadgeStyle(status: DoctorReport["status"]) {
+    if (status === "Safe" || status === "Good") {
+      return { background: "#4DFF91", color: "#1A1A1A" };
+    }
+    if (status === "Caution" || status === "Risky") {
+      return { background: "#FFD166", color: "#1A1A1A" };
+    }
+    return { background: "#FF4D4D", color: "#fff" };
   }
 
   function sevClass(sev?: string) {
@@ -129,10 +135,8 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
               <span style={{
                 fontSize: 11, fontWeight: 700, textTransform: "uppercase",
                 padding: "2px 8px",
-                background: report.status === "Healthy" ? "#4DFF91" :
-                            report.status === "Risky"   ? "#FFD166" : "#FF4D4D",
                 border: "1px solid #1A1A1A",
-                color: report.status === "High Risk" ? "#fff" : "#1A1A1A",
+                ...statusBadgeStyle(report.status),
               }}>
                 {report.status}
               </span>
@@ -187,15 +191,31 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
             ) : (
               report.issues.map((issue, i) => (
                 <div className="issue-item" key={i}>
-                  <span className={`issue-severity ${sevClass(inferSeverity(issue))}`}>
-                    {inferSeverity(issue).toUpperCase()}
+                  <span className={`issue-severity ${sevClass(issue.severity)}`}>
+                    {issue.severity.toUpperCase()}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 12 }}>{issue.found}</div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                      <div style={{ fontWeight: 700, fontSize: 12 }}>{issue.found}</div>
+                      {issue.category && <code style={{ fontSize: 10 }}>{issue.category}</code>}
+                    </div>
                     {issue.path && <code style={{ fontSize: 10, color: "#888" }}>{issue.path}</code>}
-                    {issue.next_step && (
-                      <div style={{ fontSize: 11, marginTop: 3, color: "#666" }}>{issue.next_step}</div>
+                    {issue.why_it_matters && (
+                      <div style={{ fontSize: 11, marginTop: 3, color: "#666" }}>{issue.why_it_matters}</div>
                     )}
+                    {issue.next_step && (
+                      <div style={{ fontSize: 11, marginTop: 3, color: "#666" }}>다음 단계: {issue.next_step}</div>
+                    )}
+                    {issue.recommended_command && (
+                      <code style={{ display: "block", fontSize: 10, color: "#888", marginTop: 4 }}>
+                        {issue.recommended_command}
+                      </code>
+                    )}
+                    <div style={{ fontSize: 10, marginTop: 4, color: issue.can_auto_fix ? "#0a7" : "#888" }}>
+                      {issue.can_auto_fix
+                        ? `자동 수정 가능${issue.auto_fix_label ? ` · ${issue.auto_fix_label}` : ""}`
+                        : "자동 수정 불가"}
+                    </div>
                   </div>
                 </div>
               ))
