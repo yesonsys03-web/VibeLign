@@ -49,6 +49,7 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
   const [plan, setPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [strict, setStrict] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [applyMsg, setApplyMsg] = useState<string | null>(null);
 
@@ -56,14 +57,14 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
     setLoading(true);
     setError(null);
     try {
-      const data = await doctorJson(projectDir) as DoctorReport;
+      const data = await doctorJson(projectDir, strict) as DoctorReport;
       setReport(data);
     } catch (e) {
       setError(String(e));
     } finally {
       setLoading(false);
     }
-  }, [projectDir]);
+  }, [projectDir, strict]);
 
   const loadPlan = useCallback(async () => {
     setLoading(true);
@@ -143,7 +144,20 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
             </>
           )}
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{
+              fontSize: 10, padding: "2px 8px",
+              background: strict ? "#1A1A1A" : "transparent",
+              color: strict ? "#FF4D8B" : "#888",
+              border: strict ? "2px solid #FF4D8B" : "2px solid #ccc",
+              fontWeight: 700,
+            }}
+            onClick={() => setStrict((v) => !v)}
+          >
+            {strict ? "정밀" : "일반"}
+          </button>
           <button className="btn btn-ghost btn-sm" onClick={loadReport} disabled={loading}>새로고침</button>
           <button className="btn btn-sm" style={{ background: "#7B4DFF" }}
             onClick={() => { setView("plan"); if (!plan) loadPlan(); }}>
@@ -176,7 +190,7 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
                 <div className="terminal-dot yellow" />
                 <div className="terminal-dot green" />
               </div>
-              <div><span className="terminal-prompt">$ </span>vib doctor --json</div>
+              <div><span className="terminal-prompt">$ </span>vib doctor --json{strict ? " --strict" : ""}</div>
               <div><span className="terminal-check">✓ </span>앵커 커버리지: {report.anchor_coverage}%</div>
               <div><span className="terminal-check">✓ </span>이슈: {report.issues.length}개</div>
               <div><span className="terminal-check">✓ </span>프로젝트 점수: {report.project_score} / 100</div>
