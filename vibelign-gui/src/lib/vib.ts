@@ -60,8 +60,10 @@ export async function vibStart(cwd: string, tools?: string[]): Promise<VibResult
   return runVib(args, cwd);
 }
 
-export async function doctorJson(cwd: string): Promise<unknown> {
-  const res = await runVib(["doctor", "--json"], cwd);
+export async function doctorJson(cwd: string, strict = false): Promise<unknown> {
+  const args = ["doctor", "--json"];
+  if (strict) args.push("--strict");
+  const res = await runVib(args, cwd);
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
   const parsed = JSON.parse(res.stdout);
   // vib doctor --json 은 {"ok": true, "data": {...}} envelope 반환
