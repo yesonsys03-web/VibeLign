@@ -33,7 +33,7 @@ import ProtectCard from "../components/cards/security/ProtectCard";
 import SecretsCard from "../components/cards/security/SecretsCard";
 import pkg from "../../package.json";
 
-// ── 드래그 래퍼 ───────────────────────────────────────────────────────────────
+// ── 드래그 래퍼 (핸들 전용) ────────────────────────────────────────────────────
 function SortableCardWrapper({ id, children }: { id: string; children: ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   return (
@@ -43,12 +43,37 @@ function SortableCardWrapper({ id, children }: { id: string; children: ReactNode
         transform: CSS.Transform.toString(transform),
         transition,
         opacity: isDragging ? 0.5 : 1,
-        cursor: isDragging ? "grabbing" : "grab",
         zIndex: isDragging ? 10 : undefined,
+        position: "relative",
       }}
       {...attributes}
-      {...listeners}
     >
+      {/* 드래그 핸들 — 카드 우측 상단 */}
+      <div
+        {...listeners}
+        style={{
+          position: "absolute",
+          top: 4,
+          right: 4,
+          width: 20,
+          height: 20,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: isDragging ? "grabbing" : "grab",
+          color: isDragging ? "#1A1A1A" : "#bbb",
+          fontSize: 12,
+          fontWeight: 900,
+          borderRadius: 3,
+          background: isDragging ? "#FFD16644" : "transparent",
+          zIndex: 5,
+          userSelect: "none",
+          touchAction: "none",
+        }}
+        title="드래그하여 카드 이동"
+      >
+        ⠿
+      </div>
       {children}
     </div>
   );
