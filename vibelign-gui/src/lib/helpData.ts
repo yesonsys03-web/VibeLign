@@ -125,7 +125,7 @@ const FALLBACK_TOPICS: HelpTopic[] = [
     command: "vib doctor",
     summary: "프로젝트 상태를 검사해요.",
     answer:
-      "vib doctor는 프로젝트가 AI 작업을 받기 좋은 상태인지 검사해요. 문제가 있으면 무엇이 문제인지 알려줘요.",
+      "vib doctor는 프로젝트가 AI 작업을 받기 좋은 상태인지 검사해요. 각 문제마다 심각도(HIGH/MEDIUM/LOW), 분류(구조/앵커/MCP 등), 추천 명령, 자동 수정 가능 여부를 알려줘요. --detailed로 상세 보기, --apply로 자동 수정을 할 수 있어요.",
   },
   {
     id: "anchor",

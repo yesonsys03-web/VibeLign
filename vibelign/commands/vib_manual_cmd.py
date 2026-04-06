@@ -195,8 +195,9 @@ MANUAL: dict[str, ManualEntry] = {
         "examples": [
             ("vib doctor", "기본 점검 (점수 + 문제 목록)"),
             ("vib doctor --strict", "더 꼼꼼하게 점검"),
-            ("vib doctor --detailed", "문제마다 자세한 설명 포함"),
+            ("vib doctor --detailed", "문제마다 심각도·분류·추천 명령 포함"),
             ("vib doctor --fix", "앵커 없는 파일에 자동으로 앵커 추가"),
+            ("vib doctor --apply", "자동 수정 가능한 항목 일괄 적용"),
             ("vib doctor --write-report", "결과를 파일로 저장"),
         ],
         "options": [
@@ -204,11 +205,20 @@ MANUAL: dict[str, ManualEntry] = {
                 "--strict",
                 "기본 점검보다 더 꼼꼼하게 검사해요.\n작은 문제도 놓치지 않아요.",
             ),
-            ("--detailed", "각 문제마다 왜 문제인지 설명을 추가로 보여줘요."),
+            (
+                "--detailed",
+                "각 문제마다 심각도(HIGH/MEDIUM/LOW), 분류(구조/앵커/MCP 등),\n"
+                "왜 중요한지, 추천 명령, 자동 수정 가능 여부를 보여줘요.",
+            ),
             ("--fix-hints", "각 문제를 어떻게 고치면 되는지 힌트를 줘요."),
             (
                 "--fix",
                 "앵커가 없는 파일에 자동으로 앵커를 달아줘요.\n직접 하기 귀찮을 때 편해요.",
+            ),
+            (
+                "--apply",
+                "자동 수정 가능한 항목을 일괄 적용해요.\n"
+                "적용 전에 자동으로 체크포인트가 만들어져서 되돌릴 수 있어요.",
             ),
             (
                 "--write-report",
