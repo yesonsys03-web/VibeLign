@@ -440,36 +440,47 @@ def _build_handoff_block(data: HandoffData) -> str:
     )
     lines.append("")
 
-    # Bullet section (max 5)
+    # 요약
     summary = _handoff_text(data.get("session_summary"))
-    lines.append(f"- Today's work: {summary}")
+    lines.append(f"### 오늘 작업 요약")
+    lines.append(summary)
+    lines.append("")
 
+    # 완료된 작업 (상세)
+    completed = _handoff_text(data.get("completed_work"))
+    if completed != "(not provided)":
+        lines.append("### 완료된 작업")
+        lines.append(completed)
+        lines.append("")
+
+    # 변경 파일
     changed = _handoff_files(data.get("changed_files"))
     if changed:
-        files_str = ", ".join(f"`{f}`" for f in changed[:5])
-        if len(changed) > 5:
-            files_str += f" … (+{len(changed) - 5})"
-        lines.append(f"- Changed files: {files_str}")
-    else:
-        lines.append("- Changed files: (not provided)")
+        files_str = ", ".join(f"`{f}`" for f in changed[:8])
+        if len(changed) > 8:
+            files_str += f" … (+{len(changed) - 8})"
+        lines.append(f"### 변경 파일")
+        lines.append(files_str)
+        lines.append("")
 
-    completed = _handoff_text(data.get("completed_work"))
-    lines.append(f"- Completed work: {completed}")
-
+    # 미완료 / 후속 작업
     unfinished = _handoff_text(data.get("unfinished_work"))
-    lines.append(f"- Unfinished work: {unfinished}")
-
     next_action = _handoff_text(data.get("first_next_action"))
-    lines.append(f"- Next action: {next_action}")
+    if unfinished != "(not provided)" or next_action != "(not provided)":
+        lines.append("### 후속 작업")
+        if unfinished != "(not provided)":
+            lines.append(f"- 미완료: {unfinished}")
+        if next_action != "(not provided)":
+            lines.append(f"- 다음 할 일: {next_action}")
+        lines.append("")
 
     # Decision context (optional)
     dc = _handoff_decision_context(data.get("decision_context"))
     if dc:
-        lines.append("")
-        lines.append("Decision context")
-        lines.append(f"- Tried: {dc.get('tried') or '(not provided)'}")
-        lines.append(f"- Blocked by: {dc.get('blocked_by') or '(not provided)'}")
-        lines.append(f"- Switched to: {dc.get('switched_to') or '(not provided)'}")
+        lines.append("### 방향 전환")
+        lines.append(f"- 시도: {dc.get('tried') or '(not provided)'}")
+        lines.append(f"- 막힌 이유: {dc.get('blocked_by') or '(not provided)'}")
+        lines.append(f"- 새 방향: {dc.get('switched_to') or '(not provided)'}")
 
     lines.append("")
     return "\n".join(lines)
@@ -612,6 +623,64 @@ def _get_recent_commits(root: Path, n: int = 5) -> list[str]:
         return []
 
 
+def _get_detailed_commits(root: Path, n: int = 10) -> list[dict[str, str]]:
+    """최근 커밋의 해시, 메시지, 변경 파일을 수집한다."""
+    try:
+        result = subprocess.run(
+            [
+                "git", "log", f"--max-count={n * 2}",
+                "--pretty=format:%h\t%s", "--no-merges", "--name-only",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=root,
+            timeout=10,
+            creationflags=_WINDOWS_FLAGS,
+        )
+        commits: list[dict[str, str]] = []
+        current: dict[str, str] | None = None
+        for line in result.stdout.splitlines():
+            if "\t" in line:
+                if current and not current["message"].startswith("vibelign:"):
+                    commits.append(current)
+                parts = line.split("\t", 1)
+                current = {"hash": parts[0], "message": parts[1], "files": ""}
+            elif line.strip() and current is not None:
+                fname = line.strip()
+                if not any(fname.startswith(p) for p in _HANDOFF_SKIP_PREFIXES):
+                    if current["files"]:
+                        current["files"] += ", "
+                    current["files"] += fname
+        if current and not current["message"].startswith("vibelign:"):
+            commits.append(current)
+        return commits[:n]
+    except Exception:
+        return []
+
+
+def _get_uncommitted_summary(root: Path) -> str | None:
+    """커밋되지 않은 변경사항 요약을 반환한다."""
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            cwd=root,
+            timeout=5,
+            creationflags=_WINDOWS_FLAGS,
+        )
+        lines = [
+            l.strip() for l in result.stdout.splitlines()
+            if l.strip()
+            and not any(l[3:].strip().startswith(p) for p in _HANDOFF_SKIP_PREFIXES)
+        ]
+        if not lines:
+            return None
+        return f"커밋되지 않은 변경 {len(lines)}개 파일"
+    except Exception:
+        return None
+
+
 def _handoff_quality(data: HandoffData) -> tuple[str, str]:
     """handoff 완성도 평가. (이모지, 메시지) 반환."""
     score = 0
@@ -694,6 +763,22 @@ def _collect_handoff_data_from_cli(root: Path, no_prompt: bool) -> HandoffData:
     commit_draft = ", ".join(recent_commits) if recent_commits else None
     if commit_draft:
         data["session_summary"] = commit_draft
+
+    # 상세 커밋 정보로 completed_work 자동 생성
+    detailed = _get_detailed_commits(root, n=10)
+    if detailed:
+        work_lines: list[str] = []
+        for c in detailed:
+            line = f"- `{c['hash']}` {c['message']}"
+            if c["files"]:
+                line += f"\n  변경: {c['files']}"
+            work_lines.append(line)
+        data["completed_work"] = "\n".join(work_lines)
+
+    # 커밋되지 않은 변경으로 unfinished_work 감지
+    uncommitted = _get_uncommitted_summary(root)
+    if uncommitted:
+        data["unfinished_work"] = uncommitted
 
     if no_prompt:
         return data
