@@ -214,6 +214,39 @@ class VibDoctorV2Test(unittest.TestCase):
                 )
             )
 
+    def test_doctor_issue_contains_structured_recovery_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "main.py").write_text("print('hello')\n" * 300, encoding="utf-8")
+
+            envelope = build_doctor_envelope(root, strict=False)
+            issue = envelope["data"]["issues"][0]
+
+            self.assertIn("severity", issue)
+            self.assertIn("category", issue)
+            self.assertIn("recommended_command", issue)
+            self.assertIn("can_auto_fix", issue)
+            self.assertIn("auto_fix_label", issue)
+
+    def test_missing_cursor_mcp_issue_uses_mcp_category_and_command(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "main.py").write_text("print('hello')\n", encoding="utf-8")
+            (root / ".cursorrules").write_text("rules\n", encoding="utf-8")
+
+            envelope = build_doctor_envelope(root, strict=False)
+            issues = envelope["data"]["issues"]
+            mcp_issue = next(i for i in issues if i["category"] == "mcp")
+
+            self.assertEqual("high", mcp_issue["severity"])
+            self.assertEqual("vib start --tools cursor", mcp_issue["recommended_command"])
+            self.assertFalse(mcp_issue["can_auto_fix"])
+
+    def test_analysis_cache_schema_bumped_to_2(self):
+        from vibelign.core.analysis_cache import ANALYSIS_CACHE_SCHEMA
+
+        self.assertEqual(2, ANALYSIS_CACHE_SCHEMA)
+
     def test_run_vib_doctor_uses_rich_renderer_for_text_output(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

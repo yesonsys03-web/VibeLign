@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field, asdict
 import re
 from pathlib import Path
+from typing import Optional
 from vibelign.core.project_scan import (
     iter_project_files,
     iter_source_files,
@@ -72,11 +75,14 @@ FUNCTION_PATTERNS = [
 ]
 
 
+IssueDict = dict[str, object]
+
+
 @dataclass
 class RiskReport:
     level: str = "GOOD"
     score: int = 0
-    issues: list[str] = field(default_factory=list)
+    issues: list[IssueDict] = field(default_factory=list)
     suggestions: list[str] = field(default_factory=list)
     stats: dict[str, object] = field(default_factory=dict)
 
@@ -93,8 +99,27 @@ def contains_any(text: str, needles: list[str] | set[str]) -> bool:
     return any(n in low for n in needles)
 
 
-def add_issue(report: RiskReport, issue: str, suggestion: str, score: int) -> None:
-    report.issues.append(issue)
+def add_issue(
+    report: RiskReport,
+    *,
+    found: str,
+    suggestion: str,
+    score: int,
+    path: Optional[str],
+    category: str,
+    severity: str,
+    check_type: str,
+) -> None:
+    report.issues.append(
+        {
+            "found": found,
+            "next_step": suggestion,
+            "path": path,
+            "category": category,
+            "severity": severity,
+            "check_type": check_type,
+        }
+    )
     report.suggestions.append(suggestion)
     report.score += score
 
@@ -119,59 +144,91 @@ def analyze_project(root: Path, strict: bool = False) -> RiskReport:
             oversized_entry_files += 1
             add_issue(
                 report,
-                f"{rel} 파일이 너무 깁니다 ({lines}줄) — AI가 어디를 고쳐야 할지 헷갈릴 수 있어요",
-                f"{name}은 시작 코드만 두고 나머지는 다른 파일로 옮기는 게 좋아요",
-                3,
+                found=f"{rel} 파일이 너무 깁니다 ({lines}줄) — AI가 어디를 고쳐야 할지 헷갈릴 수 있어요",
+                suggestion=f"{name}은 시작 코드만 두고 나머지는 다른 파일로 옮기는 게 좋아요",
+                score=3,
+                path=rel,
+                category="structure",
+                severity="low" if lines < 500 else "medium",
+                check_type="oversized_entry",
             )
         if name in CATCH_ALL:
             add_issue(
                 report,
-                f"{rel}은 여러 기능이 한 파일에 몰려 있어요",
-                f"{name}을 기능별로 파일을 나눠보세요",
-                2,
+                found=f"{rel}은 여러 기능이 한 파일에 몰려 있어요",
+                suggestion=f"{name}을 기능별로 파일을 나눠보세요",
+                score=2,
+                path=rel,
+                category="structure",
+                severity="low",
+                check_type="catch_all_file",
             )
         if lines >= 1000:
             add_issue(
                 report,
-                f"{rel} 파일이 너무 깁니다 ({lines}줄) — AI가 실수할 위험이 높아요",
-                f"{name}은 꼭 여러 파일로 나눠야 해요",
-                5,
+                found=f"{rel} 파일이 너무 깁니다 ({lines}줄) — AI가 실수할 위험이 높아요",
+                suggestion=f"{name}은 꼭 여러 파일로 나눠야 해요",
+                score=5,
+                path=rel,
+                category="structure",
+                severity="high",
+                check_type="oversized_file",
             )
         elif lines >= 800:
             add_issue(
                 report,
-                f"{rel} 파일이 많이 깁니다 ({lines}줄) — AI가 엉뚱한 곳을 고칠 수 있어요",
-                f"{name}을 여러 파일로 나누는 걸 강력히 권장해요",
-                3,
+                found=f"{rel} 파일이 많이 깁니다 ({lines}줄) — AI가 엉뚱한 곳을 고칠 수 있어요",
+                suggestion=f"{name}을 여러 파일로 나누는 걸 강력히 권장해요",
+                score=3,
+                path=rel,
+                category="structure",
+                severity="medium",
+                check_type="oversized_file",
             )
         elif lines >= 500:
             add_issue(
                 report,
-                f"{rel} 파일이 조금 깁니다 ({lines}줄)",
-                f"{name}을 여러 파일로 나누는 걸 고려해보세요",
-                2,
+                found=f"{rel} 파일이 조금 깁니다 ({lines}줄)",
+                suggestion=f"{name}을 여러 파일로 나누는 걸 고려해보세요",
+                score=2,
+                path=rel,
+                category="structure",
+                severity="low",
+                check_type="oversized_file",
             )
         if lines > anchor_limit and "=== ANCHOR:" not in text:
             missing_anchor_files += 1
             add_issue(
                 report,
-                f"{rel}에 안전 구역 표시(앵커)가 없어요",
-                f"{name}에 앵커를 추가하면 AI가 딱 그 부분만 안전하게 고칠 수 있어요 — vib anchor --suggest",
-                2,
+                found=f"{rel}에 안전 구역 표시(앵커)가 없어요",
+                suggestion=f"{name}에 앵커를 추가하면 AI가 딱 그 부분만 안전하게 고칠 수 있어요",
+                score=2,
+                path=rel,
+                category="anchor",
+                severity="medium",
+                check_type="missing_anchor",
             )
         if fn_count >= (18 if strict else 25):
             add_issue(
                 report,
-                f"{rel}에 기능이 너무 많이 들어 있어요 ({fn_count}개) — AI가 어디를 건드려야 할지 헷갈릴 수 있어요",
-                f"{name}을 기능별로 파일을 나눠보세요",
-                2,
+                found=f"{rel}에 기능이 너무 많이 들어 있어요 ({fn_count}개) — AI가 어디를 건드려야 할지 헷갈릴 수 있어요",
+                suggestion=f"{name}을 기능별로 파일을 나눠보세요",
+                score=2,
+                path=rel,
+                category="structure",
+                severity="medium",
+                check_type="too_many_functions",
             )
         if name in ENTRY_FILES and lines > 60 and contains_any(text, BIZ_HINTS):
             add_issue(
                 report,
-                f"{rel}에 실행 코드 말고 다른 기능도 섞여 있는 것 같아요",
-                f"{name}에서 시작 코드 외의 기능은 다른 파일로 옮기세요",
-                3,
+                found=f"{rel}에 실행 코드 말고 다른 기능도 섞여 있는 것 같아요",
+                suggestion=f"{name}에서 시작 코드 외의 기능은 다른 파일로 옮기세요",
+                score=3,
+                path=rel,
+                category="structure",
+                severity="medium",
+                check_type="mixed_concerns_entry",
             )
         if (
             contains_any(text, UI_HINTS)
@@ -180,16 +237,24 @@ def analyze_project(root: Path, strict: bool = False) -> RiskReport:
         ):
             add_issue(
                 report,
-                f"{rel}에 화면 코드와 처리 코드가 한 파일에 섞여 있어요",
-                f"{name}에서 화면 코드와 처리 코드를 파일로 나눠보세요",
-                3,
+                found=f"{rel}에 화면 코드와 처리 코드가 한 파일에 섞여 있어요",
+                suggestion=f"{name}에서 화면 코드와 처리 코드를 파일로 나눠보세요",
+                score=3,
+                path=rel,
+                category="structure",
+                severity="medium",
+                check_type="mixed_concerns_ui",
             )
 
     dep_issues = _check_dependency_risks(root)
-    for issue, suggestion, sc in dep_issues:
-        add_issue(report, issue, suggestion, sc)
+    for dep_issue in dep_issues:
+        report.issues.append(dep_issue)
+        suggestion = str(dep_issue.get("next_step", ""))
+        if suggestion:
+            report.suggestions.append(suggestion)
+        report.score += 2
 
-    report.issues = list(dict.fromkeys(report.issues))
+    report.issues = list({(item["found"], item.get("path")): item for item in report.issues}.values())
     report.suggestions = list(dict.fromkeys(report.suggestions))
     report.stats = {
         "files_scanned": files_scanned,
@@ -253,9 +318,9 @@ def _extract_internal_imports(root: Path, path: Path) -> list[str]:
     return results
 
 
-def _check_dependency_risks(root: Path) -> list[tuple[str, str, int]]:
+def _check_dependency_risks(root: Path) -> list[IssueDict]:
     """Lightweight dependency-risk checks: circular imports, missing targets, suspicious chains."""
-    issues: list[tuple[str, str, int]] = []
+    issues: list[IssueDict] = []
     import_graph: dict[str, list[str]] = {}
 
     py_files = [p for p in iter_source_files(root) if p.suffix == ".py"]
@@ -277,11 +342,14 @@ def _check_dependency_risks(root: Path) -> list[tuple[str, str, int]]:
                 mod.startswith(m + ".") for m in module_names
             ):
                 issues.append(
-                    (
-                        f"{rel}이 '{mod}' 파일을 불러오려 하는데 그 파일이 없어요",
-                        f"'{mod}' 파일이 프로젝트 안에 있는지 확인해보세요",
-                        2,
-                    )
+                    {
+                        "found": f"{rel}이 '{mod}' 파일을 불러오려 하는데 그 파일이 없어요",
+                        "next_step": f"'{mod}' 파일이 프로젝트 안에 있는지 확인해보세요",
+                        "path": rel,
+                        "category": "metadata",
+                        "severity": "medium",
+                        "check_type": "missing_import_target",
+                    }
                 )
 
     seen_cycles: set[frozenset[str]] = set()
@@ -299,11 +367,14 @@ def _check_dependency_risks(root: Path) -> list[tuple[str, str, int]]:
                         if src != other_src and pair not in seen_cycles:
                             seen_cycles.add(pair)
                             issues.append(
-                                (
-                                    f"{src}와 {other_src}가 서로를 불러오고 있어요 — 이러면 오류가 날 수 있어요",
-                                    "두 파일이 서로를 부르지 않도록 공통 내용을 별도 파일로 분리해보세요",
-                                    3,
-                                )
+                                {
+                                    "found": f"{src}와 {other_src}가 서로를 불러오고 있어요 — 이러면 오류가 날 수 있어요",
+                                    "next_step": "두 파일이 서로를 부르지 않도록 공통 내용을 별도 파일로 분리해보세요",
+                                    "path": src,
+                                    "category": "metadata",
+                                    "severity": "medium",
+                                    "check_type": "circular_import",
+                                }
                             )
 
     return issues

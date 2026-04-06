@@ -23,7 +23,7 @@ JsonObject = Mapping[str, object]
 
 from vibelign.core.feature_flags import is_enabled
 
-ANALYSIS_CACHE_SCHEMA = 1
+ANALYSIS_CACHE_SCHEMA = 2
 
 _FLAGS_TO_TRACK = ["USE_ACTION_ENGINE"]
 
