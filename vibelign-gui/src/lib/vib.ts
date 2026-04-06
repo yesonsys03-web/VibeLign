@@ -64,9 +64,17 @@ export async function doctorJson(cwd: string, strict = false): Promise<unknown> 
   const args = ["doctor", "--json"];
   if (strict) args.push("--strict");
   const res = await runVib(args, cwd);
-  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
-  const parsed = JSON.parse(res.stdout);
   // vib doctor --json 은 {"ok": true, "data": {...}} envelope 반환
+  // exit code가 0이 아니어도 JSON ok 필드가 true이면 정상 결과로 처리
+  const stdout = res.stdout.trim();
+  if (stdout.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(stdout);
+      if (parsed.ok && parsed.data) return parsed.data;
+    } catch { /* JSON 파싱 실패 시 아래 에러 경로로 */ }
+  }
+  if (!res.ok) throw new Error(res.stderr || res.stdout || `exit ${res.exit_code}`);
+  const parsed = JSON.parse(res.stdout);
   return parsed.data ?? parsed;
 }
 
