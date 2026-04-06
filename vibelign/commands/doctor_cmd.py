@@ -42,7 +42,10 @@ def run_doctor(args: DoctorArgs) -> None:
         return
     lines.extend(["## 3. 먼저 보면 좋은 문제"])
     for i, issue in enumerate(report.issues, 1):
-        lines.append(f"{i}. {issue}")
+        if isinstance(issue, dict):
+            lines.append(f"{i}. {issue.get('found', '')}")
+        else:
+            lines.append(f"{i}. {issue}")
     lines.extend(["", "## 4. 다음에 하면 좋은 일"])
     for i, suggestion in enumerate(report.suggestions, 1):
         lines.append(f"{i}. {suggestion}")

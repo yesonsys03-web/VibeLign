@@ -71,7 +71,9 @@ def _render_markdown(
     issues: list[str] = []
     if isinstance(raw_issues, list):
         for raw_item in cast(list[object], raw_issues):
-            if isinstance(raw_item, str):
+            if isinstance(raw_item, dict):
+                issues.append(str(cast(dict[str, object], raw_item).get("found", "")))
+            elif isinstance(raw_item, str):
                 issues.append(raw_item)
     lines.extend(
         [f"- {item}" for item in issues]

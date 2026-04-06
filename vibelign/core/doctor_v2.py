@@ -463,12 +463,17 @@ def render_doctor_markdown(
     if detailed and report.issues:
         lines.extend(["", "자세히 보면:"])
         for item in report.issues:
-            lines.extend(
-                [
-                    f"- 찾은 문제: {item['found']}",
-                    f"  왜 중요하냐면: {item['why_it_matters']}",
-                    f"  다음에 하면 좋은 일: {item['next_step']}",
-                ]
+            sev = str(item.get("severity", "low")).upper()
+            cat = str(item.get("category", "metadata"))
+            lines.append(f"- [{sev}][{cat}] {item['found']}")
+            lines.append(f"  왜 중요하냐면: {item['why_it_matters']}")
+            lines.append(f"  다음에 하면 좋은 일: {item['next_step']}")
+            if item.get("recommended_command"):
+                lines.append(f"  추천 명령: {item['recommended_command']}")
+            lines.append(
+                "  자동 수정: 가능"
+                if item.get("can_auto_fix")
+                else "  자동 수정: 불가"
             )
 
     if fix_hints or report.recommended_actions:

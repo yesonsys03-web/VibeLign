@@ -65,5 +65,21 @@ class PlainDoctorGuardRenderTest(unittest.TestCase):
                 os.chdir(previous)
 
 
+    def test_run_doctor_renders_structured_issue_found_lines(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "main.py").write_text("print('hello')\n" * 300, encoding="utf-8")
+            previous = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch("vibelign.commands.doctor_cmd.print_ai_response") as mocked:
+                    run_doctor(SimpleNamespace(json=False, strict=False))
+                    rendered = mocked.call_args[0][0]
+                    self.assertIn("## 3. 먼저 보면 좋은 문제", rendered)
+                    self.assertIn("main.py", rendered)
+            finally:
+                os.chdir(previous)
+
+
 if __name__ == "__main__":
     unittest.main()
