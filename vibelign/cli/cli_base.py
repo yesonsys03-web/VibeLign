@@ -3,7 +3,12 @@ import argparse
 import importlib
 import sys
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Protocol, TypeVar, override
+from typing import TYPE_CHECKING, Protocol, TypeVar
+
+try:
+    from typing import override
+except ImportError:
+    from typing_extensions import override
 
 from vibelign.terminal_render import print_cli_help
 
@@ -15,8 +20,9 @@ else:
     # === ANCHOR: CLI_BASE_SUPPORTSWRITE_START ===
     class SupportsWrite(Protocol[_WriteT]):
         # === ANCHOR: CLI_BASE_WRITE_START ===
-    # === ANCHOR: CLI_BASE_SUPPORTSWRITE_END ===
+        # === ANCHOR: CLI_BASE_SUPPORTSWRITE_END ===
         def write(self, s: _WriteT) -> object: ...
+
         # === ANCHOR: CLI_BASE_WRITE_END ===
 
 
@@ -38,7 +44,7 @@ class RichArgumentParser(argparse.ArgumentParser):
         add_help: bool = True,
         allow_abbrev: bool = True,
         exit_on_error: bool = True,
-    # === ANCHOR: CLI_BASE___INIT___END ===
+        # === ANCHOR: CLI_BASE___INIT___END ===
     ) -> None:
         super().__init__(
             prog=prog,
@@ -59,12 +65,14 @@ class RichArgumentParser(argparse.ArgumentParser):
     @override
     # === ANCHOR: CLI_BASE__PRINT_MESSAGE_START ===
     def _print_message(
-        self, message: str | None, file: SupportsWrite[str] | None = None
-    # === ANCHOR: CLI_BASE__PRINT_MESSAGE_END ===
+        self,
+        message: str | None,
+        file: SupportsWrite[str] | None = None,
+        # === ANCHOR: CLI_BASE__PRINT_MESSAGE_END ===
     ) -> None:
         if not message:
             return
-# === ANCHOR: CLI_BASE_RICHARGUMENTPARSER_END ===
+        # === ANCHOR: CLI_BASE_RICHARGUMENTPARSER_END ===
         if file not in (None, sys.stdout):
             _ = file.write(message)
             return
@@ -125,8 +133,11 @@ def lazy_command(module_name: str, func_name: str) -> Callable[[object], None]:
     def runner(args: object) -> None:
         module = importlib.import_module(module_name)
         getattr(module, func_name)(args)
+
     # === ANCHOR: CLI_BASE_RUNNER_END ===
-# === ANCHOR: CLI_BASE_LAZY_COMMAND_END ===
+    # === ANCHOR: CLI_BASE_LAZY_COMMAND_END ===
 
     return runner
+
+
 # === ANCHOR: CLI_BASE_END ===
