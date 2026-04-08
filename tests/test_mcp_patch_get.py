@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
-from vibelign.mcp_server import call_tool
+from vibelign.mcp.mcp_server import call_tool
 from vibelign.core.codespeak import build_codespeak_result
 
 
@@ -152,7 +152,7 @@ class McpPatchGetTest(unittest.TestCase):
             )
 
             with patch(
-                "vibelign.commands.vib_patch_cmd._build_patch_data",
+                "vibelign.patch.patch_builder.build_patch_data",
                 return_value={
                     "patch_plan": {
                         "schema_version": 1,
@@ -231,7 +231,7 @@ class McpPatchGetTest(unittest.TestCase):
                 self.fail("build_codespeak_result should build a move result")
 
             with patch(
-                "vibelign.commands.vib_patch_cmd.build_codespeak",
+                "vibelign.patch.patch_builder.build_codespeak",
                 return_value=weak_move_result,
             ):
                 payload = self._call_patch_get(
@@ -274,7 +274,7 @@ class McpPatchGetTest(unittest.TestCase):
                 self.fail("build_codespeak_result should return a multi-intent result")
 
             with patch(
-                "vibelign.commands.vib_patch_cmd.build_codespeak",
+                "vibelign.patch.patch_builder.build_codespeak",
                 return_value=multi_intent_result,
             ):
                 payload = self._call_patch_get(

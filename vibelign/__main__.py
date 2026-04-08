@@ -1,5 +1,5 @@
 # === ANCHOR: __MAIN___START ===
-from vibelign.vib_cli import main
+from vibelign.cli import main
 
 if __name__ == "__main__":
     main()

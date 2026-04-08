@@ -37,6 +37,21 @@ class GitHooksTest(unittest.TestCase):
             hook_text = (hooks_dir / "pre-commit").read_text(encoding="utf-8")
             self.assertIn('"/tmp/vib" secrets --staged', hook_text)
 
+    def test_install_uses_refactored_module_fallback_when_vib_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            hooks_dir = root / ".git" / "hooks"
+            with patch("vibelign.core.git_hooks.get_hooks_dir", return_value=hooks_dir):
+                with patch("vibelign.core.git_hooks.shutil.which", return_value=None):
+                    with patch("vibelign.core.git_hooks.sys.executable", "/tmp/python"):
+                        result = install_pre_commit_secret_hook(root)
+            self.assertEqual(result.status, "installed")
+            hook_text = (hooks_dir / "pre-commit").read_text(encoding="utf-8")
+            self.assertIn(
+                '"/tmp/python" -m vibelign.cli.vib_cli secrets --staged',
+                hook_text,
+            )
+
     def test_install_does_not_overwrite_foreign_hook(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

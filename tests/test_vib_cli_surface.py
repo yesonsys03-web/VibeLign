@@ -2,7 +2,7 @@ import unittest
 from typing import Any, cast
 
 from vibelign.commands.init_cmd import run_init
-from vibelign.vib_cli import build_parser
+from vibelign.cli.vib_cli import build_parser
 
 
 class VibCliSurfaceTest(unittest.TestCase):
