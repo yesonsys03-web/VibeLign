@@ -192,6 +192,14 @@ export async function watchStatus(): Promise<boolean> {
   return invoke<boolean>("watch_status");
 }
 
+export async function getWatchLogs(): Promise<string[]> {
+  return invoke<string[]>("get_watch_logs");
+}
+
+export async function getWatchErrors(): Promise<string[]> {
+  return invoke<string[]>("get_watch_errors");
+}
+
 // ─── API 키 관리 ────────────────────────────────────────────────────────────────
 
 export async function saveRecentProjects(dirs: string[]): Promise<void> {
