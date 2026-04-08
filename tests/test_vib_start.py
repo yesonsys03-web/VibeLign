@@ -14,7 +14,7 @@ from vibelign.commands.vib_start_cmd import (
     _status_line,
     _tool_readiness,
 )
-from vibelign.vib_cli import build_parser as build_vib_parser
+from vibelign.cli.vib_cli import build_parser as build_vib_parser
 
 
 class VibStartTest(unittest.TestCase):

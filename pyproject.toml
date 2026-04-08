@@ -31,8 +31,8 @@ Releases = "https://github.com/yesonsys03-web/VibeLign/releases"
 
 [project.scripts]
 vibelign = "vibelign.cli:main"
-vib = "vibelign.vib_cli:main"
-vibelign-mcp = "vibelign.mcp_server:main"
+vib = "vibelign.cli.vib_cli:main"
+vibelign-mcp = "vibelign.mcp.mcp_server:main"
 
 [tool.setuptools.packages.find]
 include = ["vibelign*"]

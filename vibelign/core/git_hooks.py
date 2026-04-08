@@ -96,9 +96,7 @@ def install_pre_commit_secret_hook(root: Path) -> HookInstallResult:
     if vib_path:
         preferred_command = f'"{vib_path}" secrets --staged >/dev/null 2>&1'
     elif sys.executable:
-        preferred_command = (
-            f'"{sys.executable}" -m vibelign.vib_cli secrets --staged >/dev/null 2>&1'
-        )
+        preferred_command = f'"{sys.executable}" -m vibelign.cli.vib_cli secrets --staged >/dev/null 2>&1'
 
     hooks_dir.mkdir(parents=True, exist_ok=True)
     hook_path = hooks_dir / "pre-commit"

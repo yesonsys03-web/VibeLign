@@ -77,6 +77,13 @@ class DistributionMetadataTest(unittest.TestCase):
         classifiers = set(cast(list[str], project.get("classifiers", [])))
         self.assertIn("Programming Language :: Python :: 3", classifiers)
 
+    def test_project_scripts_target_refactored_packages(self):
+        text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+        self.assertIn('vibelign = "vibelign.cli:main"', text)
+        self.assertIn('vib = "vibelign.cli.vib_cli:main"', text)
+        self.assertIn('vibelign-mcp = "vibelign.mcp.mcp_server:main"', text)
+
 
 if __name__ == "__main__":
     _ = unittest.main()
