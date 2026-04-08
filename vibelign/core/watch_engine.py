@@ -544,12 +544,12 @@ def run_watch(config: WatchConfig) -> None:
     state_path = vg_dir / "watch_state.json"
     log_path = vg_dir / "watch.log" if write_log else None
 
-    print("프로젝트 감시를 시작합니다...")
-    print(f"루트 경로: {root}")
-    print(f"엄격 모드: {strict}")
-    print(f"JSON 모드: {json_mode}")
-    print(f"로그 저장: {write_log}")
-    print("파일이 변경되면 코드맵이 자동으로 갱신됩니다. (Ctrl+C로 종료)")
+    print("프로젝트 감시를 시작합니다...", flush=True)
+    print(f"루트 경로: {root}", flush=True)
+    print(f"엄격 모드: {strict}", flush=True)
+    print(f"JSON 모드: {json_mode}", flush=True)
+    print(f"로그 저장: {write_log}", flush=True)
+    print("파일이 변경되면 코드맵이 자동으로 갱신됩니다. (Ctrl+C로 종료)", flush=True)
 
     handler = VibeLignWatchHandler(
         root, state_path, strict, json_mode, log_path, debounce_ms
