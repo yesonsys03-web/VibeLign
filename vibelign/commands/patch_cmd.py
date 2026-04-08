@@ -3,7 +3,8 @@ from argparse import Namespace
 import json
 from pathlib import Path
 from typing import cast
-from vibelign.core.patch_suggester import suggest_patch
+
+from vibelign.commands.vib_patch_cmd import build_legacy_patch_suggestion
 
 
 from vibelign.terminal_render import cli_print
@@ -44,29 +45,30 @@ def run_patch(args: Namespace) -> None:
         cast(list[object], request_value) if isinstance(request_value, list) else []
     )
     request = " ".join(str(part) for part in request_parts).strip()
-    suggestion = suggest_patch(Path.cwd(), request)
+    suggestion = build_legacy_patch_suggestion(Path.cwd(), request)
     json_mode = bool(getattr(args, "json", False))
     if json_mode:
-        print(json.dumps(suggestion.to_dict(), indent=2))
+        print(json.dumps(suggestion, indent=2))
         return
-    rationale_text = "\n".join(f"- {item}" for item in suggestion.rationale)
+    rationale = cast(list[object], suggestion.get("rationale", []))
+    rationale_text = "\n".join(f"- {item}" for item in rationale)
     out = Path.cwd() / "VIBELIGN_PATCH_REQUEST.md"
     if out.exists():
         print(f"경고: 기존 {out.name} 파일을 덮어씁니다")
     _ = out.write_text(
         PATCH_TEMPLATE.format(
             request=request,
-            target_file=suggestion.target_file,
-            target_anchor=suggestion.target_anchor,
-            confidence=suggestion.confidence,
+            target_file=str(suggestion["target_file"]),
+            target_anchor=str(suggestion["target_anchor"]),
+            confidence=str(suggestion["confidence"]),
             rationale=rationale_text,
         ),
         encoding="utf-8",
     )
     print(f"{out.name} 파일을 생성했습니다")
-    print(f"제안 파일: {suggestion.target_file}")
-    print(f"제안 앵커: {suggestion.target_anchor}")
-    print(f"신뢰도: {suggestion.confidence}")
+    print(f"제안 파일: {suggestion['target_file']}")
+    print(f"제안 앵커: {suggestion['target_anchor']}")
+    print(f"신뢰도: {suggestion['confidence']}")
 
 
 # === ANCHOR: PATCH_CMD_RUN_PATCH_END ===

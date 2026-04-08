@@ -7,6 +7,7 @@
     3. 의존 순서 정렬 (add_anchor → split_file)
     4. 순서 확정된 Plan 반환
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -21,7 +22,7 @@ _ACTION_PRIORITY: Dict[str, int] = {
     "fix_project_map": 0,
     "fix_mcp": 1,
     "add_anchor": 2,
-    "split_file": 3,   # add_anchor 이후에만 안전
+    "split_file": 3,  # add_anchor 이후에만 안전
     "review": 9,
 }
 
@@ -33,16 +34,28 @@ _ACTION_DEPENDENCY: Dict[str, List[str]] = {
 
 def _classify_issue(issue: Dict[str, Any]) -> str:
     """issue dict에서 action_type을 결정한다."""
+    category = str(issue.get("category", "")).lower()
     found: str = issue.get("found", "")
     next_step: str = issue.get("next_step", "")
+    recommended_command: str = str(issue.get("recommended_command", ""))
     text = found + " " + next_step
 
-    if "project_map" in text or "vib start" in next_step:
-        return "fix_project_map"
-    if "MCP" in text or "mcp" in text.lower():
+    if category == "anchor":
+        return "add_anchor"
+    if category == "mcp":
         return "fix_mcp"
+    check_type = str(issue.get("check_type", "")).lower()
+    path = str(issue.get("path", "")).lower()
+    if (
+        check_type in {"unsupported_project_map_schema", "invalid_project_map"}
+        or "project_map" in text.lower()
+        or path.endswith(".vibelign/project_map.json")
+    ):
+        return "fix_project_map"
     if "앵커" in text or "anchor" in text.lower():
         return "add_anchor"
+    if "mcp.json" in text.lower():
+        return "fix_mcp"
     if "분리" in text or "나눠" in text or "split" in text.lower():
         return "split_file"
     return "review"
@@ -121,4 +134,6 @@ def generate_plan(doctor_report: Any) -> Plan:
         generated_at=datetime.now(timezone.utc).isoformat(),
         warnings=warnings,
     )
+
+
 # === ANCHOR: ACTION_PLANNER_END ===

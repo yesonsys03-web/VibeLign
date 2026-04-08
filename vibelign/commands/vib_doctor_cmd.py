@@ -8,6 +8,7 @@ from typing import cast
 from vibelign.action_engine.action_planner import generate_plan
 from vibelign.action_engine.executors.action_executor import execute_plan
 from vibelign.action_engine.generators.patch_generator import generate_patch_preview
+from vibelign.core.risk_analyzer import RiskReport, analyze_project
 from vibelign.core.doctor_v2 import (
     DoctorV2Report,
     analyze_project_v2,
@@ -23,6 +24,44 @@ from vibelign.terminal_render import print_ai_response
 from vibelign.terminal_render import cli_print
 
 print = cli_print
+
+
+def build_legacy_doctor_output(
+    root: Path, *, strict: bool, as_json: bool
+) -> tuple[str, bool]:
+    report = analyze_project(root, strict=strict)
+    if as_json:
+        return json.dumps(report.to_dict(), indent=2), True
+
+    return _render_legacy_doctor_markdown(report), False
+
+
+def _render_legacy_doctor_markdown(report: RiskReport) -> str:
+    lines = [
+        "# VibeLign Doctor Report",
+        "",
+        f"## 1. 지금 상태\n지금 프로젝트 상태는 `{report.level}`이고, 점수는 `{report.score}`입니다.",
+        "",
+        "## 2. 한눈에 보는 숫자",
+        f"- 전체 파일 수: {report.stats.get('files_scanned', 0)}",
+        f"- 소스 파일 수: {report.stats.get('source_files_scanned', 0)}",
+        f"- 처음부터 중요한 역할을 하는 큰 파일 수: {report.stats.get('oversized_entry_files', 0)}",
+        f"- 안전 구역 표시가 없는 파일 수: {report.stats.get('missing_anchor_files', 0)}",
+        "",
+    ]
+    if not report.issues:
+        lines.extend(
+            ["## 3. 확인된 점", "- 지금 바로 걱정할 큰 구조 문제는 보이지 않습니다."]
+        )
+        return "\n".join(lines) + "\n"
+
+    lines.extend(["## 3. 먼저 보면 좋은 문제"])
+    for index, issue in enumerate(report.issues, 1):
+        lines.append(f"{index}. {issue.get('found', '')}")
+    lines.extend(["", "## 4. 다음에 하면 좋은 일"])
+    for index, suggestion in enumerate(report.suggestions, 1):
+        lines.append(f"{index}. {suggestion}")
+    return "\n".join(lines) + "\n"
 
 
 def _update_doctor_state(meta: MetaPaths) -> None:
@@ -42,9 +81,15 @@ def _run_fix(root: Path) -> None:
     """앵커 없는 파일에 자동으로 앵커 삽입."""
     from vibelign.core.anchor_tools import extract_anchors, insert_module_anchors
     from vibelign.core.project_scan import iter_source_files
+    from vibelign.core.project_scan import safe_read_text
+    from vibelign.core.structure_policy import is_trivial_package_init
     from vibelign.terminal_render import clack_info, clack_step, clack_success
 
-    targets = [p for p in iter_source_files(root) if not extract_anchors(p)]
+    targets = [
+        p
+        for p in iter_source_files(root)
+        if not extract_anchors(p) and not is_trivial_package_init(p, safe_read_text(p))
+    ]
     if not targets:
         clack_info("앵커가 없는 파일이 없어요. 이미 다 표시되어 있어요!")
         return

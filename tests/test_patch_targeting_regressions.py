@@ -773,7 +773,7 @@ class PatchTargetingRegressionTest(unittest.TestCase):
 
             with (
                 patch(
-                    "vibelign.commands.vib_patch_cmd.build_codespeak",
+                    "vibelign.patch.patch_builder.build_codespeak",
                     return_value=base_result,
                 ),
                 patch(
@@ -838,7 +838,7 @@ class PatchTargetingRegressionTest(unittest.TestCase):
             )
 
             with patch(
-                "vibelign.commands.vib_patch_cmd.build_codespeak",
+                "vibelign.patch.patch_builder.build_codespeak",
                 return_value=cast(
                     object,
                     build_codespeak_result(

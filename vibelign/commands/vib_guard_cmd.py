@@ -156,6 +156,10 @@ def _build_guard_envelope(
     return {"ok": True, "error": None, "data": data}
 
 
+def build_guard_envelope(root: Path, strict: bool, since_minutes: int) -> GuardEnvelope:
+    return _build_guard_envelope(root, strict=strict, since_minutes=since_minutes)
+
+
 # === ANCHOR: VIB_GUARD_CMD__RENDER_MARKDOWN_START ===
 def _render_markdown(data: GuardData) -> str:
     status_label = {

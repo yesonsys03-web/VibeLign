@@ -2,46 +2,16 @@
 from collections.abc import Generator
 from pathlib import Path
 
-IGNORED = {
-    ".git",
-    ".venv",
-    "venv",
-    "__pycache__",
-    "node_modules",
-    "dist",
-    "build",
-    ".next",
-    ".pnpm-store",
-    ".idea",
-    ".vscode",
-    ".pytest_cache",
-    "docs",
-    "tests",
-    ".github",
-    ".vibelign",
-    ".vibelign",
-}
-IGNORED_LOWER = {part.lower() for part in IGNORED}
-SOURCE_EXTS = {
-    ".py",
-    ".js",
-    ".ts",
-    ".jsx",
-    ".tsx",
-    ".rs",
-    ".go",
-    ".java",
-    ".cs",
-    ".cpp",
-    ".c",
-    ".hpp",
-    ".h",
-}
+from vibelign.core.structure_policy import (
+    has_ignored_part,
+    is_core_entry_file,
+    is_source_file,
+)
 
 
 def iter_project_files(root: Path) -> Generator[Path, None, None]:
     for path in root.rglob("*"):
-        if any(part.lower() in IGNORED_LOWER for part in path.parts):
+        if has_ignored_part(path.parts):
             continue
         if path.is_file():
             yield path
@@ -56,7 +26,7 @@ def iter_source_files(root: Path) -> Generator[Path, None, None]:
             yield from files
             return
     for path in iter_project_files(root):
-        if path.suffix.lower() in SOURCE_EXTS:
+        if is_source_file(path):
             yield path
 
 
@@ -78,7 +48,6 @@ def relpath_str(root: Path, path: Path) -> str:
         return str(path).replace("\\", "/")
 
 
-_ENTRY_NAMES = {"main.py", "app.py", "cli.py", "index.js", "main.ts"}
 _UI_TOKENS = ["ui", "view", "views", "window", "dialog", "widget", "screen"]
 _SERVICE_TOKENS = [
     "service",
@@ -97,7 +66,7 @@ _CORE_TOKENS = ["core", "engine", "patch", "anchor", "guard"]
 
 
 def classify_file(path: Path, rel: str) -> str:
-    if path.name in _ENTRY_NAMES:
+    if is_core_entry_file(path):
         return "entry"
     parts = rel.replace("\\", "/").split("/")
     dir_low = "/".join(parts[:-1]).lower()

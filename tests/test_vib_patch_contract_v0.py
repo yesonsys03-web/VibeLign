@@ -8,6 +8,7 @@ from unittest.mock import patch
 from typing import Any
 
 from vibelign.commands.vib_patch_cmd import run_vib_patch
+from vibelign.core.structure_policy import is_generated_artifact_path
 from vibelign.core.codespeak import build_codespeak_result
 
 
@@ -71,6 +72,13 @@ class VibPatchContractV0Test(unittest.TestCase):
                 payload["data"]["patch_plan"]["target_anchor"],
             )
             self.assertIn("def render_login", steps[0]["context_snippet"])
+
+    def test_generated_artifact_policy_identifies_shared_build_paths(self):
+        self.assertTrue(
+            is_generated_artifact_path("vibelign-gui/src-tauri/target/debug")
+        )
+        self.assertTrue(is_generated_artifact_path("dist/app.js"))
+        self.assertFalse(is_generated_artifact_path("vibelign/vib_cli.py"))
 
     def test_vib_patch_json_marks_missing_anchor_as_needs_clarification(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -600,7 +608,7 @@ class VibPatchContractV0Test(unittest.TestCase):
                 self.fail("build_codespeak_result should build a move result")
 
             with patch(
-                "vibelign.commands.vib_patch_cmd.build_codespeak",
+                "vibelign.patch.patch_builder.build_codespeak",
                 return_value=weak_move_result,
             ):
                 payload = self._run_patch_json(
@@ -651,7 +659,7 @@ class VibPatchContractV0Test(unittest.TestCase):
                 self.fail("build_codespeak_result should return a multi-intent result")
 
             with patch(
-                "vibelign.commands.vib_patch_cmd.build_codespeak",
+                "vibelign.patch.patch_builder.build_codespeak",
                 return_value=multi_intent_result,
             ):
                 payload = self._run_patch_json(
