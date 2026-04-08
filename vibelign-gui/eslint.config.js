@@ -1,3 +1,4 @@
+// === ANCHOR: ESLINT_CONFIG_START ===
 // 단일 파일 비대화 완화. 일반 소스 800줄, 레거시 Home.tsx는 2000줄까지(넘으면 에러).
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
@@ -33,3 +34,4 @@ export default tseslint.config(
     },
   }
 );
+// === ANCHOR: ESLINT_CONFIG_END ===
