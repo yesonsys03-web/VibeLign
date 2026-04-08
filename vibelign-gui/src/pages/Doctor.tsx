@@ -108,11 +108,12 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
   async function handleApply() {
     setApplying(true);
     setApplyMsg(null);
+    setError(null);
     try {
       const result = await doctorApply(projectDir, buildGuiAiEnv(providerKeys, apiKey)) as { ok: boolean; done?: number; manual?: number };
       if (result.ok) {
         setApplyMsg(`완료: ${result.done ?? 0}개 자동 적용, ${result.manual ?? 0}개 수동 필요`);
-        loadReport();
+        await Promise.all([loadReport(), loadPlan()]);
       }
     } catch (e) {
       setError(String(e));
