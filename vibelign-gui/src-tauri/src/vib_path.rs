@@ -13,7 +13,11 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// `export … # VibeLign CLI` 줄이 이미 있으면 스킵한다.
-fn append_vibelign_path_line(path: &Path, path_line: &str, create_if_missing: bool) -> Result<(), String> {
+fn append_vibelign_path_line(
+    path: &Path,
+    path_line: &str,
+    create_if_missing: bool,
+) -> Result<(), String> {
     const MARKER: &str = "# VibeLign CLI";
     if path.exists() {
         let existing = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
@@ -210,7 +214,12 @@ fn find_uv_tool_vib() -> Option<PathBuf> {
             // %APPDATA%\uv\tools
             let base = std::env::var("APPDATA")
                 .map(PathBuf::from)
-                .unwrap_or_else(|_| home_dir().unwrap_or_default().join("AppData").join("Roaming"));
+                .unwrap_or_else(|_| {
+                    home_dir()
+                        .unwrap_or_default()
+                        .join("AppData")
+                        .join("Roaming")
+                });
             base.join("uv").join("tools")
         }
     };
@@ -220,7 +229,17 @@ fn find_uv_tool_vib() -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
     let candidate = tool_dir.join("vibelign").join("Scripts").join("vib.exe");
 
-    if candidate.exists() { Some(candidate) } else { None }
+    if candidate.exists() {
+        Some(candidate)
+    } else {
+        None
+    }
+}
+
+pub fn find_watch_vib() -> Option<PathBuf> {
+    find_uv_tool_vib()
+        .filter(|p| std::fs::metadata(p).map_or(false, |m| m.len() > 0))
+        .or_else(|| find_vib().filter(|p| std::fs::metadata(p).map_or(false, |m| m.len() > 0)))
 }
 
 /// vib CLI를 터미널에서 바로 사용할 수 있도록 PATH에 설치한다.
@@ -229,10 +248,8 @@ fn find_uv_tool_vib() -> Option<PathBuf> {
 pub fn install_cli_to_path() -> Result<String, String> {
     // uv tool 버전(Python 환경 포함)을 우선 사용, 없으면 번들 사이드카로 폴백
     // 단, 소스 파일이 0 bytes이면 손상된 것으로 간주하고 건너뜀
-    let vib = find_uv_tool_vib()
-        .filter(|p| std::fs::metadata(p).map_or(false, |m| m.len() > 0))
-        .or_else(|| find_vib().filter(|p| std::fs::metadata(p).map_or(false, |m| m.len() > 0)))
-        .ok_or("유효한 vib 실행 파일을 찾을 수 없습니다 (0 bytes 또는 미설치)")?;
+    let vib =
+        find_watch_vib().ok_or("유효한 vib 실행 파일을 찾을 수 없습니다 (0 bytes 또는 미설치)")?;
 
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
@@ -268,7 +285,11 @@ pub fn install_cli_to_path() -> Result<String, String> {
     {
         let local_app_data = std::env::var("LOCALAPPDATA")
             .map(PathBuf::from)
-            .or_else(|_| home_dir().ok_or("".to_string()).map(|h| h.join("AppData").join("Local")))
+            .or_else(|_| {
+                home_dir()
+                    .ok_or("".to_string())
+                    .map(|h| h.join("AppData").join("Local"))
+            })
             .map_err(|_| "LOCALAPPDATA를 찾을 수 없습니다".to_string())?;
 
         let dest_dir = local_app_data.join("Programs").join("VibeLign");

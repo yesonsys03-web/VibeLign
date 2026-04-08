@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { vibScan, startWatch, stopWatch, watchStatus } from "../../../lib/vib";
 import { CardState } from "../../../lib/commands";
+import GuiCliOutputBlock from "../../GuiCliOutputBlock";
 
 interface CodemapCardProps {
   projectDir: string;
@@ -16,6 +17,7 @@ export default function CodemapCard({ projectDir, watchOn, setWatchOn, mapMode, 
   const [scanState, setScanState] = useState<CardState>("idle");
   const [watchLoading, setWatchLoading] = useState(false);
   const [watchLogs, setWatchLogs] = useState<string[]>([]);
+  const [watchError, setWatchError] = useState<string | null>(null);
   const watchLogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,6 +40,15 @@ export default function CodemapCard({ projectDir, watchOn, setWatchOn, mapMode, 
     return () => { unlisten.then((f) => f()); };
   }, []);
 
+  useEffect(() => {
+    const unlisten = listen<string>("watch_error", (e) => {
+      setWatchError((prev) => (prev ? `${prev}\n${e.payload}` : e.payload));
+      void stopWatch().catch(() => {});
+      setWatchOn(false);
+    });
+    return () => { unlisten.then((f) => f()); };
+  }, [setWatchOn]);
+
   async function handleScan() {
     setScanState("loading");
     try {
@@ -53,9 +64,15 @@ export default function CodemapCard({ projectDir, watchOn, setWatchOn, mapMode, 
     setWatchLoading(true);
     try {
       if (watchOn) { await stopWatch(); setWatchOn(false); }
-      else { setWatchLogs([]); await startWatch(projectDir); setWatchOn(true); }
-    } catch {
-      // 오류 무시
+      else {
+        setWatchLogs([]);
+        setWatchError(null);
+        await startWatch(projectDir);
+        setWatchOn(true);
+      }
+    } catch (error) {
+      setWatchError(error instanceof Error ? error.message : String(error));
+      setWatchOn(false);
     } finally {
       setWatchLoading(false);
     }
@@ -99,11 +116,20 @@ export default function CodemapCard({ projectDir, watchOn, setWatchOn, mapMode, 
               disabled={watchLoading} onClick={handleToggleWatch}>
               {watchLoading ? <span className="spinner" /> : watchOn ? "STOP ■" : "WATCH ▶"}
             </button>
+            {watchError && (
+              <div style={{ marginTop: 8 }}>
+                <GuiCliOutputBlock
+                  text={watchError}
+                  placeholder=""
+                  variant="error"
+                />
+              </div>
+            )}
             {watchOn && (
               <div ref={watchLogRef} style={{
-                marginTop: 6, height: 80, overflowY: "auto", background: "#0D0D0D",
+                marginTop: 6, height: 80, overflowY: "auto", overflowX: "auto", background: "#0D0D0D",
                 border: "1px solid #333", padding: "4px 6px", fontFamily: "monospace",
-                fontSize: 9, color: "#4DFF91", lineHeight: 1.5,
+                fontSize: 9, color: "#4DFF91", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word",
               }}>
                 {watchLogs.length === 0
                   ? <span style={{ color: "#666" }}>감시 중… 로그 대기</span>
