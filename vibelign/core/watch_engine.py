@@ -9,6 +9,7 @@ from typing import Protocol, TypedDict, cast
 
 
 from vibelign.terminal_render import cli_print
+from vibelign.core.watch_state import FileSnapshot
 
 print = cli_print
 
@@ -57,6 +58,7 @@ class _WatchSrcEvent(Protocol):
 
 class _WatchMovedEvent(Protocol):
     is_directory: bool
+    src_path: str
     dest_path: str
 
 
@@ -103,6 +105,16 @@ def _config_int(config: WatchConfig, key: str, default: int) -> int:
 def is_watchable_path(path: _WatchPathLike) -> bool:
     if not path.is_file():
         return False
+    if any(part.lower() in WATCH_EXCLUDED_DIRS_LOWER for part in path.parts):
+        return False
+    if path.name.lower() in WATCH_EXCLUDED_NAMES_LOWER:
+        return False
+    if path.suffix.lower() in WATCH_EXCLUDED_SUFFIXES:
+        return False
+    return True
+
+
+def is_watchable_event_path(path: Path) -> bool:
     if any(part.lower() in WATCH_EXCLUDED_DIRS_LOWER for part in path.parts):
         return False
     if path.name.lower() in WATCH_EXCLUDED_NAMES_LOWER:
@@ -202,6 +214,40 @@ def safe_read(path: Path) -> str:
 
 
 # === ANCHOR: WATCH_ENGINE_SAFE_READ_END ===
+
+
+# === ANCHOR: WATCH_ENGINE_HANDLE_DELETED_PATH_START ===
+def handle_deleted_path(
+    root: Path,
+    state: dict[str, FileSnapshot],
+    state_path: Path,
+    src_path: str,
+    *,
+    json_mode: bool = False,
+    log_path: Path | None = None,
+) -> str | None:
+    from vibelign.core.project_scan import relpath_str
+    from vibelign.core.watch_reporter import emit
+    from vibelign.core.watch_state import save_state
+
+    path = Path(src_path)
+    rel = relpath_str(root, path)
+    existing = state.pop(rel, None)
+
+    deleted_event: WatchPayload = {
+        "level": "WARN",
+        "path": rel,
+        "message": f"{rel} 삭제됨",
+        "why": "파일 삭제는 프로젝트 구조와 코드맵에 직접 영향을 줍니다.",
+        "action": "삭제 의도가 맞는지 확인하고 필요하면 복원하거나 vib scan 으로 상태를 다시 확인하세요.",
+    }
+    emit(deleted_event, json_mode=json_mode, log_path=log_path)
+    if existing is not None:
+        save_state(state_path, state)
+    return rel
+
+
+# === ANCHOR: WATCH_ENGINE_HANDLE_DELETED_PATH_END ===
 
 
 # === ANCHOR: WATCH_ENGINE_RUN_WATCH_START ===
@@ -454,9 +500,39 @@ def run_watch(config: WatchConfig) -> None:
         # === ANCHOR: WATCH_ENGINE_ON_MOVED_START ===
         def on_moved(self, event: _WatchMovedEvent) -> None:
             if not event.is_directory:
+                src_path = Path(event.src_path)
+                if is_watchable_event_path(src_path):
+                    deleted_rel = handle_deleted_path(
+                        self.root,
+                        self.state,
+                        self.state_path,
+                        event.src_path,
+                        json_mode=self.json_mode,
+                        log_path=self.log_path,
+                    )
+                    if deleted_rel:
+                        self._schedule_global_update(deleted_rel)
                 self._process(event.dest_path)
 
         # === ANCHOR: WATCH_ENGINE_ON_MOVED_END ===
+
+        # === ANCHOR: WATCH_ENGINE_ON_DELETED_START ===
+        def on_deleted(self, event: _WatchSrcEvent) -> None:
+            if not event.is_directory:
+                path = Path(event.src_path)
+                if is_watchable_event_path(path):
+                    deleted_rel = handle_deleted_path(
+                        self.root,
+                        self.state,
+                        self.state_path,
+                        event.src_path,
+                        json_mode=self.json_mode,
+                        log_path=self.log_path,
+                    )
+                    if deleted_rel:
+                        self._schedule_global_update(deleted_rel)
+
+        # === ANCHOR: WATCH_ENGINE_ON_DELETED_END ===
 
     root = Path(_config_text(config, "root", "."))
     strict = _config_bool(config, "strict", False)
