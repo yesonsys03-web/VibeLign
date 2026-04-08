@@ -7,7 +7,11 @@ import shutil
 import tempfile
 from pathlib import Path
 from typing import Literal, Protocol, TypedDict, cast
-from typing_extensions import NotRequired
+
+try:
+    from typing import NotRequired
+except ImportError:
+    from typing_extensions import NotRequired
 
 from vibelign.terminal_render import (
     clack_info,

@@ -47,7 +47,7 @@ hidden_imports = [
     "git","gitdb","anthropic",
     "watchdog","watchdog.observers","watchdog.observers.fsevents","watchdog.observers.inotify",
     "watchdog.observers.read_directory_changes","watchdog.observers.winapi",
-    "watchdog.observers.polling","watchdog.events",
+    "watchdog.observers.polling","watchdog.events","typing_extensions",
 ]
 
 a = Analysis(
