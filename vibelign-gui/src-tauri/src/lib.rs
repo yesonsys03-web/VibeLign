@@ -47,6 +47,14 @@ fn emit_watch_log(app: &tauri::AppHandle, bytes: &[u8]) {
 }
 
 #[cfg(target_os = "windows")]
+fn emit_watch_error(app: &tauri::AppHandle, bytes: &[u8]) {
+    let line = String::from_utf8_lossy(bytes).trim().to_string();
+    if !line.is_empty() {
+        let _ = app.emit("watch_error", line);
+    }
+}
+
+#[cfg(target_os = "windows")]
 fn spawn_watch_log_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle) {
     std::thread::spawn(move || {
         let mut reader = BufReader::new(reader);
@@ -81,6 +89,49 @@ fn spawn_watch_log_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHa
         for line in BufReader::new(reader).lines() {
             if let Ok(line) = line {
                 let _ = app.emit("watch_log", line);
+            }
+        }
+    });
+}
+
+#[cfg(not(target_os = "windows"))]
+fn spawn_watch_error_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        for line in BufReader::new(reader).lines() {
+            if let Ok(line) = line {
+                let trimmed = line.trim().to_string();
+                if !trimmed.is_empty() {
+                    let _ = app.emit("watch_error", trimmed);
+                }
+            }
+        }
+    });
+}
+
+#[cfg(target_os = "windows")]
+fn spawn_watch_error_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        let mut reader = BufReader::new(reader);
+        let mut buf = Vec::new();
+        let mut byte = [0_u8; 1];
+
+        loop {
+            match reader.read(&mut byte) {
+                Ok(0) => {
+                    emit_watch_error(&app, &buf);
+                    break;
+                }
+                Ok(_) => match byte[0] {
+                    b'\n' | b'\r' => {
+                        emit_watch_error(&app, &buf);
+                        buf.clear();
+                    }
+                    b => buf.push(b),
+                },
+                Err(_) => {
+                    emit_watch_error(&app, &buf);
+                    break;
+                }
             }
         }
     });
@@ -126,7 +177,7 @@ impl Drop for WatchState {
 
 #[tauri::command]
 fn start_watch(app: tauri::AppHandle, state: tauri::State<WatchState>, cwd: String) -> Result<(), String> {
-    let vib = vib_path::find_vib().ok_or("vib 실행 파일을 찾을 수 없습니다")?;
+    let vib = vib_path::find_watch_vib().ok_or("watch에 사용할 vib 실행 파일을 찾을 수 없습니다")?;
     // 기존 watch가 있으면 먼저 중지
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
     if let Some(ref mut child) = *guard {
@@ -170,7 +221,7 @@ fn start_watch(app: tauri::AppHandle, state: tauri::State<WatchState>, cwd: Stri
         spawn_watch_log_thread(out, app2);
     }
     if let Some(err) = stderr {
-        spawn_watch_log_thread(err, app);
+        spawn_watch_error_thread(err, app);
     }
     Ok(())
 }
