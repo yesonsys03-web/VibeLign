@@ -45,6 +45,7 @@ function SortableCardWrapper({ id, children }: { id: string; children: ReactNode
         opacity: isDragging ? 0.5 : 1,
         zIndex: isDragging ? 10 : undefined,
         position: "relative",
+        height: "100%",
       }}
       {...attributes}
     >
