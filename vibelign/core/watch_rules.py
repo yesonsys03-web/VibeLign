@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import Literal, TypedDict
 
+from vibelign.core.structure_policy import is_core_entry_file
+
 
 WatchLevel = Literal["HIGH", "WARN", "OK"]
 
@@ -13,17 +15,6 @@ class WatchWarning(TypedDict):
     action: str
 
 
-ENTRY_FILES = {
-    "main.py",
-    "index.js",
-    "app.js",
-    "main.ts",
-    "index.ts",
-    "main.rs",
-    "main.go",
-    "main.cpp",
-    "Program.cs",
-}
 CATCH_ALL = {
     "utils.py",
     "helpers.py",
@@ -80,6 +71,7 @@ def classify_event(
     entry_warn = 120 if strict else 200
     entry_high = 200 if strict else 300
     anchor_limit = 40 if strict else 80
+    is_entry_file = is_core_entry_file(path)
 
     def add(level: WatchLevel, message: str, why: str, action: str) -> None:
         warnings.append(
@@ -112,7 +104,7 @@ def classify_event(
         except Exception:
             pass
 
-    if old_lines is not None and new_lines > old_lines and name in ENTRY_FILES:
+    if old_lines is not None and new_lines > old_lines and is_entry_file:
         if new_lines >= entry_high:
             add(
                 "HIGH",
@@ -129,7 +121,7 @@ def classify_event(
             )
 
     # 진입 파일 이름이 아닌 모든 감시 대상 소스: 줄 수 증가·대형 파일 (사용자가 새로 만든 파일 포함)
-    if old_lines is not None and new_lines > old_lines and name not in ENTRY_FILES:
+    if old_lines is not None and new_lines > old_lines and not is_entry_file:
         growth = new_lines - old_lines
         gen_warn_lines = 500 if strict else 700
         gen_high_lines = 800 if strict else 1000
@@ -178,7 +170,7 @@ def classify_event(
             "UI 코드와 서비스/처리 로직을 분리하세요.",
         )
 
-    if name in ENTRY_FILES and any(h in low for h in BIZ_HINTS) and new_lines > 80:
+    if is_entry_file and any(h in low for h in BIZ_HINTS) and new_lines > 80:
         add(
             "HIGH",
             f"{name}에 비즈니스 로직이 섞여 있을 수 있습니다",

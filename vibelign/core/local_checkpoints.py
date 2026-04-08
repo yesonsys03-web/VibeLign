@@ -12,39 +12,12 @@ from pathlib import Path
 from typing import cast
 
 from vibelign.core.meta_paths import MetaPaths
-
-
-IGNORED_DIRS = {
-    ".git",
-    ".venv",
-    "venv",
-    "env",
-    "__pycache__",
-    "node_modules",
-    "dist",
-    "build",
-    "target",
-    ".pytest_cache",
-    ".mypy_cache",
-    ".idea",
-    ".vscode",
-    ".sisyphus",
-}
-
-IGNORED_FILES = {
-    "VIBELIGN_PATCH_REQUEST.md",
-    "VIBELIGN_EXPLAIN.md",
-    "VIBELIGN_GUARD.md",
-    "VIBELIGN_ASK.md",
-    "anchor_meta.json",
-    "project_map.json",
-    "state.json",
-    "watch_state.json",
-    "watch.log",
-    "scan_cache.json",
-    "analysis_cache.json",
-    "ui_label_index.json",
-}
+from vibelign.core.structure_policy import (
+    CHECKPOINT_IGNORED_DIRS_LOWER,
+    CHECKPOINT_IGNORED_FILES,
+    has_ignored_part,
+    should_include_vibelign_file,
+)
 
 
 @dataclass
@@ -131,7 +104,7 @@ def _sha256(path: Path) -> str:
 # === ANCHOR: LOCAL_CHECKPOINTS__SHOULD_SKIP_DIR_START ===
 def _should_skip_dir(path: Path, meta: MetaPaths) -> bool:
     parts = path.parts
-    if any(part in IGNORED_DIRS for part in parts):
+    if has_ignored_part(parts, CHECKPOINT_IGNORED_DIRS_LOWER):
         return True
     try:
         if path.resolve().is_relative_to(meta.checkpoints_dir.resolve()):
@@ -152,8 +125,15 @@ def iter_snapshot_files(root: Path) -> Iterable[Path]:
     for path in root.rglob("*"):
         if path.is_dir():
             continue
-        if path.name in IGNORED_FILES:
+        if path.name in CHECKPOINT_IGNORED_FILES:
             continue
+        try:
+            if path.resolve().is_relative_to(
+                meta.vibelign_dir.resolve()
+            ) and not should_include_vibelign_file(path.name):
+                continue
+        except Exception:
+            pass
         if _should_skip_dir(path, meta):
             continue
         yield path

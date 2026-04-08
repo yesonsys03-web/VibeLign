@@ -15,6 +15,12 @@ from typing import Protocol, TypedDict, cast
 
 from vibelign.core.local_checkpoints import list_checkpoints, friendly_time
 from vibelign.core.project_root import resolve_project_root
+from vibelign.core.structure_policy import (
+    HANDOFF_KEY_FILE_NAMES,
+    HANDOFF_SKIP_EXTENSIONS,
+    HANDOFF_SKIP_PREFIXES as SHARED_HANDOFF_SKIP_PREFIXES,
+    TRANSFER_TREE_IGNORED_DIRS,
+)
 from vibelign.terminal_render import (
     clack_intro,
     clack_step,
@@ -26,71 +32,10 @@ from vibelign.terminal_render import (
 # PROJECT_CONTEXT.md 에 추가되는 마커 (중복 생성 방지용)
 _TRANSFER_MARKER = "<!-- VibeLign Transfer Context -->"
 
-# 무시할 디렉토리 (local_checkpoints.py의 IGNORED_DIRS와 동일)
-_SKIP_DIRS = {
-    ".git",
-    ".venv",
-    "venv",
-    "env",
-    "__pycache__",
-    "node_modules",
-    "dist",
-    "build",
-    ".pytest_cache",
-    ".mypy_cache",
-    ".idea",
-    ".vscode",
-    ".sisyphus",
-    ".vibelign",
-}
-
-# 무시할 파일 확장자
-_SKIP_EXTS = {
-    ".pyc",
-    ".pyo",
-    ".pyd",
-    ".so",
-    ".dylib",
-    ".dll",
-    ".jpg",
-    ".jpeg",
-    ".png",
-    ".gif",
-    ".svg",
-    ".ico",
-    ".zip",
-    ".tar",
-    ".gz",
-    ".lock",
-    ".egg-info",
-}
-
-# 핵심 파일로 판단하는 파일명 패턴 (우선순위 높음)
-_KEY_FILE_NAMES = {
-    "main.py",
-    "app.py",
-    "index.py",
-    "server.py",
-    "index.js",
-    "app.js",
-    "main.js",
-    "index.ts",
-    "app.ts",
-    "main.ts",
-    "main.go",
-    "main.rs",
-    "Main.java",
-    "pyproject.toml",
-    "package.json",
-    "Cargo.toml",
-    "go.mod",
-    "README.md",
-    "AGENTS.md",
-    "CLAUDE.md",
-}
-
-# handoff에서 무시할 경로 접두어
-_HANDOFF_SKIP_PREFIXES = (".vibelign", ".git", "__pycache__")
+_SKIP_DIRS = set(TRANSFER_TREE_IGNORED_DIRS)
+_SKIP_EXTS = set(HANDOFF_SKIP_EXTENSIONS)
+_KEY_FILE_NAMES = set(HANDOFF_KEY_FILE_NAMES)
+_HANDOFF_SKIP_PREFIXES = SHARED_HANDOFF_SKIP_PREFIXES
 
 
 class CheckpointSummary(TypedDict):
@@ -347,6 +292,10 @@ def _get_recent_checkpoints(root: Path, n: int = 5) -> list[CheckpointSummary]:
         return []
 
 
+def get_recent_checkpoints(root: Path, n: int = 5) -> list[CheckpointSummary]:
+    return _get_recent_checkpoints(root, n=n)
+
+
 def _read_agents_md(root: Path) -> str:
     """AGENTS.md 핵심 내용 읽기 (Core Rules + Module boundaries까지, Two Modification Modes 전)."""
     agents_path = root / "AGENTS.md"
@@ -448,36 +397,34 @@ def _build_handoff_block(data: HandoffData) -> str:
 
     # 완료된 작업 (상세)
     completed = _handoff_text(data.get("completed_work"))
-    if completed != "(not provided)":
-        lines.append("### 완료된 작업")
-        lines.append(completed)
-        lines.append("")
+    lines.append("### 완료된 작업")
+    lines.append(completed)
+    lines.append("")
 
     # 변경 파일
     changed = _handoff_files(data.get("changed_files"))
+    lines.append("### 변경 파일")
     if changed:
-        files_str = ", ".join(f"`{f}`" for f in changed[:8])
-        if len(changed) > 8:
-            files_str += f" … (+{len(changed) - 8})"
-        lines.append(f"### 변경 파일")
+        files_str = ", ".join(f"`{f}`" for f in changed[:5])
+        if len(changed) > 5:
+            files_str += f" … (+{len(changed) - 5})"
         lines.append(files_str)
-        lines.append("")
+    else:
+        lines.append("(not provided)")
+    lines.append("")
 
     # 미완료 / 후속 작업
     unfinished = _handoff_text(data.get("unfinished_work"))
     next_action = _handoff_text(data.get("first_next_action"))
-    if unfinished != "(not provided)" or next_action != "(not provided)":
-        lines.append("### 후속 작업")
-        if unfinished != "(not provided)":
-            lines.append(f"- 미완료: {unfinished}")
-        if next_action != "(not provided)":
-            lines.append(f"- 다음 할 일: {next_action}")
-        lines.append("")
+    lines.append("### 후속 작업")
+    lines.append(f"- 미완료: {unfinished}")
+    lines.append(f"- 다음 할 일: {next_action}")
+    lines.append("")
 
     # Decision context (optional)
     dc = _handoff_decision_context(data.get("decision_context"))
     if dc:
-        lines.append("### 방향 전환")
+        lines.append("### Decision context")
         lines.append(f"- 시도: {dc.get('tried') or '(not provided)'}")
         lines.append(f"- 막힌 이유: {dc.get('blocked_by') or '(not provided)'}")
         lines.append(f"- 새 방향: {dc.get('switched_to') or '(not provided)'}")
@@ -604,6 +551,17 @@ vib transfer           # 이 파일 갱신
     return content
 
 
+def build_context_content(
+    root: Path,
+    compact: bool = False,
+    full: bool = False,
+    handoff_data: HandoffData | None = None,
+) -> str:
+    return _build_context_content(
+        root, compact=compact, full=full, handoff_data=handoff_data
+    )
+
+
 def _get_recent_commits(root: Path, n: int = 5) -> list[str]:
     """최근 사용자 커밋 메시지 가져오기 (vibelign 자동 커밋 제외)."""
     try:
@@ -628,8 +586,12 @@ def _get_detailed_commits(root: Path, n: int = 10) -> list[dict[str, str]]:
     try:
         result = subprocess.run(
             [
-                "git", "log", f"--max-count={n * 2}",
-                "--pretty=format:%h\t%s", "--no-merges", "--name-only",
+                "git",
+                "log",
+                f"--max-count={n * 2}",
+                "--pretty=format:%h\t%s",
+                "--no-merges",
+                "--name-only",
             ],
             capture_output=True,
             text=True,
@@ -670,7 +632,8 @@ def _get_uncommitted_summary(root: Path) -> str | None:
             creationflags=_WINDOWS_FLAGS,
         )
         lines = [
-            l.strip() for l in result.stdout.splitlines()
+            l.strip()
+            for l in result.stdout.splitlines()
             if l.strip()
             and not any(l[3:].strip().startswith(p) for p in _HANDOFF_SKIP_PREFIXES)
         ]
@@ -736,6 +699,14 @@ def _inject_agents_handoff_instruction(root: Path) -> None:
     _ = agents_path.write_text(
         text.rstrip() + "\n\n" + _AGENTS_HANDOFF_BLOCK, encoding="utf-8"
     )
+
+
+def inject_agents_handoff_instruction(root: Path) -> None:
+    _inject_agents_handoff_instruction(root)
+
+
+def get_changed_files(root: Path) -> list[str]:
+    return _get_changed_files(root)
 
 
 def _collect_handoff_data_from_cli(root: Path, no_prompt: bool) -> HandoffData:

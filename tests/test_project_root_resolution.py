@@ -11,6 +11,7 @@ from vibelign.commands.vib_checkpoint_cmd import run_vib_checkpoint
 from vibelign.commands.vib_doctor_cmd import run_vib_doctor
 from vibelign.commands.vib_explain_cmd import run_vib_explain
 from vibelign.commands.vib_init_cmd import run_vib_init
+from vibelign.commands.vib_patch_cmd import run_vib_patch
 from vibelign.commands.vib_transfer_cmd import run_transfer
 from vibelign.commands.watch_cmd import run_watch_cmd
 from vibelign.core.project_root import (
@@ -190,6 +191,44 @@ class ProjectRootResolutionTest(unittest.TestCase):
             )
             self.assertFalse(
                 (nested / ".vibelign" / "reports" / "explain_latest.json").exists()
+            )
+
+    def test_patch_from_nested_directory_writes_root_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            nested = root / "vibelign-gui"
+            nested.mkdir()
+            (root / ".vibelign").mkdir()
+            _ = (root / "login_guard.py").write_text(
+                "".join(
+                    [
+                        "# === ANCHOR: LOGIN_GUARD_LOGIN_GUARD_START ===\n",
+                        "def login_guard():\n    return True\n",
+                        "# === ANCHOR: LOGIN_GUARD_LOGIN_GUARD_END ===\n",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.object(Path, "cwd", return_value=nested):
+                run_vib_patch(
+                    Namespace(
+                        request=["fix", "login", "guard"],
+                        ai=False,
+                        json=True,
+                        preview=False,
+                        write_report=True,
+                        copy=False,
+                        lazy_fanout=False,
+                        apply_strict=None,
+                    )
+                )
+
+            self.assertTrue(
+                (root / ".vibelign" / "reports" / "patch_latest.json").exists()
+            )
+            self.assertFalse(
+                (nested / ".vibelign" / "reports" / "patch_latest.json").exists()
             )
 
     def test_protect_from_nested_directory_keeps_relative_path_from_cwd_but_saves_at_root(

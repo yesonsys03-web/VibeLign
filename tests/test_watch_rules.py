@@ -9,7 +9,7 @@ from vibelign.core.watch_rules import classify_event
 class WatchRulesGenericGrowthTest(unittest.TestCase):
     def test_non_entry_file_large_growth_emits_high(self) -> None:
         path = Path("FeatureStuff.tsx")
-        text = 'export const x = 1\n' * 1100
+        text = "export const x = 1\n" * 1100
         warns = classify_event(path, text, old_lines=100, new_lines=1100, strict=False)
         levels = [w["level"] for w in warns]
         self.assertIn("HIGH", levels)
@@ -29,6 +29,20 @@ class WatchRulesGenericGrowthTest(unittest.TestCase):
         messages = " ".join(w["message"] for w in warns)
         self.assertIn("main.ts", messages)
 
+    def test_vib_cli_file_uses_entry_thresholds(self) -> None:
+        path = Path("vib_cli.py")
+        text = "#\n" * 250
+        warns = classify_event(path, text, old_lines=50, new_lines=250, strict=False)
+        messages = " ".join(w["message"] for w in warns)
+        self.assertIn("vib_cli.py", messages)
+
+    def test_mcp_server_file_uses_entry_thresholds(self) -> None:
+        path = Path("mcp_server.py")
+        text = "#\n" * 250
+        warns = classify_event(path, text, old_lines=50, new_lines=250, strict=False)
+        messages = " ".join(w["message"] for w in warns)
+        self.assertIn("mcp_server.py", messages)
+
 
 if __name__ == "__main__":
-    unittest.main()
+    _ = unittest.main()

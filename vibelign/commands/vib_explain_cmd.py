@@ -176,6 +176,10 @@ def _build_explain_envelope(root: Path, since_minutes: int) -> ExplainEnvelope:
     return {"ok": True, "error": None, "data": data}
 
 
+def build_explain_envelope(root: Path, since_minutes: int) -> ExplainEnvelope:
+    return _build_explain_envelope(root, since_minutes=since_minutes)
+
+
 def _render_markdown(data: ExplainData) -> str:
     files = data.get("files") or []
     what_changed = data.get("what_changed") or []

@@ -7,6 +7,7 @@ from typing import cast
 
 from vibelign.commands.vib_transfer_cmd import HandoffData
 from vibelign.commands.vib_transfer_cmd import (
+    _build_file_tree,
     _build_context_content,
     _build_handoff_block,
     _get_changed_files,
@@ -159,6 +160,19 @@ def test_get_changed_files_excludes_system_paths(tmp_path):
         assert not f.startswith(".vibelign")
         assert not f.startswith(".git")
         assert not f.endswith(".pyc")
+
+
+def test_build_file_tree_excludes_target_directory(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("print('ok')\n", encoding="utf-8")
+    (tmp_path / "target").mkdir()
+    (tmp_path / "target" / "bundle.js").write_text("bundle\n", encoding="utf-8")
+
+    tree = _build_file_tree(tmp_path)
+
+    assert "src/" in tree
+    assert "app.py" in tree
+    assert "target/" not in tree
 
 
 # ── vib checkpoint 호환성 ────────────────────────────────────────────────────

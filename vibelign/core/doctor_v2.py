@@ -6,8 +6,9 @@ from typing import cast
 
 from vibelign.core.anchor_tools import extract_anchors
 from vibelign.core.project_map import load_project_map
-from vibelign.core.project_scan import iter_source_files
+from vibelign.core.project_scan import iter_source_files, safe_read_text
 from vibelign.core.risk_analyzer import analyze_project
+from vibelign.core.structure_policy import is_trivial_package_init
 
 
 STATUS_LEVELS = [
@@ -17,6 +18,13 @@ STATUS_LEVELS = [
     (30, "Risky"),
     (0, "High Risk"),
 ]
+
+ISSUE_PENALTIES: dict[str, dict[str, float]] = {
+    "anchor": {"low": 0.0, "medium": 1.0, "high": 2.0},
+    "structure": {"low": 0.5, "medium": 1.5, "high": 3.0},
+    "metadata": {"low": 0.5, "medium": 1.0, "high": 2.0},
+    "mcp": {"low": 1.0, "medium": 2.0, "high": 4.0},
+}
 
 
 @dataclass
@@ -85,8 +93,22 @@ def _build_status(score: int) -> str:
     return "High Risk"
 
 
+def _project_score_from_issues(issues: list[dict[str, object]]) -> int:
+    total_penalty = 0.0
+    for issue in issues:
+        category = str(issue.get("category", "metadata"))
+        severity = str(issue.get("severity", "low"))
+        category_penalties = ISSUE_PENALTIES.get(category, ISSUE_PENALTIES["metadata"])
+        total_penalty += category_penalties.get(severity, category_penalties["medium"])
+    return max(0, 100 - round(total_penalty))
+
+
 def _anchor_coverage(root: Path) -> int:
-    source_files = list(iter_source_files(root))
+    source_files = [
+        path
+        for path in iter_source_files(root)
+        if not is_trivial_package_init(path, safe_read_text(path))
+    ]
     if not source_files:
         return 100
     covered = sum(1 for path in source_files if extract_anchors(path))
@@ -353,8 +375,6 @@ def analyze_project_v2(
         )
 
     legacy = analyze_project(root, strict=strict)
-    project_score = max(0, 100 - (legacy.score * 4))
-    status = _build_status(project_score)
     coverage = _anchor_coverage(root)
     stats = dict(legacy.stats)
     project_map, project_map_error = load_project_map(root)
@@ -393,6 +413,8 @@ def analyze_project_v2(
         )
     _append_mcp_issues(issues, mcp_status)
     _append_prepared_tool_issues(issues, prepared_tool_status)
+    project_score = _project_score_from_issues(issues)
+    status = _build_status(project_score)
     detailed_issues = _issue_details(issues)
     report = DoctorV2Report(
         project_score=project_score,
@@ -471,9 +493,7 @@ def render_doctor_markdown(
             if item.get("recommended_command"):
                 lines.append(f"  추천 명령: {item['recommended_command']}")
             lines.append(
-                "  자동 수정: 가능"
-                if item.get("can_auto_fix")
-                else "  자동 수정: 불가"
+                "  자동 수정: 가능" if item.get("can_auto_fix") else "  자동 수정: 불가"
             )
 
     if fix_hints or report.recommended_actions:

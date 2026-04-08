@@ -5,6 +5,7 @@ import json
 import importlib
 from dataclasses import dataclass, asdict
 from typing import Any, Iterable, Optional, Union
+from collections.abc import Mapping
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_map import ProjectMapSnapshot, load_project_map
 from vibelign.core.project_scan import iter_source_files, relpath_str
@@ -354,7 +355,7 @@ def score_path(
     rel_path: str,
     anchor_meta: Optional[dict[str, list[str]]] = None,
     project_map: Optional[ProjectMapSnapshot] = None,
-    intent_meta: Optional[dict[str, dict[str, Any]]] = None,
+    intent_meta: Optional[Mapping[str, Mapping[str, Any]]] = None,
 ) -> tuple[int, list[str]]:
     score = 0
     rationale = []
@@ -394,9 +395,21 @@ def score_path(
     ui_request = _is_ui_request(request_tokens)
     nav_request = _is_navigation_request(request_tokens)
     map_kind = None
-    if ui_request and is_frontend and any(
-        tok in path_tokens
-        for tok in ["ui", "window", "dialog", "widget", "render", "terminal", "panel"]
+    if (
+        ui_request
+        and is_frontend
+        and any(
+            tok in path_tokens
+            for tok in [
+                "ui",
+                "window",
+                "dialog",
+                "widget",
+                "render",
+                "terminal",
+                "panel",
+            ]
+        )
     ):
         score += 3
         rationale.append("UI 성격 요청과 경로 특성이 잘 맞음")
@@ -431,6 +444,11 @@ def score_path(
         if project_map is not None and rel_path in project_map.entry_files:
             score += 10
             rationale.append("탑/메뉴 이동 요청이라 entry file 이 우선 후보임")
+        if stem in {"app", "layout"}:
+            score += 6
+            rationale.append(
+                "탑/메뉴 이동 요청이라 app/layout 컨테이너 파일을 우선 후보로 올림"
+            )
         if any(token in path_tokens for token in _NAVIGATION_FILE_HINTS):
             score += 8
             rationale.append("탑/메뉴 구조를 가진 파일이라 목적지 후보로 적합함")
@@ -551,7 +569,7 @@ def _has_style_token(request_tokens: Iterable[str]) -> bool:
 def choose_anchor(
     anchors: list[str],
     request_tokens: list[str],
-    anchor_meta: Optional[dict[str, dict[str, Any]]] = None,
+    anchor_meta: Optional[Mapping[str, Mapping[str, Any]]] = None,
 ) -> tuple[str, list[str]]:
     if not anchors:
         return "[먼저 앵커를 추가하세요]", ["이 파일에는 아직 앵커가 없습니다"]
@@ -652,12 +670,12 @@ def load_anchor_metadata(root: Path) -> dict[str, dict[str, list[str]]]:
 
 def _ai_select_file(
     request: str,
-    candidates: list,
+    candidates: list[tuple[int, Path, list[str]]],
     root: Path,
     request_tokens: list[str],
-    anchor_meta: dict,
+    anchor_meta: Mapping[str, Mapping[str, Any]],
     project_map: Optional[Any] = None,
-) -> Optional[tuple]:
+) -> tuple[Path, list[str]] | None:
     """confidence가 낮을 때 AI에게 후보 파일 중 최적 파일을 선택하게 한다.
 
     키워드 기반 상위 후보 + ui_modules 전체를 AI에 노출해 keyword mismatch를 보완한다.
@@ -665,7 +683,7 @@ def _ai_select_file(
     try:
         ai_explain = importlib.import_module("vibelign.core.ai_explain")
         if not ai_explain.has_ai_provider():
-            return None, ["AI 미호출: API 키가 설정되지 않음 (vib config 로 설정)"]
+            return None
 
         # 후보 풀 구성: 상위 점수 파일 10개 + ui_modules (중복 제거)
         pool: list[Path] = [path for (_, path, _) in candidates[:10]]
@@ -678,19 +696,19 @@ def _ai_select_file(
         # 파일 수에 따라 스니펫 줄 수 조정 (프롬프트 과부하 방지)
         snippet_lines = max(5, 30 // max(len(pool), 1))
 
-        lines = []
+        lines: list[str] = []
         for i, path in enumerate(pool, 1):
             rel = relpath_str(root, path)
             anchors = extract_anchors(path)
             anchor_names = ", ".join(anchors[:5]) if anchors else "없음"
             try:
-                content_lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+                content_lines = path.read_text(
+                    encoding="utf-8", errors="ignore"
+                ).splitlines()
                 snippet = "\n".join(content_lines[:snippet_lines])
             except OSError:
                 snippet = ""
-            lines.append(
-                f"{i}. {rel}\n   앵커: {anchor_names}\n   내용:\n{snippet}\n"
-            )
+            lines.append(f"{i}. {rel}\n   앵커: {anchor_names}\n   내용:\n{snippet}\n")
 
         candidates_text = "\n---\n".join(lines)
         prompt = (
@@ -723,7 +741,7 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
     anchor_meta = load_anchor_meta(root)
     project_map, _project_map_error = load_project_map(root)
     ui_label_idx = load_ui_label_index(root)
-    scored = []
+    scored: list[tuple[int, Path, list[str]]] = []
     for path in iter_source_files(root):
         rel = relpath_str(root, path)
         score, rationale = score_path(
@@ -735,9 +753,13 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
             intent_meta=anchor_meta,
         )
         if ui_label_idx:
-            ui_boost, ui_reasons = score_boost_for_ui_labels(rel, request_tokens, ui_label_idx)
+            ui_boost, ui_reasons = score_boost_for_ui_labels(
+                rel, request_tokens, ui_label_idx
+            )
             if ui_boost:
-                score += ui_boost + 8  # 화면 노출 텍스트 일치는 강한 신호 (+4 기본 + 8 추가)
+                score += (
+                    ui_boost + 8
+                )  # 화면 노출 텍스트 일치는 강한 신호 (+4 기본 + 8 추가)
                 rationale = rationale + ui_reasons
         scored.append((score, path, rationale))
 
@@ -799,7 +821,6 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
     return PatchSuggestion(
         request, relpath_str(root, best_path), anchor, confidence, reasons[:5] + ar[:3]
     )
-
 
 
 def suggest_patch_for_role(
