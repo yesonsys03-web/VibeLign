@@ -18,6 +18,7 @@ export default function CodemapCard({ projectDir, watchOn, setWatchOn, mapMode, 
   const [watchLoading, setWatchLoading] = useState(false);
   const [watchLogs, setWatchLogs] = useState<string[]>([]);
   const [watchError, setWatchError] = useState<string | null>(null);
+  const [watchLogExpanded, setWatchLogExpanded] = useState(false);
   const watchLogRef = useRef<HTMLDivElement>(null);
 
   async function syncWatchState() {
@@ -137,15 +138,33 @@ export default function CodemapCard({ projectDir, watchOn, setWatchOn, mapMode, 
               </div>
             )}
             {watchOn && (
-              <div ref={watchLogRef} style={{
-                marginTop: 6, height: 80, overflowY: "auto", overflowX: "auto", background: "#0D0D0D",
-                border: "1px solid #333", padding: "4px 6px", fontFamily: "monospace",
-                fontSize: 9, color: "#4DFF91", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word",
-              }}>
-                {watchLogs.length === 0
-                  ? <span style={{ color: "#666" }}>감시 중… 로그 대기</span>
-                  : watchLogs.map((l, i) => <div key={i}>{l}</div>)
-                }
+              <div style={{ marginTop: 6 }}>
+                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 2 }}>
+                  <button
+                    onClick={() => setWatchLogExpanded((v) => !v)}
+                    title={watchLogExpanded ? "로그창 축소" : "로그창 확장"}
+                    style={{
+                      fontSize: 10, fontWeight: 700, padding: "1px 6px",
+                      border: "1px solid #444", background: "#1A1A1A",
+                      color: "#4DFF91", cursor: "pointer", lineHeight: 1.5,
+                    }}
+                  >
+                    {watchLogExpanded ? "▲ 축소" : "▼ 확장"}
+                  </button>
+                </div>
+                <div ref={watchLogRef} style={{
+                  height: watchLogExpanded ? 320 : 80,
+                  overflowY: "auto", overflowX: "auto", background: "#0D0D0D",
+                  border: "1px solid #333", padding: "4px 6px", fontFamily: "monospace",
+                  fontSize: watchLogExpanded ? 12 : 9,
+                  color: "#4DFF91", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word",
+                  transition: "height 0.2s ease, font-size 0.2s ease",
+                }}>
+                  {watchLogs.length === 0
+                    ? <span style={{ color: "#666" }}>감시 중… 로그 대기</span>
+                    : watchLogs.map((l, i) => <div key={i}>{l}</div>)
+                  }
+                </div>
               </div>
             )}
           </>
