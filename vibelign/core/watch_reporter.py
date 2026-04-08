@@ -29,7 +29,7 @@ def emit(
             line += f"\n왜 중요한가: {event.get('why', '')}"
         if event.get("action"):
             line += f"\n권장 조치: {event.get('action', '')}"
-    print(line)
+    print(line, flush=True)
     if log_path:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().isoformat(timespec="seconds")
