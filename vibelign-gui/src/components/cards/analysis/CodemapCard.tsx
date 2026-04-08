@@ -1,7 +1,7 @@
 // === ANCHOR: CODEMAP_CARD_START ===
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { vibScan, startWatch, stopWatch, watchStatus } from "../../../lib/vib";
+import { getWatchErrors, getWatchLogs, vibScan, startWatch, stopWatch, watchStatus } from "../../../lib/vib";
 import { CardState } from "../../../lib/commands";
 import GuiCliOutputBlock from "../../GuiCliOutputBlock";
 
@@ -20,10 +20,21 @@ export default function CodemapCard({ projectDir, watchOn, setWatchOn, mapMode, 
   const [watchError, setWatchError] = useState<string | null>(null);
   const watchLogRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    watchStatus().then((running) => {
+  async function syncWatchState() {
+    try {
+      const [running, logs, errors] = await Promise.all([
+        watchStatus(),
+        getWatchLogs(),
+        getWatchErrors(),
+      ]);
       if (running !== watchOn) setWatchOn(running);
-    }).catch(() => {});
+      setWatchLogs(logs);
+      setWatchError(errors.length ? errors.join("\n") : null);
+    } catch {}
+  }
+
+  useEffect(() => {
+    void syncWatchState();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

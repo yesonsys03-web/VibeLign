@@ -2,6 +2,7 @@
 mod vib_path;
 
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Read};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -36,26 +37,60 @@ fn open_folder(path: String) -> Result<(), String> {
 
 // ─── Watch 프로세스 State ──────────────────────────────────────────────────────
 
-struct WatchState(Arc<Mutex<Option<std::process::Child>>>);
+const WATCH_BUFFER_LIMIT: usize = 200;
+
+struct WatchRuntime {
+    child: Option<std::process::Child>,
+    logs: VecDeque<String>,
+    errors: VecDeque<String>,
+}
+
+impl WatchRuntime {
+    fn new() -> Self {
+        Self {
+            child: None,
+            logs: VecDeque::with_capacity(WATCH_BUFFER_LIMIT),
+            errors: VecDeque::with_capacity(WATCH_BUFFER_LIMIT),
+        }
+    }
+}
+
+struct WatchState(Arc<Mutex<WatchRuntime>>);
+
+fn push_watch_line(buffer: &mut VecDeque<String>, line: String) {
+    if line.is_empty() {
+        return;
+    }
+    if buffer.len() >= WATCH_BUFFER_LIMIT {
+        let _ = buffer.pop_front();
+    }
+    buffer.push_back(line);
+}
 
 #[cfg(target_os = "windows")]
-fn emit_watch_log(app: &tauri::AppHandle, bytes: &[u8]) {
+fn emit_watch_log(app: &tauri::AppHandle, state: &Arc<Mutex<WatchRuntime>>, bytes: &[u8]) {
     let line = String::from_utf8_lossy(bytes).trim().to_string();
     if !line.is_empty() {
+        if let Ok(mut guard) = state.lock() {
+            push_watch_line(&mut guard.logs, line.clone());
+        }
         let _ = app.emit("watch_log", line);
     }
 }
 
 #[cfg(target_os = "windows")]
-fn emit_watch_error(app: &tauri::AppHandle, bytes: &[u8]) {
+fn emit_watch_error(app: &tauri::AppHandle, state: &Arc<Mutex<WatchRuntime>>, bytes: &[u8]) {
     let line = String::from_utf8_lossy(bytes).trim().to_string();
     if !line.is_empty() {
+        if let Ok(mut guard) = state.lock() {
+            push_watch_line(&mut guard.errors, line.clone());
+        }
         let _ = app.emit("watch_error", line);
     }
 }
 
 #[cfg(target_os = "windows")]
-fn spawn_watch_log_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle) {
+fn spawn_watch_log_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle, state: Arc<Mutex<WatchRuntime>>) {
     std::thread::spawn(move || {
         let mut reader = BufReader::new(reader);
         let mut buf = Vec::new();
@@ -64,18 +99,18 @@ fn spawn_watch_log_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHa
         loop {
             match reader.read(&mut byte) {
                 Ok(0) => {
-                    emit_watch_log(&app, &buf);
+                    emit_watch_log(&app, &state, &buf);
                     break;
                 }
                 Ok(_) => match byte[0] {
                     b'\n' | b'\r' => {
-                        emit_watch_log(&app, &buf);
+                        emit_watch_log(&app, &state, &buf);
                         buf.clear();
                     }
                     b => buf.push(b),
                 },
                 Err(_) => {
-                    emit_watch_log(&app, &buf);
+                    emit_watch_log(&app, &state, &buf);
                     break;
                 }
             }
@@ -84,10 +119,14 @@ fn spawn_watch_log_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHa
 }
 
 #[cfg(not(target_os = "windows"))]
-fn spawn_watch_log_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle) {
+fn spawn_watch_log_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle, state: Arc<Mutex<WatchRuntime>>) {
     std::thread::spawn(move || {
         for line in BufReader::new(reader).lines() {
             if let Ok(line) = line {
+                let trimmed = line.trim().to_string();
+                if let Ok(mut guard) = state.lock() {
+                    push_watch_line(&mut guard.logs, trimmed);
+                }
                 let _ = app.emit("watch_log", line);
             }
         }
@@ -95,12 +134,15 @@ fn spawn_watch_log_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHa
 }
 
 #[cfg(not(target_os = "windows"))]
-fn spawn_watch_error_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle) {
+fn spawn_watch_error_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle, state: Arc<Mutex<WatchRuntime>>) {
     std::thread::spawn(move || {
         for line in BufReader::new(reader).lines() {
             if let Ok(line) = line {
                 let trimmed = line.trim().to_string();
                 if !trimmed.is_empty() {
+                    if let Ok(mut guard) = state.lock() {
+                        push_watch_line(&mut guard.errors, trimmed.clone());
+                    }
                     let _ = app.emit("watch_error", trimmed);
                 }
             }
@@ -109,7 +151,7 @@ fn spawn_watch_error_thread<R: Read + Send + 'static>(reader: R, app: tauri::App
 }
 
 #[cfg(target_os = "windows")]
-fn spawn_watch_error_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle) {
+fn spawn_watch_error_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle, state: Arc<Mutex<WatchRuntime>>) {
     std::thread::spawn(move || {
         let mut reader = BufReader::new(reader);
         let mut buf = Vec::new();
@@ -118,18 +160,18 @@ fn spawn_watch_error_thread<R: Read + Send + 'static>(reader: R, app: tauri::App
         loop {
             match reader.read(&mut byte) {
                 Ok(0) => {
-                    emit_watch_error(&app, &buf);
+                    emit_watch_error(&app, &state, &buf);
                     break;
                 }
                 Ok(_) => match byte[0] {
                     b'\n' | b'\r' => {
-                        emit_watch_error(&app, &buf);
+                        emit_watch_error(&app, &state, &buf);
                         buf.clear();
                     }
                     b => buf.push(b),
                 },
                 Err(_) => {
-                    emit_watch_error(&app, &buf);
+                    emit_watch_error(&app, &state, &buf);
                     break;
                 }
             }
@@ -168,7 +210,7 @@ fn kill_watch_child(child: &mut std::process::Child) {
 impl Drop for WatchState {
     fn drop(&mut self) {
         if let Ok(mut guard) = self.0.lock() {
-            if let Some(mut child) = guard.take() {
+            if let Some(mut child) = guard.child.take() {
                 kill_watch_child(&mut child);
             }
         }
@@ -180,9 +222,12 @@ fn start_watch(app: tauri::AppHandle, state: tauri::State<WatchState>, cwd: Stri
     let vib = vib_path::find_watch_vib().ok_or("watch에 사용할 vib 실행 파일을 찾을 수 없습니다")?;
     // 기존 watch가 있으면 먼저 중지
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
-    if let Some(ref mut child) = *guard {
+    if let Some(ref mut child) = guard.child {
         kill_watch_child(child);
     }
+    guard.child = None;
+    guard.logs.clear();
+    guard.errors.clear();
     let mut watch_cmd = std::process::Command::new(&vib);
     watch_cmd.arg("watch").current_dir(PathBuf::from(&cwd));
     watch_cmd.stdin(std::process::Stdio::piped());
@@ -213,15 +258,16 @@ fn start_watch(app: tauri::AppHandle, state: tauri::State<WatchState>, cwd: Stri
     }
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
-    *guard = Some(child);
+    guard.child = Some(child);
+    let watch_state = Arc::clone(&state.0);
     drop(guard);
 
     if let Some(out) = stdout {
         let app2 = app.clone();
-        spawn_watch_log_thread(out, app2);
+        spawn_watch_log_thread(out, app2, Arc::clone(&watch_state));
     }
     if let Some(err) = stderr {
-        spawn_watch_error_thread(err, app);
+        spawn_watch_error_thread(err, app, watch_state);
     }
     Ok(())
 }
@@ -229,7 +275,7 @@ fn start_watch(app: tauri::AppHandle, state: tauri::State<WatchState>, cwd: Stri
 #[tauri::command]
 fn stop_watch(state: tauri::State<WatchState>) -> Result<(), String> {
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
-    if let Some(mut child) = guard.take() {
+    if let Some(mut child) = guard.child.take() {
         kill_watch_child(&mut child);
     }
     Ok(())
@@ -238,8 +284,26 @@ fn stop_watch(state: tauri::State<WatchState>) -> Result<(), String> {
 #[tauri::command]
 fn watch_status(state: tauri::State<WatchState>) -> bool {
     state.0.lock()
-        .map(|g| g.is_some())
+        .map(|g| g.child.is_some())
         .unwrap_or(false)
+}
+
+#[tauri::command]
+fn get_watch_logs(state: tauri::State<WatchState>) -> Vec<String> {
+    state
+        .0
+        .lock()
+        .map(|g| g.logs.iter().cloned().collect())
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+fn get_watch_errors(state: tauri::State<WatchState>) -> Vec<String> {
+    state
+        .0
+        .lock()
+        .map(|g| g.errors.iter().cloned().collect())
+        .unwrap_or_default()
 }
 
 // ─── 타입 정의 ─────────────────────────────────────────────────────────────────
@@ -744,7 +808,7 @@ fn read_project_summary(dir: String) -> ProjectSummary {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let watch_inner: Arc<Mutex<Option<std::process::Child>>> = Arc::new(Mutex::new(None));
+    let watch_inner: Arc<Mutex<WatchRuntime>> = Arc::new(Mutex::new(WatchRuntime::new()));
     let watch_inner_for_exit = Arc::clone(&watch_inner);
 
     tauri::Builder::default()
@@ -776,6 +840,8 @@ pub fn run() {
             start_watch,
             stop_watch,
             watch_status,
+            get_watch_logs,
+            get_watch_errors,
             open_folder,
             get_env_key_status,
             read_project_summary,
@@ -787,7 +853,7 @@ pub fn run() {
             match event {
                 tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. } => {
                     if let Ok(mut guard) = watch_inner_for_exit.lock() {
-                        if let Some(mut child) = guard.take() {
+                        if let Some(mut child) = guard.child.take() {
                             kill_watch_child(&mut child);
                         }
                     }
