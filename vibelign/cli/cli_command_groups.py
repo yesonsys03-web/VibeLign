@@ -16,8 +16,8 @@ class SubparserFactory(Protocol):
         description: str | None = None,
         epilog: str | None = None,
         **kwargs: object,
-# === ANCHOR: CLI_COMMAND_GROUPS_SUBPARSERFACTORY_END ===
-    # === ANCHOR: CLI_COMMAND_GROUPS_ADD_PARSER_END ===
+        # === ANCHOR: CLI_COMMAND_GROUPS_SUBPARSERFACTORY_END ===
+        # === ANCHOR: CLI_COMMAND_GROUPS_ADD_PARSER_END ===
     ) -> argparse.ArgumentParser: ...
 
 
@@ -28,6 +28,8 @@ def _run_vib_manual(args: object) -> None:
         importlib.import_module("vibelign.commands.vib_manual_cmd").run_vib_manual,
     )
     run_vib_manual(args)
+
+
 # === ANCHOR: CLI_COMMAND_GROUPS__RUN_VIB_MANUAL_END ===
 
 
@@ -40,6 +42,8 @@ def _run_vib_rules(_: object) -> None:
     run_vib_manual(
         argparse.Namespace(command_name="rules", save=False, all=False, json=False)
     )
+
+
 # === ANCHOR: CLI_COMMAND_GROUPS__RUN_VIB_RULES_END ===
 
 
@@ -48,7 +52,7 @@ def register_extended_commands(
     sub: SubparserFactory,
     lazy_command: Callable[[str, str], Callable[[object], None]],
     run_vib_guard: Callable[[object], None],
-# === ANCHOR: CLI_COMMAND_GROUPS_REGISTER_EXTENDED_COMMANDS_END ===
+    # === ANCHOR: CLI_COMMAND_GROUPS_REGISTER_EXTENDED_COMMANDS_END ===
 ) -> None:
     p = sub.add_parser(
         "protect",
@@ -313,6 +317,35 @@ def register_extended_commands(
     p.set_defaults(func=run_vib_guard)
 
     p = sub.add_parser(
+        "claude-hook",
+        help="Claude PreToolUse hook 상태를 관리해요",
+        description="Claude 프로젝트의 PreToolUse hook 설치 상태와 on/off를 관리해요.",
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib claude-hook status\n"
+            "  vib claude-hook enable\n"
+            "  vib claude-hook disable"
+        ),
+    )
+    _ = p.add_argument(
+        "action",
+        nargs="?",
+        default="status",
+        choices=["enable", "disable", "status"],
+        help="실행할 동작",
+    )
+    p.set_defaults(
+        func=lazy_command(
+            "vibelign.commands.vib_claude_hook_cmd", "run_vib_claude_hook"
+        )
+    )
+
+    p = sub.add_parser("pre-check", help=argparse.SUPPRESS)
+    p.set_defaults(
+        func=lazy_command("vibelign.commands.vib_precheck_cmd", "run_vib_precheck")
+    )
+
+    p = sub.add_parser(
         "export",
         help="AI 도구용 설정 내보내기",
         description=(
@@ -349,6 +382,35 @@ def register_extended_commands(
         "--auto", action="store_true", help="앵커 자동 삽입 (추천만 볼 때는 생략)"
     )
     p.set_defaults(func=lazy_command("vibelign.commands.vib_scan_cmd", "run_vib_scan"))
+
+    p = sub.add_parser(
+        "plan-structure",
+        help="AI가 코딩하기 전 구조 계획을 만들어요",
+        description=(
+            "기능 설명을 바탕으로 어느 파일을 수정하고 어떤 파일을 새로 만들지 계획해요.\n"
+            "생성된 계획은 .vibelign/plans/ 아래에 저장돼요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            '  vib plan-structure "OAuth 인증 추가"\n'
+            '  vib plan-structure --scope vibelign/core/ "watch 기능 확장"\n'
+            '  vib plan-structure --ai "mcp handler 수정"'
+        ),
+    )
+    _ = p.add_argument("feature", nargs="+", help="구조 계획을 만들 기능 설명")
+    _ = p.add_argument(
+        "--ai", action="store_true", help="향후 AI 모드용 plan metadata로 기록"
+    )
+    _ = p.add_argument(
+        "--scope",
+        default="",
+        help="분석 대상을 특정 경로로 좁혀요 (예: vibelign/core/)",
+    )
+    p.set_defaults(
+        func=lazy_command(
+            "vibelign.commands.vib_plan_structure_cmd", "run_vib_plan_structure"
+        )
+    )
 
     p = sub.add_parser(
         "transfer",
@@ -483,4 +545,6 @@ def register_extended_commands(
         description="VibeLign이 AI한테 지키게 하는 모든 코딩 규칙을 보여줘요.",
     )
     p.set_defaults(func=_run_vib_rules)
+
+
 # === ANCHOR: CLI_COMMAND_GROUPS_END ===
