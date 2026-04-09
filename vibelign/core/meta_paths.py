@@ -36,6 +36,10 @@ class MetaPaths:
         return self.vibelign_dir / "checkpoints"
 
     @property
+    def plans_dir(self) -> Path:
+        return self.vibelign_dir / "plans"
+
+    @property
     def reports_dir(self) -> Path:
         return self.vibelign_dir / "reports"
 
@@ -62,6 +66,7 @@ class MetaPaths:
     def ensure_vibelign_dirs(self) -> None:
         self.vibelign_dir.mkdir(parents=True, exist_ok=True)
         self.checkpoints_dir.mkdir(parents=True, exist_ok=True)
+        self.plans_dir.mkdir(parents=True, exist_ok=True)
         self.reports_dir.mkdir(parents=True, exist_ok=True)
 
     def ensure_vibelign_dir(self) -> None:
