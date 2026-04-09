@@ -615,11 +615,15 @@ def run_vib_start(args: Namespace) -> None:
 
     # [2] 기존 PostToolUse 훅 정리 + 초기 체크포인트 생성
     remove_old_hook(root)
-    setup_hook_if_needed(root)
+    claude_hook_result = setup_hook_if_needed(root)
 
     # [3] AI 도구 감지
     tool = detect_tool(root)
-    hook_active = False  # PostToolUse 훅은 더 이상 사용하지 않음
+    hook_active = claude_hook_result is not None and claude_hook_result.status in {
+        "installed",
+        "updated",
+        "already-set",
+    }
     hook_label = {"claude": "Claude Code"}.get(tool, tool) if tool else None
     git_active = _has_git(root)
     if not git_active:
@@ -649,7 +653,15 @@ def run_vib_start(args: Namespace) -> None:
     if hook_label and hook_active:
         clack_step("AI 도구 연동")
         clack_success(f"{hook_label} 훅이 활성화돼요")
-        clack_info("AI가 파일을 수정하면 자동으로 checkpoint가 저장돼요")
+        clack_info("Claude가 Write 전에 VibeLign 검사를 실행할 수 있어요")
+    elif (
+        claude_hook_result is not None
+        and claude_hook_result.status == "malformed-settings"
+    ):
+        clack_step("AI 도구 연동")
+        clack_warn(
+            "Claude hook 자동 설치를 건너뛰었어요. settings.json을 먼저 복구하세요."
+        )
     elif not hook_active and not git_active:
         clack_step("변경사항 추적 안내")
         clack_info(
@@ -660,7 +672,7 @@ def run_vib_start(args: Namespace) -> None:
     if secret_hook_result is not None:
         clack_step("비밀정보 커밋 보호")
         if secret_hook_result.status in {"installed", "updated"}:
-            clack_success("Git 커밋 전에 API 키/토큰/개인키를 자동 검사해요")
+            clack_success("Git 커밋 전에 비밀정보와 구조 계획 위반을 자동 검사해요")
         elif secret_hook_result.status == "chmod-failed":
             clack_warn(
                 "비밀정보 자동 검사 파일은 만들었지만 실행 준비를 끝내지 못했어요"
@@ -669,9 +681,11 @@ def run_vib_start(args: Namespace) -> None:
                 clack_info(secret_hook_result.detail)
         elif secret_hook_result.status == "existing-hook":
             clack_warn(
-                "이미 다른 커밋 자동 실행 설정이 있어서 비밀정보 자동 검사를 따로 켜지 않았어요"
+                "이미 다른 커밋 자동 실행 설정이 있어서 VibeLign 커밋 차단을 자동으로 연결하지 않았어요"
             )
-            clack_info("그 설정 안에 `vib secrets --staged`를 넣으면 같이 쓸 수 있어요")
+            clack_info(
+                "그 설정 안에 `vib secrets --staged` 다음 줄에 `vib guard --strict`를 넣으면 같이 쓸 수 있어요"
+            )
 
     # [5] 고속 도구 자동 설치 제안 (watchdog은 vib watch 실행 시에만 설치 제안)
     from vibelign.core.fast_tools import has_fd, has_rg
