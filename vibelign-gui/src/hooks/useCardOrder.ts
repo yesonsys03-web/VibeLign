@@ -4,8 +4,8 @@ import { load } from "@tauri-apps/plugin-store";
 
 export const DEFAULT_CARD_ORDER = [
   "codemap", "guard", "checkpoint", "transfer",
-  "history", "patch", "undo", "anchor",
-  "explain", "ask", "export", "protect", "secrets",
+  "history", "patch", "plan-structure", "undo", "anchor",
+  "explain", "ask", "export", "protect", "secrets", "claude-hook",
 ] as const;
 
 const STORE_PATH = "vibelign-gui.json";

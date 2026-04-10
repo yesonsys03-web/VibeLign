@@ -25,12 +25,14 @@ import CodemapCard from "../components/cards/analysis/CodemapCard";
 import GuardCard from "../components/cards/analysis/GuardCard";
 import AnchorCard from "../components/cards/analysis/AnchorCard";
 import PatchCard from "../components/cards/ai/PatchCard";
+import PlanStructureCard from "../components/cards/ai/PlanStructureCard";
 import ExplainCard from "../components/cards/ai/ExplainCard";
 import AskCard from "../components/cards/ai/AskCard";
 import TransferCard from "../components/cards/transfer/TransferCard";
 import ExportCard from "../components/cards/transfer/ExportCard";
 import ProtectCard from "../components/cards/security/ProtectCard";
 import SecretsCard from "../components/cards/security/SecretsCard";
+import ClaudeHookCard from "../components/cards/security/ClaudeHookCard";
 import pkg from "../../package.json";
 
 // ── 드래그 래퍼 (핸들 전용) ────────────────────────────────────────────────────
@@ -104,6 +106,7 @@ function renderCard(id: string, p: CardRenderProps): ReactNode {
     case "transfer":   return <TransferCard projectDir={p.projectDir} />;
     case "history":    return <HistoryCard projectDir={p.projectDir} />;
     case "patch":      return <PatchCard projectDir={p.projectDir} apiKey={p.apiKey} providerKeys={p.providerKeys} hasAnyAiKey={p.hasAnyAiKey} aiKeyStatusLoaded={p.aiKeyStatusLoaded} onOpenSettings={p.onOpenSettings} />;
+    case "plan-structure": return <PlanStructureCard projectDir={p.projectDir} apiKey={p.apiKey} providerKeys={p.providerKeys} hasAnyAiKey={p.hasAnyAiKey} aiKeyStatusLoaded={p.aiKeyStatusLoaded} onOpenSettings={p.onOpenSettings} />;
     case "undo":       return <UndoCard projectDir={p.projectDir} onNavigate={p.onNavigate} />;
     case "anchor":     return <AnchorCard projectDir={p.projectDir} apiKey={p.apiKey} providerKeys={p.providerKeys} hasAnyAiKey={p.hasAnyAiKey} aiKeyStatusLoaded={p.aiKeyStatusLoaded} onOpenSettings={p.onOpenSettings} />;
     case "explain":    return <ExplainCard projectDir={p.projectDir} apiKey={p.apiKey} providerKeys={p.providerKeys} hasAnyAiKey={p.hasAnyAiKey} aiKeyStatusLoaded={p.aiKeyStatusLoaded} onOpenSettings={p.onOpenSettings} />;
@@ -111,6 +114,7 @@ function renderCard(id: string, p: CardRenderProps): ReactNode {
     case "export":     return <ExportCard projectDir={p.projectDir} apiKey={p.apiKey} providerKeys={p.providerKeys} hasAnyAiKey={p.hasAnyAiKey} aiKeyStatusLoaded={p.aiKeyStatusLoaded} onOpenSettings={p.onOpenSettings} />;
     case "protect":    return <ProtectCard projectDir={p.projectDir} apiKey={p.apiKey} providerKeys={p.providerKeys} hasAnyAiKey={p.hasAnyAiKey} aiKeyStatusLoaded={p.aiKeyStatusLoaded} onOpenSettings={p.onOpenSettings} />;
     case "secrets":    return <SecretsCard projectDir={p.projectDir} apiKey={p.apiKey} providerKeys={p.providerKeys} hasAnyAiKey={p.hasAnyAiKey} aiKeyStatusLoaded={p.aiKeyStatusLoaded} onOpenSettings={p.onOpenSettings} />;
+    case "claude-hook": return <ClaudeHookCard projectDir={p.projectDir} apiKey={p.apiKey} providerKeys={p.providerKeys} hasAnyAiKey={p.hasAnyAiKey} aiKeyStatusLoaded={p.aiKeyStatusLoaded} onOpenSettings={p.onOpenSettings} />;
     default:           return null;
   }
 }
