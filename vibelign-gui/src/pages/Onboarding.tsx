@@ -374,7 +374,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
           ))}
         </div>
 
-        <div className="feature-card" style={{ marginTop: 8 }}>
+        <div className="feature-card" style={{ marginTop: 8, height: "auto" }}>
           <div
             className="feature-card-header"
             style={{ background: "#4D9FFF18", padding: "8px 12px", cursor: "pointer" }}
@@ -442,10 +442,11 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
         </div>
 
         {/* 바이브라인 GitHub 카드 */}
-        <div className="feature-card" style={{ cursor: "default" }}>
+        <div className="feature-card" style={{ cursor: "default", height: "auto" }}>
           <div
             className="feature-card-header"
-            style={{ background: "#24292f18", padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}
+            style={{ background: "#24292f18", padding: "8px 12px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+            onClick={() => setGithubOpen((o) => !o)}
           >
             <div
               className="feature-card-icon"
@@ -526,7 +527,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
         {/* 바이브라인 첫걸음 — 아코디언 + 스텝 */}
         <div
           className="feature-card"
-          style={{ cursor: "pointer", marginTop: 8 }}
+          style={{ cursor: "pointer", marginTop: 8, height: "auto" }}
           onClick={() => setGuideOpen((o) => !o)}
         >
           <div className="feature-card-header" style={{ background: "#F5621E18", padding: "8px 12px" }}>
