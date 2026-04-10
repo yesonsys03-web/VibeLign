@@ -149,7 +149,10 @@ class GuardPlanningTest(unittest.TestCase):
             _commit_all(root, "baseline")
 
             _ = (core_dir / "oauth_provider.py").write_text(
-                "def oauth_provider():\n    return True\n", encoding="utf-8"
+                "# === ANCHOR: OAUTH_PROVIDER_START ===\n"
+                "def oauth_provider():\n    return True\n"
+                "# === ANCHOR: OAUTH_PROVIDER_END ===\n",
+                encoding="utf-8",
             )
 
             envelope = build_guard_envelope(root, strict=False, since_minutes=120)
@@ -160,6 +163,60 @@ class GuardPlanningTest(unittest.TestCase):
             self.assertIn("new_production_file", required_reasons)
             self.assertEqual(envelope["data"]["status"], "warn")
             self.assertIn("vib plan-structure", planning["summary"])
+
+    def test_new_source_file_without_anchor_warns_in_non_strict_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _meta = self._init_repo(root)
+            core_dir = root / "vibelign" / "core"
+            core_dir.mkdir(parents=True, exist_ok=True)
+            _ = (core_dir / "base.py").write_text(
+                "def base():\n    return True\n", encoding="utf-8"
+            )
+            _commit_all(root, "baseline")
+
+            target = core_dir / "oauth_provider.py"
+            _ = target.write_text(
+                "def oauth_provider():\n    return True\n", encoding="utf-8"
+            )
+
+            envelope = build_guard_envelope(root, strict=False, since_minutes=120)
+
+            self.assertIn(
+                "vibelign/core/oauth_provider.py",
+                envelope["data"]["anchor_violations"],
+            )
+            self.assertEqual(envelope["data"]["status"], "warn")
+            self.assertEqual(envelope["data"]["blocked"], False)
+            self.assertIn(
+                "신규 소스 파일에 앵커가 없습니다", envelope["data"]["summary"]
+            )
+
+    def test_new_source_file_without_anchor_fails_in_strict_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _meta = self._init_repo(root)
+            core_dir = root / "vibelign" / "core"
+            core_dir.mkdir(parents=True, exist_ok=True)
+            _ = (core_dir / "base.py").write_text(
+                "def base():\n    return True\n", encoding="utf-8"
+            )
+            _commit_all(root, "baseline")
+
+            target = core_dir / "oauth_provider.py"
+            _ = target.write_text(
+                "def oauth_provider():\n    return True\n", encoding="utf-8"
+            )
+            _git(root, "add", "vibelign/core/oauth_provider.py")
+
+            envelope = build_guard_envelope(root, strict=True, since_minutes=120)
+
+            self.assertIn(
+                "vibelign/core/oauth_provider.py",
+                envelope["data"]["anchor_violations"],
+            )
+            self.assertEqual(envelope["data"]["status"], "fail")
+            self.assertEqual(envelope["data"]["blocked"], True)
 
     def test_multi_file_production_edit_without_plan_requires_planning(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -195,7 +252,10 @@ class GuardPlanningTest(unittest.TestCase):
             _commit_all(root, "baseline")
 
             _ = (core_dir / "oauth_provider.py").write_text(
-                "def oauth_provider():\n    return True\n", encoding="utf-8"
+                "# === ANCHOR: OAUTH_PROVIDER_START ===\n"
+                "def oauth_provider():\n    return True\n"
+                "# === ANCHOR: OAUTH_PROVIDER_END ===\n",
+                encoding="utf-8",
             )
 
             envelope = build_guard_envelope(root, strict=True, since_minutes=120)
@@ -292,7 +352,10 @@ class GuardPlanningTest(unittest.TestCase):
                 encoding="utf-8",
             )
             _ = (core_dir / "oauth_provider.py").write_text(
-                "def oauth_provider():\n    return True\n", encoding="utf-8"
+                "# === ANCHOR: OAUTH_PROVIDER_START ===\n"
+                "def oauth_provider():\n    return True\n"
+                "# === ANCHOR: OAUTH_PROVIDER_END ===\n",
+                encoding="utf-8",
             )
 
             envelope = build_guard_envelope(root, strict=True, since_minutes=120)
@@ -383,7 +446,10 @@ class GuardPlanningTest(unittest.TestCase):
                 encoding="utf-8",
             )
             _ = (core_dir / "oauth_provider.py").write_text(
-                "def oauth_provider():\n    return True\n", encoding="utf-8"
+                "# === ANCHOR: OAUTH_PROVIDER_START ===\n"
+                "def oauth_provider():\n    return True\n"
+                "# === ANCHOR: OAUTH_PROVIDER_END ===\n",
+                encoding="utf-8",
             )
 
             envelope = build_guard_envelope(root, strict=False, since_minutes=120)
