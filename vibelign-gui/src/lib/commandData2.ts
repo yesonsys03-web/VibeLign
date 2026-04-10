@@ -79,6 +79,75 @@ export const COMMANDS_EXT = [
     ] as GuideStep[],
   },
   {
+    name: "plan-structure", icon: "🧱", color: "#4D9FFF",
+    title: "구조 계획",
+    short: "코딩 전에 파일 설계도 먼저 만들기",
+    desc: "새 기능을 만들기 전에 어느 파일을 고치고 어느 파일을 새로 만들지 먼저 정해줘요. 큰 기능을 한 파일에 몰아넣지 않게 막는 설계도 버튼이라고 생각하면 쉬워요.",
+    usage: 'vib plan-structure "OAuth 인증 추가"',
+    tips: ["새 production 파일을 만들기 전에 쓰면 좋아요", "여러 파일이 같이 바뀔 것 같을 때 먼저 계획을 저장해요", "guard와 pre-check가 이 계획을 보고 검사해요"],
+    guide: [
+      {
+        step: "기능", title: "코딩 전 구조 설계도 만들기",
+        lines: [
+          { t: "info", v: "무엇을 만들지 말로 적으면 어느 파일을 수정하고 어떤 파일을 새로 만들지 먼저 정해줘요." },
+          { t: "info", v: "계획은 .vibelign/plans/ 폴더에 저장돼요." },
+          { t: "code", v: 'vib plan-structure "OAuth 인증 추가"' },
+        ],
+      },
+      {
+        step: "주요 옵션", title: "자주 쓰는 옵션",
+        lines: [
+          { t: "code", v: 'vib plan-structure "watch 기능 확장"' },
+          { t: "info", v: "기본 계획 만들기" },
+          { t: "code", v: 'vib plan-structure --scope vibelign/core/ "watch 기능 확장"' },
+          { t: "info", v: "특정 폴더만 보고 계획 만들기" },
+          { t: "code", v: 'vib plan-structure --ai "mcp handler 수정"' },
+          { t: "info", v: "AI용 plan metadata로 기록" },
+        ],
+      },
+    ] as GuideStep[],
+    flags: [
+      { type: "text" as const, key: "_request", label: "기능 설명", placeholder: "OAuth 인증 추가", required: true },
+      { type: "text" as const, key: "scope", label: "--scope", placeholder: "vibelign/core/" },
+      { type: "bool" as const, key: "ai", label: "--ai" },
+    ] as FlagDef[],
+  },
+  {
+    name: "claude-hook", icon: "🪝", color: "#FFD166",
+    title: "클로드 훅",
+    short: "Claude가 저장 전에 검사하게 만들기",
+    desc: "Claude Code가 파일을 쓰기 전에 VibeLign 검사를 거치게 만드는 스위치예요. planning이나 anchor 문제가 있으면 저장 전에 한 번 더 알려줘요.",
+    usage: "vib claude-hook status",
+    tips: ["Claude Code 전용이에요", "enable로 켜고 disable로 잠깐 끌 수 있어요", "보통 vib start가 설치까지 도와줘요"],
+    guide: [
+      {
+        step: "기능", title: "Claude 저장 전 검사 on/off",
+        lines: [
+          { t: "info", v: "Claude가 Write 도구를 쓰기 전에 pre-check를 한 번 더 돌려요." },
+          { t: "info", v: "새 source 파일 앵커 누락이나 구조 계획 누락을 먼저 알려줄 수 있어요." },
+        ],
+      },
+      {
+        step: "주요 옵션", title: "자주 쓰는 동작",
+        lines: [
+          { t: "code", v: "vib claude-hook status" },
+          { t: "info", v: "지금 켜져 있는지 확인" },
+          { t: "code", v: "vib claude-hook enable" },
+          { t: "info", v: "검사 켜기" },
+          { t: "code", v: "vib claude-hook disable" },
+          { t: "info", v: "검사 끄기" },
+        ],
+      },
+    ] as GuideStep[],
+    flags: [
+      { type: "select" as const, key: "_action", label: "동작", required: true, options: [
+        { v: "status", l: "status" },
+        { v: "enable", l: "enable" },
+        { v: "disable", l: "disable" },
+      ]},
+    ] as FlagDef[],
+  },
+  {
     name: "history", icon: "🕓", color: "#7B4DFF",
     title: "히스토리",
     short: "체크포인트 저장 기록 전체 보기",
@@ -238,8 +307,8 @@ export const COMMANDS_EXT = [
         lines: [
           { t: "info", v: "start  /  checkpoint  /  undo  /  history" },
           { t: "info", v: "doctor  /  guard  /  explain" },
-          { t: "info", v: "anchor  /  scan  /  watch  /  patch" },
-          { t: "info", v: "protect  /  secrets  /  ask  /  config" },
+          { t: "info", v: "anchor  /  scan  /  watch  /  patch  /  plan-structure" },
+          { t: "info", v: "protect  /  secrets  /  ask  /  config  /  claude-hook" },
           { t: "info", v: "transfer  /  export  /  install  /  rules" },
         ],
       },
