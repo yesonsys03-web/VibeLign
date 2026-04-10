@@ -11,6 +11,7 @@ from vibelign.core.project_map import ProjectMapSnapshot, load_project_map
 from vibelign.core.project_scan import iter_source_files, relpath_str
 from vibelign.core.anchor_tools import extract_anchors
 from vibelign.core.ui_label_index import load_ui_label_index, score_boost_for_ui_labels
+from vibelign.core.import_resolver import parse_local_imports
 
 KEYWORD_HINTS = {
     "progress": [
@@ -746,6 +747,31 @@ def load_anchor_metadata(root: Path) -> dict[str, dict[str, list[str]]]:
     return files if isinstance(files, dict) else {}
 
 
+# === ANCHOR: PATCH_SUGGESTER__BUILD_IMPORT_POOL_EXPANSION_START ===
+def _build_import_pool_expansion(
+    top_candidate, root, max_hops: int = 1
+) -> list:
+    """top_candidate 파일의 로컬 import를 최대 max_hops 깊이까지 탐색해 반환한다.
+
+    wrapper 컴포넌트가 top candidate일 때, import된 실제 상태 소유 파일을
+    AI 후보 풀에 추가하기 위해 사용된다.
+    """
+    visited: set = {top_candidate}
+    frontier: list = [top_candidate]
+    result: list = []
+    for _ in range(max_hops):
+        next_frontier: list = []
+        for f in frontier:
+            for imported in parse_local_imports(f, root):
+                if imported not in visited:
+                    visited.add(imported)
+                    next_frontier.append(imported)
+                    result.append(imported)
+        frontier = next_frontier
+    return result
+# === ANCHOR: PATCH_SUGGESTER__BUILD_IMPORT_POOL_EXPANSION_END ===
+
+
 def _ai_select_file(
     request: str,
     candidates: list[tuple[int, Path, list[str]]],
@@ -771,6 +797,12 @@ def _ai_select_file(
                 p = root / rel
                 if p not in pool and p.exists():
                     pool.append(p)
+        # top candidate의 import를 1-hop 탐색해 풀에 추가 (wrapper → 실제 상태 소유 파일)
+        if candidates:
+            top_path = candidates[0][1]
+            for imported in _build_import_pool_expansion(top_path, root, max_hops=1):
+                if imported not in pool:
+                    pool.append(imported)
 
         # 파일 수에 따라 스니펫 줄 수 조정 (프롬프트 과부하 방지)
         snippet_lines = max(5, 30 // max(len(pool), 1))
