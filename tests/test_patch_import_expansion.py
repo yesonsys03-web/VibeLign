@@ -67,6 +67,16 @@ def test_import_pool_expansion_does_not_include_node_modules(tmp_path):
     assert result == []
 
 
+def test_suggest_patch_prefers_stateful_parent_over_wrapper(tmp_path):
+    """ClaudeHookCard(wrapper) 가 아닌 GenericCommandCard(state owner)를 찾는지 검증."""
+    root, wrapper, parent = _make_project(tmp_path)
+    from vibelign.core.patch_suggester import _build_import_pool_expansion
+
+    # _build_import_pool_expansion이 wrapper의 import로 parent를 반환해야 함
+    expanded = _build_import_pool_expansion(wrapper, root, max_hops=1)
+    assert parent in expanded, "GenericCommandCard가 1-hop import 탐색에 포함돼야 함"
+
+
 def test_import_pool_expansion_multi_hop(tmp_path):
     """max_hops=2 일 때 A→B→C 체인을 모두 반환한다."""
     src = tmp_path / "src"
