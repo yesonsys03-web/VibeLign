@@ -58,6 +58,7 @@ def run_vib_plan_structure(args: object) -> None:
         "feature": feature,
         "override": False,
         "override_reason": None,
+        "override_count": 0,
         "created_at": plan["created_at"],
         "updated_at": plan["created_at"],
     }
