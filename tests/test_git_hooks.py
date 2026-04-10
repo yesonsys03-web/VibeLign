@@ -181,6 +181,21 @@ class GitHooksTest(unittest.TestCase):
             self.assertIn("secrets --staged", calls)
             self.assertIn("guard --strict", calls)
 
+    def test_git_hook_remains_strict_even_when_claude_hook_is_disabled(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            hooks_dir = root / ".git" / "hooks"
+            hooks_dir.mkdir(parents=True)
+            (root / ".vibelign").mkdir(parents=True, exist_ok=True)
+            _ = (root / ".vibelign" / "config.yaml").write_text(
+                "schema_version: 1\nclaude_hook_enabled: false\n", encoding="utf-8"
+            )
+            with patch("vibelign.core.git_hooks.get_hooks_dir", return_value=hooks_dir):
+                result = install_pre_commit_secret_hook(root)
+            self.assertEqual(result.status, "installed")
+            hook_text = (hooks_dir / "pre-commit").read_text(encoding="utf-8")
+            self.assertIn("vib guard --strict", hook_text)
+
 
 if __name__ == "__main__":
     _ = unittest.main()

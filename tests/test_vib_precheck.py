@@ -51,6 +51,31 @@ class VibPrecheckTest(unittest.TestCase):
             )
             self.assertEqual(code, 0)
 
+    def test_claude_hook_disabled_keeps_precheck_non_strict_for_production_write(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir(parents=True, exist_ok=True)
+            (root / ".vibelign" / "config.yaml").write_text(
+                "schema_version: 1\nclaude_hook_enabled: false\n", encoding="utf-8"
+            )
+            code, out, err = self._run_precheck(
+                root,
+                {
+                    "tool_name": "Write",
+                    "tool_input": {
+                        "file_path": str(
+                            root / "vibelign" / "core" / "oauth_provider.py"
+                        ),
+                        "content": "def oauth_provider():\n    return True\n",
+                    },
+                },
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(out, "")
+            self.assertEqual(err, "")
+
     def test_non_write_payload_skips(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -63,6 +63,80 @@ class GuardPlanningTest(unittest.TestCase):
             self.assertIn("docs_only", exempt_reasons)
             self.assertIn("문서만 수정", planning["summary"])
 
+    def test_tests_only_change_is_planning_exempt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _meta = self._init_repo(root)
+            tests_dir = root / "tests"
+            tests_dir.mkdir(parents=True, exist_ok=True)
+            test_path = tests_dir / "test_watch_engine.py"
+            _ = test_path.write_text(
+                "def test_ok():\n    assert True\n", encoding="utf-8"
+            )
+            _commit_all(root, "baseline")
+
+            _ = test_path.write_text(
+                "def test_ok():\n    assert 1 == 1\n", encoding="utf-8"
+            )
+
+            envelope = build_guard_envelope(root, strict=False, since_minutes=120)
+
+            planning = envelope["data"]["planning"]
+            self.assertEqual(planning["status"], "planning_exempt")
+            exempt_reasons = cast(list[object], planning["exempt_reasons"])
+            self.assertIn("tests_only", exempt_reasons)
+            self.assertIn("테스트만 수정", planning["summary"])
+
+    def test_config_only_change_is_planning_exempt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _meta = self._init_repo(root)
+            claude_dir = root / ".claude"
+            claude_dir.mkdir(parents=True, exist_ok=True)
+            settings_path = claude_dir / "settings.json"
+            _ = settings_path.write_text("{}\n", encoding="utf-8")
+            _commit_all(root, "baseline")
+
+            _ = settings_path.write_text('{"hooks": {}}\n', encoding="utf-8")
+
+            envelope = build_guard_envelope(root, strict=False, since_minutes=120)
+
+            planning = envelope["data"]["planning"]
+            self.assertEqual(planning["status"], "planning_exempt")
+            exempt_reasons = cast(list[object], planning["exempt_reasons"])
+            self.assertIn("config_only", exempt_reasons)
+            self.assertIn("config만 수정", planning["summary"])
+
+    def test_small_single_file_production_edit_is_planning_exempt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _meta = self._init_repo(root)
+            core_dir = root / "vibelign" / "core"
+            core_dir.mkdir(parents=True, exist_ok=True)
+            watch_path = core_dir / "watch_engine.py"
+            _ = watch_path.write_text(
+                "# === ANCHOR: WATCH_ENGINE_START ===\n"
+                "def watch_engine():\n    return True\n"
+                "# === ANCHOR: WATCH_ENGINE_END ===\n",
+                encoding="utf-8",
+            )
+            _commit_all(root, "baseline")
+
+            _ = watch_path.write_text(
+                "# === ANCHOR: WATCH_ENGINE_START ===\n"
+                "def watch_engine():\n    import os\n    return True\n"
+                "# === ANCHOR: WATCH_ENGINE_END ===\n",
+                encoding="utf-8",
+            )
+
+            envelope = build_guard_envelope(root, strict=False, since_minutes=120)
+
+            planning = envelope["data"]["planning"]
+            self.assertEqual(planning["status"], "planning_exempt")
+            exempt_reasons = cast(list[object], planning["exempt_reasons"])
+            self.assertIn("small_single_file_fix", exempt_reasons)
+            self.assertIn("소규모 단일 파일 수정", planning["summary"])
+
     def test_new_production_file_without_plan_requires_planning(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -86,6 +160,51 @@ class GuardPlanningTest(unittest.TestCase):
             self.assertIn("new_production_file", required_reasons)
             self.assertEqual(envelope["data"]["status"], "warn")
             self.assertIn("vib plan-structure", planning["summary"])
+
+    def test_multi_file_production_edit_without_plan_requires_planning(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _meta = self._init_repo(root)
+            core_dir = root / "vibelign" / "core"
+            core_dir.mkdir(parents=True, exist_ok=True)
+            first = core_dir / "first.py"
+            second = core_dir / "second.py"
+            _ = first.write_text("def first():\n    return True\n", encoding="utf-8")
+            _ = second.write_text("def second():\n    return True\n", encoding="utf-8")
+            _commit_all(root, "baseline")
+
+            _ = first.write_text("def first():\n    return False\n", encoding="utf-8")
+            _ = second.write_text("def second():\n    return False\n", encoding="utf-8")
+
+            envelope = build_guard_envelope(root, strict=False, since_minutes=120)
+
+            planning = envelope["data"]["planning"]
+            self.assertEqual(planning["status"], "planning_required")
+            required_reasons = cast(list[object], planning["required_reasons"])
+            self.assertIn("multi_file_production_edit", required_reasons)
+
+    def test_strict_mode_upgrades_planning_required_to_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _meta = self._init_repo(root)
+            core_dir = root / "vibelign" / "core"
+            core_dir.mkdir(parents=True, exist_ok=True)
+            _ = (core_dir / "base.py").write_text(
+                "def base():\n    return True\n", encoding="utf-8"
+            )
+            _commit_all(root, "baseline")
+
+            _ = (core_dir / "oauth_provider.py").write_text(
+                "def oauth_provider():\n    return True\n", encoding="utf-8"
+            )
+
+            envelope = build_guard_envelope(root, strict=True, since_minutes=120)
+
+            self.assertEqual(
+                envelope["data"]["planning"]["status"], "planning_required"
+            )
+            self.assertEqual(envelope["data"]["status"], "fail")
+            self.assertEqual(envelope["data"]["blocked"], True)
 
     def test_active_plan_passes_for_allowed_existing_and_new_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -182,6 +301,97 @@ class GuardPlanningTest(unittest.TestCase):
             self.assertEqual(planning["status"], "pass")
             self.assertEqual(planning["active_plan_id"], plan_id)
 
+    def test_active_plan_allowed_paths_only_results_in_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta = self._init_repo(root)
+            core_dir = root / "vibelign" / "core"
+            core_dir.mkdir(parents=True, exist_ok=True)
+            auth_path = core_dir / "auth.py"
+            _ = auth_path.write_text(
+                "# === ANCHOR: AUTH_HANDLER_START ===\n"
+                "def auth_handler():\n    return True\n"
+                "# === ANCHOR: AUTH_HANDLER_END ===\n",
+                encoding="utf-8",
+            )
+            _commit_all(root, "baseline")
+
+            plan_id = "plan_allowed_only"
+            _ = (meta.plans_dir / f"{plan_id}.json").write_text(
+                json.dumps(
+                    {
+                        "id": plan_id,
+                        "schema_version": 1,
+                        "feature": "auth 수정",
+                        "created_at": "2026-04-09T00:00:00Z",
+                        "mode": "rules",
+                        "evidence": {
+                            "required_reasons": ["multi_file_production_edit"]
+                        },
+                        "scope": {
+                            "changed_path_classes": ["production_path"],
+                            "new_file_paths": ["vibelign/core/oauth_provider.py"],
+                            "existing_file_paths": ["vibelign/core/auth.py"],
+                        },
+                        "allowed_modifications": [
+                            {
+                                "path": "vibelign/core/auth.py",
+                                "anchor": "AUTH_HANDLER",
+                                "max_lines_added": 20,
+                                "allowed_change_types": ["edit"],
+                            }
+                        ],
+                        "required_new_files": [
+                            {
+                                "path": "vibelign/core/oauth_provider.py",
+                                "responsibility": "OAuth 공급자 로직",
+                            }
+                        ],
+                        "forbidden": [],
+                        "messages": {"summary": "ok"},
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            _ = meta.state_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "planning": {
+                            "active": True,
+                            "plan_id": plan_id,
+                            "feature": "auth 수정",
+                            "override": False,
+                            "override_reason": None,
+                            "created_at": "2026-04-09T00:00:00Z",
+                            "updated_at": "2026-04-09T00:00:00Z",
+                        },
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            _ = auth_path.write_text(
+                "# === ANCHOR: AUTH_HANDLER_START ===\n"
+                "def auth_handler():\n    import os\n    return True\n"
+                "# === ANCHOR: AUTH_HANDLER_END ===\n",
+                encoding="utf-8",
+            )
+            _ = (core_dir / "oauth_provider.py").write_text(
+                "def oauth_provider():\n    return True\n", encoding="utf-8"
+            )
+
+            envelope = build_guard_envelope(root, strict=False, since_minutes=120)
+
+            self.assertEqual(envelope["data"]["planning"]["status"], "pass")
+            self.assertEqual(envelope["data"]["status"], "pass")
+            self.assertEqual(envelope["data"]["blocked"], False)
+
     def test_plan_deviation_detects_unexpected_edit(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -258,7 +468,8 @@ class GuardPlanningTest(unittest.TestCase):
             )
 
             _ = other_path.write_text(
-                "def other():\n    return False\n", encoding="utf-8"
+                "def other():\n    return False\n",
+                encoding="utf-8",
             )
 
             envelope = build_guard_envelope(root, strict=False, since_minutes=120)
@@ -268,6 +479,210 @@ class GuardPlanningTest(unittest.TestCase):
             self.assertIn(
                 "small_single_file_fix",
                 cast(list[object], planning["exempt_reasons"]),
+            )
+
+    def test_active_plan_out_of_scope_change_results_in_plan_exists_but_deviated(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta = self._init_repo(root)
+            core_dir = root / "vibelign" / "core"
+            core_dir.mkdir(parents=True, exist_ok=True)
+            auth_path = core_dir / "auth.py"
+            other_path = core_dir / "other.py"
+            _ = auth_path.write_text(
+                "# === ANCHOR: AUTH_HANDLER_START ===\n"
+                "def auth_handler():\n    return True\n"
+                "# === ANCHOR: AUTH_HANDLER_END ===\n",
+                encoding="utf-8",
+            )
+            _ = other_path.write_text(
+                "def other():\n    return True\n", encoding="utf-8"
+            )
+            _commit_all(root, "baseline")
+
+            plan_id = "plan_out_of_scope"
+            _ = (meta.plans_dir / f"{plan_id}.json").write_text(
+                json.dumps(
+                    {
+                        "id": plan_id,
+                        "schema_version": 1,
+                        "feature": "auth 수정",
+                        "created_at": "2026-04-09T00:00:00Z",
+                        "mode": "rules",
+                        "evidence": {
+                            "required_reasons": ["multi_file_production_edit"]
+                        },
+                        "scope": {
+                            "changed_path_classes": ["production_path"],
+                            "new_file_paths": [],
+                            "existing_file_paths": ["vibelign/core/auth.py"],
+                        },
+                        "allowed_modifications": [
+                            {
+                                "path": "vibelign/core/auth.py",
+                                "anchor": "AUTH_HANDLER",
+                                "max_lines_added": 20,
+                                "allowed_change_types": ["edit"],
+                            }
+                        ],
+                        "required_new_files": [],
+                        "forbidden": [],
+                        "messages": {"summary": "ok"},
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            _ = meta.state_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "planning": {
+                            "active": True,
+                            "plan_id": plan_id,
+                            "feature": "auth 수정",
+                            "override": False,
+                            "override_reason": None,
+                            "created_at": "2026-04-09T00:00:00Z",
+                            "updated_at": "2026-04-09T00:00:00Z",
+                        },
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            _ = auth_path.write_text(
+                "# === ANCHOR: AUTH_HANDLER_START ===\n"
+                "def auth_handler():\n    import os\n    return True\n"
+                "# === ANCHOR: AUTH_HANDLER_END ===\n",
+                encoding="utf-8",
+            )
+            _ = other_path.write_text(
+                "def other():\n"
+                + "\n".join(f"    value_{i} = {i}" for i in range(40))
+                + "\n    return False\n",
+                encoding="utf-8",
+            )
+
+            envelope = build_guard_envelope(root, strict=False, since_minutes=120)
+
+            self.assertEqual(
+                envelope["data"]["planning"]["status"], "plan_exists_but_deviated"
+            )
+            self.assertEqual(envelope["data"]["status"], "warn")
+            self.assertEqual(envelope["data"]["blocked"], False)
+            self.assertTrue(
+                any(
+                    "unexpected_change:vibelign/core/other.py" in str(item)
+                    for item in cast(
+                        list[object], envelope["data"]["planning"]["deviations"]
+                    )
+                )
+            )
+
+    def test_forbidden_violation_is_hard_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta = self._init_repo(root)
+            core_dir = root / "vibelign" / "core"
+            core_dir.mkdir(parents=True, exist_ok=True)
+            auth_path = core_dir / "auth.py"
+            _ = auth_path.write_text(
+                "# === ANCHOR: AUTH_HANDLER_START ===\n"
+                "def auth_handler():\n    return True\n"
+                "# === ANCHOR: AUTH_HANDLER_END ===\n",
+                encoding="utf-8",
+            )
+            _commit_all(root, "baseline")
+
+            plan_id = "plan_forbidden"
+            _ = (meta.plans_dir / f"{plan_id}.json").write_text(
+                json.dumps(
+                    {
+                        "id": plan_id,
+                        "schema_version": 1,
+                        "feature": "auth 수정",
+                        "created_at": "2026-04-09T00:00:00Z",
+                        "mode": "rules",
+                        "evidence": {
+                            "required_reasons": ["multi_file_production_edit"]
+                        },
+                        "scope": {
+                            "changed_path_classes": ["production_path"],
+                            "new_file_paths": [],
+                            "existing_file_paths": ["vibelign/core/auth.py"],
+                        },
+                        "allowed_modifications": [
+                            {
+                                "path": "vibelign/core/auth.py",
+                                "anchor": "AUTH_HANDLER",
+                                "max_lines_added": 20,
+                                "allowed_change_types": ["edit"],
+                            }
+                        ],
+                        "required_new_files": [],
+                        "forbidden": [
+                            {
+                                "type": "path_edit_outside_allowed_anchor",
+                                "path": "vibelign/core/auth.py",
+                                "anchor": "AUTH_HANDLER",
+                                "reason": "anchor 밖 수정 금지",
+                            }
+                        ],
+                        "messages": {"summary": "ok"},
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            _ = meta.state_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "planning": {
+                            "active": True,
+                            "plan_id": plan_id,
+                            "feature": "auth 수정",
+                            "override": False,
+                            "override_reason": None,
+                            "created_at": "2026-04-09T00:00:00Z",
+                            "updated_at": "2026-04-09T00:00:00Z",
+                        },
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            _ = auth_path.write_text(
+                "outside = True\n"
+                "# === ANCHOR: AUTH_HANDLER_START ===\n"
+                "def auth_handler():\n    return True\n"
+                "# === ANCHOR: AUTH_HANDLER_END ===\n",
+                encoding="utf-8",
+            )
+
+            envelope = build_guard_envelope(root, strict=False, since_minutes=120)
+
+            planning = envelope["data"]["planning"]
+            self.assertEqual(planning["status"], "fail")
+            self.assertEqual(envelope["data"]["status"], "fail")
+            self.assertEqual(envelope["data"]["blocked"], True)
+            self.assertTrue(
+                any(
+                    "forbidden:vibelign/core/auth.py" in str(item)
+                    for item in cast(list[object], planning["deviations"])
+                )
             )
 
     def test_broken_plan_file_fails_planning(self) -> None:
@@ -321,6 +736,337 @@ class GuardPlanningTest(unittest.TestCase):
                 any(
                     "broken_plan" in str(item)
                     for item in cast(list[object], planning["deviations"])
+                )
+            )
+
+    def test_broken_plan_file_results_in_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta = self._init_repo(root)
+            core_dir = root / "vibelign" / "core"
+            core_dir.mkdir(parents=True, exist_ok=True)
+            target = core_dir / "auth.py"
+            _ = target.write_text(
+                "def auth_handler():\n    return True\n", encoding="utf-8"
+            )
+            _commit_all(root, "baseline")
+
+            plan_id = "broken_plan_direct"
+            _ = (meta.plans_dir / f"{plan_id}.json").write_text(
+                "{bad}\n", encoding="utf-8"
+            )
+            _ = meta.state_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "planning": {
+                            "active": True,
+                            "plan_id": plan_id,
+                            "feature": "auth 수정",
+                            "override": False,
+                            "override_reason": None,
+                            "created_at": "2026-04-09T00:00:00Z",
+                            "updated_at": "2026-04-09T00:00:00Z",
+                        },
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            _ = target.write_text(
+                "def auth_handler():\n"
+                + "\n".join(f"    value_{i} = {i}" for i in range(40))
+                + "\n    return False\n",
+                encoding="utf-8",
+            )
+
+            envelope = build_guard_envelope(root, strict=False, since_minutes=120)
+
+            self.assertEqual(envelope["data"]["planning"]["status"], "fail")
+            self.assertEqual(envelope["data"]["status"], "fail")
+            self.assertEqual(envelope["data"]["blocked"], True)
+
+    def test_key_complete_but_wrong_typed_plan_payload_fails_in_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta = self._init_repo(root)
+            core_dir = root / "vibelign" / "core"
+            core_dir.mkdir(parents=True, exist_ok=True)
+            target = core_dir / "watch_engine.py"
+            _ = target.write_text("def x():\n    return True\n", encoding="utf-8")
+            _commit_all(root, "baseline")
+
+            plan_id = "bad_shape_guard_plan"
+            _ = (meta.plans_dir / f"{plan_id}.json").write_text(
+                json.dumps(
+                    {
+                        "id": plan_id,
+                        "schema_version": 1,
+                        "allowed_modifications": {},
+                        "required_new_files": {},
+                        "forbidden": [],
+                        "messages": {},
+                        "evidence": {},
+                        "scope": {},
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            _ = meta.state_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "planning": {
+                            "active": True,
+                            "plan_id": plan_id,
+                            "feature": "watch 수정",
+                            "override": False,
+                            "override_reason": None,
+                            "created_at": "2026-04-09T00:00:00Z",
+                            "updated_at": "2026-04-09T00:00:00Z",
+                        },
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            _ = target.write_text(
+                "def x():\n"
+                + "\n".join(f"    value_{i} = {i}" for i in range(40))
+                + "\n    return False\n",
+                encoding="utf-8",
+            )
+
+            envelope = build_guard_envelope(root, strict=False, since_minutes=120)
+
+            self.assertEqual(envelope["data"]["planning"]["status"], "fail")
+            self.assertEqual(envelope["data"]["status"], "fail")
+            self.assertEqual(envelope["data"]["blocked"], True)
+            self.assertTrue(
+                any(
+                    "broken_plan" in str(item)
+                    for item in cast(
+                        list[object], envelope["data"]["planning"]["deviations"]
+                    )
+                )
+            )
+
+    def test_plan_payload_with_non_dict_list_item_fails_in_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta = self._init_repo(root)
+            core_dir = root / "vibelign" / "core"
+            core_dir.mkdir(parents=True, exist_ok=True)
+            target = core_dir / "watch_engine.py"
+            _ = target.write_text("def x():\n    return True\n", encoding="utf-8")
+            _commit_all(root, "baseline")
+
+            plan_id = "bad_item_guard_plan"
+            _ = (meta.plans_dir / f"{plan_id}.json").write_text(
+                json.dumps(
+                    {
+                        "id": plan_id,
+                        "schema_version": 1,
+                        "allowed_modifications": ["not-a-dict"],
+                        "required_new_files": [],
+                        "forbidden": [],
+                        "messages": {},
+                        "evidence": {},
+                        "scope": {},
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            _ = meta.state_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "planning": {
+                            "active": True,
+                            "plan_id": plan_id,
+                            "feature": "watch 수정",
+                            "override": False,
+                            "override_reason": None,
+                            "created_at": "2026-04-09T00:00:00Z",
+                            "updated_at": "2026-04-09T00:00:00Z",
+                        },
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            _ = target.write_text(
+                "def x():\n"
+                + "\n".join(f"    value_{i} = {i}" for i in range(40))
+                + "\n    return False\n",
+                encoding="utf-8",
+            )
+
+            envelope = build_guard_envelope(root, strict=False, since_minutes=120)
+
+            self.assertEqual(envelope["data"]["planning"]["status"], "fail")
+            self.assertEqual(envelope["data"]["status"], "fail")
+            self.assertEqual(envelope["data"]["blocked"], True)
+            self.assertTrue(
+                any(
+                    "broken_plan" in str(item)
+                    for item in cast(
+                        list[object], envelope["data"]["planning"]["deviations"]
+                    )
+                )
+            )
+
+    def test_plan_payload_with_wrong_typed_forbidden_fails_in_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta = self._init_repo(root)
+            core_dir = root / "vibelign" / "core"
+            core_dir.mkdir(parents=True, exist_ok=True)
+            target = core_dir / "watch_engine.py"
+            _ = target.write_text("def x():\n    return True\n", encoding="utf-8")
+            _commit_all(root, "baseline")
+
+            plan_id = "bad_forbidden_guard_plan"
+            _ = (meta.plans_dir / f"{plan_id}.json").write_text(
+                json.dumps(
+                    {
+                        "id": plan_id,
+                        "schema_version": 1,
+                        "allowed_modifications": [],
+                        "required_new_files": [],
+                        "forbidden": {},
+                        "messages": {},
+                        "evidence": {},
+                        "scope": {},
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            _ = meta.state_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "planning": {
+                            "active": True,
+                            "plan_id": plan_id,
+                            "feature": "watch 수정",
+                            "override": False,
+                            "override_reason": None,
+                            "created_at": "2026-04-09T00:00:00Z",
+                            "updated_at": "2026-04-09T00:00:00Z",
+                        },
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            _ = target.write_text(
+                "def x():\n"
+                + "\n".join(f"    value_{i} = {i}" for i in range(40))
+                + "\n    return False\n",
+                encoding="utf-8",
+            )
+
+            envelope = build_guard_envelope(root, strict=False, since_minutes=120)
+
+            self.assertEqual(envelope["data"]["planning"]["status"], "fail")
+            self.assertEqual(envelope["data"]["status"], "fail")
+            self.assertEqual(envelope["data"]["blocked"], True)
+            self.assertTrue(
+                any(
+                    "broken_plan" in str(item)
+                    for item in cast(
+                        list[object], envelope["data"]["planning"]["deviations"]
+                    )
+                )
+            )
+
+    def test_plan_payload_with_wrong_typed_required_new_files_fails_in_guard(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta = self._init_repo(root)
+            core_dir = root / "vibelign" / "core"
+            core_dir.mkdir(parents=True, exist_ok=True)
+            target = core_dir / "watch_engine.py"
+            _ = target.write_text("def x():\n    return True\n", encoding="utf-8")
+            _commit_all(root, "baseline")
+
+            plan_id = "bad_required_new_guard_plan"
+            _ = (meta.plans_dir / f"{plan_id}.json").write_text(
+                json.dumps(
+                    {
+                        "id": plan_id,
+                        "schema_version": 1,
+                        "allowed_modifications": [],
+                        "required_new_files": {},
+                        "forbidden": [],
+                        "messages": {},
+                        "evidence": {},
+                        "scope": {},
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            _ = meta.state_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "planning": {
+                            "active": True,
+                            "plan_id": plan_id,
+                            "feature": "watch 수정",
+                            "override": False,
+                            "override_reason": None,
+                            "created_at": "2026-04-09T00:00:00Z",
+                            "updated_at": "2026-04-09T00:00:00Z",
+                        },
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            _ = target.write_text(
+                "def x():\n"
+                + "\n".join(f"    value_{i} = {i}" for i in range(40))
+                + "\n    return False\n",
+                encoding="utf-8",
+            )
+
+            envelope = build_guard_envelope(root, strict=False, since_minutes=120)
+
+            self.assertEqual(envelope["data"]["planning"]["status"], "fail")
+            self.assertEqual(envelope["data"]["status"], "fail")
+            self.assertEqual(envelope["data"]["blocked"], True)
+            self.assertTrue(
+                any(
+                    "broken_plan" in str(item)
+                    for item in cast(
+                        list[object], envelope["data"]["planning"]["deviations"]
+                    )
                 )
             )
 
