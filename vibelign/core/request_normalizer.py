@@ -9,9 +9,101 @@ codespeak 파서에 넘기기 전에 공백·반복 추임새를 정리하고,
 from __future__ import annotations
 
 import re
+
+
+_ACTION_HINT_WORDS = {
+    "add",
+    "insert",
+    "create",
+    "append",
+    "new",
+    "make",
+    "build",
+    "추가",
+    "넣어",
+    "만들어",
+    "생성",
+    "넣기",
+    "추가해",
+    "만들기",
+    "remove",
+    "delete",
+    "drop",
+    "clear",
+    "clean",
+    "삭제",
+    "제거",
+    "지워",
+    "없애",
+    "지우기",
+    "삭제해",
+    "move",
+    "move to",
+    "relocate",
+    "transfer",
+    "reposition",
+    "이동",
+    "옮겨",
+    "옮기",
+    "배치",
+    "붙여",
+    "배치해",
+    "이관",
+    "이동해",
+    "옮겨줘",
+    "fix",
+    "repair",
+    "resolve",
+    "debug",
+    "handle",
+    "catch",
+    "수정",
+    "고쳐",
+    "해결",
+    "버그",
+    "고치기",
+    "수정해",
+    "고쳐줘",
+    "update",
+    "change",
+    "edit",
+    "modify",
+    "improve",
+    "enhance",
+    "upgrade",
+    "변경",
+    "바꿔",
+    "키워",
+    "줄여",
+    "변경해",
+    "업데이트",
+    "split",
+    "separate",
+    "divide",
+    "extract",
+    "refactor",
+    "분리",
+    "나눠",
+    "쪼개",
+    "추출",
+    "리팩토링",
+    "apply",
+    "set",
+    "enable",
+    "activate",
+    "적용",
+    "설정",
+    "활성화",
+    "켜줘",
+    "적용해",
+}
+
+
 # === ANCHOR: REQUEST_NORMALIZER__NORMALIZE_WHITESPACE_START ===
 def _normalize_whitespace(text: str) -> str:
     return re.sub(r"\s+", " ", text.strip())
+
+
 # === ANCHOR: REQUEST_NORMALIZER__NORMALIZE_WHITESPACE_END ===
 
 
@@ -27,16 +119,18 @@ def _collapse_redundant_fillers(text: str) -> str:
     t = re.sub(r"(ㅋ\s*){3,}", "", t)
     t = re.sub(r"[!?]{3,}", "!", t)
     return t.strip()
+
+
 # === ANCHOR: REQUEST_NORMALIZER__COLLAPSE_REDUNDANT_FILLERS_END ===
 
 
 # === ANCHOR: REQUEST_NORMALIZER__COLLAPSE_REPEATED_CONJUNCTIONS_START ===
 def _collapse_repeated_conjunctions(text: str) -> str:
-    t = re.sub(
-        r"(?:\b(and|then)\b\s+){2,}", r"\1 ", text, flags=re.IGNORECASE
-    )
+    t = re.sub(r"(?:\b(and|then)\b\s+){2,}", r"\1 ", text, flags=re.IGNORECASE)
     t = re.sub(r"(?:그리고\s+){2,}", "그리고 ", t)
     return t.strip()
+
+
 # === ANCHOR: REQUEST_NORMALIZER__COLLAPSE_REPEATED_CONJUNCTIONS_END ===
 
 
@@ -45,9 +139,7 @@ def _split_numbered_segments(text: str) -> list[str] | None:
     if "\n" not in text.strip():
         return None
     raw_lines = text.split("\n")
-    hits = sum(
-        1 for ln in raw_lines if re.match(r"^\s*\d+[\.\)]\s+\S", ln.strip())
-    )
+    hits = sum(1 for ln in raw_lines if re.match(r"^\s*\d+[\.\)]\s+\S", ln.strip()))
     if hits < 2:
         return None
     chunks = re.split(r"\n\s*(?=\d+[\.\)]\s+\S)", text)
@@ -73,29 +165,51 @@ _STRONG_SPLIT_RE = re.compile(
 )
 
 
-# === ANCHOR: REQUEST_NORMALIZER__SPLIT_SUB_INTENTS_IMPL_START ===
-def _split_sub_intents_impl(normalized: str) -> list[str]:
-    from vibelign.core.codespeak import (
-        _infer_action,
-        _looks_like_behavior_clause,
-        tokenize_request,
+def _tokenize_request(text: str) -> list[str]:
+    return re.findall(r"[a-zA-Z_가-힣]+", text.lower())
+
+
+def _looks_like_behavior_clause(text: str) -> bool:
+    normalized = text.strip().lower()
+    return any(
+        marker in normalized
+        for marker in (
+            "클릭하면",
+            "유지",
+            "보존",
+            "해야 돼",
+            "해야해",
+            "해야 해",
+            "해야 합니다",
+            "해야합니다",
+            "동작해야",
+            "동작해",
+        )
     )
 
+
+def _has_explicit_action(text: str) -> bool:
+    for token in _tokenize_request(text):
+        if token in _ACTION_HINT_WORDS:
+            return True
+        if any(len(word) >= 2 and word in token for word in _ACTION_HINT_WORDS):
+            return True
+    return False
+
+
+# === ANCHOR: REQUEST_NORMALIZER__SPLIT_SUB_INTENTS_IMPL_START ===
+def _split_sub_intents_impl(normalized: str) -> list[str]:
     if not normalized:
         return []
     numbered = _split_numbered_segments(normalized)
     if numbered:
         return numbered
 
-    parts = [
-        p.strip() for p in _STRONG_SPLIT_RE.split(normalized) if p.strip()
-    ]
+    parts = [p.strip() for p in _STRONG_SPLIT_RE.split(normalized) if p.strip()]
     if len(parts) > 1:
         if any(_looks_like_behavior_clause(p) for p in parts[1:]):
             return [normalized]
-        explicit = sum(
-            1 for p in parts if _infer_action(tokenize_request(p))[1] > 0
-        )
+        explicit = sum(1 for p in parts if _has_explicit_action(p))
         if explicit >= 2:
             return parts
         return [normalized]
@@ -109,14 +223,12 @@ def _split_sub_intents_impl(normalized: str) -> list[str]:
             return [normalized]
         if any(_looks_like_behavior_clause(p) for p in comma_parts[1:]):
             return [normalized]
-        explicit = sum(
-            1
-            for p in comma_parts
-            if _infer_action(tokenize_request(p))[1] > 0
-        )
+        explicit = sum(1 for p in comma_parts if _has_explicit_action(p))
         if explicit >= 2:
             return comma_parts
     return [normalized]
+
+
 # === ANCHOR: REQUEST_NORMALIZER__SPLIT_SUB_INTENTS_IMPL_END ===
 
 
@@ -145,6 +257,8 @@ def normalize_user_request(raw: str) -> tuple[str, list[str]]:
     if not parts:
         return t, [t]
     return t, parts
+
+
 # === ANCHOR: REQUEST_NORMALIZER_NORMALIZE_USER_REQUEST_END ===
 
 
@@ -153,5 +267,7 @@ def cleaned_string_only(raw: str) -> str:
     """토큰화 직전 정제 문자열만 필요할 때."""
     s, _ = normalize_user_request(raw)
     return s
+
+
 # === ANCHOR: REQUEST_NORMALIZER_CLEANED_STRING_ONLY_END ===
 # === ANCHOR: REQUEST_NORMALIZER_END ===
