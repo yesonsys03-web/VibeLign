@@ -709,19 +709,23 @@ def _planning_data(
         allowed_change_types = cast(
             list[object], allowed.get("allowed_change_types", [])
         )
+        allowed_change_type_names = {str(item) for item in allowed_change_types}
         if allowed_change_types:
             detected_change_types = _modified_change_types(
                 root, rel_path, staged_only=staged_only
             )
-            allowed_change_type_names = {str(item) for item in allowed_change_types}
             if detected_change_types.isdisjoint(allowed_change_type_names):
                 deviations.append(
                     f"disallowed_change_type:{'/'.join(sorted(detected_change_types))}:{rel_path}"
                 )
                 continue
         anchor = allowed.get("anchor")
-        if isinstance(anchor, str) and not _change_ranges_within_anchor(
-            root / rel_path, anchor, details["ranges"]
+        if (
+            isinstance(anchor, str)
+            and "config_touch" not in allowed_change_type_names
+            and not _change_ranges_within_anchor(
+                root / rel_path, anchor, details["ranges"]
+            )
         ):
             deviations.append(f"anchor_outside_allowed_range:{rel_path}")
         max_lines_added = allowed.get("max_lines_added")
