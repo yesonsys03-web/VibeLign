@@ -589,20 +589,29 @@ MANUAL: dict[str, ManualEntry] = {
         "what": (
             "기능 설명을 바탕으로 어느 파일은 수정하고 어느 파일은 새로 만들어야 하는지 먼저 계획해요.\n"
             "쉽게 말하면 '코딩 시작 전에 설계도 한 장 먼저 만드는 버튼'이에요.\n"
-            "계획은 `.vibelign/plans/` 아래에 저장되고, guard나 pre-check가 이 계획을 보고 검사할 수 있어요."
+            "계획은 `.vibelign/plans/` 아래에 저장되고, guard나 pre-check가 이 계획을 보고 검사할 수 있어요.\n\n"
+            "보통은 '계획 먼저 → 구현 → guard로 확인' 순서로 쓰면 돼요.\n"
+            "예를 들어 새 로그인 기능처럼 파일 여러 개가 같이 바뀌는 작업이면,\n"
+            "바로 코드를 쓰기 전에 이 명령어로 파일 배치를 먼저 정하는 거예요."
         ),
         "when": [
             "새 기능을 추가해서 파일이 여러 개 바뀔 것 같을 때",
             "새 production 파일을 만들기 전에 어디에 둘지 정하고 싶을 때",
             "AI가 큰 기능을 한 파일에 몰아넣지 않게 막고 싶을 때",
+            "작은 단일 파일 수정이 아니라 작업 범위가 헷갈릴 때",
         ],
         "examples": [
             ('vib plan-structure "OAuth 인증 추가"', "기본 구조 계획 만들기"),
+            ('vib plan-structure "watch 기능 확장"', "가장 쉬운 기본 사용법"),
             (
                 'vib plan-structure --scope vibelign/core/ "watch 기능 확장"',
                 "특정 폴더만 보고 계획 만들기",
             ),
             ('vib plan-structure --ai "mcp handler 수정"', "AI 계획 메타데이터로 기록"),
+            (
+                'vib plan-structure "OAuth 인증 추가" → vib patch "OAuth 로그인 버튼과 서버 검증 추가" → vib guard --strict',
+                "추천 흐름 예시",
+            ),
         ],
         "options": [
             (
@@ -611,6 +620,10 @@ MANUAL: dict[str, ManualEntry] = {
             ),
             ("--scope", "분석할 폴더를 좁혀요.\n예: --scope vibelign/core/"),
             ("--ai", "나중에 AI 흐름에서 참고할 plan metadata로 기록해요."),
+            (
+                "언제 안 써도 되나요?",
+                "문서만 고치거나, 테스트만 조금 손보거나, 설정 파일만 바꾸는 작은 작업이면 보통 없어도 돼요.",
+            ),
         ],
     },
     "export": {
