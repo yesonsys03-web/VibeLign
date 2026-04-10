@@ -5,9 +5,15 @@ import re
 from pathlib import Path
 
 # JS/TS: import X from './path' | import { X } from "./path" | require('./path')
+# Also: export { X } from './path' | export * from './path' | import('./path')
 _JS_IMPORT_RE = re.compile(
-    r"""(?:import\s+(?:[\w*{}\s,]+\s+from\s+)?|require\s*\(\s*)['"](\.[^'"]+)['"]""",
-    re.MULTILINE,
+    r"""(?:
+        import\s+(?:type\s+)?(?:[\w*{}\s,]+\s+from\s+)?
+      | export\s+(?:type\s+)?(?:\*|\{[^}]*\})\s+from\s+
+      | import\s*\(\s*
+      | require\s*\(\s*
+    )['"](\.[^'"]+)['"]""",
+    re.MULTILINE | re.VERBOSE,
 )
 
 # Python: from package.sub import X (absolute dotted)
@@ -76,13 +82,14 @@ def parse_local_imports(file_path: Path, root: Path) -> list[Path]:
     results: list[Path] = []
     seen: set[Path] = set()
     ext = file_path.suffix.lower()
+    root_resolved = root.resolve()
 
     if ext in _JS_EXTS:
         for m in _JS_IMPORT_RE.finditer(text):
             import_path = m.group(1)
             if not import_path.startswith("."):
                 continue
-            resolved = _resolve_js_import(file_path.parent, import_path, root.resolve())
+            resolved = _resolve_js_import(file_path.parent, import_path, root_resolved)
             if resolved and resolved not in seen:
                 seen.add(resolved)
                 results.append(resolved)
@@ -92,7 +99,7 @@ def parse_local_imports(file_path: Path, root: Path) -> list[Path]:
             module_str = m.group(1)
             if module_str.startswith("."):
                 continue
-            resolved = _resolve_py_import(file_path, module_str, root)
+            resolved = _resolve_py_import(file_path, module_str, root_resolved)
             if resolved and resolved not in seen:
                 seen.add(resolved)
                 results.append(resolved)
