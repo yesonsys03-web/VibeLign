@@ -27,6 +27,7 @@ class VibGuardRenderTest(unittest.TestCase):
                 "summary": "구조 위험이 조금 있습니다.",
                 "recommendations": ["vib anchor --suggest", "vib guard --strict"],
                 "protected_violations": [],
+                "anchor_violations": [],
                 "explain": {
                     "files": [{"path": "app.py", "status": "modified", "kind": "logic"}]
                 },

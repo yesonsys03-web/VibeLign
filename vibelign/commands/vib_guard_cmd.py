@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol, TypedDict, cast
 
+from vibelign.core.anchor_tools import COMMENT_PREFIX
 from vibelign.core.change_explainer import (
     ChangeItem,
     ExplainReport,
@@ -60,6 +61,7 @@ class GuardData(TypedDict):
     summary: str
     recommendations: list[str]
     protected_violations: list[str]
+    anchor_violations: list[str]
     doctor: dict[str, object] | GuardDoctorData
     explain: GuardExplainData
     planning: "PlanningData"
@@ -104,6 +106,9 @@ _SMALL_FIX_LINE_THRESHOLD = 30
 _PLAN_REQUIRED_RECOMMENDATION = (
     "구조 영향 가능성이 높다면 먼저 `vib plan-structure`를 실행하세요."
 )
+_ANCHOR_REQUIRED_RECOMMENDATION = "신규 소스 파일에는 먼저 앵커를 추가하세요. `vib anchor --auto` 또는 `vib watch --auto-fix`를 사용할 수 있어요."
+_ANCHOR_PATTERN = re.compile(r"ANCHOR:\s*[A-Z0-9_]+_(START|END)")
+_SOURCE_EXTENSIONS = set(COMMENT_PREFIX.keys())
 
 
 def _planning_message(status: str) -> str:
@@ -421,6 +426,37 @@ def _file_change_details(
         return {"added_lines": 0, "ranges": []}
     added_lines, ranges = _parse_diff_line_ranges(diff)
     return {"added_lines": added_lines, "ranges": ranges}
+
+
+def _new_file_text(root: Path, rel_path: str, *, staged_only: bool) -> str:
+    if staged_only:
+        ok, staged_content = _run_guard_git(root, ["show", f":{rel_path}"])
+        if ok:
+            return staged_content
+    try:
+        return (root / rel_path).read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
+def _anchor_violations(
+    root: Path, explain_files: Sequence[FileSummary], *, staged_only: bool
+) -> list[str]:
+    violations: list[str] = []
+    for item in explain_files:
+        rel_path = str(item["path"])
+        if _classify_guard_path(rel_path) != "production":
+            continue
+        if str(item["status"]) not in {"added", "untracked"}:
+            continue
+        if Path(rel_path).suffix.lower() not in _SOURCE_EXTENSIONS:
+            continue
+        if _ANCHOR_PATTERN.search(
+            _new_file_text(root, rel_path, staged_only=staged_only)
+        ):
+            continue
+        violations.append(rel_path)
+    return violations
 
 
 def _is_import_wiring_line(line: str) -> bool:
@@ -831,6 +867,9 @@ def _build_guard_envelope(
     legacy_guard = combine_guard(legacy_doctor, explain_report)
     doctor_v2 = analyze_project_v2(root, strict=strict)
     violations = _protected_violations(root, explain_report.files)
+    anchor_violations = _anchor_violations(
+        root, explain_report.files, staged_only=explain_report.source == "git-staged"
+    )
     status = _guard_status(legacy_guard)
     if strict and status == "warn":
         status = "fail"
@@ -850,6 +889,7 @@ def _build_guard_envelope(
         "summary": legacy_guard.summary,
         "recommendations": _rewrite_recommendations(legacy_guard.recommendations),
         "protected_violations": violations,
+        "anchor_violations": anchor_violations,
         "doctor": doctor_v2.to_dict(),
         "explain": explain_data,
         "planning": {
@@ -879,6 +919,18 @@ def _build_guard_envelope(
         recommendations = list(data["recommendations"])
         if _PLAN_REQUIRED_RECOMMENDATION not in recommendations:
             recommendations.append(_PLAN_REQUIRED_RECOMMENDATION)
+        data["recommendations"] = recommendations
+    if anchor_violations:
+        anchor_level = "fail" if strict else "warn"
+        data["status"] = _merge_status(str(data["status"]), anchor_level)
+        data["blocked"] = bool(data["blocked"] or anchor_level == "fail")
+        joined = ", ".join(anchor_violations)
+        data["summary"] = (
+            f"{data['summary']}\n\n앵커 집행: 신규 소스 파일에 앵커가 없습니다. {joined}"
+        )
+        recommendations = list(data["recommendations"])
+        if _ANCHOR_REQUIRED_RECOMMENDATION not in recommendations:
+            recommendations.append(_ANCHOR_REQUIRED_RECOMMENDATION)
         data["recommendations"] = recommendations
     return {"ok": True, "error": None, "data": data}
 
@@ -939,6 +991,10 @@ def _render_markdown(data: GuardData) -> str:
     if data["protected_violations"]:
         lines.extend(["## 보호된 파일에서 바뀐 점"])
         lines.extend([f"- `{item}`" for item in data["protected_violations"]])
+        lines.append("")
+    if data["anchor_violations"]:
+        lines.extend(["## 앵커 집행 경고"])
+        lines.extend([f"- `{item}`" for item in data["anchor_violations"]])
         lines.append("")
     lines.extend(["## 다음에 하면 좋은 일"])
     lines.extend([f"- {item}" for item in data["recommendations"]])
