@@ -381,6 +381,33 @@ _KO_TO_EN_SUBJECT: dict[str, str] = {
 }
 
 
+# "수정해줘 / 고쳐 / fix" 등은 다른 action 후보(enable, 추가, 적용 …)보다
+# 우선순위가 높은 "버그 수정" 선언으로 취급한다.
+_FIX_IMPERATIVE_RE = re.compile(
+    r"(수정\s*해\s*(?:줘|주세요)"
+    r"|고쳐(?:\s*줘|\s*주세요)?"
+    r"|\bfix(?:es|ed|ing)?\b)",
+    re.IGNORECASE,
+)
+
+_ANCHOR_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
+
+
+def _subject_from_anchor(anchor: str) -> str:
+    """SCREAMING_SNAKE_CASE anchor → snake_case subject.
+
+    `_START` / `_END` boundary markers are stripped so that e.g.
+    ``CLAUDE_HOOK_TOGGLE_START`` 와 ``CLAUDE_HOOK_TOGGLE_END`` 둘 다
+    ``claude_hook_toggle`` 로 정규화된다.
+    """
+    normalized = anchor.strip()
+    for suffix in ("_START", "_END"):
+        if normalized.endswith(suffix):
+            normalized = normalized[: -len(suffix)]
+            break
+    return normalized.lower()
+
+
 def _ko_to_slug(token: str) -> str:
     """Korean token (possibly with particles) → English slug, or return as-is."""
     # Try exact match first
@@ -701,6 +728,12 @@ def build_codespeak(request: str, root: Path | None = None) -> CodeSpeakResult:
     if patch_points.get("operation") == "move" and action != "move":
         action = "move"
         subject, subject_score = _infer_subject(tokens, layer, action)
+    if _FIX_IMPERATIVE_RE.search(primary_request):
+        # 사용자가 "수정해줘 / 고쳐 / fix" 를 명시했으면 다른 동사(enable, 적용…)를
+        # 눌러 버리고 fix 로 확정한다.
+        if action != "fix":
+            action = "fix"
+            action_score = max(action_score, 2)
     total = action_score + layer_score + subject_score
     total += points_score
     confidence = "high" if total >= 5 else "medium" if total >= 3 else "low"
@@ -729,6 +762,12 @@ def build_codespeak(request: str, root: Path | None = None) -> CodeSpeakResult:
             target_anchor = suggestion.target_anchor
         except Exception:
             pass
+
+    if target_anchor and _ANCHOR_NAME_RE.fullmatch(target_anchor):
+        # target_anchor 가 잡혔다면 한글 단어장 없이 영문 subject 를 유도한다.
+        derived = _subject_from_anchor(target_anchor)
+        if derived and re.fullmatch(r"[a-z][a-z0-9_]*", derived):
+            subject = derived
 
     result = build_codespeak_result(
         primary_request,
