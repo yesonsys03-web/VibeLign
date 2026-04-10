@@ -2,9 +2,23 @@
 import argparse
 import importlib
 from collections.abc import Callable
-from typing import cast
+from typing import Any, cast
 
 from ..commands.init_cmd import run_init
+
+
+def _hide_suppressed_subcommands(parser: argparse.ArgumentParser) -> None:
+    for action in parser._actions:
+        choices = getattr(action, "choices", None)
+        choice_actions = getattr(action, "_choices_actions", None)
+        if not choices or choice_actions is None:
+            continue
+        typed_action = cast(Any, action)
+        typed_action._choices_actions = [
+            item
+            for item in choice_actions
+            if getattr(item, "help", None) != argparse.SUPPRESS
+        ]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -61,7 +75,10 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=main_epilog,
     )
     sub = parser.add_subparsers(
-        dest="command", required=True, parser_class=rich_argument_parser
+        dest="command",
+        required=True,
+        parser_class=rich_argument_parser,
+        metavar="{install,init,start,checkpoint,undo,history,protect,ask,config,doctor,anchor,patch,secrets,explain,guard,claude-hook,export,scan,plan-structure,transfer,watch,bench,manual,rules,completion}",
     )
 
     register_core_commands(
@@ -69,6 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     register_extended_commands(sub, lazy_command_impl, run_vib_guard)
     register_completion_command(sub, parser)
+    _hide_suppressed_subcommands(parser)
 
     return parser
 

@@ -101,7 +101,9 @@ AI 수정 요청:
  patch       말로 요청하면 안전한 수정 계획을 만들어요
   anchor      AI가 건드려도 되는 안전 구역을 표시해요
   scan        앵커 스캔 + 코드맵 갱신을 한 번에 해요
-  secrets     API 키 같은 비밀정보 커밋을 막아요
+  plan-structure  코딩 전에 구조 계획을 만들어요
+  claude-hook     Claude 저장 전 검사를 관리해요
+  secrets         API 키 같은 비밀정보 커밋을 막아요
 
 파일 & 설정:
   protect     중요한 파일을 잠가요
@@ -110,10 +112,12 @@ AI 수정 요청:
   config      API 키 설정
   export      AI 도구용 설정 내보내기
   watch       실시간 감시
+  bench       앵커 효과를 비교 실험해요
 
 도움말:
   manual      코알못을 위한 상세 사용 설명서
-  rules       AI 개발 규칙 전체 보기"""
+  rules       AI 개발 규칙 전체 보기
+  completion  탭 자동완성 설정"""
 
 MAIN_EPILOG = """\
 처음이세요? 이것만 따라하세요:
