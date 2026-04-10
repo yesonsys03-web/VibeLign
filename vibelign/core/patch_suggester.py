@@ -749,18 +749,18 @@ def load_anchor_metadata(root: Path) -> dict[str, dict[str, list[str]]]:
 
 # === ANCHOR: PATCH_SUGGESTER__BUILD_IMPORT_POOL_EXPANSION_START ===
 def _build_import_pool_expansion(
-    top_candidate, root, max_hops: int = 1
-) -> list:
+    top_candidate: Path, root: Path, max_hops: int = 1
+) -> list[Path]:
     """top_candidate 파일의 로컬 import를 최대 max_hops 깊이까지 탐색해 반환한다.
 
     wrapper 컴포넌트가 top candidate일 때, import된 실제 상태 소유 파일을
     AI 후보 풀에 추가하기 위해 사용된다.
     """
-    visited: set = {top_candidate}
-    frontier: list = [top_candidate]
-    result: list = []
+    visited: set[Path] = {top_candidate}
+    frontier: list[Path] = [top_candidate]
+    result: list[Path] = []
     for _ in range(max_hops):
-        next_frontier: list = []
+        next_frontier: list[Path] = []
         for f in frontier:
             for imported in parse_local_imports(f, root):
                 if imported not in visited:
