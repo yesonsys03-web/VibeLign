@@ -473,10 +473,16 @@ def register_extended_commands(
         epilog=(
             "이렇게 쓰세요:\n"
             "  vib watch              실시간 감시 시작\n"
-            "  vib watch --strict     꼼꼼 모드"
+            "  vib watch --strict     꼼꼼 모드\n"
+            "  vib watch --auto-fix   새 소스 파일에 앵커 자동 삽입"
         ),
     )
     _ = p.add_argument("--strict", action="store_true", help="더 꼼꼼하게 감시")
+    _ = p.add_argument(
+        "--auto-fix",
+        action="store_true",
+        help="새 소스 파일에 앵커가 없으면 자동으로 삽입",
+    )
     _ = p.add_argument("--write-log", action="store_true", help="로그를 파일로 저장")
     _ = p.add_argument("--json", action="store_true", help="JSON으로 출력")
     _ = p.add_argument(

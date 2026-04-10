@@ -164,6 +164,11 @@ class VibStartTest(unittest.TestCase):
         self.assertTrue(args.all_tools)
         self.assertFalse(args.force)
 
+    def test_basic_cli_watch_parser_accepts_auto_fix(self):
+        parser = build_basic_parser()
+        args = parser.parse_args(["watch", "--auto-fix"])
+        self.assertTrue(args.auto_fix)
+
 
 if __name__ == "__main__":
     unittest.main()
