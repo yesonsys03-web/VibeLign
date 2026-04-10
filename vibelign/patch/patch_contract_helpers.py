@@ -5,6 +5,67 @@ from vibelign.core import PatchContract
 from vibelign.core.codespeak import parse_codespeak_v0
 from vibelign.core.patch_suggester import tokenize
 
+_STATEFUL_UI_KEYWORDS = {
+    "persist",
+    "state",
+    "remember",
+    "remembered",
+    "enable",
+    "enabled",
+    "disable",
+    "disabled",
+    "status",
+    "유지",
+    "보존",
+    "상태",
+    "활성화",
+    "비활성화",
+    "켜",
+    "꺼",
+    "enable",
+}
+
+_NAV_CONTEXT_KEYWORDS = {
+    "menu",
+    "tab",
+    "tabs",
+    "navigate",
+    "navigation",
+    "page",
+    "screen",
+    "메뉴",
+    "탭",
+    "페이지",
+    "화면",
+    "갔다",
+    "돌아",
+}
+
+_LOW_SIGNAL_FOCUS_TOKENS = (
+    _STATEFUL_UI_KEYWORDS
+    | _NAV_CONTEXT_KEYWORDS
+    | {
+        "app",
+        "home",
+        "page",
+        "screen",
+        "component",
+        "ui",
+        "this",
+        "that",
+        "other",
+        "다른",
+        "다시",
+        "갔다",
+        "오면",
+        "수정",
+        "fix",
+        "update",
+    }
+)
+
+_GENERIC_UI_TARGET_TOKENS = {"app", "layout", "home", "page", "screen"}
+
 
 # === ANCHOR: PATCH_CONTRACT_HELPERS_ALLOWED_OPS_FOR_ACTION_START ===
 def allowed_ops_for_action(action: str) -> list[str]:
@@ -16,6 +77,8 @@ def allowed_ops_for_action(action: str) -> list[str]:
         "split": ["replace_range", "insert_after"],
         "apply": ["replace_range"],
     }.get(action, ["replace_range"])
+
+
 # === ANCHOR: PATCH_CONTRACT_HELPERS_ALLOWED_OPS_FOR_ACTION_END ===
 
 
@@ -24,6 +87,8 @@ def target_file_status(target_file: str) -> str:
     if target_file == "[소스 파일 없음]":
         return "no_source_files"
     return "ok"
+
+
 # === ANCHOR: PATCH_CONTRACT_HELPERS_TARGET_FILE_STATUS_END ===
 
 
@@ -36,6 +101,8 @@ def target_anchor_status(target_anchor: str) -> str:
     if target_anchor.startswith("[추천 앵커: ") and target_anchor.endswith("]"):
         return "suggested"
     return "ok"
+
+
 # === ANCHOR: PATCH_CONTRACT_HELPERS_TARGET_ANCHOR_STATUS_END ===
 
 
@@ -47,6 +114,8 @@ def target_anchor_name(target_anchor: str) -> str | None:
     if status == "ok":
         return target_anchor
     return None
+
+
 # === ANCHOR: PATCH_CONTRACT_HELPERS_TARGET_ANCHOR_NAME_END ===
 
 
@@ -57,6 +126,8 @@ def patch_status(confidence: str, file_status: str, anchor_status: str) -> str:
     if confidence == "low" or anchor_status in {"missing", "suggested", "none"}:
         return "NEEDS_CLARIFICATION"
     return "READY"
+
+
 # === ANCHOR: PATCH_CONTRACT_HELPERS_PATCH_STATUS_END ===
 
 
@@ -76,13 +147,17 @@ def preconditions(target_file: str, target_anchor: str) -> list[str]:
             f"실행 전에 추천 앵커 `{anchor_name_value}` 를 먼저 만들어야 합니다."
         )
     return conditions
+
+
 # === ANCHOR: PATCH_CONTRACT_HELPERS_PRECONDITIONS_END ===
 
 
 # === ANCHOR: PATCH_CONTRACT_HELPERS_AUGMENT_CLARIFYING_QUESTIONS_START ===
 def augment_clarifying_questions(
-    patch_plan: dict[str, object], file_status: str, anchor_status: str
-# === ANCHOR: PATCH_CONTRACT_HELPERS_AUGMENT_CLARIFYING_QUESTIONS_END ===
+    patch_plan: dict[str, object],
+    file_status: str,
+    anchor_status: str,
+    # === ANCHOR: PATCH_CONTRACT_HELPERS_AUGMENT_CLARIFYING_QUESTIONS_END ===
 ) -> list[str]:
     raw_questions = patch_plan.get("clarifying_questions", [])
     question_items = (
@@ -99,6 +174,7 @@ def augment_clarifying_questions(
     def add(question: str) -> None:
         if question not in questions:
             questions.append(question)
+
     # === ANCHOR: PATCH_CONTRACT_HELPERS_ADD_END ===
 
     if file_status == "no_source_files":
@@ -134,7 +210,7 @@ def apply_validator_contract_gate(
     destination_file: str,
     destination_anchor: str,
     clarifying_questions: list[str],
-# === ANCHOR: PATCH_CONTRACT_HELPERS_APPLY_VALIDATOR_CONTRACT_GATE_END ===
+    # === ANCHOR: PATCH_CONTRACT_HELPERS_APPLY_VALIDATOR_CONTRACT_GATE_END ===
 ) -> tuple[str, list[str]]:
     questions = list(clarifying_questions)
     if (
@@ -156,6 +232,8 @@ def apply_validator_contract_gate(
 def normalize_search_fingerprint(text: str) -> str | None:
     normalized = " ".join(text.split()).strip()
     return normalized or None
+
+
 # === ANCHOR: PATCH_CONTRACT_HELPERS_NORMALIZE_SEARCH_FINGERPRINT_END ===
 
 
@@ -167,13 +245,17 @@ def is_usable_search_fingerprint(fingerprint: str | None) -> bool:
     if normalized in {"it", "this", "that", "이것", "이걸", "그것", "저것"}:
         return False
     return len(tokenize(fingerprint)) >= 2
+
+
 # === ANCHOR: PATCH_CONTRACT_HELPERS_IS_USABLE_SEARCH_FINGERPRINT_END ===
 
 
 # === ANCHOR: PATCH_CONTRACT_HELPERS_BUILD_SEARCH_FINGERPRINT_START ===
 def build_search_fingerprint(
-    request: str, patch_points: dict[str, object], operation: str
-# === ANCHOR: PATCH_CONTRACT_HELPERS_BUILD_SEARCH_FINGERPRINT_END ===
+    request: str,
+    patch_points: dict[str, object],
+    operation: str,
+    # === ANCHOR: PATCH_CONTRACT_HELPERS_BUILD_SEARCH_FINGERPRINT_END ===
 ) -> str | None:
     if operation == "move":
         source_text = str(patch_points.get("source", ""))
@@ -191,7 +273,7 @@ def apply_search_fingerprint_readiness_gate(
     operation: str,
     search_fingerprint: str | None,
     clarifying_questions: list[str],
-# === ANCHOR: PATCH_CONTRACT_HELPERS_APPLY_SEARCH_FINGERPRINT_READINESS_GATE_END ===
+    # === ANCHOR: PATCH_CONTRACT_HELPERS_APPLY_SEARCH_FINGERPRINT_READINESS_GATE_END ===
 ) -> tuple[str, list[str]]:
     questions = list(clarifying_questions)
     if (
@@ -208,8 +290,11 @@ def apply_search_fingerprint_readiness_gate(
 
 # === ANCHOR: PATCH_CONTRACT_HELPERS_APPLY_MULTI_INTENT_GATE_START ===
 def apply_multi_intent_gate(
-    *, status: str, sub_intents: list[str], clarifying_questions: list[str]
-# === ANCHOR: PATCH_CONTRACT_HELPERS_APPLY_MULTI_INTENT_GATE_END ===
+    *,
+    status: str,
+    sub_intents: list[str],
+    clarifying_questions: list[str],
+    # === ANCHOR: PATCH_CONTRACT_HELPERS_APPLY_MULTI_INTENT_GATE_END ===
 ) -> tuple[str, list[str]]:
     questions = list(clarifying_questions)
     if status != "REFUSED" and len(sub_intents) > 1:
@@ -218,6 +303,53 @@ def apply_multi_intent_gate(
             questions.append(question)
         return "NEEDS_CLARIFICATION", questions
     return status, questions
+
+
+# === ANCHOR: PATCH_CONTRACT_HELPERS_APPLY_STATEFUL_UI_TARGET_GATE_START ===
+def apply_stateful_ui_target_gate(
+    *,
+    status: str,
+    request: str,
+    target_file: str,
+    target_anchor: str,
+    layer: str,
+    operation: str,
+    clarifying_questions: list[str],
+) -> tuple[str, list[str]]:
+    questions = list(clarifying_questions)
+    if status == "REFUSED" or operation == "move" or layer != "ui":
+        return status, questions
+
+    request_tokens = set(tokenize(request))
+    has_stateful_signal = bool(request_tokens & _STATEFUL_UI_KEYWORDS)
+    has_navigation_signal = bool(request_tokens & _NAV_CONTEXT_KEYWORDS)
+    if not has_stateful_signal or not has_navigation_signal:
+        return status, questions
+
+    target_tokens = set(tokenize(f"{target_file} {target_anchor}"))
+    is_generic_ui_target = bool(target_tokens & _GENERIC_UI_TARGET_TOKENS)
+    if not is_generic_ui_target:
+        return status, questions
+
+    focus_tokens = [
+        token for token in request_tokens if token not in _LOW_SIGNAL_FOCUS_TOKENS
+    ]
+    if not focus_tokens:
+        return status, questions
+    if any(token in target_tokens for token in focus_tokens):
+        return status, questions
+
+    question = (
+        "지금 요청은 메뉴 이동 뒤에도 유지되어야 하는 UI 상태 문제로 보이는데, "
+        f"현재 추천된 `{target_file}` / `{target_anchor}` 만으로는 관련 상태 소유 위치가 충분히 드러나지 않아요. "
+        "문제가 보이는 카드나 컴포넌트 이름을 한 번만 더 알려줄 수 있나요?"
+    )
+    if question not in questions:
+        questions.append(question)
+    return "NEEDS_CLARIFICATION", questions
+
+
+# === ANCHOR: PATCH_CONTRACT_HELPERS_APPLY_STATEFUL_UI_TARGET_GATE_END ===
 
 
 # === ANCHOR: PATCH_CONTRACT_HELPERS_BUILD_CONTRACT_START ===
@@ -278,9 +410,20 @@ def build_contract(patch_plan: dict[str, object]) -> dict[str, object]:
         "subject": "request",
         "action": "update",
     }
+    status, clarifying_questions = apply_stateful_ui_target_gate(
+        status=status,
+        request=str(patch_plan.get("request", "")),
+        target_file=target_file,
+        target_anchor=target_anchor,
+        layer=codespeak_parts["layer"],
+        operation=operation,
+        clarifying_questions=clarifying_questions,
+    )
     assumptions: list[str] = []
     if status == "NEEDS_CLARIFICATION":
         assumptions.append("요청 범위나 수정 위치가 아직 충분히 분명하지 않습니다.")
+    else:
+        clarifying_questions = []
     user_status = {
         "READY": {
             "title": "지금 바로 진행할 수 있어요",
@@ -335,5 +478,7 @@ def build_contract(patch_plan: dict[str, object]) -> dict[str, object]:
         user_guidance=user_guidance,
     )
     return cast(dict[str, object], contract.to_dict())
+
+
 # === ANCHOR: PATCH_CONTRACT_HELPERS_BUILD_CONTRACT_END ===
 # === ANCHOR: PATCH_CONTRACT_HELPERS_END ===

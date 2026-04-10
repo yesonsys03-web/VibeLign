@@ -212,7 +212,7 @@ class PatchTargetingRegressionTest(unittest.TestCase):
                 "def render_home():\n    return 'gui home'\n", encoding="utf-8"
             )
 
-            result = suggest_patch(root, "gui version 표시해줘")
+            result = suggest_patch(root, "gui version 표시해줘", use_ai=False)
 
             self.assertEqual(result.target_file, "gui_home.py")
             self.assertEqual(

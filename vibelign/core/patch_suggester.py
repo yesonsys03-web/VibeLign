@@ -106,6 +106,7 @@ _TOKEN_ALIASES = {
     "홈화면": ["home", "screen", "page"],
     "메인화면": ["main", "home", "screen", "page"],
     "화면": ["screen", "page"],
+    "메뉴": ["menu", "nav", "navigation"],
     "첫화면": ["onboarding", "screen"],
     "시작화면": ["onboarding", "screen"],
     "버전": ["version"],
@@ -113,6 +114,12 @@ _TOKEN_ALIASES = {
     "설치": ["install"],
     "안내": ["guide"],
     "가이드": ["guide"],
+    "클로드": ["claude"],
+    "훅": ["hook"],
+    "상태": ["state", "status"],
+    "유지": ["persist", "state"],
+    "활성화": ["enable", "enabled"],
+    "비활성화": ["disable", "disabled"],
 }
 
 _LOW_SIGNAL_TOKENS = {
@@ -331,6 +338,34 @@ _COMMAND_FILE_HINTS = {
     "scan",
 }
 
+_STATEFUL_UI_REQUEST_KEYWORDS = {
+    "state",
+    "status",
+    "persist",
+    "remember",
+    "enable",
+    "enabled",
+    "disable",
+    "disabled",
+    "상태",
+    "유지",
+    "보존",
+    "활성화",
+    "비활성화",
+}
+
+_STATE_OWNER_FILE_HINTS = {
+    "card",
+    "hook",
+    "toggle",
+    "state",
+    "status",
+    "settings",
+    "provider",
+    "store",
+    "context",
+}
+
 
 def _is_ui_request(request_tokens: Iterable[str]) -> bool:
     token_set = set(request_tokens)
@@ -347,6 +382,11 @@ def _is_service_request(request_tokens: Iterable[str]) -> bool:
 def _is_navigation_request(request_tokens: Iterable[str]) -> bool:
     token_set = set(request_tokens)
     return any(kw in token_set for kw in _NAVIGATION_REQUEST_KEYWORDS)
+
+
+def _is_stateful_ui_request(request_tokens: Iterable[str]) -> bool:
+    token_set = set(request_tokens)
+    return any(kw in token_set for kw in _STATEFUL_UI_REQUEST_KEYWORDS)
 
 
 def score_path(
@@ -394,6 +434,7 @@ def score_path(
         rationale.append(f"파일명 '{stem}'이 요청과 직접 일치")
     ui_request = _is_ui_request(request_tokens)
     nav_request = _is_navigation_request(request_tokens)
+    stateful_ui_request = _is_stateful_ui_request(request_tokens)
     map_kind = None
     if (
         ui_request
@@ -435,6 +476,15 @@ def score_path(
             else:
                 score += 2
                 rationale.append("Project Map 에서 core/logic 모듈로 분류된 파일임")
+        if (
+            stateful_ui_request
+            and nav_request
+            and map_kind in {"logic", "core", "service"}
+        ):
+            score -= 10
+            rationale.append(
+                "UI 상태 유지 요청인데 backend/core/service 파일이라 우선순위를 크게 낮춤"
+            )
         if rel_path in project_map.large_files:
             score += 1
             rationale.append(
@@ -442,16 +492,29 @@ def score_path(
             )
     if nav_request:
         if project_map is not None and rel_path in project_map.entry_files:
-            score += 10
-            rationale.append("탑/메뉴 이동 요청이라 entry file 이 우선 후보임")
-        if stem in {"app", "layout"}:
-            score += 6
+            delta = 4 if stateful_ui_request else 10
+            score += delta
             rationale.append(
-                "탑/메뉴 이동 요청이라 app/layout 컨테이너 파일을 우선 후보로 올림"
+                "상태 유지 요청이 섞여 있어 entry file 가산점을 낮춤"
+                if stateful_ui_request
+                else "탑/메뉴 이동 요청이라 entry file 이 우선 후보임"
+            )
+        if stem in {"app", "layout"}:
+            delta = -3 if stateful_ui_request else 6
+            score += delta
+            rationale.append(
+                "상태 유지 요청이라 app/layout 같은 일반 컨테이너 우선순위를 낮춤"
+                if stateful_ui_request
+                else "탑/메뉴 이동 요청이라 app/layout 컨테이너 파일을 우선 후보로 올림"
             )
         if any(token in path_tokens for token in _NAVIGATION_FILE_HINTS):
-            score += 8
-            rationale.append("탑/메뉴 구조를 가진 파일이라 목적지 후보로 적합함")
+            delta = 2 if stateful_ui_request else 8
+            score += delta
+            rationale.append(
+                "상태 유지 요청이라 메뉴 컨테이너 가산점을 낮춤"
+                if stateful_ui_request
+                else "탑/메뉴 구조를 가진 파일이라 목적지 후보로 적합함"
+            )
         if any(token in path_tokens for token in _CHROME_FILE_HINTS):
             score -= 16
             rationale.append(
@@ -485,6 +548,21 @@ def score_path(
         ):
             score -= 2
             rationale.append("탑/메뉴 요청인데 콘텐츠형 UI 파일이라 우선순위를 낮춤")
+    if stateful_ui_request and any(
+        token in path_tokens for token in _STATE_OWNER_FILE_HINTS
+    ):
+        score += 8
+        rationale.append("상태 유지 요청이라 카드/상태 소유자 후보 파일을 우선 검토함")
+    if stateful_ui_request and nav_request and is_frontend:
+        score += 6
+        rationale.append(
+            "메뉴 이동 뒤 UI 상태 유지 요청이라 프론트엔드 파일을 우선 검토함"
+        )
+    if stateful_ui_request and any(
+        token in path_tokens for token in {"card", "component", "components"}
+    ):
+        score += 6
+        rationale.append("상태 유지 요청이라 카드/컴포넌트 파일 우선순위를 올림")
     if any(
         tok in path_tokens
         for tok in ["worker", "service", "window", "scheduler", "backup"]
@@ -684,6 +762,7 @@ def _ai_select_file(
         ai_explain = importlib.import_module("vibelign.core.ai_explain")
         if not ai_explain.has_ai_provider():
             return None
+        stateful_ui_request = _is_stateful_ui_request(request_tokens)
 
         # 후보 풀 구성: 상위 점수 파일 10개 + ui_modules (중복 제거)
         pool: list[Path] = [path for (_, path, _) in candidates[:10]]
@@ -715,6 +794,7 @@ def _ai_select_file(
             f"사용자 코드 수정 요청: {request}\n\n"
             f"아래 후보 파일의 내용을 보고 수정해야 할 파일을 하나만 골라주세요.\n"
             f"JSON만 출력하세요. 설명 없이 딱 JSON만.\n\n"
+            f"{('중요 규칙: 상태 유지/enable/disable/status 문제가 메뉴 이동 뒤에 풀리는 요청이면, 일반적인 app/layout 컨테이너보다 실제 상태를 들고 있거나 카드/토글/설정/훅 이름이 보이는 파일을 우선 고르세요.\\n\\n' if stateful_ui_request else '')}"
             f"후보:\n{candidates_text}\n"
             f'출력 형식: {{"index": 1}}'
         )
@@ -800,9 +880,17 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
         reasons = reasons[:4] + [
             f"상위 후보 점수 차이가 작음 ({best_score} vs {second_score}) — 위치 확인이 더 필요함"
         ]
+    stateful_ui_request = _is_stateful_ui_request(request_tokens)
     # --ai 명시: confidence 무관하게 AI가 파일 선택
     # --ai 없음: confidence LOW일 때만 AI 폴백
-    should_use_ai = use_ai or confidence == "low"
+    best_path_tokens = _path_tokens(relpath_str(root, best_path))
+    should_use_ai = confidence == "low" or (
+        use_ai
+        and not (
+            stateful_ui_request
+            and any(token in best_path_tokens for token in _STATE_OWNER_FILE_HINTS)
+        )
+    )
     if should_use_ai:
         ai_result = _ai_select_file(
             request, scored, root, request_tokens, anchor_meta, project_map
