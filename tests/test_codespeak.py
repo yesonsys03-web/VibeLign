@@ -1,6 +1,12 @@
+import tempfile
 import unittest
+from pathlib import Path
 
-from vibelign.core.codespeak import build_codespeak, build_codespeak_result
+from vibelign.core.codespeak import (
+    _subject_from_anchor,
+    build_codespeak,
+    build_codespeak_result,
+)
 from vibelign.core.request_normalizer import normalize_user_request
 
 
@@ -67,6 +73,59 @@ class CodeSpeakTest(unittest.TestCase):
     def test_degree_adverbs_remain_in_patch_object_candidates(self):
         result = build_codespeak("크기를 동일하게 맞춰줘")
         self.assertIn("동일", result.patch_points.get("object", ""))
+
+    def test_fix_imperative_overrides_other_action_words(self):
+        """'수정해줘'로 끝나는 요청은 이전에 등장한 다른 action 단어(enable 등)를
+        덮어 action=fix 가 돼야 한다."""
+        result = build_codespeak(
+            "클로드 훅 enable 시키고 다른 메뉴 갔다 오면 유지되지 않아. 수정해줘."
+        )
+        self.assertEqual(result.action, "fix")
+
+    def test_fix_imperative_variants(self):
+        for request in ("버튼 고쳐줘", "레이아웃 고쳐", "please fix the layout"):
+            with self.subTest(request=request):
+                result = build_codespeak(request)
+                self.assertEqual(result.action, "fix")
+
+    def test_subject_from_anchor_strips_boundaries(self):
+        self.assertEqual(
+            _subject_from_anchor("CLAUDE_HOOK_TOGGLE_START"),
+            "claude_hook_toggle",
+        )
+        self.assertEqual(
+            _subject_from_anchor("CLAUDE_HOOK_TOGGLE_END"),
+            "claude_hook_toggle",
+        )
+        self.assertEqual(
+            _subject_from_anchor("CLAUDE_HOOK_TOGGLE"),
+            "claude_hook_toggle",
+        )
+
+    def test_build_codespeak_uses_anchor_derived_english_subject(self):
+        """target_anchor 가 있으면 _ko_to_slug 단어장 없이 영문 subject 를 유도해야 한다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            src_dir = root / "vibelign-gui" / "src"
+            src_dir.mkdir(parents=True)
+            (src_dir / "ClaudeHookToggle.tsx").write_text(
+                "// === ANCHOR: CLAUDE_HOOK_TOGGLE_START ===\n"
+                "export default function ClaudeHookToggle() {\n"
+                "  return <div>claude hook toggle</div>;\n"
+                "}\n"
+                "// === ANCHOR: CLAUDE_HOOK_TOGGLE_END ===\n",
+                encoding="utf-8",
+            )
+            result = build_codespeak(
+                "클로드 훅 유지되지 않아. 수정해줘.", root=root
+            )
+        # 단어장에 없는 한글 토큰이 subject 에 남으면 안 된다.
+        self.assertNotRegex(result.subject, r"[가-힣]")
+        # anchor 가 잡혔다면 anchor-derived subject 를 써야 한다.
+        if result.target_anchor and result.target_anchor != "[먼저 앵커를 추가하세요]":
+            self.assertEqual(result.subject, "claude_hook_toggle")
+        # codespeak 전체에도 한글이 남아 있으면 안 된다.
+        self.assertNotRegex(result.codespeak, r"[가-힣]")
 
 
 if __name__ == "__main__":

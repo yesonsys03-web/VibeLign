@@ -50,6 +50,30 @@ class AiCodeSpeakTest(unittest.TestCase):
             )
         self.assertIsNone(result)
 
+    def test_prompt_includes_allowed_action_vocabulary(self):
+        rule_result = build_codespeak("add progress bar")
+        prompt = build_codespeak_ai_prompt("add progress bar", rule_result)
+        for action in ("add", "remove", "update", "move", "fix", "apply", "split"):
+            self.assertIn(action, prompt)
+
+    def test_ai_codespeak_with_unknown_action_is_rejected(self):
+        """AI가 ACTION_MAP에 없는 action(예: persistence_enable)을 생성하면 None 을 반환해야 한다."""
+        rule_result = build_codespeak("클로드 훅 유지되지 않아. 수정해줘.")
+        with patch(
+            "vibelign.core.ai_explain.generate_text_with_ai",
+            return_value=(
+                '{"codespeak":"ui.component.hook.persistence_enable",'
+                '"interpretation":"ok","confidence":"high","clarifying_questions":[]}',
+                True,
+            ),
+        ):
+            result = _ai_codespeak.enhance_codespeak_with_ai(
+                "클로드 훅 유지되지 않아. 수정해줘.",
+                rule_result,
+                quiet=True,
+            )
+        self.assertIsNone(result)
+
     def test_ai_enhancement_rebuilds_patch_points_and_intent_ir(self):
         rule_result = build_codespeak("add progress bar")
         with patch(

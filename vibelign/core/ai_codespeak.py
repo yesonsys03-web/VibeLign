@@ -3,7 +3,11 @@ import importlib
 import json
 from typing import Protocol, cast
 
-from vibelign.core.codespeak import CodeSpeakResult, build_codespeak_result
+from vibelign.core.codespeak import (
+    ACTION_MAP,
+    CodeSpeakResult,
+    build_codespeak_result,
+)
 
 _AI_PATCH_POINT_KEYS = (
     "operation",
@@ -45,6 +49,9 @@ def build_codespeak_ai_prompt(request: str, rule_result: CodeSpeakResult) -> str
   (operation, source, destination, object, behavior_constraint)
   규칙 추출이 비어 있을 때만 채워 넣으세요. 확실하지 않으면 생략합니다.
 - `codespeak`는 layer.target.subject.action 형식만 허용합니다.
+- `action`은 다음 어휘 중 하나만 사용하세요: add, remove, update, move, fix, apply, split.
+  (예: persistence_enable, enable, disable 같은 임의 동사는 금지)
+- `subject`는 한글 없이 영문 snake_case 만 허용합니다.
 - confidence 는 high, medium, low 중 하나입니다.
 - clarifying_questions 는 문자열 배열입니다.
 - 한국어 interpretation 을 작성하세요.
@@ -131,6 +138,10 @@ def enhance_codespeak_with_ai(
     confidence = cast(str, parsed["confidence"])
     clarifying_questions = cast(list[str], parsed["clarifying_questions"])
     if confidence not in {"high", "medium", "low"}:
+        return None
+    cs_parts = codespeak.split(".")
+    if len(cs_parts) == 4 and cs_parts[3] not in ACTION_MAP:
+        # 규칙 기반 fallback: AI가 ACTION_MAP 밖의 자유 동사를 만들면 무시한다.
         return None
     pp_override = cast(dict[str, str] | None, parsed.get("patch_points"))
     return build_codespeak_result(
