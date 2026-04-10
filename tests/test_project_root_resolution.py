@@ -271,6 +271,7 @@ class ProjectRootResolutionTest(unittest.TestCase):
                     run_watch_cmd(
                         Namespace(
                             strict=True,
+                            auto_fix=True,
                             write_log=True,
                             json=False,
                             debounce_ms=250,
@@ -278,6 +279,7 @@ class ProjectRootResolutionTest(unittest.TestCase):
                     )
 
             self.assertEqual(captured.get("root"), str(root.resolve()))
+            self.assertEqual(captured.get("auto_fix"), True)
 
 
 if __name__ == "__main__":

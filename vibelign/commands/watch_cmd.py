@@ -24,6 +24,7 @@ def run_watch_cmd(args: Namespace) -> None:
                 "strict": bool(getattr(args, "strict", False)),
                 "write_log": bool(getattr(args, "write_log", False)),
                 "json": bool(getattr(args, "json", False)),
+                "auto_fix": bool(getattr(args, "auto_fix", False)),
                 "debounce_ms": int(getattr(args, "debounce_ms", 0) or 0),
                 "root": str(root),
             }

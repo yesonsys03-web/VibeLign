@@ -245,6 +245,66 @@ class WatchEngineDeleteHandlingTest(unittest.TestCase):
             project_map = project_map_path.read_text(encoding="utf-8")
             self.assertIn('"file_count": 0', project_map)
 
+    def test_run_watch_auto_fix_inserts_anchors_for_new_python_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            vg_dir = root / ".vibelign"
+            vg_dir.mkdir()
+            log_path = vg_dir / "watch.log"
+            created = root / "src" / "module.py"
+            created.parent.mkdir(parents=True)
+            created.write_text("def run():\n    return True\n", encoding="utf-8")
+
+            class FakeHandlerBase:
+                pass
+
+            class FakeObserver:
+                def __init__(self, callback) -> None:
+                    self.callback = callback
+                    self.handler = None
+
+                def schedule(
+                    self, event_handler: object, path: str, recursive: bool = False
+                ) -> None:
+                    _ = path
+                    _ = recursive
+                    self.handler = event_handler
+
+                def start(self) -> None:
+                    assert self.handler is not None
+                    self.callback(self.handler)
+
+                def stop(self) -> None:
+                    return None
+
+                def join(self) -> None:
+                    return None
+
+            def observer_factory():
+                return FakeObserver(
+                    lambda handler: handler.on_created(
+                        SimpleNamespace(is_directory=False, src_path=str(created))
+                    )
+                )
+
+            with (
+                patch(
+                    "vibelign.core.watch_engine._import_watchdog_classes",
+                    return_value=(FakeHandlerBase, observer_factory),
+                ),
+                patch(
+                    "vibelign.core.watch_engine.time.sleep",
+                    side_effect=KeyboardInterrupt,
+                ),
+            ):
+                run_watch({"root": str(root), "write_log": True, "auto_fix": True})
+
+            text = created.read_text(encoding="utf-8")
+            self.assertIn("ANCHOR: MODULE_START", text)
+            self.assertIn("ANCHOR: MODULE_RUN_START", text)
+            log_text = log_path.read_text(encoding="utf-8")
+            self.assertIn("[auto-fix] 앵커 삽입: src/module.py", log_text)
+
     def test_run_watch_on_moved_replaces_old_state_with_new_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

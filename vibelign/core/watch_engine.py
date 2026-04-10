@@ -20,6 +20,7 @@ class WatchConfig(TypedDict, total=False):
     json: bool
     debounce_ms: int
     write_log: bool
+    auto_fix: bool
 
 
 class WatchPayload(TypedDict, total=False):
@@ -204,6 +205,8 @@ WATCH_EXCLUDED_SUFFIXES = {
     ".bin",
 }
 
+AUTO_FIX_SOURCE_SUFFIXES = {".py", ".js", ".ts", ".jsx", ".tsx"}
+
 
 # === ANCHOR: WATCH_ENGINE_SAFE_READ_START ===
 def safe_read(path: Path) -> str:
@@ -287,6 +290,7 @@ def run_watch(config: WatchConfig) -> None:
             strict: bool,
             json_mode: bool,
             log_path: Path | None,
+            auto_fix: bool,
             debounce_ms: int = 800,
             # === ANCHOR: WATCH_ENGINE___INIT___END ===
         ):
@@ -296,6 +300,7 @@ def run_watch(config: WatchConfig) -> None:
             self.strict: bool = strict
             self.json_mode: bool = json_mode
             self.log_path: Path | None = log_path
+            self.auto_fix: bool = auto_fix
             self.debounce_ms: int = debounce_ms
             self.state: dict[str, FileSnapshot] = load_state(state_path)
             self.last_seen: dict[str, float] = {}
@@ -321,6 +326,29 @@ def run_watch(config: WatchConfig) -> None:
             return (now - prev) < self.debounce_ms
 
         # === ANCHOR: WATCH_ENGINE__DEBOUNCED_END ===
+
+        def _handle_auto_fix(self, path: Path) -> bool:
+            if not self.auto_fix or path.suffix.lower() not in AUTO_FIX_SOURCE_SUFFIXES:
+                return False
+            from vibelign.core.anchor_tools import (
+                extract_anchors,
+                insert_module_anchors,
+            )
+
+            if extract_anchors(path):
+                return False
+            if not insert_module_anchors(path):
+                return False
+            rel = relpath_str(self.root, path)
+            auto_fix_event: WatchPayload = {
+                "level": "OK",
+                "path": rel,
+                "message": f"[auto-fix] 앵커 삽입: {rel}",
+                "why": "신규 소스 파일에 앵커가 없어서 즉시 보정했어요.",
+                "action": "계속 작업해도 돼요.",
+            }
+            emit(auto_fix_event, json_mode=self.json_mode, log_path=self.log_path)
+            return True
 
         # === ANCHOR: WATCH_ENGINE__SCHEDULE_GLOBAL_UPDATE_START ===
         def _schedule_global_update(self, rel_path: str) -> None:
@@ -445,6 +473,10 @@ def run_watch(config: WatchConfig) -> None:
             text = safe_read(path)
             if not text:
                 return
+            if self._handle_auto_fix(path):
+                text = safe_read(path)
+                if not text:
+                    return
             rel = relpath_str(self.root, path)
             new_lines = len(text.splitlines())
             new_sha = hash_text(text)
@@ -539,6 +571,7 @@ def run_watch(config: WatchConfig) -> None:
     json_mode = _config_bool(config, "json", False)
     debounce_ms = _config_int(config, "debounce_ms", 800)
     write_log = _config_bool(config, "write_log", False)
+    auto_fix = _config_bool(config, "auto_fix", False)
     vg_dir = root / ".vibelign"
     # === ANCHOR: WATCH_ENGINE_RUN_WATCH_END ===
     state_path = vg_dir / "watch_state.json"
@@ -549,10 +582,11 @@ def run_watch(config: WatchConfig) -> None:
     print(f"엄격 모드: {strict}", flush=True)
     print(f"JSON 모드: {json_mode}", flush=True)
     print(f"로그 저장: {write_log}", flush=True)
+    print(f"자동 앵커 보정: {auto_fix}", flush=True)
     print("파일이 변경되면 코드맵이 자동으로 갱신됩니다. (Ctrl+C로 종료)", flush=True)
 
     handler = VibeLignWatchHandler(
-        root, state_path, strict, json_mode, log_path, debounce_ms
+        root, state_path, strict, json_mode, log_path, auto_fix, debounce_ms
     )
     observer = observer_factory()
     _ = observer.schedule(handler, str(root), recursive=True)

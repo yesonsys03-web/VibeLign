@@ -41,6 +41,11 @@ class VibCliSurfaceTest(unittest.TestCase):
         args = init_parser.parse_args([])
         self.assertIs(args.func, run_init)
 
+    def test_vib_watch_parser_accepts_auto_fix(self):
+        parser = build_parser()
+        args = parser.parse_args(["watch", "--auto-fix"])
+        self.assertTrue(args.auto_fix)
+
 
 if __name__ == "__main__":
     _ = unittest.main()

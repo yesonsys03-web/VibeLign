@@ -186,6 +186,7 @@ def build_parser():
 
     p = sub.add_parser("watch", help="실시간 구조 모니터링")
     p.add_argument("--strict", action="store_true")
+    p.add_argument("--auto-fix", action="store_true")
     p.add_argument("--write-log", action="store_true")
     p.add_argument("--json", action="store_true")
     p.add_argument("--debounce-ms", type=int, default=800)
