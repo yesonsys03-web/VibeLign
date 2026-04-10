@@ -48,10 +48,12 @@ MANUAL: dict[str, ManualEntry] = {
             "AGENTS.md, AI_DEV_SYSTEM_SINGLE_FILE.md 같은 파일이 생기는데,\n"
             "이게 있어야 AI가 내 프로젝트를 제대로 이해하고 작업해요.\n\n"
             "Git을 쓰는 프로젝트라면 커밋 전에 비밀정보를 막아주는 보호도 같이 켜줘요.\n"
-            "그래서 API 키, 토큰, .env 같은 걸 실수로 올리려 하면 커밋 단계에서 한 번 더 잡아줘요.\n\n"
+            "그래서 API 키, 토큰, .env 같은 걸 실수로 올리려 하면 커밋 단계에서 한 번 더 잡아줘요.\n"
+            "지금은 여기에 `vib guard --strict` 검사도 같이 연결돼서 구조 문제까지 한 번 더 막아줘요.\n\n"
             "`vib start --all-tools`를 쓰면 Claude, Antigravity, OpenCode, Cursor, Codex 준비도 한 번에 해줘요.\n"
             "기본값은 기존 설정을 최대한 보존하면서 없는 것만 추가해요.\n"
-            "정말 다시 깔듯이 새로 만들고 싶을 때만 `--force`를 써요."
+            "정말 다시 깔듯이 새로 만들고 싶을 때만 `--force`를 써요.\n"
+            "`--quickstart`를 붙이면 start 뒤에 앵커까지 자동으로 넣어줘서 더 빨리 시작할 수 있어요."
         ),
         "when": [
             "새 프로젝트 폴더에서 VibeLign을 처음 쓸 때",
@@ -91,7 +93,11 @@ MANUAL: dict[str, ManualEntry] = {
             ),
             (
                 "비밀정보 커밋 보호",
-                "Git 저장소라면 커밋할 때마다 자동 검사도 같이 켜줘요.\n커밋 전에 API 키, 토큰, 개인키, .env 같은 걸 검사해줘요.",
+                "Git 저장소라면 커밋할 때마다 자동 검사도 같이 켜줘요.\n커밋 전에 API 키, 토큰, 개인키, .env 같은 걸 검사하고, strict guard도 같이 확인해줘요.",
+            ),
+            (
+                "message",
+                "start 뒤에 메모를 짧게 붙일 수도 있어요.\n예: vib start 첫 세팅 시작",
             ),
         ],
     },
@@ -349,6 +355,7 @@ MANUAL: dict[str, ManualEntry] = {
         "examples": [
             ("vib guard", "기본 검사"),
             ("vib guard --strict", "더 꼼꼼하게 검사"),
+            ("vib guard --since-minutes 30", "최근 30분 변경만 검사"),
             ("vib guard --write-report", "결과를 파일로 저장"),
         ],
         "options": [
@@ -359,6 +366,14 @@ MANUAL: dict[str, ManualEntry] = {
             ),
             ("--write-report", "검사 결과를 파일로 저장해요."),
             ("--json", "결과를 JSON 형식으로 출력해요. (개발자용)"),
+            (
+                "구조 계획 확인",
+                "여러 파일을 크게 바꾸거나 새 production 파일을 만들면 plan-structure가 필요한지도 같이 알려줘요.",
+            ),
+            (
+                "신규 파일 앵커 검사",
+                "새 source 파일에 앵커가 하나도 없으면 warn 또는 fail로 알려줘요.\nstrict 모드에서는 fail로 막아요.",
+            ),
         ],
     },
     "explain": {
@@ -435,10 +450,15 @@ MANUAL: dict[str, ManualEntry] = {
         "examples": [
             ("vib watch", "실시간 감시 시작 (Ctrl+C 로 종료)"),
             ("vib watch --strict", "더 꼼꼼한 감시 모드"),
+            ("vib watch --auto-fix", "새 source 파일에 앵커를 자동으로 넣기"),
             ("vib watch --write-log", "감시 로그를 파일로 저장"),
         ],
         "options": [
             ("--strict", "더 꼼꼼하게 감시해요. 작은 변화도 잡아줘요."),
+            (
+                "--auto-fix",
+                "새 .py/.ts/.tsx/.js/.jsx 파일에 앵커가 없으면 저장 직후 자동으로 앵커를 넣어줘요.",
+            ),
             ("--write-log", "감시 중 발생한 일을 파일로 기록해요."),
             (
                 "--debounce-ms 숫자",
@@ -502,7 +522,8 @@ MANUAL: dict[str, ManualEntry] = {
             "API 키, 토큰, 개인키, .env 같은 비밀정보가 들어갔는지 확인해줘요.\n"
             "쉽게 말하면 '실수로 중요한 비밀번호를 인터넷에 올리기 전에 막아주는 문지기'예요.\n\n"
             "보통은 `vib start`를 하면 자동으로 연결돼서 따로 신경 쓸 일이 거의 없어요.\n"
-            "직접 확인하고 싶을 때만 `vib secrets --staged`를 실행하면 돼요."
+            "직접 확인하고 싶을 때만 `vib secrets --staged`를 실행하면 돼요.\n"
+            "자동 hook을 켜면 이제 비밀정보 검사뿐 아니라 `vib guard --strict`도 함께 돌아가요."
         ),
         "when": [
             "API 키나 .env를 실수로 커밋할 파일 목록에 넣은 것 같을 때",
@@ -521,7 +542,7 @@ MANUAL: dict[str, ManualEntry] = {
             ),
             (
                 "--install-hook",
-                "커밋 버튼을 누를 때마다 자동 검사되게 켜요.\n보통은 vib start가 자동으로 해줘요.",
+                "커밋 버튼을 누를 때마다 자동 검사되게 켜요.\n보통은 vib start가 자동으로 해줘요.\n이제 secrets 검사와 strict guard 검사가 같이 돌아가요.",
             ),
             (
                 "--uninstall-hook",
@@ -531,6 +552,65 @@ MANUAL: dict[str, ManualEntry] = {
                 "오탐 예외 처리",
                 "진짜 비밀정보가 아닌데도 막히면 그 줄 끝에 `vibelign: allow-secret`를 붙여서 예외 처리할 수 있어요.",
             ),
+        ],
+    },
+    "claude-hook": {
+        "emoji": "🪝",
+        "title": "vib claude-hook",
+        "one_line": "Claude PreToolUse 검사 on/off 상태를 관리해요",
+        "what": (
+            "Claude Code가 파일을 쓰기 전에 VibeLign 검사를 거치게 만드는 스위치예요.\n"
+            "쉽게 말하면 'Claude가 저장 버튼 누르기 전에 한 번 더 확인하는 문지기'예요.\n"
+            "이 명령어로 지금 켜져 있는지 보고, 켜고, 끌 수 있어요."
+        ),
+        "when": [
+            "Claude Code에서 PreToolUse 검사가 켜져 있는지 확인하고 싶을 때",
+            "Claude가 쓰기 전에 planning/anchor 검사를 하게 만들고 싶을 때",
+            "잠깐 검사만 끄고 싶을 때",
+        ],
+        "examples": [
+            ("vib claude-hook status", "현재 상태 보기"),
+            ("vib claude-hook enable", "검사 켜기"),
+            ("vib claude-hook disable", "검사 끄기"),
+        ],
+        "options": [
+            ("status", "지금 켜져 있는지, 설정 파일이 준비됐는지 보여줘요."),
+            (
+                "enable",
+                "Claude가 Write 도구를 쓰기 전에 VibeLign pre-check를 실행하게 해요.",
+            ),
+            ("disable", "검사는 끄지만 hook 엔트리는 남겨둬서 다시 켜기 쉽게 해요."),
+        ],
+    },
+    "plan-structure": {
+        "emoji": "🧱",
+        "title": "vib plan-structure",
+        "one_line": "코딩 전에 어느 파일을 바꿀지 구조 계획을 만들어요",
+        "what": (
+            "기능 설명을 바탕으로 어느 파일은 수정하고 어느 파일은 새로 만들어야 하는지 먼저 계획해요.\n"
+            "쉽게 말하면 '코딩 시작 전에 설계도 한 장 먼저 만드는 버튼'이에요.\n"
+            "계획은 `.vibelign/plans/` 아래에 저장되고, guard나 pre-check가 이 계획을 보고 검사할 수 있어요."
+        ),
+        "when": [
+            "새 기능을 추가해서 파일이 여러 개 바뀔 것 같을 때",
+            "새 production 파일을 만들기 전에 어디에 둘지 정하고 싶을 때",
+            "AI가 큰 기능을 한 파일에 몰아넣지 않게 막고 싶을 때",
+        ],
+        "examples": [
+            ('vib plan-structure "OAuth 인증 추가"', "기본 구조 계획 만들기"),
+            (
+                'vib plan-structure --scope vibelign/core/ "watch 기능 확장"',
+                "특정 폴더만 보고 계획 만들기",
+            ),
+            ('vib plan-structure --ai "mcp handler 수정"', "AI 계획 메타데이터로 기록"),
+        ],
+        "options": [
+            (
+                "feature",
+                '무엇을 만들지 말로 적어요.\n예: vib plan-structure "로그인 기능 추가"',
+            ),
+            ("--scope", "분석할 폴더를 좁혀요.\n예: --scope vibelign/core/"),
+            ("--ai", "나중에 AI 흐름에서 참고할 plan metadata로 기록해요."),
         ],
     },
     "export": {
@@ -899,7 +979,7 @@ GROUPS = [
     ("🏁 처음 시작", ["start", "init", "install"]),
     ("💾 세이브 & 되돌리기", ["checkpoint", "undo", "history"]),
     ("🔬 점검 & 확인", ["doctor", "guard", "explain"]),
-    ("✏️ AI 수정 요청", ["patch", "anchor", "scan"]),
+    ("✏️ AI 수정 요청", ["patch", "anchor", "scan", "plan-structure"]),
     (
         "🗂️ 파일 & 설정",
         [
@@ -910,6 +990,7 @@ GROUPS = [
             "secrets",
             "export",
             "watch",
+            "claude-hook",
             "completion",
         ],
     ),
