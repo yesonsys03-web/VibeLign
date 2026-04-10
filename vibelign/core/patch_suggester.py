@@ -139,6 +139,45 @@ _LOW_SIGNAL_TOKENS = {
     "app",
 }
 
+# Korean alias keys sorted by length desc so prefix matching is greedy.
+# Used to decompose a Korean compound like '클로드훅' into ['클로드','훅']
+# without adding new dictionary entries.
+_KOREAN_ALIAS_KEYS = tuple(
+    sorted(
+        (k for k in _TOKEN_ALIASES if re.fullmatch(r"[가-힣]+", k)),
+        key=len,
+        reverse=True,
+    )
+)
+
+
+def _decompose_korean_compound(token: str) -> list[str]:
+    """Greedy prefix match against known Korean alias keys.
+
+    Returns the decomposition ONLY when the entire token is covered by
+    alias keys AND at least two parts are found. This means we never
+    invent a new mapping — we just recognize that a compound is made of
+    parts we already know.
+    """
+    if not re.fullmatch(r"[가-힣]+", token):
+        return []
+    if token in _TOKEN_ALIASES:
+        return []  # already a known key, nothing to split
+    parts: list[str] = []
+    i = 0
+    n = len(token)
+    while i < n:
+        matched_key = ""
+        for key in _KOREAN_ALIAS_KEYS:
+            if token.startswith(key, i):
+                matched_key = key
+                break
+        if not matched_key:
+            return []
+        parts.append(matched_key)
+        i += len(matched_key)
+    return parts if len(parts) >= 2 else []
+
 
 def _split_identifier_parts(text: str) -> list[str]:
     parts = re.findall(r"[a-z]+|[0-9]+|[가-힣]+", text.lower())
@@ -161,6 +200,13 @@ def _expand_token(token: str) -> list[str]:
         expanded.append(candidate)
         expanded.extend(_split_identifier_parts(candidate))
         expanded.extend(_TOKEN_ALIASES.get(candidate, []))
+        # Structurally decompose Korean compounds (e.g. '클로드훅' →
+        # '클로드' + '훅') using only existing alias keys. This relays
+        # the aliases of each recognized part without hand-coding the
+        # compound itself.
+        for part in _decompose_korean_compound(candidate):
+            expanded.append(part)
+            expanded.extend(_TOKEN_ALIASES.get(part, []))
     seen: set[str] = set()
     result: list[str] = []
     for item in expanded:
@@ -182,8 +228,20 @@ def tokenize(text: str) -> list[str]:
     return tokens
 
 
+_PASCAL_SPLIT_RE1 = re.compile(r"([A-Z]+)([A-Z][a-z])")
+_PASCAL_SPLIT_RE2 = re.compile(r"([a-z0-9])([A-Z])")
+
+
+def _snake_ify_path(text: str) -> str:
+    """Insert underscores at camelCase/PascalCase boundaries so downstream
+    tokenizers can split 'ClaudeHookCard' into ['claude', 'hook', 'card'].
+    Paths that are already lowercase or snake_case pass through unchanged.
+    """
+    return _PASCAL_SPLIT_RE2.sub(r"\1_\2", _PASCAL_SPLIT_RE1.sub(r"\1_\2", text))
+
+
 def _path_tokens(path: Union[Path, str]) -> set[str]:
-    raw_tokens = re.findall(r"[a-zA-Z0-9]+|[가-힣]+", str(path).lower())
+    raw_tokens = re.findall(r"[a-zA-Z0-9]+|[가-힣]+", _snake_ify_path(str(path)).lower())
     tokens: set[str] = set()
     for raw in raw_tokens:
         for token in _expand_token(raw):
@@ -544,13 +602,17 @@ def score_path(
             rationale.append(
                 "탭/메뉴 배치 요청인데 명령 처리 파일이라 UI 배치 후보에서 제외"
             )
-        if map_kind == "ui" and not any(
-            token in path_tokens for token in _NAVIGATION_FILE_HINTS
+        if (
+            map_kind == "ui"
+            and not stateful_ui_request
+            and not any(token in path_tokens for token in _NAVIGATION_FILE_HINTS)
         ):
             score -= 2
             rationale.append("탑/메뉴 요청인데 콘텐츠형 UI 파일이라 우선순위를 낮춤")
-    if stateful_ui_request and any(
-        token in path_tokens for token in _STATE_OWNER_FILE_HINTS
+    if (
+        stateful_ui_request
+        and is_frontend
+        and any(token in path_tokens for token in _STATE_OWNER_FILE_HINTS)
     ):
         score += 8
         rationale.append("상태 유지 요청이라 카드/상태 소유자 후보 파일을 우선 검토함")
@@ -916,10 +978,12 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
     # --ai 명시: confidence 무관하게 AI가 파일 선택
     # --ai 없음: confidence LOW일 때만 AI 폴백
     best_path_tokens = _path_tokens(relpath_str(root, best_path))
+    best_is_frontend = best_path.suffix.lower() in _FRONTEND_EXTS
     should_use_ai = confidence == "low" or (
         use_ai
         and not (
             stateful_ui_request
+            and best_is_frontend
             and any(token in best_path_tokens for token in _STATE_OWNER_FILE_HINTS)
         )
     )
@@ -931,9 +995,36 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
             ai_path_or_none, ai_reasons = ai_result
             if ai_path_or_none is not None:
                 best_path = ai_path_or_none
+                # Recover keyword-based rationale for the AI-selected file so
+                # downstream callers still see WHY the file matched the request.
+                original_reasons: list[str] = []
+                for _s, p, r in scored:
+                    if p == best_path:
+                        original_reasons = r
+                        break
                 anchors = extract_anchors(best_path)
                 anchor, ar = choose_anchor(anchors, request_tokens, anchor_meta)
-                reasons = ai_reasons
+                # Re-run the suggested-anchor fallback for the newly selected
+                # file. Without this the anchor would revert to
+                # "[먼저 앵커를 추가하세요]" even when a suggested anchor exists.
+                if anchor == "[먼저 앵커를 추가하세요]":
+                    file_meta = (
+                        metadata.get(relpath_str(root, best_path), {})
+                        if metadata
+                        else {}
+                    )
+                    suggested = (
+                        file_meta.get("suggested_anchors", [])
+                        if isinstance(file_meta, dict)
+                        else []
+                    )
+                    suggested_anchor, suggested_rationale = choose_suggested_anchor(
+                        suggested, request_tokens
+                    )
+                    if suggested_anchor:
+                        anchor = f"[추천 앵커: {suggested_anchor}]"
+                        ar = suggested_rationale
+                reasons = (original_reasons[:4] if original_reasons else []) + ai_reasons
                 if confidence != "low":
                     confidence = "high"  # AI가 직접 선택 시 신뢰도 유지
             else:
