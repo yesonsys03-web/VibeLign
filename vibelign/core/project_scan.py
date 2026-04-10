@@ -1,4 +1,5 @@
 # === ANCHOR: PROJECT_SCAN_START ===
+import re
 from collections.abc import Generator
 from pathlib import Path
 
@@ -63,6 +64,40 @@ _SERVICE_TOKENS = [
     "data",
 ]
 _CORE_TOKENS = ["core", "engine", "patch", "anchor", "guard"]
+
+
+_PY_IMPORT_RE = re.compile(
+    r"^\s*(?:from\s+([.\w]+)\s+import\b|import\s+([.\w]+))",
+    re.MULTILINE,
+)
+_JS_IMPORT_RE = re.compile(
+    r"""(?:import\s+(?:[^'"`;]+?\s+from\s+)?|require\s*\(\s*)['"]([^'"]+)['"]""",
+)
+
+
+def extract_imports(path: Path) -> list[str]:
+    """파일에서 import 대상을 raw 문자열로 추출.
+
+    - Python: `from X import ...`, `import X` → `X`
+    - JS/TS: `import ... from "X"`, `import "X"`, `require("X")` → `X`
+    반환은 중복 제거된 순서 보존 리스트.
+    """
+    suffix = path.suffix.lower()
+    text = safe_read_text(path)
+    if not text:
+        return []
+    seen: list[str] = []
+    if suffix == ".py":
+        for match in _PY_IMPORT_RE.finditer(text):
+            mod = match.group(1) or match.group(2)
+            if mod and mod not in seen:
+                seen.append(mod)
+    elif suffix in {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}:
+        for match in _JS_IMPORT_RE.finditer(text):
+            mod = match.group(1)
+            if mod and mod not in seen:
+                seen.append(mod)
+    return seen
 
 
 def classify_file(path: Path, rel: str) -> str:

@@ -272,6 +272,94 @@ def _ensure_rule_files(root: Path, overwrite: bool = True) -> dict[str, list[str
 # === ANCHOR: VIB_START_CMD__ENSURE_RULE_FILES_END ===
 
 
+# === ANCHOR: VIB_START_CMD__RESOLVE_IMPORT_GRAPH_START ===
+def _resolve_import_graph(
+    scan: dict[str, object],
+) -> tuple[dict[str, list[str]], dict[str, set[str]]]:
+    """raw import 문자열을 프로젝트 내 rel_path 로 best-effort 해석.
+
+    - JS/TS 상대 경로 (./, ../): 파일 부모 dir 기준, 확장자 자동 탐색 + index 파일 시도
+    - Python 절대 패키지 경로 (a.b.c): 'a/b/c.py' 또는 'a/b/c/__init__.py' 존재 여부
+    - 외부 패키지/미해석 건은 결과에서 제외
+
+    반환: (forward[rel] = [rel...], reverse[rel] = {rel...})
+    """
+    js_exts = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]
+    all_rels: set[str] = set()
+    for key in scan.keys():
+        if isinstance(key, str):
+            all_rels.add(key)
+    forward: dict[str, list[str]] = {}
+    reverse: dict[str, set[str]] = {}
+
+    def _try_js_variants(base: str) -> str | None:
+        # 직접 파일
+        for ext in js_exts:
+            cand = f"{base}{ext}"
+            if cand in all_rels:
+                return cand
+        # index 파일
+        for ext in js_exts:
+            cand = f"{base}/index{ext}"
+            if cand in all_rels:
+                return cand
+        return None
+
+    for rel, raw_data in scan.items():
+        if not isinstance(rel, str) or not isinstance(raw_data, dict):
+            continue
+        raw_imports = raw_data.get("imports", [])
+        if not isinstance(raw_imports, list):
+            continue
+        suffix = Path(rel).suffix.lower()
+        parent = str(Path(rel).parent).replace("\\", "/")
+        if parent == ".":
+            parent = ""
+        resolved: list[str] = []
+        for raw in raw_imports:
+            if not isinstance(raw, str) or not raw:
+                continue
+            target: str | None = None
+            if suffix in {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}:
+                if raw.startswith("./") or raw.startswith("../"):
+                    base_path = f"{parent}/{raw}" if parent else raw
+                    # 정규화 (./, ../ 처리)
+                    parts: list[str] = []
+                    for segment in base_path.split("/"):
+                        if segment in ("", "."):
+                            continue
+                        if segment == "..":
+                            if parts:
+                                parts.pop()
+                            continue
+                        parts.append(segment)
+                    base = "/".join(parts)
+                    # 이미 확장자가 있으면 그대로 시도
+                    if any(base.endswith(ext) for ext in js_exts):
+                        if base in all_rels:
+                            target = base
+                    else:
+                        target = _try_js_variants(base)
+            elif suffix == ".py":
+                # 상대 임포트(.foo / ..foo) 는 파서가 "." 로 시작하는 문자열을 주므로 스킵
+                if raw.startswith("."):
+                    continue
+                dotted = raw.replace(".", "/")
+                for cand in (f"{dotted}.py", f"{dotted}/__init__.py"):
+                    if cand in all_rels:
+                        target = cand
+                        break
+            if target and target != rel and target not in resolved:
+                resolved.append(target)
+                reverse.setdefault(target, set()).add(rel)
+        if resolved:
+            forward[rel] = resolved
+    return forward, reverse
+
+
+# === ANCHOR: VIB_START_CMD__RESOLVE_IMPORT_GRAPH_END ===
+
+
 # === ANCHOR: VIB_START_CMD__BUILD_PROJECT_MAP_START ===
 def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object]:
     from vibelign.core.meta_paths import MetaPaths
@@ -305,10 +393,13 @@ def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object
     anchor_index: dict[str, object] = {}
     files: dict[str, object] = {}
 
+    resolved_imports, imported_by = _resolve_import_graph(scan)
+
     for rel, data in scan.items():
         low = rel.lower()
         category = str(data["category"])
         anchors = data["anchors"]
+        anchor_spans = data.get("anchor_spans", [])
         raw_lines = data["line_count"]
         lines = raw_lines if isinstance(raw_lines, int) else 0
 
@@ -324,7 +415,24 @@ def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object
             large_files.append(rel)
         if anchors:
             anchor_index[rel] = anchors
-        files[rel] = {"category": category, "anchors": anchors, "line_count": lines}
+        files[rel] = {
+            "category": category,
+            "anchors": anchors,
+            "anchor_spans": anchor_spans,
+            "line_count": lines,
+            "imports": resolved_imports.get(rel, []),
+            "imported_by": sorted(imported_by.get(rel, [])),
+        }
+
+    mtime_pairs: list[tuple[str, float]] = []
+    for rel, data in scan.items():
+        raw_mtime = data.get("mtime", 0)
+        if isinstance(raw_mtime, (int, float)):
+            mtime_pairs.append((rel, float(raw_mtime)))
+    mtime_pairs.sort(key=lambda item: item[1], reverse=True)
+    recently_changed = [
+        {"path": rel, "mtime": mtime} for rel, mtime in mtime_pairs[:10]
+    ]
 
     return {
         "schema_version": 2,
@@ -338,6 +446,7 @@ def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object
         "large_files": sorted(large_files),
         "file_count": len(scan),
         "anchor_index": anchor_index,
+        "recently_changed": recently_changed,
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
 

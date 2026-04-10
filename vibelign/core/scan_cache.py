@@ -16,7 +16,7 @@ from typing import cast
 CacheEntry = Mapping[str, object]
 
 
-SCAN_CACHE_SCHEMA = 1
+SCAN_CACHE_SCHEMA = 2
 
 
 def load_scan_cache(cache_path: Path) -> dict[str, CacheEntry]:
@@ -79,15 +79,16 @@ def incremental_scan(
     - invalidated: watch 이벤트로 변경된 파일 경로 집합 (즉시 재스캔)
     - 나머지 파일: mtime + size 비교 → 같으면 캐시, 다르면 재스캔
 
-    반환: {rel_path: {mtime, size, anchors, category, line_count}}
+    반환: {rel_path: {mtime, size, anchors, anchor_spans, category, line_count}}
     """
     from vibelign.core.project_scan import (
         classify_file,
+        extract_imports,
         iter_source_files,
         line_count,
         relpath_str,
     )
-    from vibelign.core.anchor_tools import extract_anchors
+    from vibelign.core.anchor_tools import extract_anchors, extract_anchor_spans
 
     cache = {} if force else load_scan_cache(cache_path)
     new_cache: dict[str, CacheEntry] = {}
@@ -108,6 +109,8 @@ def incremental_scan(
                     "mtime": st.st_mtime,
                     "size": st.st_size,
                     "anchors": extract_anchors(path),
+                    "anchor_spans": extract_anchor_spans(path),
+                    "imports": extract_imports(path),
                     "category": classify_file(path, rel),
                     "line_count": line_count(path),
                 }
