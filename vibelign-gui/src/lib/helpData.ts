@@ -45,7 +45,7 @@ const FALLBACK_TOPICS: HelpTopic[] = [
     command: "vib manual",
     summary: "VibeLign에서 쓸 수 있는 주요 명령어들을 알려줘요.",
     answer:
-      "VibeLign의 주요 터미널 커맨드는 vib start, checkpoint, undo, doctor, guard, anchor, watch, patch, protect, secrets, explain, config, export, manual, install, completion이에요. 전체 설명은 vib manual이나 앱 안의 메뉴얼 화면에서 더 자세히 볼 수 있어요.",
+      "VibeLign의 주요 터미널 커맨드는 vib start, checkpoint, undo, doctor, guard, anchor, watch, patch, plan-structure, claude-hook, protect, secrets, explain, config, export, manual, install, completion이에요. 전체 설명은 vib manual이나 앱 안의 메뉴얼 화면에서 더 자세히 볼 수 있어요.",
   },
   {
     id: "install",
@@ -93,7 +93,7 @@ const FALLBACK_TOPICS: HelpTopic[] = [
     command: "vib start",
     summary: "처음 한 번 프로젝트를 준비해요.",
     answer:
-      "vib start는 프로젝트를 VibeLign용으로 처음 준비할 때 써요. 규칙 파일을 만들고, AI가 작업하기 쉬운 상태로 맞춰줘요.",
+      "vib start는 프로젝트를 VibeLign용으로 처음 준비할 때 써요. 규칙 파일을 만들고, AI가 작업하기 쉬운 상태로 맞춰줘요. --all-tools, --tools, --force, --quickstart 같은 옵션으로 준비 범위를 조절할 수 있어요.",
   },
   {
     id: "checkpoint",
@@ -157,7 +157,7 @@ const FALLBACK_TOPICS: HelpTopic[] = [
     command: "vib guard",
     summary: "AI가 코드를 망가뜨리지 않았는지 검사해요.",
     answer:
-      "vib guard는 AI가 바꾼 뒤 구조가 망가지지 않았는지 검사해요. 작업 후 확인용으로 좋아요.",
+      "vib guard는 AI가 바꾼 뒤 구조가 망가지지 않았는지 검사해요. 작업 후 확인용으로 좋고, 새 source 파일에 앵커가 없는지도 같이 알려줘요. --strict를 붙이면 더 강하게 막아요.",
   },
   {
     id: "explain",
@@ -181,7 +181,7 @@ const FALLBACK_TOPICS: HelpTopic[] = [
     command: "vib secrets",
     summary: "Git에 비밀정보가 올라가는 걸 막아요.",
     answer:
-      "vib secrets는 커밋 전에 API 키, 토큰, .env 같은 비밀정보가 있는지 검사해요. 실수로 올리는 걸 막아줘요.",
+      "vib secrets는 커밋 전에 API 키, 토큰, .env 같은 비밀정보가 있는지 검사해요. 실수로 올리는 걸 막아주고, --install-hook를 켜면 strict guard 검사도 같이 돌아가요.",
   },
   {
     id: "watch",
@@ -189,7 +189,23 @@ const FALLBACK_TOPICS: HelpTopic[] = [
     command: "vib watch",
     summary: "파일이 바뀔 때 실시간으로 감시해요.",
     answer:
-      "vib watch는 파일이 바뀔 때마다 실시간으로 코드맵을 최신 상태로 유지해요. AI 작업 중에 켜두면 좋아요.",
+      "vib watch는 파일이 바뀔 때마다 실시간으로 코드맵을 최신 상태로 유지해요. AI 작업 중에 켜두면 좋고, --auto-fix를 붙이면 새 source 파일에 앵커가 없을 때 자동으로 넣어줘요.",
+  },
+  {
+    id: "plan-structure",
+    title: "구조 계획",
+    command: "vib plan-structure",
+    summary: "코딩 전에 어느 파일을 바꿀지 먼저 정해요.",
+    answer:
+      "vib plan-structure는 큰 기능을 만들기 전에 어느 파일을 수정하고 어떤 파일을 새로 만들지 먼저 정해줘요. 여러 파일이 같이 바뀌거나 새 production 파일을 만들 때 특히 유용해요.",
+  },
+  {
+    id: "claude-hook",
+    title: "클로드 훅",
+    command: "vib claude-hook",
+    summary: "Claude가 저장 전에 검사를 하게 만들어요.",
+    answer:
+      "vib claude-hook는 Claude Code가 Write 도구를 쓰기 전에 VibeLign pre-check를 먼저 돌리게 해줘요. status로 상태를 보고, enable/disable로 켜고 끌 수 있어요.",
   },
   {
     id: "ask",
@@ -325,7 +341,9 @@ function topicAliasMarkers(topicId: string): string[] {
     anchor: ["anchor", "앵커", "앵커링", "표식", "핀", "marker"],
     scan: ["scan", "스캔", "검사", "정리", "갱신", "코드맵", "코드 맵", "codemap", "code map", "project map"],
     patch: ["patch", "패치", "패칭", "수정계획", "수정 계획", "플랜", "request"],
+    "plan-structure": ["plan-structure", "plan structure", "구조계획", "구조 계획", "설계도", "파일 계획", "플랜스트럭처"],
     guard: ["guard", "가드", "가아드", "검사", "검증", "보호"],
+    "claude-hook": ["claude-hook", "claude hook", "클로드훅", "클로드 훅", "pretooluse", "pretoluse", "hook", "훅"],
     explain: ["explain", "익스플레인", "설명", "변경설명", "변경 설명"],
     protect: ["protect", "프로텍트", "보호", "잠금", "락", "lock"],
     secrets: ["secrets", "시크릿", "시크리츠", "비밀", "비밀정보", "토큰", "키", "env", "이엔브이", "엔브이"],
