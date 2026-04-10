@@ -210,6 +210,24 @@ def _load_plan_payload(
     }
     if not required_keys.issubset(payload.keys()):
         return None, plan_id, "broken_plan"
+    allowed_modifications = payload.get("allowed_modifications")
+    required_new_files = payload.get("required_new_files")
+    forbidden = payload.get("forbidden")
+    if not isinstance(allowed_modifications, list):
+        return None, plan_id, "broken_plan"
+    if not isinstance(required_new_files, list):
+        return None, plan_id, "broken_plan"
+    if not isinstance(forbidden, list):
+        return None, plan_id, "broken_plan"
+    for item in cast(list[object], allowed_modifications):
+        if not isinstance(item, dict):
+            return None, plan_id, "broken_plan"
+    for item in cast(list[object], required_new_files):
+        if not isinstance(item, dict):
+            return None, plan_id, "broken_plan"
+    for item in cast(list[object], forbidden):
+        if not isinstance(item, dict):
+            return None, plan_id, "broken_plan"
     return payload, plan_id, None
 
 
@@ -557,7 +575,21 @@ def _planning_data(
             "exempt_reasons": exempt_reasons,
         }
 
-    if small_fix_candidate:
+    forbidden_paths: set[str] = set()
+    if isinstance(plan_payload, dict):
+        forbidden_obj = plan_payload.get("forbidden", [])
+        if isinstance(forbidden_obj, list):
+            forbidden_items = cast(list[object], forbidden_obj)
+            for item in forbidden_items:
+                if isinstance(item, dict):
+                    item_dict = cast(dict[str, object], item)
+                    path = item_dict.get("path")
+                    if isinstance(path, str):
+                        forbidden_paths.add(path)
+
+    if small_fix_candidate and not any(
+        str(item["path"]) in forbidden_paths for item in relevant_items
+    ):
         return {
             "status": "planning_exempt",
             "strict": strict,
