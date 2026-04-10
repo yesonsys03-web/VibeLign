@@ -97,6 +97,12 @@ fn configure_posix_shell_path(home: &Path, path_line: &str) -> Result<(), String
 
 /// vib 실행 파일 경로를 찾는다. 없으면 None.
 pub fn find_vib() -> Option<PathBuf> {
+    if let Some(vib) = find_uv_tool_vib() {
+        if std::fs::metadata(&vib).map_or(false, |m| m.len() > 0) {
+            return Some(vib);
+        }
+    }
+
     // 0. 번들 sidecar — 앱 실행파일 옆에 있는 vib (Python 불필요)
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
@@ -237,9 +243,7 @@ fn find_uv_tool_vib() -> Option<PathBuf> {
 }
 
 pub fn find_watch_vib() -> Option<PathBuf> {
-    find_uv_tool_vib()
-        .filter(|p| std::fs::metadata(p).map_or(false, |m| m.len() > 0))
-        .or_else(|| find_vib().filter(|p| std::fs::metadata(p).map_or(false, |m| m.len() > 0)))
+    find_vib().filter(|p| std::fs::metadata(p).map_or(false, |m| m.len() > 0))
 }
 
 /// vib CLI를 터미널에서 바로 사용할 수 있도록 PATH에 설치한다.
