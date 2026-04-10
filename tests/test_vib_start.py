@@ -169,6 +169,18 @@ class VibStartTest(unittest.TestCase):
         args = parser.parse_args(["watch", "--auto-fix"])
         self.assertTrue(args.auto_fix)
 
+    def test_basic_cli_includes_claude_hook_command(self):
+        parser = build_basic_parser()
+        args = parser.parse_args(["claude-hook", "status"])
+        self.assertEqual(args.command, "claude-hook")
+        self.assertEqual(args.action, "status")
+
+    def test_basic_cli_includes_plan_structure_command(self):
+        parser = build_basic_parser()
+        args = parser.parse_args(["plan-structure", "OAuth 인증 추가"])
+        self.assertEqual(args.command, "plan-structure")
+        self.assertEqual(args.feature, ["OAuth 인증 추가"])
+
 
 if __name__ == "__main__":
     unittest.main()
