@@ -65,3 +65,21 @@ def test_import_pool_expansion_does_not_include_node_modules(tmp_path):
     f.write_text('import React from "react";\nexport default function Foo() {}', encoding="utf-8")
     result = _build_import_pool_expansion(f, tmp_path, max_hops=1)
     assert result == []
+
+
+def test_import_pool_expansion_multi_hop(tmp_path):
+    """max_hops=2 일 때 A→B→C 체인을 모두 반환한다."""
+    src = tmp_path / "src"
+    src.mkdir()
+
+    a = src / "A.tsx"
+    b = src / "B.tsx"
+    c = src / "C.tsx"
+
+    c.write_text("export default function C() {}", encoding="utf-8")
+    b.write_text('import C from "./C";\nexport default function B() {}', encoding="utf-8")
+    a.write_text('import B from "./B";\nexport default function A() {}', encoding="utf-8")
+
+    result = _build_import_pool_expansion(a, tmp_path, max_hops=2)
+    assert b in result
+    assert c in result
