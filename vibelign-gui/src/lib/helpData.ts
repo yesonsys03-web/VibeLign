@@ -197,7 +197,7 @@ const FALLBACK_TOPICS: HelpTopic[] = [
     command: "vib plan-structure",
     summary: "코딩 전에 어느 파일을 바꿀지 먼저 정해요.",
     answer:
-      "vib plan-structure는 큰 기능을 만들기 전에 어느 파일을 수정하고 어떤 파일을 새로 만들지 먼저 정해줘요. 여러 파일이 같이 바뀌거나 새 production 파일을 만들 때 특히 유용해요.",
+      "vib plan-structure는 큰 기능을 만들기 전에 어느 파일을 수정하고 어떤 파일을 새로 만들지 먼저 정해줘요. 여러 파일이 같이 바뀌거나 새 production 파일을 만들 때 특히 유용해요. 보통은 plan-structure로 설계도를 만들고, 그다음 구현한 뒤, 마지막에 guard --strict로 확인하면 돼요.",
   },
   {
     id: "claude-hook",
