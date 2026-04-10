@@ -7,7 +7,13 @@ from unittest.mock import patch
 
 from vibelign.commands.vib_patch_cmd import _build_patch_data_with_options
 from vibelign.core.codespeak import build_codespeak_result
-from vibelign.core.patch_suggester import choose_anchor, suggest_patch
+from vibelign.core.patch_suggester import (
+    _decompose_korean_compound,
+    _path_tokens,
+    choose_anchor,
+    suggest_patch,
+    tokenize,
+)
 
 
 class PatchTargetingRegressionTest(unittest.TestCase):
@@ -968,6 +974,169 @@ class PatchTargetingRegressionTest(unittest.TestCase):
 
             self.assertEqual(result.target_file, "vibelign-gui/src/App.tsx")
             self.assertEqual(result.target_anchor, "APP")
+
+    def test_path_tokens_splits_pascal_case_file_name(self):
+        """PascalCase 파일명은 토큰으로 분리되어야 한다.
+
+        'ClaudeHookCard.tsx' 가 {'claudehookcard'} 하나로만 떨어지면
+        'claude' / 'hook' / 'card' 같은 요청 토큰이 path 매칭에 실패한다.
+        """
+        tokens = _path_tokens(
+            "vibelign-gui/src/components/cards/security/ClaudeHookCard.tsx"
+        )
+        self.assertIn("claude", tokens)
+        self.assertIn("hook", tokens)
+        self.assertIn("card", tokens)
+        # snake_case 도 여전히 정상 동작해야 한다
+        self.assertEqual(
+            _path_tokens("vibelign/core/patch_suggester.py"),
+            _path_tokens("vibelign/core/patch_suggester.py"),
+        )
+        snake_tokens = _path_tokens("vibelign/core/patch_suggester.py")
+        self.assertIn("patch", snake_tokens)
+        self.assertIn("suggester", snake_tokens)
+
+    def test_korean_claude_hook_request_prefers_card_component_over_settings_page(
+        self,
+    ):
+        """한국어 "클로드 훅 ... 수정해줘" 요청은 ClaudeHookCard.tsx 를 고르고
+        Settings.tsx 페이지는 피해야 한다 — ui_label_index · anchor_index 가
+        없어도 파일명 토큰과 state-owner hint 만으로 정답이 나와야 한다.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta_dir = root / ".vibelign"
+            meta_dir.mkdir(exist_ok=True)
+            # 라벨 인덱스 · anchor 인덱스 를 의도적으로 비운다
+            (meta_dir / "ui_label_index.json").write_text(
+                json.dumps({"schema_version": 1, "labels": {}}) + "\n",
+                encoding="utf-8",
+            )
+            (meta_dir / "anchor_index.json").write_text(
+                json.dumps(
+                    {"schema_version": 1, "anchors": {}, "files": {}}
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            card_path = (
+                root
+                / "vibelign-gui/src/components/cards/security/ClaudeHookCard.tsx"
+            )
+            card_path.parent.mkdir(parents=True, exist_ok=True)
+            card_path.write_text(
+                "// === ANCHOR: CLAUDE_HOOK_CARD_START ===\n"
+                "export default function ClaudeHookCard() { return null; }\n"
+                "// === ANCHOR: CLAUDE_HOOK_CARD_END ===\n",
+                encoding="utf-8",
+            )
+
+            settings_path = root / "vibelign-gui/src/pages/Settings.tsx"
+            settings_path.parent.mkdir(parents=True, exist_ok=True)
+            settings_path.write_text(
+                "// === ANCHOR: SETTINGS_START ===\n"
+                "export default function Settings() { return null; }\n"
+                "// === ANCHOR: SETTINGS_END ===\n",
+                encoding="utf-8",
+            )
+
+            result = suggest_patch(
+                root,
+                "클로드 훅 enable 시키고 새로고침하면 유지되지 않아. 수정해줘.",
+                use_ai=False,
+            )
+
+            self.assertEqual(
+                result.target_file,
+                "vibelign-gui/src/components/cards/security/ClaudeHookCard.tsx",
+                result.rationale,
+            )
+
+    def test_decompose_korean_compound_splits_known_alias_keys(self):
+        """'클로드훅' 처럼 _TOKEN_ALIASES 키로 완전히 덮이는 합성어만 분해한다.
+
+        단어장 확장이 아니라 '이미 아는 조각을 알아본다'는 원칙이다.
+        """
+        self.assertEqual(_decompose_korean_compound("클로드훅"), ["클로드", "훅"])
+        # 알 수 없는 한글은 그대로 둔다 (할루시네이션 방지)
+        self.assertEqual(_decompose_korean_compound("안녕하세요"), [])
+        # 이미 단일 alias 키인 경우는 분해하지 않는다
+        self.assertEqual(_decompose_korean_compound("훅"), [])
+        # 토크나이저가 '클로드훅' 에서 claude/hook 영문 토큰을 만들어내야 한다
+        tokens = tokenize("클로드훅 enable 유지 안됨")
+        self.assertIn("claude", tokens)
+        self.assertIn("hook", tokens)
+
+    def test_korean_hook_state_request_skips_backend_state_store(self):
+        """실제 GUI 사용자 요청 재현 테스트.
+
+        "클로드훅 enable 실행 뒤 다른 메뉴 갔다 오면 enable 유지가 안돼. 수정해줘."
+
+        규칙 기반 스코어러는 아래 함정에 빠지면 안 된다:
+        - 'state' 토큰이 backend `vibelign/mcp/mcp_state_store.py` 에 매칭되는 함정
+        - '메뉴' 토큰이 nav-only 페널티를 유발해서 UI 카드 파일을 떨어뜨리는 함정
+        - Settings.tsx 페이지로 잘못 가는 함정
+
+        ClaudeHookCard.tsx 가 1순위로 선택돼야 한다.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta_dir = root / ".vibelign"
+            meta_dir.mkdir(exist_ok=True)
+            (meta_dir / "ui_label_index.json").write_text(
+                json.dumps({"schema_version": 1, "labels": {}}) + "\n",
+                encoding="utf-8",
+            )
+            (meta_dir / "anchor_index.json").write_text(
+                json.dumps({"schema_version": 1, "anchors": {}, "files": {}}) + "\n",
+                encoding="utf-8",
+            )
+
+            # Frontend: Claude hook 전용 카드 (정답)
+            card_path = (
+                root
+                / "vibelign-gui/src/components/cards/security/ClaudeHookCard.tsx"
+            )
+            card_path.parent.mkdir(parents=True, exist_ok=True)
+            card_path.write_text(
+                "// === ANCHOR: CLAUDE_HOOK_CARD_START ===\n"
+                "export default function ClaudeHookCard() { return null; }\n"
+                "// === ANCHOR: CLAUDE_HOOK_CARD_END ===\n",
+                encoding="utf-8",
+            )
+
+            # Frontend: 일반 설정 페이지 (오답 후보 A)
+            settings_path = root / "vibelign-gui/src/pages/Settings.tsx"
+            settings_path.parent.mkdir(parents=True, exist_ok=True)
+            settings_path.write_text(
+                "// === ANCHOR: SETTINGS_START ===\n"
+                "export default function Settings() { return null; }\n"
+                "// === ANCHOR: SETTINGS_END ===\n",
+                encoding="utf-8",
+            )
+
+            # Backend: state 토큰이 경로에 있지만 Claude hook과 무관 (오답 후보 B)
+            mcp_state_path = root / "vibelign/mcp/mcp_state_store.py"
+            mcp_state_path.parent.mkdir(parents=True, exist_ok=True)
+            mcp_state_path.write_text(
+                "# === ANCHOR: MCP_STATE_STORE_START ===\n"
+                "def load_state():\n    return {}\n"
+                "# === ANCHOR: MCP_STATE_STORE_END ===\n",
+                encoding="utf-8",
+            )
+
+            result = suggest_patch(
+                root,
+                "클로드훅 enable 실행 뒤 다른 메뉴 갔다 오면 enable 유지가 안돼. 수정해줘.",
+                use_ai=False,
+            )
+
+            self.assertEqual(
+                result.target_file,
+                "vibelign-gui/src/components/cards/security/ClaudeHookCard.tsx",
+                result.rationale,
+            )
 
 
 if __name__ == "__main__":
