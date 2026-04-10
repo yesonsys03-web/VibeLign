@@ -802,7 +802,13 @@ Phase 1에서 구조 계획 관련 상태는 아래 5개를 사용한다.
 >   - Claude `.claude/settings.json` PreToolUse hook 자동 설치/복구, `vib claude-hook enable|disable|status`, `vib start` 자동 설치 plumbing 완료 (Oracle sign-off 완료)
 >   - `vib pre-check`의 narrowed gating slice 완료: stdin JSON 파싱, disabled/non-source skip, `0`/`2` 계약, planning-required / plan-deviated / malformed-plan 차단, anchor-missing soft-block (Oracle sign-off 완료)
 >   - 단, 이 단계는 **full `vib guard` parity 아님**. diff-aware multi-file 판단, anchor-range/max-lines/change-type 완전 동일성은 후속 강화 과제로 남음
-> - **Phase 5:** 아직 시작 전
+> - **Phase 5:** 진행 중
+>   - regression-hardening slice 1 완료: multi-file production 수정 / strict escalation / forbidden hard fail 직접 고정
+>   - regression-hardening slice 2 완료: `Claude hook disabled`, `git hook only` matrix row 직접 고정
+>   - regression-hardening slice 3 완료: `test only`, `config only`, `단일 파일 소규모 수정` row 직접 고정
+>   - regression-hardening slice 4 완료: `활성 plan + 허용 경로만 수정`, `활성 plan + 허용 범위 이탈`, `broken plan 파일` row 직접 고정
+>   - regression-hardening slice 5 완료: guard broken-plan payload shape 검증을 precheck 수준에 가깝게 보강하고, `required_new_files` malformed branch까지 직접 고정
+>   - 현재 남은 것은 추가 parity 강화 또는 장기 회귀 edge 보강이며, 핵심 matrix row 기준 회귀 고정은 상당 부분 완료됨
 
 ### Phase 1 — plan JSON 생성 경로 추가
 
