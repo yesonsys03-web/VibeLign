@@ -12,16 +12,21 @@ import os
 import random
 import ssl
 import time
+from collections.abc import Mapping
 import urllib.error
 import urllib.request
+from email.message import Message
+
 
 # certifi SSL context (macOS GUI 앱 등 시스템 인증서 미포함 환경 대응)
 def _make_ssl_ctx() -> ssl.SSLContext | None:
     try:
         import certifi
+
         return ssl.create_default_context(cafile=certifi.where())
     except ImportError:
         return None
+
 
 _SSL_CTX = _make_ssl_ctx()
 
@@ -35,6 +40,8 @@ def _env_int(name: str, default: int) -> int:
         return max(1, int(raw))
     except ValueError:
         return default
+
+
 # === ANCHOR: HTTP_RETRY__ENV_INT_END ===
 
 
@@ -47,12 +54,16 @@ def _env_float(name: str, default: float) -> float:
         return max(0.1, float(raw))
     except ValueError:
         return default
+
+
 # === ANCHOR: HTTP_RETRY__ENV_FLOAT_END ===
 
 
 # === ANCHOR: HTTP_RETRY__RETRY_AFTER_FROM_HEADERS_START ===
-def _retry_after_from_headers(headers: object) -> float | None:
-    if headers is None or not hasattr(headers, "get"):
+def _retry_after_from_headers(
+    headers: Message[str, str] | Mapping[str, str] | None,
+) -> float | None:
+    if headers is None:
         return None
     raw = headers.get("Retry-After")
     if raw is None:
@@ -61,6 +72,8 @@ def _retry_after_from_headers(headers: object) -> float | None:
         return float(str(raw).strip())
     except ValueError:
         return None
+
+
 # === ANCHOR: HTTP_RETRY__RETRY_AFTER_FROM_HEADERS_END ===
 
 
@@ -92,13 +105,18 @@ def _retry_delay_from_gemini_error_body(body: bytes) -> float | None:
         except ValueError:
             continue
     return None
+
+
 # === ANCHOR: HTTP_RETRY__RETRY_DELAY_FROM_GEMINI_ERROR_BODY_END ===
 
 
 # === ANCHOR: HTTP_RETRY__COMPUTE_BACKOFF_WAIT_START ===
 def _compute_backoff_wait(
-    attempt: int, base_delay: float, max_delay: float, jitter_ratio: float = 0.12
-# === ANCHOR: HTTP_RETRY__COMPUTE_BACKOFF_WAIT_END ===
+    attempt: int,
+    base_delay: float,
+    max_delay: float,
+    jitter_ratio: float = 0.12,
+    # === ANCHOR: HTTP_RETRY__COMPUTE_BACKOFF_WAIT_END ===
 ) -> float:
     raw = min(max_delay, base_delay * (2**attempt))
     jitter = 1.0 + random.uniform(-jitter_ratio, jitter_ratio)
@@ -113,17 +131,27 @@ def urlopen_read_with_retry(
     max_attempts: int | None = None,
     base_delay: float | None = None,
     max_delay: float | None = None,
-# === ANCHOR: HTTP_RETRY_URLOPEN_READ_WITH_RETRY_END ===
+    # === ANCHOR: HTTP_RETRY_URLOPEN_READ_WITH_RETRY_END ===
 ) -> bytes:
     """`urllib.request.urlopen` 후 본문을 읽어 반환. 429·502·503·504에 지수 백오프로 재시도."""
     attempts = max_attempts or _env_int("GEMINI_HTTP_MAX_ATTEMPTS", 6)
-    base = base_delay if base_delay is not None else _env_float("GEMINI_HTTP_RETRY_BASE", 1.5)
-    cap = max_delay if max_delay is not None else _env_float("GEMINI_HTTP_RETRY_CAP", 120.0)
+    base = (
+        base_delay
+        if base_delay is not None
+        else _env_float("GEMINI_HTTP_RETRY_BASE", 1.5)
+    )
+    cap = (
+        max_delay
+        if max_delay is not None
+        else _env_float("GEMINI_HTTP_RETRY_CAP", 120.0)
+    )
 
     last_exc: BaseException | None = None
     for attempt in range(attempts):
         try:
-            with urllib.request.urlopen(request, timeout=timeout, context=_SSL_CTX) as response:
+            with urllib.request.urlopen(
+                request, timeout=timeout, context=_SSL_CTX
+            ) as response:
                 return response.read()
         except urllib.error.HTTPError as e:
             last_exc = e
@@ -149,5 +177,9 @@ def urlopen_read_with_retry(
                 raise
             time.sleep(_compute_backoff_wait(attempt, base, cap))
 
-    raise RuntimeError("urlopen_read_with_retry: exhausted without result") from last_exc
+    raise RuntimeError(
+        "urlopen_read_with_retry: exhausted without result"
+    ) from last_exc
+
+
 # === ANCHOR: HTTP_RETRY_END ===

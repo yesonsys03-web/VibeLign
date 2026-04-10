@@ -1,7 +1,9 @@
 import io
 import json
 import unittest
+import urllib.error
 from unittest.mock import patch
+from email.message import Message
 
 import urllib.request
 
@@ -9,6 +11,10 @@ from vibelign.core import http_retry
 
 
 class HttpRetryTest(unittest.TestCase):
+    def test_retry_after_from_headers_reads_numeric_header(self) -> None:
+        delay = http_retry._retry_after_from_headers({"Retry-After": "3.5"})
+        self.assertEqual(delay, 3.5)
+
     def test_retry_delay_from_gemini_error_body_parses_seconds_suffix(self) -> None:
         body = json.dumps(
             {
@@ -28,11 +34,7 @@ class HttpRetryTest(unittest.TestCase):
 
     def test_urlopen_read_with_retry_succeeds_after_one_429(self) -> None:
         ok_payload = json.dumps(
-            {
-                "candidates": [
-                    {"content": {"parts": [{"text": "ok"}]}}
-                ]
-            }
+            {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}
         ).encode()
 
         err_fp = io.BytesIO(
@@ -55,11 +57,13 @@ class HttpRetryTest(unittest.TestCase):
             def __exit__(self, *args: object) -> bool:
                 return False
 
+        headers = Message()
+
         err = urllib.error.HTTPError(
             "https://example.com",
             429,
             "Too Many",
-            {},
+            headers,
             err_fp,
         )
 
