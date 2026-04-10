@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from argparse import Namespace
 from pathlib import Path
+from unittest.mock import Mock
 from unittest.mock import patch
 
 from vibelign.commands.vib_precheck_cmd import run_vib_precheck
@@ -81,7 +82,8 @@ class VibPrecheckTest(unittest.TestCase):
             root = Path(tmp)
             (root / ".vibelign").mkdir(parents=True, exist_ok=True)
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\n", encoding="utf-8"
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
             )
             code, _out, _err = self._run_precheck(
                 root,
@@ -100,7 +102,8 @@ class VibPrecheckTest(unittest.TestCase):
             root = Path(tmp)
             (root / ".vibelign").mkdir(parents=True, exist_ok=True)
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\n", encoding="utf-8"
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
             )
             code, out, err = self._run_precheck(
                 root,
@@ -121,7 +124,8 @@ class VibPrecheckTest(unittest.TestCase):
             root = Path(tmp)
             (root / ".vibelign").mkdir(parents=True, exist_ok=True)
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\n", encoding="utf-8"
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
             )
             code, out, err = self._run_precheck(
                 root,
@@ -142,7 +146,8 @@ class VibPrecheckTest(unittest.TestCase):
             root = Path(tmp)
             (root / ".vibelign").mkdir(parents=True, exist_ok=True)
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\n", encoding="utf-8"
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
             )
             code, out, err = self._run_precheck(
                 root,
@@ -163,7 +168,8 @@ class VibPrecheckTest(unittest.TestCase):
             root = Path(tmp)
             (root / ".vibelign").mkdir(parents=True, exist_ok=True)
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\n", encoding="utf-8"
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
             )
             code, out, _err = self._run_precheck(
                 root,
@@ -183,7 +189,8 @@ class VibPrecheckTest(unittest.TestCase):
             root = Path(tmp)
             (root / ".vibelign").mkdir(parents=True, exist_ok=True)
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\n", encoding="utf-8"
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
             )
             code, _out, err = self._run_precheck(
                 root,
@@ -194,6 +201,53 @@ class VibPrecheckTest(unittest.TestCase):
                             root / "vibelign" / "core" / "oauth_provider.py"
                         ),
                         "content": "# === ANCHOR: OAUTH_PROVIDER_START ===\ndef x():\n    return True\n# === ANCHOR: OAUTH_PROVIDER_END ===\n",
+                    },
+                },
+            )
+            self.assertEqual(code, 2)
+            self.assertIn("vib plan-structure를 먼저 실행하세요", err)
+
+    def test_small_new_production_file_without_plan_is_planning_exempt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir(parents=True, exist_ok=True)
+            (root / ".vibelign" / "config.yaml").write_text(
+                "schema_version: 1\nsmall_fix_line_threshold: 10\n",
+                encoding="utf-8",
+            )
+            code, out, err = self._run_precheck(
+                root,
+                {
+                    "tool_name": "Write",
+                    "tool_input": {
+                        "file_path": str(root / "vibelign" / "core" / "tiny_helper.py"),
+                        "content": "# === ANCHOR: TINY_HELPER_START ===\n"
+                        "def tiny_helper():\n    return True\n"
+                        "# === ANCHOR: TINY_HELPER_END ===\n",
+                    },
+                },
+            )
+            self.assertEqual(code, 0)
+            self.assertIn('"permissionDecision": "allow"', out)
+            self.assertEqual(err, "")
+
+    def test_vibelign_patch_path_is_treated_as_production(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir(parents=True, exist_ok=True)
+            (root / ".vibelign" / "config.yaml").write_text(
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
+            )
+            code, _out, err = self._run_precheck(
+                root,
+                {
+                    "tool_name": "Write",
+                    "tool_input": {
+                        "file_path": str(root / "vibelign" / "patch" / "apply.py"),
+                        "content": "# === ANCHOR: APPLY_START ===\n"
+                        "def apply():\n    import os\n    import sys\n    return True\n"
+                        "# === ANCHOR: APPLY_END ===\n",
                     },
                 },
             )
@@ -250,7 +304,8 @@ class VibPrecheckTest(unittest.TestCase):
                 encoding="utf-8",
             )
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\n", encoding="utf-8"
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
             )
             code, _out, err = self._run_precheck(
                 root,
@@ -270,7 +325,8 @@ class VibPrecheckTest(unittest.TestCase):
             root = Path(tmp)
             (root / ".vibelign").mkdir(parents=True, exist_ok=True)
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\n", encoding="utf-8"
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
             )
             src = root / "vibelign" / "core"
             src.mkdir(parents=True, exist_ok=True)
@@ -349,7 +405,8 @@ class VibPrecheckTest(unittest.TestCase):
                 encoding="utf-8",
             )
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\n", encoding="utf-8"
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
             )
             code, _out, err = self._run_precheck(
                 root,
@@ -371,7 +428,8 @@ class VibPrecheckTest(unittest.TestCase):
             root = Path(tmp)
             (root / ".vibelign").mkdir(parents=True, exist_ok=True)
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\n", encoding="utf-8"
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
             )
             outside = (
                 Path(tempfile.mkdtemp(prefix="vibelign-precheck-outside-", dir="/tmp"))
@@ -390,6 +448,29 @@ class VibPrecheckTest(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertIn('"permissionDecision": "allow"', out)
             self.assertEqual(err, "")
+
+    def test_direct_terminal_use_shows_stdin_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stdin_mock = Mock()
+            stdin_mock.isatty.return_value = True
+            previous = Path.cwd()
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            try:
+                os.chdir(root)
+                with (
+                    patch("sys.stdin", stdin_mock),
+                    patch("sys.stdout", stdout),
+                    patch("sys.stderr", stderr),
+                ):
+                    with self.assertRaises(SystemExit) as exc:
+                        run_vib_precheck(Namespace())
+            finally:
+                os.chdir(previous)
+            self.assertEqual(int(exc.exception.code or 0), 1)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIn("stdin JSON payload", stderr.getvalue())
 
     def test_malformed_plan_dict_missing_required_fields_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -425,7 +506,8 @@ class VibPrecheckTest(unittest.TestCase):
                 encoding="utf-8",
             )
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\n", encoding="utf-8"
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
             )
             code, _out, err = self._run_precheck(
                 root,
@@ -471,7 +553,8 @@ class VibPrecheckTest(unittest.TestCase):
                 encoding="utf-8",
             )
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\n", encoding="utf-8"
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
             )
             code, _out, err = self._run_precheck(
                 root,
@@ -517,7 +600,8 @@ class VibPrecheckTest(unittest.TestCase):
                 encoding="utf-8",
             )
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\n", encoding="utf-8"
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
             )
             code, _out, err = self._run_precheck(
                 root,
@@ -581,7 +665,8 @@ class VibPrecheckTest(unittest.TestCase):
                 encoding="utf-8",
             )
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\n", encoding="utf-8"
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
             )
             code, _out, err = self._run_precheck(
                 root,

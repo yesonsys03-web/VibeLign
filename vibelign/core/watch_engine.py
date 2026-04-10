@@ -327,6 +327,7 @@ def run_watch(config: WatchConfig) -> None:
 
         # === ANCHOR: WATCH_ENGINE__DEBOUNCED_END ===
 
+        # === ANCHOR: WATCH_ENGINE__HANDLE_AUTO_FIX_START ===
         def _handle_auto_fix(self, path: Path) -> bool:
             if not self.auto_fix or path.suffix.lower() not in AUTO_FIX_SOURCE_SUFFIXES:
                 return False
@@ -349,6 +350,8 @@ def run_watch(config: WatchConfig) -> None:
             }
             emit(auto_fix_event, json_mode=self.json_mode, log_path=self.log_path)
             return True
+
+        # === ANCHOR: WATCH_ENGINE__HANDLE_AUTO_FIX_END ===
 
         # === ANCHOR: WATCH_ENGINE__SCHEDULE_GLOBAL_UPDATE_START ===
         def _schedule_global_update(self, rel_path: str) -> None:
