@@ -798,6 +798,83 @@ class VibPatchContractV0Test(unittest.TestCase):
             steps = plan["steps"]
             self.assertEqual(len(steps), 1)
 
+    def test_vib_patch_json_state_persistence_request_downgrades_generic_app_target(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            app = root / "vibelign-gui/src/App.tsx"
+            app.parent.mkdir(parents=True, exist_ok=True)
+            app.write_text(
+                "// === ANCHOR: APP_START ===\n"
+                "export default function App() {\n"
+                "  return <div>menu tabs</div>;\n"
+                "}\n"
+                "// === ANCHOR: APP_END ===\n",
+                encoding="utf-8",
+            )
+            home = root / "vibelign-gui/src/pages/Home.tsx"
+            home.parent.mkdir(parents=True, exist_ok=True)
+            home.write_text(
+                "// === ANCHOR: HOME_START ===\n"
+                "export function Home() {\n"
+                "  return <div>Home</div>;\n"
+                "}\n"
+                "// === ANCHOR: HOME_END ===\n",
+                encoding="utf-8",
+            )
+            hook_card = (
+                root / "vibelign-gui/src/components/cards/security/ClaudeHookCard.tsx"
+            )
+            hook_card.parent.mkdir(parents=True, exist_ok=True)
+            hook_card.write_text(
+                "// === ANCHOR: CLAUDE_HOOK_CARD_START ===\n"
+                "export function ClaudeHookCard() {\n"
+                "  const enabled = true;\n"
+                "  return <div>claude hook enable status</div>;\n"
+                "}\n"
+                "// === ANCHOR: CLAUDE_HOOK_CARD_END ===\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_patch_json(
+                root,
+                SimpleNamespace(
+                    request=[
+                        "클로드",
+                        "훅",
+                        "enable",
+                        "시키고",
+                        "다른",
+                        "메뉴",
+                        "갔다",
+                        "오면",
+                        "enable",
+                        "상태가",
+                        "유지되지",
+                        "않아",
+                        "수정해줘",
+                    ],
+                    ai=False,
+                    json=True,
+                    preview=False,
+                    write_report=False,
+                ),
+            )
+
+            contract = payload["data"]["contract"]
+            self.assertEqual(
+                payload["data"]["patch_plan"]["target_file"],
+                "vibelign-gui/src/components/cards/security/ClaudeHookCard.tsx",
+            )
+            self.assertEqual(
+                payload["data"]["patch_plan"]["target_anchor"],
+                "CLAUDE_HOOK_CARD",
+            )
+            self.assertEqual(contract["status"], "READY")
+            self.assertEqual(contract["clarifying_questions"], [])
+            self.assertIsNotNone(payload["data"].get("handoff"))
+
 
 if __name__ == "__main__":
     unittest.main()
