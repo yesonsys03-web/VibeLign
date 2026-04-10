@@ -808,7 +808,11 @@ Phase 1에서 구조 계획 관련 상태는 아래 5개를 사용한다.
 >   - regression-hardening slice 3 완료: `test only`, `config only`, `단일 파일 소규모 수정` row 직접 고정
 >   - regression-hardening slice 4 완료: `활성 plan + 허용 경로만 수정`, `활성 plan + 허용 범위 이탈`, `broken plan 파일` row 직접 고정
 >   - regression-hardening slice 5 완료: guard broken-plan payload shape 검증을 precheck 수준에 가깝게 보강하고, `required_new_files` malformed branch까지 직접 고정
->   - 현재 남은 것은 추가 parity 강화 또는 장기 회귀 edge 보강이며, 핵심 matrix row 기준 회귀 고정은 상당 부분 완료됨
+>   - regression-hardening slice 6 완료: `allowed_change_types`의 `import_wiring` / `registration` / `config_touch` pass branch 직접 고정
+>   - regression-hardening slice 7 완료: `anchor_outside_allowed_range` / `max_lines_added_exceeded` direct parity branch 직접 고정
+>   - regression-hardening slice 8 완료: guard/precheck state-error branch(`missing_plan_file`, `invalid_state`) exact contract 직접 고정
+>   - regression-hardening slice 9 완료: `disallowed_change_type` 및 일부 singleton deviation assertion-strength 강화
+>   - 현재 남은 것은 선택적인 assertion-strength/parity 미세 강화 수준이며, 핵심 matrix row와 주요 runtime 분기는 대부분 직접 회귀 고정된 상태
 
 ### Phase 1 — plan JSON 생성 경로 추가
 
