@@ -2,8 +2,14 @@
 from __future__ import annotations
 
 import ast
+import json
+import re
 from collections.abc import Iterable
 from pathlib import Path
+from typing import cast
+
+from vibelign.core.meta_paths import MetaPaths
+from vibelign.mcp.mcp_state_store import load_planning_session
 
 COMMON_IGNORED_DIRS: frozenset[str] = frozenset(
     {
@@ -156,6 +162,16 @@ HANDOFF_KEY_FILE_NAMES: frozenset[str] = frozenset(
 
 HANDOFF_SKIP_PREFIXES: tuple[str, ...] = (".vibelign", ".git", "__pycache__")
 
+STRUCTURE_PATH_PREFIXES: tuple[str, ...] = (
+    "vibelign/core/",
+    "vibelign/commands/",
+    "vibelign/mcp/",
+    "vibelign/service/",
+    "vibelign/patch/",
+)
+
+_DEFAULT_SMALL_FIX_THRESHOLD = 30
+
 SOURCE_FILE_SUFFIXES: tuple[str, ...] = tuple(
     sorted(ext.lstrip(".") for ext in SOURCE_FILE_EXTENSIONS)
 )
@@ -258,4 +274,119 @@ def is_trivial_package_init(path: Path, text: str) -> bool:
 
 
 # === ANCHOR: STRUCTURE_POLICY_IS_TRIVIAL_PACKAGE_INIT_END ===
+
+
+# === ANCHOR: STRUCTURE_POLICY_CLASSIFY_STRUCTURE_PATH_START ===
+def classify_structure_path(rel_path: str) -> str:
+    low = rel_path.lower()
+    if low.startswith(".vibelign/"):
+        return "meta"
+    if low.startswith("docs/") or low.endswith(".md"):
+        return "docs"
+    if low.startswith("tests/") or "/tests/" in low or low.startswith("test_"):
+        return "tests"
+    if low in {"pyproject.toml", "package.json", "package-lock.json", "uv.lock"}:
+        return "config"
+    if (
+        low.startswith(".claude/")
+        or low.startswith(".github/")
+        or low.endswith(".yaml")
+        or low.endswith(".yml")
+        or low.endswith(".toml")
+    ):
+        return "config"
+    if low.startswith(STRUCTURE_PATH_PREFIXES):
+        return "production"
+    if low.endswith(".py"):
+        return "non_vibelign_production"
+    return "support"
+
+
+# === ANCHOR: STRUCTURE_POLICY_CLASSIFY_STRUCTURE_PATH_END ===
+
+
+# === ANCHOR: STRUCTURE_POLICY_IS_STRUCTURE_PRODUCTION_KIND_START ===
+def is_structure_production_kind(path_kind: str) -> bool:
+    return path_kind == "production"
+
+
+# === ANCHOR: STRUCTURE_POLICY_IS_STRUCTURE_PRODUCTION_KIND_END ===
+
+
+# === ANCHOR: STRUCTURE_POLICY_LOAD_ACTIVE_PLAN_PAYLOAD_START ===
+def load_active_plan_payload(
+    meta: MetaPaths,
+) -> tuple[dict[str, object] | None, str | None, str | None]:
+    planning = load_planning_session(meta)
+    if not planning:
+        return None, None, None
+    if planning.get("override") is True:
+        plan_id = planning.get("plan_id")
+        return None, str(plan_id) if isinstance(plan_id, str) else None, "override"
+    if planning.get("active") is not True:
+        return None, None, None
+    plan_id = planning.get("plan_id")
+    if not isinstance(plan_id, str) or not plan_id:
+        return None, None, "invalid_state"
+    plan_path = meta.plans_dir / f"{plan_id}.json"
+    if not plan_path.exists():
+        return None, plan_id, "missing_plan_file"
+    try:
+        loaded = cast(object, json.loads(plan_path.read_text(encoding="utf-8")))
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return None, plan_id, "broken_plan"
+    if not isinstance(loaded, dict):
+        return None, plan_id, "broken_plan"
+    payload = cast(dict[str, object], loaded)
+    required_keys = {
+        "id",
+        "schema_version",
+        "allowed_modifications",
+        "required_new_files",
+        "forbidden",
+        "messages",
+        "evidence",
+        "scope",
+    }
+    if not required_keys.issubset(payload.keys()):
+        return None, plan_id, "broken_plan"
+    allowed_modifications = payload.get("allowed_modifications")
+    required_new_files = payload.get("required_new_files")
+    forbidden = payload.get("forbidden")
+    if not isinstance(allowed_modifications, list):
+        return None, plan_id, "broken_plan"
+    if not isinstance(required_new_files, list):
+        return None, plan_id, "broken_plan"
+    if not isinstance(forbidden, list):
+        return None, plan_id, "broken_plan"
+    for item in cast(list[object], allowed_modifications):
+        if not isinstance(item, dict):
+            return None, plan_id, "broken_plan"
+    for item in cast(list[object], required_new_files):
+        if not isinstance(item, dict):
+            return None, plan_id, "broken_plan"
+    for item in cast(list[object], forbidden):
+        if not isinstance(item, dict):
+            return None, plan_id, "broken_plan"
+    return payload, plan_id, None
+
+
+# === ANCHOR: STRUCTURE_POLICY_LOAD_ACTIVE_PLAN_PAYLOAD_END ===
+
+
+# === ANCHOR: STRUCTURE_POLICY_SMALL_FIX_LINE_THRESHOLD_START ===
+def small_fix_line_threshold(meta: MetaPaths) -> int:
+    if not meta.config_path.exists():
+        return _DEFAULT_SMALL_FIX_THRESHOLD
+    try:
+        content = meta.config_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return _DEFAULT_SMALL_FIX_THRESHOLD
+    match = re.search(r"^small_fix_line_threshold:\s*(\d+)\s*$", content, re.MULTILINE)
+    if not match:
+        return _DEFAULT_SMALL_FIX_THRESHOLD
+    return int(match.group(1))
+
+
+# === ANCHOR: STRUCTURE_POLICY_SMALL_FIX_LINE_THRESHOLD_END ===
 # === ANCHOR: STRUCTURE_POLICY_END ===

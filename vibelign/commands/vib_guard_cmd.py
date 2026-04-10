@@ -25,7 +25,11 @@ from vibelign.core.project_map import enrich_change_kind, load_project_map
 from vibelign.core.project_root import resolve_project_root
 from vibelign.core.protected_files import get_protected, is_protected
 from vibelign.core.risk_analyzer import analyze_project
-from vibelign.mcp.mcp_state_store import load_planning_session
+from vibelign.core.structure_policy import (
+    classify_structure_path,
+    load_active_plan_payload,
+    small_fix_line_threshold,
+)
 from vibelign.terminal_render import print_ai_response
 
 
@@ -102,7 +106,6 @@ class GuardArgs(Protocol):
     write_report: bool
 
 
-_SMALL_FIX_LINE_THRESHOLD = 30
 _PLAN_REQUIRED_RECOMMENDATION = (
     "구조 영향 가능성이 높다면 먼저 `vib plan-structure`를 실행하세요."
 )
@@ -154,99 +157,6 @@ def _merge_status(current: str, planning_level: str) -> str:
         if rank.get(planning_level, 0) > rank.get(current, 0)
         else current
     )
-
-
-def _classify_guard_path(rel_path: str) -> str:
-    low = rel_path.lower()
-    if low.startswith(".vibelign/"):
-        return "meta"
-    if low.startswith("docs/") or low.endswith(".md"):
-        return "docs"
-    if low.startswith("tests/") or "/tests/" in low or low.startswith("test_"):
-        return "tests"
-    if low in {"pyproject.toml", "package.json", "package-lock.json", "uv.lock"}:
-        return "config"
-    if (
-        low.startswith(".claude/")
-        or low.startswith(".github/")
-        or low.endswith(".yaml")
-        or low.endswith(".yml")
-        or low.endswith(".toml")
-    ):
-        return "config"
-    if low.startswith("vibelign/") or low.endswith(".py"):
-        return "production"
-    return "support"
-
-
-def _load_plan_payload(
-    meta: MetaPaths,
-) -> tuple[dict[str, object] | None, str | None, str | None]:
-    planning = load_planning_session(meta)
-    if not planning:
-        return None, None, None
-    if planning.get("override") is True:
-        plan_id = planning.get("plan_id")
-        return None, str(plan_id) if isinstance(plan_id, str) else None, "override"
-    if planning.get("active") is not True:
-        return None, None, None
-    plan_id = planning.get("plan_id")
-    if not isinstance(plan_id, str) or not plan_id:
-        return None, None, "invalid_state"
-    plan_path = meta.plans_dir / f"{plan_id}.json"
-    if not plan_path.exists():
-        return None, plan_id, "missing_plan_file"
-    try:
-        loaded = cast(object, json.loads(plan_path.read_text(encoding="utf-8")))
-    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-        return None, plan_id, "broken_plan"
-    if not isinstance(loaded, dict):
-        return None, plan_id, "broken_plan"
-    payload = cast(dict[str, object], loaded)
-    required_keys = {
-        "id",
-        "schema_version",
-        "allowed_modifications",
-        "required_new_files",
-        "forbidden",
-        "messages",
-        "evidence",
-        "scope",
-    }
-    if not required_keys.issubset(payload.keys()):
-        return None, plan_id, "broken_plan"
-    allowed_modifications = payload.get("allowed_modifications")
-    required_new_files = payload.get("required_new_files")
-    forbidden = payload.get("forbidden")
-    if not isinstance(allowed_modifications, list):
-        return None, plan_id, "broken_plan"
-    if not isinstance(required_new_files, list):
-        return None, plan_id, "broken_plan"
-    if not isinstance(forbidden, list):
-        return None, plan_id, "broken_plan"
-    for item in cast(list[object], allowed_modifications):
-        if not isinstance(item, dict):
-            return None, plan_id, "broken_plan"
-    for item in cast(list[object], required_new_files):
-        if not isinstance(item, dict):
-            return None, plan_id, "broken_plan"
-    for item in cast(list[object], forbidden):
-        if not isinstance(item, dict):
-            return None, plan_id, "broken_plan"
-    return payload, plan_id, None
-
-
-def _planning_threshold(meta: MetaPaths) -> int:
-    if not meta.config_path.exists():
-        return _SMALL_FIX_LINE_THRESHOLD
-    try:
-        content = meta.config_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return _SMALL_FIX_LINE_THRESHOLD
-    match = re.search(r"^small_fix_line_threshold:\s*(\d+)\s*$", content, re.MULTILINE)
-    if not match:
-        return _SMALL_FIX_LINE_THRESHOLD
-    return int(match.group(1))
 
 
 def _run_guard_git(root: Path, args: Sequence[str]) -> tuple[bool, str]:
@@ -445,7 +355,7 @@ def _anchor_violations(
     violations: list[str] = []
     for item in explain_files:
         rel_path = str(item["path"])
-        if _classify_guard_path(rel_path) != "production":
+        if classify_structure_path(rel_path) != "production":
             continue
         if str(item["status"]) not in {"added", "untracked"}:
             continue
@@ -507,7 +417,7 @@ def _modified_change_types(root: Path, rel_path: str, *, staged_only: bool) -> s
         detected.add("import_wiring")
     if all(_is_registration_line(line) for line in changed_lines):
         detected.add("registration")
-    if _classify_guard_path(rel_path) == "config":
+    if classify_structure_path(rel_path) == "config":
         detected.add("config_touch")
     return detected
 
@@ -519,7 +429,7 @@ def _planning_data(
     explain_files: Sequence[FileSummary],
     explain_source: str,
 ) -> PlanningData:
-    threshold = _planning_threshold(meta)
+    threshold = small_fix_line_threshold(meta)
     staged_only = explain_source == "git-staged"
     changed_files = [str(item["path"]) for item in explain_files]
     if not changed_files:
@@ -534,7 +444,7 @@ def _planning_data(
             "exempt_reasons": ["no_changed_files"],
         }
 
-    plan_payload, active_plan_id, plan_error = _load_plan_payload(meta)
+    plan_payload, active_plan_id, plan_error = load_active_plan_payload(meta)
     if plan_error == "override":
         return {
             "status": "planning_exempt",
@@ -550,12 +460,12 @@ def _planning_data(
     production_items = [
         item
         for item in explain_files
-        if _classify_guard_path(str(item["path"])) == "production"
+        if classify_structure_path(str(item["path"])) == "production"
     ]
     relevant_items = [
         item
         for item in explain_files
-        if _classify_guard_path(str(item["path"])) != "meta"
+        if classify_structure_path(str(item["path"])) != "meta"
     ]
     new_production_items = [
         item
@@ -564,14 +474,15 @@ def _planning_data(
     ]
     docs_only = (
         all(
-            _classify_guard_path(str(item["path"])) == "docs" for item in relevant_items
+            classify_structure_path(str(item["path"])) == "docs"
+            for item in relevant_items
         )
         if relevant_items
         else False
     )
     tests_only = (
         all(
-            _classify_guard_path(str(item["path"])) == "tests"
+            classify_structure_path(str(item["path"])) == "tests"
             for item in relevant_items
         )
         if relevant_items
@@ -579,7 +490,7 @@ def _planning_data(
     )
     config_only = (
         all(
-            _classify_guard_path(str(item["path"])) == "config"
+            classify_structure_path(str(item["path"])) == "config"
             for item in relevant_items
         )
         if relevant_items
@@ -588,7 +499,7 @@ def _planning_data(
     small_fix_candidate = False
     if len(production_items) == 1 and len(relevant_items) == 1:
         item = production_items[0]
-        if str(item["status"]) not in {"added", "untracked", "deleted", "renamed"}:
+        if str(item["status"]) not in {"deleted", "renamed"}:
             details = _file_change_details(root, item, staged_only=staged_only)
             small_fix_candidate = details["added_lines"] <= threshold
 

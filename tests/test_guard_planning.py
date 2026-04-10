@@ -141,6 +141,10 @@ class GuardPlanningTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _meta = self._init_repo(root)
+            _ = (root / ".vibelign" / "config.yaml").write_text(
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
+            )
             core_dir = root / "vibelign" / "core"
             core_dir.mkdir(parents=True, exist_ok=True)
             _ = (core_dir / "base.py").write_text(
@@ -163,6 +167,35 @@ class GuardPlanningTest(unittest.TestCase):
             self.assertIn("new_production_file", required_reasons)
             self.assertEqual(envelope["data"]["status"], "warn")
             self.assertIn("vib plan-structure", planning["summary"])
+
+    def test_new_patch_module_file_without_plan_requires_planning(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _meta = self._init_repo(root)
+            _ = (root / ".vibelign" / "config.yaml").write_text(
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
+            )
+            patch_dir = root / "vibelign" / "patch"
+            patch_dir.mkdir(parents=True, exist_ok=True)
+            _ = (patch_dir / "base.py").write_text(
+                "def base():\n    return True\n", encoding="utf-8"
+            )
+            _commit_all(root, "baseline")
+
+            _ = (patch_dir / "apply.py").write_text(
+                "# === ANCHOR: APPLY_START ===\n"
+                "def apply():\n    return True\n"
+                "# === ANCHOR: APPLY_END ===\n",
+                encoding="utf-8",
+            )
+
+            envelope = build_guard_envelope(root, strict=False, since_minutes=120)
+
+            planning = envelope["data"]["planning"]
+            self.assertEqual(planning["status"], "planning_required")
+            required_reasons = cast(list[object], planning["required_reasons"])
+            self.assertIn("new_production_file", required_reasons)
 
     def test_new_source_file_without_anchor_warns_in_non_strict_guard(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -244,6 +277,10 @@ class GuardPlanningTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _meta = self._init_repo(root)
+            _ = (root / ".vibelign" / "config.yaml").write_text(
+                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
+            )
             core_dir = root / "vibelign" / "core"
             core_dir.mkdir(parents=True, exist_ok=True)
             _ = (core_dir / "base.py").write_text(

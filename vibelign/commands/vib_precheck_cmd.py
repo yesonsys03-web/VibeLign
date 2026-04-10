@@ -1,3 +1,4 @@
+# === ANCHOR: VIB_PRECHECK_CMD_START ===
 from __future__ import annotations
 
 import json
@@ -12,13 +13,25 @@ from vibelign.core.anchor_tools import COMMENT_PREFIX
 from vibelign.core.hook_setup import is_claude_hook_enabled
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_root import resolve_project_root
+from vibelign.core.structure_policy import (
+    classify_structure_path,
+    is_structure_production_kind,
+    load_active_plan_payload,
+    small_fix_line_threshold,
+)
 
 _ANCHOR_PATTERN = re.compile(r"ANCHOR:\s*[A-Z0-9_]+_(START|END)")
 _SOURCE_EXTENSIONS = set(COMMENT_PREFIX.keys())
-_DEFAULT_SMALL_FIX_THRESHOLD = 30
 
 
+# === ANCHOR: VIB_PRECHECK_CMD__READ_STDIN_PAYLOAD_START ===
 def _read_stdin_payload() -> dict[str, object]:
+    if sys.stdin.isatty():
+        print(
+            "이 명령은 Claude hook이 stdin JSON payload와 함께 호출해야 해요.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
     try:
         payload = cast(object, json.loads(sys.stdin.read() or "{}"))
     except json.JSONDecodeError:
@@ -30,6 +43,10 @@ def _read_stdin_payload() -> dict[str, object]:
     return cast(dict[str, object], payload)
 
 
+# === ANCHOR: VIB_PRECHECK_CMD__READ_STDIN_PAYLOAD_END ===
+
+
+# === ANCHOR: VIB_PRECHECK_CMD__PAYLOAD_FILE_INFO_START ===
 def _payload_file_info(payload: dict[str, object]) -> tuple[str | None, str | None]:
     tool_name = payload.get("tool_name")
     if tool_name != "Write":
@@ -45,115 +62,10 @@ def _payload_file_info(payload: dict[str, object]) -> tuple[str | None, str | No
     return file_path, content
 
 
-def _small_fix_threshold(meta: MetaPaths) -> int:
-    if not meta.config_path.exists():
-        return _DEFAULT_SMALL_FIX_THRESHOLD
-    try:
-        content = meta.config_path.read_text(encoding="utf-8")
-    except OSError:
-        return _DEFAULT_SMALL_FIX_THRESHOLD
-    match = re.search(r"^small_fix_line_threshold:\s*(\d+)\s*$", content, re.MULTILINE)
-    return int(match.group(1)) if match else _DEFAULT_SMALL_FIX_THRESHOLD
+# === ANCHOR: VIB_PRECHECK_CMD__PAYLOAD_FILE_INFO_END ===
 
 
-def _classify_precheck_path(rel_path: str) -> str:
-    low = rel_path.lower()
-    if low.startswith(".vibelign/"):
-        return "meta"
-    if low.startswith("docs/") or low.endswith(".md"):
-        return "docs"
-    if low.startswith("tests/") or "/tests/" in low or low.startswith("test_"):
-        return "tests"
-    if low in {"pyproject.toml", "package.json", "package-lock.json", "uv.lock"}:
-        return "config"
-    if (
-        low.startswith(".claude/")
-        or low.startswith(".github/")
-        or low.endswith(".yaml")
-        or low.endswith(".yml")
-        or low.endswith(".toml")
-    ):
-        return "config"
-    if low.startswith(
-        (
-            "vibelign/core/",
-            "vibelign/commands/",
-            "vibelign/mcp/",
-            "vibelign/service/",
-        )
-    ):
-        return "production"
-    return "support"
-
-
-def _load_plan_payload(
-    meta: MetaPaths,
-) -> tuple[dict[str, object] | None, str | None, str | None]:
-    if not meta.state_path.exists():
-        return None, None, None
-    try:
-        state_obj = cast(
-            object, json.loads(meta.state_path.read_text(encoding="utf-8"))
-        )
-    except (OSError, json.JSONDecodeError):
-        return None, None, None
-    if not isinstance(state_obj, dict):
-        return None, None, None
-    state = cast(dict[str, object], state_obj)
-    planning = state.get("planning")
-    if not isinstance(planning, dict):
-        return None, None, None
-    planning_dict = cast(dict[str, object], planning)
-    plan_id = planning_dict.get("plan_id")
-    if planning_dict.get("override") is True:
-        return None, str(plan_id) if isinstance(plan_id, str) else None, "override"
-    if planning_dict.get("active") is not True:
-        return None, None, None
-    if not isinstance(plan_id, str) or not plan_id:
-        return None, None, "invalid_state"
-    plan_path = meta.plans_dir / f"{plan_id}.json"
-    if not plan_path.exists():
-        return None, plan_id, "missing_plan_file"
-    try:
-        payload_obj = cast(object, json.loads(plan_path.read_text(encoding="utf-8")))
-    except (OSError, json.JSONDecodeError):
-        return None, plan_id, "broken_plan"
-    if not isinstance(payload_obj, dict):
-        return None, plan_id, "broken_plan"
-    payload = cast(dict[str, object], payload_obj)
-    required_keys = {
-        "id",
-        "schema_version",
-        "allowed_modifications",
-        "required_new_files",
-        "forbidden",
-        "messages",
-        "evidence",
-        "scope",
-    }
-    if not required_keys.issubset(payload.keys()):
-        return None, plan_id, "broken_plan"
-    allowed_modifications = payload.get("allowed_modifications")
-    required_new_files = payload.get("required_new_files")
-    forbidden = payload.get("forbidden")
-    if not isinstance(allowed_modifications, list):
-        return None, plan_id, "broken_plan"
-    if not isinstance(required_new_files, list):
-        return None, plan_id, "broken_plan"
-    if not isinstance(forbidden, list):
-        return None, plan_id, "broken_plan"
-    for item in cast(list[object], allowed_modifications):
-        if not isinstance(item, dict):
-            return None, plan_id, "broken_plan"
-    for item in cast(list[object], required_new_files):
-        if not isinstance(item, dict):
-            return None, plan_id, "broken_plan"
-    for item in cast(list[object], forbidden):
-        if not isinstance(item, dict):
-            return None, plan_id, "broken_plan"
-    return payload, plan_id, None
-
-
+# === ANCHOR: VIB_PRECHECK_CMD__ADDED_LINE_COUNT_START ===
 def _added_line_count(old_text: str, new_text: str) -> int:
     old_lines = old_text.splitlines()
     new_lines = new_text.splitlines()
@@ -165,6 +77,10 @@ def _added_line_count(old_text: str, new_text: str) -> int:
     return added
 
 
+# === ANCHOR: VIB_PRECHECK_CMD__ADDED_LINE_COUNT_END ===
+
+
+# === ANCHOR: VIB_PRECHECK_CMD__PLANNING_STATUS_START ===
 def _planning_status(root: Path, target_path: Path, content: str) -> tuple[str, str]:
     resolved_root = root.resolve()
     resolved_target = target_path.resolve(strict=False)
@@ -176,9 +92,9 @@ def _planning_status(root: Path, target_path: Path, content: str) -> tuple[str, 
         )
     except ValueError:
         return "planning_exempt", ""
-    path_kind = _classify_precheck_path(rel_path)
+    path_kind = classify_structure_path(rel_path)
     if (
-        path_kind != "production"
+        not is_structure_production_kind(path_kind)
         or target_path.suffix.lower() not in _SOURCE_EXTENSIONS
     ):
         return "planning_exempt", ""
@@ -190,12 +106,10 @@ def _planning_status(root: Path, target_path: Path, content: str) -> tuple[str, 
             existing_text = target_path.read_text(encoding="utf-8")
         except OSError:
             existing_text = ""
-    if target_path.exists() and _added_line_count(
-        existing_text, content
-    ) <= _small_fix_threshold(meta):
+    if _added_line_count(existing_text, content) <= small_fix_line_threshold(meta):
         return "planning_exempt", ""
 
-    plan_payload, _active_plan_id, plan_error = _load_plan_payload(meta)
+    plan_payload, _active_plan_id, plan_error = load_active_plan_payload(meta)
     if plan_error == "override":
         return "planning_exempt", ""
     if plan_error in {"missing_plan_file", "broken_plan", "invalid_state"}:
@@ -233,12 +147,20 @@ def _planning_status(root: Path, target_path: Path, content: str) -> tuple[str, 
     return "plan_exists_but_deviated", "현재 변경이 활성 구조 계획 범위를 벗어났습니다"
 
 
+# === ANCHOR: VIB_PRECHECK_CMD__PLANNING_STATUS_END ===
+
+
+# === ANCHOR: VIB_PRECHECK_CMD__HAS_ANCHOR_MARKERS_START ===
 def _has_anchor_markers(path: Path, content: str) -> bool:
     if path.suffix.lower() not in _SOURCE_EXTENSIONS:
         return True
     return _ANCHOR_PATTERN.search(content) is not None
 
 
+# === ANCHOR: VIB_PRECHECK_CMD__HAS_ANCHOR_MARKERS_END ===
+
+
+# === ANCHOR: VIB_PRECHECK_CMD_RUN_VIB_PRECHECK_START ===
 def run_vib_precheck(_args: Namespace) -> None:
     payload = _read_stdin_payload()
     file_path, content = _payload_file_info(payload)
@@ -265,7 +187,7 @@ def run_vib_precheck(_args: Namespace) -> None:
         print(json.dumps({"permissionDecision": "allow"}, ensure_ascii=False))
         raise SystemExit(0)
     if (
-        _classify_precheck_path(rel_path) != "production"
+        not is_structure_production_kind(classify_structure_path(rel_path))
         or target_path.suffix.lower() not in _SOURCE_EXTENSIONS
     ):
         print(json.dumps({"permissionDecision": "allow"}, ensure_ascii=False))
@@ -282,3 +204,7 @@ def run_vib_precheck(_args: Namespace) -> None:
 
     print(json.dumps({"permissionDecision": "allow"}, ensure_ascii=False))
     raise SystemExit(0)
+
+
+# === ANCHOR: VIB_PRECHECK_CMD_RUN_VIB_PRECHECK_END ===
+# === ANCHOR: VIB_PRECHECK_CMD_END ===
