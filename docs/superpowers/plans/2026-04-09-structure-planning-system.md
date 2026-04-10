@@ -1,6 +1,6 @@
 # VibeLign 구조 계획 시스템 기획안
 
-> **상태:** 기획 단계 (구현 전)
+> **상태:** 구현 완료 (문서 범위 반영)
 > **목적:** AI가 새 기능 추가 또는 편집 전에 코드 배치 위치를 VibeLign으로부터 사전 확정받는 시스템
 
 ---
@@ -786,7 +786,7 @@ Phase 1에서 구조 계획 관련 상태는 아래 5개를 사용한다.
 
 ## 11. 구현 순서 (implementation plan)
 
-> **진행 현황 업데이트 (2026-04-09):**
+> **진행 현황 업데이트 (2026-04-10):**
 > - **Phase 1 / Ticket 1-3:** 구현 완료
 >   - `vib plan-structure` 추가
 >   - `.vibelign/plans/*.json` 저장
@@ -802,7 +802,7 @@ Phase 1에서 구조 계획 관련 상태는 아래 5개를 사용한다.
 >   - Claude `.claude/settings.json` PreToolUse hook 자동 설치/복구, `vib claude-hook enable|disable|status`, `vib start` 자동 설치 plumbing 완료 (Oracle sign-off 완료)
 >   - `vib pre-check`의 narrowed gating slice 완료: stdin JSON 파싱, disabled/non-source skip, `0`/`2` 계약, planning-required / plan-deviated / malformed-plan 차단, anchor-missing soft-block (Oracle sign-off 완료)
 >   - 단, 이 단계는 **full `vib guard` parity 아님**. diff-aware multi-file 판단, anchor-range/max-lines/change-type 완전 동일성은 후속 강화 과제로 남음
-> - **Phase 5:** 진행 중
+> - **Phase 5:** 문서 범위 기준 완료
 >   - regression-hardening slice 1 완료: multi-file production 수정 / strict escalation / forbidden hard fail 직접 고정
 >   - regression-hardening slice 2 완료: `Claude hook disabled`, `git hook only` matrix row 직접 고정
 >   - regression-hardening slice 3 완료: `test only`, `config only`, `단일 파일 소규모 수정` row 직접 고정
@@ -812,7 +812,7 @@ Phase 1에서 구조 계획 관련 상태는 아래 5개를 사용한다.
 >   - regression-hardening slice 7 완료: `anchor_outside_allowed_range` / `max_lines_added_exceeded` direct parity branch 직접 고정
 >   - regression-hardening slice 8 완료: guard/precheck state-error branch(`missing_plan_file`, `invalid_state`) exact contract 직접 고정
 >   - regression-hardening slice 9 완료: `disallowed_change_type` 및 일부 singleton deviation assertion-strength 강화
->   - 현재 남은 것은 선택적인 assertion-strength/parity 미세 강화 수준이며, 핵심 matrix row와 주요 runtime 분기는 대부분 직접 회귀 고정된 상태
+>   - 현재 남은 것은 문서 범위 밖의 선택적 assertion-strength/parity 미세 강화 수준이며, 핵심 matrix row와 주요 runtime 분기는 직접 회귀 고정 완료
 
 ### Phase 1 — plan JSON 생성 경로 추가
 
@@ -1091,4 +1091,4 @@ Phase 1에서 구조 계획 관련 상태는 아래 5개를 사용한다.
 
 ---
 
-*이 기획안은 구현 전 검토용입니다. 미해결 과제 확정 후 구현 계획(implementation plan)으로 전환.*
+*이 문서는 현재 구현 완료 상태를 반영한 기록 문서입니다. 남은 항목은 문서 범위 밖의 선택적 고도화입니다.*

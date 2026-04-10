@@ -1,7 +1,13 @@
 # VibeLign 앵커 집행 시스템 기획안
 
-> **상태:** 기획 단계 (구현 전)
+> **상태:** 구현 완료 (Phase 1 범위 반영)
 > **목적:** 새 소스 파일에 앵커가 빠졌을 때 가능한 이른 시점에 자동 보정·경고·차단으로 회수하는 시스템
+>
+> **구현 현황 업데이트 (2026-04-10):**
+> - `vib watch --auto-fix` / `WatchConfig.auto_fix` / watch runtime auto-fix 구현 완료
+> - git pre-commit 경로는 `vib secrets --staged` + `vib guard --strict`를 함께 실행하며, 설치 UX도 현재 동작에 맞게 반영 완료
+> - Claude PreToolUse hook 자동 설치/복구, `vib claude-hook enable|disable|status`, `vib pre-check` stdin parsing 및 `0`/`2` contract 구현 완료
+> - `vib guard` Phase 1 anchor enforcement 구현 완료: 신규 source file + anchor 0개 → non-strict warn, strict fail
 
 ---
 
@@ -254,13 +260,13 @@ planning 검사는 Claude 컨텍스트에서 strict + enable 상태일 때만 ga
 
 ---
 
-## 7. 미해결 과제
+## 7. Phase 2 이후 과제
 
-1. **vib guard 앵커 검사 범위 — Phase 1 결정됨**
+1. **vib guard 앵커 검사 범위 — Phase 1 구현 완료**
    - **Phase 1: 신규 파일만 대상** — 새로 생성된 소스 파일에 앵커가 없으면 fail/warn
    - 기존 파일의 앵커 손실은 Phase 1에서 차단하지 않는다.
-     - 이유: 함수/클래스 의도적 삭제 시 앵커도 사라지는 게 정상 → false positive 과다 → git commit마다 차단되는 불편함 발생
-     - AST diff 기반 손실 감지는 Phase 2 이후 과제
+      - 이유: 함수/클래스 의도적 삭제 시 앵커도 사라지는 게 정상 → false positive 과다 → git commit마다 차단되는 불편함 발생
+      - AST diff 기반 손실 감지는 Phase 2 이후 과제
    - **fail 승격 기준 (Phase 1):** 신규 소스 파일 생성 + 앵커 0개 → strict 모드에서 fail, non-strict에서 warn
 
 2. **Claude Code PreToolUse 입력 방식 — 확인 완료**
@@ -270,8 +276,8 @@ planning 검사는 Claude 컨텍스트에서 strict + enable 상태일 때만 ga
    - exit 0 = 진행, exit 2 = 차단 + stderr → Claude 피드백, exit 1 = 차단 안 됨(비의도적 동작)
    - `vib pre-check`는 filepath 인자 없이 stdin JSON을 직접 파싱하도록 설계
 
-3. **watch auto-fix의 재진입/부분 저장 처리 — 해결됨**
+3. **watch auto-fix의 재진입/부분 저장 처리 — 구현 완료**
    - **재진입 루프 방지**: `_handle_auto_fix()` 진입 시 `extract_anchors(path)`로 앵커 존재 여부를 먼저 확인한다. 앵커가 이미 있으면 즉시 skip — `insert_module_anchors()`를 호출하지 않으므로 파일이 수정되지 않고, 추가 watchdog 이벤트도 발생하지 않는다.
    - **빈 파일/부분 저장**: AST 파싱 실패(빈 파일, 문법 오류) 시 skip하고 다음 저장 이벤트를 기다린다. 강제 재시도 로직은 두지 않는다.
 
-*이 기획안은 구현 전 검토용입니다. 확정 후 구현 계획(implementation plan)으로 전환.*
+*이 문서는 구현 완료 상태를 반영한 기록 문서입니다. 남은 항목은 Phase 2 이후 고도화 과제입니다.*
