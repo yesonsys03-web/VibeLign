@@ -5,9 +5,8 @@ patch_suggester가 wrapper 컴포넌트를 찾았을 때
 """
 import textwrap
 from pathlib import Path
-from unittest.mock import MagicMock, patch as mock_patch
-import pytest
-from vibelign.core.patch_suggester import _ai_select_file, _build_import_pool_expansion
+
+from vibelign.core.patch_suggester import _build_import_pool_expansion
 
 
 def _make_project(tmp_path: Path) -> tuple[Path, Path, Path]:
