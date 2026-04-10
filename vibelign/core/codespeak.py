@@ -4,7 +4,6 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 
 from vibelign.core.intent_ir import IntentIR
-from vibelign.core.request_normalizer import normalize_user_request
 
 
 ACTION_MAP = {
@@ -393,6 +392,7 @@ def _ko_to_slug(token: str) -> str:
             return en
     return token
 
+
 CODESPEAK_V0_RE = re.compile(
     r"^(?P<layer>[a-z][a-z0-9_]*)\.(?P<target>[a-z][a-z0-9_]*)\.(?P<subject>[a-z0-9가-힣][a-z0-9가-힣_]*)\.(?P<action>[a-z][a-z0-9_]*)$"
 )
@@ -511,6 +511,8 @@ def tokenize_request(text: str) -> list[str]:
 
 
 def normalize_request_text(text: str) -> str:
+    from vibelign.core.request_normalizer import normalize_user_request
+
     s, _ = normalize_user_request(text)
     return s
 
@@ -535,6 +537,8 @@ def _looks_like_behavior_clause(text: str) -> bool:
 
 
 def split_request_into_sub_intents(text: str) -> list[str]:
+    from vibelign.core.request_normalizer import normalize_user_request
+
     _, parts = normalize_user_request(text)
     return parts
 
@@ -684,6 +688,8 @@ def _infer_subject(tokens: list[str], layer: str, action: str) -> tuple[str, int
 
 
 def build_codespeak(request: str, root: Path | None = None) -> CodeSpeakResult:
+    from vibelign.core.request_normalizer import normalize_user_request
+
     normalized_request, sub_intents = normalize_user_request(request)
     primary_request = sub_intents[0] if sub_intents else normalized_request
     tokens = tokenize_request(primary_request)
