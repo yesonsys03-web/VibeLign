@@ -449,6 +449,38 @@ def extract_anchors(path: Path) -> list[str]:
 # === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHORS_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHOR_SPANS_START ===
+def extract_anchor_spans(path: Path) -> list[dict[str, object]]:
+    """각 앵커의 이름·시작줄·종료줄을 1-based 로 반환.
+
+    `_START` 마커가 나타난 줄을 start, 매칭되는 `_END` 마커의 줄을 end 로 기록.
+    짝 없는 `_END` 는 무시하고, 짝 없는 `_START` 는 end=None 으로 남긴다.
+    같은 이름이 중복 시 나타난 순서대로 모두 포함.
+    """
+    text = safe_read_text(path)
+    if not text:
+        return []
+    pending: dict[str, list[int]] = {}
+    spans: list[dict[str, object]] = []
+    for match in ANCHOR_RE.finditer(text):
+        raw = match.group(1)
+        line_no = text.count("\n", 0, match.start()) + 1
+        if raw.endswith("_START"):
+            base = re.sub(r"_START$", "", raw).rstrip("_")
+            pending.setdefault(base, []).append(len(spans))
+            spans.append({"name": base, "start": line_no, "end": None})
+        elif raw.endswith("_END"):
+            base = re.sub(r"_END$", "", raw).rstrip("_")
+            stack = pending.get(base)
+            if stack:
+                idx = stack.pop()
+                spans[idx]["end"] = line_no
+    return spans
+
+
+# === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHOR_SPANS_END ===
+
+
 # === ANCHOR: ANCHOR_TOOLS_SUGGEST_ANCHOR_NAMES_START ===
 def suggest_anchor_names(path: Path) -> list[str]:
     text = safe_read_text(path)

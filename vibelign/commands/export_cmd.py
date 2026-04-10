@@ -359,6 +359,8 @@ _CLAUDE_MD_CONTENT = """\
 
 > 전체 규칙은 프로젝트 루트의 `AI_DEV_SYSTEM_SINGLE_FILE.md`를 읽으세요.
 
+> **반드시 맨 먼저**: 어떤 코드 탐색/수정 도구(Read·Grep·Glob)를 호출하기 전에 `.vibelign/project_map.json` 을 먼저 Read 하세요. 파일 구조·앵커 위치·카테고리를 머리에 올린 뒤 작업 시작. (규칙 8번의 운용 강제)
+
 ## 핵심 원칙
 
 1. **가능한 가장 작은 패치를 적용하세요**

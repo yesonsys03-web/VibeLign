@@ -380,10 +380,12 @@ def run_watch(config: WatchConfig) -> None:
         # === ANCHOR: WATCH_ENGINE__RUN_GLOBAL_UPDATE_END ===
 
         # === ANCHOR: WATCH_ENGINE__REFRESH_PROJECT_MAP_START ===
-        def _refresh_project_map(self, changed: list[str]) -> None:
+        def _refresh_project_map(
+            self, changed: list[str], initial: bool = False
+        ) -> None:
             from datetime import datetime, timezone
             from vibelign.core.meta_paths import MetaPaths
-            from vibelign.core.scan_cache import incremental_scan
+            from vibelign.core.scan_cache import incremental_scan, load_scan_cache
 
             meta = MetaPaths(self.root)
             if not meta.project_map_path.exists():
@@ -399,10 +401,18 @@ def run_watch(config: WatchConfig) -> None:
             if payload is None:
                 return
 
+            old_cache = load_scan_cache(meta.scan_cache_path) if initial else None
+
+            if initial:
+                progress_message = (
+                    "🔄 초기 동기화: watch OFF 동안 변경된 파일 확인 중..."
+                )
+            else:
+                progress_message = f"⏳ 코드맵 갱신 중... (파일 {len(changed)}개 변경)"
             progress_event: WatchPayload = {
                 "level": "OK",
                 "path": "",
-                "message": f"⏳ 코드맵 갱신 중... (파일 {len(changed)}개 변경)",
+                "message": progress_message,
                 "why": "",
                 "action": "",
             }
@@ -414,22 +424,39 @@ def run_watch(config: WatchConfig) -> None:
                     meta.scan_cache_path,
                     invalidated=set(changed),
                 )
+                from vibelign.commands.vib_start_cmd import _resolve_import_graph
+
                 anchor_index = {
                     rel: data["anchors"]
                     for rel, data in scan.items()
                     if data.get("anchors")
                 }
+                resolved_imports, imported_by = _resolve_import_graph(scan)
                 files = {
                     rel: {
                         "category": data["category"],
                         "anchors": data["anchors"],
+                        "anchor_spans": data.get("anchor_spans", []),
                         "line_count": data["line_count"],
+                        "imports": resolved_imports.get(rel, []),
+                        "imported_by": sorted(imported_by.get(rel, [])),
                     }
                     for rel, data in scan.items()
                 }
+                mtime_pairs: list[tuple[str, float]] = []
+                for rel, data in scan.items():
+                    raw_mtime = data.get("mtime", 0)
+                    if isinstance(raw_mtime, (int, float)):
+                        mtime_pairs.append((rel, float(raw_mtime)))
+                mtime_pairs.sort(key=lambda item: item[1], reverse=True)
+                recently_changed = [
+                    {"path": rel, "mtime": mtime}
+                    for rel, mtime in mtime_pairs[:10]
+                ]
                 payload["anchor_index"] = anchor_index
                 payload["files"] = files
                 payload["file_count"] = len(scan)
+                payload["recently_changed"] = recently_changed
                 payload["schema_version"] = 2
                 payload["updated_at"] = (
                     datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -457,10 +484,29 @@ def run_watch(config: WatchConfig) -> None:
             except Exception:
                 return
 
+            if initial:
+                if old_cache is not None:
+                    caught_up = sum(
+                        1
+                        for rel, entry in scan.items()
+                        if old_cache.get(rel) != entry
+                    )
+                else:
+                    caught_up = 0
+                if caught_up == 0:
+                    done_message = "✅ 초기 동기화 완료 (변경 없음)"
+                else:
+                    done_message = (
+                        f"✅ 초기 동기화 완료: 파일 {caught_up}개 catch-up"
+                    )
+            else:
+                done_message = (
+                    f"✅ 파일 {len(changed)}개 변경 감지 → 코드맵 자동 갱신 완료"
+                )
             done_event: WatchPayload = {
                 "level": "OK",
                 "path": "",
-                "message": f"✅ 파일 {len(changed)}개 변경 감지 → 코드맵 자동 갱신 완료",
+                "message": done_message,
                 "why": "",
                 "action": "",
             }
@@ -591,6 +637,8 @@ def run_watch(config: WatchConfig) -> None:
     handler = VibeLignWatchHandler(
         root, state_path, strict, json_mode, log_path, auto_fix, debounce_ms
     )
+    # 초기 동기화: watch OFF 동안 수정된 파일을 catch-up
+    handler._refresh_project_map([], initial=True)
     observer = observer_factory()
     _ = observer.schedule(handler, str(root), recursive=True)
     _ = observer.start()

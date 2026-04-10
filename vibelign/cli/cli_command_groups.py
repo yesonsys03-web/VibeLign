@@ -384,6 +384,23 @@ def register_extended_commands(
     p.set_defaults(func=lazy_command("vibelign.commands.vib_scan_cmd", "run_vib_scan"))
 
     p = sub.add_parser(
+        "show",
+        help="앵커 블록만 콘솔에 찍어요",
+        description=(
+            "지정한 파일에서 앵커(_START~_END) 영역만 줄번호와 함께 출력해요.\n"
+            "큰 파일의 일부만 확인할 때 Read 보다 정확하고 토큰 절약에 좋아요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib show vibelign/core/anchor_tools.py EXTRACT_ANCHOR_SPANS\n"
+            "  vib show vibelign-gui/src/pages/Onboarding.tsx ONBOARDING"
+        ),
+    )
+    _ = p.add_argument("file", help="파일 경로 (프로젝트 루트 기준)")
+    _ = p.add_argument("anchor", help="앵커 이름 (_START/_END 없이)")
+    p.set_defaults(func=lazy_command("vibelign.commands.vib_show_cmd", "run_vib_show"))
+
+    p = sub.add_parser(
         "plan-structure",
         help="AI가 코딩하기 전 구조 계획을 만들어요",
         description=(
