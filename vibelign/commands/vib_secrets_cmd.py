@@ -42,7 +42,7 @@ def run_vib_secrets(args: Namespace) -> None:
         if result.status == "existing-hook":
             clack_warn("이미 다른 커밋 자동 실행 설정이 있어서 덮어쓰지 않았어요.")
             clack_info(
-                "그 설정 안에 `vib secrets --staged` 한 줄을 추가하면 같이 쓸 수 있어요."
+                "그 설정 안에 `vib secrets --staged`와 `vib guard --strict`를 추가하면 같이 쓸 수 있어요."
             )
             raise SystemExit(1)
         if result.status == "chmod-failed":
@@ -52,7 +52,7 @@ def run_vib_secrets(args: Namespace) -> None:
             if result.detail:
                 clack_info(result.detail)
             raise SystemExit(1)
-        clack_success("이제부터 커밋할 때마다 비밀정보를 자동 검사해요.")
+        clack_success("이제부터 커밋할 때마다 비밀정보와 strict guard를 자동 검사해요.")
         if result.path is not None:
             clack_info(str(result.path))
         return
