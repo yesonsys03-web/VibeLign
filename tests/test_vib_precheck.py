@@ -440,7 +440,103 @@ class VibPrecheckTest(unittest.TestCase):
                 },
             )
             self.assertEqual(code, 2)
-            self.assertIn("구조 계획 상태가 올바르지 않습니다", err)
+            self.assertEqual(
+                err,
+                "구조 계획 상태가 올바르지 않습니다. plan 파일과 state를 확인하세요\n",
+            )
+            self.assertEqual(_out, "")
+
+    def test_missing_plan_file_blocks_with_state_error_message(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir(parents=True, exist_ok=True)
+            (root / ".vibelign" / "state.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "planning": {
+                            "active": True,
+                            "plan_id": "missing_plan",
+                            "feature": "watch 수정",
+                            "override": False,
+                            "override_reason": None,
+                            "created_at": "2026-04-09T00:00:00Z",
+                            "updated_at": "2026-04-09T00:00:00Z",
+                        },
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (root / ".vibelign" / "config.yaml").write_text(
+                "schema_version: 1\n", encoding="utf-8"
+            )
+            code, _out, err = self._run_precheck(
+                root,
+                {
+                    "tool_name": "Write",
+                    "tool_input": {
+                        "file_path": str(
+                            root / "vibelign" / "core" / "watch_engine.py"
+                        ),
+                        "content": "# === ANCHOR: WATCH_ENGINE_START ===\ndef x():\n    return True\n# === ANCHOR: WATCH_ENGINE_END ===\n",
+                    },
+                },
+            )
+            self.assertEqual(code, 2)
+            self.assertEqual(
+                err,
+                "구조 계획 상태가 올바르지 않습니다. plan 파일과 state를 확인하세요\n",
+            )
+            self.assertEqual(_out, "")
+
+    def test_invalid_plan_state_blocks_with_state_error_message(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir(parents=True, exist_ok=True)
+            (root / ".vibelign" / "state.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "planning": {
+                            "active": True,
+                            "plan_id": None,
+                            "feature": "watch 수정",
+                            "override": False,
+                            "override_reason": None,
+                            "created_at": "2026-04-09T00:00:00Z",
+                            "updated_at": "2026-04-09T00:00:00Z",
+                        },
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (root / ".vibelign" / "config.yaml").write_text(
+                "schema_version: 1\n", encoding="utf-8"
+            )
+            code, _out, err = self._run_precheck(
+                root,
+                {
+                    "tool_name": "Write",
+                    "tool_input": {
+                        "file_path": str(
+                            root / "vibelign" / "core" / "watch_engine.py"
+                        ),
+                        "content": "# === ANCHOR: WATCH_ENGINE_START ===\ndef x():\n    return True\n# === ANCHOR: WATCH_ENGINE_END ===\n",
+                    },
+                },
+            )
+            self.assertEqual(code, 2)
+            self.assertEqual(
+                err,
+                "구조 계획 상태가 올바르지 않습니다. plan 파일과 state를 확인하세요\n",
+            )
+            self.assertEqual(_out, "")
 
     def test_key_complete_but_wrong_typed_plan_payload_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
