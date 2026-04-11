@@ -141,5 +141,51 @@ class ClassifyIntentVerbTest(unittest.TestCase):
         self.assertIsNone(_classify_intent_verb("로그인 정보"))
 
 
+from vibelign.core.patch_suggester import choose_anchor
+
+
+class ChooseAnchorVerbPreferenceTest(unittest.TestCase):
+    def test_mutate_request_beats_render_sibling(self):
+        """F1 regression: 바꿔줘 (MUTATE) must prefer HANDLE over RENDER.
+
+        Recreates change_error_msg: both LOGIN_HANDLE_LOGIN and
+        LOGIN_RENDER_LOGIN_ERROR live in the same file, and the current
+        keyword-only scorer ranks RENDER above HANDLE because the RENDER
+        intent contains literal '로그인/실패/시' keywords.
+        """
+        anchors = ["LOGIN", "LOGIN_HANDLE_LOGIN", "LOGIN_RENDER_LOGIN_ERROR"]
+        request_tokens = tokenize("로그인 실패 시 에러 메시지를 한국어로 바꿔줘")
+        anchor_meta = {
+            "LOGIN_HANDLE_LOGIN": {
+                "intent": "로그인 폼 제출을 처리하고 결과 응답을 반환합니다"
+            },
+            "LOGIN_RENDER_LOGIN_ERROR": {
+                "intent": "로그인 실패 시 오류 메시지를 보여줍니다"
+            },
+        }
+        best, _ = choose_anchor(anchors, request_tokens, anchor_meta)
+        self.assertEqual(best, "LOGIN_HANDLE_LOGIN")
+
+    def test_create_request_prefers_register_anchor(self):
+        anchors = ["AUTH", "AUTH_LOGIN_USER", "AUTH_REGISTER_USER"]
+        request_tokens = tokenize("새 계정 등록 기능 추가")
+        anchor_meta = {
+            "AUTH_LOGIN_USER": {"intent": "이메일과 비밀번호로 로그인합니다"},
+            "AUTH_REGISTER_USER": {"intent": "새 사용자를 등록합니다"},
+        }
+        best, _ = choose_anchor(anchors, request_tokens, anchor_meta)
+        self.assertEqual(best, "AUTH_REGISTER_USER")
+
+    def test_read_request_prefers_get_anchor(self):
+        anchors = ["USERS", "USERS_GET_USER_PROFILE", "USERS_UPDATE_USER_PROFILE"]
+        request_tokens = tokenize("프로필 정보 보여줘")
+        anchor_meta = {
+            "USERS_GET_USER_PROFILE": {"intent": "사용자 프로필을 조회합니다"},
+            "USERS_UPDATE_USER_PROFILE": {"intent": "프로필을 수정합니다"},
+        }
+        best, _ = choose_anchor(anchors, request_tokens, anchor_meta)
+        self.assertEqual(best, "USERS_GET_USER_PROFILE")
+
+
 if __name__ == "__main__":
     unittest.main()

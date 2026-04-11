@@ -866,6 +866,24 @@ def _classify_intent_verb(intent_text: str) -> Optional[str]:
     return None
 
 
+def _verb_cluster_bonus(
+    request_cluster: Optional[str],
+    anchor_cluster: Optional[str],
+) -> tuple[int, Optional[str]]:
+    """Return (score_delta, rationale_text_or_None) for a single comparison.
+
+    Match: +5. Mismatch: −4. The mismatch penalty is heavier than the plan's
+    initial −2 because intent descriptions that restate request wording can
+    pile up +20 in keyword overlap on the wrong-verb sibling, which a smaller
+    penalty cannot overcome. See ChooseAnchorVerbPreferenceTest F1 regression.
+    """
+    if request_cluster is None or anchor_cluster is None:
+        return 0, None
+    if request_cluster == anchor_cluster:
+        return 5, f"요청 동사 클러스터({request_cluster})가 앵커와 일치"
+    return -4, f"요청 동사 클러스터({request_cluster}) ↔ 앵커({anchor_cluster}) 불일치"
+
+
 def _has_style_token(request_tokens: Iterable[str]) -> bool:
     """조사가 붙은 토큰도 포함해서 스타일 키워드 존재 여부 확인"""
     return any(style in tok for tok in request_tokens for style in _UI_STYLE_TOKENS)
@@ -879,6 +897,7 @@ def choose_anchor(
     if not anchors:
         return "[먼저 앵커를 추가하세요]", ["이 파일에는 아직 앵커가 없습니다"]
     is_style_request = _has_style_token(request_tokens)
+    request_verb_cluster = _classify_request_verb(request_tokens)
     best_anchor = anchors[0]
     best_score = -1
     best_rationale = [f"첫 번째 앵커 '{best_anchor}'를 기본값으로 선택"]
@@ -892,6 +911,14 @@ def choose_anchor(
         score -= _anchor_quality_penalty(anchor_tokens)
         if any(token in anchor_tokens for token in ["core", "logic", "worker"]):
             score += 1
+        name_cluster = _classify_anchor_verb(anchor)
+        name_delta, name_reason = _verb_cluster_bonus(
+            request_verb_cluster, name_cluster
+        )
+        if name_delta:
+            score += name_delta
+            if name_reason:
+                rationale.append(name_reason)
         # intent 정보가 있으면 자연어 매칭 점수 추가
         if anchor_meta and anchor in anchor_meta:
             meta = anchor_meta[anchor]
@@ -905,6 +932,14 @@ def choose_anchor(
                         if len(intent) > 30
                         else f"앵커 의도('{intent}')에 키워드 '{token}'이 포함됨"
                     )
+                intent_cluster = _classify_intent_verb(intent)
+                intent_delta, intent_reason = _verb_cluster_bonus(
+                    request_verb_cluster, intent_cluster
+                )
+                if intent_delta:
+                    score += intent_delta
+                    if intent_reason:
+                        rationale.append(f"의도 동사: {intent_reason}")
                 # 스타일 요청인데 intent가 로직 성격이면 페널티
                 if is_style_request and any(
                     t in intent_tokens for t in _LOGIC_INTENT_TOKENS
