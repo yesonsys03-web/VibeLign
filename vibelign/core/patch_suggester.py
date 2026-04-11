@@ -659,6 +659,11 @@ def score_path(
             else set()
         )
         request_cluster = _classify_request_verb(request_tokens)
+        best_delta = 0
+        best_anchor_name: Optional[str] = None
+        best_matched: list[str] = []
+        best_verb_reason: Optional[str] = None
+        best_verb_delta = 0
         for anchor_name, meta_entry in intent_meta.items():
             if file_anchors and anchor_name not in file_anchors:
                 continue
@@ -667,22 +672,29 @@ def score_path(
                 continue
             intent_tokens = _intent_tokens(intent)
             matched = _meaningful_overlap(request_tokens, intent_tokens)
-            if matched:
-                score += len(matched) * 3
-                rationale.append(
-                    f"앵커 intent에 키워드 '{', '.join(matched)}'이 포함됨"
-                )
-                anchor_cluster = _classify_anchor_verb(anchor_name)
-                intent_cluster = _classify_intent_verb(intent)
-                effective_cluster = anchor_cluster or intent_cluster
-                verb_delta, verb_reason = _verb_cluster_bonus(
-                    request_cluster, effective_cluster
-                )
-                if verb_delta:
-                    score += verb_delta
-                    if verb_reason and verb_delta > 0:
-                        rationale.append(f"intent 동사 일치: {verb_reason}")
-                break
+            if not matched:
+                continue
+            kw_delta = len(matched) * 3
+            anchor_cluster = _classify_anchor_verb(anchor_name)
+            intent_cluster = _classify_intent_verb(intent)
+            effective_cluster = anchor_cluster or intent_cluster
+            verb_delta, verb_reason = _verb_cluster_bonus(
+                request_cluster, effective_cluster
+            )
+            total_delta = kw_delta + verb_delta
+            if total_delta > best_delta:
+                best_delta = total_delta
+                best_anchor_name = anchor_name
+                best_matched = matched
+                best_verb_reason = verb_reason
+                best_verb_delta = verb_delta
+        if best_anchor_name is not None:
+            score += best_delta
+            rationale.append(
+                f"앵커 intent에 키워드 '{', '.join(best_matched)}'이 포함됨"
+            )
+            if best_verb_reason and best_verb_delta > 0:
+                rationale.append(f"intent 동사 일치: {best_verb_reason}")
     return score, rationale
 
 
