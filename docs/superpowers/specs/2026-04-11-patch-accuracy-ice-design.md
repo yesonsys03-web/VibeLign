@@ -86,6 +86,66 @@ VibeLign `vib patch` 파이프라인의 **앵커 배치 정확도**와 **의도/
 
 측정 환경: `/tmp/vibelign-ice-sandbox-postC1` 에서 `vib start` + `vib anchor --auto` 후 `vib patch --json` 로 5개 시나리오 실행. ICE 세션과 동일한 sample_project 사용. C1 커밋 범위: `bc8de4e`, `222e85f`, `d596614`, `ffb9dbd`, `2e5e1f6`.
 
+### `--ai` 모드 베이스라인 (2026-04-12)
+
+Post-C1 측정이 `use_ai=False` (deterministic 경로) 로만 돌아간 한계를 보정하기 위해 **정석 사용자 기준** (`vib patch --ai --json`) 으로 동일 5 시나리오를 재측정. 공급자: Gemini (`~/.config/vibelign/api_keys.json` 에 `GEMINI_API_KEY` 저장). 샌드박스: `/tmp/vibelign-ice-sandbox-postC1-ai` (동일 sample_project + `vib start` + `vib anchor --auto`, 24개 앵커). 2회 반복 실행 결과 **완전 동일** — 랜덤성 영향 없음.
+
+| 시나리오 ID | AI 선택 파일 | AI 선택 앵커 | confidence | files_ok | anchor_ok | overall | C1 det 대비 |
+|---|---|---|---|---|---|---|---|
+| change_error_msg       | `pages/login.py`      | `LOGIN_HANDLE_LOGIN`    | low    | ✅ | ✅ | ✅ | 유지 |
+| add_email_domain_check | `core/validators.py`  | `VALIDATORS`            | medium | ❌ | ❌ | ❌ | F2 잔존 (동일) |
+| fix_login_lock_bug     | `api/auth.py`         | `AUTH_LOGIN_USER`       | low    | ✅ | ✅ | ✅ | 유지 |
+| add_bio_length_limit   | `core/validators.py`  | `VALIDATORS`            | high   | ❌ | ❌ | ❌ | **회귀** (C1 det=✅ → --ai=❌, F3 재발) |
+| add_password_change    | `api/auth.py`         | `AUTH__GENERATE_TOKEN`  | high   | ❌ (1/2, `pages/profile.py` 누락) | N/A | ❌ | F4 잔존 (동일) |
+
+- files 정확도: **2 / 5** (40%) ← C1 det 3/5 대비 **-20%p**
+- anchor 정확도: **2 / 4** (50%) ← C1 det 3/4 대비 **-25%p**
+- overall 정확도: **2 / 5** (40%) ← C1 det 3/5 대비 **-20%p**
+
+**핵심 발견:** `--ai` 모드가 C1 deterministic 보다 **낮다**. 원인 분석:
+
+1. **`_ai_select_file` 의 over-triggering** (`patch_suggester.py:1212-1219`): `should_use_ai = confidence == "low" or use_ai` — `--ai` 플래그가 있으면 confidence 와 무관하게 무조건 AI 호출. deterministic 이 이미 정답을 상위로 올린 경우에도 AI 가 덮어쓴다.
+2. **`add_bio_length_limit` 회귀**: C1 의 verb 보너스가 `pages/profile.py::PROFILE_HANDLE_PROFILE_UPDATE` 를 올바르게 top-1 으로 만들었는데, `_ai_select_file` 이 후보 풀 (top 10 + ui_modules + 1-hop imports) 을 보고 `core/validators.py` 를 선택. AI 는 "bio 길이 제한" 을 validation 으로 분류한 것. C1 이 올린 precision 을 AI 가 도로 뒤집는다.
+3. **anchor 필드의 모듈 수준 폴백**: `VALIDATORS` 같은 모듈-레벨 앵커는 AI 가 파일만 선택하고 함수 앵커 매칭이 실패할 때 나오는 기본값. `correct_anchor` 엄격 매칭에서 전부 실패.
+4. **`add_password_change` 의 F4 미해결**: `--ai` 는 파일 선택만 대체하고 `steps[]`/`sub_intents` 구조는 건드리지 않음. 여전히 단일 파일 붕괴.
+
+**함의 ("deterministic = prefilter, AI = final judge" 가정의 재검토):**
+- 메모리에 기록된 설계 철학 — "deterministic 이 쇼트리스트를 좁히고 AI 가 최종 판단" — 은 **현재 구현에서 실측으로 반증됨**. 현재 `_ai_select_file` 은 retrieval 층의 결과를 최종 판단으로 받지 않고 **뒤집는다**.
+- 이 결과는 C5 러너의 "**prefilter recall 과 최종 정확도를 분리 측정**" 설계 원칙을 뒷받침한다. C1 은 precision (top-1) 을 올렸지만, `--ai` 오버라이드가 뒷단에 있으면 그 이득이 소실된다.
+- **다음 ICE 라운드 우선순위 재조정 필요**: C2 (layer routing) 보다 **`_ai_select_file` 의 프롬프트/후보 풀 개선** 이 더 높은 impact 일 가능성. C1 deterministic 랭킹 결과를 AI 에 명시적으로 전달 + "이미 top-1 이 수긍되면 그대로 가라" 형태의 deference 룰이 필요.
+
+### Post-C6 재측정 (`--ai` deference, 2026-04-12)
+
+C6 (AI deference rule) 적용 후 재측정. 구현 플랜: `docs/superpowers/plans/2026-04-12-patch-accuracy-c6-ai-deference.md`. 변경 지점: `vibelign/core/patch_suggester.py:1207-1225` (`suggest_patch` 내 `should_use_ai` 계산). Deference 룰:
+- `confidence == "high"` + `use_ai=True` → AI 호출 **건너뜀** (deterministic top-1 신뢰)
+- `confidence == "medium"` + `use_ai=True` → AI 호출 (사용자 escape hatch 유지)
+- `confidence == "low"` → AI 호출 (use_ai 무관)
+
+측정 방식: **pinned-intent 샌드박스** (`tests/test_patch_accuracy_scenarios.py::_prepare_sandbox`) 를 canonical 경로로 채택. 이전 auto-intent 측정은 `vib anchor --auto` 의 LLM 비결정성으로 인한 drift 가 있어 재현성이 낮음 — pinned-intent 는 결정적이라 회귀 가드로 적합.
+
+| 시나리오 ID | det 결과 (`use_ai=False`) | ai 결과 (`use_ai=True`) | confidence | files_ok | anchor_ok | overall | 2026-04-12 auto `--ai` 대비 |
+|---|---|---|---|---|---|---|---|
+| change_error_msg       | `pages/login.py` / `LOGIN_HANDLE_LOGIN`                | 동일 | high | ✅ | ✅ | ✅ | 유지 |
+| add_email_domain_check | `api/auth.py` / `AUTH_REGISTER_USER`                   | 동일 | high | ❌ | ❌ | ❌ | 유지 (C2 대상, F2 잔존) |
+| fix_login_lock_bug     | `api/auth.py` / `AUTH_LOGIN_USER`                      | 동일 | low  | ✅ | ✅ | ✅ | 유지 |
+| add_bio_length_limit   | `pages/profile.py` / `PROFILE_HANDLE_PROFILE_UPDATE`   | 동일 | high | ✅ | ✅ | ✅ | **회귀 해소** |
+| add_password_change    | `api/auth.py` / `AUTH__HASH_PASSWORD`                  | 동일 | high | ❌ | N/A | ❌ | 유지 (C4 대상, F4 잔존) |
+
+- files 정확도: **3 / 5** (60%) ← 2026-04-12 auto `--ai` (2/5, 40%) 대비 **+20%p**
+- anchor 정확도: **3 / 4** (75%) ← 2026-04-12 auto `--ai` (2/4, 50%) 대비 **+25%p**
+- overall 정확도: **3 / 5** (60%) ← 2026-04-12 auto `--ai` (2/5, 40%) 대비 **+20%p**
+
+**Deference consistency 검증:** 4개 high-confidence 케이스(`change_error_msg`, `add_email_domain_check`, `add_bio_length_limit`, `add_password_change`)에서 `use_ai=False` 와 `use_ai=True` 의 `target_file` / `target_anchor` 가 **완전 동일**. Deference 룰이 의도대로 동작함. `low` confidence 케이스(`fix_login_lock_bug`) 는 여전히 AI 폴백 경로를 거침.
+
+**결론:**
+- `--ai` 모드 정확도가 C1 deterministic 과 **정확히 동률** (3/5, 3/4, 3/5). "deterministic = prefilter / AI = low-confidence judge" 설계 철학과 코드 구현이 일치.
+- 남은 실패는 전부 **회귀가 아닌 기존 taxonomy**: `add_email_domain_check` (F2 layer routing, C2 대상), `add_password_change` (F4 multi-fanout, C4 대상).
+- 다음 ICE 라운드 후보는 C2/C4 로 원래 계획 복귀. C6 는 "`--ai` 오버라이드가 C1 이득을 소실시키는 문제" 를 해결했고, C2/C4 의 잔존 실패는 별개 문제임이 확인됨.
+
+**회귀 가드 (TDD):** `tests/test_patch_accuracy_scenarios.py::TestAIDeference` 에 2개 단위 테스트 추가:
+- `test_high_confidence_deterministic_result_is_preserved_under_ai`: `unittest.mock.patch` 로 `_ai_select_file` 을 "호출되면 실패" 하는 mock 으로 대체 → high-confidence 케이스에서 AI 가 호출되지 않음을 직접 검증.
+- `test_low_confidence_still_invokes_ai_when_flag_set`: `fix_login_lock_bug` (pinned-intent 샌드박스에서 유일한 low-confidence 시나리오) 에서 AI 가 여전히 호출되는지 확인 → deference 룰이 over-broad 해서 `--ai` 플래그를 no-op 로 만드는 것을 방지.
+
 ---
 
 ## 4. Failure Taxonomy
