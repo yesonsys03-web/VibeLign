@@ -35,3 +35,27 @@ class TestBug2PhantomSpans:
         assert extract_anchors(p) == ["REAL_TWO"]
         spans = extract_anchor_spans(p)
         assert [s["name"] for s in spans] == ["REAL_TWO"]
+
+
+class TestBug4DunderPreserved:
+    def test_extract_anchors_preserves_dunder_suffix(self, tmp_path: Path) -> None:
+        text = (
+            "# === ANCHOR: CLI_BASE___INIT___START ===\n"
+            "pass\n"
+            "# === ANCHOR: CLI_BASE___INIT___END ===\n"
+        )
+        p = _write(tmp_path, "cli_base.py", text)
+        assert extract_anchors(p) == ["CLI_BASE___INIT__"]
+
+    def test_extract_anchor_spans_preserves_dunder_suffix(self, tmp_path: Path) -> None:
+        text = (
+            "# === ANCHOR: CLI_BASE___INIT___START ===\n"
+            "pass\n"
+            "# === ANCHOR: CLI_BASE___INIT___END ===\n"
+        )
+        p = _write(tmp_path, "cli_base.py", text)
+        spans = extract_anchor_spans(p)
+        assert len(spans) == 1
+        assert spans[0]["name"] == "CLI_BASE___INIT__"
+        assert spans[0]["start"] == 1
+        assert spans[0]["end"] == 3
