@@ -462,13 +462,17 @@ def extract_anchor_spans(path: Path) -> list[dict[str, object]]:
         return []
     pending: dict[str, list[int]] = {}
     spans: list[dict[str, object]] = []
+    seen_counts: dict[str, int] = {}
     for match in ANCHOR_RE.finditer(text):
         raw = match.group(1)
         line_no = text.count("\n", 0, match.start()) + 1
         if raw.endswith("_START"):
             base = re.sub(r"_START$", "", raw)
+            seen_counts[base] = seen_counts.get(base, 0) + 1
+            occurrence = seen_counts[base]
+            display_name = base if occurrence == 1 else f"{base}_{occurrence}"
             pending.setdefault(base, []).append(len(spans))
-            spans.append({"name": base, "start": line_no, "end": None})
+            spans.append({"name": display_name, "start": line_no, "end": None})
         elif raw.endswith("_END"):
             base = re.sub(r"_END$", "", raw)
             stack = pending.get(base)
