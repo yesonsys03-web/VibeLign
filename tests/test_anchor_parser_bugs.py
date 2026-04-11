@@ -76,3 +76,22 @@ class TestBug3DanglingStartDropped:
         names = [s["name"] for s in spans]
         assert names == ["GOOD"]
         assert all(s["end"] is not None for s in spans)
+
+
+class TestBug1DuplicateNamesSuffixed:
+    def test_duplicate_spans_get_numeric_suffix(self, tmp_path: Path) -> None:
+        text = (
+            "# === ANCHOR: DUP_START ===\n"
+            "first = 1\n"
+            "# === ANCHOR: DUP_END ===\n"
+            "\n"
+            "# === ANCHOR: DUP_START ===\n"
+            "second = 2\n"
+            "# === ANCHOR: DUP_END ===\n"
+        )
+        p = _write(tmp_path, "mod.py", text)
+        spans = extract_anchor_spans(p)
+        names = [s["name"] for s in spans]
+        assert names == ["DUP", "DUP_2"]
+        assert spans[0]["start"] == 1 and spans[0]["end"] == 3
+        assert spans[1]["start"] == 5 and spans[1]["end"] == 7
