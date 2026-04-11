@@ -164,11 +164,20 @@ class TestAIDeference(unittest.TestCase):
         """Low-confidence path must still call the AI selector.
 
         The deference rule only applies to `high` confidence. This guards
-        against an over-broad fix that turns `--ai` into a no-op.
+        against an over-broad fix that turns `--ai` into a no-op. With
+        pinned intents `fix_login_lock_bug` is the only scenario whose
+        deterministic run produces `low` confidence.
         """
         from unittest.mock import patch as mock_patch
 
-        sc = self.scenarios["change_error_msg"]
+        sc = self.scenarios["fix_login_lock_bug"]
+        precheck = suggest_patch(self.sandbox, sc["request"], use_ai=False)
+        self.assertEqual(
+            precheck.confidence, "low",
+            "test premise broken: fix_login_lock_bug must be low confidence "
+            "under the pinned-intent sandbox for this guard to be meaningful",
+        )
+
         called = {"count": 0}
 
         def _record(*args, **kwargs):
@@ -183,7 +192,7 @@ class TestAIDeference(unittest.TestCase):
 
         self.assertGreaterEqual(
             called["count"], 1,
-            "AI selector must be called on low-confidence `change_error_msg`",
+            "AI selector must be called on low-confidence `fix_login_lock_bug`",
         )
 
 
