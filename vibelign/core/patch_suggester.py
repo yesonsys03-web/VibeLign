@@ -1205,17 +1205,24 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
             f"상위 후보 점수 차이가 작음 ({best_score} vs {second_score}) — 위치 확인이 더 필요함"
         ]
     stateful_ui_request = _is_stateful_ui_request(request_tokens)
-    # --ai 명시: confidence 무관하게 AI가 파일 선택
-    # --ai 없음: confidence LOW일 때만 AI 폴백
+    # Deference rule (C6, 2026-04-12):
+    # - confidence == "low": AI always invoked (use_ai flag irrelevant)
+    # - confidence == "medium" + use_ai: AI invoked (user escape hatch)
+    # - confidence == "high" + use_ai: AI **skipped** — deterministic top-1
+    #   is trusted. Prevents --ai from overriding C1 verb-aware ranking on
+    #   scenarios where deterministic already found the right file.
+    # - use_ai=False + confidence != "low": AI not invoked (unchanged)
     best_path_tokens = _path_tokens(relpath_str(root, best_path))
     best_is_frontend = best_path.suffix.lower() in _FRONTEND_EXTS
+    ai_override_blocked_by_state_hint = (
+        stateful_ui_request
+        and best_is_frontend
+        and any(token in best_path_tokens for token in _STATE_OWNER_FILE_HINTS)
+    )
     should_use_ai = confidence == "low" or (
         use_ai
-        and not (
-            stateful_ui_request
-            and best_is_frontend
-            and any(token in best_path_tokens for token in _STATE_OWNER_FILE_HINTS)
-        )
+        and confidence != "high"
+        and not ai_override_blocked_by_state_hint
     )
     if should_use_ai:
         ai_result = _ai_select_file(
