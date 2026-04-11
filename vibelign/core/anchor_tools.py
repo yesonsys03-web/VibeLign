@@ -441,7 +441,7 @@ def extract_anchors(path: Path) -> list[str]:
     anchors: list[str] = []
     for match in ANCHOR_RE.finditer(safe_read_text(path)):
         raw = match.group(1)
-        base = re.sub(r"_(START|END)$", "", raw).rstrip("_")
+        base = re.sub(r"_(START|END)$", "", raw)
         anchors.append(base)
     return list(dict.fromkeys(anchors))
 
@@ -466,11 +466,11 @@ def extract_anchor_spans(path: Path) -> list[dict[str, object]]:
         raw = match.group(1)
         line_no = text.count("\n", 0, match.start()) + 1
         if raw.endswith("_START"):
-            base = re.sub(r"_START$", "", raw).rstrip("_")
+            base = re.sub(r"_START$", "", raw)
             pending.setdefault(base, []).append(len(spans))
             spans.append({"name": base, "start": line_no, "end": None})
         elif raw.endswith("_END"):
-            base = re.sub(r"_END$", "", raw).rstrip("_")
+            base = re.sub(r"_END$", "", raw)
             stack = pending.get(base)
             if stack:
                 idx = stack.pop()
