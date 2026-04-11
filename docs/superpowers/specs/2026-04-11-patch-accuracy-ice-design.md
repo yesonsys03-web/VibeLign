@@ -70,6 +70,22 @@ VibeLign `vib patch` 파이프라인의 **앵커 배치 정확도**와 **의도/
 - anchor 정확도: **1 / 4** (25%) — add_password_change 는 N/A 로 제외
 - overall 정확도: **1 / 5** (20%)
 
+### Post-C1 재측정 (2026-04-11)
+
+| 시나리오 ID | files_ok | anchor_ok | overall | 변화 |
+|---|---|---|---|---|
+| change_error_msg       | ✅ | ✅ | ✅ | F1 fix (`LOGIN_RENDER_LOGIN_ERROR` → `LOGIN_HANDLE_LOGIN`) |
+| add_email_domain_check | ❌ | ❌ | ❌ | F2 잔존 (예상) — `api/auth.py` + `AUTH_REGISTER_USER` 로 여전히 라우팅 |
+| fix_login_lock_bug     | ✅ | ✅ | ✅ | 유지 (`api/auth.py` + `AUTH_LOGIN_USER`) |
+| add_bio_length_limit   | ✅ | ✅ | ✅ | F3 fix (`api/users.py` → `pages/profile.py`, `USERS_GET_USER_PROFILE` → `PROFILE_HANDLE_PROFILE_UPDATE`) |
+| add_password_change    | ❌ | N/A | ❌ | F2/F4 잔존 (예상) — `api/auth.py` + `AUTH_LOGIN_USER` |
+
+- files 정확도: **3 / 5** (60%) ← +40%p
+- anchor 정확도: **3 / 4** (75%) ← +50%p
+- overall 정확도: **3 / 5** (60%) ← +40%p
+
+측정 환경: `/tmp/vibelign-ice-sandbox-postC1` 에서 `vib start` + `vib anchor --auto` 후 `vib patch --json` 로 5개 시나리오 실행. ICE 세션과 동일한 sample_project 사용. C1 커밋 범위: `bc8de4e`, `222e85f`, `d596614`, `ffb9dbd`, `2e5e1f6`.
+
 ---
 
 ## 4. Failure Taxonomy
