@@ -835,25 +835,30 @@ def _classify_anchor_verb(anchor_name: str) -> Optional[str]:
 def _classify_intent_verb(intent_text: str) -> Optional[str]:
     """Return the verb cluster implied by an anchor intent string, or None.
 
-    Reuses the request-verb stem table since intents are written in Korean
-    natural language like "로그인 폼 제출을 처리합니다" or
-    "로그인 실패 시 오류 메시지를 보여줍니다".
+    Collects every matching stem across the intent's tokens and returns
+    the LAST match, consistent with `_classify_request_verb`. `_intent_tokens`
+    returns a set, so we scan all tokens rather than short-circuiting on the
+    first hit — that way the result is invariant under Python's hash-seed
+    randomization.
+
+    Falls back to a substring scan for Korean verbs like "처리합니다" /
+    "저장됩니다" where the stem is fused with the inflection and the
+    tokenizer would not surface it as a separate token.
     """
     if not intent_text:
         return None
-    tokens = list(_intent_tokens(intent_text))
-    for token in tokens:
+    last_cluster: Optional[str] = None
+    for token in _intent_tokens(intent_text):
         for stem, cluster in _REQUEST_VERB_STEMS:
             if token.startswith(stem):
-                return cluster
-    # Fallback: check whole text contains stem as substring (for verbs like
-    # "처리" that may be embedded in "처리합니다").
+                last_cluster = cluster
+                break
+    if last_cluster is not None:
+        return last_cluster
     lowered = intent_text.lower()
     processing_stems = (
         ("처리", _VERB_CLUSTER_MUTATE),
         ("저장", _VERB_CLUSTER_MUTATE),
-        ("보여", _VERB_CLUSTER_READ),
-        ("표시", _VERB_CLUSTER_READ),
     )
     for stem, cluster in processing_stems:
         if stem in lowered:
