@@ -27,25 +27,22 @@ VibeLign `vib patch` 파이프라인의 **앵커 배치 정확도**와 **의도/
 
 ## 2. Measurement
 
-### 실행 방식
-- **주체:** 사용자 본인
-- **대상:** `tests/benchmark/sample_project/`
-- **조건:** B (앵커 인덱스가 프롬프트에 포함된 상태) 단일 조건
-- **횟수:** `scenarios.json` 의 5개 시나리오 각 1회
-- **명령:** 각 시나리오의 `request` 텍스트를 그대로 `vib patch` 에 전달
-- **기록 항목:** 시나리오 ID, AI가 선택한 파일 목록, AI가 선택한 앵커 이름, 제안된 변경 요약(선택 사항)
+### 실행 방식 (실측)
+- **주체:** Claude Code 세션이 이 자리에서 직접 실행 (사용자가 수동으로 돌리지 않음 — `vib bench` 시스템을 발견한 뒤 경로 β 로 재정렬, 2026-04-11)
+- **샌드박스:** `/tmp/vibelign-ice-sandbox` — `tests/benchmark/sample_project/` 를 복사한 뒤 `vib start` → `vib anchor --auto` 로 24개 앵커 + intent 자동 생성
+- **조건:** `vib patch --json "<request>"` 단일 조건 (앵커/코드맵 모두 구축된 상태)
+- **AI 플래그:** `--ai` **미사용**. 기본 휴리스틱 경로(키워드 매칭 + AI 생성 intent 매칭)만 측정. `--ai` 경로는 §6에서 ICE 후보로 별도 평가.
+- **파싱:** JSON 출력의 `data.patch_plan.target_file` / `target_anchor` / `steps[]` 필드 추출
 
 ### 원시 결과 표
 
-| 시나리오 ID | AI 선택 파일 | AI 선택 앵커 | Notes |
-|---|---|---|---|
-| change_error_msg     | _(to fill)_ | _(to fill)_ | |
-| add_email_domain_check | _(to fill)_ | _(to fill)_ | |
-| fix_login_lock_bug   | _(to fill)_ | _(to fill)_ | |
-| add_bio_length_limit | _(to fill)_ | _(to fill)_ | |
-| add_password_change  | _(to fill)_ | _(to fill)_ | |
-
-> 이 표는 사용자가 5회 실행을 마친 뒤 함께 채운다. 이후 §3 Scoring 블록이 자동 생성된다.
+| 시나리오 ID | AI 선택 파일 | AI 선택 앵커 | confidence | 비고 |
+|---|---|---|---|---|
+| change_error_msg       | `pages/login.py`     | `LOGIN_RENDER_LOGIN_ERROR`     | low    | intent 매칭이 "로그인/실패/시" 키워드를 render_login_error 로 끌고 감 |
+| add_email_domain_check | `core/validators.py` | `VALIDATORS_VALIDATE_EMAIL_DOMAIN` | medium | 호출자(signup) 대신 유틸리티 정의부로 직행 |
+| fix_login_lock_bug     | `api/auth.py`        | `AUTH_LOGIN_USER`              | low    | 정답과 일치 |
+| add_bio_length_limit   | `api/users.py`       | `USERS_GET_USER_PROFILE`       | low    | UI(profile.py) 대신 서비스 get 앵커로, 동사(update)도 반영 안 됨 |
+| add_password_change    | `core/validators.py` | `VALIDATORS_VALIDATE_PASSWORD` | medium | 다중 파일 요청이 단일 유틸로 붕괴, `steps[]` 는 1개 |
 
 ---
 
@@ -62,28 +59,58 @@ VibeLign `vib patch` 파이프라인의 **앵커 배치 정확도**와 **의도/
 
 | 시나리오 ID | files_ok | anchor_ok | overall |
 |---|---|---|---|
-| change_error_msg     | _(to fill)_ | _(to fill)_ | _(to fill)_ |
-| add_email_domain_check | _(to fill)_ | _(to fill)_ | _(to fill)_ |
-| fix_login_lock_bug   | _(to fill)_ | _(to fill)_ | _(to fill)_ |
-| add_bio_length_limit | _(to fill)_ | _(to fill)_ | _(to fill)_ |
-| add_password_change  | _(to fill)_ | N/A         | _(to fill)_ |
+| change_error_msg       | ✅ | ❌ (기대 `LOGIN_HANDLE_LOGIN`) | ❌ |
+| add_email_domain_check | ❌ (기대 `pages/signup.py`) | ❌ (기대 `SIGNUP_HANDLE_SIGNUP`) | ❌ |
+| fix_login_lock_bug     | ✅ | ✅ | ✅ |
+| add_bio_length_limit   | ❌ (기대 `pages/profile.py`) | ❌ (기대 `PROFILE_HANDLE_PROFILE_UPDATE`) | ❌ |
+| add_password_change    | ❌ (기대 `api/auth.py` + `pages/profile.py` 다중 파일) | N/A (`correct_anchor = null`) | ❌ |
 
 ### 집계
-- files 정확도: _X_ / 5
-- anchor 정확도: _Y_ / 4  (add_password_change 제외)
-- overall 정확도: _Z_ / 5
+- files 정확도: **1 / 5** (20%)
+- anchor 정확도: **1 / 4** (25%) — add_password_change 는 N/A 로 제외
+- overall 정확도: **1 / 5** (20%)
 
 ---
 
 ## 4. Failure Taxonomy
 
-실패한 케이스에서 공통 원인을 추출하여 유형 ID를 부여한다.
+4개의 실패 케이스에서 4종의 근본 원인을 추출했다.
 
-| ID | 유형명 | 영향 시나리오 | 추정 원인 |
-|---|---|---|---|
-| F? | _(to fill)_ | _(to fill)_ | _(to fill)_ |
+### F1 — 같은 파일 내 "잘못된 형제 앵커" 선택 (키워드 교집합 편향)
 
-> **조기 종료 조건:** overall 정확도가 5/5 이면 "현 시점에서 A+C 범위는 개선 불필요"로 판정하고, §5~§8을 비운 상태로 "범위를 B(코드 생성) 또는 D(apply)로 전환 권고"를 §9에 기록한 뒤 writing-plans 호출 없이 세션을 종료한다.
+- **영향 시나리오:** `change_error_msg` (1건)
+- **추정 원인:** `vibelign/core/patch_suggester.py::_score_anchor_names` 와 intent 매칭 루프가 **요청 토큰과 앵커 토큰의 집합 교집합 개수 × 3** 으로만 점수를 계산한다. 요청의 **동사**(바꿔줘 = update)는 점수에 전혀 반영되지 않아, 같은 파일에서 키워드가 많이 겹치는 **display-only 앵커**(`LOGIN_RENDER_LOGIN_ERROR`, intent: "로그인 실패 시 오류 메시지를 보여줍니다")가 **실제 변경이 필요한 핸들러 앵커**(`LOGIN_HANDLE_LOGIN`, 응답 딕셔너리의 literal을 반환) 보다 더 높은 점수를 받는다.
+- **코드 근거:** `patch_suggester.py:277-312` — 점수 = `match_count * 3`, verb 가중치 없음.
+
+### F2 — 레이어 오배치: 호출자(caller) 대신 유틸리티(utility) 정의부로 직행
+
+- **영향 시나리오:** `add_email_domain_check`, `add_password_change` (2건)
+- **추정 원인:** 요청에 "이메일 도메인 검사", "비밀번호 변경" 같은 명사가 들어가면 매처가 **해당 이름의 유틸리티 함수 앵커** (`VALIDATORS_VALIDATE_EMAIL_DOMAIN`, `VALIDATORS_VALIDATE_PASSWORD`) 에 최고점을 주고, 실제로 수정해야 하는 **호출자 측**(`SIGNUP_HANDLE_SIGNUP`, `AUTH_*` / `PROFILE_*`) 은 놓친다. "use existing utility from caller" 와 "modify utility" 를 구분하는 로직이 없다.
+- **코드 근거:** `patch_suggester.py` 에 `project_map.ui_modules` 는 AI 후보 확장에만 쓰이고, 레이어 기반 라우팅 규칙은 없음.
+
+### F3 — 요청 동사 무시 (GET vs UPDATE, RENDER vs HANDLE)
+
+- **영향 시나리오:** `add_bio_length_limit` (1건)
+- **추정 원인:** F1 과 같은 뿌리. 요청에 "수정 시 제한"(update) 이 있음에도 매처는 `USERS_GET_USER_PROFILE` 같은 read 계열 앵커를 선택했다. 앵커 이름에 이미 `GET_*`, `HANDLE_*`, `UPDATE_*`, `RENDER_*` 같은 verb 클러스터가 있음에도, 점수 계산에서 **요청 verb ↔ 앵커 verb 매칭** 자체가 없다.
+- **F1 과의 관계:** 해결책은 공유 가능 (verb-aware scoring) — §6 에서 하나의 후보로 통합.
+
+### F4 — 다중 파일 요청의 단일 타깃 붕괴
+
+- **영향 시나리오:** `add_password_change` (1건, F2 와 중첩)
+- **추정 원인:** "비밀번호 변경 기능 추가" 는 명백히 `api/auth.py` (서비스 로직) + `pages/profile.py` (UI) 두 파일 수정이 필요하지만, `vib patch --json` 출력의 `steps[]` 배열은 단일 엔트리, `sub_intents` 는 `null`. 의도 파서가 multi-intent 구조를 감지하지 못함. `--lazy-fanout` 플래그가 존재하지만 opt-in 이라 기본 경로에서는 활성화되지 않는다.
+
+### 유형 빈도 요약
+
+| 유형 ID | 영향 케이스 수 | 전체 실패 중 비중 |
+|---|---|---|
+| F1 | 1 | 25% |
+| F2 | 2 | 50% |
+| F3 | 1 | 25% |
+| F4 | 1 | 25% |
+
+(F2+F4 중첩 1건 — `add_password_change`)
+
+> **조기 종료 조건:** overall 정확도가 5/5 이면 "현 시점에서 A+C 범위는 개선 불필요"로 판정하고 세션을 종료한다. 현 측정 결과는 1/5 (20%) 이므로 조기 종료 조건 미해당, 정상 경로로 진행.
 
 ---
 
@@ -129,14 +156,24 @@ ICE = (Impact × Confidence) / (6 − Effort)
 
 ## 6. Candidates & ICE Table
 
-각 실패 유형마다 1~3개의 해결 후보를 도출하고 점수를 매긴다.
+실패 유형 F1~F4 에 대응하는 5개 후보. 점수는 `(I × C) / (6 − E)`.
 
-| ID | 후보 | 대상 유형 | I | C | E | 점수 | 근거 | 구현 힌트 |
+| ID  | 후보 | 대상 유형 | I | C | E | 점수 | 근거 | 구현 힌트 |
 |---|---|---|---|---|---|---|---|---|
-| C? | _(to fill)_ | F? | _ | _ | _ | _ | _(to fill)_ | _(to fill)_ |
+| C1  | **Verb-aware 앵커 스코어링** — `_score_anchor_names` 와 intent 매칭에 요청-동사 ↔ 앵커-동사 클러스터 매칭을 추가. 클러스터: MUTATE(바꿔/수정/변경), CREATE(추가/만들/생성), DELETE(삭제/제거), READ(조회/보기/표시). 앵커 이름 접두어(HANDLE/UPDATE/SET/CREATE/ADD/GET/READ/RENDER) 와 intent 본문 동사를 같은 클러스터로 분류. 매칭시 +5, 불일치시 −2. 기존 키워드 교집합 점수는 base 로 유지. | F1, F3 | 5 | 5 | 3 | **8.33** | F1/F3 모두 동일 뿌리(동사 무시). 근본 원인 코드(`patch_suggester.py:277-312`, `731-742`)에서 직접 확인. 실패 2건/4건(50%) 직접 해소 가능. | `vibelign/core/patch_suggester.py` 수정 대상. 기존 테스트: `tests/test_patch_anchor_priority.py` 에 회귀 추가. 리스크: verb 클러스터 누락 → 기본 점수 동작으로 자연 fallback. |
+| C2  | **레이어-라우팅 규칙** — 요청에 등장한 명사가 utility 함수 이름과 일치해도, 해당 utility 가 이미 다른 파일에서 import/호출되고 있으면 caller 측 앵커를 우선. `project_map` 의 `ui_modules`/`service_modules` 계층 정보를 anchor scoring 단계에 주입. | F2 | 5 | 3 | 2 | **3.75** | F2 2건 전부 해소 가능성. 단 caller-detection 로직(import 그래프 스캔)을 새로 붙여야 해서 설계 리스크 존재. | `project_map` 에 caller 인덱스 추가 or 기존 `connects` 필드 활용. 큰 구조 변경 가능성. |
+| C3  | **`--ai` 기본 활성화 + 효과 측정** — 플래그 기본값 반전 후 같은 5 시나리오 재실행. 개선 폭이 의미 있으면 릴리스. | F1, F2, F3 (간접) | 3 | 2 | 3 | **2.00** | 현재 `quiet_ai` 경로가 json 모드에서 이미 일부 AI를 쓰고 있어 순수 효과가 불확실. 측정 없이 Confidence를 올릴 수 없음. API 비용/latency 트레이드오프. | 2줄 변경 + 벤치 재실행. 단 AI 경로가 anchor selection 직접 개입 여부 확인 필요. |
+| C4  | **다중 의도 기본 fanout** — `--lazy-fanout` 기본을 `False → True` 로 반전, 또는 `intent_ir.operation == "create"` 이고 request 길이 > N 일 때 자동 fanout. | F4 | 3 | 3 | 3 | **3.00** | F4 1건 해소. 단 현재 `sub_intents`/`steps` 가 비어있는 건 fanout 플래그와 별개로 intent 파서가 multi-intent 를 인식 못 하는 게 원인일 수 있음 → 추가 조사 필요. | `vibelign/core/codespeak.py` + intent parser 조사. 부작용(의도 과분할) 가드 필요. |
+| C5  | **`vib patch` 전용 벤치마크 러너 자동화** — 오늘 수동 실행한 스크립트를 `vib bench --patch` 서브모드로 이식. 입력: `scenarios.json`. 출력: files/anchor 채점 표 + 회귀 대비 baseline 저장. | (측정 인프라) | 2 | 5 | 3 | **3.33** | 오늘 직접 돌려봤기 때문에 실행 가능성 Confidence 최고. 하지만 직접적 정확도 개선은 없음 — 후속 개선의 **회귀 가드레일**. | `vibelign/commands/vib_bench_cmd.py` 에 `--patch` 모드 추가. `_run_score` 재사용. |
 
-- **점수 열**은 `(I × C) / (6 − E)` 계산값
-- **구현 힌트 열**은 writing-plans 단계에서 바로 소비됨 — 대상 파일/함수 추정, 기존 테스트 재사용 여부, 예상 리스크 등 1~2줄
+### 정렬된 점수
+1. **C1 — 8.33**
+2. C2 — 3.75
+3. C5 — 3.33
+4. C4 — 3.00
+5. C3 — 2.00
+
+C2 가 2위지만 §7 sanity check 에서 Confidence 3 의 설계 불확실성 때문에 이번 라운드에서는 후보에서 제외되고, 대신 C5(측정 인프라) 를 C1 후속 plan 으로 배치한다.
 
 ---
 
@@ -154,23 +191,40 @@ ICE = (Impact × Confidence) / (6 − Effort)
 - **측정 연결:** 구현 후 같은 5개 시나리오를 재실행하여 개선을 재현 가능하게 확인할 수 있는가?
 
 ### 선정 결과
-_(to fill — 점수 매김 후 기록)_
+
+**선정: C1 단독** (Verb-aware 앵커 스코어링)
+
+### 선정 이유
+
+- **격차:** C1(8.33) 와 2위 C2(3.75) 의 비율은 45% → 80% 임계 미달 → 단독 선정.
+- **근거 확인:** C1 은 F1(change_error_msg) 과 F3(add_bio_length_limit) 두 실패 케이스를 동일한 코드 변경으로 해소한다 — "요청 verb 가 anchor scoring 에서 무시되는 것"이라는 단일 근본 원인.
+- **Effort 현실성 (낙관 편향 점검):** E=3(반나절) 추정은 `_score_anchor_names` 한 함수의 수정 + verb 클러스터 상수 정의 + 기존 테스트에 회귀 2건 추가 범위. 낙관 없음, 오히려 verb 클러스터 목록이 다국어라 소폭 overshoot 가능성 있음(최대 1일).
+- **측정 연결:** 구현 후 동일 5 시나리오를 재실행하여 `change_error_msg` 의 앵커가 `LOGIN_HANDLE_LOGIN` 로, `add_bio_length_limit` 의 파일/앵커가 `pages/profile.py::PROFILE_HANDLE_PROFILE_UPDATE` 로 바뀌면 성공. 재현 방식은 오늘 사용한 one-shot Bash 루프를 그대로 쓰면 됨.
+
+### 선정에서 제외된 이유
+
+- **C2 (layer routing)**: Impact 는 최고지만 설계 불확실성이 Confidence 3 로 드러났고, caller-detection 인프라를 새로 붙여야 해서 이번 라운드로는 overshoot 위험. C1 구현 후 재측정 결과에서 F2 가 여전히 남으면 다음 라운드 1순위 후보.
+- **C5 (벤치마크 러너)**: 측정 인프라는 **C1 구현 완료 직후** 에 착수하는 것이 옳음 — C1 효과 검증에 바로 쓰이고, 이후 모든 회귀 가드레일이 됨. §9 에서 "C1 구현 plan 뒤에 이어지는 2차 plan 후보"로 명시.
+- **C3 (--ai 기본)**: Confidence 2 는 "의사결정을 내릴 만큼 모르는 상태". 측정(half day) 후 재평가하는 게 맞고, 이건 C5 의 러너가 있으면 훨씬 싸짐.
+- **C4 (multi-fanout)**: F4 1건만 해소. C1 이 반영된 뒤에도 `add_password_change` 가 여전히 틀리면 재조사.
 
 ---
 
 ## 8. Backlog
 
-선정되지 않은 후보는 아래에 보존한다. 다음 라운드(또는 측정 데이터가 바뀌었을 때) 재평가 대상.
+선정되지 않은 후보는 아래에 보존한다. 다음 라운드 또는 C1 구현 후 재측정 결과에 따라 재평가.
 
 | ID | 후보 | 대상 유형 | 점수 | 보관 이유 |
 |---|---|---|---|---|
-| _ | _(to fill)_ | _ | _ | _ |
-
-> **고정 포함 후보:** "자동 벤치마크 러너 구축" — 이번 세션에서는 구현하지 않지만, §1에서 명시적으로 backlog 행으로 남긴다. 다음 ICE 라운드부터는 수동 5회가 아니라 자동 실행으로 전환할지 여기서 평가한다.
+| C5 | `vib patch` 벤치마크 러너 자동화 (`vib bench --patch`) | 측정 인프라 | 3.33 | C1 구현 직후 2차 plan 후보. 회귀 가드레일 역할. |
+| C2 | 레이어-라우팅 규칙 (caller vs utility) | F2 | 3.75 | C1 적용 후에도 F2(`add_email_domain_check`, `add_password_change`) 가 남아있을 가능성 높음. 다음 ICE 라운드 1순위. |
+| C4 | 다중 의도 기본 fanout | F4 | 3.00 | F4 는 단일 케이스라 우선순위 낮음. C2 와 함께 조사 예정. |
+| C3 | `--ai` 기본 활성화 | F1/F2/F3 간접 | 2.00 | C5 가 먼저 생기면 측정 비용이 크게 줄어 재평가 가치 상승. |
 
 ---
 
 ## 9. Next Step
 
-- **정상 경로:** 선정된 후보 1~2개에 대해 writing-plans 스킬을 호출하여 구현 plan을 작성한다. plan 경로는 `docs/superpowers/plans/2026-04-11-patch-accuracy-<후보 ID>.md` 형식.
-- **데이터 반증 경로:** overall 정확도 5/5 → writing-plans 호출 없음, "범위 전환 권고"로 마감.
+- **즉시 다음 작업:** writing-plans 스킬을 호출하여 **C1 (Verb-aware 앵커 스코어링)** 구현 plan 을 작성한다. plan 경로: `docs/superpowers/plans/2026-04-11-patch-accuracy-c1-verb-aware-scoring.md`.
+- **C1 plan 완료 후 이어지는 작업:** C5 (벤치마크 러너 자동화) plan 을 별도로 작성하여 C1 의 회귀 가드레일로 배치. C5 가 생기면 C3 재평가 비용이 급감하므로, 그 시점에서 C3 투자 여부 재판단.
+- **C1 구현·검증 이후의 다음 ICE 라운드:** 재측정 결과에서 F2/F4 가 여전히 남아있으면 C2/C4 를 대상으로 새로운 ICE 세션 개시.
