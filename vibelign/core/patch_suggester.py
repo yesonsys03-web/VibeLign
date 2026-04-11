@@ -701,6 +701,165 @@ _LOGIC_INTENT_TOKENS = {
     "로드",
 }
 
+# --- Verb cluster classification (C1 — F1/F3 fix) ---
+_VERB_CLUSTER_MUTATE = "MUTATE"
+_VERB_CLUSTER_CREATE = "CREATE"
+_VERB_CLUSTER_DELETE = "DELETE"
+_VERB_CLUSTER_READ = "READ"
+
+# Request-side verb tokens (Korean stems + English). Tokens compared against
+# the output of `tokenize(request)`, which lowercases and strips Korean
+# particles. Prefix match (startswith) is used so that inflected forms like
+# "바꿔" / "바꿔줘" / "바꿨" all map through a single stem.
+_REQUEST_VERB_STEMS: tuple[tuple[str, str], ...] = (
+    # MUTATE — modify existing state
+    ("바꿔", _VERB_CLUSTER_MUTATE),
+    ("바꾸", _VERB_CLUSTER_MUTATE),
+    ("변경", _VERB_CLUSTER_MUTATE),
+    ("수정", _VERB_CLUSTER_MUTATE),
+    ("고쳐", _VERB_CLUSTER_MUTATE),
+    ("고치", _VERB_CLUSTER_MUTATE),
+    ("버그", _VERB_CLUSTER_MUTATE),
+    ("갱신", _VERB_CLUSTER_MUTATE),
+    ("업데이트", _VERB_CLUSTER_MUTATE),
+    ("update", _VERB_CLUSTER_MUTATE),
+    ("change", _VERB_CLUSTER_MUTATE),
+    ("fix", _VERB_CLUSTER_MUTATE),
+    ("modify", _VERB_CLUSTER_MUTATE),
+    ("set", _VERB_CLUSTER_MUTATE),
+    # CREATE — add new behavior/state
+    ("추가", _VERB_CLUSTER_CREATE),
+    ("생성", _VERB_CLUSTER_CREATE),
+    ("만들", _VERB_CLUSTER_CREATE),
+    ("신규", _VERB_CLUSTER_CREATE),
+    ("add", _VERB_CLUSTER_CREATE),
+    ("create", _VERB_CLUSTER_CREATE),
+    ("new", _VERB_CLUSTER_CREATE),
+    ("register", _VERB_CLUSTER_CREATE),
+    # DELETE — remove existing behavior/state
+    ("삭제", _VERB_CLUSTER_DELETE),
+    ("제거", _VERB_CLUSTER_DELETE),
+    ("없애", _VERB_CLUSTER_DELETE),
+    ("지워", _VERB_CLUSTER_DELETE),
+    ("delete", _VERB_CLUSTER_DELETE),
+    ("remove", _VERB_CLUSTER_DELETE),
+    ("drop", _VERB_CLUSTER_DELETE),
+    # READ — display or retrieve without modifying
+    ("보여", _VERB_CLUSTER_READ),
+    ("조회", _VERB_CLUSTER_READ),
+    ("표시", _VERB_CLUSTER_READ),
+    ("출력", _VERB_CLUSTER_READ),
+    ("show", _VERB_CLUSTER_READ),
+    ("display", _VERB_CLUSTER_READ),
+    ("render", _VERB_CLUSTER_READ),
+    ("get", _VERB_CLUSTER_READ),
+    ("read", _VERB_CLUSTER_READ),
+    ("list", _VERB_CLUSTER_READ),
+    ("view", _VERB_CLUSTER_READ),
+)
+
+# Anchor-name token → cluster. Anchor names are ALL_CAPS snake case; we
+# lowercase them and match tokens against the keys below.
+_ANCHOR_VERB_TOKENS: dict[str, str] = {
+    "handle": _VERB_CLUSTER_MUTATE,
+    "update": _VERB_CLUSTER_MUTATE,
+    "set": _VERB_CLUSTER_MUTATE,
+    "write": _VERB_CLUSTER_MUTATE,
+    "save": _VERB_CLUSTER_MUTATE,
+    "patch": _VERB_CLUSTER_MUTATE,
+    "edit": _VERB_CLUSTER_MUTATE,
+    "modify": _VERB_CLUSTER_MUTATE,
+    "process": _VERB_CLUSTER_MUTATE,
+    "submit": _VERB_CLUSTER_MUTATE,
+    "create": _VERB_CLUSTER_CREATE,
+    "add": _VERB_CLUSTER_CREATE,
+    "insert": _VERB_CLUSTER_CREATE,
+    "register": _VERB_CLUSTER_CREATE,
+    "new": _VERB_CLUSTER_CREATE,
+    "delete": _VERB_CLUSTER_DELETE,
+    "remove": _VERB_CLUSTER_DELETE,
+    "drop": _VERB_CLUSTER_DELETE,
+    "clear": _VERB_CLUSTER_DELETE,
+    "get": _VERB_CLUSTER_READ,
+    "read": _VERB_CLUSTER_READ,
+    "load": _VERB_CLUSTER_READ,
+    "fetch": _VERB_CLUSTER_READ,
+    "find": _VERB_CLUSTER_READ,
+    "list": _VERB_CLUSTER_READ,
+    "render": _VERB_CLUSTER_READ,
+    "show": _VERB_CLUSTER_READ,
+    "display": _VERB_CLUSTER_READ,
+    "view": _VERB_CLUSTER_READ,
+    "validate": _VERB_CLUSTER_READ,
+    "check": _VERB_CLUSTER_READ,
+}
+
+
+def _classify_request_verb(request_tokens: Iterable[str]) -> Optional[str]:
+    """Return the verb cluster implied by a tokenized request, or None.
+
+    Scans each request token and returns the cluster of the LAST matching
+    stem. Korean places the main action verb at the end of the sentence, so
+    the last match reflects the dominant intent (e.g. "비밀번호 변경 기능 추가"
+    has both MUTATE("변경") and CREATE("추가"); "추가" wins as the final verb).
+    """
+    token_list = list(request_tokens)
+    last_cluster: Optional[str] = None
+    for token in token_list:
+        for stem, cluster in _REQUEST_VERB_STEMS:
+            if token.startswith(stem):
+                last_cluster = cluster
+                break
+    return last_cluster
+
+
+def _classify_anchor_verb(anchor_name: str) -> Optional[str]:
+    """Return the verb cluster implied by an anchor name, or None.
+
+    Splits the anchor name on underscores and looks up each token in
+    _ANCHOR_VERB_TOKENS. Returns the cluster of the LAST verb token found,
+    because anchor naming convention places the verb after the module/object
+    prefix (e.g. LOGIN_HANDLE_LOGIN → HANDLE, PROFILE_HANDLE_PROFILE_UPDATE
+    → UPDATE). Later tokens describe the specific operation.
+    """
+    if not anchor_name:
+        return None
+    last_cluster: Optional[str] = None
+    for part in anchor_name.lower().split("_"):
+        cluster = _ANCHOR_VERB_TOKENS.get(part)
+        if cluster is not None:
+            last_cluster = cluster
+    return last_cluster
+
+
+def _classify_intent_verb(intent_text: str) -> Optional[str]:
+    """Return the verb cluster implied by an anchor intent string, or None.
+
+    Reuses the request-verb stem table since intents are written in Korean
+    natural language like "로그인 폼 제출을 처리합니다" or
+    "로그인 실패 시 오류 메시지를 보여줍니다".
+    """
+    if not intent_text:
+        return None
+    tokens = list(_intent_tokens(intent_text))
+    for token in tokens:
+        for stem, cluster in _REQUEST_VERB_STEMS:
+            if token.startswith(stem):
+                return cluster
+    # Fallback: check whole text contains stem as substring (for verbs like
+    # "처리" that may be embedded in "처리합니다").
+    lowered = intent_text.lower()
+    processing_stems = (
+        ("처리", _VERB_CLUSTER_MUTATE),
+        ("저장", _VERB_CLUSTER_MUTATE),
+        ("보여", _VERB_CLUSTER_READ),
+        ("표시", _VERB_CLUSTER_READ),
+    )
+    for stem, cluster in processing_stems:
+        if stem in lowered:
+            return cluster
+    return None
+
 
 def _has_style_token(request_tokens: Iterable[str]) -> bool:
     """조사가 붙은 토큰도 포함해서 스타일 키워드 존재 여부 확인"""
