@@ -72,7 +72,7 @@ COMMENT_PREFIX = {
     ".hpp": "//",
     ".cs": "//",
 }
-ANCHOR_RE = re.compile(r"ANCHOR:\s*([A-Z0-9_]+)")
+ANCHOR_RE = re.compile(r"===\s*ANCHOR:\s*([A-Z0-9_]+)\s*===")
 PY_SYMBOL_RE = re.compile(
     r"^(?:async\s+def|def|class)\s+([A-Za-z_][A-Za-z0-9_]*)", re.MULTILINE
 )
