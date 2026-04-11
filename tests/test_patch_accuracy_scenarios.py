@@ -92,9 +92,9 @@ class PatchAccuracyScenarioTest(unittest.TestCase):
     def tearDownClass(cls) -> None:
         cls._tmp.cleanup()
 
-    def _run(self, scenario_id: str):
+    def _run(self, scenario_id: str, *, use_ai: bool = False):
         sc = self.scenarios[scenario_id]
-        return suggest_patch(self.sandbox, sc["request"], use_ai=False)
+        return suggest_patch(self.sandbox, sc["request"], use_ai=use_ai)
 
     def test_change_error_msg_selects_handle_login(self):
         result = self._run("change_error_msg")
@@ -110,6 +110,81 @@ class PatchAccuracyScenarioTest(unittest.TestCase):
         result = self._run("add_bio_length_limit")
         self.assertEqual(result.target_file, "pages/profile.py")
         self.assertEqual(result.target_anchor, "PROFILE_HANDLE_PROFILE_UPDATE")
+
+
+class TestAIDeference(unittest.TestCase):
+    """`--ai` (use_ai=True) must NOT override a high-confidence deterministic pick.
+
+    C1 (verb-aware scoring) pushes the correct anchor to top-1 with `high`
+    confidence on `add_bio_length_limit`. The pre-C6 code called
+    `_ai_select_file` unconditionally when `use_ai=True`, and the AI then
+    routed the request to `core/validators.py` (a validation utility), undoing
+    C1's gain. C6 adds a deference rule: when deterministic confidence is
+    `high`, the AI selector is skipped entirely.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.sandbox = _prepare_sandbox(Path(cls._tmp.name))
+        with open(SCENARIOS_PATH, "r", encoding="utf-8") as fh:
+            cls.scenarios = {s["id"]: s for s in json.load(fh)}
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._tmp.cleanup()
+
+    def test_high_confidence_deterministic_result_is_preserved_under_ai(self):
+        """With use_ai=True, a high-confidence deterministic pick must survive.
+
+        Guarantee via mock: if the deference rule works, `_ai_select_file`
+        is NEVER invoked on this scenario. We make the mock raise on call —
+        any invocation fails the test.
+        """
+        from unittest.mock import patch as mock_patch
+
+        sc = self.scenarios["add_bio_length_limit"]
+
+        def _fail_if_called(*args, **kwargs):
+            raise AssertionError(
+                "_ai_select_file was called despite high-confidence deterministic pick"
+            )
+
+        with mock_patch(
+            "vibelign.core.patch_suggester._ai_select_file",
+            side_effect=_fail_if_called,
+        ):
+            result = suggest_patch(self.sandbox, sc["request"], use_ai=True)
+
+        self.assertEqual(result.target_file, "pages/profile.py")
+        self.assertEqual(result.target_anchor, "PROFILE_HANDLE_PROFILE_UPDATE")
+        self.assertEqual(result.confidence, "high")
+
+    def test_low_confidence_still_invokes_ai_when_flag_set(self):
+        """Low-confidence path must still call the AI selector.
+
+        The deference rule only applies to `high` confidence. This guards
+        against an over-broad fix that turns `--ai` into a no-op.
+        """
+        from unittest.mock import patch as mock_patch
+
+        sc = self.scenarios["change_error_msg"]
+        called = {"count": 0}
+
+        def _record(*args, **kwargs):
+            called["count"] += 1
+            return None  # let suggest_patch fall back to deterministic pick
+
+        with mock_patch(
+            "vibelign.core.patch_suggester._ai_select_file",
+            side_effect=_record,
+        ):
+            _ = suggest_patch(self.sandbox, sc["request"], use_ai=True)
+
+        self.assertGreaterEqual(
+            called["count"], 1,
+            "AI selector must be called on low-confidence `change_error_msg`",
+        )
 
 
 if __name__ == "__main__":
