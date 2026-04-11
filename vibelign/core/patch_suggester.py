@@ -278,7 +278,8 @@ def _score_anchor_names(
     anchor_names: Iterable[str], request_tokens: Iterable[str], label: str
 ) -> tuple[int, list[str]]:
     score = 0
-    rationale = []
+    rationale: list[str] = []
+    request_cluster = _classify_request_verb(request_tokens)
     for anchor in anchor_names:
         anchor_tokens = _path_tokens(anchor)
         local_score = 0
@@ -305,10 +306,17 @@ def _score_anchor_names(
                 local_score -= 3
         else:
             local_score -= _anchor_quality_penalty(anchor_tokens)
+        anchor_cluster = _classify_anchor_verb(anchor)
+        verb_delta, verb_reason = _verb_cluster_bonus(request_cluster, anchor_cluster)
+        if verb_delta:
+            local_score += verb_delta
         if local_score > 0:
             score = max(score, local_score)
             joined = ", ".join(dict.fromkeys(local_matches))
-            rationale = [f"{label} '{anchor}'에 키워드 {joined} 이(가) 포함됨"]
+            rationale_line = f"{label} '{anchor}'에 키워드 {joined} 이(가) 포함됨"
+            if verb_reason and verb_delta > 0:
+                rationale_line += f" · {verb_reason}"
+            rationale = [rationale_line]
     return score, rationale
 
 
@@ -650,6 +658,7 @@ def score_path(
             if isinstance(anchor_meta, dict)
             else set()
         )
+        request_cluster = _classify_request_verb(request_tokens)
         for anchor_name, meta_entry in intent_meta.items():
             if file_anchors and anchor_name not in file_anchors:
                 continue
@@ -663,6 +672,16 @@ def score_path(
                 rationale.append(
                     f"앵커 intent에 키워드 '{', '.join(matched)}'이 포함됨"
                 )
+                anchor_cluster = _classify_anchor_verb(anchor_name)
+                intent_cluster = _classify_intent_verb(intent)
+                effective_cluster = anchor_cluster or intent_cluster
+                verb_delta, verb_reason = _verb_cluster_bonus(
+                    request_cluster, effective_cluster
+                )
+                if verb_delta:
+                    score += verb_delta
+                    if verb_reason and verb_delta > 0:
+                        rationale.append(f"intent 동사 일치: {verb_reason}")
                 break
     return score, rationale
 

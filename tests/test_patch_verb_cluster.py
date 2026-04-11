@@ -187,5 +187,88 @@ class ChooseAnchorVerbPreferenceTest(unittest.TestCase):
         self.assertEqual(best, "USERS_GET_USER_PROFILE")
 
 
+import json
+import tempfile
+from pathlib import Path
+
+from vibelign.core.patch_suggester import suggest_patch
+
+
+class FileRankingVerbPreferenceTest(unittest.TestCase):
+    def test_update_request_prefers_handle_file_over_get_file(self):
+        """F3 regression: add_bio_length_limit routed to pages/profile.py
+        (which contains HANDLE_PROFILE_UPDATE) instead of api/users.py
+        (which contains GET_USER_PROFILE).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "api").mkdir()
+            (root / "pages").mkdir()
+            (root / "api" / "users.py").write_text(
+                "# === ANCHOR: USERS_START ===\n"
+                "# === ANCHOR: USERS_GET_USER_PROFILE_START ===\n"
+                "def get_user_profile(user_id):\n"
+                "    return {'bio': ''}\n"
+                "# === ANCHOR: USERS_GET_USER_PROFILE_END ===\n"
+                "# === ANCHOR: USERS_END ===\n",
+                encoding="utf-8",
+            )
+            (root / "pages" / "profile.py").write_text(
+                "# === ANCHOR: PROFILE_START ===\n"
+                "# === ANCHOR: PROFILE_HANDLE_PROFILE_UPDATE_START ===\n"
+                "def handle_profile_update(user_id, name, bio):\n"
+                "    return {'ok': True}\n"
+                "# === ANCHOR: PROFILE_HANDLE_PROFILE_UPDATE_END ===\n"
+                "# === ANCHOR: PROFILE_END ===\n",
+                encoding="utf-8",
+            )
+            meta_dir = root / ".vibelign"
+            meta_dir.mkdir()
+            (meta_dir / "anchor_index.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "anchors": {
+                            "api/users.py": ["USERS", "USERS_GET_USER_PROFILE"],
+                            "pages/profile.py": [
+                                "PROFILE",
+                                "PROFILE_HANDLE_PROFILE_UPDATE",
+                            ],
+                        },
+                        "files": {
+                            "api/users.py": {
+                                "anchors": ["USERS", "USERS_GET_USER_PROFILE"]
+                            },
+                            "pages/profile.py": {
+                                "anchors": [
+                                    "PROFILE",
+                                    "PROFILE_HANDLE_PROFILE_UPDATE",
+                                ]
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (meta_dir / "anchor_meta.json").write_text(
+                json.dumps(
+                    {
+                        "USERS_GET_USER_PROFILE": {
+                            "intent": "사용자 프로필을 조회합니다"
+                        },
+                        "PROFILE_HANDLE_PROFILE_UPDATE": {
+                            "intent": "프로필 편집 폼을 처리합니다"
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = suggest_patch(
+                root, "프로필 수정 시 bio 길이를 200자로 제한해줘", use_ai=False
+            )
+            self.assertEqual(result.target_file, "pages/profile.py")
+            self.assertEqual(result.target_anchor, "PROFILE_HANDLE_PROFILE_UPDATE")
+
+
 if __name__ == "__main__":
     unittest.main()
