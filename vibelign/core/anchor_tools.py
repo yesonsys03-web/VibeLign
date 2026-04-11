@@ -475,7 +475,7 @@ def extract_anchor_spans(path: Path) -> list[dict[str, object]]:
             if stack:
                 idx = stack.pop()
                 spans[idx]["end"] = line_no
-    return spans
+    return [span for span in spans if span["end"] is not None]
 
 
 # === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHOR_SPANS_END ===
