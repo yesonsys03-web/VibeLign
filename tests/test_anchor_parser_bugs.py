@@ -59,3 +59,20 @@ class TestBug4DunderPreserved:
         assert spans[0]["name"] == "CLI_BASE___INIT__"
         assert spans[0]["start"] == 1
         assert spans[0]["end"] == 3
+
+
+class TestBug3DanglingStartDropped:
+    def test_unterminated_start_is_not_returned(self, tmp_path: Path) -> None:
+        text = (
+            "# === ANCHOR: GOOD_START ===\n"
+            "ok = 1\n"
+            "# === ANCHOR: GOOD_END ===\n"
+            "\n"
+            "# === ANCHOR: DANGLING_START ===\n"
+            "oops = 2\n"
+        )
+        p = _write(tmp_path, "mod.py", text)
+        spans = extract_anchor_spans(p)
+        names = [s["name"] for s in spans]
+        assert names == ["GOOD"]
+        assert all(s["end"] is not None for s in spans)
