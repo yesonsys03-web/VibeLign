@@ -17,14 +17,14 @@
     },
     "add_email_domain_check": {
       "det": {
-        "files_ok": false,
+        "files_ok": true,
         "anchor_ok": false,
-        "recall_at_3": false
+        "recall_at_3": true
       },
       "ai": {
-        "files_ok": false,
+        "files_ok": true,
         "anchor_ok": false,
-        "recall_at_3": false
+        "recall_at_3": true
       }
     },
     "fix_login_lock_bug": {
@@ -66,14 +66,14 @@
   },
   "totals": {
     "det": {
-      "files_ok": "4/5",
+      "files_ok": "5/5",
       "anchor_ok": "3/4",
-      "recall_at_3": "4/5"
+      "recall_at_3": "5/5"
     },
     "ai": {
-      "files_ok": "4/5",
+      "files_ok": "5/5",
       "anchor_ok": "3/4",
-      "recall_at_3": "4/5"
+      "recall_at_3": "5/5"
     }
   }
 }
