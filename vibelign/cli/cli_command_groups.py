@@ -513,13 +513,16 @@ def register_extended_commands(
         description=(
             "앵커가 AI 코드 수정 정확도를 높이는지 검증하는 벤치마크 도구예요.\n"
             "A(앵커 없음) vs B(앵커 있음) 조건으로 프롬프트를 생성하고,\n"
-            "AI 수정 결과를 채점할 수 있어요."
+            "AI 수정 결과를 채점할 수 있어요. --patch 옵션은 별도의\n"
+            "patch-suggester 정확도 회귀 테스트 (pinned-intent)를 돌려요."
         ),
         epilog=(
             "이렇게 쓰세요:\n"
-            "  vib bench --generate    A/B 프롬프트 생성\n"
-            "  vib bench --score       AI 수정 결과 채점\n"
-            "  vib bench --report      마크다운 리포트 생성"
+            "  vib bench --generate           A/B 프롬프트 생성\n"
+            "  vib bench --score              AI 수정 결과 채점\n"
+            "  vib bench --report             마크다운 리포트 생성\n"
+            "  vib bench --patch              patch-suggester 정확도 측정\n"
+            "  vib bench --patch --update-baseline  baseline 갱신"
         ),
     )
     _ = p.add_argument(
@@ -528,6 +531,16 @@ def register_extended_commands(
     _ = p.add_argument("--score", action="store_true", help="AI 수정 결과 채점")
     _ = p.add_argument(
         "--report", action="store_true", help="마크다운 비교 리포트 생성"
+    )
+    _ = p.add_argument(
+        "--patch",
+        action="store_true",
+        help="patch-suggester 정확도 회귀 측정 (pinned-intent sandbox)",
+    )
+    _ = p.add_argument(
+        "--update-baseline",
+        action="store_true",
+        help="--patch 와 함께 사용, 현재 측정값으로 baseline 파일 덮어쓰기",
     )
     _ = p.add_argument("--json", action="store_true", help="JSON으로 출력")
     p.set_defaults(
