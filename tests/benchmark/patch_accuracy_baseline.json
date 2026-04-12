@@ -18,12 +18,12 @@
     "add_email_domain_check": {
       "det": {
         "files_ok": true,
-        "anchor_ok": false,
+        "anchor_ok": true,
         "recall_at_3": true
       },
       "ai": {
         "files_ok": true,
-        "anchor_ok": false,
+        "anchor_ok": true,
         "recall_at_3": true
       }
     },
@@ -67,12 +67,12 @@
   "totals": {
     "det": {
       "files_ok": "5/5",
-      "anchor_ok": "3/4",
+      "anchor_ok": "4/4",
       "recall_at_3": "5/5"
     },
     "ai": {
       "files_ok": "5/5",
-      "anchor_ok": "3/4",
+      "anchor_ok": "4/4",
       "recall_at_3": "5/5"
     }
   }
