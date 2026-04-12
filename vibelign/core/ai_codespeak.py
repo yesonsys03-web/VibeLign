@@ -37,7 +37,33 @@ class AIExplainModule(Protocol):
 
 
 # === ANCHOR: AI_CODESPEAK_BUILD_CODESPEAK_AI_PROMPT_START ===
-def build_codespeak_ai_prompt(request: str, rule_result: CodeSpeakResult) -> str:
+def build_codespeak_ai_prompt(
+    request: str,
+    rule_result: CodeSpeakResult,
+    *,
+    target_file: str | None = None,
+    target_anchor: str | None = None,
+    target_confidence: str | None = None,
+    target_rationale: list[str] | None = None,
+) -> str:
+    if target_file is not None and target_anchor is not None:
+        rationale_lines = "\n".join(
+            f"  - {r}" for r in (target_rationale or [])
+        )
+        context_block = f"""patch_suggester가 찾은 수정 위치:
+- 파일: {target_file}
+- 앵커: {target_anchor}
+- confidence: {target_confidence or 'unknown'}
+- 근거:
+{rationale_lines}
+
+이 정보를 바탕으로 앵커 이름에서 layer, subject를 추론하고,
+요청 문맥에서 action을 판단하세요."""
+    else:
+        context_block = f"""현재 규칙 기반 해석:
+- codespeak: {rule_result.codespeak}
+- interpretation: {rule_result.interpretation}
+- confidence: {rule_result.confidence}"""
     return f"""다음 사용자 요청을 CodeSpeak로 해석해주세요.
 # === ANCHOR: AI_CODESPEAK_BUILD_CODESPEAK_AI_PROMPT_END ===
 
@@ -59,10 +85,7 @@ def build_codespeak_ai_prompt(request: str, rule_result: CodeSpeakResult) -> str
 사용자 요청:
 {request}
 
-현재 규칙 기반 해석:
-- codespeak: {rule_result.codespeak}
-- interpretation: {rule_result.interpretation}
-- confidence: {rule_result.confidence}
+{context_block}
 
 출력 예시:
 {{
@@ -120,9 +143,21 @@ def enhance_codespeak_with_ai(
     request: str,
     rule_result: CodeSpeakResult,
     quiet: bool = False,
+    *,
+    target_file: str | None = None,
+    target_anchor: str | None = None,
+    target_confidence: str | None = None,
+    target_rationale: list[str] | None = None,
     # === ANCHOR: AI_CODESPEAK_ENHANCE_CODESPEAK_WITH_AI_END ===
 ) -> CodeSpeakResult | None:
-    prompt = build_codespeak_ai_prompt(request, rule_result)
+    prompt = build_codespeak_ai_prompt(
+        request,
+        rule_result,
+        target_file=target_file,
+        target_anchor=target_anchor,
+        target_confidence=target_confidence,
+        target_rationale=target_rationale,
+    )
     ai_explain = cast(
         AIExplainModule,
         cast(object, importlib.import_module("vibelign.core.ai_explain")),
