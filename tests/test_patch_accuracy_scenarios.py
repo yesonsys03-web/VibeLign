@@ -65,19 +65,13 @@ class PatchAccuracyScenarioTest(unittest.TestCase):
         """
         result = self._run("add_email_domain_check")
         self.assertEqual(result.target_file, "pages/signup.py")
-        self.assertTrue(
-            result.target_anchor.startswith("SIGNUP"),
-            f"expected a SIGNUP* anchor, got {result.target_anchor!r}",
-        )
+        self.assertEqual(result.target_anchor, "SIGNUP_HANDLE_SIGNUP")
 
     def test_add_email_domain_check_ai_mode_also_routes_to_signup(self):
         """C6 deference passes det result through when confidence is high."""
         result = self._run("add_email_domain_check", use_ai=True)
         self.assertEqual(result.target_file, "pages/signup.py")
-        self.assertTrue(
-            result.target_anchor.startswith("SIGNUP"),
-            f"expected a SIGNUP* anchor, got {result.target_anchor!r}",
-        )
+        self.assertEqual(result.target_anchor, "SIGNUP_HANDLE_SIGNUP")
 
 
 class TestAIDeference(unittest.TestCase):
