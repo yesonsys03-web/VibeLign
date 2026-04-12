@@ -182,5 +182,33 @@ class VibStartTest(unittest.TestCase):
         self.assertEqual(args.feature, ["OAuth 인증 추가"])
 
 
+class TestPagesRoutesUiClassification(unittest.TestCase):
+    """C2 Part 1: pages/ and routes/ must classify as ui_modules.
+
+    Without this, C2's layer-routing rule can't identify ui-layer callers
+    in project_map.files[rel].imported_by.
+    """
+
+    def test_pages_directory_is_classified_as_ui(self):
+        from vibelign.commands.vib_start_cmd import _build_project_map
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "pages").mkdir()
+            (root / "pages" / "signup.py").write_text("def handle(): pass\n")
+            pm = _build_project_map(root, force_scan=True)
+            self.assertIn("pages/signup.py", pm["ui_modules"])
+
+    def test_routes_directory_is_classified_as_ui(self):
+        from vibelign.commands.vib_start_cmd import _build_project_map
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "routes").mkdir()
+            (root / "routes" / "users.py").write_text("def get(): pass\n")
+            pm = _build_project_map(root, force_scan=True)
+            self.assertIn("routes/users.py", pm["ui_modules"])
+
+
 if __name__ == "__main__":
     unittest.main()
