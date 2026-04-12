@@ -13,7 +13,7 @@ try:
 except ImportError:
     from typing_extensions import NotRequired
 
-from vibelign.commands.bench_fixtures import SAMPLE_PROJECT
+from vibelign.commands.bench_fixtures import BENCHMARK_DIR, SAMPLE_PROJECT
 from vibelign.terminal_render import (
     clack_info,
     clack_intro,
@@ -23,7 +23,6 @@ from vibelign.terminal_render import (
     clack_warn,
 )
 
-BENCHMARK_DIR = Path(__file__).resolve().parent.parent.parent / "tests" / "benchmark"
 SCENARIOS_PATH = BENCHMARK_DIR / "scenarios.json"
 
 # === ANCHOR: VIB_BENCH_PATCH_METRICS_START ===
