@@ -77,11 +77,7 @@ def _execute_add_anchor(action: Action, root: Path) -> ExecutionResult:
                 generate_code_based_intents(root, [path])
             except Exception:
                 pass
-            try:
-                from vibelign.core.anchor_tools import generate_anchor_intents_with_ai
-                generate_anchor_intents_with_ai(root, [path])
-            except Exception:
-                pass  # AI 보강 실패해도 코드 기반 결과는 이미 저장됨
+            # AI 보강은 vib anchor --auto-intent 로 별도 실행 (APPLY 블로킹 방지)
             return ExecutionResult(action, "done", f"앵커 추가: {action.target_path}")
         return ExecutionResult(action, "failed", "앵커 삽입 실패")
     except Exception as e:
