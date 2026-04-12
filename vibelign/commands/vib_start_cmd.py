@@ -365,7 +365,17 @@ def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object
     from vibelign.core.meta_paths import MetaPaths
     from vibelign.core.scan_cache import incremental_scan
 
-    ui_tokens = ["ui", "view", "views", "window", "dialog", "widget", "screen"]
+    ui_tokens = [
+        "ui",
+        "view",
+        "views",
+        "window",
+        "dialog",
+        "widget",
+        "screen",
+        "pages",
+        "routes",
+    ]
     service_tokens = [
         "service",
         "services",
