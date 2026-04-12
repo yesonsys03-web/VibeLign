@@ -48,6 +48,37 @@ class PatchAccuracyScenarioTest(unittest.TestCase):
         self.assertEqual(result.target_file, "pages/profile.py")
         self.assertEqual(result.target_anchor, "PROFILE_HANDLE_PROFILE_UPDATE")
 
+    def test_add_email_domain_check_routes_to_signup_page(self):
+        """C2 regression guard: layer routing must flip auth→signup.
+
+        Without C2, score_candidates ranks api/auth.py top1 via the
+        AUTH_REGISTER_USER anchor match. C2's layer-routing post-processor
+        promotes pages/signup.py (a ui-layer caller of auth) because:
+          - top1 (api/auth.py) is classified as "service" (not "ui")
+          - request verb is CREATE ("검사 추가")
+          - pages/signup.py is in api/auth.py's imported_by and ui-classified
+          - pages/signup.py has positive base score from path-token match
+
+        The anchor-level resolution inside signup.py is a separate problem
+        (C2 is a file-routing fix, not an anchor-picker fix), so we only
+        assert that target_anchor is *some* SIGNUP-family anchor.
+        """
+        result = self._run("add_email_domain_check")
+        self.assertEqual(result.target_file, "pages/signup.py")
+        self.assertTrue(
+            result.target_anchor.startswith("SIGNUP"),
+            f"expected a SIGNUP* anchor, got {result.target_anchor!r}",
+        )
+
+    def test_add_email_domain_check_ai_mode_also_routes_to_signup(self):
+        """C6 deference passes det result through when confidence is high."""
+        result = self._run("add_email_domain_check", use_ai=True)
+        self.assertEqual(result.target_file, "pages/signup.py")
+        self.assertTrue(
+            result.target_anchor.startswith("SIGNUP"),
+            f"expected a SIGNUP* anchor, got {result.target_anchor!r}",
+        )
+
 
 class TestAIDeference(unittest.TestCase):
     """`--ai` (use_ai=True) must NOT override a high-confidence deterministic pick.
