@@ -1137,6 +1137,87 @@ def _ai_select_file(
         return None
 
 
+# --- C2 layer routing post-processing ---
+#
+# After C1 verb-aware scoring ranks files, promote a ui-layer caller over
+# a non-ui top1 when the request is a CREATE-style request and the caller
+# imports the top1. The four gates protect existing correct routings from
+# regressing. See docs/superpowers/specs/2026-04-12-patch-accuracy-c2-
+# layer-routing-design.md for the full rationale; tune values only with
+# measurement data.
+_LAYER_ROUTING_BOOST = 18
+_LAYER_ROUTING_PENALTY = 3
+
+
+def _apply_layer_routing(
+    candidates: list[tuple[Path, int]],
+    request_tokens: list[str],
+    project_map: Optional[ProjectMapSnapshot],
+    root: Path,
+) -> list[tuple[Path, int]]:
+    """Promote a ui-layer caller when the top1 is a non-ui file that the
+    caller imports, the request is a CREATE verb, and the caller already
+    has a positive base score. See spec §3 for gate definitions.
+
+    Returns the rewritten candidate list sorted descending by score.
+    Returns the input unchanged when any gate fails or when project_map
+    is None.
+    """
+    if not candidates or project_map is None:
+        return candidates
+
+    top_path, _top_score = candidates[0]
+    top_rel = relpath_str(root, top_path)
+
+    # Gate 1: top1 must NOT already be a ui file.
+    if project_map.classify_path(top_rel) == "ui":
+        return candidates
+
+    # Gate 2: request verb cluster must be CREATE.
+    verb_cluster = _classify_request_verb(request_tokens)
+    if verb_cluster != _VERB_CLUSTER_CREATE:
+        return candidates
+
+    # Gate 3: top1 must have at least one ui-layer importer.
+    file_entry = project_map.files.get(top_rel, {})
+    raw_importers = file_entry.get("imported_by", [])
+    if not isinstance(raw_importers, list):
+        return candidates
+    ui_importers = [
+        rel for rel in raw_importers
+        if isinstance(rel, str) and project_map.classify_path(rel) == "ui"
+    ]
+    if not ui_importers:
+        return candidates
+
+    # Gate 4: at least one ui importer must have score > 0 in candidates.
+    candidate_by_rel: dict[str, tuple[Path, int]] = {
+        relpath_str(root, p): (p, s) for p, s in candidates
+    }
+    positive_callers = [
+        (rel, *candidate_by_rel[rel])
+        for rel in ui_importers
+        if rel in candidate_by_rel and candidate_by_rel[rel][1] > 0
+    ]
+    if not positive_callers:
+        return candidates
+
+    # Pick the highest-scoring positive ui caller.
+    positive_callers.sort(key=lambda item: item[2], reverse=True)
+    _, best_path, _ = positive_callers[0]
+
+    new_candidates: list[tuple[Path, int]] = []
+    for path, score in candidates:
+        if path == best_path:
+            new_candidates.append((path, score + _LAYER_ROUTING_BOOST))
+        elif path == top_path:
+            new_candidates.append((path, score - _LAYER_ROUTING_PENALTY))
+        else:
+            new_candidates.append((path, score))
+    new_candidates.sort(key=lambda item: (-item[1], str(item[0])))
+    return new_candidates
+
+
 def _score_all_files(
     root: Path, request: str
 ) -> tuple[
