@@ -1385,6 +1385,11 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
         reasons = reasons[:4] + [
             f"상위 후보 점수 차이가 작음 ({best_score} vs {second_score}) — 위치 확인이 더 필요함"
         ]
+    if confidence == "high" and not _meaningful_overlap(
+        request_tokens, _path_tokens(relpath_str(root, best_path))
+    ):
+        confidence = "medium"
+        reasons.append("요청 키워드와 파일 경로 간 겹침이 없어 confidence 하향")
     stateful_ui_request = _is_stateful_ui_request(request_tokens)
     # Deference rule (C6, 2026-04-12):
     # - confidence == "low": AI always invoked (use_ai flag irrelevant)
