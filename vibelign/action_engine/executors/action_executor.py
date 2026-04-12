@@ -73,10 +73,15 @@ def _execute_add_anchor(action: Action, root: Path) -> ExecutionResult:
             return ExecutionResult(action, "skipped", "이미 앵커 있음")
         if insert_module_anchors(path):
             try:
+                from vibelign.core.anchor_tools import generate_code_based_intents
+                generate_code_based_intents(root, [path])
+            except Exception:
+                pass
+            try:
                 from vibelign.core.anchor_tools import generate_anchor_intents_with_ai
                 generate_anchor_intents_with_ai(root, [path])
             except Exception:
-                pass  # aliases 생성 실패해도 앵커 삽입은 성공
+                pass  # AI 보강 실패해도 코드 기반 결과는 이미 저장됨
             return ExecutionResult(action, "done", f"앵커 추가: {action.target_path}")
         return ExecutionResult(action, "failed", "앵커 삽입 실패")
     except Exception as e:

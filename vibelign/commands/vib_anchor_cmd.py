@@ -153,11 +153,17 @@ def run_vib_anchor(args: object) -> None:
         if not anchored:
             print("앵커가 있는 파일이 없습니다. 먼저 vib anchor --auto 를 실행하세요.")
             return
-        print(f"🤖 AI가 {len(anchored)}개 파일의 앵커 intent를 자동 생성 중...")
-        count = _generate_anchor_intents_with_ai(root, anchored)
-        if count:
-            print(f"✅ intent 등록 완료: {count}개")
-        else:
+        # 1단계: 코드 기반 생성 (즉시, 비용 0)
+        from vibelign.core.anchor_tools import generate_code_based_intents
+        code_count = generate_code_based_intents(root, anchored)
+        if code_count:
+            print(f"✅ 코드 기반 aliases 생성 완료: {code_count}개")
+        # 2단계: AI 보강 (API 키 있을 때만)
+        print(f"🤖 AI가 {len(anchored)}개 파일의 앵커 intent를 보강 중...")
+        ai_count = _generate_anchor_intents_with_ai(root, anchored)
+        if ai_count:
+            print(f"✅ AI 보강 완료: {ai_count}개")
+        elif not code_count:
             print(
                 "⚠️  intent 자동 생성 실패 (API 키 확인 또는 vib anchor --set-intent 로 직접 등록)"
             )

@@ -101,6 +101,46 @@ def test_generate_anchor_intents_produces_aliases(tmp_path):
     assert "description" in entry
 
 
+def test_generate_code_based_aliases():
+    """코드 기반으로 aliases/description이 생성되어야 한다."""
+    from vibelign.core.anchor_tools import generate_code_based_aliases
+
+    aliases, description = generate_code_based_aliases(
+        "MAIN_WINDOW__APPLY_BTN_STYLE",
+        "class ApplyButton:\n    def set_color(self, color): pass\n",
+    )
+    # 앵커 이름에서 토큰 추출
+    assert any("apply" in a for a in aliases)
+    # btn → button 약어 확장
+    assert any("button" in a for a in aliases)
+    assert description  # 빈 문자열이 아니어야
+
+
+def test_generate_code_based_intents_updates_existing(tmp_path):
+    """코드 기반 생성은 기존 앵커도 갱신해야 한다."""
+    from vibelign.core.anchor_tools import generate_code_based_intents
+
+    src = tmp_path / "widget.py"
+    src.write_text(
+        '# === ANCHOR: WIDGET_RENDER_START ===\n'
+        'def render_button(self): pass\n'
+        '# === ANCHOR: WIDGET_RENDER_END ===\n',
+        encoding="utf-8",
+    )
+    meta_dir = tmp_path / ".vibelign"
+    meta_dir.mkdir()
+    # 기존 intent만 있는 상태
+    save_anchor_meta(tmp_path, {"WIDGET_RENDER": {"intent": "위젯 렌더링"}})
+
+    count = generate_code_based_intents(tmp_path, [src])
+    assert count >= 1
+    meta = load_anchor_meta(tmp_path)
+    entry = meta["WIDGET_RENDER"]
+    assert "aliases" in entry
+    # 기존 intent는 유지
+    assert entry["intent"] == "위젯 렌더링"
+
+
 def test_choose_anchor_matches_korean_alias():
     """한국어 alias가 있으면 영어 앵커명과 한국어 요청이 매칭되어야 한다."""
     from vibelign.core.patch_suggester import choose_anchor, tokenize
