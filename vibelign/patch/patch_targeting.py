@@ -42,6 +42,11 @@ class AICodeSpeakLike(Protocol):
         request: str,
         rule_result: object,
         quiet: bool = False,
+        *,
+        target_file: str | None = None,
+        target_anchor: str | None = None,
+        target_confidence: str | None = None,
+        target_rationale: list[str] | None = None,
 # === ANCHOR: PATCH_TARGETING_AICODESPEAKLIKE_END ===
     # === ANCHOR: PATCH_TARGETING_ENHANCE_CODESPEAK_WITH_AI_END ===
     ) -> object | None: ...
@@ -55,6 +60,10 @@ def enhance_codespeak(
     use_ai: bool,
     quiet_ai: bool,
     import_module: Callable[[str], object],
+    target_file: str | None = None,
+    target_anchor: str | None = None,
+    target_confidence: str | None = None,
+    target_rationale: list[str] | None = None,
 # === ANCHOR: PATCH_TARGETING_ENHANCE_CODESPEAK_END ===
 ) -> CodeSpeakResult:
     if not use_ai:
@@ -65,7 +74,11 @@ def enhance_codespeak(
         return codespeak
     try:
         enhanced = ai_codespeak.enhance_codespeak_with_ai(
-            request, codespeak, quiet=quiet_ai
+            request, codespeak, quiet=quiet_ai,
+            target_file=target_file,
+            target_anchor=target_anchor,
+            target_confidence=target_confidence,
+            target_rationale=target_rationale,
         )
     except Exception:
         enhanced = None
