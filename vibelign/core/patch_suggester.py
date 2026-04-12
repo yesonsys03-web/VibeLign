@@ -1158,11 +1158,23 @@ def _ai_select_file(
         # 파일 수에 따라 스니펫 줄 수 조정 (프롬프트 과부하 방지)
         snippet_lines = max(5, 30 // max(len(pool), 1))
 
+        score_map: dict[Path, tuple[int, list[str]]] = {
+            p: (s, r) for s, p, r in candidates
+        }
+
         lines: list[str] = []
         for i, path in enumerate(pool, 1):
             rel = relpath_str(root, path)
             anchors = extract_anchors(path)
             anchor_names = ", ".join(anchors[:5]) if anchors else "없음"
+            category = (
+                project_map.classify_path(rel)
+                if project_map is not None
+                else None
+            )
+            cat_label = f" [{category}]" if category else ""
+            sc, reasons = score_map.get(path, (0, []))
+            reason_summary = "; ".join(reasons[:3]) if reasons else ""
             try:
                 content_lines = path.read_text(
                     encoding="utf-8", errors="ignore"
@@ -1170,15 +1182,24 @@ def _ai_select_file(
                 snippet = "\n".join(content_lines[:snippet_lines])
             except OSError:
                 snippet = ""
-            lines.append(f"{i}. {rel}\n   앵커: {anchor_names}\n   내용:\n{snippet}\n")
+            lines.append(
+                f"{i}. {rel}{cat_label} (점수 {sc})\n"
+                f"   앵커: {anchor_names}\n"
+                f"{f'   근거: {reason_summary}{chr(10)}' if reason_summary else ''}"
+                f"   내용:\n{snippet}\n"
+            )
 
         candidates_text = "\n---\n".join(lines)
         prompt = (
             f"사용자 코드 수정 요청: {request}\n\n"
             f"아래 후보 파일의 내용을 보고 수정해야 할 파일을 하나만 골라주세요.\n"
+            f"각 파일의 분류([ui]/[service]/[logic])와 점수·근거를 참고하세요.\n"
             f"JSON만 출력하세요. 설명 없이 딱 JSON만.\n\n"
-            f"{('중요 규칙: 상태 유지/enable/disable/status 문제가 메뉴 이동 뒤에 풀리는 요청이면, 일반적인 app/layout 컨테이너보다 실제 상태를 들고 있거나 카드/토글/설정/훅 이름이 보이는 파일을 우선 고르세요.\\n\\n' if stateful_ui_request else '')}"
-            f"후보:\n{candidates_text}\n"
+            f"규칙:\n"
+            f"- 검증/유효성/조건 추가 요청이면, service보다 logic 레이어(validators 등)를 우선 고르세요.\n"
+            f"- 설정/제한값 변경 요청이면, 실제 값이 정의된 config 파일을 우선 고르세요.\n"
+            f"{('- 상태 유지/enable/disable/status 문제가 메뉴 이동 뒤에 풀리는 요청이면, 일반적인 app/layout 컨테이너보다 실제 상태를 들고 있거나 카드/토글/설정/훅 이름이 보이는 파일을 우선 고르세요.' + chr(10) if stateful_ui_request else '')}"
+            f"\n후보:\n{candidates_text}\n"
             f'출력 형식: {{"index": 1}}'
         )
         text, _ = ai_explain.generate_text_with_ai(prompt, quiet=True)
