@@ -1,3 +1,4 @@
+# === ANCHOR: STRUCTURE_PLANNER_START ===
 from __future__ import annotations
 
 import re
@@ -13,12 +14,14 @@ _NEW_FILE_LINE_THRESHOLD = 150
 
 
 @dataclass(frozen=True)
+# === ANCHOR: STRUCTURE_PLANNER_PLANNERRULE_START ===
 class PlannerRule:
     tokens: tuple[str, ...]
     target_category: str
     default_filename: str
     path_signals: tuple[str, ...]
     preferred_existing_names: tuple[str, ...] = ()
+# === ANCHOR: STRUCTURE_PLANNER_PLANNERRULE_END ===
 
 
 _CATEGORY_PATHS: dict[str, str] = {
@@ -75,17 +78,22 @@ _KEYWORD_RULES: tuple[PlannerRule, ...] = (
 )
 
 
+# === ANCHOR: STRUCTURE_PLANNER__NOW_ISO_START ===
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+# === ANCHOR: STRUCTURE_PLANNER__NOW_ISO_END ===
 
 
+# === ANCHOR: STRUCTURE_PLANNER__SLUGIFY_FEATURE_START ===
 def _slugify_feature(feature: str) -> str:
     ascii_tokens = cast(list[str], re.findall(r"[a-z0-9]+", feature.lower()))
     if ascii_tokens:
         return "_".join(ascii_tokens[:4])
     return "new_feature"
+# === ANCHOR: STRUCTURE_PLANNER__SLUGIFY_FEATURE_END ===
 
 
+# === ANCHOR: STRUCTURE_PLANNER__EXTRACT_KEYWORDS_START ===
 def _extract_keywords(feature: str) -> list[str]:
     seen: set[str] = set()
     keywords: list[str] = []
@@ -95,8 +103,10 @@ def _extract_keywords(feature: str) -> list[str]:
             seen.add(token)
             keywords.append(token)
     return keywords
+# === ANCHOR: STRUCTURE_PLANNER__EXTRACT_KEYWORDS_END ===
 
 
+# === ANCHOR: STRUCTURE_PLANNER__MATCH_RULE_START ===
 def _match_rule(keywords: list[str]) -> tuple[PlannerRule, list[str]]:
     for rule in _KEYWORD_RULES:
         matched = [token for token in keywords if token in rule.tokens]
@@ -111,11 +121,14 @@ def _match_rule(keywords: list[str]) -> tuple[PlannerRule, list[str]]:
         ),
         [],
     )
+# === ANCHOR: STRUCTURE_PLANNER__MATCH_RULE_END ===
 
 
+# === ANCHOR: STRUCTURE_PLANNER__ITER_CANDIDATE_FILES_START ===
 def _iter_candidate_files(
     files: dict[str, dict[str, object]],
     scope: str | None,
+# === ANCHOR: STRUCTURE_PLANNER__ITER_CANDIDATE_FILES_END ===
 ) -> list[tuple[str, dict[str, object]]]:
     normalized_scope = (scope or "").strip().replace("\\", "/")
     candidates: list[tuple[str, dict[str, object]]] = []
@@ -126,6 +139,7 @@ def _iter_candidate_files(
     return candidates
 
 
+# === ANCHOR: STRUCTURE_PLANNER__PATH_MATCH_SIGNALS_START ===
 def _path_match_signals(path: str, rule: PlannerRule, keywords: list[str]) -> list[str]:
     lowered = path.lower()
     matches: list[str] = []
@@ -136,12 +150,15 @@ def _path_match_signals(path: str, rule: PlannerRule, keywords: list[str]) -> li
         if keyword and keyword in lowered and keyword not in matches:
             matches.append(keyword)
     return matches
+# === ANCHOR: STRUCTURE_PLANNER__PATH_MATCH_SIGNALS_END ===
 
 
+# === ANCHOR: STRUCTURE_PLANNER__CANDIDATE_HAS_ANCHORS_START ===
 def _candidate_has_anchors(
     path: str,
     data: dict[str, object],
     anchor_index: dict[str, list[str]],
+# === ANCHOR: STRUCTURE_PLANNER__CANDIDATE_HAS_ANCHORS_END ===
 ) -> bool:
     anchors_obj = data.get("anchors")
     if isinstance(anchors_obj, list) and anchors_obj:
@@ -149,11 +166,13 @@ def _candidate_has_anchors(
     return bool(anchor_index.get(path, []))
 
 
+# === ANCHOR: STRUCTURE_PLANNER__CHOOSE_EXISTING_FILE_START ===
 def _choose_existing_file(
     candidates: list[tuple[str, dict[str, object]]],
     keywords: list[str],
     rule: PlannerRule,
     anchor_index: dict[str, list[str]],
+# === ANCHOR: STRUCTURE_PLANNER__CHOOSE_EXISTING_FILE_END ===
 ) -> tuple[str | None, dict[str, object] | None, list[str]]:
     scored: list[tuple[int, str, dict[str, object]]] = []
     for path, data in candidates:
@@ -186,10 +205,12 @@ def _choose_existing_file(
     return path, data, narrowed_candidates
 
 
+# === ANCHOR: STRUCTURE_PLANNER__LOAD_ANCHORS_START ===
 def _load_anchors(
     existing_path: str,
     existing_data: dict[str, object],
     anchor_index: dict[str, list[str]],
+# === ANCHOR: STRUCTURE_PLANNER__LOAD_ANCHORS_END ===
 ) -> list[str]:
     anchors_obj = existing_data.get("anchors", [])
     if isinstance(anchors_obj, list) and anchors_obj:
@@ -198,12 +219,14 @@ def _load_anchors(
     return [str(item) for item in indexed]
 
 
+# === ANCHOR: STRUCTURE_PLANNER__PICK_ANCHOR_START ===
 def _pick_anchor(
     path: str,
     anchors: list[str],
     keywords: list[str],
     rule: PlannerRule,
     matched_path_signals: list[str],
+# === ANCHOR: STRUCTURE_PLANNER__PICK_ANCHOR_END ===
 ) -> tuple[str | None, str | None]:
     lowered_keywords = [keyword.lower() for keyword in keywords if keyword]
     for anchor in anchors:
@@ -216,12 +239,14 @@ def _pick_anchor(
     return None, None
 
 
+# === ANCHOR: STRUCTURE_PLANNER_BUILD_STRUCTURE_PLAN_START ===
 def build_structure_plan(
     root: Path,
     feature: str,
     *,
     mode: str = "rules",
     scope: str | None = None,
+# === ANCHOR: STRUCTURE_PLANNER_BUILD_STRUCTURE_PLAN_END ===
 ) -> dict[str, object]:
     keywords = _extract_keywords(feature)
     rule, matched_keywords = _match_rule(keywords)
@@ -360,3 +385,4 @@ def build_structure_plan(
             "warnings": planner_warnings,
         },
     }
+# === ANCHOR: STRUCTURE_PLANNER_END ===

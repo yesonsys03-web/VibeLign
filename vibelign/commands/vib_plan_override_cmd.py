@@ -1,3 +1,4 @@
+# === ANCHOR: VIB_PLAN_OVERRIDE_CMD_START ===
 from __future__ import annotations
 
 from argparse import Namespace
@@ -14,6 +15,7 @@ from vibelign.core.meta_paths import MetaPaths
 from vibelign.terminal_render import clack_success
 
 
+# === ANCHOR: VIB_PLAN_OVERRIDE_CMD_RUN_VIB_PLAN_OVERRIDE_START ===
 def run_vib_plan_override(args: Namespace) -> None:
     raw_reason_obj: object = getattr(args, "reason", [])
     if isinstance(raw_reason_obj, str):
@@ -58,3 +60,5 @@ def run_vib_plan_override(args: Namespace) -> None:
     updated["override_count"] = override_count + 1
     save_planning_session(meta, updated)
     clack_success(f"구조 계획 override를 기록했어요: {reason}")
+# === ANCHOR: VIB_PLAN_OVERRIDE_CMD_RUN_VIB_PLAN_OVERRIDE_END ===
+# === ANCHOR: VIB_PLAN_OVERRIDE_CMD_END ===
