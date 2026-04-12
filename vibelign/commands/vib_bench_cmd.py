@@ -26,6 +26,45 @@ BENCHMARK_DIR = Path(__file__).resolve().parent.parent.parent / "tests" / "bench
 SAMPLE_PROJECT = BENCHMARK_DIR / "sample_project"
 SCENARIOS_PATH = BENCHMARK_DIR / "scenarios.json"
 
+# === ANCHOR: VIB_BENCH_PATCH_METRICS_START ===
+# Patch-accuracy bench runner helpers (C5, 2026-04-12).
+
+PATCH_BASELINE_PATH = BENCHMARK_DIR / "patch_accuracy_baseline.json"
+PATCH_PREFILTER_TOP_N = 3
+
+
+def _compute_files_ok(target_file: str, correct_files: list[str]) -> bool:
+    """True when suggest_patch's target_file is in the scenario's correct set."""
+    return target_file in correct_files
+
+
+def _compute_anchor_ok(
+    target_anchor: str, correct_anchor: str | None
+) -> bool | None:
+    """True/False when the scenario specifies an anchor, None otherwise.
+
+    Scenarios like `add_password_change` have `correct_anchor: null` — they
+    are excluded from the anchor_ok denominator.
+    """
+    if correct_anchor is None:
+        return None
+    return target_anchor == correct_anchor
+
+
+def _compute_recall_at_3(
+    candidates: list[tuple[str, int]], correct_files: list[str]
+) -> bool:
+    """True when any correct file appears in the top-N deterministic candidates.
+
+    `candidates` is a list of (relpath, score) pairs already sorted descending.
+    N = PATCH_PREFILTER_TOP_N.
+    """
+    top_paths = {relpath for relpath, _score in candidates[:PATCH_PREFILTER_TOP_N]}
+    return any(cf in top_paths for cf in correct_files)
+
+
+# === ANCHOR: VIB_BENCH_PATCH_METRICS_END ===
+
 
 class BenchmarkScenario(TypedDict):
     id: str
