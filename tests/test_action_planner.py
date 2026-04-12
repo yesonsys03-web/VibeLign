@@ -55,7 +55,14 @@ class ActionPlannerTest(unittest.TestCase):
 
         plan = generate_plan(report)
 
-        self.assertEqual("split_file", plan.actions[0].action_type)
+        action_types = [a.action_type for a in plan.actions]
+        self.assertIn("split_file", action_types)
+        # split_file은 add_anchor에 의존하므로 add_anchor가 먼저 와야 함
+        if "add_anchor" in action_types:
+            self.assertLess(
+                action_types.index("add_anchor"),
+                action_types.index("split_file"),
+            )
 
     def test_generate_plan_does_not_treat_generic_vib_start_hint_as_project_map(self):
         report = {

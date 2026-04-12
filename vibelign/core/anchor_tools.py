@@ -34,6 +34,8 @@ class AnchorMetaEntry(TypedDict, total=False):
     intent: str
     connects: list[str]
     warning: str
+    aliases: list[str]
+    description: str
 
 
 def _normalize_object_dict(value: object) -> dict[str, object] | None:
@@ -587,6 +589,12 @@ def load_anchor_meta(root: Path) -> dict[str, AnchorMetaEntry]:
         warning = entry.get("warning")
         if isinstance(warning, str):
             meta_entry["warning"] = warning
+        aliases = _normalize_string_list(entry.get("aliases"))
+        if aliases:
+            meta_entry["aliases"] = aliases
+        description = entry.get("description")
+        if isinstance(description, str):
+            meta_entry["description"] = description
         normalized[key] = meta_entry
     return normalized
 
@@ -616,6 +624,8 @@ def set_anchor_intent(
     intent: str,
     connects: list[str] | None = None,
     warning: str | None = None,
+    aliases: list[str] | None = None,
+    description: str | None = None,
     # === ANCHOR: ANCHOR_TOOLS_SET_ANCHOR_INTENT_END ===
 ) -> None:
     """특정 앵커에 의도(intent) 정보를 저장한다."""
@@ -626,6 +636,10 @@ def set_anchor_intent(
         entry["connects"] = connects
     if warning is not None:
         entry["warning"] = warning
+    if aliases is not None:
+        entry["aliases"] = aliases
+    if description is not None:
+        entry["description"] = description
     data[anchor_name] = entry
     save_anchor_meta(root, data)
 
@@ -695,7 +709,7 @@ def extract_anchor_blocks(path: Path) -> dict[str, str]:
 
 # === ANCHOR: ANCHOR_TOOLS_GENERATE_ANCHOR_INTENTS_WITH_AI_START ===
 def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
-    """AI를 사용해 anchor intent를 자동 생성하고 저장. 반환: 등록된 intent 수"""
+    """AI를 사용해 anchor intent/aliases/description을 자동 생성하고 저장. 반환: 등록된 intent 수"""
     from vibelign.core.ai_explain import generate_text_with_ai, has_ai_provider
 
     if not has_ai_provider():
@@ -714,26 +728,63 @@ def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
     )
     prompt = (
         "다음은 코드 파일의 각 구역(앵커)입니다.\n"
-        + "각 구역이 무슨 일을 하는지 한국어로 한 줄(10~20자)로 설명해주세요.\n"
-        + "반드시 아래 형식으로만 출력하세요. 다른 말은 하지 마세요.\n"
-        + "[번호] 설명\n\n"
+        "각 구역에 대해 JSON 배열로 출력하세요. 다른 말은 하지 마세요.\n\n"
+        "각 항목 형식:\n"
+        '{"anchor": "앵커이름", "intent": "한 줄 설명(10~20자)", '
+        '"aliases": ["한국어 별칭1", "영어 별칭", ...], '
+        '"description": "이 구역이 하는 일을 한 문장으로"}\n\n'
+        "aliases 규칙:\n"
+        "- 사용자가 이 구역을 수정하고 싶을 때 쓸 법한 한국어/영어 표현 2~5개\n"
+        "- 코드 속 변수명, 클래스명, UI 요소명을 자연어로 풀어서 포함\n"
+        "- 예: APPLY_BTN_STYLE → ['전체적용 버튼', 'apply button', '적용 버튼 스타일']\n\n"
         + numbered
     )
     text, _ = generate_text_with_ai(prompt, quiet=True)
     if not text:
         return 0
-    parsed: dict[str, str] = {}
-    parts = re.split(r"\[(\d+)\]", text)
-    i = 1
-    while i + 1 < len(parts):
-        idx = int(parts[i]) - 1
-        val = parts[i + 1].strip().splitlines()[0].strip()
-        if 0 <= idx < len(anchor_list) and val:
-            parsed[anchor_list[idx]] = val
-        i += 2
-    for anchor, intent in parsed.items():
-        set_anchor_intent(root, anchor, intent)
-    return len(parsed)
+    count = 0
+    try:
+        json_text = text.strip()
+        if "```" in json_text:
+            start = json_text.find("[")
+            end = json_text.rfind("]") + 1
+            if start >= 0 and end > start:
+                json_text = json_text[start:end]
+        items = json.loads(json_text)
+        if isinstance(items, list):
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                anchor_name = item.get("anchor", "")
+                if anchor_name not in all_blocks:
+                    continue
+                intent = item.get("intent", "")
+                if not intent:
+                    continue
+                aliases = item.get("aliases")
+                description = item.get("description")
+                set_anchor_intent(
+                    root,
+                    anchor_name,
+                    intent,
+                    aliases=aliases if isinstance(aliases, list) else None,
+                    description=description if isinstance(description, str) else None,
+                )
+                count += 1
+    except (json.JSONDecodeError, ValueError):
+        parsed: dict[str, str] = {}
+        parts = re.split(r"\[(\d+)\]", text)
+        i = 1
+        while i + 1 < len(parts):
+            idx = int(parts[i]) - 1
+            val = parts[i + 1].strip().splitlines()[0].strip()
+            if 0 <= idx < len(anchor_list) and val:
+                parsed[anchor_list[idx]] = val
+            i += 2
+        for anchor, intent in parsed.items():
+            set_anchor_intent(root, anchor, intent)
+            count += 1
+    return count
 
 
 # === ANCHOR: ANCHOR_TOOLS_GENERATE_ANCHOR_INTENTS_WITH_AI_END ===
