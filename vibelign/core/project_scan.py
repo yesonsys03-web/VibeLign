@@ -11,17 +11,14 @@ from vibelign.core.structure_policy import (
 
 
 def iter_project_files(root: Path) -> Generator[Path, None, None]:
-    resolved_root = root.resolve()
     for path in root.rglob("*"):
-        try:
-            resolved = path.resolve()
-            if not str(resolved).startswith(str(resolved_root)):
-                continue
-        except OSError:
-            continue
         if has_ignored_part(path.parts):
             continue
-        if path.is_file():
+        try:
+            is_file = path.is_file()
+        except OSError:
+            continue
+        if is_file:
             yield path
 
 
