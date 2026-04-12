@@ -223,5 +223,76 @@ class BaselineDiffTest(unittest.TestCase):
         self.assertEqual(diff["improvements"], [])
 
 
+class ExitCodeTest(unittest.TestCase):
+    """End-to-end (in-process) exit-code semantics for _run_patch_accuracy."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        # Ensure baseline exists for the clean-run test.
+        from vibelign.commands.vib_bench_cmd import PATCH_BASELINE_PATH
+
+        cls.baseline_path = PATCH_BASELINE_PATH
+        cls._backup = (
+            PATCH_BASELINE_PATH.read_text(encoding="utf-8")
+            if PATCH_BASELINE_PATH.exists()
+            else None
+        )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        if cls._backup is not None:
+            cls.baseline_path.write_text(cls._backup, encoding="utf-8")
+
+    def test_clean_run_exits_zero(self):
+        from vibelign.commands.vib_bench_cmd import _run_patch_accuracy
+
+        with mock_patch(
+            "vibelign.core.patch_suggester._ai_select_file",
+            return_value=None,
+        ):
+            # First run with --update-baseline to establish a matching baseline.
+            code_update = _run_patch_accuracy(
+                update_baseline=True, as_json=True
+            )
+            # Second run without --update-baseline should be clean.
+            code_clean = _run_patch_accuracy(
+                update_baseline=False, as_json=True
+            )
+
+        self.assertEqual(code_update, 0)
+        self.assertEqual(code_clean, 0)
+
+    def test_regression_exits_one(self):
+        from vibelign.commands.vib_bench_cmd import (
+            PATCH_BASELINE_PATH,
+            _run_patch_accuracy,
+        )
+
+        with mock_patch(
+            "vibelign.core.patch_suggester._ai_select_file",
+            return_value=None,
+        ):
+            # Seed a known-good baseline.
+            _ = _run_patch_accuracy(update_baseline=True, as_json=True)
+            # Corrupt the baseline: force every metric to True so every
+            # failing scenario becomes a regression.
+            poisoned = json.loads(
+                PATCH_BASELINE_PATH.read_text(encoding="utf-8")
+            )
+            for sid in poisoned["scenarios"]:
+                for mode in ("det", "ai"):
+                    for metric in ("files_ok", "anchor_ok", "recall_at_3"):
+                        if poisoned["scenarios"][sid][mode][metric] is not None:
+                            poisoned["scenarios"][sid][mode][metric] = True
+            PATCH_BASELINE_PATH.write_text(
+                json.dumps(poisoned, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            code = _run_patch_accuracy(update_baseline=False, as_json=True)
+
+        self.assertEqual(code, 1)
+
+
 if __name__ == "__main__":
     unittest.main()
