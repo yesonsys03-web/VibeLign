@@ -222,6 +222,157 @@ def _write_patch_baseline(current: dict) -> None:
 # === ANCHOR: VIB_BENCH_PATCH_MEASURE_END ===
 
 
+# === ANCHOR: VIB_BENCH_PATCH_RUNNER_START ===
+
+
+def _format_patch_report(current: dict, baseline: dict | None, diff: dict) -> str:
+    """Human-readable report showing totals vs baseline + per-scenario rows."""
+    lines = []
+    lines.append(
+        "Patch accuracy benchmark (pinned intents, 5 scenarios × 2 modes)"
+    )
+    if baseline is not None:
+        lines.append(
+            f"Baseline: {PATCH_BASELINE_PATH.relative_to(BENCHMARK_DIR.parent)} "
+            f"({baseline.get('generated_at', 'unknown')})"
+        )
+    else:
+        lines.append("Baseline: (none — this run could be used as a new baseline)")
+    lines.append("")
+
+    header = f"{'':<21}{'deterministic':<20}{'--ai':<20}"
+    lines.append(header)
+    for metric_key, metric_label in (
+        ("files_ok", "files_ok"),
+        ("anchor_ok", "anchor_ok"),
+        ("recall_at_3", "prefilter_recall@3"),
+    ):
+        det_cell = _format_totals_cell(
+            current["totals"]["det"][metric_key],
+            baseline["totals"]["det"][metric_key] if baseline else None,
+        )
+        ai_cell = _format_totals_cell(
+            current["totals"]["ai"][metric_key],
+            baseline["totals"]["ai"][metric_key] if baseline else None,
+        )
+        lines.append(f"  {metric_label:<19}{det_cell:<20}{ai_cell:<20}")
+    lines.append("")
+
+    lines.append("Per-scenario (files_ok / anchor_ok / recall@3):")
+    for sid, entry in current["scenarios"].items():
+        det_row = _format_scenario_row(entry["det"])
+        ai_row = _format_scenario_row(entry["ai"])
+        lines.append(f"  {sid:<26}det {det_row}   ai {ai_row}")
+    lines.append("")
+
+    if diff["regressions"]:
+        lines.append(f"Regressions: {len(diff['regressions'])}")
+        for r in diff["regressions"]:
+            lines.append(
+                f"  - {r['scenario']} [{r['mode']}] {r['metric']}: "
+                f"{r['was']} -> {r['now']}"
+            )
+    else:
+        lines.append("Regressions: none")
+
+    if diff["improvements"]:
+        lines.append(f"Improvements: {len(diff['improvements'])}")
+        for i in diff["improvements"]:
+            lines.append(
+                f"  + {i['scenario']} [{i['mode']}] {i['metric']}: "
+                f"{i['was']} -> {i['now']}"
+            )
+    else:
+        lines.append("Improvements: none")
+
+    return "\n".join(lines)
+
+
+def _format_totals_cell(current_str: str, baseline_str: str | None) -> str:
+    """Render 'N/M' with a (=/+k/-k) delta marker vs baseline."""
+    if baseline_str is None:
+        return f"{current_str}"
+    cur_num = int(current_str.split("/")[0])
+    base_num = int(baseline_str.split("/")[0])
+    delta = cur_num - base_num
+    if delta == 0:
+        marker = "(=)"
+    elif delta > 0:
+        marker = f"(+{delta})"
+    else:
+        marker = f"({delta})"
+    return f"{current_str} {marker}"
+
+
+def _format_scenario_row(entry: dict) -> str:
+    """Render one scenario row as three checkmarks/crosses/dashes."""
+
+    def glyph(v: bool | None) -> str:
+        if v is True:
+            return "✓"
+        if v is False:
+            return "✗"
+        return "—"
+
+    return (
+        f"{glyph(entry['files_ok'])} "
+        f"{glyph(entry['anchor_ok'])} "
+        f"{glyph(entry['recall_at_3'])}"
+    )
+
+
+def _run_patch_accuracy(
+    *, update_baseline: bool, as_json: bool
+) -> int:
+    """Execute the patch-accuracy bench. Returns desired process exit code."""
+    import tempfile
+
+    from vibelign.commands.bench_fixtures import prepare_patch_sandbox
+
+    baseline = _load_patch_baseline()
+    with tempfile.TemporaryDirectory() as tmp_str:
+        sandbox = prepare_patch_sandbox(Path(tmp_str))
+        current = _measure_patch_accuracy(sandbox)
+
+    if update_baseline:
+        _write_patch_baseline(current)
+        baseline = _load_patch_baseline()
+
+    diff = (
+        _diff_against_baseline(current, baseline)
+        if baseline is not None
+        else {"regressions": [], "improvements": []}
+    )
+
+    if as_json:
+        from vibelign.terminal_render import cli_print
+
+        cli_print(
+            json.dumps(
+                {
+                    "current": current,
+                    "baseline": baseline,
+                    "diff": diff,
+                    "update_baseline": update_baseline,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+    else:
+        report = _format_patch_report(current, baseline, diff)
+        from vibelign.terminal_render import cli_print
+
+        cli_print(report)
+
+    if update_baseline:
+        return 0
+    return 1 if diff["regressions"] else 0
+
+
+# === ANCHOR: VIB_BENCH_PATCH_RUNNER_END ===
+
+
 class BenchmarkScenario(TypedDict):
     id: str
     request: str
@@ -701,6 +852,16 @@ def run_vib_bench(args: object) -> None:
 
     output_dir = BENCHMARK_DIR / "output"
     results_dir = BENCHMARK_DIR / "results"
+
+    do_patch = getattr(args, "patch", False)
+    update_baseline = getattr(args, "update_baseline", False)
+    as_json_flag = getattr(args, "json", False)
+
+    if do_patch:
+        exit_code = _run_patch_accuracy(
+            update_baseline=update_baseline, as_json=as_json_flag
+        )
+        raise SystemExit(exit_code)
 
     do_generate = getattr(args, "generate", False)
     do_score = getattr(args, "score", False)
