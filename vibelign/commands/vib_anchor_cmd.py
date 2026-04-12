@@ -38,8 +38,12 @@ def _collect_anchor_metadata(
     return collect(root, allowed_exts)
 
 
-def _generate_anchor_intents_with_ai(root: Path, anchored: list[Path]) -> int:
-    return anchor_tools_mod.generate_anchor_intents_with_ai(root, anchored)
+def _generate_anchor_intents_with_ai(
+    root: Path, anchored: list[Path], *, force: bool = False
+) -> int:
+    return anchor_tools_mod.generate_anchor_intents_with_ai(
+        root, anchored, force=force
+    )
 
 
 def _insert_module_anchors(path: Path) -> bool:
@@ -122,6 +126,7 @@ def run_vib_anchor(args: object) -> None:
     intent_value = getattr(args, "intent", None)
     intent = intent_value if isinstance(intent_value, str) else ""
     auto_intent = bool(getattr(args, "auto_intent", False))
+    force = bool(getattr(args, "force", False))
     list_intent = bool(getattr(args, "list_intent", False))
     validate = bool(getattr(args, "validate", False))
     json_mode = bool(getattr(args, "json", False))
@@ -160,7 +165,7 @@ def run_vib_anchor(args: object) -> None:
             print(f"✅ 코드 기반 aliases 생성 완료: {code_count}개")
         # 2단계: AI 보강 (API 키 있을 때만)
         print(f"🤖 AI가 {len(anchored)}개 파일의 앵커 intent를 보강 중...")
-        ai_count = _generate_anchor_intents_with_ai(root, anchored)
+        ai_count = _generate_anchor_intents_with_ai(root, anchored, force=force)
         if ai_count:
             print(f"✅ AI 보강 완료: {ai_count}개")
         elif not code_count:

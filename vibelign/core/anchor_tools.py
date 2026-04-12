@@ -856,9 +856,11 @@ def _generate_batch(
         '"aliases": ["한국어 별칭1", "영어 별칭", ...], '
         '"description": "이 구역이 하는 일을 한 문장으로"}\n\n'
         "aliases 규칙:\n"
-        "- 사용자가 이 구역을 수정하고 싶을 때 쓸 법한 한국어/영어 표현 2~5개\n"
+        "- 사용자가 이 구역을 수정하고 싶을 때 쓸 법한 한국어/영어 표현 2~4개\n"
         "- 코드 속 변수명, 클래스명, UI 요소명을 자연어로 풀어서 포함\n"
-        "- 예: APPLY_BTN_STYLE → ['전체적용 버튼', 'apply button', '적용 버튼 스타일']\n\n"
+        "- ⚠️ 절대 금지: 앵커 이름의 단어를 영어 그대로 나열 (BUILD_PATCH_STEPS → 'build patch steps' ❌, 'match rule' ❌)\n"
+        "- 영어 alias도 반드시 동의어/재표현 사용 (예: match_rule → 'find matching pattern', build_patch_steps → 'construct edit operations')\n"
+        "- 한국어 alias는 사용자 관점 자연어 (예: APPLY_BTN_STYLE → '전체적용 버튼', '적용 버튼 꾸미기')\n\n"
         + numbered
     )
     text, _ = _gen(prompt, quiet=True)
@@ -906,10 +908,13 @@ def _generate_batch(
     return results
 
 
-def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
+def generate_anchor_intents_with_ai(
+    root: Path, paths: list[Path], *, force: bool = False
+) -> int:
     """AI를 사용해 anchor intent/aliases/description을 보강. 반환: 등록된 intent 수.
 
     이미 AI가 생성한 aliases가 있는 앵커는 건너뛴다.
+    force=True이면 기존 AI 생성 항목도 재생성한다.
     배치를 최대 _MAX_PARALLEL개씩 병렬 실행한다.
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -923,7 +928,7 @@ def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
     for path in paths:
         for anchor, code in extract_anchor_blocks(path).items():
             entry = existing.get(anchor, {})
-            if entry.get("_source") == "ai":
+            if not force and entry.get("_source") == "ai":
                 continue
             all_blocks[anchor] = code[:400]
     if not all_blocks:
