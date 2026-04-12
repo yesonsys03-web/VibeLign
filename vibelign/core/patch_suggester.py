@@ -1137,13 +1137,22 @@ def _ai_select_file(
         return None
 
 
-def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggestion:
+def _score_all_files(
+    root: Path, request: str
+) -> tuple[list[tuple[int, Path, list[str]]], dict, dict, object, object]:
+    """Rank every source file under `root` for the given `request`.
+
+    Returns (scored, metadata, anchor_meta, project_map, ui_label_idx).
+    `scored` is sorted descending by score, ties broken by path string.
+    `suggest_patch` consumes all 5 return values; `score_candidates`
+    consumes only `scored`.
+    """
     from vibelign.core.anchor_tools import load_anchor_meta
 
     request_tokens = tokenize(request)
     metadata = load_anchor_metadata(root)
     anchor_meta = load_anchor_meta(root)
-    project_map, _project_map_error = load_project_map(root)
+    project_map, _err = load_project_map(root)
     ui_label_idx = load_ui_label_index(root)
     scored: list[tuple[int, Path, list[str]]] = []
     for path in iter_source_files(root):
@@ -1161,12 +1170,30 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
                 rel, request_tokens, ui_label_idx
             )
             if ui_boost:
-                score += (
-                    ui_boost + 8
-                )  # 화면 노출 텍스트 일치는 강한 신호 (+4 기본 + 8 추가)
+                score += ui_boost + 8
                 rationale = rationale + ui_reasons
         scored.append((score, path, rationale))
+    scored.sort(key=lambda x: (-x[0], str(x[1])))
+    return scored, metadata, anchor_meta, project_map, ui_label_idx
 
+
+def score_candidates(root: Path, request: str) -> list[tuple[Path, int]]:
+    """Public API: return files ranked for `request`, descending by score.
+
+    Used by the patch-accuracy benchmark runner to measure prefilter recall.
+    This is the same ranking `suggest_patch` uses internally before the
+    AI-select / anchor-pick stages — extracted so downstream tooling can
+    inspect the raw deterministic order.
+    """
+    scored, *_ = _score_all_files(root, request)
+    return [(path, score) for score, path, _rationale in scored]
+
+
+def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggestion:
+    scored, metadata, anchor_meta, project_map, _ui_label_idx = _score_all_files(
+        root, request
+    )
+    request_tokens = tokenize(request)
     if not scored:
         return PatchSuggestion(
             request,
@@ -1175,8 +1202,6 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
             "low",
             ["프로젝트에 아직 소스 파일이 없습니다"],
         )
-
-    scored.sort(key=lambda x: (-x[0], str(x[1])))
     best_score, best_path, reasons = scored[0]
     second_score = scored[1][0] if len(scored) > 1 else None
     anchors = extract_anchors(best_path)
