@@ -186,6 +186,9 @@ def register_extended_commands(
     _ = p.add_argument(
         "--auto-intent", action="store_true", help="AI가 모든 앵커 intent 자동 생성"
     )
+    _ = p.add_argument(
+        "--force", action="store_true", help="--auto-intent 시 기존 AI 생성 항목도 재생성"
+    )
     p.set_defaults(
         func=lazy_command("vibelign.commands.vib_anchor_cmd", "run_vib_anchor")
     )
