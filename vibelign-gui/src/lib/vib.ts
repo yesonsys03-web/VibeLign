@@ -43,10 +43,13 @@ export async function runVib(
   cwd?: string,
   env?: Record<string, string>
 ): Promise<VibResult> {
+  const rootEnv: Record<string, string> = cwd
+    ? { VIBELIGN_PROJECT_ROOT: cwd }
+    : {};
   return invoke<VibResult>("run_vib", {
     args,
     cwd: cwd ?? null,
-    env: { ...GUI_VIB_PLAIN_ENV, ...(env ?? {}) },
+    env: { ...GUI_VIB_PLAIN_ENV, ...rootEnv, ...(env ?? {}) },
   });
 }
 
