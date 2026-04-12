@@ -150,20 +150,28 @@ def execute_plan(plan: Plan, root: Path, force: bool = False, quiet: bool = Fals
         result = _execute_action(action, root)
         results.append(result)
 
-    # 앵커가 추가된 파일들에 대해 AI aliases 보강 (백그라운드)
-    added_paths = [
-        root / r.action.target_path
-        for r in results
-        if r.status == "done" and r.action.action_type == "add_anchor" and r.action.target_path
-    ]
-    if added_paths:
-        def _ai_enhance() -> None:
-            try:
-                from vibelign.core.anchor_tools import generate_anchor_intents_with_ai
-                generate_anchor_intents_with_ai(root, added_paths)
-            except Exception:
-                pass
-        threading.Thread(target=_ai_enhance, daemon=True).start()
+    # aliases 없는 앵커가 있으면 코드 기반 즉시 생성 + AI 백그라운드 보강
+    try:
+        from vibelign.core.anchor_tools import load_anchor_meta, extract_anchors
+        from vibelign.core.project_scan import iter_source_files
+        meta = load_anchor_meta(root)
+        needs_aliases = any(
+            not entry.get("aliases") for entry in meta.values()
+        ) if meta else True
+        if needs_aliases:
+            anchored = [p for p in iter_source_files(root) if extract_anchors(p)]
+            if anchored:
+                from vibelign.core.anchor_tools import generate_code_based_intents
+                generate_code_based_intents(root, anchored)
+                def _ai_enhance() -> None:
+                    try:
+                        from vibelign.core.anchor_tools import generate_anchor_intents_with_ai
+                        generate_anchor_intents_with_ai(root, anchored)
+                    except Exception:
+                        pass
+                threading.Thread(target=_ai_enhance, daemon=True).start()
+    except Exception:
+        pass
 
     # 분석 캐시 무효화 (파일이 변경됐으므로)
     try:
