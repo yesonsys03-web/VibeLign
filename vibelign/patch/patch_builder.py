@@ -384,13 +384,6 @@ def _build_patch_data_with_options(
 # === ANCHOR: PATCH_BUILDER__BUILD_PATCH_DATA_WITH_OPTIONS_END ===
 ) -> dict[str, object]:
     codespeak = build_codespeak(request, root=root)
-    codespeak = _targeting_helpers().enhance_codespeak(
-        request,
-        codespeak,
-        use_ai=use_ai,
-        quiet_ai=quiet_ai,
-        import_module=importlib.import_module,
-    )
     if codespeak.sub_intents and len(codespeak.sub_intents) > MAX_SUB_INTENT_FANOUT:
         codespeak = replace(
             codespeak,
@@ -429,6 +422,17 @@ def _build_patch_data_with_options(
         JsonObject | None, targeting["destination_resolution"]
     )
     confidence = str(targeting["confidence"])
+    codespeak = _targeting_helpers().enhance_codespeak(
+        request,
+        codespeak,
+        use_ai=use_ai,
+        quiet_ai=quiet_ai,
+        import_module=importlib.import_module,
+        target_file=suggestion.target_file,
+        target_anchor=suggestion.target_anchor,
+        target_confidence=confidence,
+        target_rationale=suggestion.rationale,
+    )
     steps = (
         _build_fanout_patch_steps(
             root,
@@ -485,7 +489,10 @@ def _build_patch_data_with_options(
         destination_rationale=getattr(destination_suggestion, "rationale", []),
         steps=steps,
     )
-    return {"patch_plan": patch_plan.to_dict()}
+    codespeak_generated = codespeak.codespeak != "" and codespeak.confidence != "none"
+    plan_dict = patch_plan.to_dict()
+    plan_dict["codespeak_generated"] = codespeak_generated
+    return {"patch_plan": plan_dict}
 
 
 # === ANCHOR: PATCH_BUILDER__BUILD_PATCH_DATA_START ===
