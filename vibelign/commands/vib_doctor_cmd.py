@@ -244,11 +244,6 @@ def _run_apply(root: Path, strict: bool, as_json: bool, force: bool = False) -> 
     clack_success(
         f"완료: {result.done_count}개 자동 적용, {result.manual_count}개 수동 필요"
     )
-    if result.checkpoint_id:
-        clack_info(
-            f"복원하려면: vib undo --checkpoint-id {result.checkpoint_id} --force"
-        )
-
     manual_items = [r for r in result.results if r.status == "manual"]
     if manual_items:
         print("\n수동으로 실행하세요:")

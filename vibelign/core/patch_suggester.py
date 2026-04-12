@@ -725,6 +725,46 @@ def score_path(
             )
             if best_verb_reason and best_verb_delta > 0:
                 rationale.append(f"intent 동사 일치: {best_verb_reason}")
+    # aliases/description에서 추가 매칭 (파일 레벨)
+    if isinstance(intent_meta, dict):
+        file_anchors = (
+            set(anchor_meta.get("anchors", []))
+            if isinstance(anchor_meta, dict)
+            else set()
+        )
+        best_alias_delta = 0
+        best_alias_rationale: list[str] = []
+        for anchor_name, meta_entry in intent_meta.items():
+            if file_anchors and anchor_name not in file_anchors:
+                continue
+            if not isinstance(meta_entry, dict):
+                continue
+            anchor_aliases = meta_entry.get("aliases")
+            if isinstance(anchor_aliases, list):
+                for alias in anchor_aliases:
+                    if not isinstance(alias, str):
+                        continue
+                    alias_tokens = _intent_tokens(alias)
+                    matched = _meaningful_overlap(request_tokens, alias_tokens)
+                    delta = len(matched) * 4
+                    if delta > best_alias_delta:
+                        best_alias_delta = delta
+                        best_alias_rationale = [
+                            f"앵커 별칭('{alias}')에 키워드 '{', '.join(matched)}'이 포함됨"
+                        ]
+            desc = meta_entry.get("description", "")
+            if isinstance(desc, str) and desc:
+                desc_tokens = _intent_tokens(desc)
+                matched = _meaningful_overlap(request_tokens, desc_tokens)
+                delta = len(matched) * 2
+                if delta > best_alias_delta:
+                    best_alias_delta = delta
+                    best_alias_rationale = [
+                        f"앵커 설명에 키워드 '{', '.join(matched)}'이 포함됨"
+                    ]
+        if best_alias_delta > 0:
+            score += best_alias_delta
+            rationale.extend(best_alias_rationale)
     return score, rationale
 
 
@@ -1044,6 +1084,25 @@ def choose_anchor(
                 ):
                     score -= 5
                     rationale.append("스타일 요청인데 로직 성격 앵커라 우선순위 낮춤")
+            # aliases 매칭 — 한국어 요청 ↔ 영어 앵커 격차 보완
+            anchor_aliases = meta.get("aliases")
+            if isinstance(anchor_aliases, list):
+                for alias in anchor_aliases:
+                    if not isinstance(alias, str):
+                        continue
+                    alias_tokens = _intent_tokens(alias)
+                    alias_matches = _meaningful_overlap(request_tokens, alias_tokens)
+                    for token in alias_matches:
+                        score += 5
+                        rationale.append(f"앵커 별칭('{alias}')에 키워드 '{token}'이 포함됨")
+            # description 매칭
+            desc = meta.get("description", "")
+            if isinstance(desc, str) and desc:
+                desc_tokens = _intent_tokens(desc)
+                desc_matches = _meaningful_overlap(request_tokens, desc_tokens)
+                for token in desc_matches:
+                    score += 3
+                    rationale.append(f"앵커 설명에 키워드 '{token}'이 포함됨")
             warning = meta.get("warning")
             if warning:
                 rationale.append(f"⚠️ {warning}")

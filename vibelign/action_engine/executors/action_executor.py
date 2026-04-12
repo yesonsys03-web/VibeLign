@@ -5,7 +5,7 @@
   - add_anchor: 자동 실행 (anchor_tools 사용)
   - fix_mcp / fix_project_map: 명령어 안내만 (자동 실행 안전하지 않음)
   - split_file / review: 건너뜀 (수동 작업 필요)
-  - 실행 전 반드시 checkpoint 생성
+  - checkpoint는 사용자가 직접 관리 (자동 생성 안 함)
   - 파일 변경 감지 시 경고 출력
 """
 from __future__ import annotations
@@ -72,6 +72,11 @@ def _execute_add_anchor(action: Action, root: Path) -> ExecutionResult:
         if extract_anchors(path):
             return ExecutionResult(action, "skipped", "이미 앵커 있음")
         if insert_module_anchors(path):
+            try:
+                from vibelign.core.anchor_tools import generate_anchor_intents_with_ai
+                generate_anchor_intents_with_ai(root, [path])
+            except Exception:
+                pass  # aliases 생성 실패해도 앵커 삽입은 성공
             return ExecutionResult(action, "done", f"앵커 추가: {action.target_path}")
         return ExecutionResult(action, "failed", "앵커 삽입 실패")
     except Exception as e:
@@ -99,7 +104,6 @@ def execute_plan(plan: Plan, root: Path, force: bool = False, quiet: bool = Fals
     Returns:
         ApplyResult
     """
-    from vibelign.action_engine.executors.checkpoint_bridge import create_pre_apply_checkpoint
     from vibelign.terminal_render import clack_step, clack_info, clack_warn
 
     def _q_step(msg: str) -> None:
@@ -131,20 +135,12 @@ def execute_plan(plan: Plan, root: Path, force: bool = False, quiet: bool = Fals
     # 확인 프롬프트 (--force 없으면)
     if not force:
         print(f"\n  자동 적용 대상: {len(plan.actions)}개 항목")
-        print("  checkpoint가 자동으로 생성되며, vib undo로 복원할 수 있습니다.")
         try:
             ans = input("\n  실행할까요? [y/N]: ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             return ApplyResult(checkpoint_id=None, aborted=True)
         if ans not in ("y", "yes"):
             return ApplyResult(checkpoint_id=None, aborted=True)
-
-    # checkpoint 생성
-    _q_step("checkpoint 생성 중...")
-    cp_summary = create_pre_apply_checkpoint(root)
-    checkpoint_id = cp_summary.checkpoint_id if cp_summary else None
-    if checkpoint_id:
-        _q_info(f"checkpoint 저장: {checkpoint_id}")
 
     # 액션 실행
     results: List[ExecutionResult] = []
@@ -161,5 +157,5 @@ def execute_plan(plan: Plan, root: Path, force: bool = False, quiet: bool = Fals
     except Exception:
         pass
 
-    return ApplyResult(checkpoint_id=checkpoint_id, results=results)
+    return ApplyResult(checkpoint_id=None, results=results)
 # === ANCHOR: ACTION_EXECUTOR_END ===
