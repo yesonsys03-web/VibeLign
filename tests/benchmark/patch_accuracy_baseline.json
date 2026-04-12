@@ -158,18 +158,102 @@
         "anchor_ok": true,
         "recall_at_3": true
       }
+    },
+    "fix_login_error_not_clearing": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "fix_email_validation_broken": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "fix_profile_update_not_saving": {
+      "det": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": true
+      }
+    },
+    "fix_duplicate_signup": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": false,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": false,
+        "recall_at_3": true
+      }
+    },
+    "fix_token_not_issued": {
+      "det": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": true
+      }
+    },
+    "fix_password_stored_plaintext": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": false,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": false,
+        "recall_at_3": true
+      }
+    },
+    "fix_user_lookup_slow": {
+      "det": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": true
+      }
     }
   },
   "totals": {
     "det": {
-      "files_ok": "10/13",
-      "anchor_ok": "9/12",
-      "recall_at_3": "12/13"
+      "files_ok": "14/20",
+      "anchor_ok": "11/19",
+      "recall_at_3": "19/20"
     },
     "ai": {
-      "files_ok": "10/13",
-      "anchor_ok": "9/12",
-      "recall_at_3": "12/13"
+      "files_ok": "14/20",
+      "anchor_ok": "11/19",
+      "recall_at_3": "19/20"
     }
   }
 }
