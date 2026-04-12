@@ -816,9 +816,12 @@ def generate_code_based_intents(root: Path, paths: list[Path]) -> int:
             if not aliases:
                 continue
             entry = existing.get(anchor, {})
+            if entry.get("_source") == "ai":
+                continue  # AI가 이미 보강한 항목은 코드 기반으로 덮어쓰지 않음
             entry.setdefault("intent", description)
             entry["aliases"] = aliases
             entry["description"] = description
+            entry["_source"] = "code"
             existing[anchor] = entry
             count += 1
     if count:
@@ -914,13 +917,13 @@ def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
 
     if not has_ai_provider():
         return 0
-    # 이미 AI aliases가 있는 앵커 건너뛰기
+    # 이미 AI가 보강한 앵커만 건너뛰기 (코드 기반은 덮어씀)
     existing = load_anchor_meta(root)
     all_blocks: dict[str, str] = {}
     for path in paths:
         for anchor, code in extract_anchor_blocks(path).items():
             entry = existing.get(anchor, {})
-            if entry.get("aliases") and entry.get("description"):
+            if entry.get("_source") == "ai":
                 continue
             all_blocks[anchor] = code[:400]
     if not all_blocks:
@@ -947,6 +950,7 @@ def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
         for anchor, entry in all_results.items():
             merged = data.get(anchor, {})
             merged.update(entry)
+            merged["_source"] = "ai"
             data[anchor] = merged
         save_anchor_meta(root, data)
     return len(all_results)
