@@ -120,10 +120,18 @@ def target_anchor_name(target_anchor: str) -> str | None:
 
 
 # === ANCHOR: PATCH_CONTRACT_HELPERS_PATCH_STATUS_START ===
-def patch_status(confidence: str, file_status: str, anchor_status: str) -> str:
+def patch_status(
+    confidence: str,
+    file_status: str,
+    anchor_status: str,
+    *,
+    codespeak_generated: bool = False,
+) -> str:
     if file_status != "ok":
         return "REFUSED"
-    if confidence == "low" or anchor_status in {"missing", "suggested", "none"}:
+    if anchor_status in {"missing", "suggested", "none"}:
+        return "NEEDS_CLARIFICATION"
+    if confidence == "low" and not codespeak_generated:
         return "NEEDS_CLARIFICATION"
     return "READY"
 
