@@ -11,10 +11,9 @@
 from __future__ import annotations
 
 import sys
-import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import List, Optional
 
 from vibelign.action_engine.models.action import Action
 from vibelign.action_engine.models.plan import Plan
@@ -32,6 +31,7 @@ class ApplyResult:
     checkpoint_id: Optional[str]
     results: List[ExecutionResult] = field(default_factory=list)
     aborted: bool = False
+    needs_ai_aliases: bool = False
 
     @property
     def done_count(self) -> int:
@@ -95,23 +95,17 @@ def _execute_action(action: Action, root: Path) -> ExecutionResult:
         return ExecutionResult(action, "skipped", f"{action.action_type} — 수동 작업 필요")
 
 
-def execute_plan(
-    plan: Plan,
-    root: Path,
-    force: bool = False,
-    quiet: bool = False,
-    on_status: Optional[Callable[[str], None]] = None,
-) -> ApplyResult:
+def execute_plan(plan: Plan, root: Path, force: bool = False, quiet: bool = False) -> ApplyResult:
     """Plan을 실행한다.
 
     Args:
         plan: generate_plan()이 반환한 Plan
         root: 프로젝트 루트
         force: True면 확인 프롬프트 생략
-        on_status: 상태 변경 콜백 (예: GUI 상태바 업데이트)
 
     Returns:
-        ApplyResult
+        ApplyResult — needs_ai_aliases가 True면 GUI에서
+        ``vib anchor --auto-intent`` 를 비동기로 실행해야 한다.
     """
     from vibelign.terminal_render import clack_step, clack_info, clack_warn
 
@@ -157,32 +151,21 @@ def execute_plan(
         result = _execute_action(action, root)
         results.append(result)
 
-    # aliases 없는 앵커가 있으면 코드 기반 즉시 생성 + AI 백그라운드 보강
+    # aliases 없는 앵커가 있으면 코드 기반 즉시 생성 + AI 보강 필요 플래그
+    needs_ai = False
     try:
         from vibelign.core.anchor_tools import load_anchor_meta, extract_anchors
         from vibelign.core.project_scan import iter_source_files
-        meta = load_anchor_meta(root)
+        anchor_meta = load_anchor_meta(root)
         needs_aliases = any(
-            not entry.get("aliases") for entry in meta.values()
-        ) if meta else True
+            not entry.get("aliases") for entry in anchor_meta.values()
+        ) if anchor_meta else True
         if needs_aliases:
             anchored = [p for p in iter_source_files(root) if extract_anchors(p)]
             if anchored:
                 from vibelign.core.anchor_tools import generate_code_based_intents
                 generate_code_based_intents(root, anchored)
-                _notify = on_status
-                def _ai_enhance() -> None:
-                    if _notify:
-                        _notify("AI aliases 생성 중...")
-                    try:
-                        from vibelign.core.anchor_tools import generate_anchor_intents_with_ai
-                        count = generate_anchor_intents_with_ai(root, anchored)
-                        if _notify:
-                            _notify(f"AI aliases 생성 완료 ({count}개)")
-                    except Exception:
-                        if _notify:
-                            _notify("AI aliases 생성 실패")
-                threading.Thread(target=_ai_enhance, daemon=True).start()
+                needs_ai = True
     except Exception:
         pass
 
@@ -195,5 +178,5 @@ def execute_plan(
     except Exception:
         pass
 
-    return ApplyResult(checkpoint_id=None, results=results)
+    return ApplyResult(checkpoint_id=None, results=results, needs_ai_aliases=needs_ai)
 # === ANCHOR: ACTION_EXECUTOR_END ===
