@@ -383,7 +383,13 @@ def build_contract(patch_plan: dict[str, object]) -> dict[str, object]:
     destination_anchor_status = (
         target_anchor_status(destination_anchor) if destination_anchor else "none"
     )
-    status = patch_status(str(patch_plan["confidence"]), file_status, anchor_status)
+    codespeak_generated = bool(patch_plan.get("codespeak_generated", False))
+    status = patch_status(
+        str(patch_plan["confidence"]),
+        file_status,
+        anchor_status,
+        codespeak_generated=codespeak_generated,
+    )
     if operation == "move" and (
         destination_file_status != "ok" or destination_anchor_status != "ok"
     ):

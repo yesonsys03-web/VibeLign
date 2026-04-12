@@ -33,5 +33,34 @@ class TestPatchStatusGateRelax(unittest.TestCase):
         self.assertEqual(result, "NEEDS_CLARIFICATION")
 
 
+from vibelign.patch.patch_contract_helpers import build_contract
+
+
+class TestBuildContractCodespeakGate(unittest.TestCase):
+    def _make_patch_plan(self, confidence="high", codespeak_generated=False):
+        return {
+            "target_file": "ok:pages/login.py",
+            "target_anchor": "ok:LOGIN_HANDLE_LOGIN",
+            "codespeak": "ui.component.login.fix",
+            "confidence": confidence,
+            "request": "로그인 에러 수정",
+            "interpretation": "로그인 에러를 수정한다",
+            "patch_points": {"operation": "update"},
+            "clarifying_questions": [],
+            "sub_intents": [],
+            "codespeak_generated": codespeak_generated,
+        }
+
+    def test_build_contract_low_confidence_with_codespeak_is_ready(self):
+        plan = self._make_patch_plan(confidence="low", codespeak_generated=True)
+        contract = build_contract(plan)
+        self.assertEqual(contract["status"], "READY")
+
+    def test_build_contract_low_confidence_without_codespeak_is_needs_clarification(self):
+        plan = self._make_patch_plan(confidence="low", codespeak_generated=False)
+        contract = build_contract(plan)
+        self.assertEqual(contract["status"], "NEEDS_CLARIFICATION")
+
+
 if __name__ == "__main__":
     unittest.main()
