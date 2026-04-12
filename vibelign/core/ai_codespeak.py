@@ -77,6 +77,9 @@ def build_codespeak_ai_prompt(
 - `codespeak`는 layer.target.subject.action 형식만 허용합니다.
 - `action`은 다음 어휘 중 하나만 사용하세요: add, remove, update, move, fix, apply, split.
   (예: persistence_enable, enable, disable 같은 임의 동사는 금지)
+- `move`는 코드 블록을 다른 파일/위치로 실제 이동할 때만 사용하세요.
+  사용자가 화면 이동이나 네비게이션을 설명하는 문맥("이동하면", "돌아가면", "넘어가면")에서는
+  move가 아니라 fix 또는 update를 선택하세요.
 - `subject`는 한글 없이 영문 snake_case 만 허용합니다.
 - confidence 는 high, medium, low 중 하나입니다.
 - clarifying_questions 는 문자열 배열입니다.
