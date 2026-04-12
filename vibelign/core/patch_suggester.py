@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_map import ProjectMapSnapshot, load_project_map
 from vibelign.core.project_scan import iter_source_files, relpath_str
-from vibelign.core.anchor_tools import extract_anchors
+from vibelign.core.anchor_tools import AnchorMetaEntry, extract_anchors
 from vibelign.core.ui_label_index import load_ui_label_index, score_boost_for_ui_labels
 from vibelign.core.import_resolver import parse_local_imports
 
@@ -1139,7 +1139,13 @@ def _ai_select_file(
 
 def _score_all_files(
     root: Path, request: str
-) -> tuple[list[tuple[int, Path, list[str]]], dict, dict, object, object]:
+) -> tuple[
+    list[tuple[int, Path, list[str]]],
+    dict[str, dict[str, list[str]]],
+    dict[str, AnchorMetaEntry],
+    ProjectMapSnapshot | None,
+    dict[str, list[dict[str, int | str]]],
+]:
     """Rank every source file under `root` for the given `request`.
 
     Returns (scored, metadata, anchor_meta, project_map, ui_label_idx).
