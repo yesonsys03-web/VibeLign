@@ -151,21 +151,16 @@ def execute_plan(plan: Plan, root: Path, force: bool = False, quiet: bool = Fals
         result = _execute_action(action, root)
         results.append(result)
 
-    # aliases 없는 앵커가 있으면 코드 기반 즉시 생성 + AI 보강 필요 플래그
+    # 코드 기반 aliases 항상 실행 (즉시, 비용 0) + AI 보강 필요 플래그
     needs_ai = False
     try:
-        from vibelign.core.anchor_tools import load_anchor_meta, extract_anchors
+        from vibelign.core.anchor_tools import extract_anchors
         from vibelign.core.project_scan import iter_source_files
-        anchor_meta = load_anchor_meta(root)
-        needs_aliases = any(
-            not entry.get("aliases") for entry in anchor_meta.values()
-        ) if anchor_meta else True
-        if needs_aliases:
-            anchored = [p for p in iter_source_files(root) if extract_anchors(p)]
-            if anchored:
-                from vibelign.core.anchor_tools import generate_code_based_intents
-                generate_code_based_intents(root, anchored)
-                needs_ai = True
+        anchored = [p for p in iter_source_files(root) if extract_anchors(p)]
+        if anchored:
+            from vibelign.core.anchor_tools import generate_code_based_intents
+            generate_code_based_intents(root, anchored)
+            needs_ai = True
     except Exception:
         pass
 
