@@ -29,6 +29,9 @@ COMMON_IGNORED_DIRS: frozenset[str] = frozenset(
         ".pytest_cache",
         ".mypy_cache",
         ".sisyphus",
+        ".Trash",
+        "Library",
+        "CloudStorage",
     }
 )
 
