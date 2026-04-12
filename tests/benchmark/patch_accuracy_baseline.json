@@ -1,0 +1,79 @@
+{
+  "pinned_intents_version": "2026-04-12",
+  "generated_at": "2026-04-12",
+  "notes": "Updated via `vib bench --patch --update-baseline`. See docs/superpowers/specs/2026-04-12-patch-accuracy-c5-bench-runner-design.md.",
+  "scenarios": {
+    "change_error_msg": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "add_email_domain_check": {
+      "det": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": false
+      },
+      "ai": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": false
+      }
+    },
+    "fix_login_lock_bug": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "add_bio_length_limit": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "add_password_change": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": null,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": null,
+        "recall_at_3": true
+      }
+    }
+  },
+  "totals": {
+    "det": {
+      "files_ok": "4/5",
+      "anchor_ok": "3/4",
+      "recall_at_3": "4/5"
+    },
+    "ai": {
+      "files_ok": "4/5",
+      "anchor_ok": "3/4",
+      "recall_at_3": "4/5"
+    }
+  }
+}
