@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import sys
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
@@ -148,6 +149,21 @@ def execute_plan(plan: Plan, root: Path, force: bool = False, quiet: bool = Fals
     for action in plan.actions:
         result = _execute_action(action, root)
         results.append(result)
+
+    # 앵커가 추가된 파일들에 대해 AI aliases 보강 (백그라운드)
+    added_paths = [
+        root / r.action.target_path
+        for r in results
+        if r.status == "done" and r.action.action_type == "add_anchor" and r.action.target_path
+    ]
+    if added_paths:
+        def _ai_enhance() -> None:
+            try:
+                from vibelign.core.anchor_tools import generate_anchor_intents_with_ai
+                generate_anchor_intents_with_ai(root, added_paths)
+            except Exception:
+                pass
+        threading.Thread(target=_ai_enhance, daemon=True).start()
 
     # 분석 캐시 무효화 (파일이 변경됐으므로)
     try:
