@@ -1,3 +1,4 @@
+# === ANCHOR: VIB_PLAN_STRUCTURE_CMD_START ===
 from __future__ import annotations
 
 import json
@@ -12,20 +13,25 @@ from vibelign.mcp.mcp_state_store import save_planning_session
 from vibelign.terminal_render import clack_intro, clack_step, clack_success, clack_warn
 
 
+# === ANCHOR: VIB_PLAN_STRUCTURE_CMD_PLANSTRUCTUREARGS_START ===
 class PlanStructureArgs(Protocol):
     feature: Sequence[str] | str
     ai: bool
     scope: str
+# === ANCHOR: VIB_PLAN_STRUCTURE_CMD_PLANSTRUCTUREARGS_END ===
 
 
+# === ANCHOR: VIB_PLAN_STRUCTURE_CMD__FEATURE_TEXT_START ===
 def _feature_text(raw_feature: Sequence[str] | str) -> str:
     if isinstance(raw_feature, str):
         return raw_feature.strip()
     return " ".join(
         str(item).strip() for item in raw_feature if str(item).strip()
     ).strip()
+# === ANCHOR: VIB_PLAN_STRUCTURE_CMD__FEATURE_TEXT_END ===
 
 
+# === ANCHOR: VIB_PLAN_STRUCTURE_CMD_RUN_VIB_PLAN_STRUCTURE_START ===
 def run_vib_plan_structure(args: object) -> None:
     raw_args = cast(PlanStructureArgs, args)
     feature = _feature_text(raw_args.feature)
@@ -106,3 +112,5 @@ def run_vib_plan_structure(args: object) -> None:
         clack_warn(
             "신규 파일 없이 진행 가능한 계획입니다. 완료 후 vib guard로 검증하세요."
         )
+# === ANCHOR: VIB_PLAN_STRUCTURE_CMD_RUN_VIB_PLAN_STRUCTURE_END ===
+# === ANCHOR: VIB_PLAN_STRUCTURE_CMD_END ===

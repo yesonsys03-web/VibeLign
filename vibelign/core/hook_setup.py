@@ -1,3 +1,4 @@
+# === ANCHOR: HOOK_SETUP_START ===
 from __future__ import annotations
 
 import json
@@ -17,23 +18,30 @@ _PRETOOLUSE_MARKER = "vibelign-claude-pretooluse-v1"
 
 
 @dataclass(frozen=True)
+# === ANCHOR: HOOK_SETUP_CLAUDEHOOKRESULT_START ===
 class ClaudeHookResult:
     status: str
     path: Path | None
     detail: str | None = None
+# === ANCHOR: HOOK_SETUP_CLAUDEHOOKRESULT_END ===
 
 
+# === ANCHOR: HOOK_SETUP_DETECT_TOOL_START ===
 def detect_tool(root: Path) -> str | None:
     """프로젝트 루트에서 AI 도구를 감지"""
     if (root / ".claude").is_dir():
         return "claude"
     return None
+# === ANCHOR: HOOK_SETUP_DETECT_TOOL_END ===
 
 
+# === ANCHOR: HOOK_SETUP__CLAUDE_SETTINGS_PATH_START ===
 def _claude_settings_path(root: Path) -> Path:
     return root / _CLAUDE_SETTINGS
+# === ANCHOR: HOOK_SETUP__CLAUDE_SETTINGS_PATH_END ===
 
 
+# === ANCHOR: HOOK_SETUP__LOAD_SETTINGS_START ===
 def _load_settings(path: Path) -> tuple[dict[str, object] | None, str | None]:
     if not path.exists():
         return {}, None
@@ -44,15 +52,19 @@ def _load_settings(path: Path) -> tuple[dict[str, object] | None, str | None]:
     if not isinstance(loaded, dict):
         return None, "malformed-settings"
     return cast(dict[str, object], loaded), None
+# === ANCHOR: HOOK_SETUP__LOAD_SETTINGS_END ===
 
 
+# === ANCHOR: HOOK_SETUP__PRECHECK_COMMAND_START ===
 def _precheck_command() -> str:
     vib_path = shutil.which("vib")
     if vib_path:
         return f'"{vib_path}" pre-check'
     return f'"{sys.executable}" -m vibelign.cli.vib_cli pre-check'
+# === ANCHOR: HOOK_SETUP__PRECHECK_COMMAND_END ===
 
 
+# === ANCHOR: HOOK_SETUP__MANAGED_PRETOOLUSE_ENTRY_START ===
 def _managed_pretooluse_entry() -> dict[str, object]:
     return {
         "matcher": "Write",
@@ -64,8 +76,10 @@ def _managed_pretooluse_entry() -> dict[str, object]:
             }
         ],
     }
+# === ANCHOR: HOOK_SETUP__MANAGED_PRETOOLUSE_ENTRY_END ===
 
 
+# === ANCHOR: HOOK_SETUP__IS_MANAGED_ENTRY_START ===
 def _is_managed_entry(item: object) -> bool:
     if not isinstance(item, dict):
         return False
@@ -79,8 +93,10 @@ def _is_managed_entry(item: object) -> bool:
             if hook_dict.get("marker") == _PRETOOLUSE_MARKER:
                 return True
     return False
+# === ANCHOR: HOOK_SETUP__IS_MANAGED_ENTRY_END ===
 
 
+# === ANCHOR: HOOK_SETUP_IS_HOOK_SET_START ===
 def is_hook_set(root: Path, tool: str) -> bool:
     if tool != "claude":
         return False
@@ -95,8 +111,10 @@ def is_hook_set(root: Path, tool: str) -> bool:
     if not isinstance(pretooluse, list):
         return False
     return any(_is_managed_entry(item) for item in cast(list[object], pretooluse))
+# === ANCHOR: HOOK_SETUP_IS_HOOK_SET_END ===
 
 
+# === ANCHOR: HOOK_SETUP__READ_CONFIG_TEXT_START ===
 def _read_config_text(meta: MetaPaths) -> str:
     if not meta.config_path.exists():
         return ""
@@ -104,8 +122,10 @@ def _read_config_text(meta: MetaPaths) -> str:
         return meta.config_path.read_text(encoding="utf-8")
     except OSError:
         return ""
+# === ANCHOR: HOOK_SETUP__READ_CONFIG_TEXT_END ===
 
 
+# === ANCHOR: HOOK_SETUP_IS_CLAUDE_HOOK_ENABLED_START ===
 def is_claude_hook_enabled(root: Path) -> bool:
     meta = MetaPaths(root)
     content = _read_config_text(meta)
@@ -114,8 +134,10 @@ def is_claude_hook_enabled(root: Path) -> bool:
             value = line.split(":", 1)[1].strip().lower()
             return value != "false"
     return True
+# === ANCHOR: HOOK_SETUP_IS_CLAUDE_HOOK_ENABLED_END ===
 
 
+# === ANCHOR: HOOK_SETUP_SET_CLAUDE_HOOK_ENABLED_START ===
 def set_claude_hook_enabled(root: Path, enabled: bool) -> None:
     meta = MetaPaths(root)
     meta.ensure_vibelign_dir()
@@ -130,8 +152,10 @@ def set_claude_hook_enabled(root: Path, enabled: bool) -> None:
     if not updated:
         lines.append(f"claude_hook_enabled: {'true' if enabled else 'false'}")
     _ = meta.config_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+# === ANCHOR: HOOK_SETUP_SET_CLAUDE_HOOK_ENABLED_END ===
 
 
+# === ANCHOR: HOOK_SETUP_GET_CLAUDE_HOOK_STATUS_START ===
 def get_claude_hook_status(root: Path) -> dict[str, object]:
     return {
         "tool_detected": detect_tool(root) == "claude",
@@ -139,8 +163,10 @@ def get_claude_hook_status(root: Path) -> dict[str, object]:
         "enabled": is_claude_hook_enabled(root),
         "settings_path": str(_claude_settings_path(root)),
     }
+# === ANCHOR: HOOK_SETUP_GET_CLAUDE_HOOK_STATUS_END ===
 
 
+# === ANCHOR: HOOK_SETUP_ENSURE_CLAUDE_PRETOOLUSE_HOOK_START ===
 def ensure_claude_pretooluse_hook(root: Path) -> ClaudeHookResult:
     settings_path = _claude_settings_path(root)
     settings_path.parent.mkdir(parents=True, exist_ok=True)
@@ -191,8 +217,10 @@ def ensure_claude_pretooluse_hook(root: Path) -> ClaudeHookResult:
     if replaced:
         return ClaudeHookResult(status="updated", path=settings_path)
     return ClaudeHookResult(status="already-set", path=settings_path)
+# === ANCHOR: HOOK_SETUP_ENSURE_CLAUDE_PRETOOLUSE_HOOK_END ===
 
 
+# === ANCHOR: HOOK_SETUP_SETUP_HOOK_IF_NEEDED_START ===
 def setup_hook_if_needed(root: Path) -> ClaudeHookResult | None:
     from datetime import datetime
 
@@ -220,8 +248,10 @@ def setup_hook_if_needed(root: Path) -> ClaudeHookResult | None:
             "  settings.json을 수동으로 복구한 뒤 `vib claude-hook enable`을 실행하세요."
         )
     return result
+# === ANCHOR: HOOK_SETUP_SETUP_HOOK_IF_NEEDED_END ===
 
 
+# === ANCHOR: HOOK_SETUP_REMOVE_OLD_HOOK_START ===
 def remove_old_hook(root: Path) -> None:
     path = _claude_settings_path(root)
     if not path.exists():
@@ -257,3 +287,5 @@ def remove_old_hook(root: Path) -> None:
         )
     except OSError:
         pass
+# === ANCHOR: HOOK_SETUP_REMOVE_OLD_HOOK_END ===
+# === ANCHOR: HOOK_SETUP_END ===

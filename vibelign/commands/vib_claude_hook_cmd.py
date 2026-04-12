@@ -1,3 +1,4 @@
+# === ANCHOR: VIB_CLAUDE_HOOK_CMD_START ===
 from __future__ import annotations
 
 from argparse import Namespace
@@ -12,6 +13,7 @@ from vibelign.core.project_root import resolve_project_root
 from vibelign.terminal_render import clack_info, clack_intro, clack_success, clack_warn
 
 
+# === ANCHOR: VIB_CLAUDE_HOOK_CMD_RUN_VIB_CLAUDE_HOOK_START ===
 def run_vib_claude_hook(args: Namespace) -> None:
     root = resolve_project_root(Path.cwd())
     action = str(getattr(args, "action", "status"))
@@ -40,3 +42,5 @@ def run_vib_claude_hook(args: Namespace) -> None:
     clack_info(f"Hook 설치됨: {'예' if status['installed'] else '아니오'}")
     clack_info(f"Enforcement enabled: {'예' if status['enabled'] else '아니오'}")
     clack_info(str(status["settings_path"]))
+# === ANCHOR: VIB_CLAUDE_HOOK_CMD_RUN_VIB_CLAUDE_HOOK_END ===
+# === ANCHOR: VIB_CLAUDE_HOOK_CMD_END ===
