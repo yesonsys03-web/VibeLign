@@ -1000,7 +1000,7 @@ def choose_anchor(
             warning = meta.get("warning")
             if warning:
                 rationale.append(f"⚠️ {warning}")
-        if score >= best_score:
+        if score > best_score or (score == best_score and score < 0):
             best_score = score
             best_anchor = anchor
             best_rationale = rationale or [
