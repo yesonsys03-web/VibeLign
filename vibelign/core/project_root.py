@@ -7,7 +7,10 @@ from pathlib import Path
 # === ANCHOR: PROJECT_ROOT_FIND_PARENT_VIBELIGN_ROOT_START ===
 def find_parent_vibelign_root(start: Path) -> Path | None:
     current = start.resolve()
+    home = Path.home().resolve()
     for candidate in (current, *current.parents):
+        if candidate == home:
+            break
         if (candidate / ".vibelign").exists():
             return candidate
     return None
