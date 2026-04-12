@@ -40,6 +40,11 @@ KEYWORD_HINTS = {
     "레이아웃": ["ui", "window", "dialog", "layout"],
     "로그": ["log", "logger", "logging", "status"],
     "설정": ["config", "settings", "json", "yaml", "toml"],
+    "조건": ["validators", "validate", "check"],
+    "검증": ["validators", "validate", "check"],
+    "필수": ["validators", "validate", "check"],
+    "최대": ["config", "settings", "max"],
+    "최소": ["config", "settings", "min"],
 }
 
 LOW_PRIORITY_NAMES = {"__init__.py", "__init__.js", "__init__.ts"}
@@ -121,6 +126,17 @@ _TOKEN_ALIASES = {
     "유지": ["persist", "state"],
     "활성화": ["enable", "enabled"],
     "비활성화": ["disable", "disabled"],
+    "프로필": ["profile"],
+    "로그인": ["login"],
+    "이메일": ["email"],
+    "비밀번호": ["password"],
+    "서버": ["server", "app"],
+    "포트": ["port"],
+    "사용자": ["user", "users"],
+    "회원가입": ["signup", "register"],
+    "조회": ["get", "query"],
+    "검증": ["validate", "validators"],
+    "유효성": ["validate", "validators"],
 }
 
 _LOW_SIGNAL_TOKENS = {
@@ -920,6 +936,14 @@ def _has_style_token(request_tokens: Iterable[str]) -> bool:
     return any(style in tok for tok in request_tokens for style in _UI_STYLE_TOKENS)
 
 
+_UI_ELEMENT_TOKENS = {
+    "폼", "버튼", "텍스트", "placeholder", "필드", "라벨",
+    "label", "field", "form", "button", "input", "title",
+    "submit", "체크박스", "셀렉트", "드롭다운", "아이콘",
+}
+_RENDER_ANCHOR_TOKENS = {"render", "show", "display", "view", "form"}
+_UI_ELEMENT_RENDER_BONUS = 6
+
 _WRAPPER_ANCHOR_PENALTY = 5
 
 
@@ -945,7 +969,14 @@ def choose_anchor(
     if not anchors:
         return "[먼저 앵커를 추가하세요]", ["이 파일에는 아직 앵커가 없습니다"]
     is_style_request = _has_style_token(request_tokens)
-    request_verb_cluster = _classify_request_verb(request_tokens)
+    is_ui_element_request = any(
+        ui in tok for tok in request_tokens for ui in _UI_ELEMENT_TOKENS
+    )
+    raw_verb_cluster = _classify_request_verb(request_tokens)
+    ui_element_verb_override = (
+        is_ui_element_request and raw_verb_cluster != _VERB_CLUSTER_DELETE
+    )
+    request_verb_cluster = None if ui_element_verb_override else raw_verb_cluster
     best_anchor = anchors[0]
     best_score = float("-inf")
     best_rationale = [f"첫 번째 앵커 '{best_anchor}'를 기본값으로 선택"]
@@ -966,6 +997,8 @@ def choose_anchor(
         name_delta, name_reason = _verb_cluster_bonus(
             request_verb_cluster, name_cluster
         )
+        is_render_anchor = any(t in anchor_tokens for t in _RENDER_ANCHOR_TOKENS)
+        ui_render_applicable = is_ui_element_request and is_render_anchor and ui_element_verb_override
         if name_delta:
             score += name_delta
             if name_reason:
@@ -1000,6 +1033,12 @@ def choose_anchor(
             warning = meta.get("warning")
             if warning:
                 rationale.append(f"⚠️ {warning}")
+        if ui_render_applicable:
+            score += _UI_ELEMENT_RENDER_BONUS
+            rationale.append("UI 요소 변경 요청이라 render 앵커 우선")
+        if raw_verb_cluster == _VERB_CLUSTER_DELETE and is_render_anchor:
+            score -= 2
+            rationale.append("삭제 요청이라 render 앵커 우선순위 낮춤")
         if score > best_score or (score == best_score and score < 0):
             best_score = score
             best_anchor = anchor

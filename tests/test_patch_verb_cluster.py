@@ -270,5 +270,42 @@ class FileRankingVerbPreferenceTest(unittest.TestCase):
             self.assertEqual(result.target_anchor, "PROFILE_HANDLE_PROFILE_UPDATE")
 
 
+class ChooseAnchorUIElementRenderBonus(unittest.TestCase):
+    """UI element tokens (폼, 버튼, placeholder, 텍스트, 필드, 라벨) in the
+    request should prefer render anchors even when the verb is MUTATE."""
+
+    def test_button_text_change_prefers_render_over_handle(self):
+        anchors = ["SIGNUP", "SIGNUP_RENDER_SIGNUP_FORM", "SIGNUP_HANDLE_SIGNUP"]
+        request_tokens = tokenize("회원가입 버튼 텍스트를 '가입하기'로 바꿔줘")
+        best, _ = choose_anchor(anchors, request_tokens)
+        self.assertEqual(best, "SIGNUP_RENDER_SIGNUP_FORM")
+
+    def test_placeholder_change_prefers_render_over_handle(self):
+        anchors = ["LOGIN", "LOGIN_RENDER_LOGIN_FORM", "LOGIN_HANDLE_LOGIN", "LOGIN_RENDER_LOGIN_ERROR"]
+        request_tokens = tokenize("로그인 폼 placeholder를 한국어로 바꿔줘")
+        best, _ = choose_anchor(anchors, request_tokens)
+        self.assertEqual(best, "LOGIN_RENDER_LOGIN_FORM")
+
+    def test_field_add_prefers_render_over_handle(self):
+        anchors = ["PROFILE", "PROFILE_RENDER_PROFILE", "PROFILE_HANDLE_PROFILE_UPDATE"]
+        request_tokens = tokenize("프로필 수정 가능 필드에 email도 추가해줘")
+        best, _ = choose_anchor(anchors, request_tokens)
+        self.assertEqual(best, "PROFILE_RENDER_PROFILE")
+
+    def test_non_ui_mutate_still_prefers_handle(self):
+        """Regression guard: logic changes must still pick handle."""
+        anchors = ["LOGIN", "LOGIN_RENDER_LOGIN_FORM", "LOGIN_HANDLE_LOGIN"]
+        request_tokens = tokenize("로그인 실패 시 에러 메시지를 한국어로 바꿔줘")
+        best, _ = choose_anchor(anchors, request_tokens)
+        self.assertEqual(best, "LOGIN_HANDLE_LOGIN")
+
+    def test_delete_verb_with_ui_tokens_still_prefers_handle(self):
+        """Regression guard: DELETE verb must not trigger render bonus."""
+        anchors = ["SIGNUP", "SIGNUP_RENDER_SIGNUP_FORM", "SIGNUP_HANDLE_SIGNUP"]
+        request_tokens = tokenize("회원가입 폼에서 비밀번호 확인 필드 제거해줘")
+        best, _ = choose_anchor(anchors, request_tokens)
+        self.assertEqual(best, "SIGNUP_HANDLE_SIGNUP")
+
+
 if __name__ == "__main__":
     unittest.main()
