@@ -708,23 +708,21 @@ def extract_anchor_blocks(path: Path) -> dict[str, str]:
 
 
 # === ANCHOR: ANCHOR_TOOLS_GENERATE_ANCHOR_INTENTS_WITH_AI_START ===
-def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
-    """AI를 사용해 anchor intent/aliases/description을 자동 생성하고 저장. 반환: 등록된 intent 수"""
-    from vibelign.core.ai_explain import generate_text_with_ai, has_ai_provider
+_BATCH_SIZE = 20  # 한 번에 AI에 보내는 앵커 수
 
-    if not has_ai_provider():
-        return 0
-    existing = load_anchor_meta(root)
-    all_blocks: dict[str, str] = {}
-    for path in paths:
-        for anchor, code in extract_anchor_blocks(path).items():
-            if anchor not in existing:
-                all_blocks[anchor] = code[:400]
-    if not all_blocks:
-        return 0
-    anchor_list = list(all_blocks.keys())
+
+def _generate_batch(
+    root: Path,
+    batch: dict[str, str],
+    generate_text_with_ai: object,
+) -> int:
+    """앵커 배치 하나를 AI에 보내고 결과를 저장. 반환: 등록된 intent 수"""
+    from typing import cast, Callable
+
+    _gen = cast(Callable[..., tuple[str, list[str]]], generate_text_with_ai)
+    anchor_list = list(batch.keys())
     numbered = "\n\n".join(
-        f"[{i + 1}] {name}\n{code}" for i, (name, code) in enumerate(all_blocks.items())
+        f"[{i + 1}] {name}\n{code}" for i, (name, code) in enumerate(batch.items())
     )
     prompt = (
         "다음은 코드 파일의 각 구역(앵커)입니다.\n"
@@ -739,7 +737,7 @@ def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
         "- 예: APPLY_BTN_STYLE → ['전체적용 버튼', 'apply button', '적용 버튼 스타일']\n\n"
         + numbered
     )
-    text, _ = generate_text_with_ai(prompt, quiet=True)
+    text, _ = _gen(prompt, quiet=True)
     if not text:
         return 0
     count = 0
@@ -756,7 +754,7 @@ def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
                 if not isinstance(item, dict):
                     continue
                 anchor_name = item.get("anchor", "")
-                if anchor_name not in all_blocks:
+                if anchor_name not in batch:
                     continue
                 intent = item.get("intent", "")
                 if not intent:
@@ -785,6 +783,32 @@ def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
             set_anchor_intent(root, anchor, intent)
             count += 1
     return count
+
+
+def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
+    """AI를 사용해 anchor intent/aliases/description을 자동 생성하고 저장. 반환: 등록된 intent 수"""
+    from vibelign.core.ai_explain import generate_text_with_ai, has_ai_provider
+
+    if not has_ai_provider():
+        return 0
+    existing = load_anchor_meta(root)
+    all_blocks: dict[str, str] = {}
+    for path in paths:
+        for anchor, code in extract_anchor_blocks(path).items():
+            if anchor not in existing:
+                all_blocks[anchor] = code[:400]
+    if not all_blocks:
+        return 0
+    # 배치 분할
+    items = list(all_blocks.items())
+    total = 0
+    for start in range(0, len(items), _BATCH_SIZE):
+        batch = dict(items[start : start + _BATCH_SIZE])
+        try:
+            total += _generate_batch(root, batch, generate_text_with_ai)
+        except Exception:
+            continue  # 배치 실패해도 다음 배치 계속
+    return total
 
 
 # === ANCHOR: ANCHOR_TOOLS_GENERATE_ANCHOR_INTENTS_WITH_AI_END ===
