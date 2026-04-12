@@ -708,6 +708,126 @@ def extract_anchor_blocks(path: Path) -> dict[str, str]:
 
 
 # === ANCHOR: ANCHOR_TOOLS_GENERATE_ANCHOR_INTENTS_WITH_AI_START ===
+# ─── 코드 기반 aliases 생성 ────────────────────────────────────────────────────
+
+_REVERSE_ALIASES: dict[str, list[str]] = {}  # 영어→한국어 역방향 매핑 (lazy init)
+
+
+def _get_reverse_aliases() -> dict[str, list[str]]:
+    """patch_suggester의 _TOKEN_ALIASES를 역방향으로 변환. button→버튼 등."""
+    if _REVERSE_ALIASES:
+        return _REVERSE_ALIASES
+    try:
+        from vibelign.core.patch_suggester import _TOKEN_ALIASES
+        for korean, english_list in _TOKEN_ALIASES.items():
+            for eng in english_list:
+                if eng not in _REVERSE_ALIASES:
+                    _REVERSE_ALIASES[eng] = []
+                if korean not in _REVERSE_ALIASES[eng]:
+                    _REVERSE_ALIASES[eng].append(korean)
+    except ImportError:
+        pass
+    return _REVERSE_ALIASES
+
+
+def _split_anchor_name(anchor: str) -> list[str]:
+    """MAIN_WINDOW__APPLY_BTN_STYLE → ['main', 'window', 'apply', 'btn', 'style']"""
+    return [t.lower() for t in re.split(r"[_]+", anchor) if t]
+
+
+_CODE_IDENT_RE = re.compile(
+    r"(?:class|def|function|const|let|var|export)\s+([A-Za-z_]\w*)"
+)
+
+_ABBREV_MAP = {
+    "btn": "button",
+    "msg": "message",
+    "cfg": "config",
+    "dlg": "dialog",
+    "mgr": "manager",
+    "hdr": "header",
+    "nav": "navigation",
+    "auth": "authentication",
+    "img": "image",
+    "fmt": "format",
+    "lbl": "label",
+    "txt": "text",
+}
+
+
+def _extract_code_identifiers(code: str) -> list[str]:
+    """코드에서 class명, 함수명 등 식별자 추출 → 소문자 토큰 리스트."""
+    idents = _CODE_IDENT_RE.findall(code)
+    tokens: list[str] = []
+    for ident in idents:
+        parts = re.findall(r"[a-z]+|[A-Z][a-z]*|[0-9]+", ident)
+        tokens.extend(p.lower() for p in parts if len(p) > 1)
+    return tokens
+
+
+def generate_code_based_aliases(anchor: str, code: str) -> tuple[list[str], str]:
+    """앵커 이름과 코드에서 규칙 기반으로 aliases/description 생성."""
+    reverse = _get_reverse_aliases()
+    name_tokens = _split_anchor_name(anchor)
+    code_tokens = _extract_code_identifiers(code)
+
+    # 영어 aliases: 앵커 이름 토큰 + 약어 확장
+    eng_parts: list[str] = []
+    for t in name_tokens:
+        eng_parts.append(t)
+        if t in _ABBREV_MAP:
+            eng_parts.append(_ABBREV_MAP[t])
+
+    # 한국어 aliases: 역방향 매핑
+    kor_parts: list[str] = []
+    for t in eng_parts + code_tokens:
+        for korean in reverse.get(t, []):
+            if korean not in kor_parts:
+                kor_parts.append(korean)
+
+    # aliases 조합
+    aliases: list[str] = []
+    # 영어 alias: 공백 연결 (앵커 이름 기반)
+    eng_alias = " ".join(eng_parts[:6])
+    if eng_alias:
+        aliases.append(eng_alias)
+    # 한국어 aliases 개별 추가
+    aliases.extend(kor_parts[:4])
+    # 코드 식별자 기반 영어 alias
+    if code_tokens:
+        code_alias = " ".join(dict.fromkeys(code_tokens[:4]))
+        if code_alias and code_alias != eng_alias:
+            aliases.append(code_alias)
+
+    # description: 토큰 나열
+    desc_parts = [_ABBREV_MAP.get(t, t) for t in name_tokens[:5]]
+    description = " ".join(desc_parts)
+
+    return aliases, description
+
+
+def generate_code_based_intents(root: Path, paths: list[Path]) -> int:
+    """코드 기반으로 모든 앵커의 aliases/description을 생성. 기존 앵커도 갱신."""
+    existing = load_anchor_meta(root)
+    count = 0
+    for path in paths:
+        for anchor, code in extract_anchor_blocks(path).items():
+            aliases, description = generate_code_based_aliases(anchor, code)
+            if not aliases:
+                continue
+            entry = existing.get(anchor, {})
+            entry.setdefault("intent", description)
+            entry["aliases"] = aliases
+            entry["description"] = description
+            existing[anchor] = entry
+            count += 1
+    if count:
+        save_anchor_meta(root, existing)
+    return count
+
+
+# ─── AI 기반 aliases 보강 ──────────────────────────────────────────────────────
+
 _BATCH_SIZE = 20  # 한 번에 AI에 보내는 앵커 수
 
 
@@ -786,17 +906,18 @@ def _generate_batch(
 
 
 def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
-    """AI를 사용해 anchor intent/aliases/description을 자동 생성하고 저장. 반환: 등록된 intent 수"""
+    """AI를 사용해 anchor intent/aliases/description을 보강. 반환: 등록된 intent 수.
+
+    코드 기반으로 이미 생성된 항목도 AI가 덮어써서 품질을 높인다.
+    """
     from vibelign.core.ai_explain import generate_text_with_ai, has_ai_provider
 
     if not has_ai_provider():
         return 0
-    existing = load_anchor_meta(root)
     all_blocks: dict[str, str] = {}
     for path in paths:
         for anchor, code in extract_anchor_blocks(path).items():
-            if anchor not in existing:
-                all_blocks[anchor] = code[:400]
+            all_blocks[anchor] = code[:400]
     if not all_blocks:
         return 0
     # 배치 분할
