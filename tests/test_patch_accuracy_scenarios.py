@@ -131,6 +131,83 @@ class PatchAccuracyScenarioTest(unittest.TestCase):
         self.assertEqual(result.target_file, "pages/profile.py")
         self.assertEqual(result.target_anchor, "PROFILE_RENDER_PROFILE")
 
+    # --- 버그 수정 패턴 시나리오 (2026-04-12) ---
+
+    def test_fix_login_error_not_clearing_selects_render_error(self):
+        result = self._run("fix_login_error_not_clearing")
+        self.assertEqual(result.target_file, "pages/login.py")
+        self.assertEqual(result.target_anchor, "LOGIN_RENDER_LOGIN_ERROR")
+
+    def test_fix_email_validation_broken_selects_validators(self):
+        result = self._run("fix_email_validation_broken")
+        self.assertEqual(result.target_file, "core/validators.py")
+        self.assertEqual(result.target_anchor, "VALIDATORS_VALIDATE_EMAIL")
+
+    @unittest.expectedFailure
+    def test_fix_profile_update_not_saving_selects_users_api(self):
+        """Det 한계: '프로필'이 pages/profile.py를 끌어당김. 저장은 API 레이어."""
+        from unittest.mock import patch as mock_patch
+
+        with mock_patch(
+            "vibelign.core.patch_suggester._ai_select_file",
+            return_value=None,
+        ):
+            result = self._run("fix_profile_update_not_saving")
+        self.assertEqual(result.target_file, "api/users.py")
+        self.assertEqual(result.target_anchor, "USERS_UPDATE_USER_PROFILE")
+
+    @unittest.expectedFailure
+    def test_fix_duplicate_signup_selects_database_create(self):
+        """Det 한계: 파일은 맞지만 앵커가 FIND_BY_EMAIL로 잡힘."""
+        from unittest.mock import patch as mock_patch
+
+        with mock_patch(
+            "vibelign.core.patch_suggester._ai_select_file",
+            return_value=None,
+        ):
+            result = self._run("fix_duplicate_signup")
+        self.assertEqual(result.target_file, "core/database.py")
+        self.assertEqual(result.target_anchor, "DATABASE_CREATE_USER")
+
+    @unittest.expectedFailure
+    def test_fix_token_not_issued_selects_auth_register(self):
+        """Det 한계: '가입'이 signup.py를 끌어당김. 토큰 발급은 auth.py."""
+        from unittest.mock import patch as mock_patch
+
+        with mock_patch(
+            "vibelign.core.patch_suggester._ai_select_file",
+            return_value=None,
+        ):
+            result = self._run("fix_token_not_issued")
+        self.assertEqual(result.target_file, "api/auth.py")
+        self.assertEqual(result.target_anchor, "AUTH_REGISTER_USER")
+
+    @unittest.expectedFailure
+    def test_fix_password_stored_plaintext_selects_hash(self):
+        """Det 한계: 파일은 맞지만 내부함수 앵커(__HASH_PASSWORD) 해상도 실패."""
+        from unittest.mock import patch as mock_patch
+
+        with mock_patch(
+            "vibelign.core.patch_suggester._ai_select_file",
+            return_value=None,
+        ):
+            result = self._run("fix_password_stored_plaintext")
+        self.assertEqual(result.target_file, "api/auth.py")
+        self.assertEqual(result.target_anchor, "AUTH__HASH_PASSWORD")
+
+    @unittest.expectedFailure
+    def test_fix_user_lookup_slow_selects_database_find(self):
+        """Det 한계: '사용자/조회'가 api 레이어를 끌어당김. DB 조회는 database.py."""
+        from unittest.mock import patch as mock_patch
+
+        with mock_patch(
+            "vibelign.core.patch_suggester._ai_select_file",
+            return_value=None,
+        ):
+            result = self._run("fix_user_lookup_slow")
+        self.assertEqual(result.target_file, "core/database.py")
+        self.assertEqual(result.target_anchor, "DATABASE_FIND_USER_BY_ID")
+
 
 class TestAIDeference(unittest.TestCase):
     """`--ai` (use_ai=True) must NOT override a high-confidence deterministic pick.

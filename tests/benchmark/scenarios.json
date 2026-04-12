@@ -102,5 +102,61 @@
     "correct_anchor": "PROFILE_RENDER_PROFILE",
     "forbidden_files": ["api/users.py", "pages/login.py"],
     "description": "render vs handle 앵커 구분 — editable_fields는 render 함수에 있음"
+  },
+  {
+    "id": "fix_login_error_not_clearing",
+    "request": "로그인 페이지에서 돌아왔을 때 에러 메시지가 사라지지 않아",
+    "correct_files": ["pages/login.py"],
+    "correct_anchor": "LOGIN_RENDER_LOGIN_ERROR",
+    "forbidden_files": ["api/auth.py", "core/database.py"],
+    "description": "버그 수정 패턴 — '사라지지 않아'가 fix로 잡히는지 + LOGIN_RENDER_LOGIN_ERROR 앵커 커버"
+  },
+  {
+    "id": "fix_email_validation_broken",
+    "request": "이메일 유효성 검사가 제대로 안 돼",
+    "correct_files": ["core/validators.py"],
+    "correct_anchor": "VALIDATORS_VALIDATE_EMAIL",
+    "forbidden_files": ["pages/signup.py", "api/auth.py"],
+    "description": "버그 수정 — '안 돼' 패턴 + VALIDATORS_VALIDATE_EMAIL 앵커 커버"
+  },
+  {
+    "id": "fix_profile_update_not_saving",
+    "request": "프로필 수정 후 변경사항이 저장되지 않아",
+    "correct_files": ["api/users.py"],
+    "correct_anchor": "USERS_UPDATE_USER_PROFILE",
+    "forbidden_files": ["pages/login.py", "pages/signup.py"],
+    "description": "버그 수정 — '저장되지 않아' + 프로필이 pages/profile.py를 끌어당기지만 저장은 API 레이어"
+  },
+  {
+    "id": "fix_duplicate_signup",
+    "request": "같은 이메일로 중복 가입이 가능해 — 막아야 함",
+    "correct_files": ["core/database.py"],
+    "correct_anchor": "DATABASE_CREATE_USER",
+    "forbidden_files": ["pages/signup.py", "pages/login.py"],
+    "description": "database.py가 정답 — '가입' 키워드가 signup.py를 끌어당기는 함정 + DATABASE_CREATE_USER 커버"
+  },
+  {
+    "id": "fix_token_not_issued",
+    "request": "회원가입 완료 후 토큰이 발급되지 않아",
+    "correct_files": ["api/auth.py"],
+    "correct_anchor": "AUTH_REGISTER_USER",
+    "forbidden_files": ["pages/signup.py", "core/database.py"],
+    "description": "버그 수정 — '발급되지 않아' + AUTH_REGISTER_USER 앵커 커버. '가입'이 signup.py 함정"
+  },
+  {
+    "id": "fix_password_stored_plaintext",
+    "request": "비밀번호가 평문으로 저장되는 보안 문제 수정",
+    "correct_files": ["api/auth.py"],
+    "correct_anchor": "AUTH__HASH_PASSWORD",
+    "forbidden_files": ["core/validators.py", "pages/signup.py"],
+    "description": "보안 버그 — 내부 함수(AUTH__HASH_PASSWORD) 앵커 타겟팅 테스트"
+  },
+  {
+    "id": "fix_user_lookup_slow",
+    "request": "사용자 ID로 조회할 때 너무 느려 — 캐시 추가해줘",
+    "correct_files": ["core/database.py"],
+    "correct_anchor": "DATABASE_FIND_USER_BY_ID",
+    "forbidden_files": ["api/users.py", "pages/profile.py"],
+    "description": "성능 수정 — database.py 정답 + '사용자'·'조회'가 api/users.py를 끌어당기는 함정"
   }
 ]
