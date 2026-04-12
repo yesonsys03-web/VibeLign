@@ -920,6 +920,23 @@ def _has_style_token(request_tokens: Iterable[str]) -> bool:
     return any(style in tok for tok in request_tokens for style in _UI_STYLE_TOKENS)
 
 
+_WRAPPER_ANCHOR_PENALTY = 5
+
+
+def _is_wrapper_anchor(anchor: str, all_anchors: list[str]) -> bool:
+    if len(all_anchors) < 2:
+        return False
+    tokens = _path_tokens(anchor)
+    if len(tokens) != 1:
+        return False
+    token = next(iter(tokens))
+    return all(
+        token in _path_tokens(other)
+        for other in all_anchors
+        if other != anchor
+    )
+
+
 def choose_anchor(
     anchors: list[str],
     request_tokens: list[str],
@@ -930,7 +947,7 @@ def choose_anchor(
     is_style_request = _has_style_token(request_tokens)
     request_verb_cluster = _classify_request_verb(request_tokens)
     best_anchor = anchors[0]
-    best_score = -1
+    best_score = float("-inf")
     best_rationale = [f"첫 번째 앵커 '{best_anchor}'를 기본값으로 선택"]
     for anchor in anchors:
         score = 0
@@ -940,6 +957,9 @@ def choose_anchor(
             score += 3
             rationale.append(f"앵커에 키워드 '{token}'이 포함됨")
         score -= _anchor_quality_penalty(anchor_tokens)
+        if _is_wrapper_anchor(anchor, anchors):
+            score -= _WRAPPER_ANCHOR_PENALTY
+            rationale.append("파일 전체를 감싸는 wrapper 앵커라 우선순위 낮춤")
         if any(token in anchor_tokens for token in ["core", "logic", "worker"]):
             score += 1
         name_cluster = _classify_anchor_verb(anchor)
@@ -980,7 +1000,7 @@ def choose_anchor(
             warning = meta.get("warning")
             if warning:
                 rationale.append(f"⚠️ {warning}")
-        if score > best_score:
+        if score >= best_score:
             best_score = score
             best_anchor = anchor
             best_rationale = rationale or [
