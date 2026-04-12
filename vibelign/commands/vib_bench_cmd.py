@@ -13,6 +13,7 @@ try:
 except ImportError:
     from typing_extensions import NotRequired
 
+from vibelign.commands.bench_fixtures import SAMPLE_PROJECT
 from vibelign.terminal_render import (
     clack_info,
     clack_intro,
@@ -23,7 +24,6 @@ from vibelign.terminal_render import (
 )
 
 BENCHMARK_DIR = Path(__file__).resolve().parent.parent.parent / "tests" / "benchmark"
-SAMPLE_PROJECT = BENCHMARK_DIR / "sample_project"
 SCENARIOS_PATH = BENCHMARK_DIR / "scenarios.json"
 
 # === ANCHOR: VIB_BENCH_PATCH_METRICS_START ===
@@ -64,6 +64,162 @@ def _compute_recall_at_3(
 
 
 # === ANCHOR: VIB_BENCH_PATCH_METRICS_END ===
+
+
+# === ANCHOR: VIB_BENCH_PATCH_MEASURE_START ===
+
+
+def _measure_patch_accuracy(sandbox: Path) -> dict:
+    """Run all 5 scenarios x 2 modes against `sandbox`, compute metrics.
+
+    `sandbox` must already be prepared via `prepare_patch_sandbox`.
+    Returns a dict with `scenarios` (per-scenario metric map) and `totals`
+    (aggregated strings like "3/5"). Ready to diff against a baseline file.
+    """
+    from vibelign.core.patch_suggester import score_candidates, suggest_patch
+
+    scenarios_raw = _load_scenarios()
+    scenarios: dict[str, dict] = {}
+
+    for sc in scenarios_raw:
+        sid = sc["id"]
+        request = sc["request"]
+        correct_files = list(sc["correct_files"])
+        correct_anchor = sc.get("correct_anchor")
+
+        candidates = score_candidates(sandbox, request)
+        candidate_relpaths = [
+            (
+                str(path.relative_to(sandbox)).replace("\\", "/"),
+                score,
+            )
+            for path, score in candidates
+        ]
+        recall = _compute_recall_at_3(candidate_relpaths, correct_files)
+
+        entry: dict[str, dict] = {}
+        for mode_key, use_ai in (("det", False), ("ai", True)):
+            result = suggest_patch(sandbox, request, use_ai=use_ai)
+            entry[mode_key] = {
+                "files_ok": _compute_files_ok(result.target_file, correct_files),
+                "anchor_ok": _compute_anchor_ok(
+                    result.target_anchor, correct_anchor
+                ),
+                "recall_at_3": recall,
+            }
+        scenarios[sid] = entry
+
+    totals = _compute_totals(scenarios)
+    return {"scenarios": scenarios, "totals": totals}
+
+
+def _compute_totals(scenarios: dict[str, dict]) -> dict[str, dict[str, str]]:
+    """Aggregate per-scenario booleans into 'N/M' strings by mode.
+
+    - files_ok / recall_at_3 denominator = number of scenarios
+    - anchor_ok denominator = scenarios where anchor_ok is not None
+    """
+    n_scenarios = len(scenarios)
+    totals: dict[str, dict[str, str]] = {}
+    for mode in ("det", "ai"):
+        files_hits = sum(
+            1 for s in scenarios.values() if s[mode]["files_ok"]
+        )
+        anchor_hits = sum(
+            1
+            for s in scenarios.values()
+            if s[mode]["anchor_ok"] is True
+        )
+        anchor_total = sum(
+            1
+            for s in scenarios.values()
+            if s[mode]["anchor_ok"] is not None
+        )
+        recall_hits = sum(
+            1 for s in scenarios.values() if s[mode]["recall_at_3"]
+        )
+        totals[mode] = {
+            "files_ok": f"{files_hits}/{n_scenarios}",
+            "anchor_ok": f"{anchor_hits}/{anchor_total}",
+            "recall_at_3": f"{recall_hits}/{n_scenarios}",
+        }
+    return totals
+
+
+def _load_patch_baseline() -> dict | None:
+    """Read `patch_accuracy_baseline.json`. Returns None if missing."""
+    if not PATCH_BASELINE_PATH.exists():
+        return None
+    return json.loads(PATCH_BASELINE_PATH.read_text(encoding="utf-8"))
+
+
+def _diff_against_baseline(current: dict, baseline: dict) -> dict:
+    """Compute regressions + improvements per (scenario, mode, metric).
+
+    Regression: baseline was True, current is False.
+    Improvement: baseline was False, current is True.
+    None (anchor_ok for no-anchor scenarios) is never a regression or improvement.
+    """
+    regressions: list[dict] = []
+    improvements: list[dict] = []
+    cur_scenarios = current.get("scenarios", {})
+    base_scenarios = baseline.get("scenarios", {})
+    for sid, cur_entry in cur_scenarios.items():
+        base_entry = base_scenarios.get(sid, {})
+        for mode in ("det", "ai"):
+            cur_metrics = cur_entry.get(mode, {})
+            base_metrics = base_entry.get(mode, {})
+            for metric in ("files_ok", "anchor_ok", "recall_at_3"):
+                was = base_metrics.get(metric)
+                now = cur_metrics.get(metric)
+                if was is None or now is None:
+                    continue
+                if was is True and now is False:
+                    regressions.append(
+                        {
+                            "scenario": sid,
+                            "mode": mode,
+                            "metric": metric,
+                            "was": was,
+                            "now": now,
+                        }
+                    )
+                elif was is False and now is True:
+                    improvements.append(
+                        {
+                            "scenario": sid,
+                            "mode": mode,
+                            "metric": metric,
+                            "was": was,
+                            "now": now,
+                        }
+                    )
+    return {"regressions": regressions, "improvements": improvements}
+
+
+def _write_patch_baseline(current: dict) -> None:
+    """Overwrite the baseline file with `current`, preserving metadata."""
+    from datetime import date
+
+    from vibelign.commands.bench_fixtures import PINNED_INTENTS_VERSION
+
+    payload = {
+        "pinned_intents_version": PINNED_INTENTS_VERSION,
+        "generated_at": date.today().isoformat(),
+        "notes": (
+            "Updated via `vib bench --patch --update-baseline`. "
+            "See docs/superpowers/specs/2026-04-12-patch-accuracy-c5-bench-runner-design.md."
+        ),
+        "scenarios": current["scenarios"],
+        "totals": current["totals"],
+    }
+    PATCH_BASELINE_PATH.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
+# === ANCHOR: VIB_BENCH_PATCH_MEASURE_END ===
 
 
 class BenchmarkScenario(TypedDict):
