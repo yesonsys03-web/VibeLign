@@ -117,6 +117,12 @@ export async function doctorApply(cwd: string, aiEnv?: Record<string, string>): 
   return JSON.parse(res.stdout);
 }
 
+export async function anchorAutoIntent(cwd: string, aiEnv?: Record<string, string>): Promise<unknown> {
+  const res = await runVib(["anchor", "--auto-intent"], cwd, aiEnv);
+  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  return res.stdout;
+}
+
 export async function checkpointCreate(cwd: string, message: string): Promise<unknown> {
   const res = await runVib(["checkpoint", message, "--json"], cwd);
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
