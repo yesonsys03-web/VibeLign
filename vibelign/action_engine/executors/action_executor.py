@@ -14,7 +14,7 @@ import sys
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from vibelign.action_engine.models.action import Action
 from vibelign.action_engine.models.plan import Plan
@@ -95,13 +95,20 @@ def _execute_action(action: Action, root: Path) -> ExecutionResult:
         return ExecutionResult(action, "skipped", f"{action.action_type} — 수동 작업 필요")
 
 
-def execute_plan(plan: Plan, root: Path, force: bool = False, quiet: bool = False) -> ApplyResult:
+def execute_plan(
+    plan: Plan,
+    root: Path,
+    force: bool = False,
+    quiet: bool = False,
+    on_status: Optional[Callable[[str], None]] = None,
+) -> ApplyResult:
     """Plan을 실행한다.
 
     Args:
         plan: generate_plan()이 반환한 Plan
         root: 프로젝트 루트
         force: True면 확인 프롬프트 생략
+        on_status: 상태 변경 콜백 (예: GUI 상태바 업데이트)
 
     Returns:
         ApplyResult
@@ -163,12 +170,18 @@ def execute_plan(plan: Plan, root: Path, force: bool = False, quiet: bool = Fals
             if anchored:
                 from vibelign.core.anchor_tools import generate_code_based_intents
                 generate_code_based_intents(root, anchored)
+                _notify = on_status
                 def _ai_enhance() -> None:
+                    if _notify:
+                        _notify("AI aliases 생성 중...")
                     try:
                         from vibelign.core.anchor_tools import generate_anchor_intents_with_ai
-                        generate_anchor_intents_with_ai(root, anchored)
+                        count = generate_anchor_intents_with_ai(root, anchored)
+                        if _notify:
+                            _notify(f"AI aliases 생성 완료 ({count}개)")
                     except Exception:
-                        pass
+                        if _notify:
+                            _notify("AI aliases 생성 실패")
                 threading.Thread(target=_ai_enhance, daemon=True).start()
     except Exception:
         pass
