@@ -104,9 +104,17 @@ def _topological_sort(actions: List[Action]) -> tuple[List[Action], List[str]]:
     for action in actions:
         for dep in action.depends_on:
             if dep not in present_types:
+                dep_action = Action(
+                    action_type=dep,
+                    description=f"'{action.action_type}' 실행을 위해 자동 추가",
+                    target_path=action.target_path,
+                    command="vib anchor --suggest" if dep == "add_anchor" else None,
+                    depends_on=[],
+                )
+                actions.append(dep_action)
+                present_types.add(dep)
                 warnings.append(
-                    f"'{action.action_type}'이 '{dep}'에 의존하지만 plan에 없어요. "
-                    f"수동으로 먼저 `vib anchor --suggest`를 실행하는 것을 권장해요."
+                    f"'{action.action_type}'이 '{dep}'에 의존해서 자동으로 추가했어요."
                 )
 
     sorted_actions = sorted(
