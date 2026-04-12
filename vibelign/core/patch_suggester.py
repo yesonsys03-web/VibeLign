@@ -1261,6 +1261,16 @@ def _score_all_files(
                 rationale = rationale + ui_reasons
         scored.append((score, path, rationale))
     scored.sort(key=lambda x: (-x[0], str(x[1])))
+
+    # C2 layer routing post-processing. See _apply_layer_routing docstring.
+    candidates = [(path, score) for score, path, _ in scored]
+    rewritten = _apply_layer_routing(candidates, request_tokens, project_map, root)
+    if rewritten != candidates:
+        rationale_by_path = {path: rationale for _, path, rationale in scored}
+        scored = [
+            (score, path, rationale_by_path[path] + ["C2 레이어 라우팅 재배치"])
+            for path, score in rewritten
+        ]
     return scored, metadata, anchor_meta, project_map, ui_label_idx
 
 
