@@ -66,15 +66,22 @@ def _build_tree(root: Path) -> list[str]:
     lines: list[str] = []
 
     # === ANCHOR: VIB_START_CMD__WALK_START ===
+    resolved_root = root.resolve()
+
     def _walk(path: Path, depth: int) -> None:
         try:
             entries = sorted(
                 path.iterdir(), key=lambda p: (p.is_file(), p.name.lower())
             )
-        except PermissionError:
+        except (PermissionError, OSError):
             return
         for entry in entries:
             if entry.name.startswith(".") or entry.name in _TREE_SKIP:
+                continue
+            try:
+                if not str(entry.resolve()).startswith(str(resolved_root)):
+                    continue
+            except OSError:
                 continue
             indent = "  " * depth
             if entry.is_dir():
