@@ -145,9 +145,9 @@ class MeasureAndDiffTest(unittest.TestCase):
             result = _measure_patch_accuracy(self.sandbox)
 
         det_totals = result["totals"]["det"]
-        self.assertRegex(det_totals["files_ok"], r"^\d+/5$")
-        self.assertRegex(det_totals["anchor_ok"], r"^\d+/4$")
-        self.assertRegex(det_totals["recall_at_3"], r"^\d+/5$")
+        self.assertRegex(det_totals["files_ok"], r"^\d+/13$")
+        self.assertRegex(det_totals["anchor_ok"], r"^\d+/12$")
+        self.assertRegex(det_totals["recall_at_3"], r"^\d+/13$")
 
 
 class BaselineDiffTest(unittest.TestCase):

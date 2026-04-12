@@ -73,6 +73,48 @@ class PatchAccuracyScenarioTest(unittest.TestCase):
         self.assertEqual(result.target_file, "pages/signup.py")
         self.assertEqual(result.target_anchor, "SIGNUP_HANDLE_SIGNUP")
 
+    # --- Scenario expansion (2026-04-12) ---
+
+    def test_reduce_max_login_attempts_selects_config(self):
+        result = self._run("reduce_max_login_attempts")
+        self.assertEqual(result.target_file, "config.py")
+        self.assertEqual(result.target_anchor, "CONFIG")
+
+    def test_add_special_char_requirement_selects_validators(self):
+        result = self._run("add_special_char_requirement")
+        self.assertEqual(result.target_file, "core/validators.py")
+        self.assertEqual(result.target_anchor, "VALIDATORS_VALIDATE_PASSWORD")
+
+    def test_remove_password_confirm_selects_signup(self):
+        result = self._run("remove_password_confirm")
+        self.assertEqual(result.target_file, "pages/signup.py")
+        self.assertEqual(result.target_anchor, "SIGNUP_HANDLE_SIGNUP")
+
+    def test_hide_email_in_profile_selects_users_api(self):
+        result = self._run("hide_email_in_profile")
+        self.assertEqual(result.target_file, "api/users.py")
+        self.assertEqual(result.target_anchor, "USERS_GET_USER_PROFILE")
+
+    def test_change_server_port_selects_app(self):
+        result = self._run("change_server_port")
+        self.assertEqual(result.target_file, "app.py")
+        self.assertEqual(result.target_anchor, "APP_MAIN")
+
+    def test_change_signup_button_label_selects_render_form(self):
+        result = self._run("change_signup_button_label")
+        self.assertEqual(result.target_file, "pages/signup.py")
+        self.assertEqual(result.target_anchor, "SIGNUP_RENDER_SIGNUP_FORM")
+
+    def test_add_login_form_placeholder_kr_selects_render_form(self):
+        result = self._run("add_login_form_placeholder_kr")
+        self.assertEqual(result.target_file, "pages/login.py")
+        self.assertEqual(result.target_anchor, "LOGIN_RENDER_LOGIN_FORM")
+
+    def test_add_email_to_editable_fields_selects_render_profile(self):
+        result = self._run("add_email_to_editable_fields")
+        self.assertEqual(result.target_file, "pages/profile.py")
+        self.assertEqual(result.target_anchor, "PROFILE_RENDER_PROFILE")
+
 
 class TestAIDeference(unittest.TestCase):
     """`--ai` (use_ai=True) must NOT override a high-confidence deterministic pick.
