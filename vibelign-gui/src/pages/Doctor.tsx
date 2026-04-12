@@ -1,6 +1,6 @@
 // === ANCHOR: DOCTOR_START ===
 import { useState, useEffect, useCallback } from "react";
-import { doctorJson, doctorPlanJson, doctorApply, buildGuiAiEnv } from "../lib/vib";
+import { doctorJson, doctorPlanJson, doctorApply, anchorAutoIntent, buildGuiAiEnv } from "../lib/vib";
 
 interface Issue {
   severity: "high" | "medium" | "low";
@@ -52,6 +52,7 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
   const [strict, setStrict] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [applyMsg, setApplyMsg] = useState<string | null>(null);
+  const [aiStatus, setAiStatus] = useState<string | null>(null);
 
   const loadReport = useCallback(async () => {
     setLoading(true);
@@ -108,12 +109,23 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
   async function handleApply() {
     setApplying(true);
     setApplyMsg(null);
+    setAiStatus(null);
     setError(null);
     try {
-      const result = await doctorApply(projectDir, buildGuiAiEnv(providerKeys, apiKey)) as { ok: boolean; done?: number; manual?: number };
+      const aiEnv = buildGuiAiEnv(providerKeys, apiKey);
+      const result = await doctorApply(projectDir, aiEnv) as {
+        ok: boolean; done?: number; manual?: number; needs_ai_aliases?: boolean;
+      };
       if (result.ok) {
         setApplyMsg(`완료: ${result.done ?? 0}개 자동 적용, ${result.manual ?? 0}개 수동 필요`);
         await Promise.all([loadReport(), loadPlan()]);
+        if (result.needs_ai_aliases) {
+          setAiStatus("AI aliases 생성 중...");
+          anchorAutoIntent(projectDir, aiEnv)
+            .then(() => setAiStatus("AI aliases 생성 완료"))
+            .catch(() => setAiStatus("AI aliases 생성 실패"))
+            .finally(() => setTimeout(() => setAiStatus(null), 5000));
+        }
       }
     } catch (e) {
       setError(String(e));
@@ -172,6 +184,17 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
 
       {error   && <div className="alert alert-error"   style={{ margin: "0 20px 8px" }}>{error}</div>}
       {applyMsg && <div className="alert alert-success" style={{ margin: "0 20px 8px" }}>{applyMsg}</div>}
+      {aiStatus && (
+        <div className="alert" style={{
+          margin: "0 20px 8px",
+          background: aiStatus.includes("완료") ? "#e8f5e9" : aiStatus.includes("실패") ? "#fce4ec" : "#e3f2fd",
+          color: "#333",
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          {!aiStatus.includes("완료") && !aiStatus.includes("실패") && <span className="spinner" />}
+          {aiStatus}
+        </div>
+      )}
 
       {/* ─── 탭 ─────────────────────────────────────────── */}
       <div className="nav-tabs">
