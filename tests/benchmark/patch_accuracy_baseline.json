@@ -198,36 +198,36 @@
     "fix_duplicate_signup": {
       "det": {
         "files_ok": true,
-        "anchor_ok": false,
+        "anchor_ok": true,
         "recall_at_3": true
       },
       "ai": {
         "files_ok": true,
-        "anchor_ok": false,
+        "anchor_ok": true,
         "recall_at_3": true
       }
     },
     "fix_token_not_issued": {
       "det": {
-        "files_ok": false,
-        "anchor_ok": false,
+        "files_ok": true,
+        "anchor_ok": true,
         "recall_at_3": true
       },
       "ai": {
-        "files_ok": false,
-        "anchor_ok": false,
+        "files_ok": true,
+        "anchor_ok": true,
         "recall_at_3": true
       }
     },
     "fix_password_stored_plaintext": {
       "det": {
         "files_ok": true,
-        "anchor_ok": false,
+        "anchor_ok": true,
         "recall_at_3": true
       },
       "ai": {
         "files_ok": true,
-        "anchor_ok": false,
+        "anchor_ok": true,
         "recall_at_3": true
       }
     },
@@ -246,13 +246,13 @@
   },
   "totals": {
     "det": {
-      "files_ok": "14/20",
-      "anchor_ok": "11/19",
+      "files_ok": "15/20",
+      "anchor_ok": "14/19",
       "recall_at_3": "19/20"
     },
     "ai": {
-      "files_ok": "14/20",
-      "anchor_ok": "11/19",
+      "files_ok": "15/20",
+      "anchor_ok": "14/19",
       "recall_at_3": "19/20"
     }
   }

@@ -45,6 +45,12 @@ KEYWORD_HINTS = {
     "필수": ["validators", "validate", "check"],
     "최대": ["config", "settings", "max"],
     "최소": ["config", "settings", "min"],
+    "토큰": ["auth", "token", "generate"],
+    "발급": ["auth", "token", "generate"],
+    "해시": ["auth", "hash", "password"],
+    "평문": ["auth", "hash", "encrypt"],
+    "캐시": ["database", "cache", "query"],
+    "느려": ["database", "query", "cache"],
 }
 
 LOW_PRIORITY_NAMES = {"__init__.py", "__init__.js", "__init__.ts"}
@@ -137,6 +143,14 @@ _TOKEN_ALIASES = {
     "조회": ["get", "query"],
     "검증": ["validate", "validators"],
     "유효성": ["validate", "validators"],
+    "토큰": ["token", "auth"],
+    "발급": ["generate", "issue", "token"],
+    "저장": ["save", "store", "update"],
+    "평문": ["hash", "encrypt", "plaintext"],
+    "해시": ["hash", "encrypt"],
+    "중복": ["duplicate", "create", "unique"],
+    "캐시": ["cache", "database"],
+    "느려": ["performance", "optimize"],
 }
 
 _LOW_SIGNAL_TOKENS = {

@@ -156,42 +156,18 @@ class PatchAccuracyScenarioTest(unittest.TestCase):
         self.assertEqual(result.target_file, "api/users.py")
         self.assertEqual(result.target_anchor, "USERS_UPDATE_USER_PROFILE")
 
-    @unittest.expectedFailure
     def test_fix_duplicate_signup_selects_database_create(self):
-        """Det 한계: 파일은 맞지만 앵커가 FIND_BY_EMAIL로 잡힘."""
-        from unittest.mock import patch as mock_patch
-
-        with mock_patch(
-            "vibelign.core.patch_suggester._ai_select_file",
-            return_value=None,
-        ):
-            result = self._run("fix_duplicate_signup")
+        result = self._run("fix_duplicate_signup")
         self.assertEqual(result.target_file, "core/database.py")
         self.assertEqual(result.target_anchor, "DATABASE_CREATE_USER")
 
-    @unittest.expectedFailure
     def test_fix_token_not_issued_selects_auth_register(self):
-        """Det 한계: '가입'이 signup.py를 끌어당김. 토큰 발급은 auth.py."""
-        from unittest.mock import patch as mock_patch
-
-        with mock_patch(
-            "vibelign.core.patch_suggester._ai_select_file",
-            return_value=None,
-        ):
-            result = self._run("fix_token_not_issued")
+        result = self._run("fix_token_not_issued")
         self.assertEqual(result.target_file, "api/auth.py")
         self.assertEqual(result.target_anchor, "AUTH_REGISTER_USER")
 
-    @unittest.expectedFailure
     def test_fix_password_stored_plaintext_selects_hash(self):
-        """Det 한계: 파일은 맞지만 내부함수 앵커(__HASH_PASSWORD) 해상도 실패."""
-        from unittest.mock import patch as mock_patch
-
-        with mock_patch(
-            "vibelign.core.patch_suggester._ai_select_file",
-            return_value=None,
-        ):
-            result = self._run("fix_password_stored_plaintext")
+        result = self._run("fix_password_stored_plaintext")
         self.assertEqual(result.target_file, "api/auth.py")
         self.assertEqual(result.target_anchor, "AUTH__HASH_PASSWORD")
 
