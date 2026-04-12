@@ -29,13 +29,13 @@
     },
     "fix_login_lock_bug": {
       "det": {
-        "files_ok": true,
-        "anchor_ok": true,
+        "files_ok": false,
+        "anchor_ok": false,
         "recall_at_3": true
       },
       "ai": {
-        "files_ok": true,
-        "anchor_ok": true,
+        "files_ok": false,
+        "anchor_ok": false,
         "recall_at_3": true
       }
     },
@@ -62,18 +62,114 @@
         "anchor_ok": null,
         "recall_at_3": true
       }
+    },
+    "reduce_max_login_attempts": {
+      "det": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": false
+      },
+      "ai": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": false
+      }
+    },
+    "add_special_char_requirement": {
+      "det": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": true
+      }
+    },
+    "remove_password_confirm": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "hide_email_in_profile": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "change_server_port": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "change_signup_button_label": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "add_login_form_placeholder_kr": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "add_email_to_editable_fields": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
     }
   },
   "totals": {
     "det": {
-      "files_ok": "5/5",
-      "anchor_ok": "4/4",
-      "recall_at_3": "5/5"
+      "files_ok": "10/13",
+      "anchor_ok": "9/12",
+      "recall_at_3": "12/13"
     },
     "ai": {
-      "files_ok": "5/5",
-      "anchor_ok": "4/4",
-      "recall_at_3": "5/5"
+      "files_ok": "10/13",
+      "anchor_ok": "9/12",
+      "recall_at_3": "12/13"
     }
   }
 }
