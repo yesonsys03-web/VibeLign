@@ -829,14 +829,15 @@ def generate_code_based_intents(root: Path, paths: list[Path]) -> int:
 # ─── AI 기반 aliases 보강 ──────────────────────────────────────────────────────
 
 _BATCH_SIZE = 20  # 한 번에 AI에 보내는 앵커 수
+_MAX_PARALLEL = 4  # 동시 배치 수
 
 
 def _generate_batch(
     root: Path,
     batch: dict[str, str],
     generate_text_with_ai: object,
-) -> int:
-    """앵커 배치 하나를 AI에 보내고 결과를 저장. 반환: 등록된 intent 수"""
+) -> dict[str, AnchorMetaEntry]:
+    """앵커 배치 하나를 AI에 보내고 결과를 반환 (파일 쓰기 안 함)."""
     from typing import cast, Callable
 
     _gen = cast(Callable[..., tuple[str, list[str]]], generate_text_with_ai)
@@ -859,8 +860,8 @@ def _generate_batch(
     )
     text, _ = _gen(prompt, quiet=True)
     if not text:
-        return 0
-    count = 0
+        return {}
+    results: dict[str, AnchorMetaEntry] = {}
     try:
         json_text = text.strip()
         if "```" in json_text:
@@ -879,16 +880,14 @@ def _generate_batch(
                 intent = item.get("intent", "")
                 if not intent:
                     continue
+                entry: AnchorMetaEntry = {"intent": intent}
                 aliases = item.get("aliases")
+                if isinstance(aliases, list):
+                    entry["aliases"] = aliases
                 description = item.get("description")
-                set_anchor_intent(
-                    root,
-                    anchor_name,
-                    intent,
-                    aliases=aliases if isinstance(aliases, list) else None,
-                    description=description if isinstance(description, str) else None,
-                )
-                count += 1
+                if isinstance(description, str):
+                    entry["description"] = description
+                results[anchor_name] = entry
     except (json.JSONDecodeError, ValueError):
         parsed: dict[str, str] = {}
         parts = re.split(r"\[(\d+)\]", text)
@@ -900,36 +899,57 @@ def _generate_batch(
                 parsed[anchor_list[idx]] = val
             i += 2
         for anchor, intent in parsed.items():
-            set_anchor_intent(root, anchor, intent)
-            count += 1
-    return count
+            results[anchor] = {"intent": intent}
+    return results
 
 
 def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
     """AI를 사용해 anchor intent/aliases/description을 보강. 반환: 등록된 intent 수.
 
-    코드 기반으로 이미 생성된 항목도 AI가 덮어써서 품질을 높인다.
+    이미 AI가 생성한 aliases가 있는 앵커는 건너뛴다.
+    배치를 최대 _MAX_PARALLEL개씩 병렬 실행한다.
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     from vibelign.core.ai_explain import generate_text_with_ai, has_ai_provider
 
     if not has_ai_provider():
         return 0
+    # 이미 AI aliases가 있는 앵커 건너뛰기
+    existing = load_anchor_meta(root)
     all_blocks: dict[str, str] = {}
     for path in paths:
         for anchor, code in extract_anchor_blocks(path).items():
+            entry = existing.get(anchor, {})
+            if entry.get("aliases") and entry.get("description"):
+                continue
             all_blocks[anchor] = code[:400]
     if not all_blocks:
         return 0
-    # 배치 분할
+    # 배치 분할 + 병렬 실행
     items = list(all_blocks.items())
-    total = 0
-    for start in range(0, len(items), _BATCH_SIZE):
-        batch = dict(items[start : start + _BATCH_SIZE])
-        try:
-            total += _generate_batch(root, batch, generate_text_with_ai)
-        except Exception:
-            continue  # 배치 실패해도 다음 배치 계속
-    return total
+    batches = [
+        dict(items[start : start + _BATCH_SIZE])
+        for start in range(0, len(items), _BATCH_SIZE)
+    ]
+    all_results: dict[str, AnchorMetaEntry] = {}
+    with ThreadPoolExecutor(max_workers=_MAX_PARALLEL) as pool:
+        futures = {
+            pool.submit(_generate_batch, root, batch, generate_text_with_ai): i
+            for i, batch in enumerate(batches)
+        }
+        for future in as_completed(futures):
+            try:
+                all_results.update(future.result())
+            except Exception:
+                continue
+    if all_results:
+        data = load_anchor_meta(root)
+        for anchor, entry in all_results.items():
+            merged = data.get(anchor, {})
+            merged.update(entry)
+            data[anchor] = merged
+        save_anchor_meta(root, data)
+    return len(all_results)
 
 
 # === ANCHOR: ANCHOR_TOOLS_GENERATE_ANCHOR_INTENTS_WITH_AI_END ===
