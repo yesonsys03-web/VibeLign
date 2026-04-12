@@ -225,6 +225,7 @@ def _run_apply(root: Path, strict: bool, as_json: bool, force: bool = False) -> 
                     "checkpoint_id": result.checkpoint_id,
                     "done": result.done_count,
                     "manual": result.manual_count,
+                    "needs_ai_aliases": result.needs_ai_aliases,
                     "results": [
                         {
                             "action_type": r.action.action_type,
