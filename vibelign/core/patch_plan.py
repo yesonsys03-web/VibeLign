@@ -44,7 +44,6 @@ class PatchPlan:
     clarifying_questions: list[str] = field(default_factory=list)
     rationale: list[str] = field(default_factory=list)
     destination_rationale: list[str] = field(default_factory=list)
-    related_files: list[dict[str, JsonValue]] = field(default_factory=list)
     steps: list[PatchStep] | None = None
 
     # === ANCHOR: PATCH_PLAN_TO_DICT_START ===

@@ -140,26 +140,8 @@ def patch_status(
 
 
 # === ANCHOR: PATCH_CONTRACT_HELPERS_PRECONDITIONS_START ===
-def preconditions(
-    target_file: str,
-    target_anchor: str,
-    related_files: list[dict[str, object]] | None = None,
-) -> list[str]:
-    related = related_files or []
-    existing = [rf for rf in related if rf.get("exists", True)]
-    new_files = [rf for rf in related if not rf.get("exists", True)]
-    if not existing and not new_files:
-        conditions = [f"허용된 파일은 `{target_file}` 하나뿐이어야 합니다."]
-    else:
-        file_list = ", ".join(
-            [f"`{target_file}`"] + [f"`{r['file']}`" for r in existing]
-        )
-        conditions = [f"허용된 파일은 {file_list} 총 {1 + len(existing)}개입니다."]
-    if new_files:
-        for nf in new_files:
-            conditions.append(
-                f"새로 생성될 파일 후보: `{nf['file']}` ({nf.get('reason', '')})"
-            )
+def preconditions(target_file: str, target_anchor: str) -> list[str]:
+    conditions = [f"허용된 파일은 `{target_file}` 하나뿐이어야 합니다."]
     anchor_status_value = target_anchor_status(target_anchor)
     anchor_name_value = target_anchor_name(target_anchor) or ""
     if anchor_status_value == "ok" and anchor_name_value:
@@ -491,12 +473,6 @@ def build_contract(patch_plan: dict[str, object]) -> dict[str, object]:
             "지금은 바로 수정하면 안 돼요.",
             "먼저 프로젝트 상태와 대상 파일부터 다시 확인하세요.",
         ]
-    related_files_raw = patch_plan.get("related_files", [])
-    related_files: list[dict[str, object]] = (
-        [rf for rf in cast(list[object], related_files_raw) if isinstance(rf, dict)]
-        if isinstance(related_files_raw, list)
-        else []
-    )
     contract = PatchContract.from_context(
         status=status,
         patch_plan=patch_plan,
@@ -509,12 +485,11 @@ def build_contract(patch_plan: dict[str, object]) -> dict[str, object]:
         destination_file=destination_file,
         destination_anchor=destination_anchor,
         allowed_ops=allowed_ops_for_action(codespeak_parts["action"]),
-        preconditions=preconditions(target_file, target_anchor, related_files=related_files),
+        preconditions=preconditions(target_file, target_anchor),
         assumptions=assumptions,
         clarifying_questions=clarifying_questions,
         user_status=user_status,
         user_guidance=user_guidance,
-        related_files=related_files,
     )
     return cast(dict[str, object], contract.to_dict())
 

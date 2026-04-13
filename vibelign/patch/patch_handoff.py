@@ -173,29 +173,16 @@ def build_ready_handoff(
             ),
             f"Allowed ops: {', '.join(str(item) for item in allowed_ops)}",
             f"Constraints: {', '.join(str(item) for item in constraints)}",
-            None,  # placeholder — allowed files block appended below
+            (
+                f"Allowed files: {', '.join(str(item) for item in allowed_files_scope)}"
+                if allowed_files_scope
+                else None
+            ),
             "",
             "Validator gate (must follow before editing):",
             *validator_rules,
         ]
     )
-    allowed_file_details = cast(
-        list[dict[str, object]],
-        scope.get("allowed_file_details", []),
-    )
-    if allowed_file_details:
-        prompt_lines.append("Allowed files:")
-        for detail in allowed_file_details:
-            role = detail.get("role", "")
-            anchor = detail.get("anchor")
-            exists = detail.get("exists", True)
-            anchor_tag = f", anchor={anchor}" if anchor else ""
-            new_tag = ", new" if not exists else ""
-            prompt_lines.append(f"  - {detail['file']} [{role}{anchor_tag}{new_tag}]")
-    elif allowed_files_scope:
-        prompt_lines.append(
-            f"Allowed files: {', '.join(str(item) for item in allowed_files_scope)}"
-        )
     if preconditions:
         prompt_lines.append("")
         prompt_lines.append("Preconditions:")
@@ -211,7 +198,6 @@ def build_ready_handoff(
         "target_file": patch_plan["target_file"],
         "target_anchor": patch_plan["target_anchor"],
         "allowed_files": scope.get("allowed_files", []),
-        "allowed_file_details": scope.get("allowed_file_details", []),
         "allowed_ops": allowed_ops,
         "preconditions": contract.get("preconditions", []),
         "constraints": constraints,

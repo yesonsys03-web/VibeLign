@@ -60,7 +60,6 @@ class PatchContract:
         clarifying_questions: list[str],
         user_status: dict[str, str],
         user_guidance: list[str],
-        related_files: list[dict[str, object]] | None = None,
     # === ANCHOR: PATCH_CONTRACT_FROM_CONTEXT_END ===
     ) -> PatchContract:
         patch_points_raw = patch_plan.get("patch_points")
@@ -87,29 +86,6 @@ class PatchContract:
             assumptions = list(assumptions) + [
                 "이동 대상 위치가 아직 충분히 분명하지 않습니다."
             ]
-        related = related_files or []
-        target_file_str = str(patch_plan["target_file"])
-        base_files = [
-            item
-            for item in [target_file_str, destination_file]
-            if item and item != "[소스 파일 없음]" and item != "None"
-        ]
-        related_paths = [
-            rf["file"]
-            for rf in related
-            if isinstance(rf, dict) and isinstance(rf.get("file"), str)
-        ]
-        all_files = list(dict.fromkeys(base_files + related_paths))
-        target_detail: dict[str, object] = {
-            "file": target_file_str,
-            "role": "primary",
-            "anchor": anchor_name,
-            "reason": "직접 수정 대상",
-            "exists": True,
-        }
-        file_details: list[dict[str, object]] = [target_detail] + [
-            rf for rf in related if isinstance(rf, dict)
-        ]
         return cls(
             status=status,
             contract_version="0.1",
@@ -118,8 +94,11 @@ class PatchContract:
             codespeak_parts=codespeak_parts,
             patch_points=patch_points,
             scope={
-                "allowed_files": all_files,
-                "allowed_file_details": file_details,
+                "allowed_files": [
+                    item
+                    for item in [str(patch_plan["target_file"]), destination_file]
+                    if item and item != "[소스 파일 없음]" and item != "None"
+                ],
                 "target_file_status": file_status,
                 "target_anchor_status": anchor_status,
                 "target_anchor_name": anchor_name,
