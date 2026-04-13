@@ -8,6 +8,7 @@ from typing import Protocol, cast
 from vibelign.core import PatchPlan, PatchStep
 from vibelign.core.codespeak import CodeSpeakResult, build_codespeak
 from vibelign.core.context_chunk import fetch_anchor_context_window
+from vibelign.core.patch_suggester import _infer_new_file_path
 from vibelign.core.strict_patch import build_strict_patch_artifact
 
 MAX_SUB_INTENT_FANOUT = 5
@@ -24,6 +25,60 @@ class SuggestionLike(Protocol):
     confidence: str
     rationale: list[str]
 # === ANCHOR: PATCH_BUILDER_SUGGESTIONLIKE_END ===
+
+
+# === ANCHOR: PATCH_BUILDER_RELATED_FILES_POSTPROCESS_START ===
+def _extract_codespeak_action(codespeak: object) -> str:
+    return getattr(codespeak, "action", "update") or "update"
+
+
+def _extract_codespeak_subject(codespeak: object) -> str:
+    return getattr(codespeak, "subject", "") or ""
+
+
+def _dedupe_related_files(items: list[dict[str, object]]) -> list[dict[str, object]]:
+    seen: set[str] = set()
+    result: list[dict[str, object]] = []
+    for item in items:
+        path = item.get("file")
+        if not isinstance(path, str) or path in seen:
+            continue
+        seen.add(path)
+        result.append(item)
+    return result
+
+
+def _postprocess_related_files(
+    related_files: list[dict[str, object]],
+    operation: str,
+    action: str,
+    *,
+    root: Path,
+    best_path: Path,
+    codespeak_subject: str,
+) -> list[dict[str, object]]:
+    if operation == "move":
+        return []
+    result = list(related_files)
+    if action in ("add", "create"):
+        new_file = _infer_new_file_path(
+            root=root,
+            subject=codespeak_subject,
+            action=action,
+            sibling_dir=best_path.parent,
+        )
+        if new_file is not None:
+            rel = str(new_file.relative_to(root))
+            if not any(rf.get("file") == rel for rf in result):
+                result.append({
+                    "file": rel,
+                    "role": "new_file",
+                    "anchor": None,
+                    "reason": "컨벤션 추론으로 제안된 새 파일",
+                    "exists": False,
+                })
+    return _dedupe_related_files(result)
+# === ANCHOR: PATCH_BUILDER_RELATED_FILES_POSTPROCESS_END ===
 
 
 # === ANCHOR: PATCH_BUILDER_CONTRACTHELPERSMODULE_START ===
@@ -487,6 +542,14 @@ def _build_patch_data_with_options(
         clarifying_questions=codespeak.clarifying_questions,
         rationale=suggestion.rationale,
         destination_rationale=getattr(destination_suggestion, "rationale", []),
+        related_files=_postprocess_related_files(
+            getattr(suggestion, "related_files", []),
+            codespeak.patch_points.get("operation", "update"),
+            _extract_codespeak_action(codespeak),
+            root=root,
+            best_path=root / suggestion.target_file,
+            codespeak_subject=_extract_codespeak_subject(codespeak),
+        ),
         steps=steps,
     )
     codespeak_generated = codespeak.codespeak != "" and codespeak.confidence != "none"

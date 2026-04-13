@@ -78,8 +78,19 @@ def render_markdown(
             "## 이 계획에서 허용하는 범위",
         ]
     )
-    for item in allowed_files:
-        lines.append(f"- 허용된 파일: {item}")
+    allowed_file_details = cast(list[dict[str, object]], scope.get("allowed_file_details", []))
+    if allowed_file_details:
+        for detail in allowed_file_details:
+            role = detail.get("role", "")
+            anchor = detail.get("anchor", "")
+            reason = detail.get("reason", "")
+            exists = detail.get("exists", True)
+            anchor_text = f", {anchor} 앵커" if anchor else ""
+            new_marker = " [신규]" if not exists else ""
+            lines.append(f"- 허용된 파일: {detail['file']} ({role}{anchor_text}){new_marker} — {reason}")
+    else:
+        for item in allowed_files:
+            lines.append(f"- 허용된 파일: {item}")
     lines.extend(
         [
             f"- 파일 상태: {scope.get('target_file_status', '')}",
