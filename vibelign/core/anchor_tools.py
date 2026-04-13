@@ -452,16 +452,34 @@ def extract_anchors(path: Path) -> list[str]:
 
 
 # === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHOR_SPANS_START ===
+_SIGNATURE_RE = re.compile(
+    r"^\s*(?:export\s+)?(?:async\s+)?"
+    r"(?:def |class |function |const |let |var )"
+    r".+",
+)
+
+
+def _find_signature(lines: list[str], start_line: int) -> str | None:
+    """_START 마커 다음 5줄 이내에서 함수/클래스 선언을 찾아 반환."""
+    for i in range(start_line, min(start_line + 5, len(lines))):
+        m = _SIGNATURE_RE.match(lines[i])
+        if m:
+            return lines[i].strip()
+    return None
+
+
 def extract_anchor_spans(path: Path) -> list[dict[str, object]]:
     """각 앵커의 이름·시작줄·종료줄을 1-based 로 반환.
 
     `_START` 마커가 나타난 줄을 start, 매칭되는 `_END` 마커의 줄을 end 로 기록.
     짝 없는 `_END` 는 무시하고, 짝 없는 `_START` 는 end=None 으로 남긴다.
     같은 이름이 중복 시 나타난 순서대로 모두 포함.
+    signature 가 감지되면 포함한다.
     """
     text = safe_read_text(path)
     if not text:
         return []
+    lines = text.splitlines()
     pending: dict[str, list[int]] = {}
     spans: list[dict[str, object]] = []
     seen_counts: dict[str, int] = {}
@@ -474,7 +492,11 @@ def extract_anchor_spans(path: Path) -> list[dict[str, object]]:
             occurrence = seen_counts[base]
             display_name = base if occurrence == 1 else f"{base}_{occurrence}"
             pending.setdefault(base, []).append(len(spans))
-            spans.append({"name": display_name, "start": line_no, "end": None})
+            span: dict[str, object] = {"name": display_name, "start": line_no, "end": None}
+            sig = _find_signature(lines, line_no)  # line_no is 1-based, lines is 0-based → lines[line_no] = next line
+            if sig:
+                span["signature"] = sig
+            spans.append(span)
         elif raw.endswith("_END"):
             base = re.sub(r"_END$", "", raw)
             stack = pending.get(base)

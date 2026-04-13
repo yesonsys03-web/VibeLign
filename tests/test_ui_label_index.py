@@ -34,6 +34,66 @@ class UiLabelIndexTest(unittest.TestCase):
         self.assertIn("아이콘", labels)
         self.assertIn("확인하기", labels)
 
+    def test_multiline_jsx_text_korean(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            page = root / "src" / "Nav.tsx"
+            page.parent.mkdir(parents=True)
+            page.write_text(
+                '<nav>\n'
+                '  <button>\n'
+                '    메뉴얼\n'
+                '  </button>\n'
+                '  <button>\n'
+                '    폴더열기\n'
+                '  </button>\n'
+                '</nav>\n',
+                encoding="utf-8",
+            )
+            payload = build_ui_label_index(root)
+        labels = payload.get("labels")
+        assert isinstance(labels, dict)
+        self.assertIn("메뉴얼", labels)
+        self.assertIn("폴더열기", labels)
+        self.assertEqual(labels["메뉴얼"][0]["path"], "src/Nav.tsx")
+        self.assertEqual(labels["메뉴얼"][0]["line"], 3)
+
+    def test_multiline_jsx_text_english(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            page = root / "src" / "Nav.tsx"
+            page.parent.mkdir(parents=True)
+            page.write_text(
+                '<nav>\n'
+                '  <button>\n'
+                '    Checkpoints\n'
+                '  </button>\n'
+                '  <button>\n'
+                '    Doctor\n'
+                '  </button>\n'
+                '</nav>\n',
+                encoding="utf-8",
+            )
+            payload = build_ui_label_index(root)
+        labels = payload.get("labels")
+        assert isinstance(labels, dict)
+        self.assertIn("Checkpoints", labels)
+        self.assertIn("Doctor", labels)
+
+    def test_single_line_jsx_still_works(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            page = root / "src" / "Btn.tsx"
+            page.parent.mkdir(parents=True)
+            page.write_text(
+                '<button>확인하기</button>\n',
+                encoding="utf-8",
+            )
+            payload = build_ui_label_index(root)
+        labels = payload.get("labels")
+        assert isinstance(labels, dict)
+        self.assertIn("확인하기", labels)
+
     def test_score_boost_matches_korean_two_char_token(self) -> None:
         index = {
             "버튼": [{"path": "a.tsx", "line": 1}],
