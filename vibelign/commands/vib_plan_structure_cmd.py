@@ -18,6 +18,9 @@ class PlanStructureArgs(Protocol):
     feature: Sequence[str] | str
     ai: bool
     scope: str
+    json: bool
+
+
 # === ANCHOR: VIB_PLAN_STRUCTURE_CMD_PLANSTRUCTUREARGS_END ===
 
 
@@ -28,6 +31,8 @@ def _feature_text(raw_feature: Sequence[str] | str) -> str:
     return " ".join(
         str(item).strip() for item in raw_feature if str(item).strip()
     ).strip()
+
+
 # === ANCHOR: VIB_PLAN_STRUCTURE_CMD__FEATURE_TEXT_END ===
 
 
@@ -44,8 +49,9 @@ def run_vib_plan_structure(args: object) -> None:
     meta = MetaPaths(root)
     meta.ensure_vibelign_dirs()
 
-    clack_intro("VibeLign 구조 계획")
-    clack_step("구조 계획 생성 중...")
+    if not bool(raw_args.json):
+        clack_intro("VibeLign 구조 계획")
+        clack_step("구조 계획 생성 중...")
 
     plan = build_structure_plan(
         root,
@@ -69,6 +75,21 @@ def run_vib_plan_structure(args: object) -> None:
         "updated_at": plan["created_at"],
     }
     save_planning_session(meta, planning_state)
+
+    if bool(raw_args.json):
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "data": {
+                        "plan_path": str(plan_path.relative_to(root)),
+                        "plan": plan,
+                    },
+                },
+                ensure_ascii=False,
+            )
+        )
+        return
 
     required_new_files = plan.get("required_new_files", [])
     allowed_modifications = plan.get("allowed_modifications", [])
@@ -112,5 +133,7 @@ def run_vib_plan_structure(args: object) -> None:
         clack_warn(
             "신규 파일 없이 진행 가능한 계획입니다. 완료 후 vib guard로 검증하세요."
         )
+
+
 # === ANCHOR: VIB_PLAN_STRUCTURE_CMD_RUN_VIB_PLAN_STRUCTURE_END ===
 # === ANCHOR: VIB_PLAN_STRUCTURE_CMD_END ===
