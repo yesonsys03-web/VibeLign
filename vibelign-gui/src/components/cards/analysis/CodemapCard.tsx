@@ -1,9 +1,11 @@
 // === ANCHOR: CODEMAP_CARD_START ===
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { getWatchErrors, getWatchLogs, vibScan, startWatch, stopWatch, watchStatus } from "../../../lib/vib";
+import { getWatchErrors, getWatchLogs, vibScan, startWatch, stopWatch, watchStatus, anchorAutoIntent, buildGuiAiEnv } from "../../../lib/vib";
 import { CardState } from "../../../lib/commands";
 import GuiCliOutputBlock from "../../GuiCliOutputBlock";
+
+const HINT_PATTERN = "vib anchor --auto-intent";
 
 interface CodemapCardProps {
   projectDir: string;
@@ -11,15 +13,19 @@ interface CodemapCardProps {
   setWatchOn: (v: boolean) => void;
   mapMode: "manual" | "auto";
   setMapMode: (v: "manual" | "auto") => void;
+  apiKey?: string | null;
+  providerKeys?: Record<string, string>;
 }
 
-export default function CodemapCard({ projectDir, watchOn, setWatchOn, mapMode, setMapMode }: CodemapCardProps) {
+export default function CodemapCard({ projectDir, watchOn, setWatchOn, mapMode, setMapMode, apiKey, providerKeys }: CodemapCardProps) {
   const [scanState, setScanState] = useState<CardState>("idle");
   const [watchLoading, setWatchLoading] = useState(false);
   const [watchLogs, setWatchLogs] = useState<string[]>([]);
   const [watchError, setWatchError] = useState<string | null>(null);
   const [watchLogExpanded, setWatchLogExpanded] = useState(false);
   const watchLogRef = useRef<HTMLDivElement>(null);
+  const [actionHint, setActionHint] = useState<string | null>(null);
+  const [hintLoading, setHintLoading] = useState(false);
 
   async function syncWatchState() {
     try {
@@ -45,6 +51,9 @@ export default function CodemapCard({ projectDir, watchOn, setWatchOn, mapMode, 
         const next = [...prev, e.payload].slice(-200);
         return next;
       });
+      if (e.payload.includes(HINT_PATTERN)) {
+        setActionHint(e.payload);
+      }
       setTimeout(() => {
         if (watchLogRef.current) watchLogRef.current.scrollTop = watchLogRef.current.scrollHeight;
       }, 0);
@@ -101,6 +110,26 @@ export default function CodemapCard({ projectDir, watchOn, setWatchOn, mapMode, 
             복잡한 코드가 서로 어떻게 연결되어 있는지 한눈에 보여주는 지도
           </span>
         </div>
+        {actionHint && (
+          <button
+            disabled={hintLoading}
+            onClick={async () => {
+              setHintLoading(true);
+              try {
+                const aiEnv = buildGuiAiEnv(providerKeys, apiKey);
+                await anchorAutoIntent(projectDir, aiEnv);
+              } catch {}
+              setHintLoading(false);
+              setActionHint(null);
+            }}
+            style={{
+              fontSize: 9, fontWeight: 700, padding: "2px 8px",
+              background: "#FFF3E0", color: "#F5621E",
+              border: "2px solid #F5621E", cursor: "pointer",
+              whiteSpace: "nowrap", animation: "none",
+            }}
+          >{hintLoading ? "보강 중..." : "AI alias 보강"}</button>
+        )}
         {watchOn && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>감시 중</span>}
         {mapMode === "manual" && scanState === "done" && !watchOn && (
           <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>

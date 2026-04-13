@@ -100,7 +100,7 @@ interface CardRenderProps {
 
 function renderCard(id: string, p: CardRenderProps): ReactNode {
   switch (id) {
-    case "codemap":    return <CodemapCard projectDir={p.projectDir} watchOn={p.watchOn} setWatchOn={p.setWatchOn} mapMode={p.mapMode} setMapMode={p.setMapMode} />;
+    case "codemap":    return <CodemapCard projectDir={p.projectDir} watchOn={p.watchOn} setWatchOn={p.setWatchOn} mapMode={p.mapMode} setMapMode={p.setMapMode} apiKey={p.apiKey} providerKeys={p.providerKeys} />;
     case "guard":      return <GuardCard projectDir={p.projectDir} onGuardResult={p.onGuardResult} />;
     case "checkpoint": return <CheckpointCard projectDir={p.projectDir} onNavigate={p.onNavigate} />;
     case "transfer":   return <TransferCard projectDir={p.projectDir} />;
