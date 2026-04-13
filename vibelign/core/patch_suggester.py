@@ -66,6 +66,9 @@ class PatchSuggestion:
     target_anchor: str
     confidence: str
     rationale: list[str]
+    anchor_start_line: Optional[int] = None
+    anchor_end_line: Optional[int] = None
+    anchor_signature: Optional[str] = None
 
     def to_dict(self):
         return asdict(self)
@@ -486,6 +489,18 @@ def _is_stateful_ui_request(request_tokens: Iterable[str]) -> bool:
     return any(kw in token_set for kw in _STATEFUL_UI_REQUEST_KEYWORDS)
 
 
+def _alias_token_weight(token: str, alias_token_freq: Optional[dict[str, int]]) -> int:
+    """빈도 기반 alias 토큰 가중치. 많은 앵커에서 매칭되는 토큰일수록 할인."""
+    if alias_token_freq is None:
+        return 5
+    freq = alias_token_freq.get(token.lower(), 1)
+    if freq >= 10:
+        return 1
+    if freq >= 5:
+        return 3
+    return 5
+
+
 def score_path(
     path: Path,
     request_tokens: list[str],
@@ -493,6 +508,7 @@ def score_path(
     anchor_meta: Optional[dict[str, list[str]]] = None,
     project_map: Optional[ProjectMapSnapshot] = None,
     intent_meta: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    alias_token_freq: Optional[dict[str, int]] = None,
 ) -> tuple[int, list[str]]:
     score = 0
     rationale = []
@@ -746,7 +762,7 @@ def score_path(
                         continue
                     alias_tokens = _intent_tokens(alias)
                     matched = _meaningful_overlap(request_tokens, alias_tokens)
-                    delta = len(matched) * 4
+                    delta = sum(_alias_token_weight(t, alias_token_freq) for t in matched)
                     if delta > best_alias_delta:
                         best_alias_delta = delta
                         best_alias_rationale = [
@@ -1019,6 +1035,7 @@ def choose_anchor(
     anchors: list[str],
     request_tokens: list[str],
     anchor_meta: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    alias_token_freq: Optional[dict[str, int]] = None,
 ) -> tuple[str, list[str]]:
     if not anchors:
         return "[먼저 앵커를 추가하세요]", ["이 파일에는 아직 앵커가 없습니다"]
@@ -1093,7 +1110,7 @@ def choose_anchor(
                     alias_tokens = _intent_tokens(alias)
                     alias_matches = _meaningful_overlap(request_tokens, alias_tokens)
                     for token in alias_matches:
-                        score += 5
+                        score += _alias_token_weight(token, alias_token_freq)
                         rationale.append(f"앵커 별칭('{alias}')에 키워드 '{token}'이 포함됨")
             # description 매칭
             desc = meta.get("description", "")
@@ -1394,6 +1411,18 @@ def _score_all_files(
     anchor_meta = load_anchor_meta(root)
     project_map, _err = load_project_map(root)
     ui_label_idx = load_ui_label_index(root)
+    # A: alias 토큰 빈도 맵 구축 (범용 토큰 디스카운트용)
+    alias_freq: dict[str, int] = {}
+    for _name, entry in anchor_meta.items():
+        if not isinstance(entry, dict):
+            continue
+        seen: set[str] = set()
+        for alias in entry.get("aliases", []):
+            if isinstance(alias, str):
+                for tok in _intent_tokens(alias):
+                    seen.add(tok)
+        for tok in seen:
+            alias_freq[tok] = alias_freq.get(tok, 0) + 1
     scored: list[tuple[int, Path, list[str]]] = []
     for path in iter_source_files(root):
         rel = relpath_str(root, path)
@@ -1404,13 +1433,15 @@ def _score_all_files(
             metadata.get(rel, {}),
             project_map,
             intent_meta=anchor_meta,
+            alias_token_freq=alias_freq,
         )
         if ui_label_idx:
             ui_boost, ui_reasons = score_boost_for_ui_labels(
-                rel, request_tokens, ui_label_idx
+                rel, request_tokens, ui_label_idx,
+                path_tokens=_path_tokens(rel),
             )
             if ui_boost:
-                score += ui_boost + 8
+                score += ui_boost
                 rationale = rationale + ui_reasons
         scored.append((score, path, rationale))
     scored.sort(key=lambda x: (-x[0], str(x[1])))
@@ -1424,7 +1455,7 @@ def _score_all_files(
             (score, path, rationale_by_path[path] + ["C2 레이어 라우팅 재배치"])
             for path, score in rewritten
         ]
-    return scored, metadata, anchor_meta, project_map, ui_label_idx
+    return scored, metadata, anchor_meta, project_map, ui_label_idx, alias_freq
 
 
 def score_candidates(root: Path, request: str) -> list[tuple[Path, int]]:
@@ -1440,7 +1471,7 @@ def score_candidates(root: Path, request: str) -> list[tuple[Path, int]]:
 
 
 def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggestion:
-    scored, metadata, anchor_meta, project_map, _ui_label_idx = _score_all_files(
+    scored, metadata, anchor_meta, project_map, _ui_label_idx, alias_freq = _score_all_files(
         root, request
     )
     request_tokens = tokenize(request)
@@ -1455,7 +1486,7 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
     best_score, best_path, reasons = scored[0]
     second_score = scored[1][0] if len(scored) > 1 else None
     anchors = extract_anchors(best_path)
-    anchor, ar = choose_anchor(anchors, request_tokens, anchor_meta)
+    anchor, ar = choose_anchor(anchors, request_tokens, anchor_meta, alias_freq)
     if anchor == "[먼저 앵커를 추가하세요]":
         file_meta = metadata.get(relpath_str(root, best_path), {}) if metadata else {}
         suggested = (
@@ -1520,7 +1551,7 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
                         original_reasons = r
                         break
                 anchors = extract_anchors(best_path)
-                anchor, ar = choose_anchor(anchors, request_tokens, anchor_meta)
+                anchor, ar = choose_anchor(anchors, request_tokens, anchor_meta, alias_freq)
                 # Re-run the suggested-anchor fallback for the newly selected
                 # file. Without this the anchor would revert to
                 # "[먼저 앵커를 추가하세요]" even when a suggested anchor exists.
@@ -1546,9 +1577,32 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
                     confidence = "high"  # AI가 직접 선택 시 신뢰도 유지
             else:
                 reasons = reasons[:4] + ai_reasons
-    return PatchSuggestion(
+    suggestion = PatchSuggestion(
         request, relpath_str(root, best_path), anchor, confidence, reasons[:5] + ar[:3]
     )
+    # anchor_spans에서 선택된 앵커의 줄수/시그니처를 채운다
+    if project_map is not None:
+        rel = relpath_str(root, best_path)
+        file_entry = project_map.files.get(rel, {})
+        raw_spans = file_entry.get("anchor_spans", [])
+        if isinstance(raw_spans, list):
+            # anchor 이름이 "[추천 앵커: ...]" 형태일 수 있으므로 실제 이름 추출
+            lookup_name = anchor
+            if anchor.startswith("[추천 앵커: ") and anchor.endswith("]"):
+                lookup_name = anchor[len("[추천 앵커: "):-1]
+            for span in raw_spans:
+                if isinstance(span, dict) and span.get("name") == lookup_name:
+                    start = span.get("start")
+                    end = span.get("end")
+                    if isinstance(start, int):
+                        suggestion.anchor_start_line = start
+                    if isinstance(end, int):
+                        suggestion.anchor_end_line = end
+                    sig = span.get("signature")
+                    if isinstance(sig, str):
+                        suggestion.anchor_signature = sig
+                    break
+    return suggestion
 
 
 def suggest_patch_for_role(

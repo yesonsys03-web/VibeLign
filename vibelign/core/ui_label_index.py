@@ -23,6 +23,9 @@ _ATTR_UI_STRING = re.compile(
     re.IGNORECASE,
 )
 _QUOTED_CAPS = re.compile(r'''["']([A-Z][A-Z0-9_]{2,24})["']''')
+# 멀티라인 JSX 텍스트: >  \n  텍스트  \n  < 패턴
+_JSX_TEXT_MULTI = re.compile(r">\s*\n\s*([A-Z][A-Za-z0-9 _\-]{2,48})\s*\n\s*<")
+_JSX_TEXT_KO_MULTI = re.compile(r">\s*\n\s*([가-힣][가-힣0-9 _\-·…]{1,60})\s*\n\s*<")
 
 
 # === ANCHOR: UI_LABEL_INDEX__RECORD_START ===
@@ -65,6 +68,13 @@ def build_ui_label_index(root: Path) -> dict[str, object]:
                 _record(entries, m.group(1).strip(), rel, i)
             for m in _QUOTED_CAPS.finditer(line):
                 _record(entries, m.group(1), rel, i)
+        # 멀티라인 JSX 텍스트 (줄을 넘기는 >텍스트< 패턴)
+        for m in _JSX_TEXT_MULTI.finditer(text):
+            line_no = text.count("\n", 0, m.start()) + 2  # 텍스트가 있는 줄
+            _record(entries, m.group(1).strip(), rel, line_no)
+        for m in _JSX_TEXT_KO_MULTI.finditer(text):
+            line_no = text.count("\n", 0, m.start()) + 2
+            _record(entries, m.group(1).strip(), rel, line_no)
     return {"schema_version": SCHEMA_VERSION, "labels": entries}
 # === ANCHOR: UI_LABEL_INDEX_BUILD_UI_LABEL_INDEX_END ===
 
@@ -121,9 +131,13 @@ def score_boost_for_ui_labels(
     rel_path: str,
     request_tokens: list[str],
     index: dict[str, list[dict[str, int | str]]],
+    path_tokens: set[str] | None = None,
 # === ANCHOR: UI_LABEL_INDEX_SCORE_BOOST_FOR_UI_LABELS_END ===
 ) -> tuple[int, list[str]]:
-    """요청 토큰이 인덱스 라벨과 일치하고 해당 파일이 후보일 때 점수 가산."""
+    """요청 토큰이 인덱스 라벨과 일치하고 해당 파일이 후보일 때 점수 가산.
+
+    path_tokens 가 주어지면 이미 경로 매칭으로 포착된 토큰의 중복 가산을 방지한다.
+    """
     if not index or not request_tokens:
         return 0, []
     boost = 0
@@ -136,19 +150,24 @@ def score_boost_for_ui_labels(
                 len(tok) == 2 and all("\uac00" <= c <= "\ud7a3" for c in tok)
             ):
                 continue
-            tmatch = (
-                tok.upper() == label.upper()
-                or tok.lower() in label_l
-                or label_l in tok.lower()
+            is_exact = tok.upper() == label.upper()
+            is_partial = (
+                not is_exact
+                and (tok.lower() in label_l or label_l in tok.lower())
             )
-            if not tmatch:
+            if not is_exact and not is_partial:
                 continue
             for h in hits:
                 hp = str(h.get("path", "")).replace("\\", "/")
                 if hp == rel_norm:
-                    boost += 4
+                    # 경로 토큰과 중복되면 이미 path 매칭에서 반영된 시그널이므로 축소
+                    if path_tokens is not None and tok.lower() in path_tokens:
+                        boost += 2
+                    else:
+                        boost += 32 if is_exact else 12
+                    tag = "정확 매칭" if is_exact else "부분 매칭"
                     reasons.append(
-                        f"UI 라벨 인덱스: 요청에 가까운 노출 문자열 «{label}»이 이 파일에 있음"
+                        f"UI 라벨 인덱스({tag}): 노출 문자열 «{label}»이 이 파일에 있음"
                     )
                     return boost, reasons[:2]
     return 0, []
