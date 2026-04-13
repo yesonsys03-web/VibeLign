@@ -481,6 +481,37 @@ def run_watch(config: WatchConfig) -> None:
                     encoding="utf-8",
                 )
                 _ = ai_tmp.replace(meta.anchor_index_path)
+
+                # code-based intent 자동 갱신 (API 비용 0)
+                intent_paths = [
+                    self.root / rel
+                    for rel in changed
+                    if (self.root / rel).exists()
+                ]
+                if intent_paths:
+                    from vibelign.core.anchor_tools import (
+                        generate_code_based_intents,
+                    )
+
+                    code_intent_count = generate_code_based_intents(
+                        self.root, intent_paths
+                    )
+                    if code_intent_count >= 10:
+                        hint_event: WatchPayload = {
+                            "level": "INFO",
+                            "path": "",
+                            "message": (
+                                f"ℹ️ 새 앵커 {code_intent_count}개에 AI alias 없음"
+                                " — vib anchor --auto-intent 로 보강하세요"
+                            ),
+                            "why": "AI alias가 있으면 패치 타겟 정확도가 올라갑니다.",
+                            "action": "vib anchor --auto-intent",
+                        }
+                        emit(
+                            hint_event,
+                            json_mode=self.json_mode,
+                            log_path=self.log_path,
+                        )
             except Exception:
                 return
 
