@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 import json
 import importlib
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable, Optional, Union
 from collections.abc import Mapping
 from vibelign.core.meta_paths import MetaPaths
@@ -66,6 +66,7 @@ class PatchSuggestion:
     target_anchor: str
     confidence: str
     rationale: list[str]
+    related_files: list[dict[str, object]] = field(default_factory=list)
     anchor_start_line: Optional[int] = None
     anchor_end_line: Optional[int] = None
     anchor_signature: Optional[str] = None
@@ -1213,6 +1214,102 @@ def _build_import_pool_expansion(
 # === ANCHOR: PATCH_SUGGESTER__BUILD_IMPORT_POOL_EXPANSION_END ===
 
 
+# === ANCHOR: PATCH_SUGGESTER_RELATED_FILES_HELPERS_START ===
+_BARREL_NAMES = {"index.ts", "index.tsx", "index.js", "index.jsx"}
+
+
+def _is_barrel_like(path: Path) -> bool:
+    return path.name in _BARREL_NAMES or path.name in LOW_PRIORITY_NAMES
+
+
+_CLASSIFY_TO_ROLE: dict[str, str] = {
+    "ui": "component",
+    "service": "data_source",
+    "logic": "utility",
+    "core": "utility",
+}
+
+
+def _classify_to_role(classify_result: str | None, rel_path: str) -> str:
+    if "/lib/" in rel_path or rel_path.startswith("lib/"):
+        return "data_source"
+    if "/components/" in rel_path or rel_path.startswith("components/"):
+        return "component"
+    if classify_result is None:
+        return "utility"
+    return _CLASSIFY_TO_ROLE.get(classify_result, "utility")
+
+
+def _build_related_file_entry(
+    root: Path, path: Path, project_map: Optional[Any]
+) -> dict[str, object]:
+    rel = relpath_str(root, path)
+    classify_result = (
+        project_map.classify_path(rel) if project_map is not None else None
+    )
+    anchors = extract_anchors(path)
+    return {
+        "file": rel,
+        "role": _classify_to_role(classify_result, rel),
+        "anchor": anchors[0] if anchors else None,
+        "reason": "타겟 파일이 import하는 파일",
+        "exists": True,
+    }
+
+
+def _filter_related_files(
+    *,
+    root: Path,
+    target_path: Path,
+    candidates: list[Path],
+    project_map: Optional[Any],
+    max_related: int = 3,
+) -> list[dict[str, object]]:
+    seen: set[str] = {relpath_str(root, target_path)}
+    result: list[dict[str, object]] = []
+    for path in candidates:
+        if _is_barrel_like(path):
+            continue
+        rel = relpath_str(root, path)
+        if rel in seen:
+            continue
+        seen.add(rel)
+        result.append(_build_related_file_entry(root, path, project_map))
+        if len(result) >= max_related:
+            break
+    return result
+
+
+def _infer_new_file_path(
+    *,
+    root: Path,
+    subject: str,
+    action: str,
+    sibling_dir: Path,
+) -> Path | None:
+    if action not in ("add", "create"):
+        return None
+    if not subject:
+        return None
+    siblings = list(sibling_dir.glob("*")) if sibling_dir.is_dir() else []
+    source_siblings = [
+        s for s in siblings if s.is_file() and s.suffix in _FRONTEND_EXTS | {".py"}
+    ]
+    if not source_siblings:
+        return None
+    ref = source_siblings[0]
+    ext = ref.suffix
+    if ref.stem[0:1].isupper():
+        name = subject[0:1].upper() + subject[1:]
+    else:
+        name = subject[0:1].lower() + subject[1:]
+    candidate = sibling_dir / f"{name}{ext}"
+    if candidate.exists():
+        return None
+    return candidate
+# === ANCHOR: PATCH_SUGGESTER_RELATED_FILES_HELPERS_END ===
+
+
 def _ai_select_file(
     request: str,
     candidates: list[tuple[int, Path, list[str]]],
@@ -1577,8 +1674,16 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
                     confidence = "high"  # AI가 직접 선택 시 신뢰도 유지
             else:
                 reasons = reasons[:4] + ai_reasons
+    import_candidates = _build_import_pool_expansion(best_path, root, max_hops=1)
+    related_files = _filter_related_files(
+        root=root,
+        target_path=best_path,
+        candidates=import_candidates,
+        project_map=project_map,
+    )
     suggestion = PatchSuggestion(
-        request, relpath_str(root, best_path), anchor, confidence, reasons[:5] + ar[:3]
+        request, relpath_str(root, best_path), anchor, confidence, reasons[:5] + ar[:3],
+        related_files=related_files,
     )
     # anchor_spans에서 선택된 앵커의 줄수/시그니처를 채운다
     if project_map is not None:
