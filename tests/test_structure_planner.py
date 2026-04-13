@@ -2,7 +2,9 @@ import json
 import os
 import tempfile
 import unittest
+from io import StringIO
 from pathlib import Path
+from contextlib import redirect_stdout
 from types import SimpleNamespace
 from typing import cast
 
@@ -114,7 +116,10 @@ class StructurePlannerTest(unittest.TestCase):
                 args = cast(
                     object,
                     SimpleNamespace(
-                        feature=["watch", "기능", "확장"], ai=False, scope=""
+                        feature=["watch", "기능", "확장"],
+                        ai=False,
+                        scope="",
+                        json=False,
                     ),
                 )
                 run_vib_plan_structure(cast(object, args))
@@ -347,6 +352,142 @@ class StructurePlannerTest(unittest.TestCase):
             self.assertEqual(
                 evidence["candidate_files"], ["vibelign/core/watch_engine.py"]
             )
+
+    def test_gui_request_prefers_gui_entry_and_gui_new_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta = MetaPaths(root)
+            meta.ensure_vibelign_dirs()
+            _ = meta.project_map_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "project_name": "demo",
+                        "tree": [],
+                        "files": {
+                            "vibelign-gui/src/App.tsx": {
+                                "category": "ui",
+                                "anchors": ["APP"],
+                                "line_count": 173,
+                            },
+                            "vibelign-gui/src/components/CustomTitleBar.tsx": {
+                                "category": "ui",
+                                "anchors": ["CUSTOM_TITLEBAR"],
+                                "line_count": 40,
+                            },
+                            "vibelign/core/watch_engine.py": {
+                                "category": "core",
+                                "anchors": ["WATCH_ENGINE_START"],
+                                "line_count": 120,
+                            },
+                        },
+                        "entry_files": ["vibelign-gui/src/App.tsx"],
+                        "ui_modules": [
+                            "vibelign-gui/src/App.tsx",
+                            "vibelign-gui/src/components/CustomTitleBar.tsx",
+                        ],
+                        "core_modules": ["vibelign/core/watch_engine.py"],
+                        "service_modules": [],
+                        "large_files": ["vibelign-gui/src/App.tsx"],
+                        "file_count": 3,
+                        "anchor_index": {
+                            "vibelign-gui/src/App.tsx": ["APP"],
+                            "vibelign-gui/src/components/CustomTitleBar.tsx": [
+                                "CUSTOM_TITLEBAR"
+                            ],
+                            "vibelign/core/watch_engine.py": ["WATCH_ENGINE_START"],
+                        },
+                        "generated_at": "2026-04-09T00:00:00Z",
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            plan = build_structure_plan(
+                root,
+                "상단의 폴더열기 오른쪽에 실시간 로그 버튼 추가해줘. 누르면 로그 패널이 열리게 해줘.",
+            )
+
+            allowed_modifications = cast(
+                list[dict[str, object]], plan["allowed_modifications"]
+            )
+            self.assertEqual(
+                allowed_modifications[0]["path"], "vibelign-gui/src/App.tsx"
+            )
+            required_new_files = cast(
+                list[dict[str, object]], plan["required_new_files"]
+            )
+            self.assertEqual(
+                required_new_files[0]["path"], "vibelign-gui/src/log_panel.tsx"
+            )
+            evidence = cast(dict[str, object], plan["evidence"])
+            self.assertEqual(evidence["matched_categories"], ["ui"])
+            self.assertNotIn("watch", cast(list[object], evidence["path_signals"]))
+
+    def test_run_vib_plan_structure_json_outputs_saved_plan_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta = MetaPaths(root)
+            meta.ensure_vibelign_dirs()
+            _ = meta.state_path.write_text(
+                json.dumps({"schema_version": 1}, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            _ = meta.project_map_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "project_name": "demo",
+                        "tree": [],
+                        "files": {
+                            "vibelign/core/watch_engine.py": {
+                                "category": "core",
+                                "anchors": ["WATCH_ENGINE_START"],
+                                "line_count": 120,
+                            }
+                        },
+                        "entry_files": [],
+                        "ui_modules": [],
+                        "core_modules": ["vibelign/core/watch_engine.py"],
+                        "service_modules": [],
+                        "large_files": [],
+                        "file_count": 1,
+                        "anchor_index": {
+                            "vibelign/core/watch_engine.py": ["WATCH_ENGINE_START"]
+                        },
+                        "generated_at": "2026-04-09T00:00:00Z",
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            previous = Path.cwd()
+            stdout = StringIO()
+            try:
+                os.chdir(root)
+                args = cast(
+                    object,
+                    SimpleNamespace(
+                        feature=["watch", "기능", "확장"], ai=False, scope="", json=True
+                    ),
+                )
+                with redirect_stdout(stdout):
+                    run_vib_plan_structure(cast(object, args))
+            finally:
+                os.chdir(previous)
+
+            payload = json.loads(stdout.getvalue())
+            self.assertTrue(payload["ok"])
+            data = cast(dict[str, object], payload["data"])
+            self.assertTrue(str(data["plan_path"]).startswith(".vibelign/plans/"))
+            plan = cast(dict[str, object], data["plan"])
+            self.assertEqual(plan["feature"], "watch 기능 확장")
 
     def test_weak_signal_candidate_stays_conservative_when_anchor_does_not_match(
         self,

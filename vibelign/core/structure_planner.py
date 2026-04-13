@@ -21,19 +21,89 @@ class PlannerRule:
     default_filename: str
     path_signals: tuple[str, ...]
     preferred_existing_names: tuple[str, ...] = ()
+
+
 # === ANCHOR: STRUCTURE_PLANNER_PLANNERRULE_END ===
 
 
 _CATEGORY_PATHS: dict[str, str] = {
     "core": "vibelign/core",
     "service": "vibelign/core",
-    "ui": "vibelign",
+    "ui": "vibelign-gui/src",
     "entry": "vibelign",
     "commands": "vibelign/commands",
     "mcp": "vibelign/mcp",
     "tests": "tests",
     "docs": "docs",
 }
+
+_UI_REQUEST_TOKENS = {
+    "ui",
+    "button",
+    "menu",
+    "panel",
+    "dropdown",
+    "header",
+    "top",
+    "navbar",
+    "nav",
+    "tab",
+    "screen",
+    "dialog",
+    "버튼",
+    "메뉴",
+    "패널",
+    "드롭다운",
+    "헤더",
+    "상단",
+    "탭",
+    "화면",
+    "창",
+}
+
+_LOG_REQUEST_TOKENS = {
+    "watch",
+    "monitor",
+    "scan",
+    "log",
+    "logs",
+    "logger",
+    "logging",
+    "watchdog",
+    "감시",
+    "스캔",
+    "로그",
+    "실시간",
+}
+
+_GUI_RULE = PlannerRule(
+    tokens=(
+        "button",
+        "menu",
+        "panel",
+        "dropdown",
+        "header",
+        "top",
+        "navbar",
+        "nav",
+        "tab",
+        "log",
+        "watch",
+        "버튼",
+        "메뉴",
+        "패널",
+        "드롭다운",
+        "헤더",
+        "상단",
+        "탭",
+        "로그",
+        "실시간",
+    ),
+    target_category="ui",
+    default_filename="new_feature.tsx",
+    path_signals=("app", "home", "title", "nav", "menu", "panel", "button", "log"),
+    preferred_existing_names=("App.tsx", "Home.tsx", "CustomTitleBar.tsx"),
+)
 
 _KEYWORD_RULES: tuple[PlannerRule, ...] = (
     PlannerRule(
@@ -81,6 +151,8 @@ _KEYWORD_RULES: tuple[PlannerRule, ...] = (
 # === ANCHOR: STRUCTURE_PLANNER__NOW_ISO_START ===
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 # === ANCHOR: STRUCTURE_PLANNER__NOW_ISO_END ===
 
 
@@ -90,7 +162,25 @@ def _slugify_feature(feature: str) -> str:
     if ascii_tokens:
         return "_".join(ascii_tokens[:4])
     return "new_feature"
+
+
 # === ANCHOR: STRUCTURE_PLANNER__SLUGIFY_FEATURE_END ===
+
+
+def _default_new_filename(feature: str, rule: PlannerRule, keywords: list[str]) -> str:
+    filename = rule.default_filename
+    if not filename.startswith("new_feature."):
+        return filename
+    suffix = Path(filename).suffix or ".py"
+    if suffix == ".tsx":
+        keyword_set = set(keywords)
+        if keyword_set & {"log", "logs", "logger", "logging", "로그", "실시간"}:
+            return "log_panel.tsx"
+        if keyword_set & {"button", "버튼"}:
+            return "feature_button.tsx"
+        if keyword_set & {"menu", "dropdown", "메뉴", "드롭다운"}:
+            return "feature_menu.tsx"
+    return f"{_slugify_feature(feature)}{suffix}"
 
 
 # === ANCHOR: STRUCTURE_PLANNER__EXTRACT_KEYWORDS_START ===
@@ -103,11 +193,19 @@ def _extract_keywords(feature: str) -> list[str]:
             seen.add(token)
             keywords.append(token)
     return keywords
+
+
 # === ANCHOR: STRUCTURE_PLANNER__EXTRACT_KEYWORDS_END ===
 
 
 # === ANCHOR: STRUCTURE_PLANNER__MATCH_RULE_START ===
 def _match_rule(keywords: list[str]) -> tuple[PlannerRule, list[str]]:
+    keyword_set = set(keywords)
+    has_ui_request = bool(keyword_set & _UI_REQUEST_TOKENS)
+    has_log_request = bool(keyword_set & _LOG_REQUEST_TOKENS)
+    if has_ui_request or (has_log_request and has_ui_request):
+        matched = [token for token in keywords if token in _GUI_RULE.tokens]
+        return _GUI_RULE, matched
     for rule in _KEYWORD_RULES:
         matched = [token for token in keywords if token in rule.tokens]
         if matched:
@@ -121,6 +219,8 @@ def _match_rule(keywords: list[str]) -> tuple[PlannerRule, list[str]]:
         ),
         [],
     )
+
+
 # === ANCHOR: STRUCTURE_PLANNER__MATCH_RULE_END ===
 
 
@@ -128,7 +228,7 @@ def _match_rule(keywords: list[str]) -> tuple[PlannerRule, list[str]]:
 def _iter_candidate_files(
     files: dict[str, dict[str, object]],
     scope: str | None,
-# === ANCHOR: STRUCTURE_PLANNER__ITER_CANDIDATE_FILES_END ===
+    # === ANCHOR: STRUCTURE_PLANNER__ITER_CANDIDATE_FILES_END ===
 ) -> list[tuple[str, dict[str, object]]]:
     normalized_scope = (scope or "").strip().replace("\\", "/")
     candidates: list[tuple[str, dict[str, object]]] = []
@@ -150,6 +250,8 @@ def _path_match_signals(path: str, rule: PlannerRule, keywords: list[str]) -> li
         if keyword and keyword in lowered and keyword not in matches:
             matches.append(keyword)
     return matches
+
+
 # === ANCHOR: STRUCTURE_PLANNER__PATH_MATCH_SIGNALS_END ===
 
 
@@ -158,7 +260,7 @@ def _candidate_has_anchors(
     path: str,
     data: dict[str, object],
     anchor_index: dict[str, list[str]],
-# === ANCHOR: STRUCTURE_PLANNER__CANDIDATE_HAS_ANCHORS_END ===
+    # === ANCHOR: STRUCTURE_PLANNER__CANDIDATE_HAS_ANCHORS_END ===
 ) -> bool:
     anchors_obj = data.get("anchors")
     if isinstance(anchors_obj, list) and anchors_obj:
@@ -172,7 +274,7 @@ def _choose_existing_file(
     keywords: list[str],
     rule: PlannerRule,
     anchor_index: dict[str, list[str]],
-# === ANCHOR: STRUCTURE_PLANNER__CHOOSE_EXISTING_FILE_END ===
+    # === ANCHOR: STRUCTURE_PLANNER__CHOOSE_EXISTING_FILE_END ===
 ) -> tuple[str | None, dict[str, object] | None, list[str]]:
     scored: list[tuple[int, str, dict[str, object]]] = []
     for path, data in candidates:
@@ -188,6 +290,10 @@ def _choose_existing_file(
             score += 4
         if preferred_name_match:
             score += 5
+        if rule.target_category == "ui" and Path(path).name == "App.tsx":
+            score += 4
+        if rule.target_category == "ui" and "/components/" in path.replace("\\", "/"):
+            score -= 1
         if any(keyword and keyword in lowered for keyword in keywords):
             score += 6
         if has_anchors:
@@ -210,7 +316,7 @@ def _load_anchors(
     existing_path: str,
     existing_data: dict[str, object],
     anchor_index: dict[str, list[str]],
-# === ANCHOR: STRUCTURE_PLANNER__LOAD_ANCHORS_END ===
+    # === ANCHOR: STRUCTURE_PLANNER__LOAD_ANCHORS_END ===
 ) -> list[str]:
     anchors_obj = existing_data.get("anchors", [])
     if isinstance(anchors_obj, list) and anchors_obj:
@@ -226,7 +332,7 @@ def _pick_anchor(
     keywords: list[str],
     rule: PlannerRule,
     matched_path_signals: list[str],
-# === ANCHOR: STRUCTURE_PLANNER__PICK_ANCHOR_END ===
+    # === ANCHOR: STRUCTURE_PLANNER__PICK_ANCHOR_END ===
 ) -> tuple[str | None, str | None]:
     lowered_keywords = [keyword.lower() for keyword in keywords if keyword]
     for anchor in anchors:
@@ -246,7 +352,7 @@ def build_structure_plan(
     *,
     mode: str = "rules",
     scope: str | None = None,
-# === ANCHOR: STRUCTURE_PLANNER_BUILD_STRUCTURE_PLAN_END ===
+    # === ANCHOR: STRUCTURE_PLANNER_BUILD_STRUCTURE_PLAN_END ===
 ) -> dict[str, object]:
     keywords = _extract_keywords(feature)
     rule, matched_keywords = _match_rule(keywords)
@@ -260,9 +366,7 @@ def build_structure_plan(
 
     target_dir = _CATEGORY_PATHS[rule.target_category]
     default_slug = _slugify_feature(feature)
-    filename = rule.default_filename
-    if filename == "new_feature.py" and target_dir not in {"docs", "tests"}:
-        filename = f"{default_slug}.py"
+    filename = _default_new_filename(feature, rule, keywords)
     new_file_path = f"{target_dir}/{filename}"
 
     plan_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}_{default_slug}"
@@ -385,4 +489,6 @@ def build_structure_plan(
             "warnings": planner_warnings,
         },
     }
+
+
 # === ANCHOR: STRUCTURE_PLANNER_END ===

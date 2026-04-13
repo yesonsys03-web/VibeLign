@@ -187,7 +187,9 @@ def register_extended_commands(
         "--auto-intent", action="store_true", help="AI가 모든 앵커 intent 자동 생성"
     )
     _ = p.add_argument(
-        "--force", action="store_true", help="--auto-intent 시 기존 AI 생성 항목도 재생성"
+        "--force",
+        action="store_true",
+        help="--auto-intent 시 기존 AI 생성 항목도 재생성",
     )
     p.set_defaults(
         func=lazy_command("vibelign.commands.vib_anchor_cmd", "run_vib_anchor")
@@ -425,6 +427,9 @@ def register_extended_commands(
         "--scope",
         default="",
         help="분석 대상을 특정 경로로 좁혀요 (예: vibelign/core/)",
+    )
+    _ = p.add_argument(
+        "--json", action="store_true", help="구조 계획 결과를 JSON으로 출력해요"
     )
     p.set_defaults(
         func=lazy_command(
