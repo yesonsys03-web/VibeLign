@@ -132,32 +132,8 @@ fn read_file(root: String, path: PathBuf) -> Result<ReadFileResult, String> {
     })
 }
 
-fn python_commands() -> &'static [&'static str] {
-    #[cfg(target_os = "windows")]
-    {
-        &["py", "python"]
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        &["python3", "python"]
-    }
-}
-
-/// vib 바이너리와 같은 venv 안의 python 인터프리터 경로를 찾는다.
-/// uv tool로 설치된 경우 vibelign 패키지가 그 venv 안에만 있으므로,
-/// 시스템 python 대신 이 인터프리터를 써야 `python -m vibelign.core.docs_cache`가 동작한다.
-fn find_vib_python() -> Option<PathBuf> {
-    let vib = vib_path::find_vib()?;
-    let dir = vib.parent()?;
-    #[cfg(target_os = "windows")]
-    let candidates = [dir.join("python.exe"), dir.join("pythonw.exe")];
-    #[cfg(not(target_os = "windows"))]
-    let candidates = [dir.join("python3"), dir.join("python")];
-    candidates.iter().find(|p| p.is_file()).cloned()
-}
-
 /// Windows `canonicalize()` 가 반환하는 `\\?\` 접두사를 벗겨서
-/// Python 등 외부 프로세스가 경로를 올바르게 해석하도록 한다.
+/// 외부 프로세스가 경로를 올바르게 해석하도록 한다.
 fn strip_unc_prefix(p: PathBuf) -> PathBuf {
     #[cfg(target_os = "windows")]
     {
@@ -216,14 +192,6 @@ fn run_vib_docs_index(root: &Path, extra_args: &[&str]) -> Option<Result<String,
     }
 }
 
-/// docs_cache helper 실행 모드 (Python 폴백).
-/// - File: 저장소 안의 `vibelign/core/docs_cache.py` 직접 실행 (개발 환경)
-/// - Module: `python -m vibelign.core.docs_cache` 로 설치된 패키지 실행 (사용자 환경)
-enum DocsCacheTarget {
-    File(PathBuf),
-    Module,
-}
-
 fn run_docs_cache_helper(root: &str, extra_args: &[&str]) -> Result<String, String> {
     let root_path = strip_unc_prefix(
         PathBuf::from(root)
@@ -231,90 +199,13 @@ fn run_docs_cache_helper(root: &str, extra_args: &[&str]) -> Result<String, Stri
             .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?,
     );
 
-    // 1순위: vib CLI 호출 (sidecar/uv tool 무관하게 self-contained 동작 보장).
-    if let Some(result) = run_vib_docs_index(&root_path, extra_args) {
-        if result.is_ok() {
-            return result;
-        }
-        // vib 호출 자체가 실패한 경우에만 Python 폴백으로 넘어간다.
+    match run_vib_docs_index(&root_path, extra_args) {
+        Some(Ok(s)) => Ok(s),
+        Some(Err(e)) => Err(format!(
+            "{e}\n\nvib이 오래된 버전일 수 있어요. GUI를 재설치해 주세요."
+        )),
+        None => Err("vib을 찾을 수 없어요. GUI를 재설치해 주세요.".into()),
     }
-
-    let helper_path = root_path.join("vibelign").join("core").join("docs_cache.py");
-    let targets: Vec<DocsCacheTarget> = if helper_path.is_file() {
-        vec![DocsCacheTarget::File(helper_path), DocsCacheTarget::Module]
-    } else {
-        vec![DocsCacheTarget::Module]
-    };
-
-    let mut last_error = String::from("Python 실행 파일을 찾을 수 없어요");
-
-    // vib 옆 python을 우선 시도(uv tool venv 안에 vibelign 패키지가 있음).
-    let vib_python = find_vib_python();
-    let vib_python_str = vib_python.as_ref().map(|p| p.to_string_lossy().into_owned());
-    let mut python_candidates: Vec<&str> = Vec::new();
-    if let Some(s) = vib_python_str.as_deref() {
-        python_candidates.push(s);
-    }
-    python_candidates.extend(python_commands().iter().copied());
-
-    for target in &targets {
-        for python in &python_candidates {
-            let mut command = std::process::Command::new(python);
-            match target {
-                DocsCacheTarget::File(path) => {
-                    command.arg(path.as_os_str());
-                }
-                DocsCacheTarget::Module => {
-                    command.arg("-m").arg("vibelign.core.docs_cache");
-                }
-            }
-            command
-                .args(extra_args)
-                .arg(root_path.as_os_str())
-                .current_dir(&root_path)
-                .stdin(std::process::Stdio::null())
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped())
-                .env("PYTHONUTF8", "1")
-                .env("PYTHONIOENCODING", "utf-8");
-
-            #[cfg(target_os = "windows")]
-            {
-                use std::os::windows::process::CommandExt;
-                const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-                command.creation_flags(CREATE_NO_WINDOW);
-            }
-
-            match command.output() {
-                Ok(output) if output.status.success() => {
-                    return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
-                }
-                Ok(output) => {
-                    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-                    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                    let mode = match target {
-                        DocsCacheTarget::File(_) => "file",
-                        DocsCacheTarget::Module => "module",
-                    };
-                    last_error = if !stderr.is_empty() {
-                        format!("[{python}/{mode}] {stderr}")
-                    } else if !stdout.is_empty() {
-                        format!("[{python}/{mode}] {stdout}")
-                    } else {
-                        format!("{python} ({mode}) 실행 실패")
-                    };
-                }
-                Err(err) => {
-                    last_error = format!("{python} 실행 실패: {err}");
-                }
-            }
-        }
-    }
-
-    Err(format!(
-        "docs_cache 실행 실패 (root={}): {last_error}",
-        root_path.display()
-    ))
 }
 
 #[tauri::command]
