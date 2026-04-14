@@ -176,5 +176,29 @@ def register_core_commands(
         func=lazy_command("vibelign.commands.vib_docs_build_cmd", "run_vib_docs_build")
     )
 
+    p = sub.add_parser(
+        "docs-index",
+        help="docs viewer용 markdown 인덱스를 JSON으로 출력해요 (GUI/Tauri 전용)",
+        description=(
+            "docs viewer가 사용하는 markdown 문서 인덱스를 JSON으로 출력해요.\n"
+            "vib 자체에 vibelign 모듈이 포함돼 있어 별도 Python 환경이 없어도 동작해요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib docs-index\n"
+            "  vib docs-index /path/to/project\n"
+            "  vib docs-index --visual-contract"
+        ),
+    )
+    _ = p.add_argument("path", nargs="?", help="인덱스를 만들 프로젝트 루트 (생략 시 현재 위치)")
+    _ = p.add_argument(
+        "--visual-contract",
+        action="store_true",
+        help="docs visual artifact contract와 예시 스키마를 JSON으로 출력",
+    )
+    p.set_defaults(
+        func=lazy_command("vibelign.commands.vib_docs_build_cmd", "run_vib_docs_index")
+    )
+
 
 # === ANCHOR: CLI_CORE_COMMANDS_END ===
