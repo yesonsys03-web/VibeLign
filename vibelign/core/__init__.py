@@ -1,14 +1,14 @@
 # === ANCHOR: __INIT___START ===
 from dataclasses import asdict, dataclass
 from collections.abc import Mapping
-from typing import Protocol, cast
+from typing import Protocol, Union, cast
 
 from vibelign.core.intent_ir import IntentIR
 from vibelign.core.patch_contract import PatchContract
 from vibelign.core.patch_plan import PatchPlan, PatchStep
 
-JsonScalar = str | int | float | bool | None
-JsonValue = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+JsonScalar = Union[str, int, float, bool, None]
+JsonValue = Union[JsonScalar, list["JsonValue"], dict[str, "JsonValue"]]
 JsonObject = dict[str, JsonValue]
 
 
@@ -18,6 +18,8 @@ class SuggestionLike(Protocol):
     target_anchor: str
     confidence: str
     rationale: list[str]
+
+
 # === ANCHOR: __INIT___SUGGESTIONLIKE_END ===
 
 
@@ -35,6 +37,7 @@ class TargetResolution:
     # === ANCHOR: __INIT___TO_DICT_START ===
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
+
     # === ANCHOR: __INIT___TO_DICT_END ===
 
     @classmethod
@@ -45,7 +48,7 @@ class TargetResolution:
         suggestion: SuggestionLike,
         source_text: str = "",
         destination_text: str = "",
-    # === ANCHOR: __INIT___FROM_SUGGESTION_END ===
+        # === ANCHOR: __INIT___FROM_SUGGESTION_END ===
     ) -> "TargetResolution | None":
         target_file = suggestion.target_file
         target_anchor = suggestion.target_anchor
@@ -56,7 +59,7 @@ class TargetResolution:
             target_file=target_file,
             target_anchor=target_anchor,
             confidence=confidence,
-# === ANCHOR: __INIT___TARGETRESOLUTION_END ===
+            # === ANCHOR: __INIT___TARGETRESOLUTION_END ===
             rationale=rationale,
             source_text=source_text,
             destination_text=destination_text,
