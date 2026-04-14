@@ -7,6 +7,7 @@ hidden_imports = [
     "vibelign.commands.history_cmd","vibelign.commands.init_cmd","vibelign.commands.install_guide_cmd",
     "vibelign.commands.patch_cmd","vibelign.commands.protect_cmd","vibelign.commands.undo_cmd",
     "vibelign.commands.vib_anchor_cmd","vibelign.commands.vib_bench_cmd","vibelign.commands.vib_checkpoint_cmd",
+    "vibelign.commands.vib_docs_build_cmd",
     "vibelign.commands.vib_doctor_cmd","vibelign.commands.vib_explain_cmd","vibelign.commands.vib_guard_cmd",
     "vibelign.commands.vib_history_cmd","vibelign.commands.vib_init_cmd","vibelign.commands.vib_manual_cmd",
     "vibelign.commands.vib_claude_hook_cmd","vibelign.commands.vib_patch_cmd",
