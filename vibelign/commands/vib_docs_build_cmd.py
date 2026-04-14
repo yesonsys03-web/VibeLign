@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import os
 import shutil
@@ -13,24 +12,10 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from ..core import docs_cache as _DOCS_CACHE
+from ..core import docs_visualizer as _DOCS_VISUALIZER
+from ..core import meta_paths as _META_PATHS
 
-def _load_module(module_name: str, path: Path) -> Any:
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"모듈을 로드할 수 없어요: {path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_THIS_DIR = Path(__file__).resolve().parent
-_CORE_DIR = _THIS_DIR.parent / "core"
-_META_PATHS = _load_module("vib_docs_build_meta_paths", _CORE_DIR / "meta_paths.py")
-_DOCS_CACHE = _load_module("vib_docs_build_docs_cache", _CORE_DIR / "docs_cache.py")
-_DOCS_VISUALIZER = _load_module(
-    "vib_docs_build_docs_visualizer", _CORE_DIR / "docs_visualizer.py"
-)
 MetaPaths = _META_PATHS.MetaPaths
 build_docs_index = _DOCS_CACHE.build_docs_index
 visualize_markdown_file = _DOCS_VISUALIZER.visualize_markdown_file
