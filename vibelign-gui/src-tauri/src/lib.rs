@@ -133,10 +133,25 @@ fn python_commands() -> &'static [&'static str] {
     }
 }
 
+/// Windows `canonicalize()` 가 반환하는 `\\?\` 접두사를 벗겨서
+/// Python 등 외부 프로세스가 경로를 올바르게 해석하도록 한다.
+fn strip_unc_prefix(p: PathBuf) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        let s = p.to_string_lossy();
+        if let Some(stripped) = s.strip_prefix(r"\\?\") {
+            return PathBuf::from(stripped);
+        }
+    }
+    p
+}
+
 fn run_docs_cache_helper(root: &str, extra_args: &[&str]) -> Result<String, String> {
-    let root_path = PathBuf::from(root)
-        .canonicalize()
-        .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?;
+    let root_path = strip_unc_prefix(
+        PathBuf::from(root)
+            .canonicalize()
+            .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?,
+    );
     let helper_path = root_path.join("vibelign").join("core").join("docs_cache.py");
     if !helper_path.is_file() {
         return Err("docs_cache helper를 찾을 수 없어요".into());
