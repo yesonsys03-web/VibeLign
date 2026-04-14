@@ -2,25 +2,12 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-import importlib.util
 from pathlib import Path
 import re
-import sys
-from typing import Any, Optional, TypeVar
+from typing import Optional, TypeVar
 
+from . import docs_cache as _DOCS_CACHE
 
-def _load_docs_cache_module() -> Any:
-    module_path = Path(__file__).with_name("docs_cache.py")
-    spec = importlib.util.spec_from_file_location("docs_cache_local", module_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("docs_cache module을 로드할 수 없어요")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_DOCS_CACHE = _load_docs_cache_module()
 DOCS_VISUAL_GENERATOR_VERSION = _DOCS_CACHE.DOCS_VISUAL_GENERATOR_VERSION
 DOCS_VISUAL_SCHEMA_VERSION = _DOCS_CACHE.DOCS_VISUAL_SCHEMA_VERSION
 compute_source_hash = _DOCS_CACHE.compute_source_hash
