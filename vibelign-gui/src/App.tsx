@@ -4,6 +4,7 @@ import CustomTitleBar from "./components/CustomTitleBar";
 import Onboarding from "./pages/Onboarding";
 import Doctor from "./pages/Doctor";
 import Home from "./pages/Home";
+import DocsViewer from "./pages/DocsViewer";
 import Checkpoints from "./pages/Checkpoints";
 import Settings from "./pages/Settings";
 import { getEnvKeyStatus, loadApiKey, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, stopWatch, openFolder } from "./lib/vib";
@@ -48,7 +49,7 @@ class ErrorBoundary extends Component<
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
-type Page = "home" | "manual" | "doctor" | "checkpoints" | "settings";
+type Page = "home" | "manual" | "docs" | "doctor" | "checkpoints" | "settings";
 
 export default function App() {
   const [projectDir, setProjectDir] = useState<string | null>(null);
@@ -132,6 +133,9 @@ export default function App() {
               <button className="nav-tab" onClick={() => openFolder(projectDir).catch(() => {})}>
                 폴더열기
               </button>
+              <button className={`nav-tab ${page === "docs" ? "active" : ""}`} onClick={() => setPage("docs")}>
+                DOCS VIEWER
+              </button>
               <div style={{ flex: 1 }} />
               <button
                 className="nav-tab"
@@ -145,7 +149,8 @@ export default function App() {
             <div style={{ flex: 1, overflow: "hidden" }}>
               <ErrorBoundary>
                 {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} />}
-                {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" />}
+                {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} />}
+                {page === "docs" && <DocsViewer projectDir={projectDir} />}
                 {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} />}
                 {page === "checkpoints" && <Checkpoints projectDir={projectDir} />}
                 {page === "settings" && (

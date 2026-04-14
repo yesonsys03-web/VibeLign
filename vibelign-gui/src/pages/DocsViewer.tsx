@@ -1,0 +1,335 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import DocsSidebar from "../components/docs/DocsSidebar";
+import MarkdownPane from "../components/docs/MarkdownPane";
+import VisualSummaryPane from "../components/docs/VisualSummaryPane";
+import { extractSections, loadDoc, loadDocsIndex } from "../lib/docs";
+import { readDocsVisual, runVib, type DocsIndexEntry, type DocsVisualReadResult, type ReadFileResult } from "../lib/vib";
+
+export type DocsTrustState = "markdown-only" | "enhanced-synced" | "enhanced-stale" | "enhanced-failed";
+
+interface DocsViewerProps {
+  projectDir: string;
+}
+
+export default function DocsViewer({ projectDir }: DocsViewerProps) {
+  const [docsIndex, setDocsIndex] = useState<DocsIndexEntry[]>([]);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [doc, setDoc] = useState<ReadFileResult | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [indexLoading, setIndexLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [indexError, setIndexError] = useState<string | null>(null);
+  const [visual, setVisual] = useState<DocsVisualReadResult | null>(null);
+  const [trustState, setTrustState] = useState<DocsTrustState>("markdown-only");
+  const [trustReason, setTrustReason] = useState<string>("artifact 없음 — markdown만 표시합니다.");
+  const [isRebuilding, setIsRebuilding] = useState(false);
+  const [rebuildMessage, setRebuildMessage] = useState<string | null>(null);
+  const markdownPaneRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIndexLoading(true);
+    setIndexError(null);
+
+    loadDocsIndex(projectDir)
+      .then((entries) => {
+        if (cancelled) return;
+        setDocsIndex(entries);
+        setSelectedPath((current) => {
+          if (current && entries.some((entry) => entry.path === current)) {
+            return current;
+          }
+          return entries.find((entry) => entry.path === "PROJECT_CONTEXT.md")?.path ?? entries[0]?.path ?? null;
+        });
+        setIndexLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setDocsIndex([]);
+          setSelectedPath(null);
+          setIndexError(err instanceof Error ? err.message : "문서 인덱스를 읽을 수 없어요");
+          setIndexLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectDir]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedPath) {
+      setDoc(null);
+      setVisual(null);
+      setError(null);
+      setTrustState("markdown-only");
+      setTrustReason("문서를 선택하면 trust 상태를 계산합니다.");
+      setIsLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    loadDoc(projectDir, selectedPath)
+      .then((result) => {
+        if (!cancelled) {
+          setDoc(result);
+          setIsLoading(false);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setDoc(null);
+          setError(err instanceof Error ? err.message : "문서를 읽을 수 없어요");
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectDir, selectedPath]);
+
+  const sections = useMemo(() => extractSections(doc?.content ?? ""), [doc?.content]);
+  const selectedDoc = useMemo(
+    () => docsIndex.find((entry) => entry.path === selectedPath) ?? null,
+    [docsIndex, selectedPath],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!projectDir || !selectedPath || !doc) {
+      setVisual(null);
+      setTrustState("markdown-only");
+      setTrustReason("artifact 없음 — markdown만 표시합니다.");
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setVisual(null);
+    setTrustState("markdown-only");
+    setTrustReason("artifact를 확인 중입니다...");
+    setRebuildMessage(null);
+
+    readDocsVisual(projectDir, selectedPath)
+      .then((result) => {
+        if (cancelled) return;
+        if (!result) {
+          setVisual(null);
+          setTrustState("markdown-only");
+          setTrustReason("artifact가 아직 없어 markdown만 표시합니다.");
+          return;
+        }
+
+        setVisual(result);
+
+        if (result.artifact.schema_version !== result.contract.schema_version) {
+          setTrustState("enhanced-stale");
+          setTrustReason(`schema_version 불일치: artifact ${result.artifact.schema_version} / contract ${result.contract.schema_version}`);
+          return;
+        }
+
+        if (result.artifact.generator_version !== result.contract.generator_version) {
+          setTrustState("enhanced-stale");
+          setTrustReason(`generator_version 불일치: artifact ${result.artifact.generator_version} / contract ${result.contract.generator_version}`);
+          return;
+        }
+
+        if (result.artifact.source_hash !== doc.source_hash) {
+          setTrustState("enhanced-stale");
+          setTrustReason("authoritative markdown hash와 artifact hash가 달라 stale 상태입니다.");
+          return;
+        }
+
+        setTrustState("enhanced-synced");
+        setTrustReason("open-time validation 통과 — 현재 enhancement는 최신 markdown와 동기화되었습니다.");
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setVisual(null);
+        setTrustState("enhanced-failed");
+        setTrustReason(err instanceof Error ? err.message : "artifact를 읽거나 검증하지 못했습니다.");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectDir, selectedPath, doc]);
+
+  const trustTone = useMemo(() => {
+    if (trustState === "enhanced-synced") return { className: "alert-success", label: "ENHANCED SYNCED" };
+    if (trustState === "enhanced-stale") return { className: "alert-warn", label: "ENHANCED STALE" };
+    if (trustState === "enhanced-failed") return { className: "alert-error", label: "ENHANCED FAILED" };
+    return { className: "", label: "MARKDOWN ONLY" };
+  }, [trustState]);
+
+  const enhancementPartiallyDisabled = useMemo(
+    () => visual?.artifact.warnings.some((warning) => warning.startsWith("enhancement_partial_disabled:")) ?? false,
+    [visual],
+  );
+
+  async function handleRebuildArtifact() {
+    if (!selectedPath || !projectDir) return;
+    setIsRebuilding(true);
+    setRebuildMessage(null);
+    try {
+      const result = await runVib(["docs-build", selectedPath], projectDir);
+      if (!result.ok) {
+        throw new Error(result.stderr || result.stdout || `exit ${result.exit_code}`);
+      }
+      setRebuildMessage("docs visual artifact를 다시 생성했습니다. 문서를 다시 열면 최신 trust state가 반영됩니다.");
+      const refreshed = await loadDoc(projectDir, selectedPath);
+      setDoc(refreshed);
+    } catch (err: unknown) {
+      setRebuildMessage(err instanceof Error ? err.message : "artifact 재생성에 실패했습니다.");
+    } finally {
+      setIsRebuilding(false);
+    }
+  }
+
+  function handlePhaseSelect(sectionId: string) {
+    const container = markdownPaneRef.current;
+    if (!container) return;
+    const target = container.querySelector<HTMLElement>(`[data-doc-heading-id="${sectionId}"]`);
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  if (indexLoading || isLoading) {
+    return (
+      <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        <div className="page-header" style={{ padding: "12px 20px" }}>
+          <span className="page-title">DOCS VIEWER</span>
+          <span style={{ fontSize: 11, color: "#666", fontWeight: 700 }}>LOADING</span>
+        </div>
+
+        <div className="page-content" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div className="card" style={{ width: "min(480px, 100%)", textAlign: "center" }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: "IBM Plex Mono, monospace", fontSize: 12, fontWeight: 700 }}>
+              <span className="spinner" />
+              {indexLoading ? "문서 인덱스를 불러오는 중..." : "markdown 문서를 불러오는 중..."}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <div className="page-header" style={{ padding: "12px 20px" }}>
+        <span className="page-title">DOCS VIEWER</span>
+          <span style={{ fontSize: 11, color: "#666", fontWeight: 700 }}>PHASE 10</span>
+      </div>
+
+      <div className="page-content" style={{ display: "grid", gridTemplateColumns: "280px minmax(0, 1fr)", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}>
+          <DocsSidebar
+            docs={docsIndex}
+            query={query}
+            selectedPath={selectedPath}
+            onQueryChange={setQuery}
+            onSelect={setSelectedPath}
+          />
+
+          <div className="card">
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#888", marginBottom: 10, textTransform: "uppercase", letterSpacing: 1 }}>
+              Section Jump
+            </div>
+            {sections.length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {sections.slice(0, 12).map((section) => (
+                  <button
+                    key={section.id}
+                    className="btn btn-ghost btn-sm"
+                    style={{ textAlign: "left", justifyContent: "flex-start", paddingLeft: 10 + (section.level - 1) * 10, textTransform: "none", letterSpacing: 0 }}
+                    onClick={() => document.getElementById(section.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                  >
+                    {section.text}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: "#666", lineHeight: 1.6 }}>선택한 문서에서 heading을 찾으면 여기서 바로 이동할 수 있습니다.</div>
+            )}
+          </div>
+
+          <div className="terminal" style={{ marginBottom: 0 }}>
+            <div className="terminal-header">
+              <div className="terminal-dot red" />
+              <div className="terminal-dot yellow" />
+              <div className="terminal-dot green" />
+            </div>
+            <div><span className="terminal-prompt">project</span>: {projectDir}</div>
+            <div><span className="terminal-prompt">docs</span>: {docsIndex.length}</div>
+            <div><span className="terminal-prompt">path</span>: {doc?.path ?? selectedPath ?? "none"}</div>
+            <div><span className="terminal-prompt">source_hash</span>: {doc?.source_hash ?? "pending"}</div>
+          </div>
+        </div>
+
+        <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+          {indexError ? (
+            <div className="alert alert-error">문서 인덱스 로딩 실패: {indexError}</div>
+          ) : null}
+          {error ? (
+            <div className="alert alert-error">문서 로딩 실패: {error}</div>
+          ) : null}
+          <div className={`alert ${trustTone.className}`.trim()} style={trustTone.className ? undefined : { background: "#E8E4D8", color: "#1A1A1A" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+              <span>{trustTone.label}</span>
+              <span style={{ fontSize: 11 }}>{trustState}</span>
+            </div>
+            <div style={{ marginTop: 6, fontWeight: 600, lineHeight: 1.5 }}>{trustReason}</div>
+            {trustState !== "enhanced-synced" ? (
+              <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => void handleRebuildArtifact()} disabled={isRebuilding || !selectedPath}>
+                  {isRebuilding ? "재생성 중..." : "artifact 다시 만들기"}
+                </button>
+                <span style={{ fontSize: 11, opacity: 0.8 }}>fancy layer가 실패해도 markdown 원문은 계속 읽을 수 있습니다.</span>
+              </div>
+            ) : null}
+          </div>
+          {rebuildMessage ? <div className="alert alert-warn">{rebuildMessage}</div> : null}
+
+          {!indexError && !error && doc && selectedDoc ? (
+            <>
+              <div className="card" style={{ padding: "14px 16px" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#888", marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 }}>
+                  Open-Time Validation
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>{selectedDoc.title}</div>
+                <div style={{ fontSize: 12, color: "#555" }}>{selectedDoc.category} · {selectedDoc.path}</div>
+                {visual ? (
+                  <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, fontSize: 11 }}>
+                    <div><strong>sections</strong><div>{visual.artifact.sections.length}</div></div>
+                    <div><strong>actions</strong><div>{visual.artifact.action_items.length}</div></div>
+                    <div><strong>diagrams</strong><div>{visual.artifact.diagram_blocks.length}</div></div>
+                  </div>
+                ) : null}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: visual && trustState !== "enhanced-failed" ? "minmax(0, 1.2fr) minmax(320px, 0.8fr)" : "minmax(0, 1fr)", gap: 12, alignItems: "start" }}>
+                <div style={{ minHeight: 0 }}>
+                  <MarkdownPane content={doc.content} containerRef={markdownPaneRef} />
+                </div>
+                {visual && trustState !== "enhanced-failed" ? (
+                  <div style={{ minWidth: 0 }}>
+                    <VisualSummaryPane artifact={visual.artifact} trustState={trustState} onPhaseSelect={handlePhaseSelect} />
+                  </div>
+                ) : null}
+              </div>
+              {enhancementPartiallyDisabled ? (
+                <div className="alert alert-warn">문서가 길어서 일부 enhancement만 축약했습니다. 그래도 summary pane과 원문 markdown는 계속 표시됩니다.</div>
+              ) : null}
+            </>
+          ) : (!indexError && !error ? <div className="card">열 문서를 선택하세요.</div> : null)}
+        </div>
+      </div>
+    </div>
+  );
+}
