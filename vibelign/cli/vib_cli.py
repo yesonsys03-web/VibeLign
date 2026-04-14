@@ -78,7 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="command",
         required=True,
         parser_class=rich_argument_parser,
-        metavar="{install,init,start,checkpoint,undo,history,protect,ask,config,doctor,anchor,patch,secrets,explain,guard,claude-hook,export,scan,plan-structure,transfer,watch,bench,manual,rules,completion}",
+        metavar="{install,init,start,checkpoint,undo,history,docs-build,protect,ask,config,doctor,anchor,patch,secrets,explain,guard,claude-hook,export,scan,plan-structure,transfer,watch,bench,manual,rules,completion}",
     )
 
     register_core_commands(

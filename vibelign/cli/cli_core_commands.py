@@ -15,8 +15,8 @@ class SubparserFactory(Protocol):
         description: str | None = None,
         epilog: str | None = None,
         **kwargs: object,
-# === ANCHOR: CLI_CORE_COMMANDS_SUBPARSERFACTORY_END ===
-    # === ANCHOR: CLI_CORE_COMMANDS_ADD_PARSER_END ===
+        # === ANCHOR: CLI_CORE_COMMANDS_SUBPARSERFACTORY_END ===
+        # === ANCHOR: CLI_CORE_COMMANDS_ADD_PARSER_END ===
     ) -> argparse.ArgumentParser: ...
 
 
@@ -25,7 +25,7 @@ def register_core_commands(
     sub: SubparserFactory,
     lazy_command: Callable[[str, str], Callable[[object], None]],
     run_init: Callable[[object], None],
-# === ANCHOR: CLI_CORE_COMMANDS_REGISTER_CORE_COMMANDS_END ===
+    # === ANCHOR: CLI_CORE_COMMANDS_REGISTER_CORE_COMMANDS_END ===
 ) -> None:
     p = sub.add_parser(
         "install",
@@ -155,4 +155,26 @@ def register_core_commands(
     p.set_defaults(
         func=lazy_command("vibelign.commands.vib_history_cmd", "run_vib_history")
     )
+
+    p = sub.add_parser(
+        "docs-build",
+        help="docs visual cache를 수동으로 생성해요",
+        description=(
+            "watch가 꺼져 있어도 markdown 문서의 visual cache를 다시 만들어요.\n"
+            "인자를 생략하면 전체 문서를, 경로를 주면 해당 문서만 다시 생성해요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib docs-build\n"
+            "  vib docs-build PROJECT_CONTEXT.md\n"
+            "  vib docs-build docs/wiki/index.md --json"
+        ),
+    )
+    _ = p.add_argument("path", nargs="?", help="다시 생성할 단일 markdown 경로")
+    _ = p.add_argument("--json", action="store_true", help="결과를 JSON으로 출력")
+    p.set_defaults(
+        func=lazy_command("vibelign.commands.vib_docs_build_cmd", "run_vib_docs_build")
+    )
+
+
 # === ANCHOR: CLI_CORE_COMMANDS_END ===

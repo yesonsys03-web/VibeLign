@@ -63,11 +63,20 @@ class MetaPaths:
     def ui_label_index_path(self) -> Path:
         return self.vibelign_dir / "ui_label_index.json"
 
+    @property
+    def docs_visual_dir(self) -> Path:
+        return self.vibelign_dir / "docs_visual"
+
+    def docs_visual_path(self, source_relative_path: str) -> Path:
+        rel = Path(source_relative_path.replace("\\", "/"))
+        return self.docs_visual_dir / Path(f"{rel.as_posix()}.json")
+
     def ensure_vibelign_dirs(self) -> None:
         self.vibelign_dir.mkdir(parents=True, exist_ok=True)
         self.checkpoints_dir.mkdir(parents=True, exist_ok=True)
         self.plans_dir.mkdir(parents=True, exist_ok=True)
         self.reports_dir.mkdir(parents=True, exist_ok=True)
+        self.docs_visual_dir.mkdir(parents=True, exist_ok=True)
 
     def ensure_vibelign_dir(self) -> None:
         self.vibelign_dir.mkdir(parents=True, exist_ok=True)
