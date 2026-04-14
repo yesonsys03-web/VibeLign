@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tauri::Emitter;
 
 // ─── 폴더 열기 ────────────────────────────────────────────────────────────────
@@ -33,6 +34,202 @@ fn open_folder(path: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     Ok(())
+}
+
+#[derive(Serialize)]
+struct ReadFileResult {
+    path: String,
+    content: String,
+    source_hash: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct DocsIndexEntry {
+    category: String,
+    path: String,
+    title: String,
+    modified_at_ms: i64,
+}
+
+#[derive(Serialize, Deserialize)]
+struct DocsVisualContract {
+    schema_version: i64,
+    generator_version: String,
+}
+
+#[derive(Serialize)]
+struct DocsVisualReadResult {
+    path: String,
+    artifact: serde_json::Value,
+    contract: DocsVisualContract,
+}
+
+fn normalize_markdown_content(bytes: &[u8]) -> Result<String, String> {
+    let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes);
+    let text = std::str::from_utf8(bytes)
+        .map_err(|_| "UTF-8 markdown 파일만 읽을 수 있어요".to_string())?;
+    Ok(text.replace("\r\n", "\n").replace('\r', "\n"))
+}
+
+fn hash_markdown_content(content: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(content.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+fn normalize_relative_doc_path(path: &std::path::Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+fn is_allowed_doc_path(relative_path: &str) -> bool {
+    if relative_path == "PROJECT_CONTEXT.md" {
+        return true;
+    }
+    relative_path.starts_with("docs/") && relative_path.to_ascii_lowercase().ends_with(".md")
+}
+
+fn resolve_doc_path(root: &str, path: PathBuf) -> Result<(PathBuf, String), String> {
+    let root_path = PathBuf::from(root)
+        .canonicalize()
+        .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?;
+    let joined = if path.is_absolute() {
+        path
+    } else {
+        root_path.join(path)
+    };
+    let canonical = joined
+        .canonicalize()
+        .map_err(|e| format!("문서를 찾을 수 없어요: {e}"))?;
+    let relative = canonical
+        .strip_prefix(&root_path)
+        .map_err(|_| "프로젝트 루트 밖 파일은 읽을 수 없어요".to_string())?;
+    let relative_path = normalize_relative_doc_path(relative);
+    if !is_allowed_doc_path(&relative_path) {
+        return Err("허용된 markdown 문서만 읽을 수 있어요".into());
+    }
+    Ok((canonical, relative_path))
+}
+
+#[tauri::command]
+fn read_file(root: String, path: PathBuf) -> Result<ReadFileResult, String> {
+    let (resolved_path, relative_path) = resolve_doc_path(&root, path)?;
+    let bytes = std::fs::read(&resolved_path).map_err(|e| format!("문서를 읽을 수 없어요: {e}"))?;
+    let content = normalize_markdown_content(&bytes)?;
+    Ok(ReadFileResult {
+        path: relative_path,
+        source_hash: hash_markdown_content(&content),
+        content,
+    })
+}
+
+fn python_commands() -> &'static [&'static str] {
+    #[cfg(target_os = "windows")]
+    {
+        &["py", "python"]
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        &["python3", "python"]
+    }
+}
+
+fn run_docs_cache_helper(root: &str, extra_args: &[&str]) -> Result<String, String> {
+    let root_path = PathBuf::from(root)
+        .canonicalize()
+        .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?;
+    let helper_path = root_path.join("vibelign").join("core").join("docs_cache.py");
+    if !helper_path.is_file() {
+        return Err("docs_cache helper를 찾을 수 없어요".into());
+    }
+
+    let mut last_error = String::from("Python 실행 파일을 찾을 수 없어요");
+
+    for python in python_commands() {
+        let mut command = std::process::Command::new(python);
+        command
+            .arg(helper_path.as_os_str())
+            .args(extra_args)
+            .arg(root_path.as_os_str())
+            .current_dir(&root_path)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .env("PYTHONUTF8", "1")
+            .env("PYTHONIOENCODING", "utf-8");
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        match command.output() {
+            Ok(output) if output.status.success() => {
+                return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                last_error = if !stderr.is_empty() { stderr } else if !stdout.is_empty() { stdout } else { format!("{python} 실행 실패") };
+            }
+            Err(err) => {
+                last_error = err.to_string();
+            }
+        }
+    }
+
+    Err(last_error)
+}
+
+#[tauri::command]
+fn list_docs_index(root: String) -> Result<Vec<DocsIndexEntry>, String> {
+    let raw = run_docs_cache_helper(&root, &[])?;
+    serde_json::from_str::<Vec<DocsIndexEntry>>(raw.trim())
+        .map_err(|e| format!("docs index 결과를 해석할 수 없어요: {e}"))
+}
+
+fn read_docs_visual_contract(root: &str) -> Result<DocsVisualContract, String> {
+    let raw = run_docs_cache_helper(root, &["--print-visual-contract"])?;
+    let payload: serde_json::Value = serde_json::from_str(raw.trim())
+        .map_err(|e| format!("docs visual contract를 해석할 수 없어요: {e}"))?;
+    let contract = payload
+        .get("contract")
+        .ok_or_else(|| "docs visual contract 항목이 없어요".to_string())?
+        .clone();
+    serde_json::from_value::<DocsVisualContract>(contract)
+        .map_err(|e| format!("docs visual contract 형식이 올바르지 않아요: {e}"))
+}
+
+#[tauri::command]
+fn read_docs_visual(root: String, path: PathBuf) -> Result<Option<DocsVisualReadResult>, String> {
+    let (resolved_path, relative_path) = resolve_doc_path(&root, path)?;
+    let root_path = PathBuf::from(&root)
+        .canonicalize()
+        .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?;
+    let relative = resolved_path
+        .strip_prefix(&root_path)
+        .map_err(|_| "프로젝트 루트 밖 파일은 읽을 수 없어요".to_string())?;
+    let artifact_path = root_path
+        .join(".vibelign")
+        .join("docs_visual")
+        .join(format!("{}.json", normalize_relative_doc_path(relative)));
+
+    if !artifact_path.exists() {
+        return Ok(None);
+    }
+
+    let artifact_text = std::fs::read_to_string(&artifact_path)
+        .map_err(|e| format!("docs visual artifact를 읽을 수 없어요: {e}"))?;
+    let artifact: serde_json::Value = serde_json::from_str(&artifact_text)
+        .map_err(|e| format!("docs visual artifact JSON이 손상되었어요: {e}"))?;
+    let contract = read_docs_visual_contract(&root)?;
+
+    Ok(Some(DocsVisualReadResult {
+        path: relative_path,
+        artifact,
+        contract,
+    }))
 }
 
 // ─── Watch 프로세스 State ──────────────────────────────────────────────────────
@@ -843,6 +1040,9 @@ pub fn run() {
             get_watch_logs,
             get_watch_errors,
             open_folder,
+            read_file,
+            list_docs_index,
+            read_docs_visual,
             get_env_key_status,
             read_project_summary,
             check_git_installed,
