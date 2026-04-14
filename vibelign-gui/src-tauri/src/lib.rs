@@ -4,7 +4,7 @@ mod vib_path;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Read};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
@@ -159,7 +159,54 @@ fn strip_unc_prefix(p: PathBuf) -> PathBuf {
     p
 }
 
-/// docs_cache helper 실행 모드.
+/// `vib docs-index` 명령으로 docs index/visual contract를 받는다.
+/// vib sidecar에는 vibelign 패키지가 self-contained 되어 있어 별도 Python 환경이 없어도 동작한다.
+fn run_vib_docs_index(root: &Path, extra_args: &[&str]) -> Option<Result<String, String>> {
+    let vib = vib_path::find_vib()?;
+    let mut command = std::process::Command::new(&vib);
+    command.arg("docs-index");
+    // 기존 호출자가 넘기던 `--print-visual-contract` 를 새 CLI 플래그로 변환.
+    let mut visual_contract = false;
+    for arg in extra_args {
+        if *arg == "--print-visual-contract" {
+            visual_contract = true;
+        }
+    }
+    if visual_contract {
+        command.arg("--visual-contract");
+    } else {
+        command.arg(root.as_os_str());
+    }
+    command
+        .current_dir(root)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .env("PYTHONUTF8", "1")
+        .env("PYTHONIOENCODING", "utf-8");
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    match command.output() {
+        Ok(output) if output.status.success() => {
+            Some(Ok(String::from_utf8_lossy(&output.stdout).into_owned()))
+        }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let msg = if !stderr.is_empty() { stderr } else if !stdout.is_empty() { stdout } else { "vib docs-index 실행 실패".into() };
+            Some(Err(format!("[vib docs-index] {msg}")))
+        }
+        Err(err) => Some(Err(format!("[vib docs-index] 실행 실패: {err}"))),
+    }
+}
+
+/// docs_cache helper 실행 모드 (Python 폴백).
 /// - File: 저장소 안의 `vibelign/core/docs_cache.py` 직접 실행 (개발 환경)
 /// - Module: `python -m vibelign.core.docs_cache` 로 설치된 패키지 실행 (사용자 환경)
 enum DocsCacheTarget {
@@ -173,6 +220,15 @@ fn run_docs_cache_helper(root: &str, extra_args: &[&str]) -> Result<String, Stri
             .canonicalize()
             .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?,
     );
+
+    // 1순위: vib CLI 호출 (sidecar/uv tool 무관하게 self-contained 동작 보장).
+    if let Some(result) = run_vib_docs_index(&root_path, extra_args) {
+        if result.is_ok() {
+            return result;
+        }
+        // vib 호출 자체가 실패한 경우에만 Python 폴백으로 넘어간다.
+    }
+
     let helper_path = root_path.join("vibelign").join("core").join("docs_cache.py");
     let targets: Vec<DocsCacheTarget> = if helper_path.is_file() {
         vec![DocsCacheTarget::File(helper_path), DocsCacheTarget::Module]

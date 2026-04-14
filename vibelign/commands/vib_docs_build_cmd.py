@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Iterable
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -151,3 +152,23 @@ def run_vib_docs_build(args: argparse.Namespace) -> None:
         print(f"docs visual cache 생성 완료: {target_path}")
     else:
         print(f"docs visual cache 전체 재생성 완료: {result['count']}개")
+
+
+def run_vib_docs_index(args: argparse.Namespace) -> None:
+    """GUI/Tauri 등 외부 호출자에게 docs index 또는 visual contract를 JSON으로 출력한다."""
+    if getattr(args, "visual_contract", False):
+        payload = {
+            "contract": _DOCS_CACHE.docs_visual_contract(),
+            "example_artifact": _DOCS_CACHE.docs_visual_schema_example(),
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    raw_path = getattr(args, "path", None)
+    root = Path(raw_path).resolve() if raw_path else _resolve_root()
+    try:
+        entries = build_docs_index(root)
+    except Exception as exc:
+        print(f"docs index 생성 실패: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+    print(json.dumps([asdict(item) for item in entries], ensure_ascii=False))
