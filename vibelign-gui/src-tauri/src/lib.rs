@@ -146,6 +146,14 @@ fn strip_unc_prefix(p: PathBuf) -> PathBuf {
     p
 }
 
+/// docs_cache helper 실행 모드.
+/// - File: 저장소 안의 `vibelign/core/docs_cache.py` 직접 실행 (개발 환경)
+/// - Module: `python -m vibelign.core.docs_cache` 로 설치된 패키지 실행 (사용자 환경)
+enum DocsCacheTarget {
+    File(PathBuf),
+    Module,
+}
+
 fn run_docs_cache_helper(root: &str, extra_args: &[&str]) -> Result<String, String> {
     let root_path = strip_unc_prefix(
         PathBuf::from(root)
@@ -153,48 +161,72 @@ fn run_docs_cache_helper(root: &str, extra_args: &[&str]) -> Result<String, Stri
             .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?,
     );
     let helper_path = root_path.join("vibelign").join("core").join("docs_cache.py");
-    if !helper_path.is_file() {
-        return Err("docs_cache helper를 찾을 수 없어요".into());
-    }
+    let targets: Vec<DocsCacheTarget> = if helper_path.is_file() {
+        vec![DocsCacheTarget::File(helper_path), DocsCacheTarget::Module]
+    } else {
+        vec![DocsCacheTarget::Module]
+    };
 
     let mut last_error = String::from("Python 실행 파일을 찾을 수 없어요");
 
-    for python in python_commands() {
-        let mut command = std::process::Command::new(python);
-        command
-            .arg(helper_path.as_os_str())
-            .args(extra_args)
-            .arg(root_path.as_os_str())
-            .current_dir(&root_path)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .env("PYTHONUTF8", "1")
-            .env("PYTHONIOENCODING", "utf-8");
-
-        #[cfg(target_os = "windows")]
-        {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-            command.creation_flags(CREATE_NO_WINDOW);
-        }
-
-        match command.output() {
-            Ok(output) if output.status.success() => {
-                return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
+    for target in &targets {
+        for python in python_commands() {
+            let mut command = std::process::Command::new(python);
+            match target {
+                DocsCacheTarget::File(path) => {
+                    command.arg(path.as_os_str());
+                }
+                DocsCacheTarget::Module => {
+                    command.arg("-m").arg("vibelign.core.docs_cache");
+                }
             }
-            Ok(output) => {
-                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                last_error = if !stderr.is_empty() { stderr } else if !stdout.is_empty() { stdout } else { format!("{python} 실행 실패") };
+            command
+                .args(extra_args)
+                .arg(root_path.as_os_str())
+                .current_dir(&root_path)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .env("PYTHONUTF8", "1")
+                .env("PYTHONIOENCODING", "utf-8");
+
+            #[cfg(target_os = "windows")]
+            {
+                use std::os::windows::process::CommandExt;
+                const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+                command.creation_flags(CREATE_NO_WINDOW);
             }
-            Err(err) => {
-                last_error = err.to_string();
+
+            match command.output() {
+                Ok(output) if output.status.success() => {
+                    return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
+                }
+                Ok(output) => {
+                    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    let mode = match target {
+                        DocsCacheTarget::File(_) => "file",
+                        DocsCacheTarget::Module => "module",
+                    };
+                    last_error = if !stderr.is_empty() {
+                        format!("[{python}/{mode}] {stderr}")
+                    } else if !stdout.is_empty() {
+                        format!("[{python}/{mode}] {stdout}")
+                    } else {
+                        format!("{python} ({mode}) 실행 실패")
+                    };
+                }
+                Err(err) => {
+                    last_error = format!("{python} 실행 실패: {err}");
+                }
             }
         }
     }
 
-    Err(last_error)
+    Err(format!(
+        "docs_cache 실행 실패 (root={}): {last_error}",
+        root_path.display()
+    ))
 }
 
 #[tauri::command]
