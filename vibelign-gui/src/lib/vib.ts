@@ -14,6 +14,64 @@ export async function openFolder(path: string): Promise<void> {
   return invoke<void>("open_folder", { path });
 }
 
+export interface ReadFileResult {
+  path: string;
+  content: string;
+  source_hash: string;
+}
+
+export interface DocsIndexEntry {
+  category: "Manual" | "Context" | "Wiki" | "Spec" | "Plan" | string;
+  path: string;
+  title: string;
+  modified_at_ms: number;
+}
+
+export interface DocsVisualContract {
+  schema_version: number;
+  generator_version: string;
+}
+
+export interface DocsVisualSection {
+  id: string;
+  title: string;
+  level: number;
+  summary: string;
+}
+
+export interface DocsVisualArtifact {
+  source_path: string;
+  source_hash: string;
+  generated_at: string;
+  generator_version: string;
+  schema_version: number;
+  title: string;
+  summary: string;
+  sections: DocsVisualSection[];
+  glossary: Array<{ term: string; definition: string }>;
+  action_items: Array<{ text: string; checked: boolean }>;
+  diagram_blocks: Array<{ id: string; kind: string; title?: string; source?: string }>;
+  warnings: string[];
+}
+
+export interface DocsVisualReadResult {
+  path: string;
+  artifact: DocsVisualArtifact;
+  contract: DocsVisualContract;
+}
+
+export async function readFile(root: string, path: string): Promise<ReadFileResult> {
+  return invoke<ReadFileResult>("read_file", { root, path });
+}
+
+export async function listDocsIndex(root: string): Promise<DocsIndexEntry[]> {
+  return invoke<DocsIndexEntry[]>("list_docs_index", { root });
+}
+
+export async function readDocsVisual(root: string, path: string): Promise<DocsVisualReadResult | null> {
+  return invoke<DocsVisualReadResult | null>("read_docs_visual", { root, path });
+}
+
 export interface VibResult {
   ok: boolean;
   stdout: string;
