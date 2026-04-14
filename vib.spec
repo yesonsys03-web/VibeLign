@@ -21,6 +21,7 @@ hidden_imports = [
     "vibelign.core.doctor_v2","vibelign.core.fast_tools","vibelign.core.feature_flags",
     "vibelign.core.git_hooks","vibelign.core.guard_report","vibelign.core.hook_setup",
     "vibelign.core.context_chunk","vibelign.core.http_retry","vibelign.core.import_resolver","vibelign.core.intent_ir",
+    "vibelign.core.docs_cache","vibelign.core.docs_visualizer",
     "vibelign.core.keys_store","vibelign.core.local_checkpoints","vibelign.core.meta_paths","vibelign.core.patch_contract",
     "vibelign.core.patch_plan","vibelign.core.patch_suggester","vibelign.core.patch_validation",
     "vibelign.core.project_map","vibelign.core.project_root","vibelign.core.project_scan",
