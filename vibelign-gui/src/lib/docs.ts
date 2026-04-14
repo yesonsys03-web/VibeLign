@@ -6,15 +6,18 @@ export interface DocsSection {
   level: number;
 }
 
-export const DOC_CATEGORY_ORDER = ["Context", "Manual", "Wiki", "Spec", "Plan"] as const;
+export const DOC_CATEGORY_ORDER = ["Context", "Readme", "Manual", "Wiki", "Spec", "Plan", "Root", "Docs"] as const;
 
 export function categoryColor(category: string): string {
   switch (category) {
     case "Context": return "#4D9FFF";
+    case "Readme": return "#FFB84D";
     case "Manual": return "#FF4D8B";
     case "Wiki": return "#4DFF91";
     case "Spec": return "#7B4DFF";
     case "Plan": return "#F5621E";
+    case "Root": return "#888888";
+    case "Docs": return "#3DBFA8";
     default: return "#1A1A1A";
   }
 }
@@ -22,10 +25,13 @@ export function categoryColor(category: string): string {
 export function categoryLabel(category: string): string {
   switch (category) {
     case "Context": return "Context";
+    case "Readme": return "Readme";
     case "Manual": return "Manual";
     case "Wiki": return "Wiki";
     case "Spec": return "Spec";
     case "Plan": return "Plan";
+    case "Root": return "Root";
+    case "Docs": return "Docs";
     default: return category;
   }
 }

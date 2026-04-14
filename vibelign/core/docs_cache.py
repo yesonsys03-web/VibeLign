@@ -61,26 +61,56 @@ def _read_title(path: Path) -> str:
 
 def _iter_index_targets(root: Path) -> list[tuple[str, Path]]:
     targets: list[tuple[str, Path]] = []
+    seen: set[Path] = set()
 
-    project_context = root / "PROJECT_CONTEXT.md"
-    if project_context.is_file():
-        targets.append(("Context", project_context))
+    def add(category: str, path: Path) -> None:
+        if not path.is_file():
+            return
+        try:
+            resolved = path.resolve()
+        except OSError:
+            return
+        if resolved in seen:
+            return
+        seen.add(resolved)
+        targets.append((category, path))
 
-    manual = root / "docs" / "MANUAL.md"
-    if manual.is_file():
-        targets.append(("Manual", manual))
+    # VibeLign 전용 카테고리 — 알려진 경로를 먼저 등록해 카테고리 라벨을 보존한다.
+    add("Context", root / "PROJECT_CONTEXT.md")
 
-    for path in sorted((root / "docs" / "wiki").glob("**/*.md")):
-        if path.is_file():
-            targets.append(("Wiki", path))
+    # 일반 프로젝트도 흔히 두는 README — case-insensitive FS에서 중복 방지를 위해 첫 매치만.
+    for name in ("README.md", "Readme.md", "readme.md", "README.markdown"):
+        candidate = root / name
+        if candidate.is_file():
+            add("Readme", candidate)
+            break
 
-    for path in sorted((root / "docs" / "superpowers" / "specs").glob("*.md")):
-        if path.is_file():
-            targets.append(("Spec", path))
+    add("Manual", root / "docs" / "MANUAL.md")
 
-    for path in sorted((root / "docs" / "superpowers" / "plans").glob("*.md")):
-        if path.is_file():
-            targets.append(("Plan", path))
+    wiki_dir = root / "docs" / "wiki"
+    if wiki_dir.is_dir():
+        for path in sorted(wiki_dir.glob("**/*.md")):
+            add("Wiki", path)
+
+    specs_dir = root / "docs" / "superpowers" / "specs"
+    if specs_dir.is_dir():
+        for path in sorted(specs_dir.glob("*.md")):
+            add("Spec", path)
+
+    plans_dir = root / "docs" / "superpowers" / "plans"
+    if plans_dir.is_dir():
+        for path in sorted(plans_dir.glob("*.md")):
+            add("Plan", path)
+
+    # 일반 사용자 프로젝트 지원 — 루트 직속 .md (README 외)
+    for path in sorted(root.glob("*.md")):
+        add("Root", path)
+
+    # docs/ 하위 모든 .md (위 카테고리에 속하지 않은 것만 "Docs"로 잡힘)
+    docs_dir = root / "docs"
+    if docs_dir.is_dir():
+        for path in sorted(docs_dir.glob("**/*.md")):
+            add("Docs", path)
 
     return targets
 
