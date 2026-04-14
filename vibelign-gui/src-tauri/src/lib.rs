@@ -82,10 +82,20 @@ fn normalize_relative_doc_path(path: &std::path::Path) -> String {
 }
 
 fn is_allowed_doc_path(relative_path: &str) -> bool {
-    if relative_path == "PROJECT_CONTEXT.md" {
+    let lower = relative_path.to_ascii_lowercase();
+    if !lower.ends_with(".md") && !lower.ends_with(".markdown") {
+        return false;
+    }
+    // 경로 탈출 차단
+    if relative_path.contains("..") {
+        return false;
+    }
+    // docs/ 하위 markdown 전부 허용
+    if relative_path.starts_with("docs/") {
         return true;
     }
-    relative_path.starts_with("docs/") && relative_path.to_ascii_lowercase().ends_with(".md")
+    // 루트 직속 .md 허용 (서브디렉터리 X)
+    !relative_path.contains('/')
 }
 
 fn resolve_doc_path(root: &str, path: PathBuf) -> Result<(PathBuf, String), String> {
