@@ -26,6 +26,18 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
   const [isRebuilding, setIsRebuilding] = useState(false);
   const [rebuildMessage, setRebuildMessage] = useState<string | null>(null);
   const markdownPaneRef = useRef<HTMLDivElement | null>(null);
+  const layoutRef = useRef<HTMLDivElement | null>(null);
+  const [layoutWidth, setLayoutWidth] = useState(0);
+
+  useEffect(() => {
+    const updateWidth = () => {
+      setLayoutWidth(layoutRef.current?.getBoundingClientRect().width ?? window.innerWidth);
+    };
+
+    updateWidth();
+    window.addEventListener("resize", updateWidth);
+    return () => window.removeEventListener("resize", updateWidth);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -173,6 +185,9 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
     () => visual?.artifact.warnings.some((warning) => warning.startsWith("enhancement_partial_disabled:")) ?? false,
     [visual],
   );
+  const isMinimalLayout = layoutWidth > 0 && layoutWidth < 900;
+  const showSidebar = !isMinimalLayout;
+  const showVisualPane = !isMinimalLayout && Boolean(visual && trustState !== "enhanced-failed");
 
   async function handleRebuildArtifact() {
     if (!selectedPath || !projectDir) return;
@@ -228,8 +243,12 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
           <span style={{ fontSize: 11, color: "#666", fontWeight: 700 }}>PHASE 10</span>
       </div>
 
-      <div className="page-content" style={{ display: "grid", gridTemplateColumns: "280px minmax(0, 1fr)", gap: 16 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}>
+      <div
+        ref={layoutRef}
+        className="page-content"
+        style={{ display: "grid", gridTemplateColumns: showSidebar ? "280px minmax(0, 1fr)" : "minmax(0, 1fr)", gap: 16 }}
+      >
+        {showSidebar ? <div style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}>
           <DocsSidebar
             docs={docsIndex}
             query={query}
@@ -271,7 +290,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
             <div><span className="terminal-prompt">path</span>: {doc?.path ?? selectedPath ?? "none"}</div>
             <div><span className="terminal-prompt">source_hash</span>: {doc?.source_hash ?? "pending"}</div>
           </div>
-        </div>
+        </div> : null}
 
         <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 12 }}>
           {indexError ? (
@@ -307,19 +326,19 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
                 <div style={{ fontSize: 12, color: "#555" }}>{selectedDoc.category} · {selectedDoc.path}</div>
                 {visual ? (
                   <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, fontSize: 11 }}>
-                    <div><strong>sections</strong><div>{visual.artifact.sections.length}</div></div>
-                    <div><strong>actions</strong><div>{visual.artifact.action_items.length}</div></div>
-                    <div><strong>diagrams</strong><div>{visual.artifact.diagram_blocks.length}</div></div>
+                    <div><strong>sections</strong><div>{visual?.artifact.sections.length}</div></div>
+                    <div><strong>actions</strong><div>{visual?.artifact.action_items.length}</div></div>
+                    <div><strong>diagrams</strong><div>{visual?.artifact.diagram_blocks.length}</div></div>
                   </div>
                 ) : null}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: visual && trustState !== "enhanced-failed" ? "minmax(0, 1.2fr) minmax(320px, 0.8fr)" : "minmax(0, 1fr)", gap: 12, alignItems: "start" }}>
+              <div style={{ display: "grid", gridTemplateColumns: showVisualPane ? "minmax(0, 1.2fr) minmax(320px, 0.8fr)" : "minmax(0, 1fr)", gap: 12, alignItems: "start" }}>
                 <div style={{ minHeight: 0 }}>
                   <MarkdownPane content={doc.content} containerRef={markdownPaneRef} />
                 </div>
-                {visual && trustState !== "enhanced-failed" ? (
+                {showVisualPane && visual ? (
                   <div style={{ minWidth: 0 }}>
-                    <VisualSummaryPane artifact={visual.artifact} trustState={trustState} onPhaseSelect={handlePhaseSelect} />
+                    <VisualSummaryPane artifact={visual?.artifact} trustState={trustState} onPhaseSelect={handlePhaseSelect} />
                   </div>
                 ) : null}
               </div>
