@@ -60,7 +60,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
         if (!cancelled) {
           setDocsIndex([]);
           setSelectedPath(null);
-          setIndexError(err instanceof Error ? err.message : "문서 인덱스를 읽을 수 없어요");
+          setIndexError(err instanceof Error ? err.message : typeof err === "string" ? err : "문서 인덱스를 읽을 수 없어요");
           setIndexLoading(false);
         }
       });
