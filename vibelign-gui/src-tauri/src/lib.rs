@@ -133,6 +133,19 @@ fn python_commands() -> &'static [&'static str] {
     }
 }
 
+/// vib 바이너리와 같은 venv 안의 python 인터프리터 경로를 찾는다.
+/// uv tool로 설치된 경우 vibelign 패키지가 그 venv 안에만 있으므로,
+/// 시스템 python 대신 이 인터프리터를 써야 `python -m vibelign.core.docs_cache`가 동작한다.
+fn find_vib_python() -> Option<PathBuf> {
+    let vib = vib_path::find_vib()?;
+    let dir = vib.parent()?;
+    #[cfg(target_os = "windows")]
+    let candidates = [dir.join("python.exe"), dir.join("pythonw.exe")];
+    #[cfg(not(target_os = "windows"))]
+    let candidates = [dir.join("python3"), dir.join("python")];
+    candidates.iter().find(|p| p.is_file()).cloned()
+}
+
 /// Windows `canonicalize()` 가 반환하는 `\\?\` 접두사를 벗겨서
 /// Python 등 외부 프로세스가 경로를 올바르게 해석하도록 한다.
 fn strip_unc_prefix(p: PathBuf) -> PathBuf {
@@ -169,8 +182,17 @@ fn run_docs_cache_helper(root: &str, extra_args: &[&str]) -> Result<String, Stri
 
     let mut last_error = String::from("Python 실행 파일을 찾을 수 없어요");
 
+    // vib 옆 python을 우선 시도(uv tool venv 안에 vibelign 패키지가 있음).
+    let vib_python = find_vib_python();
+    let vib_python_str = vib_python.as_ref().map(|p| p.to_string_lossy().into_owned());
+    let mut python_candidates: Vec<&str> = Vec::new();
+    if let Some(s) = vib_python_str.as_deref() {
+        python_candidates.push(s);
+    }
+    python_candidates.extend(python_commands().iter().copied());
+
     for target in &targets {
-        for python in python_commands() {
+        for python in &python_candidates {
             let mut command = std::process::Command::new(python);
             match target {
                 DocsCacheTarget::File(path) => {
