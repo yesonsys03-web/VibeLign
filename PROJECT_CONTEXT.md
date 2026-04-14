@@ -10,10 +10,10 @@
 ## Session Handoff
 > ⚠️ This block is session-specific and time-sensitive. Read this first.
 
-Generated: 2026-04-14 18:47
-Handoff source: file_fallback
-Handoff quality: user-reviewed
-Latest checkpoint: md파일뷰어 완성
+Generated: 2026-04-15
+Handoff source: manual
+Handoff quality: user-confirmed
+Latest checkpoint: docs-index PyInstaller 번들 동작 확인 (Windows/macOS)
 
 VibeLign patch rules
 - Split composite requests into intent / source / destination / behavior_constraint
@@ -22,36 +22,44 @@ VibeLign patch rules
 - If patch contract or codespeak shape changes, update tests and docs together
 
 ### 오늘 작업 요약
-Reviewed and refined the VibeLign one-click install proposal around official Claude Code setup, phased delivery (v1 CMD/PowerShell, v1.1 WSL), implementation checklists, edge cases, and engineering task breakdown.
+윈도 GUI docs viewer에서 `vib docs-index`가 onefile 번들 런타임에
+풀리지 않은 `.py` 파일을 찾다가 FileNotFoundError로 터지던 문제를
+해결했다. 원인은 `spec_from_file_location`으로 형제 모듈을
+파일 경로 기반으로 로딩하던 두 지점 — `vib_docs_build_cmd.py`와
+`docs_visualizer.py`. 둘 다 일반 `from ... import ...` 으로 전환하고,
+spec의 hidden_imports에 `docs_cache`·`docs_visualizer` 보강.
+부수적으로 Tauri lib.rs에서 이제 불필요해진 Python 폴백 경로
+(python_commands / find_vib_python / DocsCacheTarget)도 제거했다.
+사용자 실기기에서 "이제 되네" 확인 완료.
 
 ### 완료된 작업
-- `f7c6eea` feat(gui): wire docs viewer file access
-  변경: vibelign-gui/package-lock.json, vibelign-gui/package.json, vibelign-gui/src-tauri/Cargo.lock, vibelign-gui/src-tauri/Cargo.toml, vibelign-gui/src-tauri/src/lib.rs, vibelign-gui/src/lib/vib.ts
-- `bc9f520` feat(gui): add docs viewer workspace
-  변경: vibelign-gui/src/App.tsx, vibelign-gui/src/components/docs/DocsSidebar.tsx, vibelign-gui/src/components/docs/MarkdownPane.tsx, vibelign-gui/src/components/docs/MermaidDiagram.tsx, vibelign-gui/src/components/docs/VisualSummaryPane.tsx, vibelign-gui/src/lib/docs.ts, vibelign-gui/src/pages/DocsViewer.tsx
-- `738456d` feat(docs): add docs build command
-  변경: tests/test_docs_build_cmd.py, vibelign/cli/cli_core_commands.py, vibelign/cli/vib_cli.py, vibelign/commands/vib_docs_build_cmd.py, vibelign/core/__init__.py, vibelign/core/meta_paths.py
-- `f3ecdc4` feat(docs): add visual artifact generation core
-  변경: tests/test_docs_visualizer.py, vibelign/core/docs_cache.py, vibelign/core/docs_visualizer.py
-- `ceeb2b9` docs(handoff): refine next action for docs viewer
-  변경: PROJECT_CONTEXT.md
-- `041880a` fix(plan): finalize docs viewer execution checklist
-  변경: docs/superpowers/plans/2026-04-13-docs-viewer-execution-plan.md
-- `9e03be1` chore(gui): 미완성 구조 계획 카드를 숨김
-  변경: vibelign-gui/src/hooks/useCardOrder.ts, vibelign-gui/src/pages/Home.tsx
-- `f75a9e2` feat(gui): 구조 계획 결과를 AI 검토 프롬프트로 정리
-  변경: vibelign-gui/src/components/cards/ai/PlanStructureCard.tsx
-- `335a07c` fix(plan): GUI 요청을 구조 계획에 반영
-  변경: tests/test_structure_planner.py, vibelign/cli/cli_command_groups.py, vibelign/commands/vib_plan_structure_cmd.py, vibelign/core/structure_planner.py
-- `5f831d3` docs(handoff): 구조 계획 세션 결정을 기록
-  변경: PROJECT_CONTEXT.md
+- `10a43a7` fix(pyinstaller): docs_visualizer도 일반 import로 전환
+  변경: vibelign/core/docs_visualizer.py
+- `db4bd80` fix(pyinstaller): docs-build/docs-index 모듈을 일반 import로 로드
+  변경: vibelign/commands/vib_docs_build_cmd.py, vib.spec
+- `b084356` refactor(gui): docs 인덱스 Python 폴백 경로 제거
+  변경: vibelign-gui/src-tauri/src/lib.rs
+- `29a7afa` feat(docs-viewer): 일반 사용자 프로젝트 markdown도 인덱싱
+  변경: vibelign/core/docs_cache.py, vibelign-gui/src/lib/docs.ts
+- `f6549f0` fix(build): vib_docs_build_cmd를 PyInstaller hidden_imports에 추가
+  변경: vib.spec
+- `f6490d7` feat(cli): vib docs-index 추가 — GUI sidecar 환경 지원
+  변경: vibelign/commands/vib_docs_build_cmd.py, vibelign/cli/cli_core_commands.py, vibelign/cli/vib_cli.py, vibelign-gui/src-tauri/src/lib.rs
+- `a986b6b` fix(gui): docs_cache 실행 시 vib venv 안의 python 우선 사용 (이후 29a7afa/b084356 로 폴백 자체 제거)
+- `0ecf0c3` fix(gui): docs_cache helper를 모듈 실행으로 fallback (이후 제거)
+- `449bd8b` fix(gui): Windows docs viewer 인덱스 로딩 실패 수정
 
 ### 변경 파일
-`.omc/project-memory.json`, `.omc/state/hud-state.json`, `.omc/state/hud-stdin-cache.json`, `PROJECT_CONTEXT.md`, `vibelign-gui/src/pages/DocsViewer.tsx` … (+2)
+모두 커밋/푸시 완료. 워킹 트리에는 untracked `.cursor/`,
+`docs/superpowers/plans/VibeLign-지식저장고-기획안.md` 만 남음.
 
 ### 후속 작업
-- 미완료: 커밋되지 않은 변경 7개 파일
-- 다음 할 일: Turn docs/superpowers/plans/VibeLign-원클릭설치-기획안_초안.md into issue-ready work items or continue tightening the proposal if needed.
+- vib sidecar + GUI 재빌드/재배포 배포본 만들기 (오늘 수정 반영).
+- `docs/superpowers/plans/VibeLign-원클릭설치-기획안_초안.md`
+  이슈 단위로 쪼개 Phase 1 작업 티켓화.
+- `vib_docs_build_cmd` / `docs_visualizer` 같은 "형제 모듈을
+  파일 경로로 로드" 패턴 유입 방지용 린트/검수 훅 검토.
+- untracked `지식저장고-기획안.md` 정식 커밋 여부 결정.
 
 
 ---
