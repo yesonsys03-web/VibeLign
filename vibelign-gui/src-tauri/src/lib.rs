@@ -1584,12 +1584,40 @@ fn uninstall_claude_code(app: tauri::AppHandle, state: tauri::State<OnboardingSt
         let claude_data_dir = profile.as_ref().map(|p| p.join(".claude"));
         let placeholder = windows_placeholder_artifact();
 
-        // 1) claude.exe 삭제
+        // 1) claude.exe 삭제 — 실행 중이면 먼저 프로세스를 종료
         if let Some(path) = &claude_exe {
             if path.exists() {
-                match std::fs::remove_file(path) {
-                    Ok(_) => append_onboarding_log(&state.0, "[uninstall] removed", &path.to_string_lossy()),
-                    Err(e) => append_onboarding_log(&state.0, "[uninstall] remove claude.exe failed", &format!("{}: {}", path.to_string_lossy(), e)),
+                // 실행 중인 claude / node(Ink) 프로세스를 우선 종료 (실패는 무시)
+                for image in ["claude.exe"] {
+                    let state_for_sink = Arc::clone(&state.0);
+                    let _ = run_command_capture_streamed(
+                        "taskkill",
+                        &["/F", "/IM", image, "/T"],
+                        &[],
+                        |title, line| append_onboarding_log(&state_for_sink, title, line),
+                    );
+                }
+
+                let mut removed = false;
+                let mut last_err: Option<String> = None;
+                for attempt in 0..5 {
+                    match std::fs::remove_file(path) {
+                        Ok(_) => { removed = true; break; }
+                        Err(e) => {
+                            last_err = Some(e.to_string());
+                            std::thread::sleep(std::time::Duration::from_millis(200 + 200 * attempt));
+                        }
+                    }
+                }
+                if removed {
+                    append_onboarding_log(&state.0, "[uninstall] removed", &path.to_string_lossy());
+                } else {
+                    let msg = last_err.unwrap_or_else(|| "unknown".to_string());
+                    append_onboarding_log(
+                        &state.0,
+                        "[uninstall] remove claude.exe failed",
+                        &format!("{}: {} — 실행 중인 터미널/에이전트를 모두 닫고 다시 시도하세요.", path.to_string_lossy(), msg),
+                    );
                 }
             } else {
                 append_onboarding_log(&state.0, "[uninstall] skip", &format!("{} 가 이미 없음", path.to_string_lossy()));
@@ -1648,11 +1676,21 @@ fn uninstall_claude_code(app: tauri::AppHandle, state: tauri::State<OnboardingSt
             }
         }
 
-        append_onboarding_log(&state.0, "[uninstall] done", "삭제가 끝났어요. 새 터미널에서 `claude` 가 더 이상 실행되지 않으면 완전히 정리된 거예요.");
+        let exe_still_exists = claude_exe.as_ref().map(|p| p.exists()).unwrap_or(false);
+        if exe_still_exists {
+            append_onboarding_log(&state.0, "[uninstall] incomplete", "claude.exe 를 지우지 못했어요. 열려 있는 터미널·VS Code·에이전트를 모두 닫고 다시 '완전 삭제'를 눌러 주세요.");
+        } else {
+            append_onboarding_log(&state.0, "[uninstall] done", "삭제가 끝났어요. 새 터미널을 열어 `claude` 가 더 이상 인식되지 않는지 확인해 주세요.");
+        }
 
         let mut snapshot = build_initial_onboarding_snapshot();
-        snapshot.headline = "Claude Code 를 깨끗이 삭제했어요".to_string();
-        snapshot.detail = Some("binary, 설정 폴더(.claude), 빈 PATH 항목까지 정리했어요. 다시 설치하려면 위의 '자동 설치 시작' 을 다시 눌러 주세요.".to_string());
+        if exe_still_exists {
+            snapshot.headline = "삭제를 완료하지 못했어요".to_string();
+            snapshot.detail = Some("claude.exe 가 다른 프로세스(열린 터미널 등)에서 잠겨 있어요. 모두 닫고 다시 '완전 삭제' 버튼을 눌러 주세요.".to_string());
+        } else {
+            snapshot.headline = "Claude Code 를 깨끗이 삭제했어요".to_string();
+            snapshot.detail = Some("binary, 설정 폴더(.claude), 빈 PATH 항목까지 정리했어요. 다시 설치하려면 위의 '자동 설치 시작' 을 다시 눌러 주세요.".to_string());
+        }
         snapshot.logs_available = onboarding_logs_available_from_state(&state.0);
         store_onboarding_snapshot(&state.0, &snapshot);
         emit_onboarding_progress(&app, OnboardingProgressEvent {
