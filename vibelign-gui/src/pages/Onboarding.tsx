@@ -2,7 +2,21 @@
 import { useState, useEffect } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { getVibPath, loadProviderApiKeys, vibStart, readProjectSummary, checkGitInstalled } from "../lib/vib";
+import {
+  getVibPath,
+  loadProviderApiKeys,
+  vibStart,
+  readProjectSummary,
+  checkGitInstalled,
+  getOnboardingSnapshot,
+  listenOnboardingProgress,
+  retryOnboardingVerification,
+  startNativeInstall,
+  startOnboardingLoginProbe,
+  type NextAction,
+  type OnboardingProgressEvent,
+  type OnboardingSnapshot,
+} from "../lib/vib";
 import { getHelpAnswer, resolveHelpAnswer } from "../lib/helpData";
 
 const VIBELIGN_GITHUB_URL = "https://github.com/yesonsys03-web/VibeLign.git";
@@ -141,10 +155,28 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   const [termLines, setTermLines] = useState<TermLine[]>(TERMINAL_LINES_DEFAULT);
   const [animStep, setAnimStep] = useState(TERMINAL_LINES_DEFAULT.length);
   const [termDetail, setTermDetail] = useState<string | null>(null);
+  const [onboardingSnapshot, setOnboardingSnapshot] = useState<OnboardingSnapshot | null>(null);
+  const [onboardingProgress, setOnboardingProgress] = useState<OnboardingProgressEvent | null>(null);
+  const [onboardingBusy, setOnboardingBusy] = useState(false);
 
   useEffect(() => {
     getVibPath().then((p) => { setVibFound(p); setVibChecking(false); });
     checkGitInstalled().then(setGitInstalled).catch(() => setGitInstalled(false));
+    getOnboardingSnapshot().then(setOnboardingSnapshot).catch(() => setOnboardingSnapshot(null));
+
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    listenOnboardingProgress((event) => {
+      if (!active) return;
+      setOnboardingProgress(event);
+    })
+      .then((fn) => { unlisten = fn; })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+      unlisten?.();
+    };
   }, []);
 
   // 최근 프로젝트 요약 로드 — git repo가 아닌 경로는 건너뜀
@@ -227,6 +259,32 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
       setHelpLoading(false);
     }
   }
+
+  async function handleOnboardingPrimaryAction(nextAction: NextAction) {
+    setOnboardingBusy(true);
+    try {
+      if (nextAction === "start_install") {
+        const preferredPathKind = onboardingSnapshot?.installPathKind === "native-powershell" || onboardingSnapshot?.installPathKind === "native-cmd"
+          ? onboardingSnapshot.installPathKind
+          : onboardingSnapshot?.os === "windows"
+          ? "native-powershell"
+          : "native-cmd";
+        setOnboardingSnapshot(await startNativeInstall(preferredPathKind));
+      } else if (nextAction === "install_git") {
+        await openUrl("https://git-scm.com/download/win").catch(() => {});
+      } else if (nextAction === "retry_with_cmd") {
+        setOnboardingSnapshot(await startNativeInstall("native-cmd"));
+      } else if (nextAction === "retry") {
+        setOnboardingSnapshot(await retryOnboardingVerification());
+      } else if (nextAction === "start_login") {
+        setOnboardingSnapshot(await startOnboardingLoginProbe());
+      }
+    } finally {
+      setOnboardingBusy(false);
+    }
+  }
+
+  const onboardingPrimaryActionEnabled = !!onboardingSnapshot && ["start_install", "install_git", "retry", "retry_with_cmd", "start_login"].includes(onboardingSnapshot.nextAction);
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -357,6 +415,63 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
             </div>
           );
         })()}
+
+        {onboardingSnapshot && (
+          <div
+            style={{
+              border: "2px solid #1A1A1A",
+              background: onboardingSnapshot.state === "success" ? "#F2FFF7" : "#FFF8E8",
+              padding: "10px 14px",
+              marginBottom: 10,
+            }}
+          >
+            <div style={{ fontSize: 10, fontWeight: 800, color: "#666", marginBottom: 5 }}>
+              CLAUDE CODE ONBOARDING
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "#1A1A1A", marginBottom: 4 }}>
+              {onboardingSnapshot.headline}
+            </div>
+            {onboardingSnapshot.detail && (
+              <div style={{ fontSize: 11, color: "#555", lineHeight: 1.6, marginBottom: 8 }}>
+                {onboardingSnapshot.detail}
+              </div>
+            )}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: onboardingProgress || onboardingSnapshot.lastError ? 8 : 0 }}>
+              <span className="badge" style={{ fontSize: 10 }}>state: {onboardingSnapshot.state}</span>
+              <span className="badge" style={{ fontSize: 10 }}>os: {onboardingSnapshot.os}</span>
+              <span className="badge" style={{ fontSize: 10 }}>path: {onboardingSnapshot.installPathKind}</span>
+              <span className="badge" style={{ fontSize: 10 }}>next: {onboardingSnapshot.nextAction}</span>
+            </div>
+            {onboardingProgress && (
+              <div style={{ fontSize: 11, color: "#555", marginBottom: onboardingSnapshot.lastError ? 6 : 8 }}>
+                진행 상태: {onboardingProgress.phase} / {onboardingProgress.stepId} / {onboardingProgress.status} — {onboardingProgress.message}
+              </div>
+            )}
+            {onboardingSnapshot.lastError && (
+              <div style={{ fontSize: 11, color: "#A14B00", marginBottom: 8, lineHeight: 1.55 }}>
+                {onboardingSnapshot.lastError.summary}
+              </div>
+            )}
+            {onboardingPrimaryActionEnabled && onboardingSnapshot.primaryButtonLabel && (
+              <button
+                type="button"
+                onClick={() => handleOnboardingPrimaryAction(onboardingSnapshot.nextAction)}
+                disabled={onboardingBusy}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: "5px 12px",
+                  border: "2px solid #1A1A1A",
+                  background: onboardingBusy ? "#DDD" : "#F5621E",
+                  color: onboardingBusy ? "#666" : "#fff",
+                  cursor: onboardingBusy ? "default" : "pointer",
+                }}
+              >
+                {onboardingBusy ? "처리 중..." : onboardingSnapshot.primaryButtonLabel}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* 기능 카드 그리드 */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>

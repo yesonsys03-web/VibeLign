@@ -4,6 +4,7 @@
  * 모든 vib CLI 접근은 이 모듈을 통한다.
  */
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
 
 export async function pickFile(defaultPath?: string): Promise<string | null> {
@@ -88,9 +89,125 @@ export interface VibResult {
   exit_code: number;
 }
 
+export type OnboardingState =
+  | "idle"
+  | "diagnosing"
+  | "needs_git"
+  | "ready_to_install"
+  | "installing_native"
+  | "installing_wsl"
+  | "verifying_shells"
+  | "needs_cmd_fallback"
+  | "needs_wsl_fallback"
+  | "needs_manual_step"
+  | "login_required"
+  | "probing_login"
+  | "success"
+  | "blocked";
+
+export type NextAction =
+  | "start_install"
+  | "install_git"
+  | "retry"
+  | "retry_with_cmd"
+  | "continue_with_wsl"
+  | "open_manual_steps"
+  | "start_login"
+  | "launch_claude"
+  | "share_logs"
+  | "none";
+
+export type InstallPathKind = "native-powershell" | "native-cmd" | "wsl" | "manual" | "unknown";
+
+export interface OnboardingDiagnostics {
+  gitInstalled?: boolean;
+  wslAvailable?: boolean;
+  claudeOnPath?: boolean;
+  claudeVersionOk?: boolean;
+  claudeDoctorOk?: boolean;
+  loginStatusKnown?: boolean;
+}
+
+export interface OnboardingLastError {
+  code:
+    | "missing_git"
+    | "exec_policy_blocked"
+    | "installer_false_success"
+    | "installer_oom"
+    | "placeholder_artifact"
+    | "command_not_found"
+    | "login_probe_failed"
+    | "unsupported_environment"
+    | "unknown";
+  summary: string;
+  detail?: string;
+  suggestedAction?: NextAction;
+}
+
+export interface OnboardingSnapshot {
+  state: OnboardingState;
+  os: "macos" | "windows" | "linux";
+  installPathKind: InstallPathKind;
+  shellTargets: string[];
+  nextAction: NextAction;
+  headline: string;
+  detail?: string;
+  primaryButtonLabel?: string;
+  logsAvailable: boolean;
+  diagnostics: OnboardingDiagnostics;
+  lastError?: OnboardingLastError;
+}
+
+export interface OnboardingProgressEvent {
+  phase: "diagnose" | "install" | "verify" | "login";
+  state: OnboardingState;
+  stepId:
+    | "check_os"
+    | "check_git"
+    | "run_powershell_installer"
+    | "run_cmd_installer"
+    | "run_wsl_installer"
+    | "verify_version"
+    | "verify_doctor"
+    | "probe_login"
+    | "complete";
+  status: "started" | "stream" | "succeeded" | "failed";
+  message: string;
+  streamChunk?: string;
+  shellTarget?: string;
+  observedPath?: string;
+  errorCode?: OnboardingLastError["code"];
+}
+
 /** vib 실행 파일 경로 반환. 없으면 null. */
 export async function getVibPath(): Promise<string | null> {
   return invoke<string | null>("get_vib_path");
+}
+
+export async function getOnboardingSnapshot(): Promise<OnboardingSnapshot> {
+  return invoke<OnboardingSnapshot>("get_onboarding_snapshot");
+}
+
+export async function startNativeInstall(pathKind: "native-powershell" | "native-cmd"): Promise<OnboardingSnapshot> {
+  return invoke<OnboardingSnapshot>("start_native_install", { pathKind });
+}
+
+export async function retryOnboardingVerification(): Promise<OnboardingSnapshot> {
+  return invoke<OnboardingSnapshot>("retry_verification");
+}
+
+export async function startOnboardingLoginProbe(): Promise<OnboardingSnapshot> {
+  return invoke<OnboardingSnapshot>("start_login_probe");
+}
+
+export async function getOnboardingLogs(): Promise<{ text: string }> {
+  return invoke<{ text: string }>("get_onboarding_logs");
+}
+
+export async function listenOnboardingProgress(
+  handler: (event: OnboardingProgressEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<OnboardingProgressEvent>("onboarding_progress", (event) => handler(event.payload));
 }
 
 /** GUI에서 캡처한 문자열이 터미널에서 Rich 없이 볼 때와 같도록 plain 출력을 강제한다. */

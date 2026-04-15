@@ -11,6 +11,459 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::Emitter;
 
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct OnboardingLastError {
+    code: String,
+    summary: String,
+    detail: Option<String>,
+    suggested_action: Option<String>,
+}
+
+#[derive(Serialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct OnboardingDiagnostics {
+    git_installed: Option<bool>,
+    wsl_available: Option<bool>,
+    claude_on_path: Option<bool>,
+    claude_version_ok: Option<bool>,
+    claude_doctor_ok: Option<bool>,
+    login_status_known: Option<bool>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct OnboardingSnapshot {
+    state: String,
+    os: String,
+    install_path_kind: String,
+    shell_targets: Vec<String>,
+    next_action: String,
+    headline: String,
+    detail: Option<String>,
+    primary_button_label: Option<String>,
+    logs_available: bool,
+    diagnostics: OnboardingDiagnostics,
+    last_error: Option<OnboardingLastError>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct OnboardingProgressEvent {
+    phase: String,
+    state: String,
+    step_id: String,
+    status: String,
+    message: String,
+    stream_chunk: Option<String>,
+    shell_target: Option<String>,
+    observed_path: Option<String>,
+    error_code: Option<String>,
+}
+
+#[derive(Default)]
+struct OnboardingRuntime {
+    snapshot: Option<OnboardingSnapshot>,
+    logs: String,
+}
+
+struct OnboardingState(Arc<Mutex<OnboardingRuntime>>);
+
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum StartNativeInstallPathKind {
+    NativePowershell,
+    NativeCmd,
+}
+
+impl StartNativeInstallPathKind {
+    fn as_contract_value(&self) -> &'static str {
+        match self {
+            Self::NativePowershell => "native-powershell",
+            Self::NativeCmd => "native-cmd",
+        }
+    }
+}
+
+fn current_onboarding_os() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        "linux"
+    }
+}
+
+fn contract_shell_targets(os: &str) -> Vec<String> {
+    match os {
+        "windows" => vec!["powershell".into(), "cmd".into(), "wsl".into()],
+        "macos" => vec!["zsh".into(), "bash".into()],
+        _ => vec!["bash".into()],
+    }
+}
+
+fn onboarding_logs_available() -> bool {
+    false
+}
+
+#[cfg(target_os = "windows")]
+fn push_onboarding_log(runtime: &mut OnboardingRuntime, title: &str, text: &str) {
+    if text.trim().is_empty() {
+        return;
+    }
+    if !runtime.logs.is_empty() {
+        runtime.logs.push_str("\n\n");
+    }
+    runtime.logs.push_str(title);
+    runtime.logs.push_str("\n");
+    runtime.logs.push_str(text.trim());
+}
+
+fn store_onboarding_snapshot(state: &Arc<Mutex<OnboardingRuntime>>, snapshot: &OnboardingSnapshot) {
+    if let Ok(mut runtime) = state.lock() {
+        runtime.snapshot = Some(snapshot.clone());
+    }
+}
+
+fn build_initial_onboarding_snapshot() -> OnboardingSnapshot {
+    let mut snapshot = build_onboarding_snapshot();
+    snapshot.logs_available = false;
+    snapshot
+}
+
+fn build_onboarding_snapshot() -> OnboardingSnapshot {
+    let os = current_onboarding_os().to_string();
+    let shell_targets = contract_shell_targets(&os);
+    #[cfg(target_os = "windows")]
+    let git_installed = Some(check_git_installed());
+    #[cfg(not(target_os = "windows"))]
+    let git_installed = None;
+
+    let (state, next_action, headline, detail, primary_button_label, last_error) =
+        if os == "windows" && git_installed == Some(false) {
+            (
+                "needs_git".to_string(),
+                "install_git".to_string(),
+                "Git for Windows가 먼저 필요해요".to_string(),
+                Some("Windows native Claude Code 설치를 시작하기 전에 Git for Windows를 설치한 뒤 다시 확인해야 해요.".to_string()),
+                Some("Git 설치 후 다시 확인".to_string()),
+                Some(OnboardingLastError {
+                    code: "missing_git".to_string(),
+                    summary: "Git for Windows가 설치되어 있지 않아요.".to_string(),
+                    detail: Some("공식 Claude Code Windows native 설치는 Git for Windows를 전제로 해요.".to_string()),
+                    suggested_action: Some("install_git".to_string()),
+                }),
+            )
+        } else {
+            (
+                "ready_to_install".to_string(),
+                "start_install".to_string(),
+                "Claude Code 자동 설치를 시작할 수 있어요".to_string(),
+                Some("공식 설치 경로를 먼저 시도하고, 실패하면 다음 성공 경로로 안내할게요.".to_string()),
+                Some("자동 설치 시작".to_string()),
+                None,
+            )
+        };
+
+    OnboardingSnapshot {
+        state,
+        os,
+        install_path_kind: "unknown".to_string(),
+        shell_targets,
+        next_action,
+        headline,
+        detail,
+        primary_button_label,
+        logs_available: onboarding_logs_available(),
+        diagnostics: OnboardingDiagnostics {
+            git_installed,
+            wsl_available: None,
+            claude_on_path: None,
+            claude_version_ok: None,
+            claude_doctor_ok: None,
+            login_status_known: None,
+        },
+        last_error,
+    }
+}
+
+fn emit_onboarding_progress(app: &tauri::AppHandle, event: OnboardingProgressEvent) {
+    let _ = app.emit("onboarding_progress", event);
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Clone)]
+struct CommandCapture {
+    ok: bool,
+    stdout: String,
+    stderr: String,
+    exit_code: i32,
+}
+
+#[cfg(target_os = "windows")]
+fn run_command_capture(
+    program: &str,
+    args: &[&str],
+    env_overrides: &[(&str, String)],
+) -> Result<CommandCapture, String> {
+    let mut cmd = std::process::Command::new(program);
+    cmd.args(args);
+    cmd.stdin(std::process::Stdio::null());
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
+    for (key, value) in env_overrides {
+        cmd.env(key, value);
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let output = cmd.output().map_err(|e| e.to_string())?;
+    Ok(CommandCapture {
+        ok: output.status.success(),
+        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        exit_code: output.status.code().unwrap_or(-1),
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn read_windows_user_path() -> Option<String> {
+    let output = run_command_capture("reg", &["query", r"HKCU\Environment", "/v", "Path"], &[]).ok()?;
+    if !output.ok {
+        return None;
+    }
+    output.stdout.lines().find_map(|line| {
+        let marker = line.find("REG_")?;
+        let after_marker = &line[marker..];
+        let value_start = after_marker.find(char::is_whitespace)?;
+        let value = after_marker[value_start..].trim();
+        if value.is_empty() {
+            return None;
+        }
+        Some(value.to_string())
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn merge_windows_path() -> Option<String> {
+    let current = std::env::var("PATH").ok().unwrap_or_default();
+    let user = read_windows_user_path().unwrap_or_default();
+    if user.is_empty() {
+        return if current.is_empty() { None } else { Some(current) };
+    }
+    if current.is_empty() {
+        return Some(user);
+    }
+    Some(format!("{};{}", current, user))
+}
+
+#[cfg(target_os = "windows")]
+fn windows_user_profile() -> Option<PathBuf> {
+    std::env::var("USERPROFILE").ok().map(PathBuf::from)
+}
+
+#[cfg(target_os = "windows")]
+fn windows_placeholder_artifact() -> Option<PathBuf> {
+    windows_user_profile().map(|p| p.join("claude"))
+}
+
+#[cfg(target_os = "windows")]
+fn windows_placeholder_artifact_exists() -> bool {
+    let Some(path) = windows_placeholder_artifact() else {
+        return false;
+    };
+    std::fs::metadata(path).map(|m| m.is_file() && m.len() == 0).unwrap_or(false)
+}
+
+#[cfg(target_os = "windows")]
+fn windows_expected_claude_path() -> Option<PathBuf> {
+    windows_user_profile().map(|p| p.join(".local").join("bin").join("claude.exe"))
+}
+
+#[cfg(target_os = "windows")]
+fn verify_windows_shells(runtime: &mut OnboardingRuntime, app: &tauri::AppHandle, install_path_kind: &str) -> OnboardingSnapshot {
+    let mut snapshot = build_onboarding_snapshot();
+    snapshot.state = "verifying_shells".to_string();
+    snapshot.install_path_kind = install_path_kind.to_string();
+    snapshot.next_action = "none".to_string();
+    snapshot.headline = "새 셸에서 Claude 설치를 검증하는 중이에요".to_string();
+    snapshot.detail = Some("PowerShell과 CMD에서 `claude` 실행 가능 여부를 확인하고 있어요.".to_string());
+    snapshot.primary_button_label = None;
+    snapshot.logs_available = !runtime.logs.trim().is_empty();
+    emit_onboarding_progress(app, OnboardingProgressEvent {
+        phase: "verify".to_string(),
+        state: snapshot.state.clone(),
+        step_id: "verify_version".to_string(),
+        status: "started".to_string(),
+        message: "새 셸에서 `claude --version` 과 `claude doctor` 를 확인하는 중이에요.".to_string(),
+        stream_chunk: None,
+        shell_target: None,
+        observed_path: None,
+        error_code: None,
+    });
+
+    let merged_path = merge_windows_path();
+    let env_overrides: Vec<(&str, String)> = merged_path.clone().map(|p| vec![("PATH", p)]).unwrap_or_default();
+    let where_result = run_command_capture("cmd", &["/C", "where.exe claude"], &env_overrides).ok();
+    if let Some(result) = &where_result {
+        push_onboarding_log(runtime, "[verify where.exe claude stdout]", &result.stdout);
+        push_onboarding_log(runtime, "[verify where.exe claude stderr]", &result.stderr);
+    }
+    let claude_on_path = where_result.as_ref().map(|r| r.ok && !r.stdout.trim().is_empty()).unwrap_or(false);
+    let observed_path = where_result
+        .as_ref()
+        .and_then(|r| r.stdout.lines().next())
+        .map(|s| s.trim().to_string())
+        .or_else(|| windows_expected_claude_path().map(|p| p.to_string_lossy().to_string()));
+
+    let cmd_version = run_command_capture("cmd", &["/C", "claude --version"], &env_overrides).ok();
+    if let Some(result) = &cmd_version {
+        push_onboarding_log(runtime, "[verify cmd claude --version stdout]", &result.stdout);
+        push_onboarding_log(runtime, "[verify cmd claude --version stderr]", &result.stderr);
+    }
+    let ps_version = run_command_capture("powershell", &["-NoProfile", "-Command", "claude --version"], &env_overrides).ok();
+    if let Some(result) = &ps_version {
+        push_onboarding_log(runtime, "[verify powershell claude --version stdout]", &result.stdout);
+        push_onboarding_log(runtime, "[verify powershell claude --version stderr]", &result.stderr);
+    }
+    let doctor_result = run_command_capture("cmd", &["/C", "claude doctor"], &env_overrides).ok();
+    if let Some(result) = &doctor_result {
+        push_onboarding_log(runtime, "[verify claude doctor stdout]", &result.stdout);
+        push_onboarding_log(runtime, "[verify claude doctor stderr]", &result.stderr);
+    }
+
+    let claude_version_ok = cmd_version.as_ref().map(|r| r.ok).unwrap_or(false)
+        || ps_version.as_ref().map(|r| r.ok).unwrap_or(false);
+    let claude_doctor_ok = doctor_result.as_ref().map(|r| r.ok).unwrap_or(false);
+
+    snapshot.logs_available = !runtime.logs.trim().is_empty();
+    snapshot.diagnostics.git_installed = Some(check_git_installed());
+    snapshot.diagnostics.wsl_available = None;
+    snapshot.diagnostics.claude_on_path = Some(claude_on_path);
+    snapshot.diagnostics.claude_version_ok = Some(claude_version_ok);
+    snapshot.diagnostics.claude_doctor_ok = Some(claude_doctor_ok);
+    snapshot.diagnostics.login_status_known = Some(false);
+
+    if windows_placeholder_artifact_exists() {
+        snapshot.state = "needs_manual_step".to_string();
+        snapshot.next_action = "none".to_string();
+        snapshot.headline = "설치가 비정상 placeholder 파일을 남겼어요".to_string();
+        snapshot.detail = Some("0-byte `claude` artifact 가 감지되어 자동 설치를 신뢰할 수 없어요. 더 큰 Windows 환경이나 수동 정리 후 재시도가 필요해요.".to_string());
+        snapshot.last_error = Some(OnboardingLastError {
+            code: "placeholder_artifact".to_string(),
+            summary: "`claude` 실행 파일 대신 0-byte placeholder artifact 가 남았어요.".to_string(),
+            detail: windows_placeholder_artifact().map(|p| p.to_string_lossy().to_string()),
+            suggested_action: None,
+        });
+        emit_onboarding_progress(app, OnboardingProgressEvent {
+            phase: "verify".to_string(),
+            state: snapshot.state.clone(),
+            step_id: "verify_version".to_string(),
+            status: "failed".to_string(),
+            message: "0-byte placeholder artifact 가 감지되어 설치를 실패로 분류했어요.".to_string(),
+            stream_chunk: None,
+            shell_target: None,
+            observed_path,
+            error_code: Some("placeholder_artifact".to_string()),
+        });
+        return snapshot;
+    }
+
+    if claude_on_path && claude_version_ok && claude_doctor_ok {
+        snapshot.state = "login_required".to_string();
+        snapshot.next_action = "start_login".to_string();
+        snapshot.headline = "Claude Code 설치 검증이 끝났어요".to_string();
+        snapshot.detail = Some("새 셸에서 `claude --version` 과 `claude doctor` 가 통과했어요. 이제 로그인만 하면 돼요.".to_string());
+        snapshot.primary_button_label = Some("로그인 확인 시작".to_string());
+        emit_onboarding_progress(app, OnboardingProgressEvent {
+            phase: "verify".to_string(),
+            state: snapshot.state.clone(),
+            step_id: "verify_doctor".to_string(),
+            status: "succeeded".to_string(),
+            message: "새 셸 검증이 통과했어요.".to_string(),
+            stream_chunk: None,
+            shell_target: None,
+            observed_path,
+            error_code: None,
+        });
+        return snapshot;
+    }
+
+    let doctor_failed = !claude_doctor_ok;
+    snapshot.state = if !claude_on_path || !claude_version_ok {
+        "needs_cmd_fallback".to_string()
+    } else {
+        "needs_manual_step".to_string()
+    };
+    snapshot.next_action = if snapshot.state == "needs_cmd_fallback" {
+        "retry_with_cmd".to_string()
+    } else {
+        "none".to_string()
+    };
+    snapshot.headline = if snapshot.state == "needs_cmd_fallback" {
+        "PowerShell 경로 검증이 불안정했어요".to_string()
+    } else {
+        "설치 검증이 완전히 통과하지 않았어요".to_string()
+    };
+    snapshot.detail = Some(if doctor_failed {
+        "`claude --version` 또는 `claude doctor` 가 새 셸에서 실패했어요. 자동 설치 성공 문자열만으로는 완료 처리하지 않아요.".to_string()
+    } else {
+        "새 셸에서 `claude` 실행 가능 여부를 확인하지 못했어요. CMD fallback 이나 수동 점검이 필요해요.".to_string()
+    });
+    snapshot.primary_button_label = if snapshot.state == "needs_cmd_fallback" {
+        Some("CMD로 다시 시도".to_string())
+    } else {
+        None
+    };
+    snapshot.last_error = Some(OnboardingLastError {
+        code: "installer_false_success".to_string(),
+        summary: "설치 스크립트가 끝났지만 새 셸 검증은 통과하지 못했어요.".to_string(),
+        detail: Some(format!(
+            "claudeOnPath={}, claudeVersionOk={}, claudeDoctorOk={}",
+            claude_on_path, claude_version_ok, claude_doctor_ok
+        )),
+        suggested_action: if snapshot.state == "needs_cmd_fallback" {
+            Some("retry_with_cmd".to_string())
+        } else {
+            None
+        },
+    });
+    emit_onboarding_progress(app, OnboardingProgressEvent {
+        phase: "verify".to_string(),
+        state: snapshot.state.clone(),
+        step_id: if doctor_failed { "verify_doctor".to_string() } else { "verify_version".to_string() },
+        status: "failed".to_string(),
+        message: "새 셸 검증이 실패해 설치를 false-success 로 분류했어요.".to_string(),
+        stream_chunk: None,
+        shell_target: None,
+        observed_path,
+        error_code: Some("installer_false_success".to_string()),
+    });
+    snapshot
+}
+
+#[cfg(not(target_os = "windows"))]
+fn verify_windows_shells(_runtime: &mut OnboardingRuntime, _app: &tauri::AppHandle, _install_path_kind: &str) -> OnboardingSnapshot {
+    let mut snapshot = build_onboarding_snapshot();
+    snapshot.state = "blocked".to_string();
+    snapshot.next_action = "none".to_string();
+    snapshot.headline = "이 구현 slice는 Windows native 설치 전용이에요".to_string();
+    snapshot.detail = Some("macOS/Linux onboarding install execution 은 다음 단계에서 별도로 연결합니다.".to_string());
+    snapshot.last_error = Some(OnboardingLastError {
+        code: "unsupported_environment".to_string(),
+        summary: "현재 환경에서는 Windows native install runner 를 실행할 수 없어요.".to_string(),
+        detail: None,
+        suggested_action: None,
+    });
+    snapshot
+}
+
 // ─── 폴더 열기 ────────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -553,6 +1006,263 @@ fn setup_cli_path() -> Result<String, String> {
     vib_path::install_cli_to_path()
 }
 
+#[tauri::command]
+fn get_onboarding_snapshot(state: tauri::State<OnboardingState>) -> OnboardingSnapshot {
+    state
+        .0
+        .lock()
+        .ok()
+        .and_then(|runtime| runtime.snapshot.clone())
+        .unwrap_or_else(build_initial_onboarding_snapshot)
+}
+
+#[tauri::command]
+fn start_native_install(
+    app: tauri::AppHandle,
+    state: tauri::State<OnboardingState>,
+    path_kind: StartNativeInstallPathKind,
+) -> OnboardingSnapshot {
+    let mut snapshot = build_initial_onboarding_snapshot();
+    snapshot.state = "installing_native".to_string();
+    snapshot.install_path_kind = path_kind.as_contract_value().to_string();
+    snapshot.next_action = "none".to_string();
+    snapshot.headline = "Claude Code 설치를 시작하는 중이에요".to_string();
+    snapshot.detail = Some("공식 설치 스크립트를 실행한 뒤 새 셸에서 바로 검증합니다.".to_string());
+    snapshot.primary_button_label = None;
+    store_onboarding_snapshot(&state.0, &snapshot);
+
+    let step_id = match path_kind {
+        StartNativeInstallPathKind::NativePowershell => "run_powershell_installer",
+        StartNativeInstallPathKind::NativeCmd => "run_cmd_installer",
+    };
+    let shell_target = match path_kind {
+        StartNativeInstallPathKind::NativePowershell => Some("powershell".to_string()),
+        StartNativeInstallPathKind::NativeCmd => Some("cmd".to_string()),
+    };
+
+    emit_onboarding_progress(&app, OnboardingProgressEvent {
+        phase: "install".to_string(),
+        state: snapshot.state.clone(),
+        step_id: step_id.to_string(),
+        status: "started".to_string(),
+        message: "공식 설치 스크립트를 실행하는 중이에요.".to_string(),
+        stream_chunk: None,
+        shell_target: shell_target.clone(),
+        observed_path: None,
+        error_code: None,
+    });
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let mut unsupported = build_initial_onboarding_snapshot();
+        unsupported.state = "blocked".to_string();
+        unsupported.install_path_kind = path_kind.as_contract_value().to_string();
+        unsupported.next_action = "none".to_string();
+        unsupported.headline = "이 구현 slice는 Windows native install 전용이에요".to_string();
+        unsupported.detail = Some("macOS/Linux install execution 은 다음 slice 에서 연결합니다.".to_string());
+        unsupported.primary_button_label = None;
+        unsupported.last_error = Some(OnboardingLastError {
+            code: "unsupported_environment".to_string(),
+            summary: "현재 OS 에서는 Windows native install 경로를 실행할 수 없어요.".to_string(),
+            detail: None,
+            suggested_action: None,
+        });
+        store_onboarding_snapshot(&state.0, &unsupported);
+        return unsupported;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if !check_git_installed() {
+            let missing = build_initial_onboarding_snapshot();
+            store_onboarding_snapshot(&state.0, &missing);
+            return missing;
+        }
+
+        let env_overrides: Vec<(&str, String)> = merge_windows_path().map(|p| vec![("PATH", p)]).unwrap_or_default();
+        let installer = match path_kind {
+            StartNativeInstallPathKind::NativePowershell => run_command_capture(
+                "powershell",
+                &["-NoProfile", "-Command", "irm https://claude.ai/install.ps1 | iex"],
+                &env_overrides,
+            ),
+            StartNativeInstallPathKind::NativeCmd => run_command_capture(
+                "cmd",
+                &[
+                    "/C",
+                    "curl -fsSL https://claude.ai/install.cmd -o \"%TEMP%\\vibelign-claude-install.cmd\" && \"%TEMP%\\vibelign-claude-install.cmd\" && del \"%TEMP%\\vibelign-claude-install.cmd\"",
+                ],
+                &env_overrides,
+            ),
+        };
+
+        let mut runtime = match state.0.lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                let mut failed = build_initial_onboarding_snapshot();
+                failed.state = "blocked".to_string();
+                failed.next_action = "none".to_string();
+                failed.headline = "온보딩 상태를 기록할 수 없어요".to_string();
+                failed.last_error = Some(OnboardingLastError {
+                    code: "unknown".to_string(),
+                    summary: "온보딩 상태 락을 획득하지 못했어요.".to_string(),
+                    detail: None,
+                    suggested_action: None,
+                });
+                return failed;
+            }
+        };
+        runtime.logs.clear();
+
+        let snapshot = match installer {
+            Ok(result) => {
+                push_onboarding_log(&mut runtime, "[installer stdout]", &result.stdout);
+                push_onboarding_log(&mut runtime, "[installer stderr]", &result.stderr);
+                let combined = format!("{}\n{}", result.stdout, result.stderr).to_ascii_lowercase();
+                if combined.contains("out of memory") || combined.contains("bun has run out of memory") {
+                    let mut failed = build_initial_onboarding_snapshot();
+                    failed.state = "needs_manual_step".to_string();
+                    failed.install_path_kind = path_kind.as_contract_value().to_string();
+                    failed.next_action = "none".to_string();
+                    failed.headline = "Windows 설치가 메모리 부족으로 중단됐어요".to_string();
+                    failed.detail = Some("Bun out-of-memory 가 감지되어 이 장비에서는 native install 을 신뢰할 수 없어요. 더 큰 VM 이나 다른 Windows 환경에서 다시 시도해야 해요.".to_string());
+                    failed.primary_button_label = None;
+                    failed.logs_available = !runtime.logs.trim().is_empty();
+                    failed.last_error = Some(OnboardingLastError {
+                        code: "installer_oom".to_string(),
+                        summary: "설치 중 Bun out-of-memory 가 발생했어요.".to_string(),
+                        detail: Some(format!("exit_code={}", result.exit_code)),
+                        suggested_action: None,
+                    });
+                    emit_onboarding_progress(&app, OnboardingProgressEvent {
+                        phase: "install".to_string(),
+                        state: failed.state.clone(),
+                        step_id: step_id.to_string(),
+                        status: "failed".to_string(),
+                        message: "설치 중 메모리 부족이 감지되어 실패로 처리했어요.".to_string(),
+                        stream_chunk: None,
+                        shell_target: shell_target.clone(),
+                        observed_path: None,
+                        error_code: Some("installer_oom".to_string()),
+                    });
+                    failed
+                } else {
+                    emit_onboarding_progress(&app, OnboardingProgressEvent {
+                        phase: "install".to_string(),
+                        state: "verifying_shells".to_string(),
+                        step_id: step_id.to_string(),
+                        status: if result.ok { "succeeded".to_string() } else { "failed".to_string() },
+                        message: "설치 실행이 끝나서 새 셸 검증 단계로 넘어가요.".to_string(),
+                        stream_chunk: None,
+                        shell_target: shell_target.clone(),
+                        observed_path: None,
+                        error_code: None,
+                    });
+                    let mut verified = verify_windows_shells(&mut runtime, &app, path_kind.as_contract_value());
+                    verified.install_path_kind = path_kind.as_contract_value().to_string();
+                    verified
+                }
+            }
+            Err(err) => {
+                let mut failed = build_initial_onboarding_snapshot();
+                failed.state = "blocked".to_string();
+                failed.install_path_kind = path_kind.as_contract_value().to_string();
+                failed.next_action = "none".to_string();
+                failed.headline = "설치 프로세스를 시작하지 못했어요".to_string();
+                failed.detail = Some(err.clone());
+                failed.primary_button_label = None;
+                failed.logs_available = !runtime.logs.trim().is_empty();
+                failed.last_error = Some(OnboardingLastError {
+                    code: "unknown".to_string(),
+                    summary: "설치 프로세스 spawn 자체가 실패했어요.".to_string(),
+                    detail: Some(err),
+                    suggested_action: None,
+                });
+                emit_onboarding_progress(&app, OnboardingProgressEvent {
+                    phase: "install".to_string(),
+                    state: failed.state.clone(),
+                    step_id: step_id.to_string(),
+                    status: "failed".to_string(),
+                    message: "설치 프로세스 실행 자체가 실패했어요.".to_string(),
+                    stream_chunk: None,
+                    shell_target,
+                    observed_path: None,
+                    error_code: Some("unknown".to_string()),
+                });
+                failed
+            }
+        };
+
+        runtime.snapshot = Some(snapshot.clone());
+        snapshot
+    }
+}
+
+#[tauri::command]
+fn retry_verification(app: tauri::AppHandle, state: tauri::State<OnboardingState>) -> OnboardingSnapshot {
+    #[cfg(target_os = "windows")]
+    {
+        let mut runtime = match state.0.lock() {
+            Ok(guard) => guard,
+            Err(_) => return build_initial_onboarding_snapshot(),
+        };
+        let install_path_kind = runtime
+            .snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.install_path_kind.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let snapshot = verify_windows_shells(&mut runtime, &app, &install_path_kind);
+        runtime.snapshot = Some(snapshot.clone());
+        return snapshot;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let snapshot = verify_windows_shells(&mut OnboardingRuntime::default(), &app, "unknown");
+        store_onboarding_snapshot(&state.0, &snapshot);
+        snapshot
+    }
+}
+
+#[tauri::command]
+fn start_login_probe(app: tauri::AppHandle, state: tauri::State<OnboardingState>) -> OnboardingSnapshot {
+    emit_onboarding_progress(
+        &app,
+        OnboardingProgressEvent {
+            phase: "login".to_string(),
+            state: "probing_login".to_string(),
+            step_id: "probe_login".to_string(),
+            status: "started".to_string(),
+            message: "로그인 probe 스캐폴드를 시작했어요. 실제 probe는 다음 단계에서 연결됩니다.".to_string(),
+            stream_chunk: None,
+            shell_target: None,
+            observed_path: None,
+            error_code: None,
+        },
+    );
+
+    let mut snapshot = build_onboarding_snapshot();
+    snapshot.state = "probing_login".to_string();
+    snapshot.next_action = "none".to_string();
+    snapshot.headline = "Claude 로그인 상태를 확인하는 중이에요".to_string();
+    snapshot.detail = Some("실제 login probe execution은 다음 구현 단계에서 연결됩니다.".to_string());
+    snapshot.primary_button_label = None;
+    store_onboarding_snapshot(&state.0, &snapshot);
+    snapshot
+}
+
+#[tauri::command]
+fn get_onboarding_logs(state: tauri::State<OnboardingState>) -> serde_json::Value {
+    let text = state
+        .0
+        .lock()
+        .ok()
+        .map(|runtime| runtime.logs.clone())
+        .unwrap_or_default();
+    serde_json::json!({ "text": text })
+}
+
 /// vib CLI를 실행하고 결과를 반환한다.
 ///
 /// - `args`: `["doctor", "--json"]` 등
@@ -1033,6 +1743,10 @@ fn read_project_summary(dir: String) -> ProjectSummary {
 pub fn run() {
     let watch_inner: Arc<Mutex<WatchRuntime>> = Arc::new(Mutex::new(WatchRuntime::new()));
     let watch_inner_for_exit = Arc::clone(&watch_inner);
+    let onboarding_inner: Arc<Mutex<OnboardingRuntime>> = Arc::new(Mutex::new(OnboardingRuntime {
+        snapshot: Some(build_initial_onboarding_snapshot()),
+        logs: String::new(),
+    }));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -1048,9 +1762,15 @@ pub fn run() {
             Ok(())
         })
         .manage(WatchState(watch_inner))
+        .manage(OnboardingState(onboarding_inner))
         .invoke_handler(tauri::generate_handler![
             get_vib_path,
             setup_cli_path,
+            get_onboarding_snapshot,
+            start_native_install,
+            retry_verification,
+            start_login_probe,
+            get_onboarding_logs,
             run_vib,
             save_api_key,
             load_api_key,
