@@ -13,6 +13,7 @@ import {
   retryOnboardingVerification,
   startNativeInstall,
   startOnboardingLoginProbe,
+  addClaudeToUserPath,
   getOnboardingLogs,
   type NextAction,
   type OnboardingProgressEvent,
@@ -330,6 +331,8 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
         setOnboardingSnapshot(await startNativeInstall("native-cmd"));
       } else if (nextAction === "retry") {
         setOnboardingSnapshot(await retryOnboardingVerification());
+      } else if (nextAction === "add_to_path") {
+        setOnboardingSnapshot(await addClaudeToUserPath());
       } else if (nextAction === "open_manual_steps") {
         const pathHint = onboardingSnapshot?.lastError?.code === "path_not_configured"
           ? onboardingSnapshot.lastError.detail?.trim()
@@ -346,7 +349,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
     }
   }
 
-  const onboardingPrimaryActionEnabled = !!onboardingSnapshot && ["start_install", "install_git", "retry", "retry_with_cmd", "open_manual_steps", "start_login"].includes(onboardingSnapshot.nextAction);
+  const onboardingPrimaryActionEnabled = !!onboardingSnapshot && ["start_install", "install_git", "retry", "retry_with_cmd", "open_manual_steps", "add_to_path", "start_login"].includes(onboardingSnapshot.nextAction);
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
