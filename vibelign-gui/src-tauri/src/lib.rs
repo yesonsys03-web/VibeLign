@@ -230,6 +230,24 @@ fn run_command_capture(
     args: &[&str],
     env_overrides: &[(&str, String)],
 ) -> Result<CommandCapture, String> {
+    run_command_capture_streamed(program, args, env_overrides, |_, _| {})
+}
+
+/// cmd.output()은 프로세스 종료 전까지 stdout/stderr을 버퍼링해서
+/// GUI에서는 hang 상태에 중간 로그가 보이지 않아요. 이 함수는 stdout/stderr을
+/// 라인 단위로 읽으며 sink 콜백을 호출해 실시간으로 로그가 쌓이게 해요.
+#[cfg(target_os = "windows")]
+fn run_command_capture_streamed<F>(
+    program: &str,
+    args: &[&str],
+    env_overrides: &[(&str, String)],
+    mut sink: F,
+) -> Result<CommandCapture, String>
+where
+    F: FnMut(&str, &str),
+{
+    use std::io::{BufRead, BufReader};
+    use std::sync::mpsc;
     let mut cmd = std::process::Command::new(program);
     cmd.args(args);
     cmd.stdin(std::process::Stdio::null());
@@ -239,19 +257,54 @@ fn run_command_capture(
         cmd.env(key, value);
     }
 
-    #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
-    let output = cmd.output().map_err(|e| e.to_string())?;
+    let mut child = cmd.spawn().map_err(|e| e.to_string())?;
+    let stdout = child.stdout.take().ok_or_else(|| "stdout pipe missing".to_string())?;
+    let stderr = child.stderr.take().ok_or_else(|| "stderr pipe missing".to_string())?;
+
+    let (tx, rx) = mpsc::channel::<(&'static str, String)>();
+    let tx_out = tx.clone();
+    let out_thread = std::thread::spawn(move || {
+        let reader = BufReader::new(stdout);
+        let mut collected = String::new();
+        for line in reader.lines().flatten() {
+            let _ = tx_out.send(("stdout", line.clone()));
+            collected.push_str(&line);
+            collected.push('\n');
+        }
+        collected
+    });
+    let tx_err = tx.clone();
+    let err_thread = std::thread::spawn(move || {
+        let reader = BufReader::new(stderr);
+        let mut collected = String::new();
+        for line in reader.lines().flatten() {
+            let _ = tx_err.send(("stderr", line.clone()));
+            collected.push_str(&line);
+            collected.push('\n');
+        }
+        collected
+    });
+    drop(tx);
+
+    while let Ok((stream, line)) = rx.recv() {
+        let title = if stream == "stdout" { "[stream stdout]" } else { "[stream stderr]" };
+        sink(title, &line);
+    }
+
+    let stdout_text = out_thread.join().unwrap_or_default();
+    let stderr_text = err_thread.join().unwrap_or_default();
+    let status = child.wait().map_err(|e| e.to_string())?;
     Ok(CommandCapture {
-        ok: output.status.success(),
-        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-        exit_code: output.status.code().unwrap_or(-1),
+        ok: status.success(),
+        stdout: stdout_text,
+        stderr: stderr_text,
+        exit_code: status.code().unwrap_or(-1),
     })
 }
 
@@ -340,10 +393,14 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
 
     let merged_path = merge_windows_path();
     let env_overrides: Vec<(&str, String)> = merged_path.clone().map(|p| vec![("PATH", p)]).unwrap_or_default();
+
+    append_onboarding_log(state, "[verify] running", "cmd /C where.exe claude");
     let where_result = run_command_capture("cmd", &["/C", "where.exe claude"], &env_overrides).ok();
     if let Some(result) = &where_result {
         append_onboarding_log(state, "[verify where.exe claude stdout]", &result.stdout);
         append_onboarding_log(state, "[verify where.exe claude stderr]", &result.stderr);
+    } else {
+        append_onboarding_log(state, "[verify where.exe claude]", "spawn error");
     }
     let claude_on_path = where_result.as_ref().map(|r| r.ok && !r.stdout.trim().is_empty()).unwrap_or(false);
     let observed_path = where_result
@@ -352,24 +409,34 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
         .map(|s| s.trim().to_string())
         .or_else(|| windows_expected_claude_path().map(|p| p.to_string_lossy().to_string()));
 
+    append_onboarding_log(state, "[verify] running", "cmd /C claude --version");
     let cmd_version = run_command_capture("cmd", &["/C", "claude --version"], &env_overrides).ok();
     if let Some(result) = &cmd_version {
         append_onboarding_log(state, "[verify cmd claude --version stdout]", &result.stdout);
         append_onboarding_log(state, "[verify cmd claude --version stderr]", &result.stderr);
+    } else {
+        append_onboarding_log(state, "[verify cmd claude --version]", "spawn error");
     }
+    append_onboarding_log(state, "[verify] running", "powershell claude --version");
     let ps_version = run_command_capture("powershell", &["-NoProfile", "-Command", "claude --version"], &env_overrides).ok();
     if let Some(result) = &ps_version {
         append_onboarding_log(state, "[verify powershell claude --version stdout]", &result.stdout);
         append_onboarding_log(state, "[verify powershell claude --version stderr]", &result.stderr);
+    } else {
+        append_onboarding_log(state, "[verify powershell claude --version]", "spawn error");
     }
+    append_onboarding_log(state, "[verify] running", "cmd /C claude doctor");
     let doctor_result = run_command_capture("cmd", &["/C", "claude doctor"], &env_overrides).ok();
     if let Some(result) = &doctor_result {
         append_onboarding_log(state, "[verify claude doctor stdout]", &result.stdout);
         append_onboarding_log(state, "[verify claude doctor stderr]", &result.stderr);
+    } else {
+        append_onboarding_log(state, "[verify claude doctor]", "spawn error");
     }
 
     let direct_version = windows_expected_claude_path().and_then(|path| {
         let path_str = path.to_string_lossy().to_string();
+        append_onboarding_log(state, "[verify] running direct", &format!("{} --version", path_str));
         run_command_capture(&path_str, &["--version"], &[]).ok().map(|result| (path_str, result))
     });
     if let Some((_, result)) = &direct_version {
@@ -379,6 +446,7 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
 
     let direct_doctor = windows_expected_claude_path().and_then(|path| {
         let path_str = path.to_string_lossy().to_string();
+        append_onboarding_log(state, "[verify] running direct", &format!("{} doctor", path_str));
         run_command_capture(&path_str, &["doctor"], &[]).ok().map(|result| (path_str, result))
     });
     if let Some((_, result)) = &direct_doctor {
@@ -1174,19 +1242,29 @@ fn start_native_install(
             clear_onboarding_logs(&state_arc);
             let env_overrides: Vec<(&str, String)> = merge_windows_path().map(|p| vec![("PATH", p)]).unwrap_or_default();
             let installer = match path_kind {
-                StartNativeInstallPathKind::NativePowershell => run_command_capture(
-                    "powershell",
-                    &["-NoProfile", "-Command", "irm https://claude.ai/install.ps1 | iex"],
-                    &env_overrides,
-                ),
-                StartNativeInstallPathKind::NativeCmd => run_command_capture(
-                    "cmd",
-                    &[
-                        "/C",
-                        "curl -fsSL https://claude.ai/install.cmd -o \"%TEMP%\\vibelign-claude-install.cmd\" && \"%TEMP%\\vibelign-claude-install.cmd\" && del \"%TEMP%\\vibelign-claude-install.cmd\"",
-                    ],
-                    &env_overrides,
-                ),
+                StartNativeInstallPathKind::NativePowershell => {
+                    append_onboarding_log(&state_arc, "[installer] running", "powershell -NoProfile -Command irm https://claude.ai/install.ps1 | iex");
+                    let state_for_sink = Arc::clone(&state_arc);
+                    run_command_capture_streamed(
+                        "powershell",
+                        &["-NoProfile", "-Command", "irm https://claude.ai/install.ps1 | iex"],
+                        &env_overrides,
+                        |title, line| append_onboarding_log(&state_for_sink, title, line),
+                    )
+                }
+                StartNativeInstallPathKind::NativeCmd => {
+                    append_onboarding_log(&state_arc, "[installer] running", "cmd /C curl -fsSL https://claude.ai/install.cmd -o %TEMP%\\vibelign-claude-install.cmd && %TEMP%\\vibelign-claude-install.cmd");
+                    let state_for_sink = Arc::clone(&state_arc);
+                    run_command_capture_streamed(
+                        "cmd",
+                        &[
+                            "/C",
+                            "curl -fsSL https://claude.ai/install.cmd -o \"%TEMP%\\vibelign-claude-install.cmd\" && \"%TEMP%\\vibelign-claude-install.cmd\" && del \"%TEMP%\\vibelign-claude-install.cmd\"",
+                        ],
+                        &env_overrides,
+                        |title, line| append_onboarding_log(&state_for_sink, title, line),
+                    )
+                }
             };
 
             let final_snapshot = match installer {
