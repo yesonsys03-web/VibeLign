@@ -532,13 +532,13 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
             .and_then(|path| path.parent().map(|dir| dir.to_string_lossy().to_string()))
             .unwrap_or_else(|| "C:\\Users\\<user>\\.local\\bin".to_string());
         snapshot.state = "needs_manual_step".to_string();
-        snapshot.next_action = "open_manual_steps".to_string();
+        snapshot.next_action = "add_to_path".to_string();
         snapshot.headline = "Claude는 설치됐지만 PATH 연결이 아직 안 됐어요".to_string();
         snapshot.detail = Some(format!(
-            "설치 자체는 성공했고 `{}` 직접 실행도 통과했어요. 이제 사용자 PATH에 `{}` 만 추가하면 돼요.",
+            "설치 자체는 성공했고 `{}` 직접 실행도 통과했어요. `{}` 을 사용자 PATH 에 자동으로 추가해 드릴게요.",
             install_path, path_dir
         ));
-        snapshot.primary_button_label = Some("PATH 추가 방법 보기".to_string());
+        snapshot.primary_button_label = Some("PATH 자동 추가".to_string());
         snapshot.last_error = Some(OnboardingLastError {
             code: "path_not_configured".to_string(),
             summary: "Claude Code는 설치됐지만 새 셸 PATH에는 아직 잡히지 않았어요.".to_string(),
@@ -1453,6 +1453,109 @@ fn retry_verification(app: tauri::AppHandle, state: tauri::State<OnboardingState
 }
 
 #[tauri::command]
+fn add_claude_to_user_path(app: tauri::AppHandle, state: tauri::State<OnboardingState>) -> OnboardingSnapshot {
+    #[cfg(target_os = "windows")]
+    {
+        let bin_dir = windows_expected_claude_path()
+            .and_then(|p| p.parent().map(|d| d.to_string_lossy().to_string()))
+            .unwrap_or_else(|| String::from("C:\\Users\\%USERNAME%\\.local\\bin"));
+
+        append_onboarding_log(&state.0, "[path-fix] target", &bin_dir);
+
+        // PowerShell 로 사용자 Path 레지스트리에 bin_dir 을 추가한다. REG_EXPAND_SZ 를
+        // 그대로 유지하며 WM_SETTINGCHANGE 도 함께 브로드캐스트된다.
+        let ps_script = format!(
+            "$target = '{}'; $current = [Environment]::GetEnvironmentVariable('Path','User'); if ([string]::IsNullOrEmpty($current)) {{ $current = '' }}; $parts = $current -split ';' | Where-Object {{ $_ -ne '' }}; if ($parts -notcontains $target) {{ $new = if ($parts) {{ (($parts + $target) -join ';') }} else {{ $target }}; [Environment]::SetEnvironmentVariable('Path', $new, 'User'); Write-Output 'PATH_UPDATED' }} else {{ Write-Output 'PATH_ALREADY_PRESENT' }}",
+            bin_dir.replace('\'', "''")
+        );
+        let state_for_sink = Arc::clone(&state.0);
+        let result = run_command_capture_streamed(
+            "powershell",
+            &["-NoProfile", "-Command", &ps_script],
+            &[],
+            |title, line| append_onboarding_log(&state_for_sink, title, line),
+        );
+
+        let mut snapshot = build_initial_onboarding_snapshot();
+        snapshot.install_path_kind = state
+            .0
+            .lock()
+            .ok()
+            .and_then(|runtime| runtime.snapshot.as_ref().map(|s| s.install_path_kind.clone()))
+            .unwrap_or_else(|| "native-powershell".to_string());
+        snapshot.logs_available = onboarding_logs_available_from_state(&state.0);
+
+        match result {
+            Ok(capture) if capture.ok => {
+                append_onboarding_log(&state.0, "[path-fix] result", capture.stdout.trim());
+                snapshot.state = "login_required".to_string();
+                snapshot.next_action = "start_login".to_string();
+                snapshot.headline = "PATH 를 사용자 환경 변수에 추가했어요".to_string();
+                snapshot.detail = Some(format!(
+                    "`{}` 을 사용자 PATH 에 넣었어요. 새 터미널을 여는 순간 `claude` 가 바로 잡혀요. 이제 로그인만 남았어요.",
+                    bin_dir
+                ));
+                snapshot.primary_button_label = Some("로그인 확인 시작".to_string());
+                snapshot.diagnostics.claude_on_path = Some(true);
+                snapshot.diagnostics.claude_version_ok = Some(true);
+                snapshot.last_error = None;
+                store_onboarding_snapshot(&state.0, &snapshot);
+                emit_onboarding_progress(&app, OnboardingProgressEvent {
+                    phase: "verify".to_string(),
+                    state: snapshot.state.clone(),
+                    step_id: "verify_doctor".to_string(),
+                    status: "succeeded".to_string(),
+                    message: "PATH 자동 추가 완료.".to_string(),
+                    stream_chunk: None,
+                    shell_target: None,
+                    observed_path: Some(bin_dir),
+                    error_code: None,
+                });
+                return snapshot;
+            }
+            Ok(capture) => {
+                append_onboarding_log(&state.0, "[path-fix] stderr", &capture.stderr);
+                snapshot.state = "needs_manual_step".to_string();
+                snapshot.next_action = "open_manual_steps".to_string();
+                snapshot.headline = "PATH 자동 추가가 실패했어요".to_string();
+                snapshot.detail = Some("권한 문제로 레지스트리 기록이 실패했어요. 수동 안내를 따라 주세요.".to_string());
+                snapshot.primary_button_label = Some("PATH 추가 방법 보기".to_string());
+                snapshot.last_error = Some(OnboardingLastError {
+                    code: "path_not_configured".to_string(),
+                    summary: "PowerShell SetEnvironmentVariable 이 실패했어요.".to_string(),
+                    detail: Some(format!("exit_code={}", capture.exit_code)),
+                    suggested_action: Some("open_manual_steps".to_string()),
+                });
+                store_onboarding_snapshot(&state.0, &snapshot);
+                return snapshot;
+            }
+            Err(err) => {
+                append_onboarding_log(&state.0, "[path-fix] spawn error", &err);
+                snapshot.state = "needs_manual_step".to_string();
+                snapshot.next_action = "open_manual_steps".to_string();
+                snapshot.headline = "PATH 자동 추가가 실패했어요".to_string();
+                snapshot.detail = Some("PowerShell 실행에 실패했어요. 수동 안내를 따라 주세요.".to_string());
+                snapshot.primary_button_label = Some("PATH 추가 방법 보기".to_string());
+                snapshot.last_error = Some(OnboardingLastError {
+                    code: "path_not_configured".to_string(),
+                    summary: err,
+                    detail: None,
+                    suggested_action: Some("open_manual_steps".to_string()),
+                });
+                store_onboarding_snapshot(&state.0, &snapshot);
+                return snapshot;
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (app, state);
+        build_onboarding_snapshot()
+    }
+}
+
+#[tauri::command]
 fn start_login_probe(app: tauri::AppHandle, state: tauri::State<OnboardingState>) -> OnboardingSnapshot {
     emit_onboarding_progress(
         &app,
@@ -1996,6 +2099,7 @@ pub fn run() {
             get_onboarding_snapshot,
             start_native_install,
             retry_verification,
+            add_claude_to_user_path,
             start_login_probe,
             get_onboarding_logs,
             run_vib,

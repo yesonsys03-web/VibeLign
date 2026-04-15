@@ -112,6 +112,7 @@ export type NextAction =
   | "retry_with_cmd"
   | "continue_with_wsl"
   | "open_manual_steps"
+  | "add_to_path"
   | "start_login"
   | "launch_claude"
   | "share_logs"
@@ -199,6 +200,10 @@ export async function retryOnboardingVerification(): Promise<OnboardingSnapshot>
 
 export async function startOnboardingLoginProbe(): Promise<OnboardingSnapshot> {
   return invoke<OnboardingSnapshot>("start_login_probe");
+}
+
+export async function addClaudeToUserPath(): Promise<OnboardingSnapshot> {
+  return invoke<OnboardingSnapshot>("add_claude_to_user_path");
 }
 
 export async function getOnboardingLogs(): Promise<{ text: string }> {
