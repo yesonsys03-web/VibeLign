@@ -221,6 +221,58 @@ Also shows:
 
 ---
 
+## `vib docs-build`
+
+문서 다이어그램이나 요약이 이상할 때 다시 만드는 명령어예요.
+쉽게 말하면 **"문서용 캐시를 다시 만들기" 버튼** 같은 거예요.
+
+```bash
+vib docs-build
+vib docs-build PROJECT_CONTEXT.md
+vib docs-build docs/wiki/index.md
+```
+
+어떨 때 쓰면 되나요?
+
+- Docs Viewer에서 다이어그램이 예전 내용처럼 보일 때
+- 문서를 방금 수정했는데 오른쪽 요약이 안 바뀔 때
+- 특정 문서만 다시 만들고 싶을 때
+
+What it does:
+
+1. markdown 문서를 다시 읽어요
+2. 그 문서의 요약/다이어그램용 `docs_visual` 파일을 다시 만들어요
+3. 다음에 Docs Viewer가 열릴 때 새 결과를 읽을 수 있게 해줘요
+
+정리하면:
+
+- `vib docs-build` = 전체 문서를 다시 만들기
+- `vib docs-build 파일경로` = 그 문서 하나만 다시 만들기
+
+---
+
+## `vib docs-index`
+
+Docs Viewer가 어떤 문서를 보여줄지 목록을 만드는 명령어예요.
+쉽게 말하면 **"문서 리스트와 약속(schema) 확인용 명령어"** 예요.
+
+```bash
+vib docs-index
+vib docs-index /path/to/project
+vib docs-index --visual-contract
+```
+
+What it does:
+
+1. 프로젝트 안의 markdown 문서 목록을 JSON으로 보여줘요
+2. Docs Viewer가 쓸 제목, 경로, 카테고리 정보를 정리해줘요
+3. `--visual-contract`를 쓰면 docs visual artifact의 schema/generator 약속도 보여줘요
+
+이 명령어는 보통 사람이 매일 직접 쓰는 명령어라기보다,
+GUI나 디버깅할 때 도움이 되는 명령어라고 생각하면 쉬워요.
+
+---
+
 ## `vib protect`
 
 Locks important files so AI cannot accidentally modify them.

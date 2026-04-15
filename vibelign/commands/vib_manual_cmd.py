@@ -7,13 +7,34 @@ import json
 from argparse import Namespace
 from typing import Protocol, TypedDict
 
-from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
-from rich.text import Text
-from rich import box
+try:
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.text import Text
+    from rich import box
 
-console = Console()
+    HAS_RICH = True
+    console = Console()
+except ModuleNotFoundError:
+    HAS_RICH = False
+    Console = None  # type: ignore[assignment]
+    Panel = None  # type: ignore[assignment]
+    Table = None  # type: ignore[assignment]
+    Text = None  # type: ignore[assignment]
+    box = None  # type: ignore[assignment]
+
+    class _PlainConsole:
+        def print(self, *parts: object, **_: object) -> None:
+            print(" ".join(str(part) for part in parts))
+
+        def rule(self, title: str = "") -> None:
+            if title:
+                print(f"\n=== {title} ===")
+            else:
+                print("\n====================")
+
+    console = _PlainConsole()
 
 
 class ManualEntry(TypedDict, total=False):
@@ -183,6 +204,65 @@ MANUAL: dict[str, ManualEntry] = {
             ("vib history", "저장 기록 전체 보기"),
         ],
         "options": [],
+    },
+    "docs-build": {
+        "emoji": "🧱",
+        "title": "vib docs-build",
+        "one_line": "문서 요약/다이어그램 캐시를 다시 만들어요",
+        "what": (
+            "Docs Viewer에서 오른쪽 요약이나 다이어그램이 예전 내용처럼 보일 때 쓰는 명령어예요.\n"
+            "쉽게 말하면 '문서용 캐시 다시 만들기'예요.\n\n"
+            "전체 문서를 한 번에 다시 만들 수도 있고,\n"
+            "특정 markdown 파일 하나만 골라서 다시 만들 수도 있어요."
+        ),
+        "when": [
+            "문서를 수정했는데 Docs Viewer가 안 바뀔 때",
+            "다이어그램이 예전 내용처럼 보일 때",
+            "특정 문서만 다시 생성하고 싶을 때",
+        ],
+        "examples": [
+            ("vib docs-build", "전체 문서 다시 만들기"),
+            ("vib docs-build PROJECT_CONTEXT.md", "루트 문서 하나만 다시 만들기"),
+            ("vib docs-build docs/wiki/index.md", "docs 하위 문서 하나만 다시 만들기"),
+        ],
+        "options": [
+            ("path", "다시 만들 markdown 파일 경로예요. 안 쓰면 전체 문서를 처리해요."),
+            ("--json", "결과를 JSON으로 보고 싶을 때 써요. 개발/디버깅용이에요."),
+        ],
+    },
+    "docs-index": {
+        "emoji": "🗂️",
+        "title": "vib docs-index",
+        "one_line": "Docs Viewer가 읽는 문서 목록과 계약 정보를 보여줘요",
+        "what": (
+            "Docs Viewer가 어떤 markdown 문서를 보여줄지 목록으로 정리해주는 명령어예요.\n"
+            "쉽게 말하면 '문서 리스트 확인하기'예요.\n\n"
+            "보통은 GUI가 내부적으로 많이 쓰고,\n"
+            "사람은 디버깅하거나 상태를 확인할 때 쓰면 돼요."
+        ),
+        "when": [
+            "Docs Viewer에 어떤 문서가 잡히는지 확인하고 싶을 때",
+            "문서 인덱스 문제를 디버깅할 때",
+            "visual contract/schema 정보를 보고 싶을 때",
+        ],
+        "examples": [
+            ("vib docs-index", "현재 프로젝트 문서 목록 보기"),
+            ("vib docs-index /path/to/project", "다른 프로젝트의 문서 목록 보기"),
+            (
+                "vib docs-index --visual-contract",
+                "docs visual schema/generator 계약 보기",
+            ),
+        ],
+        "options": [
+            (
+                "path",
+                "문서 목록을 만들 프로젝트 루트예요. 안 쓰면 현재 폴더를 사용해요.",
+            ),
+            (
+                "--visual-contract",
+                "docs visual artifact의 schema/generator 정보를 JSON으로 보여줘요.",
+            ),
+        ],
     },
     "doctor": {
         "emoji": "🩺",
@@ -993,6 +1073,7 @@ GROUPS = [
     ("💾 세이브 & 되돌리기", ["checkpoint", "undo", "history"]),
     ("🔬 점검 & 확인", ["doctor", "guard", "explain"]),
     ("✏️ AI 수정 요청", ["patch", "anchor", "scan", "plan-structure"]),
+    ("📚 문서 보기 & 다시생성", ["docs-build", "docs-index"]),
     (
         "🗂️ 파일 & 설정",
         [
@@ -1033,6 +1114,35 @@ def _render_command(key: str) -> None:
     examples = m.get("examples", [])
     options = m.get("options", [])
     notes = m.get("notes", [])
+
+    if not HAS_RICH:
+        print()
+        print(f"{emoji} {title} — {one_line}".strip())
+        print()
+        print("이게 뭐야?")
+        print(what)
+        if when:
+            print()
+            print("언제 써?")
+            for item in when:
+                print(f"- {item}")
+        if examples:
+            print()
+            print("이렇게 쳐봐")
+            for cmd, desc in examples:
+                print(f"- {cmd}  # {desc}")
+        if options:
+            print()
+            print("옵션 설명")
+            for opt, desc in options:
+                print(f"- {opt}: {desc.replace(chr(10), ' ')}")
+        if notes:
+            print()
+            print("알아두면 좋은 것")
+            for note in notes:
+                print(f"- {note}")
+        print()
+        return
 
     # 헤더 패널
     header = Text()
@@ -1089,6 +1199,19 @@ def _render_command(key: str) -> None:
 
 def _render_overview() -> None:
     """전체 커맨드 목록 개요 출력."""
+    if not HAS_RICH:
+        print()
+        print("VibeLign 전체 명령어 매뉴얼")
+        print("상세 보기: vib manual <커맨드명>")
+        print()
+        for group_name, keys in GROUPS:
+            print(group_name)
+            for k in keys:
+                m = MANUAL[k]
+                print(f"- {k}: {m.get('one_line', '')}")
+            print()
+        return
+
     console.print()
     console.print(
         Panel(
