@@ -230,7 +230,17 @@ fn run_command_capture(
     args: &[&str],
     env_overrides: &[(&str, String)],
 ) -> Result<CommandCapture, String> {
-    run_command_capture_streamed(program, args, env_overrides, |_, _| {})
+    run_command_capture_with_options(program, args, env_overrides, |_, _| {}, None)
+}
+
+#[cfg(target_os = "windows")]
+fn run_command_capture_with_timeout(
+    program: &str,
+    args: &[&str],
+    env_overrides: &[(&str, String)],
+    timeout_secs: u64,
+) -> Result<CommandCapture, String> {
+    run_command_capture_with_options(program, args, env_overrides, |_, _| {}, Some(timeout_secs))
 }
 
 /// cmd.output()은 프로세스 종료 전까지 stdout/stderr을 버퍼링해서
@@ -241,13 +251,29 @@ fn run_command_capture_streamed<F>(
     program: &str,
     args: &[&str],
     env_overrides: &[(&str, String)],
+    sink: F,
+) -> Result<CommandCapture, String>
+where
+    F: FnMut(&str, &str),
+{
+    run_command_capture_with_options(program, args, env_overrides, sink, None)
+}
+
+#[cfg(target_os = "windows")]
+fn run_command_capture_with_options<F>(
+    program: &str,
+    args: &[&str],
+    env_overrides: &[(&str, String)],
     mut sink: F,
+    timeout_secs: Option<u64>,
 ) -> Result<CommandCapture, String>
 where
     F: FnMut(&str, &str),
 {
     use std::io::{BufRead, BufReader};
     use std::sync::mpsc;
+    use std::sync::{Arc as StdArc, Mutex as StdMutex};
+    use std::time::{Duration, Instant};
     let mut cmd = std::process::Command::new(program);
     cmd.args(args);
     cmd.stdin(std::process::Stdio::null());
@@ -263,9 +289,10 @@ where
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
-    let mut child = cmd.spawn().map_err(|e| e.to_string())?;
-    let stdout = child.stdout.take().ok_or_else(|| "stdout pipe missing".to_string())?;
-    let stderr = child.stderr.take().ok_or_else(|| "stderr pipe missing".to_string())?;
+    let child = cmd.spawn().map_err(|e| e.to_string())?;
+    let child = StdArc::new(StdMutex::new(child));
+    let stdout = child.lock().unwrap().stdout.take().ok_or_else(|| "stdout pipe missing".to_string())?;
+    let stderr = child.lock().unwrap().stderr.take().ok_or_else(|| "stderr pipe missing".to_string())?;
 
     let (tx, rx) = mpsc::channel::<(&'static str, String)>();
     let tx_out = tx.clone();
@@ -292,19 +319,45 @@ where
     });
     drop(tx);
 
-    while let Ok((stream, line)) = rx.recv() {
-        let title = if stream == "stdout" { "[stream stdout]" } else { "[stream stderr]" };
-        sink(title, &line);
+    let deadline = timeout_secs.map(|s| Instant::now() + Duration::from_secs(s));
+    let mut timed_out = false;
+    loop {
+        let remaining = match deadline {
+            Some(d) => match d.checked_duration_since(Instant::now()) {
+                Some(r) => r,
+                None => {
+                    timed_out = true;
+                    break;
+                }
+            },
+            None => Duration::from_secs(3600),
+        };
+        match rx.recv_timeout(remaining) {
+            Ok((stream, line)) => {
+                let title = if stream == "stdout" { "[stream stdout]" } else { "[stream stderr]" };
+                sink(title, &line);
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                timed_out = true;
+                break;
+            }
+        }
+    }
+
+    if timed_out {
+        sink("[stream timeout]", &format!("command exceeded {}s, killing", timeout_secs.unwrap_or(0)));
+        let _ = child.lock().unwrap().kill();
     }
 
     let stdout_text = out_thread.join().unwrap_or_default();
     let stderr_text = err_thread.join().unwrap_or_default();
-    let status = child.wait().map_err(|e| e.to_string())?;
+    let status = child.lock().unwrap().wait().map_err(|e| e.to_string())?;
     Ok(CommandCapture {
-        ok: status.success(),
+        ok: status.success() && !timed_out,
         stdout: stdout_text,
         stderr: stderr_text,
-        exit_code: status.code().unwrap_or(-1),
+        exit_code: status.code().unwrap_or(if timed_out { -2 } else { -1 }),
     })
 }
 
@@ -425,8 +478,8 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
     } else {
         append_onboarding_log(state, "[verify powershell claude --version]", "spawn error");
     }
-    append_onboarding_log(state, "[verify] running", "cmd /C claude doctor");
-    let doctor_result = run_command_capture("cmd", &["/C", "claude doctor"], &env_overrides).ok();
+    append_onboarding_log(state, "[verify] running", "cmd /C claude doctor (timeout 20s)");
+    let doctor_result = run_command_capture_with_timeout("cmd", &["/C", "claude doctor"], &env_overrides, 20).ok();
     if let Some(result) = &doctor_result {
         append_onboarding_log(state, "[verify claude doctor stdout]", &result.stdout);
         append_onboarding_log(state, "[verify claude doctor stderr]", &result.stderr);
@@ -436,8 +489,8 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
 
     let direct_version = windows_expected_claude_path().and_then(|path| {
         let path_str = path.to_string_lossy().to_string();
-        append_onboarding_log(state, "[verify] running direct", &format!("{} --version", path_str));
-        run_command_capture(&path_str, &["--version"], &[]).ok().map(|result| (path_str, result))
+        append_onboarding_log(state, "[verify] running direct", &format!("{} --version (timeout 15s)", path_str));
+        run_command_capture_with_timeout(&path_str, &["--version"], &[], 15).ok().map(|result| (path_str, result))
     });
     if let Some((_, result)) = &direct_version {
         append_onboarding_log(state, "[verify direct claude.exe --version stdout]", &result.stdout);
@@ -446,8 +499,8 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
 
     let direct_doctor = windows_expected_claude_path().and_then(|path| {
         let path_str = path.to_string_lossy().to_string();
-        append_onboarding_log(state, "[verify] running direct", &format!("{} doctor", path_str));
-        run_command_capture(&path_str, &["doctor"], &[]).ok().map(|result| (path_str, result))
+        append_onboarding_log(state, "[verify] running direct", &format!("{} doctor (timeout 20s)", path_str));
+        run_command_capture_with_timeout(&path_str, &["doctor"], &[], 20).ok().map(|result| (path_str, result))
     });
     if let Some((_, result)) = &direct_doctor {
         append_onboarding_log(state, "[verify direct claude.exe doctor stdout]", &result.stdout);
@@ -468,7 +521,10 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
     snapshot.diagnostics.claude_doctor_ok = Some(claude_doctor_ok);
     snapshot.diagnostics.login_status_known = Some(false);
 
-    if !claude_on_path && windows_expected_claude_exists() && direct_version_ok && direct_doctor_ok {
+    // doctor 는 interactive prompt 대기로 종종 hang/timeout 되므로,
+    // 직접 --version 만 통과해도 설치 성공 + PATH 미설정 으로 분류한다.
+    let _ = direct_doctor_ok;
+    if !claude_on_path && windows_expected_claude_exists() && direct_version_ok {
         let install_path = windows_expected_claude_path()
             .map(|path| path.to_string_lossy().to_string())
             .unwrap_or_else(|| "C:\\Users\\<user>\\.local\\bin\\claude.exe".to_string());
