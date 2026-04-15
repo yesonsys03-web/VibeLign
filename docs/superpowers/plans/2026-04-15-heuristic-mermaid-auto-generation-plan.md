@@ -1,6 +1,8 @@
 # Heuristic Mermaid Auto-Generation Execution Plan
 
 > **Working rule:** markdown is still the only source of truth. Auto-generated diagrams are derived artifacts and must never be presented as authored truth.
+> **Status:** completed. The implementation, tests, build verification, and manual docs-build QA have been finished.
+> **Note:** the detailed phase checklists below are preserved as the original implementation record; the Global Completion Tracker and Final Ship Criteria are the authoritative completion status.
 
 **Goal:** authored Mermaid가 없는 markdown 문서에서도 구조를 이해할 수 있는 heuristic Mermaid diagram을 안정적으로 생성하고, GUI에서 provenance / confidence / freshness를 명확히 드러낸다.
 
@@ -84,14 +86,14 @@
 
 ## Global Completion Tracker
 
-- [ ] Phase 1 — Diagram Schema Extension
-- [ ] Phase 2 — Signal Extraction Helpers
-- [ ] Phase 3 — Candidate Builders
-- [ ] Phase 4 — Candidate Selection and Confidence Rules
-- [ ] Phase 5 — Visualizer Integration
-- [ ] Phase 6 — GUI Provenance Rendering
-- [ ] Phase 7 — Test Coverage
-- [ ] Phase 8 — Verification
+- [x] Phase 1 — Diagram Schema Extension
+- [x] Phase 2 — Signal Extraction Helpers
+- [x] Phase 3 — Candidate Builders
+- [x] Phase 4 — Candidate Selection and Confidence Rules
+- [x] Phase 5 — Visualizer Integration
+- [x] Phase 6 — GUI Provenance Rendering
+- [x] Phase 7 — Test Coverage
+- [x] Phase 8 — Verification
 
 ---
 
@@ -353,9 +355,9 @@
 
 ## Final Ship Criteria
 
-- [ ] authored-first 규칙이 문서화와 코드에서 일치한다
-- [ ] heuristic diagram은 최대 1개만 생성된다
-- [ ] low-confidence는 diagram이 아니라 artifact root warning으로 남는다
-- [ ] schema / GUI / tests가 provenance 확장을 함께 반영한다
-- [ ] same input → same output이 유지된다
-- [ ] markdown-first / hash-bound / trust-state 원칙이 유지된다
+- [x] authored-first 규칙이 문서화와 코드에서 일치한다
+- [x] heuristic diagram은 최대 1개만 생성된다
+- [x] low-confidence는 diagram이 아니라 artifact root warning으로 남는다
+- [x] schema / GUI / tests가 provenance 확장을 함께 반영한다
+- [x] same input → same output이 유지된다
+- [x] markdown-first / hash-bound / trust-state 원칙이 유지된다

@@ -1,5 +1,7 @@
 # Heuristic Mermaid 자동 생성 설계
 
+> **Status:** implemented in repository. Current code reflects the v1 scope described here.
+
 ## 문제
 
 현재 Docs Viewer는 markdown 안에 직접 작성된 ` ```mermaid ` 블록만 추출한다.
