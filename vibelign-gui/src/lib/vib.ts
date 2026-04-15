@@ -132,6 +132,7 @@ export interface OnboardingLastError {
   code:
     | "missing_git"
     | "exec_policy_blocked"
+    | "path_not_configured"
     | "installer_false_success"
     | "installer_oom"
     | "placeholder_artifact"

@@ -305,6 +305,14 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
         setOnboardingSnapshot(await startNativeInstall("native-cmd"));
       } else if (nextAction === "retry") {
         setOnboardingSnapshot(await retryOnboardingVerification());
+      } else if (nextAction === "open_manual_steps") {
+        const pathHint = onboardingSnapshot?.lastError?.code === "path_not_configured"
+          ? onboardingSnapshot.lastError.detail?.trim()
+          : "";
+        if (pathHint) {
+          await navigator.clipboard.writeText(pathHint).catch(() => {});
+        }
+        await openUrl("https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/path").catch(() => {});
       } else if (nextAction === "start_login") {
         setOnboardingSnapshot(await startOnboardingLoginProbe());
       }
@@ -313,7 +321,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
     }
   }
 
-  const onboardingPrimaryActionEnabled = !!onboardingSnapshot && ["start_install", "install_git", "retry", "retry_with_cmd", "start_login"].includes(onboardingSnapshot.nextAction);
+  const onboardingPrimaryActionEnabled = !!onboardingSnapshot && ["start_install", "install_git", "retry", "retry_with_cmd", "open_manual_steps", "start_login"].includes(onboardingSnapshot.nextAction);
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
