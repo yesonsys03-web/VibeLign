@@ -24,7 +24,9 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
   const [trustState, setTrustState] = useState<DocsTrustState>("markdown-only");
   const [trustReason, setTrustReason] = useState<string>("artifact 없음 — markdown만 표시합니다.");
   const [isRebuilding, setIsRebuilding] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [rebuildMessage, setRebuildMessage] = useState<string | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
   const markdownPaneRef = useRef<HTMLDivElement | null>(null);
   const layoutRef = useRef<HTMLDivElement | null>(null);
   const [layoutWidth, setLayoutWidth] = useState(0);
@@ -105,7 +107,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
     return () => {
       cancelled = true;
     };
-  }, [projectDir, selectedPath]);
+  }, [projectDir, selectedPath, refreshTick]);
 
   const sections = useMemo(() => extractSections(doc?.content ?? ""), [doc?.content]);
   const selectedDoc = useMemo(
@@ -172,7 +174,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
     return () => {
       cancelled = true;
     };
-  }, [projectDir, selectedPath, doc]);
+  }, [projectDir, selectedPath, doc, refreshTick]);
 
   const trustTone = useMemo(() => {
     if (trustState === "enhanced-synced") return { className: "alert-success", label: "ENHANCED SYNCED" };
@@ -182,12 +184,23 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
   }, [trustState]);
 
   const enhancementPartiallyDisabled = useMemo(
-    () => visual?.artifact.warnings.some((warning) => warning.startsWith("enhancement_partial_disabled:")) ?? false,
+    () => visual?.artifact.warnings?.some((warning) => warning.startsWith("enhancement_partial_disabled:")) ?? false,
     [visual],
   );
   const isMinimalLayout = layoutWidth > 0 && layoutWidth < 900;
   const showSidebar = !isMinimalLayout;
-  const showVisualPane = !isMinimalLayout && Boolean(visual && trustState !== "enhanced-failed");
+  const showVisualPane = Boolean(visual && trustState !== "enhanced-failed");
+
+  async function handleRefreshCurrent() {
+    if (!selectedPath || !projectDir) return;
+    setIsRefreshing(true);
+    setRebuildMessage(null);
+    try {
+      setRefreshTick((value) => value + 1);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 150);
+    }
+  }
 
   async function handleRebuildArtifact() {
     if (!selectedPath || !projectDir) return;
@@ -198,9 +211,8 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
       if (!result.ok) {
         throw new Error(result.stderr || result.stdout || `exit ${result.exit_code}`);
       }
-      setRebuildMessage("docs visual artifact를 다시 생성했습니다. 문서를 다시 열면 최신 trust state가 반영됩니다.");
-      const refreshed = await loadDoc(projectDir, selectedPath);
-      setDoc(refreshed);
+      setRebuildMessage("docs visual artifact를 다시 생성했고 최신 문서/artifact를 다시 읽었습니다.");
+      setRefreshTick((value) => value + 1);
     } catch (err: unknown) {
       setRebuildMessage(err instanceof Error ? err.message : "artifact 재생성에 실패했습니다.");
     } finally {
@@ -240,7 +252,15 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <div className="page-header" style={{ padding: "12px 20px" }}>
         <span className="page-title">DOCS VIEWER</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => void handleRefreshCurrent()} disabled={isRefreshing || isRebuilding || !selectedPath}>
+            {isRefreshing ? "새로고침 중..." : "Refresh"}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => void handleRebuildArtifact()} disabled={isRebuilding || isRefreshing || !selectedPath}>
+            {isRebuilding ? "재생성 중..." : "Rebuild"}
+          </button>
           <span style={{ fontSize: 11, color: "#666", fontWeight: 700 }}>PHASE 10</span>
+        </div>
       </div>
 
       <div
@@ -332,7 +352,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
                   </div>
                 ) : null}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: showVisualPane ? "minmax(0, 1.2fr) minmax(320px, 0.8fr)" : "minmax(0, 1fr)", gap: 12, alignItems: "start" }}>
+              <div style={{ display: "grid", gridTemplateColumns: showVisualPane && !isMinimalLayout ? "minmax(0, 1.2fr) minmax(320px, 0.8fr)" : "minmax(0, 1fr)", gap: 12, alignItems: "start" }}>
                 <div style={{ minHeight: 0 }}>
                   <MarkdownPane content={doc.content} containerRef={markdownPaneRef} />
                 </div>

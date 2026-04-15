@@ -25,6 +25,42 @@ function topItems(items: string[], count = 3): string[] {
   return items.map(compact).filter(Boolean).slice(0, count);
 }
 
+function artifactWarnings(artifact: DocsVisualArtifact): string[] {
+  const warnings = artifact.warnings;
+  return warnings ? warnings : [];
+}
+
+function diagramProvenance(diagram: DocsVisualArtifact["diagram_blocks"][number]) {
+  return diagram.provenance ?? "authored";
+}
+
+function diagramConfidence(diagram: DocsVisualArtifact["diagram_blocks"][number]) {
+  return diagram.confidence ?? "high";
+}
+
+function diagramWarnings(diagram: DocsVisualArtifact["diagram_blocks"][number]): string[] {
+  return diagram.warnings ?? [];
+}
+
+function provenanceLabel(diagram: DocsVisualArtifact["diagram_blocks"][number]) {
+  const provenance = diagramProvenance(diagram);
+  if (provenance === "heuristic") return { text: "AUTO GENERATED", bg: "#E8F5FF", color: "#165D8A" };
+  if (provenance === "ai_draft") return { text: "AI DRAFT", bg: "#FFF0F0", color: "#A33A3A" };
+  return { text: "AUTHORED", bg: "#ECF8E8", color: "#235C2B" };
+}
+
+function provenanceNote(diagram: DocsVisualArtifact["diagram_blocks"][number]): string | null {
+  const provenance = diagramProvenance(diagram);
+  const generator = diagram.generator ?? "";
+  if (provenance === "heuristic") {
+    return "이 다이어그램은 문서 구조를 바탕으로 자동 생성된 보조 시각화입니다. 기준 원문은 왼쪽 markdown 입니다.";
+  }
+  if (generator.startsWith("component-flow")) {
+    return "이 다이어그램은 dependency graph가 아니라 구조 요약입니다.";
+  }
+  return null;
+}
+
 function getTrustPill(trustState: DocsTrustState) {
   if (trustState === "enhanced-synced") return { text: "SYNCED", bg: "#4DFF91", fg: "#1A1A1A" };
   if (trustState === "enhanced-stale") return { text: "STALE", bg: "#FFD166", fg: "#1A1A1A" };
@@ -40,6 +76,12 @@ function phaseSections(artifact: DocsVisualArtifact): DocsVisualSection[] {
   const explicit = artifact.sections.filter((section) => /^phase\s*\d+/i.test(section.title));
   if (explicit.length > 0) return explicit.slice(0, 12);
   return artifact.sections.filter((section) => section.level <= 2).slice(0, 12);
+}
+
+function docDiagrams(artifact: DocsVisualArtifact) {
+  return artifact.diagram_blocks
+    .filter((diagram) => diagram.kind === "mermaid" && compact(diagram.source ?? ""))
+    .slice(0, 6);
 }
 
 function keyRules(artifact: DocsVisualArtifact): string[] {
@@ -71,8 +113,8 @@ function edgeCases(artifact: DocsVisualArtifact): string[] {
     "artifact missing / corrupt / stale 이어도 markdown-only fallback이 가능해야 한다.",
     "문서가 길어도 enhancement만 축약되고 reading은 유지되어야 한다.",
   ];
-  if (artifact.warnings.length > 0) {
-    items.push(`현재 artifact warning ${artifact.warnings.length}개도 함께 보여서 위험 신호를 놓치지 않게 한다.`);
+  if (artifactWarnings(artifact).length > 0) {
+    items.push(`현재 artifact warning ${artifactWarnings(artifact).length}개도 함께 보여서 위험 신호를 놓치지 않게 한다.`);
   }
   return items;
 }
@@ -158,21 +200,8 @@ function BulletList({ items, icon = "•" }: { items: string[]; icon?: string })
 export default function VisualSummaryPane({ artifact, trustState, onPhaseSelect }: VisualSummaryPaneProps) {
   const trust = getTrustPill(trustState);
   const phases = phaseSections(artifact);
-  const dataFlowChart = `flowchart LR
-    MD[markdown 원문] --> GUI[MarkdownPane]
-    MD --> VIZ[visual artifact]
-    VIZ --> CACHE[docs_visual json]
-    CACHE --> SUM[Summary Pane]
-    GUI -. source_hash compare .-> SUM`;
-  const trustChart = `flowchart TD
-    OPEN[문서 열기] --> READ[source_hash 읽기]
-    READ --> EXISTS{artifact 존재?}
-    EXISTS -->|No| MDONLY[markdown-only]
-    EXISTS -->|Yes| VERSION{schema / generator 일치?}
-    VERSION -->|No| STALE[enhanced-stale]
-    VERSION -->|Yes| HASH{source_hash 일치?}
-    HASH -->|No| STALE
-    HASH -->|Yes| SYNC[enhanced-synced]`;
+  const diagrams = docDiagrams(artifact);
+  const warnings = artifactWarnings(artifact);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -193,16 +222,30 @@ export default function VisualSummaryPane({ artifact, trustState, onPhaseSelect 
         </Rule>
       </Card>
 
-      <Card title="데이터 흐름">
-        <MermaidDiagram chart={dataFlowChart} />
-        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12, color: "#666" }}>
-          <span>● 원문 markdown가 기준</span>
-          <span>● docs_visual json은 hash-bound 파생물</span>
-        </div>
-      </Card>
-
-      <Card title="Trust State 결정 로직">
-        <MermaidDiagram chart={trustChart} />
+      <Card title={diagrams.length > 0 ? "문서 다이어그램" : "다이어그램 상태"}>
+        {diagrams.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {diagrams.map((diagram, index) => (
+              <div key={diagram.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <SmallPill>{`diagram ${index + 1}`}</SmallPill>
+                  <SmallPill bg={provenanceLabel(diagram).bg} color={provenanceLabel(diagram).color}>{provenanceLabel(diagram).text}</SmallPill>
+                  <SmallPill bg="#F5F0FF" color="#5B35CC">{diagramConfidence(diagram).toUpperCase()}</SmallPill>
+                  {diagram.title ? <SmallPill bg="#EEE7FF" color="#5B35CC">{diagram.title}</SmallPill> : null}
+                </div>
+                {provenanceNote(diagram) ? <Rule tone="#7B4DFF">{provenanceNote(diagram)}</Rule> : null}
+                {diagramWarnings(diagram).map((warning, warnIndex) => (
+                  <Rule key={`${diagram.id}-warning-${warnIndex}`} tone="#FFD166"><strong>주의:</strong> {warning}</Rule>
+                ))}
+                <MermaidDiagram chart={diagram.source ?? ""} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Rule>
+            이 문서에는 지금 표시할 Mermaid 다이어그램이 없습니다. 왼쪽 markdown이 기준 원문이고, 오른쪽은 hash로 연결된 파생 시각화만 보조적으로 보여줍니다.
+          </Rule>
+        )}
       </Card>
 
       <Card title="핵심 실행 규칙">
@@ -210,7 +253,7 @@ export default function VisualSummaryPane({ artifact, trustState, onPhaseSelect 
           {keyRules(artifact).map((rule, idx) => (
             <Rule key={`rule-${idx}`} tone={idx === 2 ? "#F5621E" : idx === 1 ? "#4DFF91" : "#4D9FFF"}>{rule}</Rule>
           ))}
-          {topItems(artifact.warnings, 2).map((warning, idx) => (
+          {topItems(warnings, 2).map((warning, idx) => (
             <Rule key={`warn-${idx}`} tone="#FFD166"><strong>주의:</strong> {warning}</Rule>
           ))}
         </div>

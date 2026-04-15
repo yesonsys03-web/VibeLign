@@ -50,8 +50,17 @@ export interface DocsVisualArtifact {
   sections: DocsVisualSection[];
   glossary: Array<{ term: string; definition: string }>;
   action_items: Array<{ text: string; checked: boolean }>;
-  diagram_blocks: Array<{ id: string; kind: string; title?: string; source?: string }>;
-  warnings: string[];
+  diagram_blocks: Array<{
+    id: string;
+    kind: string;
+    title?: string;
+    source?: string;
+    provenance?: "authored" | "heuristic" | "ai_draft";
+    generator?: string;
+    confidence?: "high" | "medium";
+    warnings?: string[];
+  }>;
+  warnings?: string[];
 }
 
 export interface DocsVisualReadResult {
