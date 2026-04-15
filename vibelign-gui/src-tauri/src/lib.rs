@@ -478,14 +478,10 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
     } else {
         append_onboarding_log(state, "[verify powershell claude --version]", "spawn error");
     }
-    append_onboarding_log(state, "[verify] running", "cmd /C claude doctor (timeout 20s)");
-    let doctor_result = run_command_capture_with_timeout("cmd", &["/C", "claude doctor"], &env_overrides, 20).ok();
-    if let Some(result) = &doctor_result {
-        append_onboarding_log(state, "[verify claude doctor stdout]", &result.stdout);
-        append_onboarding_log(state, "[verify claude doctor stderr]", &result.stderr);
-    } else {
-        append_onboarding_log(state, "[verify claude doctor]", "spawn error");
-    }
+    // claude doctor 는 Ink raw-mode TTY 가 필요해서 GUI 자식 프로세스에선 항상 timeout.
+    // 진단 가치가 없어 검증 단계에서 생략한다.
+    append_onboarding_log(state, "[verify] skip", "claude doctor (non-TTY 한계로 생략)");
+    let doctor_result: Option<CommandCapture> = None;
 
     let direct_version = windows_expected_claude_path().and_then(|path| {
         let path_str = path.to_string_lossy().to_string();
@@ -497,15 +493,7 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
         append_onboarding_log(state, "[verify direct claude.exe --version stderr]", &result.stderr);
     }
 
-    let direct_doctor = windows_expected_claude_path().and_then(|path| {
-        let path_str = path.to_string_lossy().to_string();
-        append_onboarding_log(state, "[verify] running direct", &format!("{} doctor (timeout 20s)", path_str));
-        run_command_capture_with_timeout(&path_str, &["doctor"], &[], 20).ok().map(|result| (path_str, result))
-    });
-    if let Some((_, result)) = &direct_doctor {
-        append_onboarding_log(state, "[verify direct claude.exe doctor stdout]", &result.stdout);
-        append_onboarding_log(state, "[verify direct claude.exe doctor stderr]", &result.stderr);
-    }
+    let direct_doctor: Option<(String, CommandCapture)> = None;
 
     let claude_version_ok = cmd_version.as_ref().map(|r| r.ok).unwrap_or(false)
         || ps_version.as_ref().map(|r| r.ok).unwrap_or(false);
@@ -586,11 +574,15 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
         return snapshot;
     }
 
-    if claude_on_path && claude_version_ok && claude_doctor_ok {
+    // claude doctor 는 non-TTY 에서 Ink raw-mode 에러로 실패하거나 타임아웃되는 게
+    // 정상 동작이라 성공 조건에서 뺀다. where.exe + claude --version 이 통과하면
+    // 설치·PATH 가 모두 정상이라 판단 가능.
+    let _ = claude_doctor_ok;
+    if claude_on_path && claude_version_ok {
         snapshot.state = "login_required".to_string();
         snapshot.next_action = "start_login".to_string();
         snapshot.headline = "Claude Code 설치 검증이 끝났어요".to_string();
-        snapshot.detail = Some("새 셸에서 `claude --version` 과 `claude doctor` 가 통과했어요. 이제 로그인만 하면 돼요.".to_string());
+        snapshot.detail = Some("새 셸에서 `claude --version` 이 통과했어요. (doctor 는 non-TTY 한계로 생략) 이제 로그인만 하면 돼요.".to_string());
         snapshot.primary_button_label = Some("로그인 확인 시작".to_string());
         store_onboarding_snapshot(state, &snapshot);
         emit_onboarding_progress(app, OnboardingProgressEvent {
