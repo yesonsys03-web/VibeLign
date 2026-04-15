@@ -287,6 +287,13 @@ fn windows_expected_claude_path() -> Option<PathBuf> {
 }
 
 #[cfg(target_os = "windows")]
+fn windows_expected_claude_exists() -> bool {
+    windows_expected_claude_path()
+        .map(|path| path.exists())
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "windows")]
 fn verify_windows_shells(runtime: &mut OnboardingRuntime, app: &tauri::AppHandle, install_path_kind: &str) -> OnboardingSnapshot {
     let mut snapshot = build_onboarding_snapshot();
     snapshot.state = "verifying_shells".to_string();
@@ -338,9 +345,29 @@ fn verify_windows_shells(runtime: &mut OnboardingRuntime, app: &tauri::AppHandle
         push_onboarding_log(runtime, "[verify claude doctor stderr]", &result.stderr);
     }
 
+    let direct_version = windows_expected_claude_path().and_then(|path| {
+        let path_str = path.to_string_lossy().to_string();
+        run_command_capture(&path_str, &["--version"], &[]).ok().map(|result| (path_str, result))
+    });
+    if let Some((_, result)) = &direct_version {
+        push_onboarding_log(runtime, "[verify direct claude.exe --version stdout]", &result.stdout);
+        push_onboarding_log(runtime, "[verify direct claude.exe --version stderr]", &result.stderr);
+    }
+
+    let direct_doctor = windows_expected_claude_path().and_then(|path| {
+        let path_str = path.to_string_lossy().to_string();
+        run_command_capture(&path_str, &["doctor"], &[]).ok().map(|result| (path_str, result))
+    });
+    if let Some((_, result)) = &direct_doctor {
+        push_onboarding_log(runtime, "[verify direct claude.exe doctor stdout]", &result.stdout);
+        push_onboarding_log(runtime, "[verify direct claude.exe doctor stderr]", &result.stderr);
+    }
+
     let claude_version_ok = cmd_version.as_ref().map(|r| r.ok).unwrap_or(false)
         || ps_version.as_ref().map(|r| r.ok).unwrap_or(false);
     let claude_doctor_ok = doctor_result.as_ref().map(|r| r.ok).unwrap_or(false);
+    let direct_version_ok = direct_version.as_ref().map(|(_, r)| r.ok).unwrap_or(false);
+    let direct_doctor_ok = direct_doctor.as_ref().map(|(_, r)| r.ok).unwrap_or(false);
 
     snapshot.logs_available = !runtime.logs.trim().is_empty();
     snapshot.diagnostics.git_installed = Some(check_git_installed());
@@ -349,6 +376,41 @@ fn verify_windows_shells(runtime: &mut OnboardingRuntime, app: &tauri::AppHandle
     snapshot.diagnostics.claude_version_ok = Some(claude_version_ok);
     snapshot.diagnostics.claude_doctor_ok = Some(claude_doctor_ok);
     snapshot.diagnostics.login_status_known = Some(false);
+
+    if !claude_on_path && windows_expected_claude_exists() && direct_version_ok && direct_doctor_ok {
+        let install_path = windows_expected_claude_path()
+            .map(|path| path.to_string_lossy().to_string())
+            .unwrap_or_else(|| "C:\\Users\\<user>\\.local\\bin\\claude.exe".to_string());
+        let path_dir = windows_expected_claude_path()
+            .and_then(|path| path.parent().map(|dir| dir.to_string_lossy().to_string()))
+            .unwrap_or_else(|| "C:\\Users\\<user>\\.local\\bin".to_string());
+        snapshot.state = "needs_manual_step".to_string();
+        snapshot.next_action = "open_manual_steps".to_string();
+        snapshot.headline = "Claude는 설치됐지만 PATH 연결이 아직 안 됐어요".to_string();
+        snapshot.detail = Some(format!(
+            "설치 자체는 성공했고 `{}` 직접 실행도 통과했어요. 이제 사용자 PATH에 `{}` 만 추가하면 돼요.",
+            install_path, path_dir
+        ));
+        snapshot.primary_button_label = Some("PATH 추가 방법 보기".to_string());
+        snapshot.last_error = Some(OnboardingLastError {
+            code: "path_not_configured".to_string(),
+            summary: "Claude Code는 설치됐지만 새 셸 PATH에는 아직 잡히지 않았어요.".to_string(),
+            detail: Some(path_dir.clone()),
+            suggested_action: Some("open_manual_steps".to_string()),
+        });
+        emit_onboarding_progress(app, OnboardingProgressEvent {
+            phase: "verify".to_string(),
+            state: snapshot.state.clone(),
+            step_id: "verify_doctor".to_string(),
+            status: "failed".to_string(),
+            message: "설치는 성공했지만 PATH 미설정 상태로 분류했어요.".to_string(),
+            stream_chunk: None,
+            shell_target: None,
+            observed_path: Some(install_path),
+            error_code: Some("path_not_configured".to_string()),
+        });
+        return snapshot;
+    }
 
     if windows_placeholder_artifact_exists() {
         snapshot.state = "needs_manual_step".to_string();
