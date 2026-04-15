@@ -187,7 +187,17 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   }, []);
 
   useEffect(() => {
-    if (!onboardingSnapshot?.logsAvailable) {
+    const activeState = onboardingSnapshot?.state;
+    const isActivePhase =
+      activeState === "installing_native" ||
+      activeState === "installing_wsl" ||
+      activeState === "verifying_shells" ||
+      activeState === "probing_login" ||
+      activeState === "diagnosing";
+
+    // 활성 단계에서는 logsAvailable 이 아직 false 여도 폴링을 돌린다.
+    // 스트리밍 로그가 runtime 에 쌓이면 첫 줄이 나오는 순간 바로 보여줌.
+    if (!isActivePhase && !onboardingSnapshot?.logsAvailable) {
       setOnboardingLogs("");
       setOnboardingLogsOpen(false);
       return;
@@ -206,15 +216,6 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
     };
     fetchLogs();
 
-    // 설치/검증 중에는 로그창을 자동으로 펼치고, 진행 이벤트가 끊겨도
-    // 1초마다 최신 로그를 가져와 중간에 멈춘 원인을 볼 수 있게 한다.
-    const activeState = onboardingSnapshot?.state;
-    const isActivePhase =
-      activeState === "installing_native" ||
-      activeState === "installing_wsl" ||
-      activeState === "verifying_shells" ||
-      activeState === "probing_login" ||
-      activeState === "diagnosing";
     if (isActivePhase) {
       setOnboardingLogsOpen(true);
     } else if ((onboardingSnapshot?.lastError || onboardingProgress?.status === "failed")) {
@@ -550,7 +551,8 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
                       padding: "10px 12px",
                       whiteSpace: "pre-wrap",
                       wordBreak: "break-word",
-                      maxHeight: 220,
+                      maxHeight: 420,
+                      minHeight: 200,
                       overflowY: "auto",
                     }}
                   >
