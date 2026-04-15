@@ -114,6 +114,10 @@ AI 수정 요청:
   watch       실시간 감시
   bench       앵커 효과를 비교 실험해요
 
+문서 보기 & 다시생성:
+  docs-build  markdown 문서의 visual cache를 다시 만들어요
+  docs-index  docs viewer가 쓰는 문서 목록/계약 정보를 보여줘요
+
 도움말:
   manual      코알못을 위한 상세 사용 설명서
   rules       AI 개발 규칙 전체 보기
