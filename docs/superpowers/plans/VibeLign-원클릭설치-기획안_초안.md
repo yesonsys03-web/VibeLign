@@ -56,14 +56,20 @@
 
 ### 우선순위
 
-**v1 필수**
+**v1 core (필수)**
 - Claude Code 공식 설치 자동 시도 (Windows Native / macOS)
-- Windows(CMD / PowerShell / WSL)에서 `claude` 실행 보장
+- Windows Native(CMD / PowerShell)에서 `claude` 실행 보장
 - macOS bash / zsh에서 `claude` 실행 보장
 - 로그인 완료 및 첫 대화 시작 검증 (PTY 기반 REPL 응답 감지)
 - 설치 실패 또는 사용자 요청 시 **Claude Code 관련 설정/경로를 안전하게 제거하는 언인스톨/정리 경로** 제공
 
+**v1 conditional (WSL 선택 트랙)**
+- WSL이 이미 설치·활성화된 환경에 한해 WSL install script 실행/검증 제공
+- WSL 성공률은 v1 core 지표와 **분리 집계**
+- WSL 미설치 환경에서는 자동 활성화(`wsl --install`)를 시도하지 않고 Microsoft 공식 안내 링크만 제공
+
 **v1.1 확장**
+- WSL 자동 활성화 및 배포판 자동 설치
 - VS Code 통합 터미널 / Git Bash 등 후속 셸 최적화
 - 고급 자동 복구 규칙 확대
 
