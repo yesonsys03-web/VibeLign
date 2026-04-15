@@ -194,23 +194,43 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
     }
 
     let cancelled = false;
-    getOnboardingLogs()
-      .then((result) => {
-        if (cancelled) return;
-        setOnboardingLogs(result.text ?? "");
-        if ((result.text ?? "").trim()) {
-          setOnboardingLogsOpen(true);
-        }
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setOnboardingLogs("");
-      });
+    const fetchLogs = () => {
+      getOnboardingLogs()
+        .then((result) => {
+          if (cancelled) return;
+          setOnboardingLogs(result.text ?? "");
+        })
+        .catch(() => {
+          if (cancelled) return;
+        });
+    };
+    fetchLogs();
+
+    // 설치/검증 중에는 로그창을 자동으로 펼치고, 진행 이벤트가 끊겨도
+    // 1초마다 최신 로그를 가져와 중간에 멈춘 원인을 볼 수 있게 한다.
+    const activeState = onboardingSnapshot?.state;
+    const isActivePhase =
+      activeState === "installing_native" ||
+      activeState === "installing_wsl" ||
+      activeState === "verifying_shells" ||
+      activeState === "probing_login" ||
+      activeState === "diagnosing";
+    if (isActivePhase) {
+      setOnboardingLogsOpen(true);
+    } else if ((onboardingSnapshot?.lastError || onboardingProgress?.status === "failed")) {
+      setOnboardingLogsOpen(true);
+    }
+
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+    if (isActivePhase) {
+      intervalId = setInterval(fetchLogs, 1000);
+    }
 
     return () => {
       cancelled = true;
+      if (intervalId) clearInterval(intervalId);
     };
-  }, [onboardingSnapshot?.logsAvailable, onboardingSnapshot?.state, onboardingProgress?.status, onboardingProgress?.stepId]);
+  }, [onboardingSnapshot?.logsAvailable, onboardingSnapshot?.state, onboardingSnapshot?.lastError, onboardingProgress?.status, onboardingProgress?.stepId]);
 
   // 최근 프로젝트 요약 로드 — git repo가 아닌 경로는 건너뜀
   useEffect(() => {
@@ -500,7 +520,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
                 )}
               </div>
             )}
-            {onboardingLogs.trim() && (
+            {(onboardingLogs.trim() || onboardingSnapshot?.state === "installing_native" || onboardingSnapshot?.state === "installing_wsl" || onboardingSnapshot?.state === "verifying_shells" || onboardingSnapshot?.state === "probing_login") && (
               <div style={{ marginBottom: onboardingPrimaryActionEnabled ? 8 : 0 }}>
                 <button
                   type="button"
@@ -534,7 +554,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
                       overflowY: "auto",
                     }}
                   >
-                    {onboardingLogs}
+                    {onboardingLogs || "로그 수집 중… (설치 스크립트가 첫 줄을 내보낼 때까지 기다리는 중이에요)"}
                   </div>
                 )}
               </div>
