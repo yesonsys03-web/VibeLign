@@ -14,6 +14,7 @@ import {
   startNativeInstall,
   startOnboardingLoginProbe,
   addClaudeToUserPath,
+  uninstallClaudeCode,
   getOnboardingLogs,
   type NextAction,
   type OnboardingProgressEvent,
@@ -564,23 +565,54 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
                 )}
               </div>
             )}
-            {onboardingPrimaryActionEnabled && onboardingSnapshot.primaryButtonLabel && (
-              <button
-                type="button"
-                onClick={() => handleOnboardingPrimaryAction(onboardingSnapshot.nextAction)}
-                disabled={onboardingBusy}
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  padding: "5px 12px",
-                  border: "2px solid #1A1A1A",
-                  background: onboardingBusy ? "#DDD" : "#F5621E",
-                  color: onboardingBusy ? "#666" : "#fff",
-                  cursor: onboardingBusy ? "default" : "pointer",
-                }}
-              >
-                {onboardingBusy ? "처리 중..." : onboardingSnapshot.primaryButtonLabel}
-              </button>
+            {((onboardingPrimaryActionEnabled && onboardingSnapshot.primaryButtonLabel) || (onboardingSnapshot.os === "windows" && onboardingSnapshot.state !== "idle" && onboardingSnapshot.state !== "diagnosing")) && (
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                {onboardingPrimaryActionEnabled && onboardingSnapshot.primaryButtonLabel && (
+                  <button
+                    type="button"
+                    onClick={() => handleOnboardingPrimaryAction(onboardingSnapshot.nextAction)}
+                    disabled={onboardingBusy}
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: "5px 12px",
+                      border: "2px solid #1A1A1A",
+                      background: onboardingBusy ? "#DDD" : "#F5621E",
+                      color: onboardingBusy ? "#666" : "#fff",
+                      cursor: onboardingBusy ? "default" : "pointer",
+                    }}
+                  >
+                    {onboardingBusy ? "처리 중..." : onboardingSnapshot.primaryButtonLabel}
+                  </button>
+                )}
+                {onboardingSnapshot.os === "windows" && onboardingSnapshot.state !== "idle" && onboardingSnapshot.state !== "diagnosing" && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const ok = window.confirm("Claude Code 를 완전히 삭제할까요?\n\n다음 항목을 지워요:\n • C:\\Users\\...\\.local\\bin\\claude.exe\n • %USERPROFILE%\\.claude (설정·세션·로그인 정보)\n • 빈 PATH 항목\n\n되돌릴 수 없어요. 계속할까요?");
+                      if (!ok) return;
+                      setOnboardingBusy(true);
+                      try {
+                        setOnboardingSnapshot(await uninstallClaudeCode());
+                      } finally {
+                        setOnboardingBusy(false);
+                      }
+                    }}
+                    disabled={onboardingBusy}
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: "5px 12px",
+                      border: "2px solid #A14B00",
+                      background: "#fff",
+                      color: "#A14B00",
+                      cursor: onboardingBusy ? "default" : "pointer",
+                    }}
+                  >
+                    Claude Code 완전 삭제
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}

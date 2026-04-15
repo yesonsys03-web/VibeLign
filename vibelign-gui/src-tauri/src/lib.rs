@@ -581,9 +581,9 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
     if claude_on_path && claude_version_ok {
         snapshot.state = "login_required".to_string();
         snapshot.next_action = "start_login".to_string();
-        snapshot.headline = "Claude Code 설치 검증이 끝났어요".to_string();
-        snapshot.detail = Some("새 셸에서 `claude --version` 이 통과했어요. (doctor 는 non-TTY 한계로 생략) 이제 로그인만 하면 돼요.".to_string());
-        snapshot.primary_button_label = Some("로그인 확인 시작".to_string());
+        snapshot.headline = "설치가 잘 끝났어요!".to_string();
+        snapshot.detail = Some("이제 터미널에서 `claude` 를 실행하면 로그인 화면이 뜨고, 로그인만 한 번 하면 바로 쓸 수 있어요.".to_string());
+        snapshot.primary_button_label = Some("다음으로".to_string());
         store_onboarding_snapshot(state, &snapshot);
         emit_onboarding_progress(app, OnboardingProgressEvent {
             phase: "verify".to_string(),
@@ -1511,7 +1511,7 @@ fn add_claude_to_user_path(app: tauri::AppHandle, state: tauri::State<Onboarding
                     "`{}` 을 사용자 PATH 에 넣었어요. 새 터미널을 여는 순간 `claude` 가 바로 잡혀요. 이제 로그인만 남았어요.",
                     bin_dir
                 ));
-                snapshot.primary_button_label = Some("로그인 확인 시작".to_string());
+                snapshot.primary_button_label = Some("다음으로".to_string());
                 snapshot.diagnostics.claude_on_path = Some(true);
                 snapshot.diagnostics.claude_version_ok = Some(true);
                 snapshot.last_error = None;
@@ -1572,6 +1572,111 @@ fn add_claude_to_user_path(app: tauri::AppHandle, state: tauri::State<Onboarding
 }
 
 #[tauri::command]
+fn uninstall_claude_code(app: tauri::AppHandle, state: tauri::State<OnboardingState>) -> OnboardingSnapshot {
+    #[cfg(target_os = "windows")]
+    {
+        clear_onboarding_logs(&state.0);
+        append_onboarding_log(&state.0, "[uninstall] start", "Claude Code 완전 삭제를 시작해요");
+
+        let profile = windows_user_profile();
+        let bin_dir = profile.as_ref().map(|p| p.join(".local").join("bin"));
+        let claude_exe = windows_expected_claude_path();
+        let claude_data_dir = profile.as_ref().map(|p| p.join(".claude"));
+        let placeholder = windows_placeholder_artifact();
+
+        // 1) claude.exe 삭제
+        if let Some(path) = &claude_exe {
+            if path.exists() {
+                match std::fs::remove_file(path) {
+                    Ok(_) => append_onboarding_log(&state.0, "[uninstall] removed", &path.to_string_lossy()),
+                    Err(e) => append_onboarding_log(&state.0, "[uninstall] remove claude.exe failed", &format!("{}: {}", path.to_string_lossy(), e)),
+                }
+            } else {
+                append_onboarding_log(&state.0, "[uninstall] skip", &format!("{} 가 이미 없음", path.to_string_lossy()));
+            }
+        }
+
+        // 2) placeholder artifact (%USERPROFILE%\claude 0-byte 파일) 정리
+        if let Some(path) = &placeholder {
+            if path.exists() && path.is_file() {
+                if let Err(e) = std::fs::remove_file(path) {
+                    append_onboarding_log(&state.0, "[uninstall] remove placeholder failed", &format!("{}: {}", path.to_string_lossy(), e));
+                } else {
+                    append_onboarding_log(&state.0, "[uninstall] removed placeholder", &path.to_string_lossy());
+                }
+            }
+        }
+
+        // 3) %USERPROFILE%\.claude 디렉터리 (설정·세션·크리덴셜) 삭제
+        if let Some(path) = &claude_data_dir {
+            if path.exists() {
+                match std::fs::remove_dir_all(path) {
+                    Ok(_) => append_onboarding_log(&state.0, "[uninstall] removed", &path.to_string_lossy()),
+                    Err(e) => append_onboarding_log(&state.0, "[uninstall] remove .claude failed", &format!("{}: {}", path.to_string_lossy(), e)),
+                }
+            }
+        }
+
+        // 4) PATH 에서 .local\bin 제거 — 단, 디렉터리가 완전히 비었을 때만.
+        //    (bun 등 다른 도구가 같은 폴더를 쓰고 있으면 남겨둬서 해당 도구를 망가뜨리지 않는다.)
+        if let Some(dir) = &bin_dir {
+            let is_empty = std::fs::read_dir(dir)
+                .map(|mut it| it.next().is_none())
+                .unwrap_or(false);
+            if is_empty {
+                let dir_str = dir.to_string_lossy().to_string();
+                let ps_script = format!(
+                    "$target = '{}'; $current = [Environment]::GetEnvironmentVariable('Path','User'); if ([string]::IsNullOrEmpty($current)) {{ Write-Output 'PATH_EMPTY'; exit }}; $parts = $current -split ';' | Where-Object {{ $_ -ne '' -and $_ -ne $target }}; $new = ($parts -join ';'); [Environment]::SetEnvironmentVariable('Path', $new, 'User'); Write-Output 'PATH_UPDATED'",
+                    dir_str.replace('\'', "''")
+                );
+                let state_for_sink = Arc::clone(&state.0);
+                let ps_result = run_command_capture_streamed(
+                    "powershell",
+                    &["-NoProfile", "-Command", &ps_script],
+                    &[],
+                    |title, line| append_onboarding_log(&state_for_sink, title, line),
+                );
+                if ps_result.as_ref().map(|c| c.ok).unwrap_or(false) {
+                    append_onboarding_log(&state.0, "[uninstall] removed from PATH", &dir_str);
+                } else {
+                    append_onboarding_log(&state.0, "[uninstall] PATH 제거 실패", "(PowerShell 경로). 필요하면 환경 변수에서 수동 제거하세요.");
+                }
+                // 비어있는 .local\bin 폴더도 같이 정리
+                let _ = std::fs::remove_dir(dir);
+            } else {
+                append_onboarding_log(&state.0, "[uninstall] keep PATH", &format!("{} 에 다른 파일이 남아 있어 PATH 에서 제거하지 않음", dir.to_string_lossy()));
+            }
+        }
+
+        append_onboarding_log(&state.0, "[uninstall] done", "삭제가 끝났어요. 새 터미널에서 `claude` 가 더 이상 실행되지 않으면 완전히 정리된 거예요.");
+
+        let mut snapshot = build_initial_onboarding_snapshot();
+        snapshot.headline = "Claude Code 를 깨끗이 삭제했어요".to_string();
+        snapshot.detail = Some("binary, 설정 폴더(.claude), 빈 PATH 항목까지 정리했어요. 다시 설치하려면 위의 '자동 설치 시작' 을 다시 눌러 주세요.".to_string());
+        snapshot.logs_available = onboarding_logs_available_from_state(&state.0);
+        store_onboarding_snapshot(&state.0, &snapshot);
+        emit_onboarding_progress(&app, OnboardingProgressEvent {
+            phase: "install".to_string(),
+            state: snapshot.state.clone(),
+            step_id: "complete".to_string(),
+            status: "succeeded".to_string(),
+            message: "Claude Code 를 완전히 삭제했어요.".to_string(),
+            stream_chunk: None,
+            shell_target: None,
+            observed_path: None,
+            error_code: None,
+        });
+        return snapshot;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (app, state);
+        build_onboarding_snapshot()
+    }
+}
+
+#[tauri::command]
 fn start_login_probe(app: tauri::AppHandle, state: tauri::State<OnboardingState>) -> OnboardingSnapshot {
     emit_onboarding_progress(
         &app,
@@ -1580,7 +1685,7 @@ fn start_login_probe(app: tauri::AppHandle, state: tauri::State<OnboardingState>
             state: "probing_login".to_string(),
             step_id: "probe_login".to_string(),
             status: "started".to_string(),
-            message: "로그인 probe 스캐폴드를 시작했어요. 실제 probe는 다음 단계에서 연결됩니다.".to_string(),
+            message: "설치는 모두 끝났어요. 터미널에서 `claude` 를 실행해 주세요.".to_string(),
             stream_chunk: None,
             shell_target: None,
             observed_path: None,
@@ -1589,10 +1694,10 @@ fn start_login_probe(app: tauri::AppHandle, state: tauri::State<OnboardingState>
     );
 
     let mut snapshot = build_onboarding_snapshot();
-    snapshot.state = "probing_login".to_string();
+    snapshot.state = "success".to_string();
     snapshot.next_action = "none".to_string();
-    snapshot.headline = "Claude 로그인 상태를 확인하는 중이에요".to_string();
-    snapshot.detail = Some("실제 login probe execution은 다음 구현 단계에서 연결됩니다.".to_string());
+    snapshot.headline = "설치가 모두 끝났어요!".to_string();
+    snapshot.detail = Some("새 터미널을 열고 `claude` 를 실행하면 로그인 화면이 떠요. 한 번 로그인하면 이후엔 그냥 바로 쓰시면 돼요.".to_string());
     snapshot.primary_button_label = None;
     store_onboarding_snapshot(&state.0, &snapshot);
     snapshot
@@ -2116,6 +2221,7 @@ pub fn run() {
             start_native_install,
             retry_verification,
             add_claude_to_user_path,
+            uninstall_claude_code,
             start_login_probe,
             get_onboarding_logs,
             run_vib,
