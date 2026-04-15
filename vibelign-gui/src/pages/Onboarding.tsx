@@ -13,6 +13,7 @@ import {
   retryOnboardingVerification,
   startNativeInstall,
   startOnboardingLoginProbe,
+  getOnboardingLogs,
   type NextAction,
   type OnboardingProgressEvent,
   type OnboardingSnapshot,
@@ -158,6 +159,8 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   const [onboardingSnapshot, setOnboardingSnapshot] = useState<OnboardingSnapshot | null>(null);
   const [onboardingProgress, setOnboardingProgress] = useState<OnboardingProgressEvent | null>(null);
   const [onboardingBusy, setOnboardingBusy] = useState(false);
+  const [onboardingLogs, setOnboardingLogs] = useState("");
+  const [onboardingLogsOpen, setOnboardingLogsOpen] = useState(false);
 
   useEffect(() => {
     getVibPath().then((p) => { setVibFound(p); setVibChecking(false); });
@@ -178,6 +181,32 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
       unlisten?.();
     };
   }, []);
+
+  useEffect(() => {
+    if (!onboardingSnapshot?.logsAvailable) {
+      setOnboardingLogs("");
+      setOnboardingLogsOpen(false);
+      return;
+    }
+
+    let cancelled = false;
+    getOnboardingLogs()
+      .then((result) => {
+        if (cancelled) return;
+        setOnboardingLogs(result.text ?? "");
+        if ((result.text ?? "").trim()) {
+          setOnboardingLogsOpen(true);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setOnboardingLogs("");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [onboardingSnapshot?.logsAvailable, onboardingSnapshot?.state, onboardingProgress?.status, onboardingProgress?.stepId]);
 
   // 최근 프로젝트 요약 로드 — git repo가 아닌 경로는 건너뜀
   useEffect(() => {
@@ -448,8 +477,54 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
               </div>
             )}
             {onboardingSnapshot.lastError && (
-              <div style={{ fontSize: 11, color: "#A14B00", marginBottom: 8, lineHeight: 1.55 }}>
-                {onboardingSnapshot.lastError.summary}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: "#A14B00", lineHeight: 1.55, fontWeight: 700, marginBottom: onboardingSnapshot.lastError.detail ? 4 : 0 }}>
+                  {onboardingSnapshot.lastError.summary}
+                </div>
+                {onboardingSnapshot.lastError.detail && (
+                  <div style={{ fontSize: 10, color: "#8A5A00", lineHeight: 1.6 }}>
+                    {onboardingSnapshot.lastError.detail}
+                  </div>
+                )}
+              </div>
+            )}
+            {onboardingLogs.trim() && (
+              <div style={{ marginBottom: onboardingPrimaryActionEnabled ? 8 : 0 }}>
+                <button
+                  type="button"
+                  onClick={() => setOnboardingLogsOpen((open) => !open)}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: "4px 10px",
+                    border: "2px solid #1A1A1A",
+                    background: "#fff",
+                    color: "#1A1A1A",
+                    cursor: "pointer",
+                    marginBottom: onboardingLogsOpen ? 8 : 0,
+                  }}
+                >
+                  {onboardingLogsOpen ? "설치 로그 숨기기" : "설치 로그 보기"}
+                </button>
+                {onboardingLogsOpen && (
+                  <div
+                    style={{
+                      border: "2px solid #1A1A1A",
+                      background: "#111",
+                      color: "#4DFF91",
+                      fontFamily: "IBM Plex Mono, monospace",
+                      fontSize: 10,
+                      lineHeight: 1.6,
+                      padding: "10px 12px",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      maxHeight: 220,
+                      overflowY: "auto",
+                    }}
+                  >
+                    {onboardingLogs}
+                  </div>
+                )}
               </div>
             )}
             {onboardingPrimaryActionEnabled && onboardingSnapshot.primaryButtonLabel && (
