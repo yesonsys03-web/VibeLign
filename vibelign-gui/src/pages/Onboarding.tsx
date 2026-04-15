@@ -172,6 +172,10 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
     listenOnboardingProgress((event) => {
       if (!active) return;
       setOnboardingProgress(event);
+      getOnboardingSnapshot().then((snapshot) => {
+        if (!active) return;
+        setOnboardingSnapshot(snapshot);
+      }).catch(() => undefined);
     })
       .then((fn) => { unlisten = fn; })
       .catch(() => undefined);
