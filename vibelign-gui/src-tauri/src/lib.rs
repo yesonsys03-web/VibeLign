@@ -1476,6 +1476,30 @@ fn add_claude_to_user_path(app: tauri::AppHandle, state: tauri::State<Onboarding
             |title, line| append_onboarding_log(&state_for_sink, title, line),
         );
 
+        // PowerShell 경로가 실패하면 cmd + reg add 로 폴백.
+        // 기존 Path 를 read_windows_user_path 로 읽은 뒤 bin_dir 이 없으면 append.
+        let result = match &result {
+            Ok(capture) if capture.ok => result,
+            _ => {
+                append_onboarding_log(&state.0, "[path-fix] fallback", "powershell 경로 실패 → cmd + reg add 로 재시도");
+                let current = read_windows_user_path().unwrap_or_default();
+                let already_present = current.split(';').any(|p| p.eq_ignore_ascii_case(&bin_dir));
+                if already_present {
+                    append_onboarding_log(&state.0, "[path-fix] fallback", "PATH_ALREADY_PRESENT");
+                    Ok(CommandCapture { ok: true, stdout: "PATH_ALREADY_PRESENT".to_string(), stderr: String::new(), exit_code: 0 })
+                } else {
+                    let new_value = if current.is_empty() { bin_dir.clone() } else { format!("{};{}", current.trim_end_matches(';'), bin_dir) };
+                    let state_for_sink2 = Arc::clone(&state.0);
+                    run_command_capture_streamed(
+                        "reg",
+                        &["add", r"HKCU\Environment", "/v", "Path", "/t", "REG_EXPAND_SZ", "/d", &new_value, "/f"],
+                        &[],
+                        |title, line| append_onboarding_log(&state_for_sink2, title, line),
+                    )
+                }
+            }
+        };
+
         let mut snapshot = build_initial_onboarding_snapshot();
         snapshot.install_path_kind = state
             .0
