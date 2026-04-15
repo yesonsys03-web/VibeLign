@@ -9,7 +9,7 @@ from typing import Iterable
 
 
 DOCS_VISUAL_SCHEMA_VERSION = 1
-DOCS_VISUAL_GENERATOR_VERSION = "phase5-schema"
+DOCS_VISUAL_GENERATOR_VERSION = "heuristic-mermaid-v1"
 
 
 @dataclass(frozen=True)
@@ -178,7 +178,18 @@ def docs_visual_schema_example() -> dict[str, object]:
         ],
         "glossary": [],
         "action_items": [],
-        "diagram_blocks": [],
+        "diagram_blocks": [
+            {
+                "id": "diagram-heuristic-1",
+                "kind": "mermaid",
+                "title": "Overview",
+                "source": 'mindmap\n  root(("VibeLign Wiki"))\n    "Intro"',
+                "provenance": "heuristic",
+                "generator": "heading-mindmap-v1",
+                "confidence": "high",
+                "warnings": [],
+            }
+        ],
         "warnings": [],
     }
 

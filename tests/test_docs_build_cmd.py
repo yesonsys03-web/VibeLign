@@ -3,9 +3,20 @@ import json
 import os
 import sys
 import tempfile
+import types
 import unittest
 from argparse import Namespace
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _ensure_stub_package(name: str, path: Path) -> None:
+    if name in sys.modules:
+        return
+    package = types.ModuleType(name)
+    package.__path__ = [str(path)]
+    sys.modules[name] = package
 
 
 def _load_module(name: str, path: Path):
@@ -17,9 +28,16 @@ def _load_module(name: str, path: Path):
     return module
 
 
-ROOT = Path(__file__).resolve().parents[1]
+_ensure_stub_package("vibelign", ROOT / "vibelign")
+_ensure_stub_package("vibelign.core", ROOT / "vibelign" / "core")
+_ensure_stub_package("vibelign.commands", ROOT / "vibelign" / "commands")
+_load_module("vibelign.core.docs_cache", ROOT / "vibelign" / "core" / "docs_cache.py")
+_load_module(
+    "vibelign.core.docs_visualizer", ROOT / "vibelign" / "core" / "docs_visualizer.py"
+)
 docs_build_cmd = _load_module(
-    "test_docs_build_cmd_module", ROOT / "vibelign/commands/vib_docs_build_cmd.py"
+    "vibelign.commands.vib_docs_build_cmd",
+    ROOT / "vibelign" / "commands" / "vib_docs_build_cmd.py",
 )
 
 
@@ -133,3 +151,89 @@ class DocsBuildCmdTest(unittest.TestCase):
                     os.environ.pop("VIBELIGN_PROJECT_ROOT", None)
                 else:
                     os.environ["VIBELIGN_PROJECT_ROOT"] = old_env
+
+    def test_docs_build_generates_heuristic_diagram_when_no_authored_mermaid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir()
+            target = root / "README.md"
+            target.write_text(
+                "# Demo\n\n## Install\n\n1. Copy files\n2. Add API key\n3. Restart app\n",
+                encoding="utf-8",
+            )
+
+            docs_build_cmd.build_docs_visual_cache(root, "README.md")
+
+            payload = json.loads(
+                (root / ".vibelign" / "docs_visual" / "README.md.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(len(payload["diagram_blocks"]), 1)
+            self.assertEqual(payload["diagram_blocks"][0]["provenance"], "heuristic")
+            self.assertEqual(payload["diagram_blocks"][0]["generator"], "step-flow-v1")
+
+    def test_docs_build_preserves_authored_mermaid_over_heuristic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir()
+            target = root / "README.md"
+            target.write_text(
+                "# Demo\n\n## Diagram\n\n```mermaid\nflowchart TD\n  A[Start] --> B[Done]\n```\n\n## Install\n\n1. Copy\n2. Configure\n3. Restart\n",
+                encoding="utf-8",
+            )
+
+            docs_build_cmd.build_docs_visual_cache(root, "README.md")
+
+            payload = json.loads(
+                (root / ".vibelign" / "docs_visual" / "README.md.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(len(payload["diagram_blocks"]), 1)
+            self.assertEqual(payload["diagram_blocks"][0]["provenance"], "authored")
+            self.assertEqual(
+                payload["diagram_blocks"][0]["generator"], "authored-mermaid-v1"
+            )
+            self.assertIn("flowchart TD", payload["diagram_blocks"][0]["source"])
+
+    def test_docs_build_huge_doc_keeps_authored_and_skips_heuristic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir()
+            authored = root / "huge-authored.md"
+            plain = root / "huge-plain.md"
+            filler = "\n".join(f"line {index}" for index in range(1300))
+            authored.write_text(
+                f"# Huge\n\n```mermaid\nflowchart TD\n  A[Start] --> B[Done]\n```\n\n{filler}\n",
+                encoding="utf-8",
+            )
+            plain.write_text(
+                f"# Huge\n\n## Intro\n\nAlpha\n\n## Usage\n\nBeta\n\n{filler}\n",
+                encoding="utf-8",
+            )
+
+            docs_build_cmd.build_docs_visual_cache(root, "huge-authored.md")
+            docs_build_cmd.build_docs_visual_cache(root, "huge-plain.md")
+
+            authored_payload = json.loads(
+                (
+                    root / ".vibelign" / "docs_visual" / "huge-authored.md.json"
+                ).read_text(encoding="utf-8")
+            )
+            plain_payload = json.loads(
+                (root / ".vibelign" / "docs_visual" / "huge-plain.md.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(len(authored_payload["diagram_blocks"]), 1)
+            self.assertEqual(
+                authored_payload["diagram_blocks"][0]["provenance"], "authored"
+            )
+            self.assertEqual(plain_payload["diagram_blocks"], [])
+            self.assertTrue(
+                any(
+                    "auto_diagram_skipped_huge_doc" in warning
+                    for warning in plain_payload.get("warnings", [])
+                )
+            )
