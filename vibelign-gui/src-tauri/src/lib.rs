@@ -2430,6 +2430,18 @@ fn get_env_key_status() -> HashMap<String, bool> {
 
 // ─── Git 설치 확인 ────────────────────────────────────────────────────────────
 
+/// Windows 에서 자식 프로세스 실행 시 검은 콘솔 창이 순간적으로 뜨는 것을 막는다.
+/// 비Windows 에서는 no-op.
+#[cfg(target_os = "windows")]
+fn hide_console(cmd: &mut std::process::Command) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    cmd.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(target_os = "windows"))]
+fn hide_console(_cmd: &mut std::process::Command) {}
+
 /// `wsl.exe --status` 는 드물게 수 초 이상 블록될 수 있어서, 프로세스 단위로 한 번만
 /// 계산하고 재사용한다. 사용자가 onboarding 중에 WSL 을 새로 설치/제거하는 일은 거의 없기
 /// 때문에 이 단순 캐시로도 UI freeze 를 막으면서 정확도를 유지할 수 있다.
@@ -2438,18 +2450,20 @@ static WSL_AVAILABLE_CACHE: std::sync::OnceLock<bool> = std::sync::OnceLock::new
 
 #[cfg(target_os = "windows")]
 fn detect_wsl_available_inner() -> bool {
-    let status_ok = std::process::Command::new("wsl.exe")
-        .arg("--status")
+    let mut status_cmd = std::process::Command::new("wsl.exe");
+    status_cmd.arg("--status");
+    hide_console(&mut status_cmd);
+    let status_ok = status_cmd
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
     if !status_ok {
         return false;
     }
-    let list_output = match std::process::Command::new("wsl.exe")
-        .args(["-l", "-q"])
-        .output()
-    {
+    let mut list_cmd = std::process::Command::new("wsl.exe");
+    list_cmd.args(["-l", "-q"]);
+    hide_console(&mut list_cmd);
+    let list_output = match list_cmd.output() {
         Ok(out) if out.status.success() => out.stdout,
         _ => return false,
     };
@@ -2483,12 +2497,10 @@ fn check_wsl_available() -> bool {
 #[tauri::command]
 fn check_git_installed() -> bool {
     // 1. PATH에서 git 시도
-    if std::process::Command::new("git")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-    {
+    let mut probe = std::process::Command::new("git");
+    probe.arg("--version");
+    hide_console(&mut probe);
+    if probe.output().map(|o| o.status.success()).unwrap_or(false) {
         return true;
     }
     // 2. Windows 기본 설치 경로 직접 확인
@@ -2513,8 +2525,13 @@ fn check_git_installed() -> bool {
 /// Windows에서 PATH에 git이 없을 때도 기본 설치 경로에서 찾아 반환
 fn git_cmd() -> std::process::Command {
     // PATH에서 찾히면 바로 사용
-    if std::process::Command::new("git").arg("--version").output().map(|o| o.status.success()).unwrap_or(false) {
-        return std::process::Command::new("git");
+    let mut probe = std::process::Command::new("git");
+    probe.arg("--version");
+    hide_console(&mut probe);
+    if probe.output().map(|o| o.status.success()).unwrap_or(false) {
+        let mut cmd = std::process::Command::new("git");
+        hide_console(&mut cmd);
+        return cmd;
     }
     #[cfg(target_os = "windows")]
     {
@@ -2525,11 +2542,15 @@ fn git_cmd() -> std::process::Command {
         ];
         for path in &candidates {
             if std::path::Path::new(path).exists() {
-                return std::process::Command::new(path);
+                let mut cmd = std::process::Command::new(path);
+                hide_console(&mut cmd);
+                return cmd;
             }
         }
     }
-    std::process::Command::new("git") // 최후 수단 — 실패해도 에러는 호출부에서 처리
+    let mut cmd = std::process::Command::new("git"); // 최후 수단 — 실패해도 에러는 호출부에서 처리
+    hide_console(&mut cmd);
+    cmd
 }
 
 fn trunc(s: &str, max: usize) -> String {
