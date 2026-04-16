@@ -605,7 +605,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
                 )}
               </div>
             )}
-            {((onboardingPrimaryActionEnabled && onboardingSnapshot.primaryButtonLabel) || (onboardingSnapshot.os === "windows" && onboardingSnapshot.state !== "idle" && onboardingSnapshot.state !== "diagnosing")) && (
+            {((onboardingPrimaryActionEnabled && onboardingSnapshot.primaryButtonLabel) || ((onboardingSnapshot.os === "windows" || onboardingSnapshot.os === "macos") && onboardingSnapshot.state !== "idle" && onboardingSnapshot.state !== "diagnosing")) && (
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 {onboardingPrimaryActionEnabled && onboardingSnapshot.primaryButtonLabel && (
                   <button
@@ -625,12 +625,16 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
                     {onboardingBusy ? "처리 중..." : onboardingSnapshot.primaryButtonLabel}
                   </button>
                 )}
-                {onboardingSnapshot.os === "windows" && onboardingSnapshot.state !== "idle" && onboardingSnapshot.state !== "diagnosing" && (
+                {(onboardingSnapshot.os === "windows" || onboardingSnapshot.os === "macos") && onboardingSnapshot.state !== "idle" && onboardingSnapshot.state !== "diagnosing" && (
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <button
                       type="button"
                       onClick={async () => {
-                        const ok = window.confirm("Claude Code 를 완전히 삭제할까요?\n\n네이티브(cmd/PowerShell) + WSL 양쪽 모두 삭제해요.\n되돌릴 수 없어요. 계속할까요?");
+                        const isMac = onboardingSnapshot.os === "macos";
+                        const confirmMsg = isMac
+                          ? "Claude Code 를 완전히 삭제할까요?\n\n바이너리·설정·PATH 추가 블록까지 모두 정리해요.\n되돌릴 수 없어요. 계속할까요?"
+                          : "Claude Code 를 완전히 삭제할까요?\n\n네이티브(cmd/PowerShell) + WSL 양쪽 모두 삭제해요.\n되돌릴 수 없어요. 계속할까요?";
+                        const ok = window.confirm(confirmMsg);
                         if (!ok) return;
                         setOnboardingBusy(true);
                         try {
@@ -650,9 +654,9 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
                         cursor: onboardingBusy ? "default" : "pointer",
                       }}
                     >
-                      전체 삭제
+                      {onboardingSnapshot.os === "macos" ? "Claude Code 삭제" : "전체 삭제"}
                     </button>
-                    {onboardingSnapshot.diagnostics.wslAvailable && (
+                    {onboardingSnapshot.os === "windows" && onboardingSnapshot.diagnostics.wslAvailable && (
                       <>
                         <button
                           type="button"
