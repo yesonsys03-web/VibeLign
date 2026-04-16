@@ -420,3 +420,116 @@ pub(crate) fn add_to_user_path(
         }
     }
 }
+
+fn remove_vibelign_marker_block(path: &std::path::Path) -> Result<bool, String> {
+    let contents = match std::fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(e) => return Err(format!("{} 읽기 실패: {}", path.display(), e)),
+    };
+    let Some(start) = contents.find(VIBELIGN_MARKER_BEGIN) else {
+        return Ok(false);
+    };
+    let Some(end_rel) = contents[start..].find(VIBELIGN_MARKER_END) else {
+        return Ok(false);
+    };
+    let end = start + end_rel + VIBELIGN_MARKER_END.len();
+    let end = if contents[end..].starts_with('\n') {
+        end + 1
+    } else {
+        end
+    };
+    let mut new_contents = String::new();
+    new_contents.push_str(&contents[..start]);
+    new_contents.push_str(&contents[end..]);
+    std::fs::write(path, new_contents)
+        .map_err(|e| format!("{} 쓰기 실패: {}", path.display(), e))?;
+    Ok(true)
+}
+
+pub(crate) fn uninstall_macos_track_in_home(home: &std::path::Path) -> Result<(), String> {
+    let targets: Vec<std::path::PathBuf> = vec![
+        home.join(".local/bin/claude"),
+        home.join(".local/share/claude"),
+        home.join(".claude"),
+        home.join(".claude.json"),
+    ];
+    for target in &targets {
+        if !target.exists() {
+            continue;
+        }
+        let result = if target.is_dir() {
+            std::fs::remove_dir_all(target)
+        } else {
+            std::fs::remove_file(target)
+        };
+        if let Err(e) = result {
+            return Err(format!("{} 삭제 실패: {}", target.display(), e));
+        }
+    }
+    for rc in VIBELIGN_RC_FILES {
+        remove_vibelign_marker_block(&home.join(rc))?;
+    }
+    Ok(())
+}
+
+fn uninstall_macos_track_runtime(state: &Arc<Mutex<OnboardingRuntime>>) -> Result<(), String> {
+    let home = std::env::var("HOME").map_err(|_| "HOME 환경변수를 읽을 수 없어요".to_string())?;
+    let home_path = std::path::PathBuf::from(&home);
+    append_onboarding_log(state, "[uninstall macos] start", &format!("HOME={}", home));
+    let result = uninstall_macos_track_in_home(&home_path);
+    match &result {
+        Ok(_) => append_onboarding_log(
+            state,
+            "[uninstall macos] done",
+            "모든 타겟 삭제 및 rc marker 제거 완료",
+        ),
+        Err(e) => append_onboarding_log(state, "[uninstall macos] failed", e),
+    }
+    result
+}
+
+pub(crate) fn uninstall(
+    app: tauri::AppHandle,
+    state: tauri::State<OnboardingState>,
+) -> OnboardingSnapshot {
+    clear_onboarding_logs(&state.0);
+    let ok = uninstall_macos_track_runtime(&state.0).is_ok();
+    let mut snapshot = build_initial_onboarding_snapshot();
+    snapshot.logs_available = onboarding_logs_available_from_state(&state.0);
+    if ok {
+        snapshot.headline = "Claude Code 를 삭제했어요".to_string();
+        snapshot.detail = Some(
+            "바이너리·설정·rc PATH 블록까지 모두 정리했어요. 다시 설치하려면 '자동 설치 시작' 을 눌러 주세요.".to_string(),
+        );
+    } else {
+        snapshot.headline = "삭제 도중 문제가 있었어요".to_string();
+        snapshot.detail = Some(
+            "로그를 확인하고 남은 파일이 있으면 수동으로 지워 주세요.".to_string(),
+        );
+    }
+    store_onboarding_snapshot(&state.0, &snapshot);
+    emit_onboarding_progress(
+        &app,
+        OnboardingProgressEvent {
+            phase: "install".to_string(),
+            state: snapshot.state.clone(),
+            step_id: "complete".to_string(),
+            status: if ok {
+                "succeeded".to_string()
+            } else {
+                "failed".to_string()
+            },
+            message: if ok {
+                "macOS Claude Code 삭제 완료.".to_string()
+            } else {
+                "macOS Claude Code 삭제 실패.".to_string()
+            },
+            stream_chunk: None,
+            shell_target: None,
+            observed_path: None,
+            error_code: if ok { None } else { Some("unknown".to_string()) },
+        },
+    );
+    snapshot
+}

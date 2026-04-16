@@ -496,7 +496,13 @@ pub fn uninstall_claude_code(
         return windows::uninstall(app, state, track);
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        let _ = track;
+        return macos::uninstall(app, state);
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         let _ = (app, state, track);
         build_onboarding_snapshot()
@@ -640,5 +646,10 @@ pub mod testing {
     #[cfg(target_os = "macos")]
     pub fn check_xcode_clt_for_test() -> bool {
         super::macos::check_xcode_clt()
+    }
+
+    #[cfg(target_os = "macos")]
+    pub fn uninstall_macos_track_at(home: &std::path::Path) -> Result<(), String> {
+        super::macos::uninstall_macos_track_in_home(home)
     }
 }

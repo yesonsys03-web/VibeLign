@@ -119,6 +119,40 @@ fn check_xcode_clt_on_dev_machine() {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
+fn uninstall_macos_removes_marker_blocks_only() {
+    let tmp = std::env::temp_dir().join(format!("vibelign-uninstall-{}", std::process::id()));
+    std::fs::create_dir_all(&tmp).unwrap();
+
+    vibelign_gui_lib::testing::ensure_macos_path_marker_at(&tmp).unwrap();
+    let with_marker = std::fs::read_to_string(tmp.join(".zshrc")).unwrap();
+    std::fs::write(
+        tmp.join(".zshrc"),
+        format!("# user content\nexport FOO=1\n{}", with_marker),
+    )
+    .unwrap();
+
+    let bin_dir = tmp.join(".local/bin");
+    std::fs::create_dir_all(&bin_dir).unwrap();
+    std::fs::write(bin_dir.join("claude"), "fake").unwrap();
+    std::fs::create_dir_all(tmp.join(".claude")).unwrap();
+    std::fs::write(tmp.join(".claude.json"), "{}").unwrap();
+
+    vibelign_gui_lib::testing::uninstall_macos_track_at(&tmp).unwrap();
+
+    assert!(!bin_dir.join("claude").exists(), "claude binary should be removed");
+    assert!(!tmp.join(".claude").exists(), ".claude dir should be removed");
+    assert!(!tmp.join(".claude.json").exists(), ".claude.json should be removed");
+
+    let zshrc = std::fs::read_to_string(tmp.join(".zshrc")).unwrap();
+    assert!(!zshrc.contains("# >>> vibelign >>>"), "marker block should be gone");
+    assert!(zshrc.contains("# user content"), "user content must be preserved");
+    assert!(zshrc.contains("export FOO=1"), "user export must be preserved");
+
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
 fn run_command_capture_streamed_captures_echo_on_macos() {
     let mut lines: Vec<String> = Vec::new();
     let result: CommandCaptureForTest = run_command_capture_streamed_for_test(
