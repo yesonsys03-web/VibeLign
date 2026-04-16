@@ -321,3 +321,95 @@ pub(crate) fn retry_verification(
 pub(crate) fn check_xcode_clt() -> bool {
     true
 }
+
+pub(crate) const VIBELIGN_MARKER_BEGIN: &str = "# >>> vibelign >>>";
+pub(crate) const VIBELIGN_MARKER_END: &str = "# <<< vibelign <<<";
+
+const VIBELIGN_MARKER_BODY: &str = "\
+# VibeLign onboarding 이 ~/.local/bin 을 PATH 에 추가했어요.
+# 이 블록 전체를 지우면 PATH 추가도 같이 사라져요.
+export PATH=\"$HOME/.local/bin:$PATH\"";
+
+pub(crate) const VIBELIGN_RC_FILES: &[&str] = &[".zshrc", ".bash_profile", ".bashrc", ".profile"];
+
+pub(crate) fn ensure_macos_path_marker_in_home(
+    home: &std::path::Path,
+) -> Result<Vec<std::path::PathBuf>, String> {
+    let mut touched = Vec::new();
+    for rc in VIBELIGN_RC_FILES {
+        let path = home.join(rc);
+        let existing = match std::fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+            Err(e) => return Err(format!("{} 읽기 실패: {}", path.display(), e)),
+        };
+        if existing.contains(VIBELIGN_MARKER_BEGIN) && existing.contains(VIBELIGN_MARKER_END) {
+            continue;
+        }
+
+        let mut new_contents = existing;
+        if !new_contents.is_empty() && !new_contents.ends_with('\n') {
+            new_contents.push('\n');
+        }
+        new_contents.push_str(VIBELIGN_MARKER_BEGIN);
+        new_contents.push('\n');
+        new_contents.push_str(VIBELIGN_MARKER_BODY);
+        new_contents.push('\n');
+        new_contents.push_str(VIBELIGN_MARKER_END);
+        new_contents.push('\n');
+
+        std::fs::write(&path, new_contents)
+            .map_err(|e| format!("{} 쓰기 실패: {}", path.display(), e))?;
+        touched.push(path);
+    }
+    Ok(touched)
+}
+
+fn ensure_macos_path_marker() -> Result<Vec<std::path::PathBuf>, String> {
+    let home = std::env::var("HOME").map_err(|_| "HOME 환경변수를 읽을 수 없어요".to_string())?;
+    ensure_macos_path_marker_in_home(std::path::Path::new(&home))
+}
+
+pub(crate) fn add_to_user_path(
+    app: tauri::AppHandle,
+    state: tauri::State<OnboardingState>,
+) -> OnboardingSnapshot {
+    clear_onboarding_logs(&state.0);
+    match ensure_macos_path_marker() {
+        Ok(touched) => {
+            for p in &touched {
+                append_onboarding_log(&state.0, "[path-fix] updated", &p.to_string_lossy());
+            }
+            let state_arc = Arc::clone(&state.0);
+            let app_handle = app.clone();
+            std::thread::spawn(move || {
+                let final_snapshot = verify_macos_shells(&state_arc, &app_handle);
+                store_onboarding_snapshot(&state_arc, &final_snapshot);
+            });
+            let mut progressing = build_initial_onboarding_snapshot();
+            progressing.state = "verifying_shells".to_string();
+            progressing.install_path_kind = "native-cmd".to_string();
+            progressing.next_action = "none".to_string();
+            progressing.headline = "PATH 를 추가하고 다시 확인하는 중이에요".to_string();
+            progressing.primary_button_label = None;
+            progressing.logs_available = onboarding_logs_available_from_state(&state.0);
+            store_onboarding_snapshot(&state.0, &progressing);
+            progressing
+        }
+        Err(err) => {
+            let mut failed = build_initial_onboarding_snapshot();
+            failed.state = "blocked".to_string();
+            failed.next_action = "none".to_string();
+            failed.headline = "PATH 파일을 고치지 못했어요".to_string();
+            failed.detail = Some(err.clone());
+            failed.last_error = Some(OnboardingLastError {
+                code: "unknown".to_string(),
+                summary: "rc 파일에 PATH marker 를 추가하지 못했어요.".to_string(),
+                detail: Some(err),
+                suggested_action: None,
+            });
+            store_onboarding_snapshot(&state.0, &failed);
+            failed
+        }
+    }
+}
