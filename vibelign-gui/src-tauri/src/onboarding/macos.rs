@@ -387,12 +387,6 @@ pub(crate) fn add_to_user_path(
             for p in &touched {
                 append_onboarding_log(&state.0, "[path-fix] updated", &p.to_string_lossy());
             }
-            let state_arc = Arc::clone(&state.0);
-            let app_handle = app.clone();
-            std::thread::spawn(move || {
-                let final_snapshot = verify_macos_shells(&state_arc, &app_handle);
-                store_onboarding_snapshot(&state_arc, &final_snapshot);
-            });
             let mut progressing = build_initial_onboarding_snapshot();
             progressing.state = "verifying_shells".to_string();
             progressing.install_path_kind = "native-cmd".to_string();
@@ -401,6 +395,12 @@ pub(crate) fn add_to_user_path(
             progressing.primary_button_label = None;
             progressing.logs_available = onboarding_logs_available_from_state(&state.0);
             store_onboarding_snapshot(&state.0, &progressing);
+            let state_arc = Arc::clone(&state.0);
+            let app_handle = app.clone();
+            std::thread::spawn(move || {
+                let final_snapshot = verify_macos_shells(&state_arc, &app_handle);
+                store_onboarding_snapshot(&state_arc, &final_snapshot);
+            });
             progressing
         }
         Err(err) => {
@@ -455,10 +455,15 @@ pub(crate) fn uninstall_macos_track_in_home(home: &std::path::Path) -> Result<()
         home.join(".claude.json"),
     ];
     for target in &targets {
-        if !target.exists() {
-            continue;
-        }
-        let result = if target.is_dir() {
+        let meta = match std::fs::symlink_metadata(target) {
+            Ok(m) => m,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(format!("{} 상태 확인 실패: {}", target.display(), e)),
+        };
+        let ft = meta.file_type();
+        let result = if ft.is_symlink() {
+            std::fs::remove_file(target)
+        } else if ft.is_dir() {
             std::fs::remove_dir_all(target)
         } else {
             std::fs::remove_file(target)
