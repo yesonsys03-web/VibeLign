@@ -582,3 +582,41 @@ fn hide_console(cmd: &mut std::process::Command) {
 
 #[cfg(not(target_os = "windows"))]
 fn hide_console(_cmd: &mut std::process::Command) {}
+
+// ─── testing shim ────────────────────────────────────────────────────────────
+// Integration tests (`tests/*.rs`) compile the library without `cfg(test)`,
+// so the shim can't be gated with `#[cfg(test)]`. It's a thin wrapper that
+// adds zero runtime cost when unused.
+pub mod testing {
+    use super::{run_command_capture_streamed, CommandCapture};
+
+    pub struct CommandCaptureForTest {
+        pub ok: bool,
+        pub stdout: String,
+        pub stderr: String,
+        pub exit_code: i32,
+    }
+
+    impl From<CommandCapture> for CommandCaptureForTest {
+        fn from(c: CommandCapture) -> Self {
+            Self {
+                ok: c.ok,
+                stdout: c.stdout,
+                stderr: c.stderr,
+                exit_code: c.exit_code,
+            }
+        }
+    }
+
+    pub fn run_command_capture_streamed_for_test<F>(
+        program: &str,
+        args: &[&str],
+        env_overrides: &[(&str, String)],
+        sink: F,
+    ) -> Result<CommandCaptureForTest, String>
+    where
+        F: FnMut(&str, &str),
+    {
+        run_command_capture_streamed(program, args, env_overrides, sink).map(Into::into)
+    }
+}

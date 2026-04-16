@@ -14,6 +14,8 @@ use tauri::Emitter;
 
 use onboarding::{OnboardingRuntime, OnboardingState};
 
+pub use onboarding::testing;
+
 // ─── 폴더 열기 ────────────────────────────────────────────────────────────────
 
 #[tauri::command]
