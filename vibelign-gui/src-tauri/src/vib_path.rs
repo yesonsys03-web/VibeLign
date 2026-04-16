@@ -12,6 +12,17 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// Windows 에서 자식 프로세스 실행 시 검은 콘솔 창이 순간적으로 뜨는 것을 막는다.
+#[cfg(target_os = "windows")]
+fn hide_console(cmd: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    cmd.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(target_os = "windows"))]
+fn hide_console(_cmd: &mut Command) {}
+
 /// `export … # VibeLign CLI` 줄이 이미 있으면 스킵한다.
 fn append_vibelign_path_line(
     path: &Path,
@@ -171,7 +182,10 @@ pub fn find_vib() -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
     let which_cmd = "where";
 
-    if let Ok(output) = Command::new(which_cmd).arg("vib").output() {
+    let mut which_command = Command::new(which_cmd);
+    which_command.arg("vib");
+    hide_console(&mut which_command);
+    if let Ok(output) = which_command.output() {
         if output.status.success() {
             let path_str = String::from_utf8_lossy(&output.stdout)
                 .trim()
@@ -308,9 +322,10 @@ pub fn install_cli_to_path() -> Result<String, String> {
             r#"$old = [Environment]::GetEnvironmentVariable('Path','User'); if ($old -notlike '*VibeLign*') {{ [Environment]::SetEnvironmentVariable('Path', $old + ';{dir}', 'User') }}"#,
             dir = dir_str
         );
-        let _ = Command::new("powershell")
-            .args(["-NoProfile", "-NonInteractive", "-Command", &ps_script])
-            .output();
+        let mut ps_cmd = Command::new("powershell");
+        ps_cmd.args(["-NoProfile", "-NonInteractive", "-Command", &ps_script]);
+        hide_console(&mut ps_cmd);
+        let _ = ps_cmd.output();
 
         return Ok(format!("vib CLI 설치 완료: {}", dest.display()));
     }
