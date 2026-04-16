@@ -459,7 +459,30 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
     } else {
         append_onboarding_log(state, "[verify where.exe claude]", "spawn error");
     }
-    let claude_on_path = where_result.as_ref().map(|r| r.ok && !r.stdout.trim().is_empty()).unwrap_or(false);
+    let where_found = where_result.as_ref().map(|r| r.ok && !r.stdout.trim().is_empty()).unwrap_or(false);
+    // `where.exe` 를 우리가 주입한 merged PATH 로 실행하기 때문에,
+    // install.ps1 이 HKCU\Environment\Path 를 건드리지 않은 경우에도
+    // GUI 프로세스 env 만으로 claude.exe 가 잡힐 수 있다.
+    // 사용자가 새로 여는 cmd/PowerShell 은 HKCU 영구 PATH 만 본다.
+    // 따라서 bin_dir 이 HKCU User PATH 에 실제로 들어있는지 별도로 확인해
+    // 그것도 통과해야만 claude_on_path 를 참으로 인정한다.
+    let bin_dir_for_check: Option<String> = windows_expected_claude_path()
+        .and_then(|p| p.parent().map(|d| d.to_string_lossy().to_string()));
+    let user_path_snapshot: String = read_windows_user_path().unwrap_or_default();
+    let bin_dir_in_user_path = match bin_dir_for_check.as_deref() {
+        Some(bin) => user_path_snapshot
+            .split(';')
+            .any(|part| part.trim().eq_ignore_ascii_case(bin)),
+        None => false,
+    };
+    if where_found && !bin_dir_in_user_path {
+        append_onboarding_log(
+            state,
+            "[verify] user-path missing",
+            "where.exe 는 성공했지만 HKCU Path 에 .local\\bin 이 없어요. PATH 미설정으로 분류해요.",
+        );
+    }
+    let claude_on_path = where_found && bin_dir_in_user_path;
     let observed_path = where_result
         .as_ref()
         .and_then(|r| r.stdout.lines().next())
