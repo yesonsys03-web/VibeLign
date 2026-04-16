@@ -178,13 +178,22 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
         if (!active) return;
         setOnboardingSnapshot(snapshot);
       }).catch(() => undefined);
+      // Git 을 직접 재검사해 Git 미설치 경고 배너가 설치 후에도 갱신되도록 한다.
+      checkGitInstalled().then((ok) => { if (active) setGitInstalled(ok); }).catch(() => undefined);
     })
       .then((fn) => { unlisten = fn; })
       .catch(() => undefined);
 
+    // 앱이 포커스를 다시 받으면 사용자가 외부에서 Git 을 설치했을 수 있으므로 재검사한다.
+    const onFocus = () => {
+      checkGitInstalled().then((ok) => { if (active) setGitInstalled(ok); }).catch(() => undefined);
+    };
+    window.addEventListener("focus", onFocus);
+
     return () => {
       active = false;
       unlisten?.();
+      window.removeEventListener("focus", onFocus);
     };
   }, []);
 
@@ -319,6 +328,22 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   async function handleOnboardingPrimaryAction(nextAction: NextAction) {
     setOnboardingBusy(true);
     try {
+      // 사용자가 외부에서 Git 을 설치했을 수 있으므로 버튼 클릭 시점에도
+      // Git 상태를 재확인해 배너/설치 조건이 즉시 반영되도록 한다.
+      let freshGit: boolean | null = null;
+      try {
+        freshGit = await checkGitInstalled();
+        setGitInstalled(freshGit);
+      } catch {
+        /* ignore */
+      }
+      // install_git 버튼을 눌렀는데 Git 이 이미 설치되어 있다면 URL 을 다시 여는 대신
+      // 스냅샷을 새로고침해서 ready_to_install 상태로 넘어가도록 한다 (앱 재시동 불필요).
+      if (nextAction === "install_git" && freshGit === true) {
+        const refreshed = await getOnboardingSnapshot().catch(() => null);
+        if (refreshed) setOnboardingSnapshot(refreshed);
+        return;
+      }
       if (nextAction === "start_install") {
         const preferredPathKind = onboardingSnapshot?.installPathKind === "native-powershell" || onboardingSnapshot?.installPathKind === "native-cmd"
           ? onboardingSnapshot.installPathKind
@@ -525,7 +550,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
                 )}
               </div>
             )}
-            {(onboardingLogs.trim() || onboardingSnapshot?.state === "installing_native" || onboardingSnapshot?.state === "installing_wsl" || onboardingSnapshot?.state === "verifying_shells" || onboardingSnapshot?.state === "probing_login") && (
+            {(onboardingLogs.trim() || onboardingSnapshot?.logsAvailable || onboardingSnapshot?.state === "installing_native" || onboardingSnapshot?.state === "installing_wsl" || onboardingSnapshot?.state === "verifying_shells" || onboardingSnapshot?.state === "probing_login") && (
               <div style={{ marginBottom: onboardingPrimaryActionEnabled ? 8 : 0 }}>
                 <button
                   type="button"
