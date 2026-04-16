@@ -109,6 +109,16 @@ fn ensure_macos_path_marker_creates_missing_rc_files() {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
+fn check_xcode_clt_on_dev_machine() {
+    if std::env::var("VIBELIGN_SKIP_XCODE_CHECK").is_ok() {
+        return;
+    }
+    let installed = vibelign_gui_lib::testing::check_xcode_clt_for_test();
+    assert!(installed, "dev Mac should have Xcode CLT installed");
+}
+
+#[test]
 fn run_command_capture_streamed_captures_echo_on_macos() {
     let mut lines: Vec<String> = Vec::new();
     let result: CommandCaptureForTest = run_command_capture_streamed_for_test(

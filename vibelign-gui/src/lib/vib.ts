@@ -480,4 +480,8 @@ export async function readProjectSummary(dir: string): Promise<ProjectSummary> {
 export async function checkGitInstalled(): Promise<boolean> {
   return invoke<boolean>("check_git_installed");
 }
+
+export async function checkXcodeClt(): Promise<boolean> {
+  return invoke<boolean>("check_xcode_clt");
+}
 // === ANCHOR: VIB_BRIDGE_END ===

@@ -636,4 +636,9 @@ pub mod testing {
     ) -> Result<Vec<std::path::PathBuf>, String> {
         super::macos::ensure_macos_path_marker_in_home(home)
     }
+
+    #[cfg(target_os = "macos")]
+    pub fn check_xcode_clt_for_test() -> bool {
+        super::macos::check_xcode_clt()
+    }
 }
