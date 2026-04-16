@@ -319,7 +319,14 @@ pub(crate) fn retry_verification(
 }
 
 pub(crate) fn check_xcode_clt() -> bool {
-    true
+    std::process::Command::new("xcode-select")
+        .arg("-p")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 pub(crate) const VIBELIGN_MARKER_BEGIN: &str = "# >>> vibelign >>>";

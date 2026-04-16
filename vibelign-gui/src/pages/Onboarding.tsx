@@ -8,6 +8,7 @@ import {
   vibStart,
   readProjectSummary,
   checkGitInstalled,
+  checkXcodeClt,
   getOnboardingSnapshot,
   listenOnboardingProgress,
   retryOnboardingVerification,
@@ -154,6 +155,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   const [helpAnswer, setHelpAnswer] = useState("예: 이 툴로 뭘 할 수 있어?");
   const [helpLoading, setHelpLoading] = useState(false);
   const [gitInstalled, setGitInstalled] = useState<boolean | null>(null);
+  const [xcodeCltInstalled, setXcodeCltInstalled] = useState<boolean | null>(null);
   const [summaryIdx, setSummaryIdx] = useState(0);
   const [termLines, setTermLines] = useState<TermLine[]>(TERMINAL_LINES_DEFAULT);
   const [animStep, setAnimStep] = useState(TERMINAL_LINES_DEFAULT.length);
@@ -167,6 +169,7 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
   useEffect(() => {
     getVibPath().then((p) => { setVibFound(p); setVibChecking(false); });
     checkGitInstalled().then(setGitInstalled).catch(() => setGitInstalled(false));
+    checkXcodeClt().then(setXcodeCltInstalled).catch(() => setXcodeCltInstalled(true));
     getOnboardingSnapshot().then(setOnboardingSnapshot).catch(() => setOnboardingSnapshot(null));
 
     let active = true;
@@ -506,6 +509,18 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
             </div>
           );
         })()}
+
+        {onboardingSnapshot?.os === "macos" && xcodeCltInstalled === false && (
+          <div style={{ border: "2px solid #FFD166", background: "#FFD16611", padding: "10px 14px", marginBottom: 8, fontSize: 11 }}>
+            <div style={{ fontWeight: 800, color: "#B8860B", marginBottom: 6 }}>⚠ Xcode Command Line Tools 가 없을 수 있어요</div>
+            <div style={{ color: "#555", marginBottom: 8, lineHeight: 1.55 }}>
+              설치가 잘 되면 무시해도 괜찮아요. 만약 install.sh 가 `git` 또는 `curl` 을 못 찾으면 아래 명령을 터미널에서 한 번 실행해 주세요.
+            </div>
+            <div style={{ fontFamily: "IBM Plex Mono, monospace", background: "#1A1A1A", color: "#4DFF91", padding: "6px 10px", fontSize: 10 }}>
+              $ xcode-select --install
+            </div>
+          </div>
+        )}
 
         {onboardingSnapshot && (
           <div
