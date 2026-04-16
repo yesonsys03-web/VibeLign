@@ -586,31 +586,87 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
                   </button>
                 )}
                 {onboardingSnapshot.os === "windows" && onboardingSnapshot.state !== "idle" && onboardingSnapshot.state !== "diagnosing" && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const ok = window.confirm("Claude Code 를 완전히 삭제할까요?\n\n다음 항목을 지워요:\n • C:\\Users\\...\\.local\\bin\\claude.exe\n • %USERPROFILE%\\.claude (설정·세션·로그인 정보)\n • 빈 PATH 항목\n\n되돌릴 수 없어요. 계속할까요?");
-                      if (!ok) return;
-                      setOnboardingBusy(true);
-                      try {
-                        setOnboardingSnapshot(await uninstallClaudeCode());
-                      } finally {
-                        setOnboardingBusy(false);
-                      }
-                    }}
-                    disabled={onboardingBusy}
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      padding: "5px 12px",
-                      border: "2px solid #A14B00",
-                      background: "#fff",
-                      color: "#A14B00",
-                      cursor: onboardingBusy ? "default" : "pointer",
-                    }}
-                  >
-                    Claude Code 완전 삭제
-                  </button>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const ok = window.confirm("Claude Code 를 완전히 삭제할까요?\n\n네이티브(cmd/PowerShell) + WSL 양쪽 모두 삭제해요.\n되돌릴 수 없어요. 계속할까요?");
+                        if (!ok) return;
+                        setOnboardingBusy(true);
+                        try {
+                          setOnboardingSnapshot(await uninstallClaudeCode("all"));
+                        } finally {
+                          setOnboardingBusy(false);
+                        }
+                      }}
+                      disabled={onboardingBusy}
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: "5px 12px",
+                        border: "2px solid #A14B00",
+                        background: "#fff",
+                        color: "#A14B00",
+                        cursor: onboardingBusy ? "default" : "pointer",
+                      }}
+                    >
+                      전체 삭제
+                    </button>
+                    {onboardingSnapshot.diagnostics.wslAvailable && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const ok = window.confirm("네이티브(cmd/PowerShell) 트랙만 삭제할까요?\nWSL 쪽 Claude 는 유지돼요.");
+                            if (!ok) return;
+                            setOnboardingBusy(true);
+                            try {
+                              setOnboardingSnapshot(await uninstallClaudeCode("native"));
+                            } finally {
+                              setOnboardingBusy(false);
+                            }
+                          }}
+                          disabled={onboardingBusy}
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            padding: "5px 10px",
+                            border: "1px solid #A14B00",
+                            background: "#fff",
+                            color: "#A14B00",
+                            cursor: onboardingBusy ? "default" : "pointer",
+                          }}
+                        >
+                          네이티브만 삭제
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const ok = window.confirm("WSL 트랙만 삭제할까요?\ncmd/PowerShell 쪽 Claude 는 유지돼요.");
+                            if (!ok) return;
+                            setOnboardingBusy(true);
+                            try {
+                              setOnboardingSnapshot(await uninstallClaudeCode("wsl"));
+                            } finally {
+                              setOnboardingBusy(false);
+                            }
+                          }}
+                          disabled={onboardingBusy}
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            padding: "5px 10px",
+                            border: "1px solid #A14B00",
+                            background: "#fff",
+                            color: "#A14B00",
+                            cursor: onboardingBusy ? "default" : "pointer",
+                          }}
+                        >
+                          WSL만 삭제
+                        </button>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
             )}
