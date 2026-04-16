@@ -473,7 +473,12 @@ pub fn add_claude_to_user_path(
         return windows::add_to_user_path(app, state);
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        return macos::add_to_user_path(app, state);
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         let _ = (app, state);
         build_onboarding_snapshot()
@@ -623,5 +628,12 @@ pub mod testing {
         F: FnMut(&str, &str),
     {
         run_command_capture_streamed(program, args, env_overrides, sink).map(Into::into)
+    }
+
+    #[cfg(target_os = "macos")]
+    pub fn ensure_macos_path_marker_at(
+        home: &std::path::Path,
+    ) -> Result<Vec<std::path::PathBuf>, String> {
+        super::macos::ensure_macos_path_marker_in_home(home)
     }
 }
