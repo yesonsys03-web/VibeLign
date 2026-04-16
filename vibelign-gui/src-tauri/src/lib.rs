@@ -657,6 +657,219 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
     snapshot
 }
 
+/// WSL 트랙: 네이티브 설치/검증이 끝난 상태에서 WSL 안에 Linux 버전 Claude Code 를
+/// 추가로 설치한다. 기존 네이티브 실행은 유지되며 WSL 터미널에서도 `claude` 가 동작하도록
+/// 하는 것이 목표다. 반환되는 스냅샷은 cmd/powershell 검증과 WSL 검증 모두를 반영한다.
+#[cfg(target_os = "windows")]
+fn run_wsl_install_flow(
+    state: &Arc<Mutex<OnboardingRuntime>>,
+    app: &tauri::AppHandle,
+    previous_snapshot: OnboardingSnapshot,
+) -> OnboardingSnapshot {
+    let mut snapshot = previous_snapshot.clone();
+    snapshot.state = "installing_wsl".to_string();
+    snapshot.install_path_kind = "wsl".to_string();
+    snapshot.next_action = "none".to_string();
+    snapshot.headline = "WSL 쪽에도 Claude Code 를 설치하는 중이에요".to_string();
+    snapshot.detail = Some("PowerShell·CMD 설치는 이미 끝났고, 이어서 WSL 터미널에서도 바로 쓸 수 있도록 Linux 버전을 설치해요.".to_string());
+    snapshot.primary_button_label = None;
+    store_onboarding_snapshot(state, &snapshot);
+    emit_onboarding_progress(app, OnboardingProgressEvent {
+        phase: "install".to_string(),
+        state: snapshot.state.clone(),
+        step_id: "run_wsl_installer".to_string(),
+        status: "started".to_string(),
+        message: "WSL 안에서 공식 install.sh 를 실행하는 중이에요.".to_string(),
+        stream_chunk: None,
+        shell_target: Some("wsl".to_string()),
+        observed_path: None,
+        error_code: None,
+    });
+
+    append_onboarding_log(state, "[wsl installer] running", "wsl.exe -- bash -lc 'curl -fsSL https://claude.ai/install.sh | bash'");
+    let state_for_sink = Arc::clone(state);
+    let install_result = run_command_capture_streamed(
+        "wsl.exe",
+        &["--", "bash", "-lc", "curl -fsSL https://claude.ai/install.sh | bash"],
+        &[],
+        |title, line| append_onboarding_log(&state_for_sink, title, line),
+    );
+
+    let install_ok = match &install_result {
+        Ok(r) => {
+            append_onboarding_log(state, "[wsl installer stdout]", &r.stdout);
+            append_onboarding_log(state, "[wsl installer stderr]", &r.stderr);
+            r.ok
+        }
+        Err(err) => {
+            append_onboarding_log(state, "[wsl installer error]", err);
+            false
+        }
+    };
+
+    snapshot.logs_available = onboarding_logs_available_from_state(state);
+
+    if !install_ok {
+        // 네이티브 트랙은 이미 성공했으므로 WSL 실패를 soft-fail 로 취급한다.
+        // 프론트에서 '나중에 다시 시도' 재시도 버튼으로 연결한다.
+        snapshot.state = "needs_wsl_fallback".to_string();
+        snapshot.next_action = "continue_with_wsl".to_string();
+        snapshot.headline = "WSL 트랙 설치만 실패했어요".to_string();
+        snapshot.detail = Some("PowerShell·CMD 에서는 Claude 가 잘 동작해요. WSL 설치는 나중에 다시 시도할 수 있어요.".to_string());
+        snapshot.primary_button_label = Some("WSL 설치 다시 시도".to_string());
+        snapshot.last_error = Some(OnboardingLastError {
+            code: "unknown".to_string(),
+            summary: "WSL 안에서 Claude Code 설치가 완료되지 않았어요.".to_string(),
+            detail: install_result.err().map(|e| e).or(Some("install.sh 가 비정상 종료했어요.".to_string())),
+            suggested_action: Some("continue_with_wsl".to_string()),
+        });
+        store_onboarding_snapshot(state, &snapshot);
+        emit_onboarding_progress(app, OnboardingProgressEvent {
+            phase: "install".to_string(),
+            state: snapshot.state.clone(),
+            step_id: "run_wsl_installer".to_string(),
+            status: "failed".to_string(),
+            message: "WSL 트랙 설치가 실패했어요. 네이티브 트랙은 그대로 사용할 수 있어요.".to_string(),
+            stream_chunk: None,
+            shell_target: Some("wsl".to_string()),
+            observed_path: None,
+            error_code: Some("unknown".to_string()),
+        });
+        return snapshot;
+    }
+
+    // WSL 검증: `claude --version`
+    append_onboarding_log(state, "[wsl verify] running", "wsl.exe -- bash -lc 'claude --version'");
+    let verify = run_command_capture(
+        "wsl.exe",
+        &["--", "bash", "-lc", "claude --version"],
+        &[],
+    )
+    .ok();
+    if let Some(r) = &verify {
+        append_onboarding_log(state, "[wsl verify stdout]", &r.stdout);
+        append_onboarding_log(state, "[wsl verify stderr]", &r.stderr);
+    }
+    let wsl_version_ok = verify.as_ref().map(|r| r.ok).unwrap_or(false);
+    snapshot.logs_available = onboarding_logs_available_from_state(state);
+
+    if wsl_version_ok {
+        // 이전 네이티브 검증에서 login_required 까지 갔던 상태를 유지하고,
+        // WSL 까지 끝났다는 사실만 헤드라인/디테일에 반영한다.
+        snapshot.state = "login_required".to_string();
+        snapshot.next_action = "start_login".to_string();
+        snapshot.headline = "모든 터미널에서 Claude 를 쓸 수 있어요!".to_string();
+        snapshot.detail = Some("PowerShell·CMD 뿐 아니라 WSL 터미널에서도 `claude` 가 실행돼요. 이제 로그인만 하면 바로 사용할 수 있어요.".to_string());
+        snapshot.primary_button_label = Some("다음으로".to_string());
+        snapshot.last_error = None;
+        store_onboarding_snapshot(state, &snapshot);
+        emit_onboarding_progress(app, OnboardingProgressEvent {
+            phase: "install".to_string(),
+            state: snapshot.state.clone(),
+            step_id: "run_wsl_installer".to_string(),
+            status: "succeeded".to_string(),
+            message: "WSL 트랙 설치와 검증이 모두 통과했어요.".to_string(),
+            stream_chunk: None,
+            shell_target: Some("wsl".to_string()),
+            observed_path: None,
+            error_code: None,
+        });
+        return snapshot;
+    }
+
+    snapshot.state = "needs_wsl_fallback".to_string();
+    snapshot.next_action = "continue_with_wsl".to_string();
+    snapshot.headline = "WSL 설치는 끝났지만 `claude` 실행 확인이 안 됐어요".to_string();
+    snapshot.detail = Some("네이티브 트랙은 정상이에요. WSL 재시도는 선택사항이에요.".to_string());
+    snapshot.primary_button_label = Some("WSL 검증 재시도".to_string());
+    snapshot.last_error = Some(OnboardingLastError {
+        code: "installer_false_success".to_string(),
+        summary: "WSL 안 install.sh 는 성공했지만 `claude --version` 이 실패했어요.".to_string(),
+        detail: None,
+        suggested_action: Some("continue_with_wsl".to_string()),
+    });
+    store_onboarding_snapshot(state, &snapshot);
+    emit_onboarding_progress(app, OnboardingProgressEvent {
+        phase: "verify".to_string(),
+        state: snapshot.state.clone(),
+        step_id: "verify_version".to_string(),
+        status: "failed".to_string(),
+        message: "WSL 쪽 검증이 통과하지 못했어요.".to_string(),
+        stream_chunk: None,
+        shell_target: Some("wsl".to_string()),
+        observed_path: None,
+        error_code: Some("installer_false_success".to_string()),
+    });
+    snapshot
+}
+
+#[tauri::command]
+fn start_wsl_install(app: tauri::AppHandle, state: tauri::State<OnboardingState>) -> OnboardingSnapshot {
+    #[cfg(target_os = "windows")]
+    {
+        if !check_wsl_available() {
+            let mut blocked = build_initial_onboarding_snapshot();
+            blocked.state = "blocked".to_string();
+            blocked.install_path_kind = "wsl".to_string();
+            blocked.next_action = "none".to_string();
+            blocked.headline = "WSL 을 감지하지 못했어요".to_string();
+            blocked.detail = Some("WSL 배포판이 설치되어 있어야 이 트랙을 사용할 수 있어요.".to_string());
+            blocked.last_error = Some(OnboardingLastError {
+                code: "unsupported_environment".to_string(),
+                summary: "WSL 이 사용 가능한 상태가 아니에요.".to_string(),
+                detail: None,
+                suggested_action: None,
+            });
+            store_onboarding_snapshot(&state.0, &blocked);
+            return blocked;
+        }
+
+        let previous = state
+            .0
+            .lock()
+            .ok()
+            .and_then(|runtime| runtime.snapshot.clone())
+            .unwrap_or_else(build_initial_onboarding_snapshot);
+
+        let mut in_progress = previous.clone();
+        in_progress.state = "installing_wsl".to_string();
+        in_progress.install_path_kind = "wsl".to_string();
+        in_progress.next_action = "none".to_string();
+        in_progress.headline = "WSL 쪽에도 Claude Code 를 설치하는 중이에요".to_string();
+        in_progress.detail = Some("공식 install.sh 를 WSL 안에서 실행하고 있어요.".to_string());
+        in_progress.primary_button_label = None;
+        store_onboarding_snapshot(&state.0, &in_progress);
+
+        let state_arc = Arc::clone(&state.0);
+        let app_handle = app.clone();
+        let baseline = previous;
+        std::thread::spawn(move || {
+            let final_snapshot = run_wsl_install_flow(&state_arc, &app_handle, baseline);
+            store_onboarding_snapshot(&state_arc, &final_snapshot);
+        });
+
+        return in_progress;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let mut snapshot = build_initial_onboarding_snapshot();
+        snapshot.state = "blocked".to_string();
+        snapshot.install_path_kind = "wsl".to_string();
+        snapshot.next_action = "none".to_string();
+        snapshot.headline = "이 환경에서는 WSL 트랙을 사용할 수 없어요".to_string();
+        snapshot.last_error = Some(OnboardingLastError {
+            code: "unsupported_environment".to_string(),
+            summary: "WSL 은 Windows 전용이에요.".to_string(),
+            detail: None,
+            suggested_action: None,
+        });
+        store_onboarding_snapshot(&state.0, &snapshot);
+        let _ = app;
+        snapshot
+    }
+}
+
 #[cfg(not(target_os = "windows"))]
 fn verify_windows_shells(_state: &Arc<Mutex<OnboardingRuntime>>, _app: &tauri::AppHandle, _install_path_kind: &str) -> OnboardingSnapshot {
     let mut snapshot = build_onboarding_snapshot();
@@ -1369,7 +1582,15 @@ fn start_native_install(
                         });
                         let mut verified = verify_windows_shells(&state_arc, &app_handle, path_kind.as_contract_value());
                         verified.install_path_kind = path_kind.as_contract_value().to_string();
-                        verified
+                        // 네이티브 검증이 login_required(성공) 상태이고 WSL 이 감지되면
+                        // '코알못' 사용자도 WSL 터미널에서 곧장 `claude` 를 쓸 수 있도록
+                        // 병렬 트랙 설치를 자동으로 이어서 실행한다. 네이티브 결과는
+                        // 이미 저장되어 있어 WSL 실패가 네이티브 성공을 덮어쓰지 않는다.
+                        if verified.state == "login_required" && check_wsl_available() {
+                            run_wsl_install_flow(&state_arc, &app_handle, verified)
+                        } else {
+                            verified
+                        }
                     }
                 }
                 Err(err) => {
@@ -2091,38 +2312,49 @@ fn get_env_key_status() -> HashMap<String, bool> {
 
 // ─── Git 설치 확인 ────────────────────────────────────────────────────────────
 
+/// `wsl.exe --status` 는 드물게 수 초 이상 블록될 수 있어서, 프로세스 단위로 한 번만
+/// 계산하고 재사용한다. 사용자가 onboarding 중에 WSL 을 새로 설치/제거하는 일은 거의 없기
+/// 때문에 이 단순 캐시로도 UI freeze 를 막으면서 정확도를 유지할 수 있다.
+#[cfg(target_os = "windows")]
+static WSL_AVAILABLE_CACHE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+#[cfg(target_os = "windows")]
+fn detect_wsl_available_inner() -> bool {
+    let status_ok = std::process::Command::new("wsl.exe")
+        .arg("--status")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !status_ok {
+        return false;
+    }
+    let list_output = match std::process::Command::new("wsl.exe")
+        .args(["-l", "-q"])
+        .output()
+    {
+        Ok(out) if out.status.success() => out.stdout,
+        _ => return false,
+    };
+    let utf8_text = String::from_utf8_lossy(&list_output);
+    if utf8_text.lines().any(|l| !l.trim().is_empty() && !l.trim().chars().all(|c| c == '\0')) {
+        return true;
+    }
+    if list_output.len() >= 2 {
+        let u16s: Vec<u16> = list_output
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
+        let decoded = String::from_utf16_lossy(&u16s);
+        return decoded.lines().any(|l| !l.trim().is_empty());
+    }
+    false
+}
+
 #[tauri::command]
 fn check_wsl_available() -> bool {
     #[cfg(target_os = "windows")]
     {
-        let status_ok = std::process::Command::new("wsl.exe")
-            .arg("--status")
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false);
-        if !status_ok {
-            return false;
-        }
-        let list_output = match std::process::Command::new("wsl.exe")
-            .args(["-l", "-q"])
-            .output()
-        {
-            Ok(out) if out.status.success() => out.stdout,
-            _ => return false,
-        };
-        let utf8_text = String::from_utf8_lossy(&list_output);
-        if utf8_text.lines().any(|l| !l.trim().is_empty() && !l.trim().chars().all(|c| c == '\0')) {
-            return true;
-        }
-        if list_output.len() >= 2 {
-            let u16s: Vec<u16> = list_output
-                .chunks_exact(2)
-                .map(|c| u16::from_le_bytes([c[0], c[1]]))
-                .collect();
-            let decoded = String::from_utf16_lossy(&u16s);
-            return decoded.lines().any(|l| !l.trim().is_empty());
-        }
-        false
+        *WSL_AVAILABLE_CACHE.get_or_init(detect_wsl_available_inner)
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -2303,6 +2535,7 @@ pub fn run() {
             setup_cli_path,
             get_onboarding_snapshot,
             start_native_install,
+            start_wsl_install,
             retry_verification,
             add_claude_to_user_path,
             uninstall_claude_code,

@@ -194,6 +194,10 @@ export async function startNativeInstall(pathKind: "native-powershell" | "native
   return invoke<OnboardingSnapshot>("start_native_install", { pathKind });
 }
 
+export async function startWslInstall(): Promise<OnboardingSnapshot> {
+  return invoke<OnboardingSnapshot>("start_wsl_install");
+}
+
 export async function retryOnboardingVerification(): Promise<OnboardingSnapshot> {
   return invoke<OnboardingSnapshot>("retry_verification");
 }
