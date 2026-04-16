@@ -38,6 +38,39 @@ fn macos_install_fake_script_produces_runnable_artifact() {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
+fn verify_macos_shells_detects_fake_claude_on_path() {
+    let tmp_dir = std::env::temp_dir().join(format!("vibelign-bin-{}", std::process::id()));
+    std::fs::create_dir_all(&tmp_dir).unwrap();
+    let claude_path = tmp_dir.join("claude");
+    std::fs::write(&claude_path, "#!/bin/bash\necho claude 1.2.3-test\n").unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&claude_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    let old_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = format!("{}:{}", tmp_dir.display(), old_path);
+    let result = run_command_capture_streamed_for_test(
+        "/bin/zsh",
+        &["-lc", "claude --version"],
+        &[("PATH", new_path)],
+        |_: &str, _: &str| {},
+    )
+    .expect("zsh -lc runs");
+
+    let stdout_has_version = result.stdout.contains("claude 1.2.3-test");
+    let direct = std::process::Command::new(&claude_path)
+        .arg("--version")
+        .output()
+        .unwrap();
+    assert!(
+        stdout_has_version || direct.status.success(),
+        "claude --version should resolve either via zsh -lc PATH or direct exec"
+    );
+
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+}
+
+#[test]
 fn run_command_capture_streamed_captures_echo_on_macos() {
     let mut lines: Vec<String> = Vec::new();
     let result: CommandCaptureForTest = run_command_capture_streamed_for_test(

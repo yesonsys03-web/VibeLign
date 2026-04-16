@@ -451,7 +451,12 @@ pub fn retry_verification(
         return windows::retry_verification(app, state);
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        return macos::retry_verification(app, state);
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         let _ = (app, state);
         build_onboarding_snapshot()
