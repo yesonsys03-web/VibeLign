@@ -162,6 +162,10 @@ fn build_onboarding_snapshot() -> OnboardingSnapshot {
     let git_installed = Some(check_git_installed());
     #[cfg(not(target_os = "windows"))]
     let git_installed = None;
+    #[cfg(target_os = "windows")]
+    let wsl_available = Some(check_wsl_available());
+    #[cfg(not(target_os = "windows"))]
+    let wsl_available = None;
 
     let (state, next_action, headline, detail, primary_button_label, last_error) =
         if os == "windows" && git_installed == Some(false) {
@@ -201,7 +205,7 @@ fn build_onboarding_snapshot() -> OnboardingSnapshot {
         logs_available: onboarding_logs_available(),
         diagnostics: OnboardingDiagnostics {
             git_installed,
-            wsl_available: None,
+            wsl_available,
             claude_on_path: None,
             claude_version_ok: None,
             claude_doctor_ok: None,
@@ -503,7 +507,7 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
 
     snapshot.logs_available = onboarding_logs_available_from_state(state);
     snapshot.diagnostics.git_installed = Some(check_git_installed());
-    snapshot.diagnostics.wsl_available = None;
+    snapshot.diagnostics.wsl_available = Some(check_wsl_available());
     snapshot.diagnostics.claude_on_path = Some(claude_on_path);
     snapshot.diagnostics.claude_version_ok = Some(claude_version_ok);
     snapshot.diagnostics.claude_doctor_ok = Some(claude_doctor_ok);
@@ -1320,13 +1324,16 @@ fn start_native_install(
                     append_onboarding_log(&state_arc, "[installer stdout]", &result.stdout);
                     append_onboarding_log(&state_arc, "[installer stderr]", &result.stderr);
                     let combined = format!("{}\n{}", result.stdout, result.stderr).to_ascii_lowercase();
-                    if combined.contains("out of memory") || combined.contains("bun has run out of memory") {
+                    if combined.contains("out of memory")
+                        || combined.contains("bun has run out of memory")
+                        || combined.contains("allocation failed")
+                    {
                         let mut failed = build_initial_onboarding_snapshot();
                         failed.state = "needs_manual_step".to_string();
                         failed.install_path_kind = path_kind.as_contract_value().to_string();
                         failed.next_action = "none".to_string();
-                        failed.headline = "Windows 설치가 메모리 부족으로 중단됐어요".to_string();
-                        failed.detail = Some("Bun out-of-memory 가 감지되어 이 장비에서는 native install 을 신뢰할 수 없어요. 더 큰 VM 이나 다른 Windows 환경에서 다시 시도해야 해요.".to_string());
+                        failed.headline = "메모리 부족으로 설치가 중단됐어요".to_string();
+                        failed.detail = Some("RAM을 늘리거나 실행 중인 다른 프로그램을 종료한 뒤 다시 시도해 주세요.".to_string());
                         failed.primary_button_label = None;
                         failed.logs_available = onboarding_logs_available_from_state(&state_arc);
                     failed.last_error = Some(OnboardingLastError {
@@ -2085,6 +2092,45 @@ fn get_env_key_status() -> HashMap<String, bool> {
 // ─── Git 설치 확인 ────────────────────────────────────────────────────────────
 
 #[tauri::command]
+fn check_wsl_available() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        let status_ok = std::process::Command::new("wsl.exe")
+            .arg("--status")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        if !status_ok {
+            return false;
+        }
+        let list_output = match std::process::Command::new("wsl.exe")
+            .args(["-l", "-q"])
+            .output()
+        {
+            Ok(out) if out.status.success() => out.stdout,
+            _ => return false,
+        };
+        let utf8_text = String::from_utf8_lossy(&list_output);
+        if utf8_text.lines().any(|l| !l.trim().is_empty() && !l.trim().chars().all(|c| c == '\0')) {
+            return true;
+        }
+        if list_output.len() >= 2 {
+            let u16s: Vec<u16> = list_output
+                .chunks_exact(2)
+                .map(|c| u16::from_le_bytes([c[0], c[1]]))
+                .collect();
+            let decoded = String::from_utf16_lossy(&u16s);
+            return decoded.lines().any(|l| !l.trim().is_empty());
+        }
+        false
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        false
+    }
+}
+
+#[tauri::command]
 fn check_git_installed() -> bool {
     // 1. PATH에서 git 시도
     if std::process::Command::new("git")
@@ -2283,6 +2329,7 @@ pub fn run() {
             get_env_key_status,
             read_project_summary,
             check_git_installed,
+            check_wsl_available,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
