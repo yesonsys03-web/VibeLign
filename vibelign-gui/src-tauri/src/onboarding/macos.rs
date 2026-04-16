@@ -261,6 +261,20 @@ fn verify_macos_shells(
             suggested_action: Some("add_to_path".to_string()),
         });
         store_onboarding_snapshot(state, &snapshot);
+        emit_onboarding_progress(
+            app,
+            OnboardingProgressEvent {
+                phase: "verify".to_string(),
+                state: snapshot.state.clone(),
+                step_id: "verify_version".to_string(),
+                status: "needs_manual_step".to_string(),
+                message: "PATH 설정만 남았어요. 자동 추가 버튼을 눌러 주세요.".to_string(),
+                stream_chunk: None,
+                shell_target: None,
+                observed_path: Some(claude_bin.to_string_lossy().to_string()),
+                error_code: Some("path_not_configured".to_string()),
+            },
+        );
         return snapshot;
     }
 
