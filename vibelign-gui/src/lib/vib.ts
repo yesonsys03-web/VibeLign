@@ -210,8 +210,8 @@ export async function addClaudeToUserPath(): Promise<OnboardingSnapshot> {
   return invoke<OnboardingSnapshot>("add_claude_to_user_path");
 }
 
-export async function uninstallClaudeCode(): Promise<OnboardingSnapshot> {
-  return invoke<OnboardingSnapshot>("uninstall_claude_code");
+export async function uninstallClaudeCode(track?: "all" | "native" | "wsl"): Promise<OnboardingSnapshot> {
+  return invoke<OnboardingSnapshot>("uninstall_claude_code", { track: track ?? "all" });
 }
 
 export async function getOnboardingLogs(): Promise<{ text: string }> {
