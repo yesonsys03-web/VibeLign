@@ -494,19 +494,77 @@ fn uninstall_macos_track_runtime(state: &Arc<Mutex<OnboardingRuntime>>) -> Resul
     result
 }
 
+fn find_residual_claude_paths(state: &Arc<Mutex<OnboardingRuntime>>) -> Vec<String> {
+    let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for p in &[
+        "/usr/local/bin/claude",
+        "/opt/homebrew/bin/claude",
+        "/usr/bin/claude",
+    ] {
+        if std::path::Path::new(p).exists() {
+            seen.insert((*p).to_string());
+        }
+    }
+    if let Ok(r) = run_command_capture_with_timeout(
+        "/bin/bash",
+        &["-lc", "which -a claude 2>/dev/null; command -v claude 2>/dev/null"],
+        &[],
+        10,
+    ) {
+        append_onboarding_log(state, "[uninstall scan] which -a claude", &r.stdout);
+        for line in r.stdout.lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            if std::path::Path::new(trimmed).exists() {
+                seen.insert(trimmed.to_string());
+            }
+        }
+    }
+    seen.into_iter().collect()
+}
+
 pub(crate) fn uninstall(
     app: tauri::AppHandle,
     state: tauri::State<OnboardingState>,
 ) -> OnboardingSnapshot {
     clear_onboarding_logs(&state.0);
     let ok = uninstall_macos_track_runtime(&state.0).is_ok();
+    let residuals = if ok {
+        find_residual_claude_paths(&state.0)
+    } else {
+        Vec::new()
+    };
     let mut snapshot = build_initial_onboarding_snapshot();
     snapshot.logs_available = onboarding_logs_available_from_state(&state.0);
-    if ok {
+    if ok && residuals.is_empty() {
         snapshot.headline = "Claude Code 를 삭제했어요".to_string();
         snapshot.detail = Some(
             "바이너리·설정·rc PATH 블록까지 모두 정리했어요. 다시 설치하려면 '자동 설치 시작' 을 눌러 주세요.".to_string(),
         );
+    } else if ok {
+        let joined = residuals.join(", ");
+        append_onboarding_log(
+            &state.0,
+            "[uninstall macos] residual claude found",
+            &joined,
+        );
+        snapshot.state = "needs_manual_step".to_string();
+        snapshot.next_action = "share_logs".to_string();
+        snapshot.headline = "다른 경로에 Claude 가 남아있어요".to_string();
+        snapshot.detail = Some(format!(
+            "사용자 영역은 정리됐지만 시스템 경로에 남은 설치본이 있어요: {}. 수동으로 `sudo rm` 해주세요.",
+            joined
+        ));
+        snapshot.last_error = Some(OnboardingLastError {
+            code: "residual_install".to_string(),
+            summary: "사용자 영역 외에 추가 설치본이 감지됐어요.".to_string(),
+            detail: Some(joined),
+            suggested_action: Some(
+                "터미널에서 `sudo rm <경로>` 로 제거 후 다시 검증하세요.".to_string(),
+            ),
+        });
     } else {
         snapshot.headline = "삭제 도중 문제가 있었어요".to_string();
         snapshot.detail = Some(
