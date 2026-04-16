@@ -1755,6 +1755,37 @@ fn add_claude_to_user_path(app: tauri::AppHandle, state: tauri::State<Onboarding
                     observed_path: Some(bin_dir),
                     error_code: None,
                 });
+
+                // PATH 자동 추가로 native 트랙이 login_required 에 도달한 직후,
+                // WSL 이 감지되면 Ubuntu 터미널에서도 `claude` 가 바로 잡히도록
+                // Linux 트랙 설치를 이어서 실행한다. 초기 설치 직후 verify 가
+                // login_required 로 바로 통과한 경우에는 run_claude_code_installer
+                // 쪽 (라인 1589 근처) 에서 같은 로직이 이미 돌고 있지만, PATH
+                // 미등록 → add_claude_to_user_path 경로로 빠진 사용자에게는
+                // 자동 트리거가 누락되어 있던 것을 여기서 메운다. 실패하더라도
+                // run_wsl_install_flow 는 needs_wsl_fallback soft-fail 만 기록하고
+                // native 성공 스냅샷 위에 덮어쓰지 않는다.
+                if check_wsl_available() {
+                    let baseline = snapshot.clone();
+                    let mut in_progress = snapshot.clone();
+                    in_progress.state = "installing_wsl".to_string();
+                    in_progress.install_path_kind = "wsl".to_string();
+                    in_progress.next_action = "none".to_string();
+                    in_progress.headline = "WSL 쪽에도 Claude Code 를 설치하는 중이에요".to_string();
+                    in_progress.detail = Some("PATH 연결은 끝났어요. 이어서 Ubuntu 터미널에서도 `claude` 가 동작하도록 공식 install.sh 를 실행해요.".to_string());
+                    in_progress.primary_button_label = None;
+                    store_onboarding_snapshot(&state.0, &in_progress);
+
+                    let state_arc = Arc::clone(&state.0);
+                    let app_handle = app.clone();
+                    std::thread::spawn(move || {
+                        let final_snapshot = run_wsl_install_flow(&state_arc, &app_handle, baseline);
+                        store_onboarding_snapshot(&state_arc, &final_snapshot);
+                    });
+
+                    return in_progress;
+                }
+
                 return snapshot;
             }
             Ok(capture) => {
