@@ -1,3 +1,4 @@
+# === ANCHOR: DOCS_VISUALIZER_START ===
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, replace
@@ -16,26 +17,33 @@ normalize_doc_text_bytes = _DOCS_CACHE.normalize_doc_text_bytes
 
 
 @dataclass(frozen=True)
+# === ANCHOR: DOCS_VISUALIZER_VISUALSECTION_START ===
 class VisualSection:
     id: str
     title: str
     level: int
     summary: str = ""
+# === ANCHOR: DOCS_VISUALIZER_VISUALSECTION_END ===
 
 
 @dataclass(frozen=True)
+# === ANCHOR: DOCS_VISUALIZER_GLOSSARYENTRY_START ===
 class GlossaryEntry:
     term: str
     definition: str
+# === ANCHOR: DOCS_VISUALIZER_GLOSSARYENTRY_END ===
 
 
 @dataclass(frozen=True)
+# === ANCHOR: DOCS_VISUALIZER_ACTIONITEM_START ===
 class ActionItem:
     text: str
     checked: bool = False
+# === ANCHOR: DOCS_VISUALIZER_ACTIONITEM_END ===
 
 
 @dataclass(frozen=True)
+# === ANCHOR: DOCS_VISUALIZER_DIAGRAMBLOCK_START ===
 class DiagramBlock:
     id: str
     kind: str
@@ -45,9 +53,44 @@ class DiagramBlock:
     generator: str = ""
     confidence: str = "high"
     warnings: list[str] = field(default_factory=list)
+# === ANCHOR: DOCS_VISUALIZER_DIAGRAMBLOCK_END ===
 
 
 @dataclass(frozen=True)
+# === ANCHOR: DOCS_VISUALIZER_HEURISTICFIELDS_START ===
+class HeuristicEnhancedFields:
+    tldr_one_liner: str = ""
+    key_rules: list[str] = field(default_factory=list)
+    success_criteria: list[str] = field(default_factory=list)
+    edge_cases: list[str] = field(default_factory=list)
+    components: list[str] = field(default_factory=list)
+    provenance: str = "heuristic"
+    generator: str = "heuristic-v2"
+    generated_at: str = ""
+# === ANCHOR: DOCS_VISUALIZER_HEURISTICFIELDS_END ===
+
+
+@dataclass(frozen=True)
+# === ANCHOR: DOCS_VISUALIZER_AIFIELDS_START ===
+class AIEnhancedFields:
+    tldr_one_liner: str = ""
+    key_rules: list[str] = field(default_factory=list)
+    success_criteria: list[str] = field(default_factory=list)
+    edge_cases: list[str] = field(default_factory=list)
+    components: list[str] = field(default_factory=list)
+    provenance: str = "ai_draft"
+    model: str = ""
+    provider: str = ""
+    generated_at: str = ""
+    source_hash: str = ""
+    tokens_input: int = 0
+    tokens_output: int = 0
+    cost_usd: float = 0.0
+# === ANCHOR: DOCS_VISUALIZER_AIFIELDS_END ===
+
+
+@dataclass(frozen=True)
+# === ANCHOR: DOCS_VISUALIZER_DOCSVISUALARTIFACT_START ===
 class DocsVisualArtifact:
     source_path: str
     source_hash: str
@@ -61,12 +104,18 @@ class DocsVisualArtifact:
     action_items: list[ActionItem] = field(default_factory=list)
     diagram_blocks: list[DiagramBlock] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    heuristic_fields: Optional["HeuristicEnhancedFields"] = None
+    ai_fields: Optional["AIEnhancedFields"] = None
 
+    # === ANCHOR: DOCS_VISUALIZER_TO_DICT_START ===
     def to_dict(self) -> dict[str, Any]:
+# === ANCHOR: DOCS_VISUALIZER_DOCSVISUALARTIFACT_END ===
         return asdict(self)
+    # === ANCHOR: DOCS_VISUALIZER_TO_DICT_END ===
 
 
 @dataclass(frozen=True)
+# === ANCHOR: DOCS_VISUALIZER_DIAGRAMSIGNALS_START ===
 class DiagramSignals:
     title: str
     summary: str
@@ -78,9 +127,11 @@ class DiagramSignals:
     table_rows: list[list[str]]
     readme_override: bool = False
     overview_override: bool = False
+# === ANCHOR: DOCS_VISUALIZER_DIAGRAMSIGNALS_END ===
 
 
 @dataclass(frozen=True)
+# === ANCHOR: DOCS_VISUALIZER_DIAGRAMCANDIDATE_START ===
 class DiagramCandidate:
     name: str
     title: str
@@ -90,12 +141,16 @@ class DiagramCandidate:
     warnings: list[str]
     score: int
     supported: bool = True
+# === ANCHOR: DOCS_VISUALIZER_DIAGRAMCANDIDATE_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER_CURRENT_GENERATED_AT_START ===
 def current_generated_at() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+# === ANCHOR: DOCS_VISUALIZER_CURRENT_GENERATED_AT_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER_SOURCE_GENERATED_AT_START ===
 def source_generated_at(source_path: Path) -> str:
     timestamp = source_path.stat().st_mtime
     return (
@@ -103,10 +158,13 @@ def source_generated_at(source_path: Path) -> str:
         .isoformat()
         .replace("+00:00", "Z")
     )
+# === ANCHOR: DOCS_VISUALIZER_SOURCE_GENERATED_AT_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER_BUILD_ARTIFACT_SHELL_START ===
 def build_artifact_shell(
     source_path: Path, *, title: str, summary: str = ""
+# === ANCHOR: DOCS_VISUALIZER_BUILD_ARTIFACT_SHELL_END ===
 ) -> DocsVisualArtifact:
     resolved = source_path.resolve()
     return DocsVisualArtifact(
@@ -174,14 +232,17 @@ COMPONENT_CAP = 6
 TItem = TypeVar("TItem")
 
 
+# === ANCHOR: DOCS_VISUALIZER__SLUGIFY_START ===
 def _slugify(text: str) -> str:
     value = re.sub(r"[`*_~]", "", text.strip().lower())
     value = re.sub(r"[^a-z0-9가-힣\s-]", "", value)
     value = re.sub(r"\s+", "-", value)
     value = re.sub(r"-+", "-", value).strip("-")
     return value or "section"
+# === ANCHOR: DOCS_VISUALIZER__SLUGIFY_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__STRIP_INLINE_MARKDOWN_START ===
 def _strip_inline_markdown(text: str) -> str:
     value = text.strip()
     value = re.sub(r"!\[[^\]]*\]\([^\)]*\)", "", value)
@@ -189,21 +250,28 @@ def _strip_inline_markdown(text: str) -> str:
     value = re.sub(r"[`*_>#]", "", value)
     value = re.sub(r"\s+", " ", value)
     return value.strip()
+# === ANCHOR: DOCS_VISUALIZER__STRIP_INLINE_MARKDOWN_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__SPLIT_MERMAID_AWARE_LINES_START ===
 def _split_mermaid_aware_lines(text: str) -> list[str]:
     return text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+# === ANCHOR: DOCS_VISUALIZER__SPLIT_MERMAID_AWARE_LINES_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__README_OVERRIDE_HINT_START ===
 def _readme_override_hint(source_path: Path, title: str) -> bool:
     filename = source_path.name.lower()
     if filename == "readme.md":
         return True
     return title.strip() in {"README", "Overview", "소개", "개요"}
+# === ANCHOR: DOCS_VISUALIZER__README_OVERRIDE_HINT_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__OVERVIEW_OVERRIDE_HINT_START ===
 def _overview_override_hint(
     source_path: Path, title: str, top_headings: list[str]
+# === ANCHOR: DOCS_VISUALIZER__OVERVIEW_OVERRIDE_HINT_END ===
 ) -> bool:
     normalized = source_path.as_posix().lower()
     filename = source_path.name.lower()
@@ -217,6 +285,7 @@ def _overview_override_hint(
     )
 
 
+# === ANCHOR: DOCS_VISUALIZER__CIRCLED_NUMBER_START ===
 def _circled_number(line: str) -> tuple[Optional[int], str, int]:
     stripped = line.lstrip()
     indent = len(line) - len(stripped)
@@ -228,8 +297,10 @@ def _circled_number(line: str) -> tuple[Optional[int], str, int]:
         return None, "", indent
     text = stripped[1:].lstrip(" .):-—")
     return circled.index(head) + 1, _strip_inline_markdown(text), indent
+# === ANCHOR: DOCS_VISUALIZER__CIRCLED_NUMBER_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__ORDERED_STEP_PARTS_START ===
 def _ordered_step_parts(line: str) -> tuple[Optional[int], str, int]:
     for pattern in (ORDERED_DIGIT_RE, ORDERED_STEP_RE, ORDERED_STAGE_RE):
         match = pattern.match(line)
@@ -240,8 +311,10 @@ def _ordered_step_parts(line: str) -> tuple[Optional[int], str, int]:
                 len(match.group("indent")),
             )
     return _circled_number(line)
+# === ANCHOR: DOCS_VISUALIZER__ORDERED_STEP_PARTS_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__SPLIT_TABLE_ROW_START ===
 def _split_table_row(line: str) -> list[str]:
     cells: list[str] = []
     current: list[str] = []
@@ -265,8 +338,10 @@ def _split_table_row(line: str) -> list[str]:
     if cells and cells[-1] == "":
         cells = cells[:-1]
     return [_strip_inline_markdown(cell) for cell in cells if cell.strip()]
+# === ANCHOR: DOCS_VISUALIZER__SPLIT_TABLE_ROW_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__ITER_NON_CODE_LINES_START ===
 def _iter_non_code_lines(lines: list[str]) -> list[str]:
     items: list[str] = []
     in_code = False
@@ -279,12 +354,16 @@ def _iter_non_code_lines(lines: list[str]) -> list[str]:
             continue
         items.append(raw)
     return items
+# === ANCHOR: DOCS_VISUALIZER__ITER_NON_CODE_LINES_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__DEDUPE_KEEP_ORDER_START ===
 def _dedupe_keep_order(values: list[str]) -> list[str]:
     return list(dict.fromkeys(value for value in values if value))
+# === ANCHOR: DOCS_VISUALIZER__DEDUPE_KEEP_ORDER_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_HEADING_RANGES_START ===
 def _extract_heading_ranges(lines: list[str]) -> list[tuple[int, int, int, str]]:
     headings: list[tuple[int, int, int, str]] = []
     in_code = False
@@ -308,8 +387,10 @@ def _extract_heading_ranges(lines: list[str]) -> list[tuple[int, int, int, str]]
         )
         ranges.append((start, next_start, level, title))
     return ranges
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_HEADING_RANGES_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__FIRST_MEANINGFUL_PARAGRAPH_START ===
 def _first_meaningful_paragraph(lines: list[str]) -> str:
     chunks: list[str] = []
     in_code = False
@@ -340,12 +421,16 @@ def _first_meaningful_paragraph(lines: list[str]) -> str:
             continue
         chunks.append(_strip_inline_markdown(line))
     return " ".join(part for part in chunks if part).strip()
+# === ANCHOR: DOCS_VISUALIZER__FIRST_MEANINGFUL_PARAGRAPH_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__SECTION_SUMMARY_START ===
 def _section_summary(section_lines: list[str]) -> str:
     return _first_meaningful_paragraph(section_lines)
+# === ANCHOR: DOCS_VISUALIZER__SECTION_SUMMARY_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_SECTIONS_START ===
 def _extract_sections(lines: list[str]) -> list[VisualSection]:
     ranges = _extract_heading_ranges(lines)
     counts: dict[str, int] = {}
@@ -364,8 +449,10 @@ def _extract_sections(lines: list[str]) -> list[VisualSection]:
             )
         )
     return sections
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_SECTIONS_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_GLOSSARY_START ===
 def _extract_glossary(lines: list[str]) -> list[GlossaryEntry]:
     entries: list[GlossaryEntry] = []
     for line in lines:
@@ -378,8 +465,10 @@ def _extract_glossary(lines: list[str]) -> list[GlossaryEntry]:
                 )
             )
     return entries
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_GLOSSARY_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_ACTION_ITEMS_START ===
 def _extract_action_items(lines: list[str]) -> list[ActionItem]:
     actions: list[ActionItem] = []
     heading_ranges = _extract_heading_ranges(lines)
@@ -401,8 +490,10 @@ def _extract_action_items(lines: list[str]) -> list[ActionItem]:
                     ActionItem(text=_strip_inline_markdown(bullet.group("text")))
                 )
     return actions
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_ACTION_ITEMS_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_WARNINGS_START ===
 def _extract_warnings(lines: list[str]) -> list[str]:
     warnings: list[str] = []
     heading_ranges = _extract_heading_ranges(lines)
@@ -421,8 +512,10 @@ def _extract_warnings(lines: list[str]) -> list[str]:
         ):
             warnings.append(text)
     return list(dict.fromkeys(warnings))
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_WARNINGS_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_ORDERED_STEPS_START ===
 def _extract_ordered_steps(lines: list[str]) -> list[str]:
     steps: list[str] = []
     current: list[str] = []
@@ -473,8 +566,10 @@ def _extract_ordered_steps(lines: list[str]) -> list[str]:
     if len(current) >= 3:
         steps.extend(current)
     return steps
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_ORDERED_STEPS_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_CHECKLIST_STEPS_START ===
 def _extract_checklist_steps(lines: list[str]) -> list[str]:
     items: list[str] = []
     for raw in _iter_non_code_lines(lines):
@@ -482,8 +577,10 @@ def _extract_checklist_steps(lines: list[str]) -> list[str]:
         if match:
             items.append(_strip_inline_markdown(match.group("text")))
     return items
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_CHECKLIST_STEPS_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_DECISION_LINES_START ===
 def _extract_decision_lines(lines: list[str]) -> list[str]:
     items: list[str] = []
     for raw in _iter_non_code_lines(lines):
@@ -491,8 +588,10 @@ def _extract_decision_lines(lines: list[str]) -> list[str]:
         if text and DECISION_HINT_RE.search(text):
             items.append(text)
     return _dedupe_keep_order(items)[:6]
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_DECISION_LINES_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_TABLE_ROWS_START ===
 def _extract_table_rows(lines: list[str]) -> list[list[str]]:
     rows: list[list[str]] = []
     for raw in _iter_non_code_lines(lines):
@@ -503,10 +602,13 @@ def _extract_table_rows(lines: list[str]) -> list[list[str]]:
         if len(parts) >= 2:
             rows.append(parts)
     return rows
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_TABLE_ROWS_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_FILE_LIKE_ITEMS_START ===
 def _extract_file_like_items(
     lines: list[str], sections: list[VisualSection]
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_FILE_LIKE_ITEMS_END ===
 ) -> list[str]:
     items: list[str] = []
     heading_ranges = _extract_heading_ranges(lines)
@@ -558,6 +660,7 @@ def _extract_file_like_items(
     return _dedupe_keep_order([item.replace("\\", "/") for item in items])
 
 
+# === ANCHOR: DOCS_VISUALIZER__SIGNAL_SCORE_START ===
 def _signal_score(texts: list[str], key: str) -> int:
     hints = DOC_KIND_HINTS[key]
     score = 0
@@ -565,8 +668,10 @@ def _signal_score(texts: list[str], key: str) -> int:
         lowered = text.lower()
         score += sum(1 for hint in hints if hint in lowered)
     return score
+# === ANCHOR: DOCS_VISUALIZER__SIGNAL_SCORE_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__COLLECT_DIAGRAM_SIGNALS_START ===
 def _collect_diagram_signals(
     source_path: Path,
     *,
@@ -575,6 +680,7 @@ def _collect_diagram_signals(
     summary: str,
     sections: list[VisualSection],
     action_items: list[ActionItem],
+# === ANCHOR: DOCS_VISUALIZER__COLLECT_DIAGRAM_SIGNALS_END ===
 ) -> DiagramSignals:
     top_headings = [section.title for section in sections if section.level == 2][
         : TOP_HEADING_CAP + 1
@@ -594,6 +700,7 @@ def _collect_diagram_signals(
     )
 
 
+# === ANCHOR: DOCS_VISUALIZER__SAFE_MERMAID_LABEL_START ===
 def _safe_mermaid_label(text: str, max_len: int = 32) -> str:
     value = text.replace("\r", "").replace("\\", "/")
     value = _MERMAID_UNSAFE_RE.sub(" ", value)
@@ -601,8 +708,10 @@ def _safe_mermaid_label(text: str, max_len: int = 32) -> str:
     if len(value) <= max_len:
         return value
     return value[: max_len - 1].rstrip() + "…"
+# === ANCHOR: DOCS_VISUALIZER__SAFE_MERMAID_LABEL_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__RENDER_STEP_FLOWCHART_START ===
 def _render_step_flowchart(steps: list[str], warnings: list[str]) -> str:
     trimmed = steps[:STEP_CAP]
     lines = ["flowchart TD"]
@@ -619,10 +728,13 @@ def _render_step_flowchart(steps: list[str], warnings: list[str]) -> str:
         lines.append(f'{more_id}["… {extra} more steps"]')
         lines.append(f"S{len(trimmed)} --> {more_id}")
     return "\n".join(lines)
+# === ANCHOR: DOCS_VISUALIZER__RENDER_STEP_FLOWCHART_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__RENDER_HEADING_MINDMAP_START ===
 def _render_heading_mindmap(
     title: str, headings: list[str], warnings: list[str]
+# === ANCHOR: DOCS_VISUALIZER__RENDER_HEADING_MINDMAP_END ===
 ) -> str:
     trimmed = headings[:TOP_HEADING_CAP]
     if len(headings) > TOP_HEADING_CAP:
@@ -636,6 +748,7 @@ def _render_heading_mindmap(
     return "\n".join(lines)
 
 
+# === ANCHOR: DOCS_VISUALIZER__RENDER_COMPONENT_FLOW_START ===
 def _render_component_flow(components: list[str]) -> str:
     trimmed = components[:COMPONENT_CAP]
     lines = ["flowchart TB", 'subgraph DOC["Component Summary"]']
@@ -643,8 +756,10 @@ def _render_component_flow(components: list[str]) -> str:
         lines.append(f'C{index}["{_safe_mermaid_label(item, 28)}"]')
     lines.append("end")
     return "\n".join(lines)
+# === ANCHOR: DOCS_VISUALIZER__RENDER_COMPONENT_FLOW_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__BUILD_STEP_CANDIDATE_START ===
 def _build_step_candidate(signals: DiagramSignals) -> Optional[DiagramCandidate]:
     steps = signals.ordered_steps or signals.checklist_steps
     if len(steps) < 3:
@@ -664,8 +779,10 @@ def _build_step_candidate(signals: DiagramSignals) -> Optional[DiagramCandidate]
         warnings=local_warnings,
         score=score,
     )
+# === ANCHOR: DOCS_VISUALIZER__BUILD_STEP_CANDIDATE_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__BUILD_DECISION_CANDIDATE_START ===
 def _build_decision_candidate(signals: DiagramSignals) -> Optional[DiagramCandidate]:
     if len(signals.decision_lines) < 2:
         return None
@@ -679,8 +796,10 @@ def _build_decision_candidate(signals: DiagramSignals) -> Optional[DiagramCandid
         score=4 + min(len(signals.decision_lines), 2),
         supported=False,
     )
+# === ANCHOR: DOCS_VISUALIZER__BUILD_DECISION_CANDIDATE_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__BUILD_HEADING_CANDIDATE_START ===
 def _build_heading_candidate(signals: DiagramSignals) -> Optional[DiagramCandidate]:
     if len(signals.top_headings) < 3 and not signals.readme_override:
         return None
@@ -700,8 +819,10 @@ def _build_heading_candidate(signals: DiagramSignals) -> Optional[DiagramCandida
         warnings=local_warnings,
         score=score,
     )
+# === ANCHOR: DOCS_VISUALIZER__BUILD_HEADING_CANDIDATE_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__BUILD_COMPONENT_CANDIDATE_START ===
 def _build_component_candidate(signals: DiagramSignals) -> Optional[DiagramCandidate]:
     components = signals.file_like_items[:]
     for row in signals.table_rows:
@@ -723,10 +844,13 @@ def _build_component_candidate(signals: DiagramSignals) -> Optional[DiagramCandi
         warnings=["auto_diagram_note: component flow is a structural summary"],
         score=score,
     )
+# === ANCHOR: DOCS_VISUALIZER__BUILD_COMPONENT_CANDIDATE_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__SELECT_BEST_CANDIDATE_START ===
 def _select_best_candidate(
     signals: DiagramSignals, candidates: list[DiagramCandidate]
+# === ANCHOR: DOCS_VISUALIZER__SELECT_BEST_CANDIDATE_END ===
 ) -> Optional[DiagramCandidate]:
     valid = [candidate for candidate in candidates if candidate.score >= 4]
     if not valid:
@@ -755,6 +879,7 @@ def _select_best_candidate(
     return None
 
 
+# === ANCHOR: DOCS_VISUALIZER__GENERATE_HEURISTIC_DIAGRAMS_START ===
 def _generate_heuristic_diagrams(
     source_path: Path,
     *,
@@ -764,6 +889,7 @@ def _generate_heuristic_diagrams(
     sections: list[VisualSection],
     action_items: list[ActionItem],
     warnings: list[str],
+# === ANCHOR: DOCS_VISUALIZER__GENERATE_HEURISTIC_DIAGRAMS_END ===
 ) -> list[DiagramBlock]:
     signals = _collect_diagram_signals(
         source_path,
@@ -806,8 +932,10 @@ def _generate_heuristic_diagrams(
     ]
 
 
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_MERMAID_BLOCKS_START ===
 def _extract_mermaid_blocks(
     text: str, sections: list[VisualSection]
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_MERMAID_BLOCKS_END ===
 ) -> list[DiagramBlock]:
     lines = _split_mermaid_aware_lines(text)
     heading_ranges = _extract_heading_ranges(lines)
@@ -852,16 +980,20 @@ def _extract_mermaid_blocks(
     return diagrams
 
 
+# === ANCHOR: DOCS_VISUALIZER__IS_EXAMPLE_MERMAID_CONTEXT_START ===
 def _is_example_mermaid_context(title: str) -> bool:
     lowered = title.lower().strip()
     return any(
         hint in lowered
         for hint in ("mermaid 템플릿", "template", "예시", "example", "sample")
     )
+# === ANCHOR: DOCS_VISUALIZER__IS_EXAMPLE_MERMAID_CONTEXT_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__USABLE_AUTHORED_DIAGRAMS_START ===
 def _usable_authored_diagrams(
     diagrams: list[DiagramBlock], warnings: list[str]
+# === ANCHOR: DOCS_VISUALIZER__USABLE_AUTHORED_DIAGRAMS_END ===
 ) -> list[DiagramBlock]:
     usable: list[DiagramBlock] = []
     for diagram in diagrams:
@@ -887,6 +1019,7 @@ def _usable_authored_diagrams(
     return usable
 
 
+# === ANCHOR: DOCS_VISUALIZER__DERIVE_TITLE_START ===
 def _derive_title(lines: list[str], source_path: Path) -> str:
     for line in lines:
         match = HEADING_RE.match(line)
@@ -897,8 +1030,10 @@ def _derive_title(lines: list[str], source_path: Path) -> str:
         if text:
             return text[:80]
     return source_path.stem.replace("-", " ").replace("_", " ") or source_path.name
+# === ANCHOR: DOCS_VISUALIZER__DERIVE_TITLE_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__DERIVE_SUMMARY_START ===
 def _derive_summary(lines: list[str], sections: list[VisualSection]) -> str:
     paragraph = _first_meaningful_paragraph(lines)
     if paragraph:
@@ -907,13 +1042,16 @@ def _derive_summary(lines: list[str], sections: list[VisualSection]) -> str:
         parts = [section.title for section in sections[:3]]
         return "Sections: " + ", ".join(parts)
     return "Empty markdown document."
+# === ANCHOR: DOCS_VISUALIZER__DERIVE_SUMMARY_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__TRUNCATE_WITH_WARNING_START ===
 def _truncate_with_warning(
     items: list[TItem],
     limit: int,
     warnings: list[str],
     label: str,
+# === ANCHOR: DOCS_VISUALIZER__TRUNCATE_WITH_WARNING_END ===
 ) -> list[TItem]:
     if len(items) <= limit:
         return items
@@ -923,6 +1061,7 @@ def _truncate_with_warning(
     return items[:limit]
 
 
+# === ANCHOR: DOCS_VISUALIZER_VISUALIZE_MARKDOWN_BYTES_START ===
 def visualize_markdown_bytes(source_path: Path, raw: bytes) -> DocsVisualArtifact:
     normalized = normalize_doc_text_bytes(raw)
     lines = _split_mermaid_aware_lines(normalized)
@@ -993,8 +1132,10 @@ def visualize_markdown_bytes(source_path: Path, raw: bytes) -> DocsVisualArtifac
         diagram_blocks=diagram_blocks,
         warnings=warnings,
     )
+# === ANCHOR: DOCS_VISUALIZER_VISUALIZE_MARKDOWN_BYTES_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER_VISUALIZE_MARKDOWN_FILE_START ===
 def visualize_markdown_file(source_path: Path) -> DocsVisualArtifact:
     resolved = source_path.resolve()
     try:
@@ -1006,8 +1147,10 @@ def visualize_markdown_file(source_path: Path) -> DocsVisualArtifact:
         return visualize_markdown_bytes(resolved, raw)
     except UnicodeDecodeError as exc:
         raise ValueError("UTF-8 markdown만 visual artifact를 생성할 수 있어요") from exc
+# === ANCHOR: DOCS_VISUALIZER_VISUALIZE_MARKDOWN_FILE_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER_TRUST_FAILURE_REASON_START ===
 def trust_failure_reason(payload: Any) -> Optional[str]:
     if not isinstance(payload, dict):
         return "corrupt_json"
@@ -1028,7 +1171,11 @@ def trust_failure_reason(payload: Any) -> Optional[str]:
         return "generator_version_mismatch"
 
     return None
+# === ANCHOR: DOCS_VISUALIZER_TRUST_FAILURE_REASON_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER_IS_TRUSTED_VISUAL_ARTIFACT_START ===
 def is_trusted_visual_artifact(payload: Any) -> bool:
     return trust_failure_reason(payload) is None
+# === ANCHOR: DOCS_VISUALIZER_IS_TRUSTED_VISUAL_ARTIFACT_END ===
+# === ANCHOR: DOCS_VISUALIZER_END ===
