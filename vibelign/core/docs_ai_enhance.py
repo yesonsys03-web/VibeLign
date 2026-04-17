@@ -187,7 +187,7 @@ def call_openai(source_text: str, *, model: str = "gpt-4o-mini") -> dict[str, An
 
 
 # === ANCHOR: DOCS_AI_ENHANCE_CALL_GEMINI_START ===
-def call_gemini(source_text: str, *, model: str = "gemini-2.5-flash") -> dict[str, Any]:
+def call_gemini(source_text: str, *, model: str = "gemini-2.0-flash") -> dict[str, Any]:
     api_key = _KEYS.get_key("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY 가 환경변수/키스토어에 없습니다")
