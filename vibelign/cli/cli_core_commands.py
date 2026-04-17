@@ -177,6 +177,25 @@ def register_core_commands(
     )
 
     p = sub.add_parser(
+        "docs-enhance",
+        help="AI 로 현재 문서의 요약 필드를 생성해요 (ANTHROPIC_API_KEY 필요)",
+        description=(
+            "기존 artifact 의 ai_fields 를 LLM 호출로 덮어써요.\n"
+            "먼저 `vib docs-build <path>` 를 실행해 artifact 가 있어야 해요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib docs-enhance docs/wiki/index.md\n"
+            "  vib docs-enhance PROJECT_CONTEXT.md --json"
+        ),
+    )
+    _ = p.add_argument("path", nargs="?", help="enhance 대상 markdown 경로")
+    _ = p.add_argument("--json", action="store_true", help="결과를 JSON으로 출력")
+    p.set_defaults(
+        func=lazy_command("vibelign.commands.vib_docs_build_cmd", "run_vib_docs_enhance")
+    )
+
+    p = sub.add_parser(
         "docs-index",
         help="docs viewer용 markdown 인덱스를 JSON으로 출력해요 (GUI/Tauri 전용)",
         description=(
