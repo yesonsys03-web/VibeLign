@@ -11,8 +11,8 @@ from typing import Iterable
 from . import docs_scan as _DOCS_SCAN
 
 
-DOCS_VISUAL_SCHEMA_VERSION = 1
-DOCS_VISUAL_GENERATOR_VERSION = "heuristic-mermaid-v1"
+DOCS_VISUAL_SCHEMA_VERSION = 2
+DOCS_VISUAL_GENERATOR_VERSION = "heuristic-v2"
 
 
 @dataclass(frozen=True)
@@ -129,6 +129,7 @@ def _iter_index_targets(root: Path) -> list[tuple[str, Path]]:
     if docs_dir.is_dir():
         for path in sorted(docs_dir.glob("**/*.md")):
             add("Docs", path)
+# === ANCHOR: DOCS_CACHE__ITER_INDEX_TARGETS_END ===
 
     # 프로젝트 전체 재귀 스캔 — 사용자가 임의로 만든 markdown 폴더(예: VibeLign_dev_plan/) 도
     # 사이드바에 노출한다. IGNORED_DIRS + 숨김 디렉토리는 docs_scan 에서 프루닝된다.
