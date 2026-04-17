@@ -1,4 +1,5 @@
-import { listDocsIndex, readFile, type DocsIndexEntry, type ReadFileResult } from "./vib";
+// === ANCHOR: DOCS_START ===
+import { listDocsIndex, readFile, rebuildDocsIndex, type DocsIndexEntry, type ReadFileResult } from "./vib";
 
 export interface DocsSection {
   id: string;
@@ -8,6 +9,7 @@ export interface DocsSection {
 
 export const DOC_CATEGORY_ORDER = ["Context", "Readme", "Manual", "Wiki", "Spec", "Plan", "Root", "Docs"] as const;
 
+// === ANCHOR: DOCS_CATEGORYCOLOR_START ===
 export function categoryColor(category: string): string {
   switch (category) {
     case "Context": return "#4D9FFF";
@@ -21,7 +23,9 @@ export function categoryColor(category: string): string {
     default: return "#1A1A1A";
   }
 }
+// === ANCHOR: DOCS_CATEGORYCOLOR_END ===
 
+// === ANCHOR: DOCS_CATEGORYLABEL_START ===
 export function categoryLabel(category: string): string {
   switch (category) {
     case "Context": return "Context";
@@ -35,11 +39,21 @@ export function categoryLabel(category: string): string {
     default: return category;
   }
 }
+// === ANCHOR: DOCS_CATEGORYLABEL_END ===
 
+// === ANCHOR: DOCS_LOADDOCSINDEX_START ===
 export async function loadDocsIndex(root: string): Promise<DocsIndexEntry[]> {
   return listDocsIndex(root);
 }
+// === ANCHOR: DOCS_LOADDOCSINDEX_END ===
 
+// === ANCHOR: DOCS_RELOADDOCSINDEX_START ===
+export async function reloadDocsIndex(root: string): Promise<DocsIndexEntry[]> {
+  return rebuildDocsIndex(root);
+}
+// === ANCHOR: DOCS_RELOADDOCSINDEX_END ===
+
+// === ANCHOR: DOCS_FILTERDOCSINDEX_START ===
 export function filterDocsIndex(entries: DocsIndexEntry[], query: string): DocsIndexEntry[] {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return entries;
@@ -48,7 +62,9 @@ export function filterDocsIndex(entries: DocsIndexEntry[], query: string): DocsI
     return haystack.includes(normalized);
   });
 }
+// === ANCHOR: DOCS_FILTERDOCSINDEX_END ===
 
+// === ANCHOR: DOCS_FORMATDOCDATE_START ===
 export function formatDocDate(timestamp: number): string {
   if (!Number.isFinite(timestamp)) return "";
   return new Date(timestamp).toLocaleString("en-US", {
@@ -59,15 +75,21 @@ export function formatDocDate(timestamp: number): string {
     minute: "2-digit",
   });
 }
+// === ANCHOR: DOCS_FORMATDOCDATE_END ===
 
+// === ANCHOR: DOCS_NORMALIZEDOCPATH_START ===
 export function normalizeDocPath(path: string): string {
   return path.replaceAll("\\", "/");
 }
+// === ANCHOR: DOCS_NORMALIZEDOCPATH_END ===
 
+// === ANCHOR: DOCS_LOADDOC_START ===
 export async function loadDoc(root: string, path: string): Promise<ReadFileResult> {
   return readFile(root, normalizeDocPath(path));
 }
+// === ANCHOR: DOCS_LOADDOC_END ===
 
+// === ANCHOR: DOCS_SLUGIFYHEADING_START ===
 export function slugifyHeading(text: string): string {
   return text
     .trim()
@@ -78,7 +100,9 @@ export function slugifyHeading(text: string): string {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "") || "section";
 }
+// === ANCHOR: DOCS_SLUGIFYHEADING_END ===
 
+// === ANCHOR: DOCS_EXTRACTSECTIONS_START ===
 export function extractSections(content: string): DocsSection[] {
   const counts = new Map<string, number>();
   return content
@@ -97,3 +121,5 @@ export function extractSections(content: string): DocsSection[] {
       };
     });
 }
+// === ANCHOR: DOCS_EXTRACTSECTIONS_END ===
+// === ANCHOR: DOCS_END ===

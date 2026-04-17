@@ -78,6 +78,10 @@ export async function listDocsIndex(root: string): Promise<DocsIndexEntry[]> {
   return invoke<DocsIndexEntry[]>("list_docs_index", { root });
 }
 
+export async function rebuildDocsIndex(root: string): Promise<DocsIndexEntry[]> {
+  return invoke<DocsIndexEntry[]>("rebuild_docs_index", { root });
+}
+
 export async function readDocsVisual(root: string, path: string): Promise<DocsVisualReadResult | null> {
   return invoke<DocsVisualReadResult | null>("read_docs_visual", { root, path });
 }
