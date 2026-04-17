@@ -115,6 +115,21 @@ export async function readDocsVisual(root: string, path: string): Promise<DocsVi
   return invoke<DocsVisualReadResult | null>("read_docs_visual", { root, path });
 }
 
+export interface EnhanceDocResult {
+  ok: boolean;
+  path: string;
+  ai_fields: DocsVisualAIFields;
+}
+
+export async function enhanceDocWithAi(
+  root: string,
+  path: string,
+  apiKey: string,
+): Promise<EnhanceDocResult> {
+  const raw = await invoke<string>("enhance_doc_with_ai", { root, path, apiKey });
+  return JSON.parse(raw) as EnhanceDocResult;
+}
+
 export interface VibResult {
   ok: boolean;
   stdout: string;
