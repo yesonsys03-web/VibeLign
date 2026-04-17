@@ -1,8 +1,9 @@
+// === ANCHOR: DOCSVIEWER_START ===
 import { useEffect, useMemo, useRef, useState } from "react";
 import DocsSidebar from "../components/docs/DocsSidebar";
 import MarkdownPane from "../components/docs/MarkdownPane";
 import VisualSummaryPane from "../components/docs/VisualSummaryPane";
-import { extractSections, loadDoc, loadDocsIndex } from "../lib/docs";
+import { extractSections, loadDoc, loadDocsIndex, reloadDocsIndex } from "../lib/docs";
 import { readDocsVisual, runVib, type DocsIndexEntry, type DocsVisualReadResult, type ReadFileResult } from "../lib/vib";
 
 export type DocsTrustState = "markdown-only" | "enhanced-synced" | "enhanced-stale" | "enhanced-failed";
@@ -25,6 +26,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
   const [trustReason, setTrustReason] = useState<string>("artifact 없음 — markdown만 표시합니다.");
   const [isRebuilding, setIsRebuilding] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRebuildingIndex, setIsRebuildingIndex] = useState(false);
   const [rebuildMessage, setRebuildMessage] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const markdownPaneRef = useRef<HTMLDivElement | null>(null);
@@ -32,9 +34,11 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
   const [layoutWidth, setLayoutWidth] = useState(0);
 
   useEffect(() => {
+    // === ANCHOR: DOCSVIEWER_UPDATEWIDTH_START ===
     const updateWidth = () => {
       setLayoutWidth(layoutRef.current?.getBoundingClientRect().width ?? window.innerWidth);
     };
+    // === ANCHOR: DOCSVIEWER_UPDATEWIDTH_END ===
 
     updateWidth();
     window.addEventListener("resize", updateWidth);
@@ -191,6 +195,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
   const showSidebar = !isMinimalLayout;
   const showVisualPane = Boolean(visual && trustState !== "enhanced-failed");
 
+  // === ANCHOR: DOCSVIEWER_HANDLEREFRESHCURRENT_START ===
   async function handleRefreshCurrent() {
     if (!selectedPath || !projectDir) return;
     setIsRefreshing(true);
@@ -201,7 +206,9 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
       setTimeout(() => setIsRefreshing(false), 150);
     }
   }
+  // === ANCHOR: DOCSVIEWER_HANDLEREFRESHCURRENT_END ===
 
+  // === ANCHOR: DOCSVIEWER_HANDLEREBUILDARTIFACT_START ===
   async function handleRebuildArtifact() {
     if (!selectedPath || !projectDir) return;
     setIsRebuilding(true);
@@ -219,7 +226,31 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
       setIsRebuilding(false);
     }
   }
+  // === ANCHOR: DOCSVIEWER_HANDLEREBUILDARTIFACT_END ===
 
+  // === ANCHOR: DOCSVIEWER_HANDLEREBUILDINDEX_START ===
+  async function handleRebuildIndex() {
+    if (!projectDir) return;
+    setIsRebuildingIndex(true);
+    setRebuildMessage(null);
+    setIndexError(null);
+    try {
+      const entries = await reloadDocsIndex(projectDir);
+      setDocsIndex(entries);
+      setSelectedPath((current) => {
+        if (current && entries.some((entry) => entry.path === current)) return current;
+        return entries.find((entry) => entry.path === "PROJECT_CONTEXT.md")?.path ?? entries[0]?.path ?? null;
+      });
+      setRebuildMessage(`문서 인덱스를 다시 만들었습니다 (${entries.length}개).`);
+    } catch (err: unknown) {
+      setIndexError(err instanceof Error ? err.message : "문서 인덱스를 다시 만드는 데 실패했습니다.");
+    } finally {
+      setIsRebuildingIndex(false);
+    }
+  }
+  // === ANCHOR: DOCSVIEWER_HANDLEREBUILDINDEX_END ===
+
+  // === ANCHOR: DOCSVIEWER_HANDLEPHASESELECT_START ===
   function handlePhaseSelect(sectionId: string) {
     const container = markdownPaneRef.current;
     if (!container) return;
@@ -227,6 +258,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
     if (!target) return;
     target.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+  // === ANCHOR: DOCSVIEWER_HANDLEPHASESELECT_END ===
 
   if (indexLoading || isLoading) {
     return (
@@ -253,6 +285,9 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
       <div className="page-header" style={{ padding: "12px 20px" }}>
         <span className="page-title">DOCS VIEWER</span>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => void handleRebuildIndex()} disabled={isRebuildingIndex || isRebuilding || isRefreshing} title="문서 인덱스를 다시 스캔해 사이드바 목록을 갱신해요">
+            {isRebuildingIndex ? "인덱스 갱신 중..." : "↻ 인덱스"}
+          </button>
           <button className="btn btn-ghost btn-sm" onClick={() => void handleRefreshCurrent()} disabled={isRefreshing || isRebuilding || !selectedPath}>
             {isRefreshing ? "새로고침 중..." : "Refresh"}
           </button>
@@ -372,3 +407,4 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
     </div>
   );
 }
+// === ANCHOR: DOCSVIEWER_END ===

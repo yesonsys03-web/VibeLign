@@ -56,6 +56,34 @@ struct DocsIndexEntry {
     modified_at_ms: i64,
 }
 
+const DOCS_INDEX_CACHE_SCHEMA_VERSION: i64 = 1;
+
+#[derive(Deserialize)]
+struct DocsIndexCachePayload {
+    schema_version: i64,
+    root: String,
+    #[serde(default)]
+    entries: Vec<DocsIndexEntry>,
+}
+
+/// `.vibelign/docs_index.json` 을 읽어 엔트리 리스트로 돌려준다.
+/// miss/schema 불일치/root 불일치/파싱 실패 시 None 을 반환해 subprocess 폴백을 허용한다.
+fn read_docs_index_cache_file(root: &Path) -> Option<Vec<DocsIndexEntry>> {
+    let cache_path = root.join(".vibelign").join("docs_index.json");
+    let raw = std::fs::read_to_string(&cache_path).ok()?;
+    let payload: DocsIndexCachePayload = serde_json::from_str(&raw).ok()?;
+    if payload.schema_version != DOCS_INDEX_CACHE_SCHEMA_VERSION {
+        return None;
+    }
+    let cached_root = strip_unc_prefix(
+        PathBuf::from(&payload.root).canonicalize().ok()?,
+    );
+    if cached_root != root {
+        return None;
+    }
+    Some(payload.entries)
+}
+
 #[derive(Serialize, Deserialize)]
 struct DocsVisualContract {
     schema_version: i64,
@@ -86,6 +114,15 @@ fn normalize_relative_doc_path(path: &std::path::Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
+/// Python `docs_scan.IGNORED_DIRS` 와 같은 집합 — 인덱스 스캔에서 제외되는 폴더는
+/// read_file 에서도 차단해 동일한 화이트리스트 규칙을 유지한다.
+const DOCS_READ_IGNORED_DIRS: &[&str] = &[
+    "node_modules", "target", "dist", "build", "out", "coverage",
+    ".next", ".nuxt", ".turbo", ".cache", ".venv", "venv", "env", ".env",
+    "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox",
+    ".gradle", ".idea", ".vscode", ".DS_Store",
+];
+
 fn is_allowed_doc_path(relative_path: &str) -> bool {
     let lower = relative_path.to_ascii_lowercase();
     if !lower.ends_with(".md") && !lower.ends_with(".markdown") {
@@ -95,12 +132,19 @@ fn is_allowed_doc_path(relative_path: &str) -> bool {
     if relative_path.contains("..") {
         return false;
     }
-    // docs/ 하위 markdown 전부 허용
-    if relative_path.starts_with("docs/") {
-        return true;
+    // 모든 세그먼트가 숨김/무시 목록이 아니어야 한다 — docs_scan 의 prune 규칙과 대칭.
+    for segment in relative_path.split('/') {
+        if segment.is_empty() {
+            return false;
+        }
+        if segment.starts_with('.') {
+            return false;
+        }
+        if DOCS_READ_IGNORED_DIRS.contains(&segment) {
+            return false;
+        }
     }
-    // 루트 직속 .md 허용 (서브디렉터리 X)
-    !relative_path.contains('/')
+    true
 }
 
 fn resolve_doc_path(root: &str, path: PathBuf) -> Result<(PathBuf, String), String> {
@@ -215,6 +259,27 @@ fn run_docs_cache_helper(root: &str, extra_args: &[&str]) -> Result<String, Stri
 
 #[tauri::command]
 fn list_docs_index(root: String) -> Result<Vec<DocsIndexEntry>, String> {
+    // 1) 캐시 파일이 있으면 즉시 반환 — subprocess cold-start 를 우회한다.
+    let root_path = strip_unc_prefix(
+        PathBuf::from(&root)
+            .canonicalize()
+            .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?,
+    );
+    if let Some(entries) = read_docs_index_cache_file(&root_path) {
+        return Ok(entries);
+    }
+
+    // 2) 캐시 miss: subprocess 가 인덱스를 만들고 캐시 파일을 기록한다 (side-effect).
+    let raw = run_docs_cache_helper(&root, &[])?;
+    serde_json::from_str::<Vec<DocsIndexEntry>>(raw.trim())
+        .map_err(|e| format!("docs index 결과를 해석할 수 없어요: {e}"))
+}
+
+/// 사이드바 새로고침 버튼이 호출한다. 캐시를 건너뛰고 강제로 subprocess 를 돌려
+/// 파일 시스템 변화를 즉시 반영한다. Python 쪽이 캐시를 새로 기록하므로 후속 호출은
+/// 다시 캐시 hit.
+#[tauri::command]
+fn rebuild_docs_index(root: String) -> Result<Vec<DocsIndexEntry>, String> {
     let raw = run_docs_cache_helper(&root, &[])?;
     serde_json::from_str::<Vec<DocsIndexEntry>>(raw.trim())
         .map_err(|e| format!("docs index 결과를 해석할 수 없어요: {e}"))
@@ -1079,6 +1144,7 @@ pub fn run() {
             open_folder,
             read_file,
             list_docs_index,
+            rebuild_docs_index,
             read_docs_visual,
             get_env_key_status,
             read_project_summary,
