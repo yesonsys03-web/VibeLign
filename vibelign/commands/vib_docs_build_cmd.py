@@ -175,6 +175,77 @@ def run_vib_docs_build(args: argparse.Namespace) -> None:
 # === ANCHOR: VIB_DOCS_BUILD_CMD_RUN_VIB_DOCS_BUILD_END ===
 
 
+# === ANCHOR: VIB_DOCS_BUILD_CMD_RUN_VIB_DOCS_ENHANCE_START ===
+def run_vib_docs_enhance(args: argparse.Namespace) -> None:
+    from ..core import docs_ai_enhance as _AI_ENHANCE
+
+    root = _resolve_root()
+    target = getattr(args, "path", None)
+    if not isinstance(target, str) or not target.strip():
+        print(
+            "docs-enhance 는 문서 경로가 필요해요 (예: vib docs-enhance docs/wiki/index.md)",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+
+    relative_path = target.replace("\\", "/")
+    meta = MetaPaths(root)
+    artifact_path = meta.docs_visual_path(relative_path)
+    if not artifact_path.exists():
+        print(
+            f"artifact 가 없어요. 먼저 vib docs-build '{relative_path}' 를 실행하세요.",
+            file=sys.stderr,
+        )
+        raise SystemExit(3)
+
+    source_path = (root / relative_path).resolve()
+    if not source_path.is_file():
+        print(f"source markdown 이 없어요: {relative_path}", file=sys.stderr)
+        raise SystemExit(3)
+
+    try:
+        source_text = source_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"source markdown 을 읽을 수 없어요: {exc}", file=sys.stderr)
+        raise SystemExit(3) from exc
+
+    try:
+        result = _AI_ENHANCE.call_anthropic(source_text)
+    except Exception as exc:
+        print(f"AI 호출 실패: {exc}", file=sys.stderr)
+        raise SystemExit(4) from exc
+
+    existing = json.loads(artifact_path.read_text(encoding="utf-8"))
+    source_hash = existing.get("source_hash", "")
+    existing["ai_fields"] = {
+        **result["fields"],
+        "provenance": "ai_draft",
+        "model": result["model"],
+        "provider": result["provider"],
+        "generated_at": _DOCS_VISUALIZER.current_generated_at(),
+        "source_hash": source_hash,
+        "tokens_input": result["tokens_input"],
+        "tokens_output": result["tokens_output"],
+        "cost_usd": result["cost_usd"],
+    }
+    _atomic_write_text(
+        artifact_path, json.dumps(existing, ensure_ascii=False, indent=2) + "\n"
+    )
+    if getattr(args, "json", False):
+        print(
+            json.dumps(
+                {"ok": True, "path": relative_path, "ai_fields": existing["ai_fields"]},
+                ensure_ascii=False,
+            )
+        )
+    else:
+        print(
+            f"AI 요약 완료: {relative_path} "
+            f"(in={result['tokens_input']} out={result['tokens_output']} ${result['cost_usd']:.4f})"
+        )
+# === ANCHOR: VIB_DOCS_BUILD_CMD_RUN_VIB_DOCS_ENHANCE_END ===
+
+
 # === ANCHOR: VIB_DOCS_BUILD_CMD_RUN_VIB_DOCS_INDEX_START ===
 def run_vib_docs_index(args: argparse.Namespace) -> None:
     """GUI/Tauri 등 외부 호출자에게 docs index 또는 visual contract를 JSON으로 출력한다."""

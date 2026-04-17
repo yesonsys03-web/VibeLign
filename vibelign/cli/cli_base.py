@@ -115,8 +115,9 @@ AI 수정 요청:
   bench       앵커 효과를 비교 실험해요
 
 문서 보기 & 다시생성:
-  docs-build  markdown 문서의 visual cache를 다시 만들어요
-  docs-index  docs viewer가 쓰는 문서 목록/계약 정보를 보여줘요
+  docs-build    markdown 문서의 visual cache를 다시 만들어요
+  docs-enhance  AI 로 현재 문서의 요약 필드를 생성해요
+  docs-index    docs viewer가 쓰는 문서 목록/계약 정보를 보여줘요
 
 도움말:
   manual      코알못을 위한 상세 사용 설명서
