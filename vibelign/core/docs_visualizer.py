@@ -1189,6 +1189,16 @@ def visualize_markdown_bytes(source_path: Path, raw: bytes) -> DocsVisualArtifac
     )
 
     artifact = build_artifact_shell(source_path, title=title, summary=summary)
+    heuristic_fields = HeuristicEnhancedFields(
+        tldr_one_liner=_extract_tldr_one_liner(lines),
+        key_rules=_extract_bullet_section(lines, RULES_HEADING_RE),
+        success_criteria=_extract_bullet_section(lines, CRITERIA_HEADING_RE),
+        edge_cases=_extract_bullet_section(lines, EDGE_HEADING_RE),
+        components=_extract_components(lines),
+        generator=DOCS_VISUAL_GENERATOR_VERSION,
+        generated_at=artifact.generated_at,
+    )
+
     return DocsVisualArtifact(
         source_path=artifact.source_path,
         source_hash=compute_source_hash(source_path.resolve()),
@@ -1202,6 +1212,8 @@ def visualize_markdown_bytes(source_path: Path, raw: bytes) -> DocsVisualArtifac
         action_items=action_items,
         diagram_blocks=diagram_blocks,
         warnings=warnings,
+        heuristic_fields=heuristic_fields,
+        ai_fields=None,
     )
 # === ANCHOR: DOCS_VISUALIZER_VISUALIZE_MARKDOWN_BYTES_END ===
 
