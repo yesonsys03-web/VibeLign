@@ -328,6 +328,41 @@ fn read_docs_visual(root: String, path: PathBuf) -> Result<Option<DocsVisualRead
     }))
 }
 
+#[tauri::command]
+async fn enhance_doc_with_ai(
+    root: String,
+    path: PathBuf,
+    api_key: String,
+) -> Result<String, String> {
+    let (_resolved_path, relative_path) = resolve_doc_path(&root, path)?;
+    let vib = vib_path::find_runtime_vib()
+        .ok_or_else(|| "vib 실행 파일을 찾을 수 없습니다".to_string())?;
+    let mut command = std::process::Command::new(&vib);
+    command
+        .arg("docs-enhance")
+        .arg(&relative_path)
+        .arg("--json")
+        .current_dir(&root)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .env("VIBELIGN_PROJECT_ROOT", &root)
+        .env("ANTHROPIC_API_KEY", &api_key)
+        .env("PYTHONUTF8", "1")
+        .env("PYTHONIOENCODING", "utf-8");
+    hide_console(&mut command);
+    let output = command
+        .output()
+        .map_err(|e| format!("vib docs-enhance 실행 실패: {e}"))?;
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        let out = String::from_utf8_lossy(&output.stdout);
+        let msg = if !err.trim().is_empty() { err.trim().to_string() } else { out.trim().to_string() };
+        return Err(format!("docs-enhance 실패: {}", msg));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
 // ─── Watch 프로세스 State ──────────────────────────────────────────────────────
 
 const WATCH_BUFFER_LIMIT: usize = 200;
@@ -1146,6 +1181,7 @@ pub fn run() {
             list_docs_index,
             rebuild_docs_index,
             read_docs_visual,
+            enhance_doc_with_ai,
             get_env_key_status,
             read_project_summary,
             onboarding::check_git_installed,
