@@ -260,7 +260,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
   }
   // === ANCHOR: DOCSVIEWER_HANDLEPHASESELECT_END ===
 
-  if (indexLoading || isLoading) {
+  if (indexLoading) {
     return (
       <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
         <div className="page-header" style={{ padding: "12px 20px" }}>
@@ -272,7 +272,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
           <div className="card" style={{ width: "min(480px, 100%)", textAlign: "center" }}>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: "IBM Plex Mono, monospace", fontSize: 12, fontWeight: 700 }}>
               <span className="spinner" />
-              {indexLoading ? "문서 인덱스를 불러오는 중..." : "markdown 문서를 불러오는 중..."}
+              문서 인덱스를 불러오는 중...
             </div>
           </div>
         </div>
@@ -370,8 +370,16 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
             ) : null}
           </div>
           {rebuildMessage ? <div className="alert alert-warn">{rebuildMessage}</div> : null}
+          {isLoading ? (
+            <div className="card" style={{ textAlign: "center" }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: "IBM Plex Mono, monospace", fontSize: 12, fontWeight: 700 }}>
+                <span className="spinner" />
+                markdown 문서를 불러오는 중...
+              </div>
+            </div>
+          ) : null}
 
-          {!indexError && !error && doc && selectedDoc ? (
+          {!isLoading && !indexError && !error && doc && selectedDoc ? (
             <>
               <div className="card" style={{ padding: "14px 16px" }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#888", marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 }}>
@@ -401,7 +409,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
                 <div className="alert alert-warn">문서가 길어서 일부 enhancement만 축약했습니다. 그래도 summary pane과 원문 markdown는 계속 표시됩니다.</div>
               ) : null}
             </>
-          ) : (!indexError && !error ? <div className="card">열 문서를 선택하세요.</div> : null)}
+          ) : (!isLoading && !indexError && !error ? <div className="card">열 문서를 선택하세요.</div> : null)}
         </div>
       </div>
     </div>
