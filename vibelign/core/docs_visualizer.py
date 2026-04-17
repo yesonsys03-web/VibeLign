@@ -532,6 +532,27 @@ def _extract_bullet_section(lines: list[str], heading_re: re.Pattern[str]) -> li
 # === ANCHOR: DOCS_VISUALIZER__EXTRACT_BULLET_SECTION_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_COMPONENTS_START ===
+def _extract_components(lines: list[str]) -> list[str]:
+    items: list[str] = []
+    heading_ranges = _extract_heading_ranges(lines)
+    for start, end, level, title in heading_ranges:
+        if level != 2:
+            continue
+        summary = _first_meaningful_paragraph(lines[start + 1 : end])
+        if not summary:
+            continue
+        parts = re.split(r"(?<=[.!?。？！])\s+|(?<=[.!?。？！])$", summary)
+        first = next((part.strip() for part in parts if part.strip()), "")
+        if not first:
+            continue
+        items.append(f"{title} — {first}")
+        if len(items) >= COMPONENT_CAP:
+            break
+    return items
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_COMPONENTS_END ===
+
+
 # === ANCHOR: DOCS_VISUALIZER__EXTRACT_WARNINGS_START ===
 def _extract_warnings(lines: list[str]) -> list[str]:
     warnings: list[str] = []

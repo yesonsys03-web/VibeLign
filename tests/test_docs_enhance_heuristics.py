@@ -120,5 +120,42 @@ class ExtractBulletSectionTest(unittest.TestCase):
         )
 
 
+class ExtractComponentsTest(unittest.TestCase):
+    def test_h2_with_first_sentence(self):
+        lines = [
+            "# Doc",
+            "",
+            "## 파서",
+            "markdown 을 AST 로 변환합니다. 그리고 캐시합니다.",
+            "",
+            "## 렌더러",
+            "AST 를 HTML 로 렌더합니다.",
+        ]
+        items = docs_visualizer._extract_components(lines)
+        self.assertEqual(
+            items,
+            ["파서 — markdown 을 AST 로 변환합니다.", "렌더러 — AST 를 HTML 로 렌더합니다."],
+        )
+
+    def test_limits_to_six_items(self):
+        lines = ["# Doc"]
+        for i in range(10):
+            lines += ["", f"## Section {i}", f"Summary {i}."]
+        items = docs_visualizer._extract_components(lines)
+        self.assertEqual(len(items), 6)
+
+    def test_skips_h2_with_no_content(self):
+        lines = [
+            "# Doc",
+            "",
+            "## Empty",
+            "",
+            "## Has content",
+            "진짜 내용.",
+        ]
+        items = docs_visualizer._extract_components(lines)
+        self.assertEqual(items, ["Has content — 진짜 내용."])
+
+
 if __name__ == "__main__":
     unittest.main()
