@@ -1045,6 +1045,17 @@ def _derive_summary(lines: list[str], sections: list[VisualSection]) -> str:
 # === ANCHOR: DOCS_VISUALIZER__DERIVE_SUMMARY_END ===
 
 
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_TLDR_ONE_LINER_START ===
+def _extract_tldr_one_liner(lines: list[str]) -> str:
+    paragraph = _first_meaningful_paragraph(lines)
+    if not paragraph:
+        return ""
+    parts = re.split(r"(?<=[.!?。？！])\s+|(?<=[.!?。？！])$", paragraph)
+    first = next((part.strip() for part in parts if part.strip()), "")
+    return first[:180]
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_TLDR_ONE_LINER_END ===
+
+
 # === ANCHOR: DOCS_VISUALIZER__TRUNCATE_WITH_WARNING_START ===
 def _truncate_with_warning(
     items: list[TItem],
