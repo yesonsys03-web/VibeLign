@@ -332,6 +332,7 @@ fn read_docs_visual(root: String, path: PathBuf) -> Result<Option<DocsVisualRead
 async fn enhance_doc_with_ai(
     root: String,
     path: PathBuf,
+    models: Option<HashMap<String, String>>,
 ) -> Result<String, String> {
     let (_resolved_path, relative_path) = resolve_doc_path(&root, path)?;
     let keys = read_keys_file();
@@ -372,6 +373,16 @@ async fn enhance_doc_with_ai(
         .env("PYTHONIOENCODING", "utf-8");
     for (name, value) in &available {
         command.env(name, value);
+    }
+    if let Some(selected) = models {
+        for (provider, model) in selected {
+            let trimmed = model.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let env_name = format!("VIBELIGN_DOCS_AI_MODEL_{}", provider.to_uppercase());
+            command.env(env_name, trimmed);
+        }
     }
     hide_console(&mut command);
     let output = command

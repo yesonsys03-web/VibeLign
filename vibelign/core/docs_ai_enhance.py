@@ -7,6 +7,7 @@ Anthropic/OpenAI/Gemini 중 키스토어에 등록된 첫 번째 provider 를 �
 from __future__ import annotations
 
 import json
+import os
 import urllib.request
 from typing import Any
 
@@ -18,6 +19,12 @@ _PROVIDER_PRIORITY: list[tuple[str, str]] = [
     ("openai", "OPENAI_API_KEY"),
     ("gemini", "GEMINI_API_KEY"),
 ]
+
+
+def _model_override(provider: str) -> str | None:
+    env_name = f"VIBELIGN_DOCS_AI_MODEL_{provider.upper()}"
+    value = os.environ.get(env_name, "").strip()
+    return value or None
 
 
 PROMPT_TEMPLATE = """You are a precise documentation summarizer for a developer tool.
@@ -76,7 +83,8 @@ def parse_anthropic_response(body: dict[str, Any]) -> dict[str, Any]:
 
 
 # === ANCHOR: DOCS_AI_ENHANCE_CALL_ANTHROPIC_START ===
-def call_anthropic(source_text: str, *, model: str = "claude-sonnet-4-5") -> dict[str, Any]:
+def call_anthropic(source_text: str, *, model: str | None = None) -> dict[str, Any]:
+    model = model or _model_override("anthropic") or "claude-sonnet-4-5"
     api_key = _KEYS.get_key("ANTHROPIC_API_KEY")
     if not api_key:
         raise RuntimeError("ANTHROPIC_API_KEY 가 환경변수/키스토어에 없습니다")
@@ -140,7 +148,8 @@ def _extract_json_object(text: str) -> dict[str, Any]:
 
 
 # === ANCHOR: DOCS_AI_ENHANCE_CALL_OPENAI_START ===
-def call_openai(source_text: str, *, model: str = "gpt-4o-mini") -> dict[str, Any]:
+def call_openai(source_text: str, *, model: str | None = None) -> dict[str, Any]:
+    model = model or _model_override("openai") or "gpt-4o-mini"
     api_key = _KEYS.get_key("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY 가 환경변수/키스토어에 없습니다")
@@ -187,7 +196,8 @@ def call_openai(source_text: str, *, model: str = "gpt-4o-mini") -> dict[str, An
 
 
 # === ANCHOR: DOCS_AI_ENHANCE_CALL_GEMINI_START ===
-def call_gemini(source_text: str, *, model: str = "gemini-flash-latest") -> dict[str, Any]:
+def call_gemini(source_text: str, *, model: str | None = None) -> dict[str, Any]:
+    model = model or _model_override("gemini") or "gemini-flash-latest"
     api_key = _KEYS.get_key("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY 가 환경변수/키스토어에 없습니다")
