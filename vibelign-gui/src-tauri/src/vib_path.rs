@@ -111,6 +111,17 @@ fn is_nonempty_file(path: &Path) -> bool {
 }
 
 /// GUI 런타임이 사용할 번들 vib를 찾는다. 없으면 None.
+///
+/// dev 빌드(`debug_assertions`)에서는 항상 None 을 반환해 `find_vib` 폴백(시스템 `vib`,
+/// uv tool entry point)으로 내려간다. 로컬 사이드카 스텁이 stale 되면 구형 CLI 를 호출해
+/// 최신 명령(docs-build 등)이 누락되는 문제를 dev 단계에서 원천 차단한다.
+/// 릴리즈(`tauri build`) 에서는 PyInstaller 번들이 정상 탐색된다.
+#[cfg(debug_assertions)]
+pub fn find_bundled_vib() -> Option<PathBuf> {
+    None
+}
+
+#[cfg(not(debug_assertions))]
 pub fn find_bundled_vib() -> Option<PathBuf> {
     // 0. 번들 sidecar — 앱 실행파일 옆에 있는 vib (Python 불필요)
     if let Ok(exe) = std::env::current_exe() {
