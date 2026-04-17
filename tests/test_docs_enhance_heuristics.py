@@ -66,5 +66,59 @@ class ExtractTldrTest(unittest.TestCase):
         self.assertEqual(docs_visualizer._extract_tldr_one_liner(lines), "진짜 요약 문장.")
 
 
+class ExtractBulletSectionTest(unittest.TestCase):
+    def test_key_rules_from_rule_heading(self):
+        lines = [
+            "# Doc",
+            "",
+            "## 핵심 규칙",
+            "",
+            "- 절대 금지 항목 A",
+            "- 항상 지킬 것 B",
+            "",
+            "## 다른 섹션",
+            "- 무관한 내용",
+        ]
+        rules = docs_visualizer._extract_bullet_section(
+            lines, docs_visualizer.RULES_HEADING_RE
+        )
+        self.assertEqual(rules, ["절대 금지 항목 A", "항상 지킬 것 B"])
+
+    def test_success_criteria_from_success_heading(self):
+        lines = [
+            "# Doc",
+            "",
+            "## Success Criteria",
+            "- 테스트 100% 통과",
+            "- 지연 < 1초",
+        ]
+        criteria = docs_visualizer._extract_bullet_section(
+            lines, docs_visualizer.CRITERIA_HEADING_RE
+        )
+        self.assertEqual(criteria, ["테스트 100% 통과", "지연 < 1초"])
+
+    def test_edge_cases_from_edge_heading(self):
+        lines = [
+            "# Doc",
+            "",
+            "## 예외 상황",
+            "- 네트워크 끊김",
+            "- 빈 입력",
+        ]
+        edges = docs_visualizer._extract_bullet_section(
+            lines, docs_visualizer.EDGE_HEADING_RE
+        )
+        self.assertEqual(edges, ["네트워크 끊김", "빈 입력"])
+
+    def test_returns_empty_when_no_matching_heading(self):
+        lines = ["# Doc", "", "## 무관한 섹션", "- 내용"]
+        self.assertEqual(
+            docs_visualizer._extract_bullet_section(
+                lines, docs_visualizer.RULES_HEADING_RE
+            ),
+            [],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
