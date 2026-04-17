@@ -84,39 +84,38 @@ function docDiagrams(artifact: DocsVisualArtifact) {
     .slice(0, 6);
 }
 
-function keyRules(artifact: DocsVisualArtifact): string[] {
-  const rules = [
-    "markdown 원문이 항상 진짜 기준이다.",
-    "enhancement는 source_hash가 맞을 때만 현재 상태로 신뢰한다.",
-    "파생 데이터가 깨져도 원문 읽기는 멈추지 않는다.",
-  ];
-  if (artifact.diagram_blocks.length > 0) {
-    rules.push("다이어그램은 보조 설명일 뿐이고, 실패하면 code block으로 바로 돌아간다.");
-  }
-  return rules;
+function heuristicRules(artifact: DocsVisualArtifact): string[] {
+  const ai = artifact.ai_fields;
+  if (ai && ai.key_rules.length > 0) return ai.key_rules;
+  return artifact.heuristic_fields?.key_rules ?? [];
 }
 
-function successCriteria(artifact: DocsVisualArtifact): string[] {
-  const items = [
-    "문서를 바로 열 수 있다.",
-    "trust state를 보고 enhancement가 최신인지 바로 알 수 있다.",
-    "fancy layer가 실패해도 markdown 읽기는 계속 유지된다.",
-  ];
-  if (artifact.action_items.length > 0) {
-    items.push(`현재 문서에서 바로 행동으로 옮길 후보가 ${artifact.action_items.length}개 보인다.`);
-  }
-  return items;
+function heuristicCriteria(artifact: DocsVisualArtifact): string[] {
+  const ai = artifact.ai_fields;
+  if (ai && ai.success_criteria.length > 0) return ai.success_criteria;
+  return artifact.heuristic_fields?.success_criteria ?? [];
 }
 
-function edgeCases(artifact: DocsVisualArtifact): string[] {
-  const items = [
-    "artifact missing / corrupt / stale 이어도 markdown-only fallback이 가능해야 한다.",
-    "문서가 길어도 enhancement만 축약되고 reading은 유지되어야 한다.",
-  ];
-  if (artifactWarnings(artifact).length > 0) {
-    items.push(`현재 artifact warning ${artifactWarnings(artifact).length}개도 함께 보여서 위험 신호를 놓치지 않게 한다.`);
-  }
-  return items;
+function heuristicEdges(artifact: DocsVisualArtifact): string[] {
+  const ai = artifact.ai_fields;
+  if (ai && ai.edge_cases.length > 0) return ai.edge_cases;
+  return artifact.heuristic_fields?.edge_cases ?? [];
+}
+
+function heuristicComponents(artifact: DocsVisualArtifact): string[] {
+  const ai = artifact.ai_fields;
+  if (ai && ai.components.length > 0) return ai.components;
+  return artifact.heuristic_fields?.components ?? [];
+}
+
+function heuristicTldr(artifact: DocsVisualArtifact): string {
+  const ai = artifact.ai_fields;
+  if (ai && ai.tldr_one_liner) return ai.tldr_one_liner;
+  return artifact.heuristic_fields?.tldr_one_liner ?? "";
+}
+
+function isAiActive(artifact: DocsVisualArtifact): boolean {
+  return !!(artifact.ai_fields && artifact.ai_fields.source_hash === artifact.source_hash);
 }
 
 function easyActionSummary(artifact: DocsVisualArtifact): string {
@@ -141,15 +140,6 @@ function sequenceSummary(artifact: DocsVisualArtifact): string {
     return "단계가 복잡하게 갈라지지는 않아서, 위에서 아래로 차례대로 읽는 방식이 가장 안전합니다.";
   }
   return `큰 흐름은 ${steps.join(" → ")} 순서입니다. 세부 문장을 다 기억하기보다 이 단계 이동만 잡고 읽으면 이해가 빨라집니다.`;
-}
-
-function fileRows(artifact: DocsVisualArtifact): Array<{ area: string; role: string; kind: string }> {
-  return [
-    { area: artifact.source_path.split("/").slice(-2).join("/"), role: "현재 보고 있는 source markdown", kind: "Truth" },
-    { area: `${artifact.sections.length} sections`, role: "heading tree 기반 구조 요약", kind: "Derived" },
-    { area: `${artifact.action_items.length} actions`, role: "checklist / 할 일 추출", kind: "Derived" },
-    { area: `${artifact.diagram_blocks.length} diagrams`, role: "mermaid 다이어그램 메타", kind: "Derived" },
-  ];
 }
 
 function SmallPill({ children, bg = "#F1ECDF", color = "#444" }: { children: string; bg?: string; color?: string }) {
@@ -217,9 +207,16 @@ export default function VisualSummaryPane({ artifact, trustState, onPhaseSelect 
         <div style={{ fontSize: 13, lineHeight: 1.8, color: "#333", marginBottom: 14 }}>
           {sentenceSlice(artifact.summary || `${artifact.title} 문서를 쉽게 이해하도록 재정리한 패널입니다.`, 3)}
         </div>
-        <Rule>
-          <strong>아키텍처 한 줄:</strong> GUI는 markdown 원문을 바로 보여주고, 오른쪽 패널은 hash로 연결된 파생 artifact를 읽어 이해를 돕는 보조 시각화만 제공합니다.
-        </Rule>
+        {heuristicTldr(artifact) ? (
+          <Rule>
+            <strong>한 줄 요약:</strong> {heuristicTldr(artifact)}
+            {isAiActive(artifact) ? (
+              <span style={{ marginLeft: 8 }}>
+                <SmallPill bg="#FFF0F0" color="#A33A3A">AI</SmallPill>
+              </span>
+            ) : null}
+          </Rule>
+        ) : null}
       </Card>
 
       <Card title={diagrams.length > 0 ? "문서 다이어그램" : "다이어그램 상태"}>
@@ -248,16 +245,20 @@ export default function VisualSummaryPane({ artifact, trustState, onPhaseSelect 
         )}
       </Card>
 
-      <Card title="핵심 실행 규칙">
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {keyRules(artifact).map((rule, idx) => (
-            <Rule key={`rule-${idx}`} tone={idx === 2 ? "#F5621E" : idx === 1 ? "#4DFF91" : "#4D9FFF"}>{rule}</Rule>
-          ))}
-          {topItems(warnings, 2).map((warning, idx) => (
-            <Rule key={`warn-${idx}`} tone="#FFD166"><strong>주의:</strong> {warning}</Rule>
-          ))}
-        </div>
-      </Card>
+      {heuristicRules(artifact).length > 0 ? (
+        <Card title={isAiActive(artifact) ? "핵심 규칙 (AI)" : "핵심 규칙"}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {heuristicRules(artifact).map((rule, idx) => (
+              <Rule key={`rule-${idx}`} tone={idx % 2 === 0 ? "#4D9FFF" : "#4DFF91"}>
+                {rule}
+              </Rule>
+            ))}
+            {topItems(warnings, 2).map((warning, idx) => (
+              <Rule key={`warn-${idx}`} tone="#FFD166"><strong>주의:</strong> {warning}</Rule>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       <Card title="한 번에 이해하기">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -288,37 +289,26 @@ export default function VisualSummaryPane({ artifact, trustState, onPhaseSelect 
         </div>
       </Card>
 
-      <Card title="주요 구성 요소">
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr>
-                <th style={{ textAlign: "left", padding: "8px 10px", borderBottom: "2px solid #1A1A1A", color: "#666" }}>영역</th>
-                <th style={{ textAlign: "left", padding: "8px 10px", borderBottom: "2px solid #1A1A1A", color: "#666" }}>역할</th>
-                <th style={{ textAlign: "left", padding: "8px 10px", borderBottom: "2px solid #1A1A1A", color: "#666" }}>종류</th>
-              </tr>
-            </thead>
-            <tbody>
-              {fileRows(artifact).map((row, index) => (
-                <tr key={`${row.area}-${index}`}>
-                  <td style={{ padding: "8px 10px", borderBottom: "1px solid #DDD" }}>{row.area}</td>
-                  <td style={{ padding: "8px 10px", borderBottom: "1px solid #DDD" }}>{row.role}</td>
-                  <td style={{ padding: "8px 10px", borderBottom: "1px solid #DDD" }}>{row.kind}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      {heuristicComponents(artifact).length > 0 ? (
+        <Card title={isAiActive(artifact) ? "주요 구성 요소 (AI)" : "주요 구성 요소"}>
+          <BulletList items={heuristicComponents(artifact)} />
+        </Card>
+      ) : null}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Card title="검증해야 할 Edge Cases">
-          <BulletList items={edgeCases(artifact)} />
-        </Card>
-        <Card title="Final Success Criteria">
-          <BulletList items={successCriteria(artifact)} icon="✅" />
-        </Card>
-      </div>
+      {(heuristicEdges(artifact).length > 0 || heuristicCriteria(artifact).length > 0) ? (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {heuristicEdges(artifact).length > 0 ? (
+            <Card title={isAiActive(artifact) ? "예외 상황 (AI)" : "예외 상황"}>
+              <BulletList items={heuristicEdges(artifact)} />
+            </Card>
+          ) : null}
+          {heuristicCriteria(artifact).length > 0 ? (
+            <Card title={isAiActive(artifact) ? "성공 기준 (AI)" : "성공 기준"}>
+              <BulletList items={heuristicCriteria(artifact)} icon="✅" />
+            </Card>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
