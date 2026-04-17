@@ -124,9 +124,8 @@ export interface EnhanceDocResult {
 export async function enhanceDocWithAi(
   root: string,
   path: string,
-  apiKey: string,
 ): Promise<EnhanceDocResult> {
-  const raw = await invoke<string>("enhance_doc_with_ai", { root, path, apiKey });
+  const raw = await invoke<string>("enhance_doc_with_ai", { root, path });
   return JSON.parse(raw) as EnhanceDocResult;
 }
 

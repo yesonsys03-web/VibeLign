@@ -332,9 +332,16 @@ fn read_docs_visual(root: String, path: PathBuf) -> Result<Option<DocsVisualRead
 async fn enhance_doc_with_ai(
     root: String,
     path: PathBuf,
-    api_key: String,
 ) -> Result<String, String> {
     let (_resolved_path, relative_path) = resolve_doc_path(&root, path)?;
+    let keys = read_keys_file();
+    let api_key = keys
+        .get("ANTHROPIC_API_KEY")
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
+    if api_key.is_empty() {
+        return Err("설정 > API 키에서 Anthropic 키를 먼저 등록해주세요".into());
+    }
     let vib = vib_path::find_runtime_vib()
         .ok_or_else(|| "vib 실행 파일을 찾을 수 없습니다".to_string())?;
     let mut command = std::process::Command::new(&vib);
