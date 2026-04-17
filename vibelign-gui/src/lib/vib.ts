@@ -321,6 +321,95 @@ export async function anchorAutoIntent(cwd: string, aiEnv?: Record<string, strin
   return res.stdout;
 }
 
+export interface AnchorMetaEntry {
+  intent?: string;
+  connects?: string[];
+  warning?: string;
+  aliases?: string[];
+  description?: string;
+  _source?: string;
+}
+
+export interface AnchorAutoIntentResult {
+  code_count: number;
+  ai_count: number;
+  total_anchors: number;
+  ai_available: boolean;
+  forced: boolean;
+  anchor_meta_path?: string;
+  message?: string;
+}
+
+export interface AnchorAutoIntentRun {
+  data: AnchorAutoIntentResult;
+  stderrLog: string;
+}
+
+export async function anchorAutoIntentJson(
+  cwd: string,
+  opts?: { force?: boolean; aiEnv?: Record<string, string> }
+): Promise<AnchorAutoIntentRun> {
+  const args = ["anchor", "--auto-intent", "--json"];
+  if (opts?.force) args.push("--force");
+  const res = await runVib(args, cwd, opts?.aiEnv);
+  const stdout = res.stdout.trim();
+  if (!stdout) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  const parsed = JSON.parse(stdout) as {
+    ok?: boolean;
+    error?: string;
+    data?: AnchorAutoIntentResult;
+  };
+  if (parsed.ok === false) throw new Error(parsed.error ?? "auto-intent 실패");
+  if (!parsed.data) throw new Error("auto-intent 응답에 data가 없습니다");
+  return { data: parsed.data, stderrLog: res.stderr.trim() };
+}
+
+export interface AnchorSetIntentExtras {
+  aliases?: string[];
+  description?: string;
+  warning?: string;
+  connects?: string[];
+}
+
+export async function anchorSetIntent(
+  cwd: string,
+  anchorName: string,
+  intent: string,
+  extras?: AnchorSetIntentExtras,
+): Promise<{ anchor_name: string; entry: AnchorMetaEntry }> {
+  const args = ["anchor", "--set-intent", anchorName, "--intent", intent, "--json"];
+  const aliases = extras?.aliases?.filter((a) => a.trim()).join(",");
+  if (aliases) { args.push("--aliases", aliases); }
+  if (extras?.description?.trim()) { args.push("--description", extras.description); }
+  if (extras?.warning?.trim()) { args.push("--warning", extras.warning); }
+  const connects = extras?.connects?.filter((c) => c.trim()).join(",");
+  if (connects) { args.push("--connects", connects); }
+  const res = await runVib(args, cwd);
+  const stdout = res.stdout.trim();
+  if (!stdout) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  const parsed = JSON.parse(stdout) as {
+    ok?: boolean;
+    error?: string;
+    data?: { anchor_name: string; entry: AnchorMetaEntry };
+  };
+  if (parsed.ok === false) throw new Error(parsed.error ?? "set-intent 실패");
+  if (!parsed.data) throw new Error("set-intent 응답에 data가 없습니다");
+  return parsed.data;
+}
+
+export async function anchorListMeta(cwd: string): Promise<Record<string, AnchorMetaEntry>> {
+  const res = await runVib(["anchor", "--list-intent", "--json"], cwd);
+  const stdout = res.stdout.trim();
+  if (!stdout) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  const parsed = JSON.parse(stdout) as {
+    ok?: boolean;
+    error?: string;
+    data?: { meta?: Record<string, AnchorMetaEntry> };
+  };
+  if (parsed.ok === false) throw new Error(parsed.error ?? "list-intent 실패");
+  return parsed.data?.meta ?? {};
+}
+
 export async function checkpointCreate(cwd: string, message: string): Promise<unknown> {
   const res = await runVib(["checkpoint", message, "--json"], cwd);
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);

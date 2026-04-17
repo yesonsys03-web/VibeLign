@@ -36,6 +36,7 @@ class AnchorMetaEntry(TypedDict, total=False):
     warning: str
     aliases: list[str]
     description: str
+    _source: str
 
 
 def _normalize_object_dict(value: object) -> dict[str, object] | None:
@@ -617,6 +618,9 @@ def load_anchor_meta(root: Path) -> dict[str, AnchorMetaEntry]:
         description = entry.get("description")
         if isinstance(description, str):
             meta_entry["description"] = description
+        source = entry.get("_source")
+        if isinstance(source, str):
+            meta_entry["_source"] = source
         normalized[key] = meta_entry
     return normalized
 
@@ -662,6 +666,7 @@ def set_anchor_intent(
         entry["aliases"] = aliases
     if description is not None:
         entry["description"] = description
+    entry["_source"] = "manual"
     data[anchor_name] = entry
     save_anchor_meta(root, data)
 
@@ -838,8 +843,8 @@ def generate_code_based_intents(root: Path, paths: list[Path]) -> int:
             if not aliases:
                 continue
             entry = existing.get(anchor, {})
-            if entry.get("_source") == "ai":
-                continue  # AI가 이미 보강한 항목은 코드 기반으로 덮어쓰지 않음
+            if entry.get("_source") in ("ai", "manual"):
+                continue  # AI/수동 보강 항목은 코드 기반으로 덮어쓰지 않음
             entry.setdefault("intent", description)
             entry["aliases"] = aliases
             entry["description"] = description
@@ -950,7 +955,7 @@ def generate_anchor_intents_with_ai(
     for path in paths:
         for anchor, code in extract_anchor_blocks(path).items():
             entry = existing.get(anchor, {})
-            if not force and entry.get("_source") == "ai":
+            if not force and entry.get("_source") in ("ai", "manual"):
                 continue
             all_blocks[anchor] = code[:400]
     if not all_blocks:
