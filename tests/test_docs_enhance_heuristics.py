@@ -1,5 +1,6 @@
 import importlib.util
 import sys
+import tempfile
 import types
 import unittest
 from pathlib import Path
@@ -155,6 +156,56 @@ class ExtractComponentsTest(unittest.TestCase):
         ]
         items = docs_visualizer._extract_components(lines)
         self.assertEqual(items, ["Has content — 진짜 내용."])
+
+
+class VisualizeMarkdownIntegrationTest(unittest.TestCase):
+    def test_heuristic_fields_populated(self):
+        content = """# 제목
+
+이 문서는 샘플 계획입니다. 예시 용도입니다.
+
+## 규칙
+
+- 절대 외부 API 를 호출하지 않는다
+- 모든 경로는 posix
+
+## 성공 기준
+
+- 모든 테스트 통과
+- 문서 파싱 < 100ms
+
+## 예외 상황
+
+- 빈 파일 처리
+
+## 주요 구성
+
+### 파서
+
+AST 로 변환합니다.
+
+### 렌더러
+
+HTML 로 출력합니다.
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "plan.md"
+            target.write_text(content, encoding="utf-8")
+            artifact = docs_visualizer.visualize_markdown_file(target)
+            self.assertIsNotNone(artifact.heuristic_fields)
+            hf = artifact.heuristic_fields
+            self.assertEqual(hf.tldr_one_liner, "이 문서는 샘플 계획입니다.")
+            self.assertIn("절대 외부 API 를 호출하지 않는다", hf.key_rules)
+            self.assertIn("모든 테스트 통과", hf.success_criteria)
+            self.assertIn("빈 파일 처리", hf.edge_cases)
+            self.assertEqual(hf.provenance, "heuristic")
+
+    def test_ai_fields_default_none(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "x.md"
+            target.write_text("# x\n\nintro.\n", encoding="utf-8")
+            artifact = docs_visualizer.visualize_markdown_file(target)
+            self.assertIsNone(artifact.ai_fields)
 
 
 if __name__ == "__main__":

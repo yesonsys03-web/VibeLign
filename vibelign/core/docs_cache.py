@@ -221,6 +221,17 @@ def docs_visual_schema_example() -> dict[str, object]:
             }
         ],
         "warnings": [],
+        "heuristic_fields": {
+            "tldr_one_liner": "샘플 문서의 한 줄 요약.",
+            "key_rules": ["핵심 규칙 1", "핵심 규칙 2"],
+            "success_criteria": ["성공 기준 1"],
+            "edge_cases": ["예외 상황 1"],
+            "components": ["파서 — AST 변환"],
+            "provenance": "heuristic",
+            "generator": DOCS_VISUAL_GENERATOR_VERSION,
+            "generated_at": "2026-04-17T00:00:00Z",
+        },
+        "ai_fields": None,
     }
 # === ANCHOR: DOCS_CACHE_DOCS_VISUAL_SCHEMA_EXAMPLE_END ===
 
