@@ -1,5 +1,7 @@
 # === ANCHOR: VIB_ANCHOR_CMD_START ===
+import contextlib
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from collections.abc import Iterable
@@ -69,8 +71,32 @@ def _recommend_anchor_targets(
     return recommend(root, allowed_exts, project_map)
 
 
-def _set_anchor_intent(root: Path, anchor_name: str, intent: str) -> None:
-    _ = anchor_tools_mod.set_anchor_intent(root, anchor_name, intent)
+def _set_anchor_intent(
+    root: Path,
+    anchor_name: str,
+    intent: str,
+    *,
+    connects: list[str] | None = None,
+    warning: str | None = None,
+    aliases: list[str] | None = None,
+    description: str | None = None,
+) -> None:
+    _ = anchor_tools_mod.set_anchor_intent(
+        root,
+        anchor_name,
+        intent,
+        connects=connects,
+        warning=warning,
+        aliases=aliases,
+        description=description,
+    )
+
+
+def _split_csv(value: object) -> list[str] | None:
+    if not isinstance(value, str):
+        return None
+    items = [token.strip() for token in value.split(",") if token.strip()]
+    return items if items else None
 
 
 def _validate_anchor_file(path: Path) -> Iterable[str]:
@@ -136,18 +162,57 @@ def run_vib_anchor(args: object) -> None:
 
     if isinstance(set_intent, str) and set_intent:
         if not intent:
-            print("오류: --intent 옵션으로 의도(intent) 텍스트를 입력하세요.")
-            print(
-                '예시: vib anchor --set-intent ANCHOR_NAME --intent "버튼/레이아웃 UI 구성"'
-            )
+            if json_mode:
+                print(
+                    json.dumps(
+                        {
+                            "ok": False,
+                            "error": "intent text is required",
+                            "data": None,
+                        },
+                        ensure_ascii=False,
+                    )
+                )
+            else:
+                print("오류: --intent 옵션으로 의도(intent) 텍스트를 입력하세요.")
+                print(
+                    '예시: vib anchor --set-intent ANCHOR_NAME --intent "버튼/레이아웃 UI 구성"'
+                )
             raise SystemExit(1)
-        _set_anchor_intent(root, set_intent, intent)
-        print(f"✅ intent 저장 완료: [{set_intent}] → {intent}")
+        aliases_arg = _split_csv(getattr(args, "aliases", None))
+        connects_arg = _split_csv(getattr(args, "connects", None))
+        description_arg = getattr(args, "description", None)
+        warning_arg = getattr(args, "warning", None)
+        _set_anchor_intent(
+            root,
+            set_intent,
+            intent,
+            connects=connects_arg,
+            warning=warning_arg if isinstance(warning_arg, str) else None,
+            aliases=aliases_arg,
+            description=description_arg if isinstance(description_arg, str) else None,
+        )
+        if json_mode:
+            entry = anchor_tools_mod.get_anchor_intent(root, set_intent)
+            print(
+                json.dumps(
+                    {
+                        "ok": True,
+                        "error": None,
+                        "data": {"anchor_name": set_intent, "entry": entry},
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+            )
+        else:
+            print(f"✅ intent 저장 완료: [{set_intent}] → {intent}")
         return
 
     if auto_intent:
         from vibelign.core.project_scan import iter_source_files
         from vibelign.core.anchor_tools import extract_anchors
+        from vibelign.core.ai_explain import has_ai_provider
 
         anchored = [
             path
@@ -156,26 +221,106 @@ def run_vib_anchor(args: object) -> None:
             and extract_anchors(path)
         ]
         if not anchored:
-            print("앵커가 있는 파일이 없습니다. 먼저 vib anchor --auto 를 실행하세요.")
+            if json_mode:
+                print(
+                    json.dumps(
+                        {
+                            "ok": True,
+                            "error": None,
+                            "data": {
+                                "code_count": 0,
+                                "ai_count": 0,
+                                "total_anchors": 0,
+                                "ai_available": has_ai_provider(),
+                                "forced": force,
+                                "message": "앵커가 있는 파일이 없습니다",
+                            },
+                        },
+                        indent=2,
+                        ensure_ascii=False,
+                    )
+                )
+            else:
+                print("앵커가 있는 파일이 없습니다. 먼저 vib anchor --auto 를 실행하세요.")
             return
-        # 1단계: 코드 기반 생성 (즉시, 비용 0)
-        from vibelign.core.anchor_tools import generate_code_based_intents
-        code_count = generate_code_based_intents(root, anchored)
-        if code_count:
-            print(f"✅ 코드 기반 aliases 생성 완료: {code_count}개")
-        # 2단계: AI 보강 (API 키 있을 때만)
-        print(f"🤖 AI가 {len(anchored)}개 파일의 앵커 intent를 보강 중...")
-        ai_count = _generate_anchor_intents_with_ai(root, anchored, force=force)
-        if ai_count:
-            print(f"✅ AI 보강 완료: {ai_count}개")
-        elif not code_count:
+
+        progress_stream = sys.stderr if json_mode else None
+
+        def _progress(step: str, text: str) -> None:
+            if progress_stream is not None:
+                _ = progress_stream.write(f"[progress] step={step} {text}\n")
+                progress_stream.flush()
+            else:
+                print(text)
+
+        # JSON 모드에서는 AI provider 가 stdout 에 찍는 상태 메시지가 JSON 을 오염시키므로
+        # 작업 구간 stdout 을 stderr 로 리다이렉트한다.
+        with contextlib.ExitStack() as stack:
+            if json_mode:
+                _ = stack.enter_context(contextlib.redirect_stdout(sys.stderr))
+            # 1단계: 코드 기반 생성 (즉시, 비용 0)
+            from vibelign.core.anchor_tools import generate_code_based_intents
+            _progress("code", f"코드 기반 aliases 생성 중... ({len(anchored)}개 파일)")
+            code_count = generate_code_based_intents(root, anchored)
+            if code_count:
+                _progress("code", f"✅ 코드 기반 aliases 생성 완료: {code_count}개")
+            # 2단계: AI 보강 (API 키 있을 때만)
+            ai_available = has_ai_provider()
+            _progress(
+                "ai",
+                f"🤖 AI가 {len(anchored)}개 파일의 앵커 intent를 보강 중..."
+                if ai_available
+                else "⚠️ AI 키가 없어 AI 보강 생략",
+            )
+            ai_count = (
+                _generate_anchor_intents_with_ai(root, anchored, force=force)
+                if ai_available
+                else 0
+            )
+            if ai_count:
+                _progress("ai", f"✅ AI 보강 완료: {ai_count}개")
+            elif ai_available and not code_count:
+                _progress(
+                    "ai",
+                    "⚠️  intent 자동 생성 실패 (API 키 확인 또는 vib anchor --set-intent 로 직접 등록)",
+                )
+
+        if json_mode:
+            from vibelign.core.meta_paths import MetaPaths as _MP
+
             print(
-                "⚠️  intent 자동 생성 실패 (API 키 확인 또는 vib anchor --set-intent 로 직접 등록)"
+                json.dumps(
+                    {
+                        "ok": True,
+                        "error": None,
+                        "data": {
+                            "code_count": code_count,
+                            "ai_count": ai_count,
+                            "total_anchors": len(anchored),
+                            "ai_available": ai_available,
+                            "forced": force,
+                            "anchor_meta_path": str(
+                                _MP(root).anchor_meta_path.relative_to(root)
+                            ),
+                        },
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
             )
         return
 
     if list_intent:
         data = _load_anchor_meta(root)
+        if json_mode:
+            print(
+                json.dumps(
+                    {"ok": True, "error": None, "data": {"meta": data}},
+                    indent=2,
+                    ensure_ascii=False,
+                )
+            )
+            return
         if not data:
             print("등록된 intent가 없습니다.")
             print('등록하려면: vib anchor --set-intent ANCHOR_NAME --intent "설명"')

@@ -217,6 +217,84 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "anchor_auto_intent",
+        "description": (
+            "모든 앵커에 대해 코드 기반 + AI 기반으로 intent/aliases/description을 "
+            "anchor_meta.json에 생성합니다. patch_suggester 스코어링 품질 향상을 위해 "
+            "앵커 삽입 후 반드시 한 번 실행하세요. "
+            "기존 수동/AI 메타는 보존되며, force=true일 때만 재생성됩니다."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "force": {
+                    "type": "boolean",
+                    "description": "true면 기존 AI/수동 메타도 재생성 (기본값: false)",
+                },
+                "only_ext": {
+                    "type": "string",
+                    "description": "특정 확장자만 처리 (예: '.py,.ts')",
+                },
+            },
+        },
+    },
+    {
+        "name": "anchor_set_intent",
+        "description": (
+            "특정 앵커에 의도(intent)와 별칭(aliases)·설명(description)·경고(warning)·"
+            "연결(connects)을 직접 등록합니다. "
+            "이 메타는 _source='manual'로 표시되어 auto_intent 실행 시 보존됩니다."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "anchor_name": {
+                    "type": "string",
+                    "description": "앵커 이름 (_START/_END 접미사 없이)",
+                },
+                "intent": {
+                    "type": "string",
+                    "description": "한 줄 의도 설명",
+                },
+                "aliases": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "검색 별칭 (한국어/영어 혼합 가능)",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "상세 설명 (선택)",
+                },
+                "warning": {
+                    "type": "string",
+                    "description": "AI에게 전달할 주의사항 (선택)",
+                },
+                "connects": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "연결된 앵커 이름 목록 (선택)",
+                },
+            },
+            "required": ["anchor_name", "intent"],
+        },
+    },
+    {
+        "name": "anchor_get_meta",
+        "description": (
+            "anchor_meta.json을 반환합니다. anchor_name을 지정하면 해당 앵커의 메타만, "
+            "생략하면 전체 메타를 반환합니다. 수동 편집 UI의 prefill에 사용하세요."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "anchor_name": {
+                    "type": "string",
+                    "description": "조회할 앵커 이름 (생략 시 전체)",
+                },
+            },
+        },
+    },
+    {
         "name": "explain_get",
         "description": "최근 변경된 파일과 변경 내용을 분석하여 반환합니다. 작업 후 무엇이 바뀌었는지 확인할 때 사용하세요.",
         "inputSchema": {

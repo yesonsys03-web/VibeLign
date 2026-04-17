@@ -191,6 +191,30 @@ def register_extended_commands(
         action="store_true",
         help="--auto-intent 시 기존 AI 생성 항목도 재생성",
     )
+    _ = p.add_argument(
+        "--aliases",
+        metavar="A,B,C",
+        default=None,
+        help="--set-intent 보조: 검색 별칭 (쉼표 구분)",
+    )
+    _ = p.add_argument(
+        "--description",
+        metavar="TEXT",
+        default=None,
+        help="--set-intent 보조: 상세 설명",
+    )
+    _ = p.add_argument(
+        "--warning",
+        metavar="TEXT",
+        default=None,
+        help="--set-intent 보조: AI에게 전달할 주의사항",
+    )
+    _ = p.add_argument(
+        "--connects",
+        metavar="A,B,C",
+        default=None,
+        help="--set-intent 보조: 연결 앵커 이름 (쉼표 구분)",
+    )
     p.set_defaults(
         func=lazy_command("vibelign.commands.vib_anchor_cmd", "run_vib_anchor")
     )

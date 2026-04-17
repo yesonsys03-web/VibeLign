@@ -103,6 +103,18 @@ class AnchorHandlersModule(Protocol):
     # === ANCHOR: MCP_HANDLER_REGISTRY_HANDLE_ANCHOR_RUN_END ===
     ) -> list[object]: ...
 
+    def handle_anchor_auto_intent(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
+    def handle_anchor_set_intent(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
+    def handle_anchor_get_meta(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
 
 # === ANCHOR: MCP_HANDLER_REGISTRY_MISCHANDLERSMODULE_START ===
 class MiscHandlersModule(Protocol):
@@ -248,6 +260,24 @@ def _handle_anchor_run(
     return _anchor_handlers().handle_anchor_run(root, text_content)
 
 
+def _handle_anchor_auto_intent(
+    root: Path, arguments: dict[str, object], text_content: TextContentFactory
+) -> list[object]:
+    return _anchor_handlers().handle_anchor_auto_intent(root, arguments, text_content)
+
+
+def _handle_anchor_set_intent(
+    root: Path, arguments: dict[str, object], text_content: TextContentFactory
+) -> list[object]:
+    return _anchor_handlers().handle_anchor_set_intent(root, arguments, text_content)
+
+
+def _handle_anchor_get_meta(
+    root: Path, arguments: dict[str, object], text_content: TextContentFactory
+) -> list[object]:
+    return _anchor_handlers().handle_anchor_get_meta(root, arguments, text_content)
+
+
 # === ANCHOR: MCP_HANDLER_REGISTRY__HANDLE_ANCHOR_LIST_START ===
 def _handle_anchor_list(
     root: Path, arguments: dict[str, object], text_content: TextContentFactory
@@ -278,6 +308,9 @@ DISPATCH_TABLE: dict[str, DispatchHandler] = {
     "patch_get": _patch_handlers().handle_patch_get,
     "patch_apply": _patch_handlers().handle_patch_apply,
     "anchor_run": _handle_anchor_run,
+    "anchor_auto_intent": _handle_anchor_auto_intent,
+    "anchor_set_intent": _handle_anchor_set_intent,
+    "anchor_get_meta": _handle_anchor_get_meta,
     "explain_get": _misc_handlers().handle_explain_get,
     "anchor_list": _handle_anchor_list,
     "config_get": _handle_config_get,
