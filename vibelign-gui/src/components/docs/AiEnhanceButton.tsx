@@ -31,7 +31,14 @@ export default function AiEnhanceButton({
     setBusy(true);
     setError(null);
     try {
-      await enhanceDocWithAi(root, relativePath);
+      let models: Record<string, string> | undefined;
+      try {
+        const raw = localStorage.getItem("vibelign_llm_models");
+        if (raw) models = JSON.parse(raw) as Record<string, string>;
+      } catch {
+        models = undefined;
+      }
+      await enhanceDocWithAi(root, relativePath, models);
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
