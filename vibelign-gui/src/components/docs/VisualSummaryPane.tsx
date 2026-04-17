@@ -2,11 +2,15 @@ import type { ReactNode } from "react";
 import type { DocsTrustState } from "../../pages/DocsViewer";
 import type { DocsVisualArtifact, DocsVisualSection } from "../../lib/vib";
 import MermaidDiagram from "./MermaidDiagram";
+import AiEnhanceButton from "./AiEnhanceButton";
 
 interface VisualSummaryPaneProps {
   artifact: DocsVisualArtifact;
   trustState: DocsTrustState;
   onPhaseSelect?: (sectionId: string) => void;
+  projectRoot: string;
+  relativePath: string;
+  onArtifactRefresh: () => void;
 }
 
 function compact(text: string): string {
@@ -187,7 +191,14 @@ function BulletList({ items, icon = "•" }: { items: string[]; icon?: string })
   );
 }
 
-export default function VisualSummaryPane({ artifact, trustState, onPhaseSelect }: VisualSummaryPaneProps) {
+export default function VisualSummaryPane({
+  artifact,
+  trustState,
+  onPhaseSelect,
+  projectRoot,
+  relativePath,
+  onArtifactRefresh,
+}: VisualSummaryPaneProps) {
   const trust = getTrustPill(trustState);
   const phases = phaseSections(artifact);
   const diagrams = docDiagrams(artifact);
@@ -202,6 +213,18 @@ export default function VisualSummaryPane({ artifact, trustState, onPhaseSelect 
           <SmallPill>{`${artifact.sections.length} sections`}</SmallPill>
           <SmallPill>{`${artifact.action_items.length} actions`}</SmallPill>
           <SmallPill>{`${artifact.diagram_blocks.length} diagrams`}</SmallPill>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <AiEnhanceButton
+            root={projectRoot}
+            relativePath={relativePath}
+            onDone={onArtifactRefresh}
+            sourceHash={artifact.source_hash}
+            isAiActive={isAiActive(artifact)}
+            lastTokensInput={artifact.ai_fields?.tokens_input}
+            lastTokensOutput={artifact.ai_fields?.tokens_output}
+            lastCostUsd={artifact.ai_fields?.cost_usd}
+          />
         </div>
         <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 8, lineHeight: 1.3 }}>{artifact.title}</div>
         <div style={{ fontSize: 13, lineHeight: 1.8, color: "#333", marginBottom: 14 }}>

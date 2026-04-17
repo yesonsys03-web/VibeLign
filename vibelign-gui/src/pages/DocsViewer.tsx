@@ -401,7 +401,14 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
                 </div>
                 {showVisualPane && visual ? (
                   <div style={{ minWidth: 0 }}>
-                    <VisualSummaryPane artifact={visual?.artifact} trustState={trustState} onPhaseSelect={handlePhaseSelect} />
+                    <VisualSummaryPane
+                      artifact={visual.artifact}
+                      trustState={trustState}
+                      onPhaseSelect={handlePhaseSelect}
+                      projectRoot={projectDir}
+                      relativePath={selectedPath ?? ""}
+                      onArtifactRefresh={() => setRefreshTick((t) => t + 1)}
+                    />
                   </div>
                 ) : null}
               </div>
