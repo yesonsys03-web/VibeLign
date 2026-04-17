@@ -210,7 +210,7 @@ def run_vib_docs_enhance(args: argparse.Namespace) -> None:
         raise SystemExit(3) from exc
 
     try:
-        result = _AI_ENHANCE.call_anthropic(source_text)
+        result = _AI_ENHANCE.call_auto(source_text)
     except Exception as exc:
         print(f"AI 호출 실패: {exc}", file=sys.stderr)
         raise SystemExit(4) from exc
