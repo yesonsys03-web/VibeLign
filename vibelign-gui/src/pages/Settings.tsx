@@ -41,6 +41,9 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
       return {};
     }
   });
+  const [aiConsentAccepted, setAiConsentAccepted] = useState<boolean>(
+    () => localStorage.getItem("vibelign.docs.ai.consent") === "accepted",
+  );
 
   const handleModelChange = (provider: string, model: string) => {
     const newModels = { ...models, [provider]: model };
@@ -364,6 +367,28 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
               설치 가이드: <code style={{ color: "#888" }}>vib install</code>
             </div>
           )}
+        </div>
+
+        {/* AI 요약 동의 섹션 */}
+        <div className="card" style={{ marginTop: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
+            AI 요약 동의 상태
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 10 }}>
+            DocsViewer 에서 AI 요약 버튼을 누를 때 문서 내용이 외부 API 로 전송됩니다.
+            {aiConsentAccepted ? " 항상 허용 상태입니다." : " 매번 확인 모달이 뜹니다."}
+          </div>
+          {aiConsentAccepted ? (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                localStorage.removeItem("vibelign.docs.ai.consent");
+                setAiConsentAccepted(false);
+              }}
+            >
+              동의 취소 (다시 물어보기)
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
