@@ -106,14 +106,12 @@ fn configure_posix_shell_path(home: &Path, path_line: &str) -> Result<(), String
     Ok(())
 }
 
-/// vib 실행 파일 경로를 찾는다. 없으면 None.
-pub fn find_vib() -> Option<PathBuf> {
-    if let Some(vib) = find_uv_tool_vib() {
-        if std::fs::metadata(&vib).map_or(false, |m| m.len() > 0) {
-            return Some(vib);
-        }
-    }
+fn is_nonempty_file(path: &Path) -> bool {
+    std::fs::metadata(path).map_or(false, |m| m.len() > 0)
+}
 
+/// GUI 런타임이 사용할 번들 vib를 찾는다. 없으면 None.
+pub fn find_bundled_vib() -> Option<PathBuf> {
     // 0. 번들 sidecar — 앱 실행파일 옆에 있는 vib (Python 불필요)
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
@@ -127,17 +125,32 @@ pub fn find_vib() -> Option<PathBuf> {
                 dir.join("vib.exe"),
             ];
             for candidate in &candidates {
-                if candidate.exists() {
+                if is_nonempty_file(candidate) {
                     return Some(candidate.clone());
                 }
             }
         }
     }
 
+    None
+}
+
+/// vib 실행 파일 경로를 찾는다. 없으면 None.
+pub fn find_vib() -> Option<PathBuf> {
+    if let Some(vib) = find_bundled_vib() {
+        return Some(vib);
+    }
+
+    if let Some(vib) = find_uv_tool_vib() {
+        if is_nonempty_file(&vib) {
+            return Some(vib);
+        }
+    }
+
     // 1. ~/.local/bin/vib  (uv tool install, Linux/macOS)
     if let Some(home) = home_dir() {
         let candidate = home.join(".local").join("bin").join("vib");
-        if candidate.exists() {
+        if is_nonempty_file(&candidate) {
             return Some(candidate);
         }
     }
@@ -150,7 +163,7 @@ pub fn find_vib() -> Option<PathBuf> {
             let mut candidates: Vec<PathBuf> = entries
                 .filter_map(|e| e.ok())
                 .map(|e| e.path().join("bin").join("vib"))
-                .filter(|p| p.exists())
+                .filter(|p| is_nonempty_file(p))
                 .collect();
             candidates.sort();
             if let Some(p) = candidates.last() {
@@ -167,7 +180,7 @@ pub fn find_vib() -> Option<PathBuf> {
             let mut candidates: Vec<PathBuf> = entries
                 .filter_map(|e| e.ok())
                 .map(|e| e.path().join("Scripts").join("vib.exe"))
-                .filter(|p| p.exists())
+                .filter(|p| is_nonempty_file(p))
                 .collect();
             candidates.sort();
             if let Some(p) = candidates.last() {
@@ -195,7 +208,7 @@ pub fn find_vib() -> Option<PathBuf> {
                 .to_string();
             if !path_str.is_empty() {
                 let p = PathBuf::from(&path_str);
-                if p.exists() {
+                if is_nonempty_file(&p) {
                     return Some(p);
                 }
             }
@@ -249,25 +262,30 @@ fn find_uv_tool_vib() -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
     let candidate = tool_dir.join("vibelign").join("Scripts").join("vib.exe");
 
-    if candidate.exists() {
+    if is_nonempty_file(&candidate) {
         Some(candidate)
     } else {
         None
     }
 }
 
+pub fn find_runtime_vib() -> Option<PathBuf> {
+    find_bundled_vib().or_else(find_vib)
+}
+
 pub fn find_watch_vib() -> Option<PathBuf> {
-    find_vib().filter(|p| std::fs::metadata(p).map_or(false, |m| m.len() > 0))
+    find_runtime_vib()
 }
 
 /// vib CLI를 터미널에서 바로 사용할 수 있도록 PATH에 설치한다.
 /// - macOS/Linux: ~/.local/bin/vib 복사 + zsh(`.zshrc`) / bash(`.bash_profile`·`.bashrc`)에 PATH 추가
 /// - Windows: %LOCALAPPDATA%\Programs\VibeLign\vib.exe 복사 + 레지스트리 user PATH 추가
 pub fn install_cli_to_path() -> Result<String, String> {
-    // uv tool 버전(Python 환경 포함)을 우선 사용, 없으면 번들 사이드카로 폴백
-    // 단, 소스 파일이 0 bytes이면 손상된 것으로 간주하고 건너뜀
-    let vib =
-        find_watch_vib().ok_or("유효한 vib 실행 파일을 찾을 수 없습니다 (0 bytes 또는 미설치)")?;
+    // GUI 설치본이 어디서든 같은 CLI를 제공하도록 번들 vib를 우선 사용한다.
+    // 개발/복구 상황에서는 기존 탐색 순서로 폴백한다.
+    let vib = find_bundled_vib()
+        .or_else(find_vib)
+        .ok_or("유효한 vib 실행 파일을 찾을 수 없습니다 (0 bytes 또는 미설치)")?;
 
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
@@ -277,21 +295,13 @@ pub fn install_cli_to_path() -> Result<String, String> {
         let local_bin = home.join(".local").join("bin");
         std::fs::create_dir_all(&local_bin).map_err(|e| e.to_string())?;
 
-        // uv tool vib는 심볼릭 링크로 연결 (복사하면 trampoline이 venv를 못 찾음)
-        // 사이드카처럼 독립 실행 바이너리인 경우에만 복사
         let dest = local_bin.join("vib");
         if dest.exists() || dest.symlink_metadata().is_ok() {
             std::fs::remove_file(&dest).map_err(|e| e.to_string())?;
         }
-        let use_symlink = find_uv_tool_vib().map_or(false, |p| p == vib);
-        if use_symlink {
-            std::os::unix::fs::symlink(&vib, &dest)
-                .map_err(|e| format!("심볼릭 링크 생성 실패: {}", e))?;
-        } else {
-            std::fs::copy(&vib, &dest).map_err(|e| format!("바이너리 복사 실패: {}", e))?;
-            std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755))
-                .map_err(|e| e.to_string())?;
-        }
+        std::fs::copy(&vib, &dest).map_err(|e| format!("바이너리 복사 실패: {}", e))?;
+        std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755))
+            .map_err(|e| e.to_string())?;
 
         let path_line = r#"export PATH="$HOME/.local/bin:$PATH"  # VibeLign CLI"#;
         configure_posix_shell_path(&home, path_line)?;

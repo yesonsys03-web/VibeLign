@@ -153,7 +153,7 @@ fn strip_unc_prefix(p: PathBuf) -> PathBuf {
 /// `vib docs-index` 명령으로 docs index/visual contract를 받는다.
 /// vib sidecar에는 vibelign 패키지가 self-contained 되어 있어 별도 Python 환경이 없어도 동작한다.
 fn run_vib_docs_index(root: &Path, extra_args: &[&str]) -> Option<Result<String, String>> {
-    let vib = vib_path::find_vib()?;
+    let vib = vib_path::find_runtime_vib()?;
     let mut command = std::process::Command::new(&vib);
     command.arg("docs-index");
     // 기존 호출자가 넘기던 `--print-visual-contract` 를 새 CLI 플래그로 변환.
@@ -549,7 +549,7 @@ pub struct VibResult {
 /// vib 실행 파일 경로를 반환한다. 없으면 None.
 #[tauri::command]
 fn get_vib_path() -> Option<String> {
-    vib_path::find_vib().map(|p| p.to_string_lossy().into_owned())
+    vib_path::find_runtime_vib().map(|p| p.to_string_lossy().into_owned())
 }
 
 /// vib CLI를 터미널 PATH에 설치한다 (앱 시작 시 자동 호출).
@@ -569,7 +569,7 @@ async fn run_vib(
     cwd: Option<String>,
     env: Option<HashMap<String, String>>,
 ) -> VibResult {
-    let vib = match vib_path::find_vib() {
+    let vib = match vib_path::find_runtime_vib() {
         Some(p) => p,
         None => {
             return VibResult {
