@@ -195,6 +195,26 @@ ACTION_HEADING_RE = re.compile(
     r"\b(action|actions|checklist|todo|next step|task|tasks|구현|검증)\b",
     re.IGNORECASE,
 )
+RULES_HEADING_RE = re.compile(
+    r"\b(rule|rules|principle|principles|guideline|guidelines|"
+    r"규칙|원칙|지침|가이드라인)\b",
+    re.IGNORECASE,
+)
+CRITERIA_HEADING_RE = re.compile(
+    r"\b(success\s*criteria|acceptance|success|goal|goals|"
+    r"성공\s*기준|기준|목표|완료\s*조건|수용)\b",
+    re.IGNORECASE,
+)
+EDGE_HEADING_RE = re.compile(
+    r"\b(edge\s*cases?|pitfall|pitfalls|caveat|caveats|gotcha|"
+    r"예외|주의|주의사항|함정|엣지)\b",
+    re.IGNORECASE,
+)
+COMPONENTS_HEADING_RE = re.compile(
+    r"\b(component|components|module|modules|architecture|structure|"
+    r"구성\s*요소|구성|모듈|아키텍처|구조)\b",
+    re.IGNORECASE,
+)
 ORDERED_DIGIT_RE = re.compile(r"^(?P<indent>\s*)(?P<num>\d+)[.)]\s+(?P<text>.+)$")
 ORDERED_STEP_RE = re.compile(
     r"^(?P<indent>\s*)step\s*(?P<num>\d+)[:.)]?\s*(?P<text>.+)$",
@@ -491,6 +511,25 @@ def _extract_action_items(lines: list[str]) -> list[ActionItem]:
                 )
     return actions
 # === ANCHOR: DOCS_VISUALIZER__EXTRACT_ACTION_ITEMS_END ===
+
+
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_BULLET_SECTION_START ===
+def _extract_bullet_section(lines: list[str], heading_re: re.Pattern[str]) -> list[str]:
+    items: list[str] = []
+    heading_ranges = _extract_heading_ranges(lines)
+    for start, end, _level, title in heading_ranges:
+        if not heading_re.search(title):
+            continue
+        for line in lines[start + 1 : end]:
+            checklist = CHECKLIST_RE.match(line)
+            if checklist:
+                items.append(_strip_inline_markdown(checklist.group("text")))
+                continue
+            bullet = BULLET_RE.match(line)
+            if bullet:
+                items.append(_strip_inline_markdown(bullet.group("text")))
+    return _dedupe_keep_order(items)
+# === ANCHOR: DOCS_VISUALIZER__EXTRACT_BULLET_SECTION_END ===
 
 
 # === ANCHOR: DOCS_VISUALIZER__EXTRACT_WARNINGS_START ===
