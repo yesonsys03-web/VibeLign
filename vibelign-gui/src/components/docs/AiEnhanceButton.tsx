@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { enhanceDocWithAi, loadProviderApiKeys } from "../../lib/vib";
+import { enhanceDocWithAi } from "../../lib/vib";
 
 const CONSENT_KEY = "vibelign.docs.ai.consent";
 
@@ -31,13 +31,7 @@ export default function AiEnhanceButton({
     setBusy(true);
     setError(null);
     try {
-      const keys = await loadProviderApiKeys();
-      const key = keys["ANTHROPIC"] || "";
-      if (!key) {
-        setError("설정 > API 키에서 Anthropic 키를 먼저 등록해주세요");
-        return;
-      }
-      await enhanceDocWithAi(root, relativePath, key);
+      await enhanceDocWithAi(root, relativePath);
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
