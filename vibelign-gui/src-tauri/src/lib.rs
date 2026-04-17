@@ -335,12 +335,26 @@ async fn enhance_doc_with_ai(
 ) -> Result<String, String> {
     let (_resolved_path, relative_path) = resolve_doc_path(&root, path)?;
     let keys = read_keys_file();
-    let api_key = keys
-        .get("ANTHROPIC_API_KEY")
-        .map(|s| s.trim().to_string())
-        .unwrap_or_default();
-    if api_key.is_empty() {
-        return Err("설정 > API 키에서 Anthropic 키를 먼저 등록해주세요".into());
+    const PROVIDER_ENVS: &[&str] = &[
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "GEMINI_API_KEY",
+        "GLM_API_KEY",
+        "MOONSHOT_API_KEY",
+    ];
+    let available: Vec<(&str, String)> = PROVIDER_ENVS
+        .iter()
+        .filter_map(|name| {
+            keys.get(*name)
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+                .map(|v| (*name, v))
+        })
+        .collect();
+    if available.is_empty() {
+        return Err(
+            "설정 > API 키에 Anthropic/OpenAI/Gemini 중 하나의 키를 먼저 등록해주세요".into(),
+        );
     }
     let vib = vib_path::find_runtime_vib()
         .ok_or_else(|| "vib 실행 파일을 찾을 수 없습니다".to_string())?;
@@ -354,9 +368,11 @@ async fn enhance_doc_with_ai(
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .env("VIBELIGN_PROJECT_ROOT", &root)
-        .env("ANTHROPIC_API_KEY", &api_key)
         .env("PYTHONUTF8", "1")
         .env("PYTHONIOENCODING", "utf-8");
+    for (name, value) in &available {
+        command.env(name, value);
+    }
     hide_console(&mut command);
     let output = command
         .output()
