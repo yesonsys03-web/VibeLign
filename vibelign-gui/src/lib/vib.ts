@@ -40,6 +40,33 @@ export interface DocsVisualSection {
   summary: string;
 }
 
+export interface DocsVisualHeuristicFields {
+  tldr_one_liner: string;
+  key_rules: string[];
+  success_criteria: string[];
+  edge_cases: string[];
+  components: string[];
+  provenance: "heuristic";
+  generator: string;
+  generated_at: string;
+}
+
+export interface DocsVisualAIFields {
+  tldr_one_liner: string;
+  key_rules: string[];
+  success_criteria: string[];
+  edge_cases: string[];
+  components: string[];
+  provenance: "ai_draft";
+  model: string;
+  provider: string;
+  generated_at: string;
+  source_hash: string;
+  tokens_input: number;
+  tokens_output: number;
+  cost_usd: number;
+}
+
 export interface DocsVisualArtifact {
   source_path: string;
   source_hash: string;
@@ -62,6 +89,8 @@ export interface DocsVisualArtifact {
     warnings?: string[];
   }>;
   warnings?: string[];
+  heuristic_fields?: DocsVisualHeuristicFields | null;
+  ai_fields?: DocsVisualAIFields | null;
 }
 
 export interface DocsVisualReadResult {
