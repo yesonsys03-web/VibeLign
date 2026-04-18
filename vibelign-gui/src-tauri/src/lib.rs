@@ -680,6 +680,27 @@ pub struct VibResult {
 
 // ─── Tauri Commands ────────────────────────────────────────────────────────────
 
+/// 프론트엔드가 `run_vib` 에 주입할 수 있는 환경변수 키 목록.
+/// 이 목록에 없거나 `VIBELIGN_` 접두사가 아닌 키는 무시한다.
+/// Why: 임의의 env(`LD_PRELOAD`, `PYTHONPATH`, `DYLD_INSERT_LIBRARIES` 등) 주입으로
+/// vib 서브프로세스에서 코드 실행이 가능해지는 것을 IPC 경계에서 차단한다.
+const ALLOWED_VIB_ENV_KEYS: &[&str] = &[
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "GLM_API_KEY",
+    "MOONSHOT_API_KEY",
+    "PYTHONUTF8",
+    "PYTHONIOENCODING",
+    "NO_COLOR",
+    "VIBELIGN_ASK_PLAIN",
+    "VIBELIGN_PROJECT_ROOT",
+];
+
+fn is_allowed_vib_env_key(k: &str) -> bool {
+    ALLOWED_VIB_ENV_KEYS.contains(&k) || k.starts_with("VIBELIGN_")
+}
+
 /// vib 실행 파일 경로를 반환한다. 없으면 None.
 #[tauri::command]
 fn get_vib_path() -> Option<String> {
@@ -736,7 +757,9 @@ async fn run_vib(
 
         if let Some(env_map) = env {
             for (k, v) in env_map {
-                cmd.env(k, v);
+                if is_allowed_vib_env_key(&k) {
+                    cmd.env(k, v);
+                }
             }
         }
 
@@ -888,7 +911,9 @@ async fn run_vib_with_progress(
 
         if let Some(env_map) = env {
             for (k, v) in env_map {
-                cmd.env(k, v);
+                if is_allowed_vib_env_key(&k) {
+                    cmd.env(k, v);
+                }
             }
         }
 
@@ -1047,7 +1072,13 @@ fn read_keys_file() -> HashMap<String, String> {
 fn write_keys_file(keys: &HashMap<String, String>) -> Result<(), String> {
     let path = keys_file_path().ok_or("keys 파일 경로를 찾을 수 없습니다")?;
     let val = serde_json::to_string_pretty(keys).map_err(|e| e.to_string())?;
-    std::fs::write(&path, val + "\n").map_err(|e| e.to_string())
+    std::fs::write(&path, val + "\n").map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
 }
 
 fn provider_to_env_key(provider: &str) -> &'static str {
@@ -1135,6 +1166,27 @@ fn read_gui_config() -> serde_json::Value {
 fn write_gui_config(data: &serde_json::Value) -> Result<(), String> {
     let path = config_path().ok_or("홈 디렉터리를 찾을 수 없습니다")?;
     std::fs::write(&path, data.to_string()).map_err(|e| e.to_string())
+}
+
+/// 현재 GUI 버전이 이미 CLI 를 PATH 에 설치했는지 확인한다.
+/// Why: `install_cli_to_path` 가 앱 시작마다 호출되면서 사용자가 `uv tool install`/`pipx`
+/// 등으로 직접 관리하던 `~/.local/bin/vib` 를 매번 덮어쓰는 문제를 차단한다.
+fn cli_installed_for_current_version() -> bool {
+    let cfg = read_gui_config();
+    cfg.get("cli_path_installed_version")
+        .and_then(|v| v.as_str())
+        .map(|s| s == env!("CARGO_PKG_VERSION"))
+        .unwrap_or(false)
+}
+
+fn mark_cli_installed_for_current_version() {
+    let mut cfg = read_gui_config();
+    if !cfg.is_object() {
+        cfg = serde_json::json!({});
+    }
+    cfg["cli_path_installed_version"] =
+        serde_json::Value::String(env!("CARGO_PKG_VERSION").to_string());
+    let _ = write_gui_config(&cfg);
 }
 
 /// `provider_api_keys` + 레거시 `anthropic_api_key`를 합친 맵.
@@ -1413,9 +1465,14 @@ pub fn run() {
         .setup(|_app| {
             // 기존 gui_config.json 키를 api_keys.json으로 마이그레이션 (최초 1회)
             migrate_legacy_keys();
-            // 앱 시작 시 vib CLI를 터미널 PATH에 자동 설치
-            if let Err(e) = vib_path::install_cli_to_path() {
-                eprintln!("VibeLign: CLI PATH 설치 실패 — {e}");
+            // vib CLI 자동 PATH 설치는 버전당 1회만 수행한다.
+            // Why: 매 시작마다 `~/.local/bin/vib` 를 덮어쓰면 `uv tool install`/`pipx` 로
+            //      사용자가 직접 관리하던 바이너리가 말없이 교체되는 문제가 있었다.
+            if !cli_installed_for_current_version() {
+                match vib_path::install_cli_to_path() {
+                    Ok(_) => mark_cli_installed_for_current_version(),
+                    Err(e) => eprintln!("VibeLign: CLI PATH 설치 실패 — {e}"),
+                }
             }
             Ok(())
         })

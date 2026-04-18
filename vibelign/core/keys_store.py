@@ -59,6 +59,11 @@ def save_key(key_name: str, value: str) -> None:
         json.dumps(data, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+    if os.name != "nt":
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
 # === ANCHOR: KEYS_STORE__SAVE_END ===
 
 

@@ -307,7 +307,16 @@ pub fn install_cli_to_path() -> Result<String, String> {
         std::fs::create_dir_all(&local_bin).map_err(|e| e.to_string())?;
 
         let dest = local_bin.join("vib");
-        if dest.exists() || dest.symlink_metadata().is_ok() {
+        // symlink 는 사용자가 직접 관리하는 바이너리(uv/pipx 등)로 간주하고 덮어쓰지 않는다.
+        // Why: `~/.local/bin/vib` 가 `~/.local/share/uv/tools/vibelign/bin/vib` 등을 가리키는
+        //      symlink 인 경우, 말없이 regular 파일로 교체하면 사용자의 tool 설치 환경이 깨진다.
+        if let Ok(meta) = dest.symlink_metadata() {
+            if meta.file_type().is_symlink() {
+                return Ok(format!(
+                    "기존 symlink 보존: {} (수동 관리 vib 로 판단해 설치를 건너뜁니다)",
+                    dest.display()
+                ));
+            }
             std::fs::remove_file(&dest).map_err(|e| e.to_string())?;
         }
         std::fs::copy(&vib, &dest).map_err(|e| format!("바이너리 복사 실패: {}", e))?;
