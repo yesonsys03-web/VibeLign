@@ -1,0 +1,160 @@
+name: GUI CI
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+    paths:
+      - "vibelign-gui/**"
+      - ".github/workflows/gui.yml"
+      - "vibelign/**"
+      - "pyproject.toml"
+      - "vib.spec"
+  pull_request:
+    paths:
+      - "vibelign-gui/**"
+      - ".github/workflows/gui.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    env:
+      # GitHub Actions 기본 CI=1 때문에 tauri-cli가 `--ci`에 숫자를 넣는 식으로 깨질 수 있어요.
+      # 로컬에서 `CI=false`로 해결됐던 경로를 그대로 맞춥니다.
+      CI: "false"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+          - os: macos-latest    # Apple Silicon (aarch64) 네이티브 빌드
+
+    defaults:
+      run:
+        working-directory: vibelign-gui
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vibelign-gui/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build vib onedir runtime
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          pip install pyinstaller
+          pip install -e .
+          pyinstaller vib.spec --distpath dist-vib --noconfirm
+          # onedir 산출물 전체를 Tauri resources 로 번들링할 경로에 복사한다.
+          # Why: onefile PyInstaller 는 매 실행마다 $TMPDIR/_MEI{pid}/ 로 재압축 해제해 1~3초
+          #      콜드스타트가 발생했다. onedir 는 설치 시점에 한 번만 풀려 있어 이후 모든
+          #      Doctor/DocsViewer 호출이 dev 모드 수준의 즉시 반응을 보인다.
+          rm -rf vibelign-gui/src-tauri/vib-runtime
+          mkdir -p vibelign-gui/src-tauri
+          cp -R dist-vib/vib vibelign-gui/src-tauri/vib-runtime
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: vibelign-gui/src-tauri
+
+      - name: Build Tauri app
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            for i in 1 2 3; do
+              npm run tauri build && break || (echo "Attempt $i failed, retrying in 10s..."; sleep 10)
+            done
+          else
+            npm run tauri build
+          fi
+
+      - name: Ad-hoc codesign macOS app bundle
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          APP=$(find src-tauri/target/release/bundle/macos -name "*.app" | head -1)
+          if [ -n "$APP" ]; then
+            codesign --force --deep --sign - "$APP"
+            echo "Signed: $APP"
+          fi
+
+      - name: Upload Windows artifacts
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vibelign-gui-windows
+          path: |
+            vibelign-gui/src-tauri/target/release/bundle/nsis/*.exe
+            vibelign-gui/src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: warn
+
+      - name: Prepare macOS release package
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p macos-release
+          cp -r src-tauri/target/release/bundle/dmg/*.dmg macos-release/ 2>/dev/null || true
+          cp -r src-tauri/target/release/bundle/macos/*.app macos-release/ 2>/dev/null || true
+          printf '#!/bin/bash\n# VibeLign macOS 설치 스크립트\nset -e\nAPP_NAME="vibelign-gui.app"\nSEARCH_DIRS=("$HOME/Downloads" "$HOME/Desktop" "$(dirname "$0")")\necho "VibeLign 앱 찾는 중..."\nAPP_PATH=""\nfor DIR in "${SEARCH_DIRS[@]}"; do\n  if [ -d "$DIR/$APP_NAME" ]; then APP_PATH="$DIR/$APP_NAME"; break; fi\ndone\nif [ -z "$APP_PATH" ]; then\n  echo "오류: $APP_NAME 을 찾을 수 없습니다. Downloads 또는 Desktop 에 앱을 먼저 옮겨 주세요."\n  exit 1\nfi\necho "발견: $APP_PATH"\necho "macOS 격리 속성 제거 중..."\nxattr -rc "$APP_PATH"\necho "/Applications 로 복사 중..."\ncp -r "$APP_PATH" /Applications/\necho "설치 완료! VibeLign을 실행합니다."\nopen /Applications/$APP_NAME\n' > macos-release/install-macos.sh
+          chmod +x macos-release/install-macos.sh
+          printf 'VibeLign - macOS 설치 안내\n==========================\n\n처음 실행 시 "앱이 손상되었습니다" 오류가 뜨는 경우:\n\n방법 1 - 설치 스크립트 사용 (권장)\n  터미널에서 실행:\n  bash install-macos.sh\n\n방법 2 - 수동 해결\n  터미널에서 실행:\n  xattr -rc vibelign-gui.app\n  그 후 앱을 /Applications 폴더로 이동\n\n이 오류는 Apple 공증(notarization) 없이 배포된 앱에서\nmacOS Gatekeeper가 발생시키는 정상적인 보안 경고입니다.\n' > macos-release/README.txt
+
+      - name: Upload macOS artifacts (Apple Silicon)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vibelign-gui-macos-arm64
+          path: vibelign-gui/macos-release/
+          if-no-files-found: warn
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: vibelign-gui-windows
+          path: release-assets/windows
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: vibelign-gui-macos-arm64
+          path: release-assets/macos
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/windows/**/*
+            release-assets/macos/**/*
+          generate_release_notes: true
+          fail_on_unmatched_files: false

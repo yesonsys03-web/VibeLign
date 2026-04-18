@@ -14,6 +14,7 @@
 
 <p align="center">
   <a href="https://pypi.org/project/vibelign/"><img src="https://img.shields.io/pypi/v/vibelign?color=7c3aed&label=vibelign" alt="PyPI"/></a>
+  <a href="https://github.com/yesonsys03-web/VibeLign/releases/latest"><img src="https://img.shields.io/github/v/release/yesonsys03-web/VibeLign?color=22c55e&label=%EB%8D%B0%EC%8A%A4%ED%81%AC%ED%86%B1%20%EC%95%B1" alt="GitHub Release"/></a>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python"/>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"/>
   <img src="https://img.shields.io/badge/지원-Claude%20Code%20%7C%20Cursor%20%7C%20Codex-orange" alt="AI Tools"/>
@@ -23,8 +24,10 @@
 
 # 🎮 VibeLign — AI 코딩의 안전장치
 
-VibeLign(`vibelign`)은 바이브 코딩 작업을 더 안전하게 해주는 AI 코딩 안전 CLI예요.
+VibeLign(`vibelign`)은 바이브 코딩 작업을 더 안전하게 해주는 AI 코딩 안전 **CLI + 데스크톱 GUI** 예요.
 프로젝트 구조 보호, 체크포인트 저장, 되돌리기, 앵커 관리, 커밋 전 비밀정보 차단을 도와줘요.
+
+> **🆕 v2.0**: macOS / Windows 데스크톱 앱, 문서별 AI 요약, 앵커 intent 재생성. [CHANGELOG](./CHANGELOG.md) · [마이그레이션 가이드](./MIGRATION_v1_to_v2.md) 참고.
 
 문서: `https://yesonsys03-web.github.io/VibeLign/`  
 저장소: `https://github.com/yesonsys03-web/VibeLign`  
@@ -40,13 +43,15 @@ VibeLign(`vibelign`)은 바이브 코딩 작업을 더 안전하게 해주는 AI
 >
 > **이거를 위해 만들었어요!**
 
-**Mac / Linux**
+**데스크톱 앱 (macOS / Windows)** — [📥 최신 릴리즈 다운로드](https://github.com/yesonsys03-web/VibeLign/releases/latest)
+
+**Mac / Linux (CLI)**
 ```bash
 pip install vibelign
 vib start
 ```
 
-**Windows** (PowerShell)
+**Windows** (PowerShell, CLI)
 ```powershell
 # 1단계: uv 설치 — 최초 1회, PATH 자동 설정, 경고 없음
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
@@ -135,6 +140,14 @@ vib start
 | `vib patch "버튼 추가해줘"` | AI에게 어떻게 수정할지 알려줌 (한국어 OK!) |
 | `vib anchor` | AI가 수정해도 되는 곳을 표시해줌 |
 | `vib scan` | 파일 정리 + 최신 상태 확인 |
+
+### VibeLign patch 규칙
+
+- 복합 요청은 `intent / source / destination / behavior_constraint`로 먼저 분해한다.
+- `삭제`와 `이동`이 같이 나오면, 사용자가 분명히 삭제를 원하지 않는 한 이동 + 보존으로 본다.
+- `source`와 `destination`은 같은 규칙으로 처리하지 말고 역할별로 따로 해석한다.
+- patch contract나 codespeak 구조가 바뀌면 테스트와 문서도 같이 갱신한다.
+- 용어는 공통 문서와 glossary 기준으로 맞춘다.
 
 ### 확인하고 검증할 때
 
@@ -238,6 +251,15 @@ pip install vibelign
 
 설치하면 `vib`랑 `vibelign` 둘 다 쓸 수 있어요.
 
+### 방법 3: 데스크톱 앱 (GUI)
+
+최신 `.dmg` (macOS, Apple Silicon) 또는 `.exe` / `.msi` (Windows) 를
+[Releases 페이지](https://github.com/yesonsys03-web/VibeLign/releases/latest) 에서 받으세요.
+GUI 에는 `vib` 런타임이 함께 번들링 되어 있어서 별도의 CLI 설치가 필요 없어요.
+
+> macOS 첫 실행 시 "앱이 손상되었습니다" 오류가 뜨면 터미널에서 `xattr -rc vibelign-gui.app` 실행
+> (Apple 공증(notarization) 없이 배포된 ad-hoc 서명이라 정상적인 Gatekeeper 경고예요).
+
 ### Windows — pip으로 설치 후 `vib`가 안 될 때
 
 pip으로 설치하면 `vib.exe`가 Python `Scripts` 폴더에 들어가는데, 이 폴더가 PATH에 없으면 `vib` 명령어를 인식 못해요.
@@ -286,6 +308,21 @@ VibeLign이 보장하는 것:
 ---
 
 ## 📋 업데이트 내역 (Release Notes)
+
+**v2.0.0** — 데스크톱 GUI + MCP/Patch 모듈화 + AI 옵트인:
+
+- 🖥️ **VibeLign GUI (macOS / Windows)** — Tauri 기반 데스크톱 앱
+  - Doctor 페이지: 원클릭 진단 + 자동 적용
+  - 앵커카드: 앵커 삽입 + intent/aliases 재생성 (코드 기반 / AI 기반, `--force` 로 기존 AI 결과 덮어쓰기)
+  - DocsViewer: 문서별 AI 요약
+  - Settings: API 키 관리, AI 옵트인 전역 토글
+- 🔌 **MCP 서버 재구성** — `vibelign/mcp/` 아래 dispatch/handlers/tool_specs 분리
+- 🧩 **Patch 모듈 분리** — `vibelign/patch/` (builder · handoff · preview · targeting · …)
+- 🤖 **AI 옵트인** — consent UI 제거, Settings 전역 토글 하나로 통합. Anthropic / OpenAI / Gemini 자동 선택
+- ⚡ **onedir 런타임** — PyInstaller `onefile → onedir` 전환으로 GUI 콜드스타트(1~3초) 제거
+- 🏷️ **앵커 `_source` 필드** — `anchor_meta.json` 에 `code / ai / manual / ai_failed` 구분 도입해 AI/수동 결과를 코드 기반 재생성으로부터 보호 (`--force` 로 덮어쓰기 가능)
+- ⚠️ **Breaking**: `vibelign.vib_cli` → `vibelign.cli.vib_cli`; `vibelign.mcp_server` → `vibelign.mcp.mcp_server`
+- 자세한 내용은 [CHANGELOG.md](./CHANGELOG.md) · [MIGRATION_v1_to_v2.md](./MIGRATION_v1_to_v2.md)
 
 **v1.6.0** — MCP 서버 + AI 개발 규칙 시스템:
 

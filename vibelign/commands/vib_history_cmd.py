@@ -1,20 +1,22 @@
 # === ANCHOR: VIB_HISTORY_CMD_START ===
 import re
 from pathlib import Path
-from typing import Any
 
 from vibelign.core.local_checkpoints import friendly_time, list_checkpoints
+from vibelign.core.project_root import resolve_project_root
 
 
 from vibelign.terminal_render import cli_print
+
 print = cli_print
 
 _TIMESTAMP_PATTERN = re.compile(r"\s*\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)\s*$")
 
+
 def _clean_msg(msg: str) -> str:
     for prefix in ("vibelign: checkpoint - ", "vibelign: checkpoint"):
         if msg.startswith(prefix):
-            msg = msg[len(prefix):]
+            msg = msg[len(prefix) :]
             break
     msg = _TIMESTAMP_PATTERN.sub("", msg).strip()
     # 훅에서 stdin JSON이 메시지로 들어온 경우 방어
@@ -23,8 +25,8 @@ def _clean_msg(msg: str) -> str:
     return msg or "(메시지 없음)"
 
 
-def run_vib_history(args: Any) -> None:
-    root = Path.cwd()
+def run_vib_history(_args: object) -> None:
+    root = resolve_project_root(Path.cwd())
     checkpoints = list_checkpoints(root)
     if not checkpoints:
         print("저장된 체크포인트가 없습니다.")

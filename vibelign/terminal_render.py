@@ -4,7 +4,60 @@ import os
 import re
 import sys
 import builtins
-from typing import Any, Optional, cast
+from typing import IO, Protocol, TypedDict, cast
+
+
+class RichTextLike(Protocol):
+    def append(self, text: str, style: str = "") -> object: ...
+
+
+class RichConsoleLike(Protocol):
+    def print(self, *objects: object, **kwargs: object) -> object: ...
+
+
+class RichConsoleFactory(Protocol):
+    def __call__(self, *args: object, **kwargs: object) -> RichConsoleLike: ...
+
+
+class RichGroupFactory(Protocol):
+    def __call__(self, *args: object, **kwargs: object) -> object: ...
+
+
+class RichColumnsFactory(Protocol):
+    def __call__(self, *args: object, **kwargs: object) -> object: ...
+
+
+class RichPanelFactory(Protocol):
+    def __call__(self, *args: object, **kwargs: object) -> object: ...
+    def fit(self, *args: object, **kwargs: object) -> object: ...
+
+
+class RichRuleFactory(Protocol):
+    def __call__(self, *args: object, **kwargs: object) -> object: ...
+
+
+class RichSyntaxFactory(Protocol):
+    def __call__(self, *args: object, **kwargs: object) -> object: ...
+
+
+class RichTextFactory(Protocol):
+    def __call__(self, *args: object, **kwargs: object) -> RichTextLike: ...
+
+
+class RichPaddingFactory(Protocol):
+    def __call__(self, *args: object, **kwargs: object) -> object: ...
+
+
+class RichModule(TypedDict):
+    Console: RichConsoleFactory
+    Group: RichGroupFactory
+    Columns: RichColumnsFactory
+    Panel: RichPanelFactory
+    Rule: RichRuleFactory
+    Syntax: RichSyntaxFactory
+    Text: RichTextFactory
+    Padding: RichPaddingFactory
+
 
 _ONBOARDING_STYLE_ENV = "VIBELIGN_ONBOARDING_STYLE"
 
@@ -38,24 +91,34 @@ def _section_emoji(title: str) -> str:
         if keyword in title:
             return emoji
     return "◆"
+
+
 # === ANCHOR: TERMINAL_RENDER__SECTION_EMOJI_END ===
 
 
 # === ANCHOR: TERMINAL_RENDER__LOAD_RICH_START ===
-def _load_rich() -> Optional[dict[str, Any]]:
+def _load_rich() -> RichModule | None:
     try:
-        return {
-            "Console": importlib.import_module("rich.console").Console,
-            "Group": importlib.import_module("rich.console").Group,
-            "Columns": importlib.import_module("rich.columns").Columns,
-            "Panel": importlib.import_module("rich.panel").Panel,
-            "Rule": importlib.import_module("rich.rule").Rule,
-            "Syntax": importlib.import_module("rich.syntax").Syntax,
-            "Text": importlib.import_module("rich.text").Text,
-            "Padding": importlib.import_module("rich.padding").Padding,
-        }
+        return cast(
+            RichModule,
+            cast(
+                object,
+                {
+                    "Console": importlib.import_module("rich.console").Console,
+                    "Group": importlib.import_module("rich.console").Group,
+                    "Columns": importlib.import_module("rich.columns").Columns,
+                    "Panel": importlib.import_module("rich.panel").Panel,
+                    "Rule": importlib.import_module("rich.rule").Rule,
+                    "Syntax": importlib.import_module("rich.syntax").Syntax,
+                    "Text": importlib.import_module("rich.text").Text,
+                    "Padding": importlib.import_module("rich.padding").Padding,
+                },
+            ),
+        )
     except ImportError:
         return None
+
+
 # === ANCHOR: TERMINAL_RENDER__LOAD_RICH_END ===
 
 
@@ -70,13 +133,15 @@ def should_use_rich() -> bool:
     if _load_rich() is None:
         return False
     return sys.stdout.isatty()
+
+
 # === ANCHOR: TERMINAL_RENDER_SHOULD_USE_RICH_END ===
 
 
 # === ANCHOR: TERMINAL_RENDER_NORMALIZE_AI_OUTPUT_START ===
 def normalize_ai_output(text: str) -> str:
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    normalized = []
+    normalized: list[str] = []
     in_fence = False
     blank_run = 0
 
@@ -105,6 +170,8 @@ def normalize_ai_output(text: str) -> str:
                 normalized.append("")
 
     return "\n".join(normalized).strip()
+
+
 # === ANCHOR: TERMINAL_RENDER_NORMALIZE_AI_OUTPUT_END ===
 
 
@@ -114,6 +181,8 @@ def _strip_inline_markdown(text: str) -> str:
     cleaned = re.sub(r"__(.*?)__", r"\1", cleaned)
     cleaned = re.sub(r"`([^`]+)`", r"\1", cleaned)
     return cleaned.strip()
+
+
 # === ANCHOR: TERMINAL_RENDER__STRIP_INLINE_MARKDOWN_END ===
 
 
@@ -127,13 +196,17 @@ def _flush_paragraph(blocks: list[tuple[str, object]], paragraph: list[str]) -> 
     if content:
         blocks.append(("paragraph", content))
     paragraph.clear()
+
+
 # === ANCHOR: TERMINAL_RENDER__FLUSH_PARAGRAPH_END ===
 
 
 # === ANCHOR: TERMINAL_RENDER__FLUSH_LIST_START ===
 def _flush_list(
-    blocks: list[tuple[str, object]], items: list[str], ordered: bool
-# === ANCHOR: TERMINAL_RENDER__FLUSH_LIST_END ===
+    blocks: list[tuple[str, object]],
+    items: list[str],
+    ordered: bool,
+    # === ANCHOR: TERMINAL_RENDER__FLUSH_LIST_END ===
 ) -> None:
     if not items:
         return
@@ -228,46 +301,79 @@ def _parse_blocks(text: str) -> list[tuple[str, object]]:
     if code_lines:
         blocks.append(("code", (code_lang, "\n".join(code_lines).rstrip())))
     return blocks
+
+
 # === ANCHOR: TERMINAL_RENDER__PARSE_BLOCKS_END ===
 
 
 # === ANCHOR: TERMINAL_RENDER__GET_CONSOLE_START ===
-def _get_console(rich_mod: dict[str, Any], console: Optional[Any] = None) -> Any:
+def _get_console(
+    rich_mod: RichModule, console: RichConsoleLike | None = None
+) -> RichConsoleLike:
     """터미널 너비를 자동 감지하되 최대 120자로 제한.
     채팅창 등 좁은 뷰어에서 붙여넣기 시 줄 넘침 방지."""
     if console is not None:
         return console
     import shutil
+
     try:
         detected = shutil.get_terminal_size(fallback=(100, 24)).columns
         w = min(max(detected, 40), 120)
     except Exception:
         w = 100
     return rich_mod["Console"](width=w, highlight=False)
+
+
 # === ANCHOR: TERMINAL_RENDER__GET_CONSOLE_END ===
 
 
 # === ANCHOR: TERMINAL_RENDER__SEVERITY_STYLE_START ===
-def _severity_style(text: str) -> Optional[str]:
+def _severity_style(text: str) -> str | None:
     normalized = text.strip().lower()
     if not normalized:
         return None
 
     danger_tokens = [
-        "중지", "실패", "fail", "high risk", "risky",
-        "문제", "보호된 파일", "건드리면 안 되는",
-        "즉시 확인", "멈춰야", "blocked",
-        "오류가 날 수 있", "위험이 높", "꼭 여러 파일",
+        "중지",
+        "실패",
+        "fail",
+        "high risk",
+        "risky",
+        "문제",
+        "보호된 파일",
+        "건드리면 안 되는",
+        "즉시 확인",
+        "멈춰야",
+        "blocked",
+        "오류가 날 수 있",
+        "위험이 높",
+        "꼭 여러 파일",
     ]
     warning_tokens = [
-        "주의", "warn", "warning", "caution", "조심",
-        "확인하는 게 좋아요", "확인하세요", "먼저 보면",
-        "헷갈릴 수 있", "실수할", "엉뚱한", "섞여 있",
+        "주의",
+        "warn",
+        "warning",
+        "caution",
+        "조심",
+        "확인하는 게 좋아요",
+        "확인하세요",
+        "먼저 보면",
+        "헷갈릴 수 있",
+        "실수할",
+        "엉뚱한",
+        "섞여 있",
     ]
     success_tokens = [
-        "통과", "safe", "good", "완료", "안정적으로",
-        "좋아요", "큰 위험이 없어", "안전",
-        "문제는 없습니다", "걱정할 큰 구조 문제는 없습니다",
+        "통과",
+        "safe",
+        "good",
+        "완료",
+        "안정적으로",
+        "좋아요",
+        "큰 위험이 없어",
+        "안전",
+        "문제는 없습니다",
+        "걱정할 큰 구조 문제는 없습니다",
     ]
 
     if any(token in normalized for token in danger_tokens):
@@ -277,15 +383,19 @@ def _severity_style(text: str) -> Optional[str]:
     if any(token in normalized for token in success_tokens):
         return "bold green"
     return None
+
+
 # === ANCHOR: TERMINAL_RENDER__SEVERITY_STYLE_END ===
 
 
 # === ANCHOR: TERMINAL_RENDER__SEVERITY_TEXT_START ===
-def _severity_text(rich_mod: dict[str, Any], text: str) -> Any:
+def _severity_text(rich_mod: RichModule, text: str) -> object:
     style = _severity_style(text)
     if style:
         return rich_mod["Text"](text, style=style)
     return rich_mod["Text"](text)
+
+
 # === ANCHOR: TERMINAL_RENDER__SEVERITY_TEXT_END ===
 
 
@@ -293,7 +403,10 @@ def _severity_text(rich_mod: dict[str, Any], text: str) -> Any:
 def _clack_style(message: str, fallback_style: str) -> str:
     severity_style = _severity_style(message)
     if severity_style is not None and fallback_style in {
-        "white", "cyan", "bold cyan", "bold magenta",
+        "white",
+        "cyan",
+        "bold cyan",
+        "bold magenta",
     }:
         return severity_style
     return fallback_style
@@ -302,48 +415,54 @@ def _clack_style(message: str, fallback_style: str) -> str:
 # ── 섹션 헤딩: 제목 텍스트 + 아래 구분선 ────────────────────────
 # === ANCHOR: TERMINAL_RENDER__CLACK_STYLE_END ===
 # === ANCHOR: TERMINAL_RENDER__RENDER_SECTION_HEADING_START ===
-def _render_section_heading(rich_mod: dict[str, Any], title: str) -> Any:
+def _render_section_heading(rich_mod: RichModule, title: str) -> object:
     """섹션 제목 → 이모지 + 밝은 청록색 큰 제목 텍스트 + 구분선"""
     emoji = _section_emoji(title)
     # 제목 텍스트 (크고 눈에 띄게)
     title_text = rich_mod["Text"]()
-    title_text.append(f" {emoji}  ", style="bold")
-    title_text.append(title, style="bold bright_cyan")
+    _ = title_text.append(f" {emoji}  ", style="bold")
+    _ = title_text.append(title, style="bold bright_cyan")
     # 제목 아래 얇은 구분선
     rule = rich_mod["Rule"](style="dim cyan")
     return rich_mod["Group"](
-        rich_mod["Text"](""),    # 섹션 위 여백
+        rich_mod["Text"](""),  # 섹션 위 여백
         rich_mod["Padding"](title_text, pad=(0, 0, 0, 0)),
         rule,
     )
+
+
 # === ANCHOR: TERMINAL_RENDER__RENDER_SECTION_HEADING_END ===
 
 
 # === ANCHOR: TERMINAL_RENDER__RENDER_BULLET_LIST_START ===
-def _render_bullet_list(rich_mod: dict[str, Any], items: list[str]) -> Any:
+def _render_bullet_list(rich_mod: RichModule, items: list[str]) -> object:
     """각 불릿 항목을 Padding으로 감싸 줄바꿈 시 들여쓰기 유지"""
-    group_items = []
+    group_items: list[object] = []
     for item in items:
         item_style = _severity_style(item)
         line = rich_mod["Text"]()
-        line.append("▸ ", style=item_style or "bold cyan")
-        line.append(item, style=item_style or "bright_white")
+        _ = line.append("- ", style=item_style or "bold cyan")
+        _ = line.append(item, style=item_style or "white")
         group_items.append(rich_mod["Padding"](line, pad=(0, 0, 0, 2)))
     return rich_mod["Group"](*group_items)
+
+
 # === ANCHOR: TERMINAL_RENDER__RENDER_BULLET_LIST_END ===
 
 
 # === ANCHOR: TERMINAL_RENDER__RENDER_ORDERED_LIST_START ===
-def _render_ordered_list(rich_mod: dict[str, Any], items: list[str]) -> Any:
+def _render_ordered_list(rich_mod: RichModule, items: list[str]) -> object:
     """각 번호 항목을 Padding으로 감싸 줄바꿈 시 들여쓰기 유지"""
-    group_items = []
+    group_items: list[object] = []
     for index, item in enumerate(items, 1):
         item_style = _severity_style(item)
         line = rich_mod["Text"]()
-        line.append(f"{index}. ", style=item_style or "bold magenta")
-        line.append(item, style=item_style or "bright_white")
+        _ = line.append(f"{index}. ", style=item_style or "bold magenta")
+        _ = line.append(item, style=item_style or "white")
         group_items.append(rich_mod["Padding"](line, pad=(0, 0, 0, 2)))
     return rich_mod["Group"](*group_items)
+
+
 # === ANCHOR: TERMINAL_RENDER__RENDER_ORDERED_LIST_END ===
 
 
@@ -351,9 +470,9 @@ def _render_ordered_list(rich_mod: dict[str, Any], items: list[str]) -> Any:
 def print_provider_status(
     provider: str,
     model: str,
-    console: Optional[Any] = None,
-    use_rich: Optional[bool] = None,
-# === ANCHOR: TERMINAL_RENDER_PRINT_PROVIDER_STATUS_END ===
+    console: RichConsoleLike | None = None,
+    use_rich: bool | None = None,
+    # === ANCHOR: TERMINAL_RENDER_PRINT_PROVIDER_STATUS_END ===
 ) -> None:
     if use_rich is None:
         use_rich = should_use_rich()
@@ -364,24 +483,26 @@ def print_provider_status(
 
     rich_console = _get_console(rich_mod, console)
     label = rich_mod["Text"]()
-    label.append(" 🤖 ", style="bold")
-    label.append("Provider", style="bold cyan")
-    label.append(": ")
-    label.append(provider, style="bold bright_white")
-    label.append("   │   ", style="bright_black")
-    label.append("Model", style="bold green")
-    label.append(": ")
-    label.append(model, style="bold bright_white")
-    label.append(" ")
-    rich_console.print(
+    _ = label.append(" 🤖 ", style="bold")
+    _ = label.append("Provider", style="bold cyan")
+    _ = label.append(": ")
+    _ = label.append(provider, style="bold bright_white")
+    _ = label.append("   │   ", style="bright_black")
+    _ = label.append("Model", style="bold green")
+    _ = label.append(": ")
+    _ = label.append(model, style="bold bright_white")
+    _ = label.append(" ")
+    _ = rich_console.print(
         rich_mod["Panel"].fit(label, border_style="bright_black", padding=(0, 1))
     )
 
 
 # === ANCHOR: TERMINAL_RENDER_PRINT_ATTEMPTED_PROVIDERS_START ===
 def print_attempted_providers(
-    attempted: list[str], console: Optional[Any] = None, use_rich: Optional[bool] = None
-# === ANCHOR: TERMINAL_RENDER_PRINT_ATTEMPTED_PROVIDERS_END ===
+    attempted: list[str],
+    console: RichConsoleLike | None = None,
+    use_rich: bool | None = None,
+    # === ANCHOR: TERMINAL_RENDER_PRINT_ATTEMPTED_PROVIDERS_END ===
 ) -> None:
     if not attempted:
         return
@@ -398,10 +519,10 @@ def print_attempted_providers(
     rich_console = _get_console(rich_mod, console)
     content = rich_mod["Text"]()
     for item in attempted:
-        content.append("  ▸ ", style="bold yellow")
-        content.append(item, style="bright_white")
-        content.append("\n")
-    rich_console.print(
+        _ = content.append("  ▸ ", style="bold yellow")
+        _ = content.append(item, style="bright_white")
+        _ = content.append("\n")
+    _ = rich_console.print(
         rich_mod["Panel"](
             content,
             title="⚠️  시도한 provider",
@@ -413,8 +534,10 @@ def print_attempted_providers(
 
 # === ANCHOR: TERMINAL_RENDER_PRINT_AI_RESPONSE_START ===
 def print_ai_response(
-    text: str, console: Optional[Any] = None, use_rich: Optional[bool] = None
-# === ANCHOR: TERMINAL_RENDER_PRINT_AI_RESPONSE_END ===
+    text: str,
+    console: RichConsoleLike | None = None,
+    use_rich: bool | None = None,
+    # === ANCHOR: TERMINAL_RENDER_PRINT_AI_RESPONSE_END ===
 ) -> None:
     if use_rich is None:
         use_rich = should_use_rich()
@@ -424,8 +547,8 @@ def print_ai_response(
         return
 
     rich_console = _get_console(rich_mod, console)
-    renderables: list[Any] = []
-    current_section_items: list[Any] = []
+    renderables: list[object] = []
+    current_section_items: list[object] = []
     in_section = False
 
     # === ANCHOR: TERMINAL_RENDER_FLUSH_SECTION_START ===
@@ -435,6 +558,7 @@ def print_ai_response(
             renderables.append(renderable)
         current_section_items = []
         in_section = False
+
     # === ANCHOR: TERMINAL_RENDER_FLUSH_SECTION_END ===
 
     for block_type, payload in _parse_blocks(text):
@@ -457,14 +581,18 @@ def print_ai_response(
             bullet = _render_bullet_list(rich_mod, cast(list[str], payload))
             if in_section:
                 # 불릿 리스트 위아래 여백
-                current_section_items.append(rich_mod["Padding"](bullet, pad=(0, 0, 1, 0)))
+                current_section_items.append(
+                    rich_mod["Padding"](bullet, pad=(0, 0, 1, 0))
+                )
             else:
                 renderables.append(rich_mod["Padding"](bullet, pad=(0, 0, 1, 0)))
 
         elif block_type == "ordered_list":
             ordered = _render_ordered_list(rich_mod, cast(list[str], payload))
             if in_section:
-                current_section_items.append(rich_mod["Padding"](ordered, pad=(0, 0, 1, 0)))
+                current_section_items.append(
+                    rich_mod["Padding"](ordered, pad=(0, 0, 1, 0))
+                )
             else:
                 renderables.append(rich_mod["Padding"](ordered, pad=(0, 0, 1, 0)))
 
@@ -475,17 +603,20 @@ def print_ai_response(
                 # Panel을 쓰면 터미널 너비만큼 padding이 붙어 채팅 붙여넣기 시
                 # 오른쪽 border │ 가 다음 줄로 넘어가는 문제 방지.
                 sep = rich_mod["Rule"](style="bright_black")
-                line_items: list[Any] = [rich_mod["Padding"](sep, pad=(0, 0, 0, 0))]
+                line_items: list[object] = [rich_mod["Padding"](sep, pad=(0, 0, 0, 0))]
                 for cl in (code or "").splitlines():
                     t = rich_mod["Text"]()
-                    t.append("  ", style="")
-                    t.append(cl, style="bright_white")
+                    _ = t.append("  ", style="")
+                    _ = t.append(cl, style="bright_white")
                     line_items.append(t)
                 line_items.append(rich_mod["Padding"](sep, pad=(0, 0, 0, 0)))
                 boxed = rich_mod["Group"](*line_items)
             else:
-                inner: Any = rich_mod["Syntax"](
-                    code or "", language, word_wrap=True, line_numbers=False,
+                inner = rich_mod["Syntax"](
+                    code or "",
+                    language,
+                    word_wrap=True,
+                    line_numbers=False,
                     theme="monokai",
                 )
                 boxed = rich_mod["Panel"](
@@ -512,10 +643,19 @@ def print_ai_response(
     flush_section()
 
     if not renderables:
-        builtins.print(text)
+        try:
+            builtins.print(text)
+        except UnicodeEncodeError:
+            # Windows GUI/콘솔에서 기본 인코딩이 cp949 같은 경우,
+            # 일부 유니코드 문자가 출력 중 UnicodeEncodeError를 유발할 수 있어요.
+            enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+            safe = text.encode(enc, errors="replace").decode(
+                enc, errors="replace"
+            )
+            builtins.print(safe)
         return
 
-    rich_console.print(rich_mod["Group"](*renderables))
+    _ = rich_console.print(rich_mod["Group"](*renderables))
 
 
 # === ANCHOR: TERMINAL_RENDER_CLI_PRINT_START ===
@@ -523,9 +663,9 @@ def cli_print(
     *args: object,
     sep: str = " ",
     end: str = "\n",
-    file: Optional[Any] = None,
+    file: IO[str] | None = None,
     flush: bool = False,
-# === ANCHOR: TERMINAL_RENDER_CLI_PRINT_END ===
+    # === ANCHOR: TERMINAL_RENDER_CLI_PRINT_END ===
 ) -> None:
     plain_print = builtins.print
     text = sep.join(str(arg) for arg in args)
@@ -540,20 +680,36 @@ def cli_print(
 
     if should_use_rich():
         if "\n" in text:
-            print_ai_response(text, use_rich=True)
-            return
+            try:
+                print_ai_response(text, use_rich=True)
+                return
+            except UnicodeEncodeError:
+                # rich 출력 도중 cp949 등 인코딩 불가 문자가 있으면 크래시가 날 수 있어요.
+                # plain 출력(치환)으로 폴백합니다.
+                pass
         rich_mod = _load_rich()
         if rich_mod is not None:
-            rich_mod["Console"]().print(text, markup=False)
-            return
+            try:
+                _ = rich_mod["Console"]().print(text, markup=False)
+                return
+            except UnicodeEncodeError:
+                pass
 
-    plain_print(text)
+    try:
+        plain_print(text)
+    except UnicodeEncodeError:
+        enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+        safe = text.encode(enc, errors="replace").decode(enc, errors="replace")
+        plain_print(safe)
 
 
 # === ANCHOR: TERMINAL_RENDER__CLACK_LINE_START ===
 def _clack_line(
-    symbol: str, message: str, style: str, console: Optional[Any] = None
-# === ANCHOR: TERMINAL_RENDER__CLACK_LINE_END ===
+    symbol: str,
+    message: str,
+    style: str,
+    console: RichConsoleLike | None = None,
+    # === ANCHOR: TERMINAL_RENDER__CLACK_LINE_END ===
 ) -> None:
     plain_print = builtins.print
     onboarding_style = (
@@ -567,60 +723,95 @@ def _clack_line(
     line = f"{symbol} {message}"
     use_rich = console is not None or should_use_rich()
     if not use_rich:
-        plain_print(line)
+        try:
+            plain_print(line)
+        except UnicodeEncodeError:
+            enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+            safe = line.encode(enc, errors="replace").decode(
+                enc, errors="replace"
+            )
+            plain_print(safe)
         return
     rich_mod = _load_rich()
     if rich_mod is None:
-        plain_print(line)
+        try:
+            plain_print(line)
+        except UnicodeEncodeError:
+            enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+            safe = line.encode(enc, errors="replace").decode(
+                enc, errors="replace"
+            )
+            plain_print(safe)
         return
     rich_console = _get_console(rich_mod, console)
-    rich_console.print(rich_mod["Text"](line, style=_clack_style(message, style)))
+    try:
+        _ = rich_console.print(
+            rich_mod["Text"](line, style=_clack_style(message, style))
+        )
+    except UnicodeEncodeError:
+        enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+        safe = line.encode(enc, errors="replace").decode(enc, errors="replace")
+        plain_print(safe)
 
 
 # === ANCHOR: TERMINAL_RENDER_CLACK_INTRO_START ===
-def clack_intro(message: str, console: Optional[Any] = None) -> None:
+def clack_intro(message: str, console: RichConsoleLike | None = None) -> None:
     _clack_line("◆", message, "bold cyan", console)
+
+
 # === ANCHOR: TERMINAL_RENDER_CLACK_INTRO_END ===
 
 
 # === ANCHOR: TERMINAL_RENDER_CLACK_STEP_START ===
-def clack_step(message: str, console: Optional[Any] = None) -> None:
+def clack_step(message: str, console: RichConsoleLike | None = None) -> None:
     _clack_line("◌", message, "cyan", console)
+
+
 # === ANCHOR: TERMINAL_RENDER_CLACK_STEP_END ===
 
 
 # === ANCHOR: TERMINAL_RENDER_CLACK_INFO_START ===
-def clack_info(message: str, console: Optional[Any] = None) -> None:
+def clack_info(message: str, console: RichConsoleLike | None = None) -> None:
     _clack_line("•", message, "white", console)
+
+
 # === ANCHOR: TERMINAL_RENDER_CLACK_INFO_END ===
 
 
 # === ANCHOR: TERMINAL_RENDER_CLACK_SUCCESS_START ===
-def clack_success(message: str, console: Optional[Any] = None) -> None:
+def clack_success(message: str, console: RichConsoleLike | None = None) -> None:
     _clack_line("✔", message, "bold green", console)
+
+
 # === ANCHOR: TERMINAL_RENDER_CLACK_SUCCESS_END ===
 
 
 # === ANCHOR: TERMINAL_RENDER_CLACK_WARN_START ===
-def clack_warn(message: str, console: Optional[Any] = None) -> None:
+def clack_warn(message: str, console: RichConsoleLike | None = None) -> None:
     _clack_line("▲", message, "bold yellow", console)
+
+
 # === ANCHOR: TERMINAL_RENDER_CLACK_WARN_END ===
 
 
 # === ANCHOR: TERMINAL_RENDER_CLACK_ERROR_START ===
-def clack_error(message: str, console: Optional[Any] = None) -> None:
+def clack_error(message: str, console: RichConsoleLike | None = None) -> None:
     _clack_line("✖", message, "bold red", console)
+
+
 # === ANCHOR: TERMINAL_RENDER_CLACK_ERROR_END ===
 
 
 # === ANCHOR: TERMINAL_RENDER_CLACK_OUTRO_START ===
-def clack_outro(message: str, console: Optional[Any] = None) -> None:
+def clack_outro(message: str, console: RichConsoleLike | None = None) -> None:
     _clack_line("◆", message, "bold magenta", console)
+
+
 # === ANCHOR: TERMINAL_RENDER_CLACK_OUTRO_END ===
 
 
 # === ANCHOR: TERMINAL_RENDER_PRINT_CLI_HELP_START ===
-def print_cli_help(message: str, console: Optional[Any] = None) -> None:
+def print_cli_help(message: str, console: RichConsoleLike | None = None) -> None:
     plain_print = builtins.print
     if not message:
         return
@@ -647,7 +838,7 @@ def print_cli_help(message: str, console: Optional[Any] = None) -> None:
     intro: list[str] = []
     sections: list[tuple[str, list[str]]] = []
     epilog_lines: list[str] = []
-    current_title: Optional[str] = None
+    current_title: str | None = None
     current_lines: list[str] = []
     seen_section = False
     in_epilog = False
@@ -659,6 +850,7 @@ def print_cli_help(message: str, console: Optional[Any] = None) -> None:
             sections.append((current_title, current_lines[:]))
         current_title = None
         current_lines = []
+
     # === ANCHOR: TERMINAL_RENDER_FLUSH_END ===
 
     for line in lines:
@@ -692,7 +884,7 @@ def print_cli_help(message: str, console: Optional[Any] = None) -> None:
     flush()
 
     if intro:
-        rich_console.print(
+        _ = rich_console.print(
             rich_mod["Panel"](
                 "\n".join(intro),
                 title="🧬 VibeLign CLI",
@@ -712,7 +904,7 @@ def print_cli_help(message: str, console: Optional[Any] = None) -> None:
             continue
         if title == "Positional Arguments" and body.lstrip().startswith("{"):
             continue
-        rich_console.print(
+        _ = rich_console.print(
             rich_mod["Panel"](
                 body,
                 title=title,
@@ -723,12 +915,14 @@ def print_cli_help(message: str, console: Optional[Any] = None) -> None:
 
     epilog_text = "\n".join(epilog_lines).strip()
     if epilog_text:
-        rich_console.print(
+        _ = rich_console.print(
             rich_mod["Panel"](
                 epilog_text,
                 border_style="bright_blue",
                 padding=(0, 1),
-# === ANCHOR: TERMINAL_RENDER_PRINT_CLI_HELP_END ===
+                # === ANCHOR: TERMINAL_RENDER_PRINT_CLI_HELP_END ===
             )
         )
+
+
 # === ANCHOR: TERMINAL_RENDER_END ===

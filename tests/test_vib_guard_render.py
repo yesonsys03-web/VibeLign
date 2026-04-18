@@ -4,9 +4,10 @@ import importlib
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import patch
 
-from vibelign.commands.vib_guard_cmd import run_vib_guard
+from vibelign.commands.vib_guard_cmd import GuardArgs, run_vib_guard
 
 
 _render_markdown = importlib.import_module(
@@ -26,8 +27,19 @@ class VibGuardRenderTest(unittest.TestCase):
                 "summary": "구조 위험이 조금 있습니다.",
                 "recommendations": ["vib anchor --suggest", "vib guard --strict"],
                 "protected_violations": [],
+                "anchor_violations": [],
                 "explain": {
                     "files": [{"path": "app.py", "status": "modified", "kind": "logic"}]
+                },
+                "planning": {
+                    "status": "planning_exempt",
+                    "strict": False,
+                    "active_plan_id": None,
+                    "summary": "현재 변경은 문서만 수정하므로 plan-structure 없이 진행 가능한 범위입니다.",
+                    "changed_files": ["docs/README.md"],
+                    "required_reasons": [],
+                    "deviations": [],
+                    "exempt_reasons": ["docs_only"],
                 },
             }
         )
@@ -36,6 +48,9 @@ class VibGuardRenderTest(unittest.TestCase):
         self.assertIn("## 다음에 하면 좋은 일", markdown)
         self.assertIn("구조 위험이 조금 있습니다.", markdown)
         self.assertIn("`app.py`", markdown)
+        self.assertIn(
+            "문서만 수정하므로 plan-structure 없이 진행 가능한 범위입니다.", markdown
+        )
 
     def test_run_vib_guard_uses_rich_renderer_for_text_output(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -48,11 +63,17 @@ class VibGuardRenderTest(unittest.TestCase):
                     "vibelign.commands.vib_guard_cmd.print_ai_response"
                 ) as mocked:
                     run_vib_guard(
-                        SimpleNamespace(
-                            json=False,
-                            strict=False,
-                            since_minutes=120,
-                            write_report=False,
+                        cast(
+                            GuardArgs,
+                            cast(
+                                object,
+                                SimpleNamespace(
+                                    json=False,
+                                    strict=False,
+                                    since_minutes=120,
+                                    write_report=False,
+                                ),
+                            ),
                         )
                     )
                     mocked.assert_called_once()

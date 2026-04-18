@@ -1,5 +1,6 @@
 # === ANCHOR: UNDO_CMD_START ===
 from pathlib import Path
+from typing import Protocol
 
 from vibelign.core.local_checkpoints import (
     get_last_restore_error,
@@ -7,6 +8,7 @@ from vibelign.core.local_checkpoints import (
     list_checkpoints,
     restore_checkpoint,
 )
+from vibelign.core.project_root import resolve_project_root
 
 
 from vibelign.terminal_render import cli_print
@@ -14,9 +16,13 @@ from vibelign.terminal_render import cli_print
 print = cli_print
 
 
+class UndoArgs(Protocol):
+    list: bool
+
+
 # === ANCHOR: UNDO_CMD_RUN_UNDO_START ===
-def run_undo(args):
-    root = Path.cwd()
+def run_undo(args: UndoArgs) -> None:
+    root = resolve_project_root(Path.cwd())
     checkpoints = list_checkpoints(root)
 
     if not checkpoints:

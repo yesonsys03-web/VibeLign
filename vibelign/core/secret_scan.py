@@ -1,9 +1,36 @@
+# === ANCHOR: SECRET_SCAN_START ===
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+_WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+def _find_git() -> str:
+    found = shutil.which("git")
+    if found:
+        return found
+    if sys.platform == "win32":
+        # cmd\git.exe 는 CMD 래퍼라서 PyInstaller 환경에서 exit 129 발생 가능.
+        # mingw64\bin\git.exe (실제 바이너리)를 먼저 시도.
+        candidates = [
+            r"C:\Program Files\Git\mingw64\bin\git.exe",
+            r"C:\Program Files\Git\usr\bin\git.exe",
+            r"C:\Program Files\Git\bin\git.exe",
+            r"C:\Program Files\Git\cmd\git.exe",
+            r"C:\Program Files (x86)\Git\mingw64\bin\git.exe",
+            r"C:\Program Files (x86)\Git\cmd\git.exe",
+            r"C:\Program Files (Arm)\Git\mingw64\bin\git.exe",
+            r"C:\Program Files (Arm)\Git\cmd\git.exe",
+        ]
+        for p in candidates:
+            if Path(p).exists():
+                return p
+    raise FileNotFoundError("git 실행 파일을 찾을 수 없어요. Git을 설치하고 PATH에 추가해주세요.")
 
 
 _ALLOW_MARKER = "vibelign: allow-secret"
@@ -32,6 +59,10 @@ _HIGH_CONFIDENCE_RULES = [
     ("slack-token", re.compile(r"\bxox(?:a|b|p|r|s)-[A-Za-z0-9-]{10,}\b")),
     ("stripe-live-key", re.compile(r"\bsk_live_[A-Za-z0-9]{16,}\b")),
     ("aws-access-key", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
+    ("gemini-api-key", re.compile(r"\bAIzaSy[A-Za-z0-9_-]{33}\b")),
+    ("anthropic-api-key", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{40,}\b")),
+    ("openai-api-key", re.compile(r"\bsk-[A-Za-z0-9]{32,}\b")),
+    ("url-inline-key", re.compile(r"[?&]key=[A-Za-z0-9_-]{16,}")),
 ]
 _BINARY_SECRET_PATHS = {
     ".env",
@@ -44,34 +75,56 @@ _BINARY_SECRET_PATHS = {
 _BINARY_SECRET_SUFFIXES = (".pem", ".key", ".p12", ".pfx")
 
 
+# === ANCHOR: SECRET_SCAN_SECRETFINDING_START ===
 @dataclass(frozen=True)
 class SecretFinding:
     path: str
     rule_id: str
     line_number: int | None
     snippet: str
+# === ANCHOR: SECRET_SCAN_SECRETFINDING_END ===
 
 
+# === ANCHOR: SECRET_SCAN_SECRETSCANRESULT_START ===
 @dataclass(frozen=True)
 class SecretScanResult:
     findings: list[SecretFinding]
 
+    # === ANCHOR: SECRET_SCAN_HAS_FINDINGS_START ===
     @property
     def has_findings(self) -> bool:
         return bool(self.findings)
+    # === ANCHOR: SECRET_SCAN_HAS_FINDINGS_END ===
+# === ANCHOR: SECRET_SCAN_SECRETSCANRESULT_END ===
 
 
+# === ANCHOR: SECRET_SCAN__RUN_GIT_START ===
 def _run_git(root: Path, args: list[str]) -> str:
-    completed = subprocess.run(
-        ["git", *args],
-        cwd=root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return completed.stdout
+    try:
+        completed = subprocess.run(
+            [_find_git(), *args],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=_WINDOWS_FLAGS,
+        )
+        return completed.stdout
+    except subprocess.CalledProcessError as e:
+        stderr = (e.stderr or "").strip()
+        combined = (stderr + " " + (e.stdout or "")).lower()
+        if "not a git repository" in combined or ("unknown option" in combined and "cached" in combined):
+            raise RuntimeError("git 저장소가 아닌 폴더예요. 먼저 git init 을 실행해 주세요.") from None
+        raise RuntimeError(
+            f"git 명령 실패 (exit {e.returncode})"
+            + (f": {stderr}" if stderr else "")
+        ) from None
+# === ANCHOR: SECRET_SCAN__RUN_GIT_END ===
 
 
+# === ANCHOR: SECRET_SCAN__LOOKS_LIKE_SECRET_FILE_START ===
 def _looks_like_secret_file(path: str) -> bool:
     name = path.replace("\\", "/")
     basename = Path(name).name
@@ -81,28 +134,37 @@ def _looks_like_secret_file(path: str) -> bool:
         or name.endswith(_BINARY_SECRET_SUFFIXES)
         or basename.endswith(_BINARY_SECRET_SUFFIXES)
     )
+# === ANCHOR: SECRET_SCAN__LOOKS_LIKE_SECRET_FILE_END ===
 
 
+# === ANCHOR: SECRET_SCAN__IS_PLACEHOLDER_START ===
 def _is_placeholder(value: str) -> bool:
     normalized = value.strip().strip("\"'").upper()
     return normalized in _PLACEHOLDER_VALUES or normalized.startswith("YOUR_")
+# === ANCHOR: SECRET_SCAN__IS_PLACEHOLDER_END ===
 
 
+# === ANCHOR: SECRET_SCAN__REDACT_START ===
 def _redact(text: str) -> str:
     compact = " ".join(text.strip().split())
     if len(compact) <= 4:
         return "[redacted]"
     return f"...{compact[-4:]}"
+# === ANCHOR: SECRET_SCAN__REDACT_END ===
 
 
+# === ANCHOR: SECRET_SCAN__EXTRACT_ADDED_LINE_START ===
 def _extract_added_line(line: str) -> str | None:
     if not line.startswith("+") or line.startswith("+++"):
         return None
     return line[1:]
+# === ANCHOR: SECRET_SCAN__EXTRACT_ADDED_LINE_END ===
 
 
+# === ANCHOR: SECRET_SCAN_SCAN_UNIFIED_DIFF_FOR_SECRETS_START ===
 def scan_unified_diff_for_secrets(
     diff_text: str, path_hint: str
+# === ANCHOR: SECRET_SCAN_SCAN_UNIFIED_DIFF_FOR_SECRETS_END ===
 ) -> list[SecretFinding]:
     findings: list[SecretFinding] = []
     current_line_number: int | None = None
@@ -161,7 +223,10 @@ def scan_unified_diff_for_secrets(
     return findings
 
 
+# === ANCHOR: SECRET_SCAN_SCAN_STAGED_SECRETS_START ===
 def scan_staged_secrets(root: Path) -> SecretScanResult:
+    if not (root / ".git").is_dir():
+        return SecretScanResult(findings=[])
     findings: list[SecretFinding] = []
     names_output = _run_git(root, ["diff", "--cached", "--name-only", "-z"])
     staged_paths = [item for item in names_output.split("\0") if item]
@@ -183,3 +248,5 @@ def scan_staged_secrets(root: Path) -> SecretScanResult:
         findings.extend(scan_unified_diff_for_secrets(diff_text, path))
 
     return SecretScanResult(findings=findings)
+# === ANCHOR: SECRET_SCAN_SCAN_STAGED_SECRETS_END ===
+# === ANCHOR: SECRET_SCAN_END ===

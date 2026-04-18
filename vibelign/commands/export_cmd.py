@@ -1,4 +1,6 @@
+# === ANCHOR: EXPORT_CMD_START ===
 from pathlib import Path
+from typing import Literal, Protocol
 
 from vibelign.core.ai_dev_system import AI_DEV_SYSTEM_CONTENT
 
@@ -6,6 +8,14 @@ from vibelign.core.ai_dev_system import AI_DEV_SYSTEM_CONTENT
 from vibelign.terminal_render import cli_print
 
 print = cli_print
+
+ExportTool = Literal["claude", "opencode", "cursor", "antigravity", "codex"]
+ExportWriteResult = Literal["created", "appended", "skipped"]
+
+
+class ExportArgs(Protocol):
+    tool: ExportTool
+
 
 SUPPORTED_EXPORT_TOOLS = (
     "claude",
@@ -30,6 +40,15 @@ This file is automatically read by OpenCode, Claude Code, and other AI coding to
 - Do not modify unrelated modules
 - Respect anchor boundaries (`ANCHOR: NAME_START` / `ANCHOR: NAME_END`)
 - Keep entry files (main.py, index.js, etc.) small and focused
+- For a distinct new feature, prefer creating a new file/module/component instead of appending it to an existing file
+
+## Module boundaries and file size
+
+- Keep code that changes together cohesive (same module or directory when sensible).
+- Prefer discoverable paths and names; split when responsibility diverges or tests need isolation.
+- Respect project lint and `watch_rules` limits on file length; prefer new files over bloating an existing one.
+- For very large UI or Python modules, use sub-anchors until split; keep patch targets small.
+- When a file starts accumulating a second responsibility, keep the old file as wiring and move the new behavior out.
 
 ## Two Modification Modes
 
@@ -121,6 +140,10 @@ _RULES = """\
 6. **새 파일을 임의로 생성하지 마세요** — 명시적 요청이 있을 때만 생성
 7. **임포트 구조를 바꾸지 마세요** — 명시적 허락 없이 변경 금지
 8. **코드맵을 먼저 읽으세요** — `.vibelign/project_map.json`에서 파일 구조와 앵커 위치를 확인
+9. **응집도** — 같이 바뀌는 코드는 한 모듈·디렉터리에 두고, 책임이 갈라지면 분리
+10. **이름·경로** — 기능을 경로·이름만으로 찾을 수 있게
+11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할; `vib patch`는 작은 `target_anchor`가 안전
+12. **새 기능 기본값** — 새로운 기능은 기존 큰 파일에 덧붙이지 말고 새 파일·모듈·컴포넌트로 분리
 """
 
 _SETUP = """\
@@ -237,6 +260,9 @@ _CURSOR_RULES = """\
 6. **새 파일을 임의로 생성하지 마세요** — 명시적 요청이 있을 때만 생성
 7. **임포트 구조를 바꾸지 마세요** — 명시적 허락 없이 변경 금지
 8. **코드맵을 먼저 읽으세요** — `.vibelign/project_map.json`에서 파일 구조와 앵커 위치를 확인
+9. **응집도** — 같이 바뀌는 코드는 한 모듈·디렉터리에 두고, 책임이 갈라지면 분리
+10. **이름·경로** — 기능을 경로·이름만으로 찾을 수 있게
+11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할; `vib patch`는 작은 `target_anchor`가 안전
 """
 
 _ANTIGRAVITY_TASK = """\
@@ -333,6 +359,8 @@ _CLAUDE_MD_CONTENT = """\
 
 > 전체 규칙은 프로젝트 루트의 `AI_DEV_SYSTEM_SINGLE_FILE.md`를 읽으세요.
 
+> **반드시 맨 먼저**: 어떤 코드 탐색/수정 도구(Read·Grep·Glob)를 호출하기 전에 `.vibelign/project_map.json` 을 먼저 Read 하세요. 파일 구조·앵커 위치·카테고리를 머리에 올린 뒤 작업 시작. (규칙 8번의 운용 강제)
+
 ## 핵심 원칙
 
 1. **가능한 가장 작은 패치를 적용하세요**
@@ -343,6 +371,9 @@ _CLAUDE_MD_CONTENT = """\
 6. **새 파일을 임의로 생성하지 마세요** — 명시적 요청이 있을 때만 생성
 7. **임포트 구조를 바꾸지 마세요** — 명시적 허락 없이 변경 금지
 8. **코드맵을 먼저 읽으세요** — `.vibelign/project_map.json`에서 파일 구조와 앵커 위치를 확인
+9. **응집도** — 같이 바뀌는 코드는 한 모듈·디렉터리에 두고, 책임이 갈라지면 분리
+10. **이름·경로** — 기능을 경로·이름만으로 찾을 수 있게
+11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할; `vib patch`는 작은 `target_anchor`가 안전
 
 ## 작업 흐름
 
@@ -371,6 +402,9 @@ _OPENCODE_MD_CONTENT = """\
 6. **새 파일을 임의로 생성하지 마세요** — 명시적 요청이 있을 때만 생성
 7. **임포트 구조를 바꾸지 마세요** — 명시적 허락 없이 변경 금지
 8. **코드맵을 먼저 읽으세요** — `.vibelign/project_map.json`에서 파일 구조와 앵커 위치를 확인
+9. **응집도** — 같이 바뀌는 코드는 한 모듈·디렉터리에 두고, 책임이 갈라지면 분리
+10. **이름·경로** — 기능을 경로·이름만으로 찾을 수 있게
+11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할; `vib patch`는 작은 `target_anchor`가 안전
 
 ## 작업 흐름
 
@@ -390,7 +424,8 @@ _VIBELIGN_CURSOR_MARKER = "# --- VibeLign Rules (vibelign export cursor) ---"
 _VIBELIGN_AGENTS_MARKER = "<!-- VibeLign Rules (vib export) -->"
 
 
-def _write_agents_md(root) -> str:
+# === ANCHOR: EXPORT_CMD__WRITE_AGENTS_MD_START ===
+def _write_agents_md(root: Path) -> ExportWriteResult:
     """AGENTS.md 에 VibeLign 규칙을 씁니다.
     반환값: 'created' | 'appended' | 'skipped'
     """
@@ -400,16 +435,20 @@ def _write_agents_md(root) -> str:
         if _VIBELIGN_AGENTS_MARKER in existing:
             return "skipped"
         append_content = f"\n\n{_VIBELIGN_AGENTS_MARKER}\n{AGENTS_MD_CONTENT}\n"
-        agents_path.write_text(existing + append_content, encoding="utf-8")
+        _ = agents_path.write_text(existing + append_content, encoding="utf-8")
         return "appended"
     else:
-        agents_path.write_text(
+        _ = agents_path.write_text(
             f"{_VIBELIGN_AGENTS_MARKER}\n{AGENTS_MD_CONTENT}\n", encoding="utf-8"
         )
         return "created"
 
 
-def _write_claude_md(root) -> str:
+# === ANCHOR: EXPORT_CMD__WRITE_AGENTS_MD_END ===
+
+
+# === ANCHOR: EXPORT_CMD__WRITE_CLAUDE_MD_START ===
+def _write_claude_md(root: Path) -> ExportWriteResult:
     """CLAUDE.md 에 VibeLign 규칙을 씁니다. (Claude Code 자동 읽음)
     반환값: 'created' | 'appended' | 'skipped'
     """
@@ -419,16 +458,20 @@ def _write_claude_md(root) -> str:
         if _VIBELIGN_CLAUDE_MARKER in existing:
             return "skipped"
         append_content = f"\n\n{_VIBELIGN_CLAUDE_MARKER}\n{_CLAUDE_MD_CONTENT}\n"
-        claude_md_path.write_text(existing + append_content, encoding="utf-8")
+        _ = claude_md_path.write_text(existing + append_content, encoding="utf-8")
         return "appended"
     else:
-        claude_md_path.write_text(
+        _ = claude_md_path.write_text(
             f"{_VIBELIGN_CLAUDE_MARKER}\n{_CLAUDE_MD_CONTENT}\n", encoding="utf-8"
         )
         return "created"
 
 
-def _write_opencode_md(root) -> str:
+# === ANCHOR: EXPORT_CMD__WRITE_CLAUDE_MD_END ===
+
+
+# === ANCHOR: EXPORT_CMD__WRITE_OPENCODE_MD_START ===
+def _write_opencode_md(root: Path) -> ExportWriteResult:
     """OPENCODE.md 에 VibeLign 규칙을 씁니다. (OpenCode 자동 읽음)
     반환값: 'created' | 'appended' | 'skipped'
     """
@@ -438,16 +481,20 @@ def _write_opencode_md(root) -> str:
         if _VIBELIGN_OPENCODE_MARKER in existing:
             return "skipped"
         append_content = f"\n\n{_VIBELIGN_OPENCODE_MARKER}\n{_OPENCODE_MD_CONTENT}\n"
-        opencode_md_path.write_text(existing + append_content, encoding="utf-8")
+        _ = opencode_md_path.write_text(existing + append_content, encoding="utf-8")
         return "appended"
     else:
-        opencode_md_path.write_text(
+        _ = opencode_md_path.write_text(
             f"{_VIBELIGN_OPENCODE_MARKER}\n{_OPENCODE_MD_CONTENT}\n", encoding="utf-8"
         )
         return "created"
 
 
-def _write_cursorrules(root) -> str:
+# === ANCHOR: EXPORT_CMD__WRITE_OPENCODE_MD_END ===
+
+
+# === ANCHOR: EXPORT_CMD__WRITE_CURSORRULES_START ===
+def _write_cursorrules(root: Path) -> ExportWriteResult:
     """.cursorrules 파일에 VibeLign 규칙을 씁니다.
     반환값: 'created' | 'appended' | 'skipped'
     """
@@ -457,28 +504,43 @@ def _write_cursorrules(root) -> str:
         if _VIBELIGN_CURSOR_MARKER in existing:
             return "skipped"
         append_content = f"\n\n{_VIBELIGN_CURSOR_MARKER}\n{_CURSOR_RULES}\n"
-        cursorrules_path.write_text(existing + append_content, encoding="utf-8")
+        _ = cursorrules_path.write_text(existing + append_content, encoding="utf-8")
         return "appended"
     else:
-        cursorrules_path.write_text(
+        _ = cursorrules_path.write_text(
             f"{_VIBELIGN_CURSOR_MARKER}\n{_CURSOR_RULES}\n", encoding="utf-8"
         )
         return "created"
 
 
+# === ANCHOR: EXPORT_CMD__WRITE_CURSORRULES_END ===
+
+
+# === ANCHOR: EXPORT_CMD_WRITE_CLAUDE_MD_START ===
 def write_claude_md(root: Path) -> str:
     return _write_claude_md(root)
 
 
+# === ANCHOR: EXPORT_CMD_WRITE_CLAUDE_MD_END ===
+
+
+# === ANCHOR: EXPORT_CMD_WRITE_OPENCODE_MD_START ===
 def write_opencode_md(root: Path) -> str:
     return _write_opencode_md(root)
 
 
+# === ANCHOR: EXPORT_CMD_WRITE_OPENCODE_MD_END ===
+
+
+# === ANCHOR: EXPORT_CMD_WRITE_CURSORRULES_START ===
 def write_cursorrules(root: Path) -> str:
     return _write_cursorrules(root)
 
 
-TEMPLATES = {
+# === ANCHOR: EXPORT_CMD_WRITE_CURSORRULES_END ===
+
+
+TEMPLATES: dict[ExportTool, dict[str, str]] = {
     "claude": {
         "RULES.md": _RULES,
         "SETUP.md": _SETUP,
@@ -507,29 +569,34 @@ TEMPLATES = {
 }
 
 
-def export_tool_files(root: Path, tool: str, overwrite: bool = True) -> str:
+# === ANCHOR: EXPORT_CMD_EXPORT_TOOL_FILES_START ===
+def export_tool_files(root: Path, tool: ExportTool, overwrite: bool = True) -> str:
     export_root = root / "vibelign_exports" / tool
     export_root.mkdir(parents=True, exist_ok=True)
     for name, content in TEMPLATES[tool].items():
         target = export_root / name
         if overwrite or not target.exists():
-            target.write_text(content, encoding="utf-8")
+            _ = target.write_text(content, encoding="utf-8")
     readme_path = export_root / "README.md"
     if overwrite or not readme_path.exists():
-        readme_path.write_text(
+        _ = readme_path.write_text(
             f"# VibeLign 내보내기: {tool}\n\n프로젝트 루트의 `AI_DEV_SYSTEM_SINGLE_FILE.md`를 주요 규칙 파일로 유지하세요.\n",
             encoding="utf-8",
         )
     return str(export_root)
 
 
-def run_export(args):
+# === ANCHOR: EXPORT_CMD_EXPORT_TOOL_FILES_END ===
+
+
+# === ANCHOR: EXPORT_CMD_RUN_EXPORT_START ===
+def run_export(args: ExportArgs) -> None:
     root = Path.cwd()
 
     ai_dev_path = root / "AI_DEV_SYSTEM_SINGLE_FILE.md"
     if ai_dev_path.exists():
         print(f"경고: 기존 {ai_dev_path.name} 파일을 덮어씁니다")
-    ai_dev_path.write_text(AI_DEV_SYSTEM_CONTENT, encoding="utf-8")
+    _ = ai_dev_path.write_text(AI_DEV_SYSTEM_CONTENT, encoding="utf-8")
     print(f"{ai_dev_path.name} 생성 완료")
 
     agents_result = _write_agents_md(root)
@@ -545,7 +612,7 @@ def run_export(args):
     already_exists = export_root.exists()
     if already_exists:
         print(f"경고: {export_root.relative_to(root)}의 기존 파일을 덮어씁니다")
-    export_tool_files(root, args.tool)
+    _ = export_tool_files(root, args.tool)
     print(f"{export_root} 생성 완료")
 
     if args.tool == "claude":
@@ -580,3 +647,7 @@ def run_export(args):
 
     elif args.tool == "codex":
         print("참고: Codex는 AGENTS.md를 자동으로 읽어요")
+
+
+# === ANCHOR: EXPORT_CMD_RUN_EXPORT_END ===
+# === ANCHOR: EXPORT_CMD_END ===

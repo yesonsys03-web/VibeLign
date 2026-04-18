@@ -68,6 +68,23 @@ vib undo
 
 ## 3. Command reference
 
+### VibeLign policy card
+
+This card explains the rules that keep AI edits safe and predictable.
+
+| Policy | What it means |
+|--------|---------------|
+| Request decomposition | AI should split each request into `intent / source / destination / behavior_constraint`. |
+| Narrow scope first | Prefer one file, one anchor, one clear change. Do not let AI spread edits across unrelated code. |
+| No out-of-bound edits | Only `target_file` and `target_anchor` are allowed. Everything else stays untouched. |
+| Move/delete preservation | If `delete` and `move` are both present, treat it as move + preservation unless the user explicitly wants removal. |
+| Source/destination by role | Resolve source and destination independently based on their roles. |
+| Strict patch + guard | Build safe patch plans, then verify and checkpoint after applying. |
+| Contract changes require tests/docs | If patch contract or CodeSpeak shape changes, update tests and docs together. |
+| Protected files stay protected | Respect `protect`-ed files and other sensitive files like `.env` or config files. |
+
+See also: `AGENTS.md`, `README.md` `VibeLign patch rules`, `PROJECT_CONTEXT.md`, `AI_DEV_SYSTEM_SINGLE_FILE.md`, `VIBELIGN_PATCH_REQUEST.md`, `VIBELIGN_GUARD.md`.
+
 ---
 
 ## `vib init`
@@ -104,8 +121,22 @@ What it does:
 2. `.vibelign/` 폴더와 `config.yaml`, `state.json`, `project_map.json`을 준비해줘요
 3. `.gitignore`에 VibeLign 관련 항목을 넣어 로컬 파일이 Git에 덜 섞이게 해줘요
 4. AI 도구 설정 파일도 준비해줘요 (`Claude Code`, `Cursor` 등)
-5. Git 저장소라면 커밋 전에 비밀정보를 검사하는 보호도 자동으로 연결해줘요 (`vib secrets --staged`)
+5. Git 저장소라면 커밋 전에 비밀정보를 검사하는 보호도 자동으로 연결해줘요 (`vib secrets --staged` + `vib guard --strict`)
 6. 마지막에는 지금 프로젝트가 얼마나 준비됐는지 점검해서 다음에 뭘 하면 되는지도 알려줘요
+
+자주 쓰는 플래그:
+
+```bash
+vib start --all-tools
+vib start --tools claude,cursor
+vib start --quickstart
+vib start --force
+```
+
+- `--all-tools` = Claude, Antigravity, OpenCode, Cursor, Codex를 한 번에 준비
+- `--tools` = 원하는 도구만 골라서 준비
+- `--quickstart` = start 뒤에 `vib anchor --auto`까지 바로 실행
+- `--force` = 기존 설정도 다시 생성
 
 초보자 기준으로는 새 프로젝트든 기존 프로젝트든, AI 작업 시작 전에 `vib start` 한 번만 하면 된다고 생각하면 쉬워요.
 참고로 `vib start`는 프로젝트 준비용이고, `vib init`은 VibeLign 자체를 다시 설치할 때 쓰는 명령어예요.
@@ -190,6 +221,58 @@ Also shows:
 
 ---
 
+## `vib docs-build`
+
+문서 다이어그램이나 요약이 이상할 때 다시 만드는 명령어예요.
+쉽게 말하면 **"문서용 캐시를 다시 만들기" 버튼** 같은 거예요.
+
+```bash
+vib docs-build
+vib docs-build PROJECT_CONTEXT.md
+vib docs-build docs/wiki/index.md
+```
+
+어떨 때 쓰면 되나요?
+
+- Docs Viewer에서 다이어그램이 예전 내용처럼 보일 때
+- 문서를 방금 수정했는데 오른쪽 요약이 안 바뀔 때
+- 특정 문서만 다시 만들고 싶을 때
+
+What it does:
+
+1. markdown 문서를 다시 읽어요
+2. 그 문서의 요약/다이어그램용 `docs_visual` 파일을 다시 만들어요
+3. 다음에 Docs Viewer가 열릴 때 새 결과를 읽을 수 있게 해줘요
+
+정리하면:
+
+- `vib docs-build` = 전체 문서를 다시 만들기
+- `vib docs-build 파일경로` = 그 문서 하나만 다시 만들기
+
+---
+
+## `vib docs-index`
+
+Docs Viewer가 어떤 문서를 보여줄지 목록을 만드는 명령어예요.
+쉽게 말하면 **"문서 리스트와 약속(schema) 확인용 명령어"** 예요.
+
+```bash
+vib docs-index
+vib docs-index /path/to/project
+vib docs-index --visual-contract
+```
+
+What it does:
+
+1. 프로젝트 안의 markdown 문서 목록을 JSON으로 보여줘요
+2. Docs Viewer가 쓸 제목, 경로, 카테고리 정보를 정리해줘요
+3. `--visual-contract`를 쓰면 docs visual artifact의 schema/generator 약속도 보여줘요
+
+이 명령어는 보통 사람이 매일 직접 쓰는 명령어라기보다,
+GUI나 디버깅할 때 도움이 되는 명령어라고 생각하면 쉬워요.
+
+---
+
 ## `vib protect`
 
 Locks important files so AI cannot accidentally modify them.
@@ -249,6 +332,7 @@ What it does:
 - 커밋하기 전에 지금 올리려는 내용만 검사해요
 - API 키, 토큰, 개인키, `.env` 같은 비밀정보가 있는지 찾아봐요
 - Git 저장소라면 보통 `vib start`가 이 검사를 자동으로 연결해줘요
+- 자동 hook을 켜면 `vib guard --strict`도 같이 돌아가서 구조 문제까지 한 번 더 확인해줘요
 - 이미 다른 자동 실행 설정이 있으면 마음대로 덮어쓰지 않아요
 
 커밋이 막히면 "중요한 정보가 들어있을 수 있으니 다시 봐달라"는 뜻이에요.
@@ -444,7 +528,7 @@ VIBELIGN_EXPLAIN.md
 
 ## `vib guard`
 
-Combines `doctor` + `explain`.
+`doctor` + `explain` + 구조 계획/앵커 검사까지 한 번에 보는 종합 검사예요.
 
 ```bash
 vib guard
@@ -465,6 +549,85 @@ Output includes:
 - doctor findings
 - recent changed files
 - protected file violations (if any)
+- planning 상태 (`planning_required`, `planning_exempt`, `plan_exists_but_deviated`)
+- 새 source 파일 앵커 누락 여부
+
+자주 쓰는 플래그:
+
+```bash
+vib guard --strict
+vib guard --since-minutes 30
+vib guard --write-report
+vib guard --json
+```
+
+- `--strict` = warn도 fail처럼 강하게 본다
+- `--since-minutes` = 최근 몇 분 변경만 본다
+- `--write-report` = 결과를 파일로 저장한다
+- `--json` = 개발자용 JSON 출력
+
+---
+
+## `vib plan-structure`
+
+큰 기능을 만들기 전에 어느 파일을 고치고 어느 파일을 새로 만들지 먼저 정하는 명령어예요.
+쉽게 말하면 “코딩 시작 전에 설계도 한 장 먼저 만드는 버튼”이에요.
+
+보통은 이렇게 생각하면 쉬워요.
+
+1. 먼저 `plan-structure`로 작업 설계도를 만들고
+2. 그다음 `patch`나 AI 작업으로 실제 구현을 하고
+3. 마지막에 `guard --strict`로 계획대로 잘 됐는지 확인하는 거예요.
+
+```bash
+vib plan-structure "OAuth 인증 추가"
+vib plan-structure --scope vibelign/core/ "watch 기능 확장"
+vib plan-structure --ai "mcp handler 수정"
+```
+
+- 큰 기능이라 여러 파일이 바뀔 것 같을 때 좋아요
+- 새 production 파일을 만들기 전에 쓰면 guard와 pre-check가 이 계획을 보고 검사할 수 있어요
+- 결과는 `.vibelign/plans/` 아래에 저장돼요
+
+추천 흐름:
+
+```bash
+vib plan-structure "OAuth 인증 추가"
+vib patch "OAuth 로그인 버튼과 서버 검증 추가"
+vib guard --strict
+```
+
+언제 특히 좋냐면:
+
+- 새 기능이라 파일 여러 개가 같이 바뀔 때
+- 새 source / production 파일을 만들 가능성이 있을 때
+- AI가 한 파일에 모든 걸 몰아넣지 않게 먼저 범위를 정하고 싶을 때
+
+반대로 문서만 고치거나, 테스트만 조금 만지거나, 설정만 바꾸는 작은 작업이면 보통 안 써도 괜찮아요.
+
+플래그:
+
+- `feature` = 무엇을 만들지 말로 적어요
+- `--scope` = 특정 폴더만 보고 계획해요
+- `--ai` = 나중에 AI 흐름에서 참고할 metadata로 기록해요
+
+---
+
+## `vib claude-hook`
+
+Claude Code가 파일을 쓰기 전에 VibeLign 검사를 먼저 하게 만드는 스위치예요.
+
+```bash
+vib claude-hook status
+vib claude-hook enable
+vib claude-hook disable
+```
+
+- `status` = 지금 켜져 있는지 확인
+- `enable` = Claude가 Write 전에 pre-check 실행
+- `disable` = 검사만 끄고 hook 자리는 남김
+
+보통은 `vib start`가 설치를 도와주고, 이 명령어는 상태를 보거나 잠깐 켜고 끌 때 쓰면 돼요.
 
 Saved report:
 
@@ -529,6 +692,7 @@ Real-time monitor while AI or you edit files.
 ```bash
 vib watch
 vib watch --strict
+vib watch --auto-fix
 vib watch --write-log
 vib watch --json
 vib watch --debounce-ms 800
@@ -554,6 +718,11 @@ Watch detects:
 - likely UI + business logic mixing
 - likely business logic inside entry files
 - changes to protected files
+
+추가 동작:
+
+- `--auto-fix`를 붙이면 새 `.py/.ts/.tsx/.js/.jsx` 파일에 앵커가 없을 때 저장 직후 자동으로 앵커를 넣어줘요
+- `--write-log`를 붙이면 `.vibelign/watch.log`에 감시 기록을 저장해요
 
 **Auto project map refresh:**
 When files change, `vib watch` automatically refreshes `.vibelign/project_map.json` after a debounce period (default 800ms). The map update uses a temp-file swap to avoid partial reads. Status messages are printed:
@@ -640,6 +809,14 @@ Best results come from these conventions:
 - run `vib scan` after adding anchors to keep the project map fresh
 - prefer patch requests over vague instructions (Korean is supported)
 - run `vib guard` before another large AI change
+
+### VibeLign patch rules
+
+- Split composite requests into `intent / source / destination / behavior_constraint`.
+- If `delete` and `move` appear together, treat it as move + preservation unless the user clearly wants removal.
+- Resolve `source` and `destination` by role, not with the same rule.
+- If patch contract or codespeak shape changes, update tests and docs together.
+- Keep terminology aligned with the shared glossary and project docs.
 
 ---
 

@@ -10,7 +10,12 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
+
+from vibelign.core.structure_policy import SCAN_IGNORED_DIRS, SOURCE_FILE_SUFFIXES
+
+_WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 _ANCHOR_RE = re.compile(r"ANCHOR:\s*([A-Z0-9_]+)")
 
@@ -18,40 +23,9 @@ _ANCHOR_RE = re.compile(r"ANCHOR:\s*([A-Z0-9_]+)")
 _FD: str | None = shutil.which("fd") or shutil.which("fdfind")
 _RG: str | None = shutil.which("rg")
 
-_FD_EXCLUDES = [
-    ".git",
-    ".venv",
-    "venv",
-    "__pycache__",
-    "node_modules",
-    "dist",
-    "build",
-    ".next",
-    ".pnpm-store",
-    ".idea",
-    ".vscode",
-    ".pytest_cache",
-    "docs",
-    "tests",
-    ".github",
-    ".vibelign",
-]
+_FD_EXCLUDES = list(sorted(SCAN_IGNORED_DIRS))
 
-_SOURCE_EXTS = [
-    "py",
-    "js",
-    "ts",
-    "jsx",
-    "tsx",
-    "rs",
-    "go",
-    "java",
-    "cs",
-    "cpp",
-    "c",
-    "hpp",
-    "h",
-]
+_SOURCE_EXTS = list(SOURCE_FILE_SUFFIXES)
 
 
 def has_fd() -> bool:
@@ -71,6 +45,7 @@ def _run_text_command(cmd: list[str]) -> subprocess.CompletedProcess[str] | None
             encoding="utf-8",
             errors="replace",
             timeout=60,
+            creationflags=_WINDOWS_FLAGS,
         )
     except (
         subprocess.TimeoutExpired,
@@ -106,6 +81,8 @@ def grep_anchors_rg(root: Path) -> dict[str, list[str]] | None:
     glob_args: list[str] = []
     for ext in _SOURCE_EXTS:
         glob_args += ["--glob", f"*.{ext}"]
+    for ignored in _FD_EXCLUDES:
+        glob_args += ["--glob", f"!{ignored}/**"]
 
     if _RG is None:
         return None
@@ -117,8 +94,6 @@ def grep_anchors_rg(root: Path) -> dict[str, list[str]] | None:
             "--no-line-number",
             "--no-heading",
             "-o",
-            "--glob",
-            "!.vibelign/**",
             r"ANCHOR:\s*[A-Z0-9_]+",
         ]
         + glob_args

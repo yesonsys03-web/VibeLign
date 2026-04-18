@@ -2,21 +2,65 @@
 import importlib
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
+from typing import Protocol, TypedDict, cast
+
+try:
+    from typing import NotRequired
+except ImportError:
+    from typing_extensions import NotRequired
 
 from vibelign.core.change_explainer import (
+    FileSummary,
     explain_file_from_git,
     explain_file_from_mtime,
     explain_from_git,
     explain_from_mtime,
 )
 from vibelign.core.meta_paths import MetaPaths
+from vibelign.core.project_root import resolve_project_root
 from vibelign.terminal_render import print_ai_response
 
 
 from vibelign.terminal_render import cli_print
 
 print = cli_print
+
+
+class ExplainError(TypedDict):
+    code: str
+    message: str
+    hint: str
+
+
+class ExplainData(TypedDict):
+    source: str
+    risk_level: str
+    summary: str
+    what_changed: list[str]
+    why_it_matters: list[str]
+    what_to_do_next: str
+    files: list[FileSummary]
+    file: NotRequired[str]
+
+
+class ExplainEnvelope(TypedDict):
+    ok: bool
+    error: ExplainError | None
+    data: ExplainData
+
+
+class ExplainArgs(Protocol):
+    file: str | None
+    since_minutes: int
+    json: bool
+    write_report: bool
+    ai: bool
+
+
+class AIExplainModule(Protocol):
+    def has_ai_provider(self) -> bool: ...
+
+    def explain_with_ai(self, data: ExplainData) -> tuple[object | None, object]: ...
 
 
 def _risk_label(level: str) -> str:
@@ -28,11 +72,11 @@ def _risk_label(level: str) -> str:
 
 
 def _resolve_file_path(
-    root: Path, file_arg: str
-) -> tuple[Optional[str], Optional[Path], Optional[str]]:
+    root: Path, cwd: Path, file_arg: str
+) -> tuple[str | None, Path | None, str | None]:
     """파일 인자를 절대 경로로 해석. (rel_path, abs_path, error_msg) 반환."""
     p = Path(file_arg)
-    abs_path = p if p.is_absolute() else root / p
+    abs_path = p.resolve() if p.is_absolute() else (cwd / p).resolve()
     if not abs_path.exists():
         return (
             None,
@@ -46,29 +90,35 @@ def _resolve_file_path(
     return rel, abs_path, None
 
 
+def _error_explain_data(file_arg: str) -> ExplainData:
+    return {
+        "file": file_arg,
+        "source": "fallback",
+        "risk_level": "LOW",
+        "summary": "변경 설명 데이터를 만들지 못했습니다.",
+        "what_changed": [],
+        "why_it_matters": [],
+        "what_to_do_next": "경로와 파일 상태를 확인한 뒤 다시 시도해보세요.",
+        "files": [],
+    }
+
+
 def _build_file_explain_envelope(
-    root: Path, file_arg: str, since_minutes: int
-) -> Dict[str, Any]:
+    root: Path, cwd: Path, file_arg: str, since_minutes: int
+) -> ExplainEnvelope:
     """특정 파일의 변경 설명 envelope 를 반환."""
-    rel, _abs, err = _resolve_file_path(root, file_arg)
+    rel, _abs, err = _resolve_file_path(root, cwd, file_arg)
     if err:
         return {
             "ok": False,
             "error": {"code": "file_not_found", "message": err, "hint": ""},
-            "data": {"file": file_arg},
+            "data": _error_explain_data(file_arg),
         }
-    if rel is None:
-        return {
-            "ok": False,
-            "error": {"code": "file_not_found", "message": file_arg, "hint": ""},
-            "data": {"file": file_arg},
-        }
-    rel_path = rel
-
-    report = explain_file_from_git(root, rel_path) or explain_file_from_mtime(
-        root, rel_path, since_minutes=since_minutes
-    )
-    data = {
+    rel_path = rel or file_arg
+    report = explain_file_from_git(root, rel_path)
+    if report is None:
+        report = explain_file_from_mtime(root, rel_path, since_minutes=since_minutes)
+    data: ExplainData = {
         "file": rel_path,
         "source": report.source,
         "risk_level": report.risk_level,
@@ -81,14 +131,14 @@ def _build_file_explain_envelope(
     return {"ok": True, "error": None, "data": data}
 
 
-def _render_file_markdown(data: Dict[str, Any]) -> str:
+def _render_file_markdown(data: ExplainData) -> str:
     """파일별 explain 결과를 ask 스타일 마크다운으로 변환."""
     file_name = data.get("file", "")
     risk = data.get("risk_level", "LOW")
     risk_emoji = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(risk, "⚪")
 
-    what_changed = cast(List[str], data.get("what_changed") or [])
-    why_matters = cast(List[str], data.get("why_it_matters") or [])
+    what_changed = data.get("what_changed") or []
+    why_matters = data.get("why_it_matters") or []
 
     source_label = {
         "git": "파일 변경 감지",
@@ -114,33 +164,11 @@ def _render_file_markdown(data: Dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _fallback_explain_data() -> Dict[str, Any]:
-    return {
-        "source": "fallback",
-        "risk_level": "LOW",
-        "what_changed": ["변경 설명 데이터를 자동으로 만들지 못했습니다."],
-        "why_it_matters": ["현재 작업 상태를 직접 확인하는 편이 안전합니다."],
-        "what_to_do_next": "vib doctor 로 상태를 확인하거나, 최근 수정 파일을 직접 열어보세요.",
-        "files": [],
-        "summary": "자동 설명이 실패해 안전한 기본 안내를 보여줍니다.",
-    }
-
-
-def _build_explain_envelope(root: Path, since_minutes: int) -> Dict[str, Any]:
-    report = explain_from_git(root) or explain_from_mtime(
-        root, since_minutes=since_minutes
-    )
+def _build_explain_envelope(root: Path, since_minutes: int) -> ExplainEnvelope:
+    report = explain_from_git(root)
     if report is None:
-        return {
-            "ok": False,
-            "error": {
-                "code": "explain_unavailable",
-                "message": "변경 설명 데이터를 만들지 못했습니다.",
-                "hint": "vib doctor 로 상태를 확인하거나, 최근 수정 파일을 직접 열어보세요.",
-            },
-            "data": _fallback_explain_data(),
-        }
-    data = {
+        report = explain_from_mtime(root, since_minutes=since_minutes)
+    data: ExplainData = {
         "source": report.source,
         "risk_level": report.risk_level,
         "what_changed": report.what_changed,
@@ -152,10 +180,14 @@ def _build_explain_envelope(root: Path, since_minutes: int) -> Dict[str, Any]:
     return {"ok": True, "error": None, "data": data}
 
 
-def _render_markdown(data: Dict[str, Any]) -> str:
-    files = cast(List[Dict[str, str]], data.get("files", []) or [])
-    what_changed = cast(List[str], data.get("what_changed", []) or [])
-    why_it_matters = cast(List[str], data.get("why_it_matters", []) or [])
+def build_explain_envelope(root: Path, since_minutes: int) -> ExplainEnvelope:
+    return _build_explain_envelope(root, since_minutes=since_minutes)
+
+
+def _render_markdown(data: ExplainData) -> str:
+    files = data.get("files") or []
+    what_changed = data.get("what_changed") or []
+    why_it_matters = data.get("why_it_matters") or []
     source_label = {
         "git": "파일 변경 감지",
         "mtime": "최근 수정 시간 감지",
@@ -190,18 +222,22 @@ def _render_markdown(data: Dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def run_vib_explain(args: Any) -> None:
-    root = Path.cwd()
+def run_vib_explain(args: ExplainArgs) -> None:
+    cwd = Path.cwd()
+    root = resolve_project_root(cwd)
     meta = MetaPaths(root)
 
     # ── 파일 인자가 있으면 파일별 explain 모드
-    file_arg: str = getattr(args, "file", None) or ""
+    file_arg = args.file or ""
     if file_arg:
         envelope = _build_file_explain_envelope(
-            root, file_arg, since_minutes=args.since_minutes
+            root, cwd, file_arg, since_minutes=args.since_minutes
         )
         if not envelope["ok"]:
             err = envelope["error"]
+            if err is None:
+                print("✗ 변경 설명 데이터를 만들지 못했습니다.")
+                return
             print(f"✗ {err['message']}")
             return
         if args.json:
@@ -232,19 +268,52 @@ def run_vib_explain(args: Any) -> None:
             )
         return
     if args.ai:
-        ai_explain = importlib.import_module("vibelign.core.ai_explain")
-        if ai_explain.has_ai_provider():
-            try:
-                text, _attempted = ai_explain.explain_with_ai(envelope["data"])
-            except Exception:
-                text = None
-        else:
+        ai_fallback_message: str | None = None
+        try:
+            ai_explain_raw = cast(
+                object, importlib.import_module("vibelign.core.ai_explain")
+            )
+            ai_explain = cast(AIExplainModule, ai_explain_raw)
+        except Exception:
             text = None
-            print("AI API 키가 설정되어 있지 않아서 기본 설명을 보여드릴게요.")
-            print("더 자세한 설명을 원하시면 vib config 에서 AI API를 설정하세요.")
-            print("  (Google Gemini는 무료 키를 바로 받을 수 있어요)")
-            print()
-        if text:
+            ai_fallback_message = "AI 설명을 불러오지 못해 기본 설명으로 대체합니다."
+        else:
+            try:
+                has_provider = ai_explain.has_ai_provider()
+            except Exception:
+                has_provider = False
+                ai_fallback_message = (
+                    "AI 설정을 확인하지 못해 기본 설명으로 대체합니다."
+                )
+            if has_provider:
+                try:
+                    text, _attempted = ai_explain.explain_with_ai(envelope["data"])
+                except Exception:
+                    text = None
+                    ai_fallback_message = (
+                        "AI 설명 생성에 실패해 기본 설명으로 대체합니다."
+                    )
+                else:
+                    if text is not None and not isinstance(text, str):
+                        text = None
+                        ai_fallback_message = (
+                            "AI 설명 결과를 해석하지 못해 기본 설명으로 대체합니다."
+                        )
+                    elif text is not None and not text.strip():
+                        text = None
+                        ai_fallback_message = (
+                            "AI 설명 결과가 비어 있어 기본 설명으로 대체합니다."
+                        )
+            else:
+                text = None
+                if ai_fallback_message is None:
+                    print("AI API 키가 설정되어 있지 않아서 기본 설명을 보여드릴게요.")
+                    print(
+                        "더 자세한 설명을 원하시면 vib config 에서 AI API를 설정하세요."
+                    )
+                    print("  (Google Gemini는 무료 키를 바로 받을 수 있어요)")
+                    print()
+        if text is not None:
             print_ai_response(text)
             if args.write_report:
                 meta.ensure_vibelign_dirs()
@@ -252,6 +321,9 @@ def run_vib_explain(args: Any) -> None:
                     text + "\n", encoding="utf-8"
                 )
             return
+        if ai_fallback_message is not None:
+            print(ai_fallback_message)
+            print()
     markdown = _render_markdown(envelope["data"])
     print_ai_response(markdown)
     if args.write_report:

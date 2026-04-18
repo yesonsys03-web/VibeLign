@@ -2,12 +2,13 @@
 import json
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import cast
 
 from vibelign.core.anchor_tools import extract_anchors
 from vibelign.core.project_map import load_project_map
-from vibelign.core.project_scan import iter_source_files
+from vibelign.core.project_scan import iter_source_files, safe_read_text
 from vibelign.core.risk_analyzer import analyze_project
+from vibelign.core.structure_policy import is_trivial_package_init
 
 
 STATUS_LEVELS = [
@@ -18,17 +19,24 @@ STATUS_LEVELS = [
     (0, "High Risk"),
 ]
 
+ISSUE_PENALTIES: dict[str, dict[str, float]] = {
+    "anchor": {"low": 0.0, "medium": 1.0, "high": 2.0},
+    "structure": {"low": 0.5, "medium": 1.5, "high": 3.0},
+    "metadata": {"low": 0.5, "medium": 1.0, "high": 2.0},
+    "mcp": {"low": 1.0, "medium": 2.0, "high": 4.0},
+}
+
 
 @dataclass
 class DoctorV2Report:
     project_score: int
     status: str
     anchor_coverage: int
-    stats: Dict[str, Any]
-    issues: List[Dict[str, Any]]
-    recommended_actions: List[str]
+    stats: dict[str, object]
+    issues: list[dict[str, object]]
+    recommended_actions: list[str]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         return asdict(self)
 
 
@@ -36,13 +44,13 @@ class DoctorV2Report:
 class MCPToolConfig:
     label: str
     config_path: Path
-    signals: List[Path]
+    signals: list[Path]
 
 
 @dataclass(frozen=True)
 class PreparedToolConfig:
     label: str
-    required_paths: List[Path]
+    required_paths: list[Path]
     setup_command: str
 
 
@@ -85,47 +93,72 @@ def _build_status(score: int) -> str:
     return "High Risk"
 
 
+def _project_score_from_issues(issues: list[dict[str, object]]) -> int:
+    total_penalty = 0.0
+    for issue in issues:
+        category = str(issue.get("category", "metadata"))
+        severity = str(issue.get("severity", "low"))
+        category_penalties = ISSUE_PENALTIES.get(category, ISSUE_PENALTIES["metadata"])
+        total_penalty += category_penalties.get(severity, category_penalties["medium"])
+    return max(0, 100 - round(total_penalty))
+
+
 def _anchor_coverage(root: Path) -> int:
-    source_files = list(iter_source_files(root))
+    source_files = [
+        path
+        for path in iter_source_files(root)
+        if not is_trivial_package_init(path, safe_read_text(path))
+    ]
     if not source_files:
         return 100
     covered = sum(1 for path in source_files if extract_anchors(path))
     return round((covered / len(source_files)) * 100)
 
 
-def _issue_details(issues: List[str], suggestions: List[str]) -> List[Dict[str, Any]]:
-    details: List[Dict[str, Any]] = []
-    for index, issue in enumerate(issues):
-        rel = issue.split("에 ", 1)[0]
-        next_step = (
-            suggestions[index]
-            if index < len(suggestions)
-            else "관련 파일을 직접 열어서 확인해보세요."
-        )
+def _issue_details(issues: list[dict[str, object]]) -> list[dict[str, object]]:
+    details: list[dict[str, object]] = []
+    for issue in issues:
+        found = str(issue.get("found", ""))
+        next_step = str(issue.get("next_step", "관련 파일을 직접 열어서 확인해보세요."))
+        category = str(issue.get("category", "metadata"))
+        severity = str(issue.get("severity", "low"))
+        recommended_command = issue.get("recommended_command")
+        can_auto_fix = bool(issue.get("can_auto_fix", False))
+        auto_fix_label = issue.get("auto_fix_label")
+        path = issue.get("path")
+
+        if category == "anchor" and recommended_command is None:
+            recommended_command = "vib doctor --fix"
+            can_auto_fix = True
+            auto_fix_label = "앵커 자동 추가"
+
         details.append(
             {
-                "found": issue,
-                "why_it_matters": f"{issue} 때문에 AI가 엉뚱한 곳까지 건드리거나 코드를 더 꼬이게 만들 수 있어요.",
+                "found": found,
+                "why_it_matters": issue.get(
+                    "why_it_matters",
+                    f"{found} 때문에 AI가 엉뚱한 곳까지 건드리거나 코드를 더 꼬이게 만들 수 있어요.",
+                ),
                 "next_step": next_step,
-                "path": rel
-                if "/" in rel or rel.endswith((".py", ".js", ".ts", ".tsx", ".jsx"))
-                else None,
+                "path": path,
+                "severity": severity,
+                "category": category,
+                "recommended_command": recommended_command,
+                "can_auto_fix": can_auto_fix,
+                "auto_fix_label": auto_fix_label,
             }
         )
     return details
 
 
-def _recommended_actions(legacy_suggestions: List[str]) -> List[str]:
-    actions: List[str] = []
+def _recommended_actions(issues: list[dict[str, object]]) -> list[str]:
+    actions: list[str] = []
     seen: set[str] = set()
-    for suggestion in legacy_suggestions:
-        if "앵커" in suggestion:
-            action = "vib anchor --suggest"
-        elif "분리" in suggestion or "나눠" in suggestion:
-            action = "파일이 너무 길면 기능별로 나눠보세요 (AI 실수 예방에 도움돼요)"
-        else:
-            action = suggestion
-        if action not in seen:
+    for issue in issues:
+        command = issue.get("recommended_command")
+        next_step = issue.get("next_step")
+        action = str(command or next_step or "")
+        if action and action not in seen:
             seen.add(action)
             actions.append(action)
     return actions[:6]
@@ -139,10 +172,10 @@ def _is_mcp_tool_enabled(root: Path, tool_name: str) -> bool:
     return any((root / signal).exists() for signal in tool.signals)
 
 
-def _read_mcp_server_status(root: Path, tool_name: str) -> Dict[str, Any]:
+def _read_mcp_server_status(root: Path, tool_name: str) -> dict[str, object]:
     tool = MCP_TOOL_CONFIGS[tool_name]
     config_path = root / tool.config_path
-    status = {
+    status: dict[str, object] = {
         "enabled": _is_mcp_tool_enabled(root, tool_name),
         "registered": False,
         "config_path": str(tool.config_path),
@@ -155,14 +188,15 @@ def _read_mcp_server_status(root: Path, tool_name: str) -> Dict[str, Any]:
     if not config_path.exists():
         return status
     try:
-        loaded = json.loads(config_path.read_text(encoding="utf-8"))
+        loaded = cast(object, json.loads(config_path.read_text(encoding="utf-8")))
     except (json.JSONDecodeError, OSError):
         status["state"] = "invalid_json"
         return status
     if not isinstance(loaded, dict):
         status["state"] = "invalid_json"
         return status
-    mcp_servers = loaded.get("mcpServers")
+    loaded_dict = cast(dict[str, object], loaded)
+    mcp_servers = loaded_dict.get("mcpServers")
     if not isinstance(mcp_servers, dict):
         status["state"] = "missing_server"
         return status
@@ -174,15 +208,15 @@ def _read_mcp_server_status(root: Path, tool_name: str) -> Dict[str, Any]:
     return status
 
 
-def _collect_mcp_status(root: Path) -> Dict[str, Dict[str, Any]]:
+def _collect_mcp_status(root: Path) -> dict[str, dict[str, object]]:
     return {
         tool_name: _read_mcp_server_status(root, tool_name)
         for tool_name in MCP_TOOL_CONFIGS
     }
 
 
-def _collect_prepared_tool_status(root: Path) -> Dict[str, Dict[str, Any]]:
-    status_map: Dict[str, Dict[str, Any]] = {}
+def _collect_prepared_tool_status(root: Path) -> dict[str, dict[str, object]]:
+    status_map: dict[str, dict[str, object]] = {}
     for tool_name, tool in PREPARED_TOOL_CONFIGS.items():
         missing = [
             str(path) for path in tool.required_paths if not (root / path).exists()
@@ -208,48 +242,80 @@ def _collect_prepared_tool_status(root: Path) -> Dict[str, Dict[str, Any]]:
 
 
 def _append_mcp_issues(
-    issues: List[str], suggestions: List[str], mcp_status: Dict[str, Dict[str, Any]]
+    issues: list[dict[str, object]], mcp_status: dict[str, dict[str, object]]
 ) -> None:
     for tool_name, status in mcp_status.items():
         if not status["enabled"] or status["registered"]:
             continue
-        config_path = status["config_path"]
-        label = status["label"]
+        config_path = str(status["config_path"])
+        label = str(status["label"])
         if status["state"] == "invalid_json":
-            issues.append(f"{config_path} 파일을 읽을 수 없어요")
-            suggestions.append(
-                f"`vib start --tools {tool_name}` 를 다시 실행하면 {label} MCP 설정을 자동으로 복구해요"
+            issues.append(
+                {
+                    "found": f"{config_path} 파일을 읽을 수 없어요",
+                    "next_step": f"{label} MCP 설정 파일을 다시 만들어야 해요.",
+                    "path": config_path,
+                    "category": "mcp",
+                    "severity": "high",
+                    "recommended_command": f"vib start --tools {tool_name}",
+                    "can_auto_fix": False,
+                    "auto_fix_label": None,
+                }
             )
             continue
-        issues.append(f"{config_path}에 vibelign MCP 등록이 없어요")
-        suggestions.append(
-            f"`vib start --tools {tool_name}` 를 실행하면 {label}에 vibelign MCP를 자동 등록해요"
+        issues.append(
+            {
+                "found": f"{config_path}에 vibelign MCP 등록이 없어요",
+                "next_step": f"`vib start --tools {tool_name}` 를 실행하면 {label}에 vibelign MCP를 자동 등록해요",
+                "path": config_path,
+                "category": "mcp",
+                "severity": "high",
+                "recommended_command": f"vib start --tools {tool_name}",
+                "can_auto_fix": False,
+                "auto_fix_label": None,
+            }
         )
 
 
 def _append_prepared_tool_issues(
-    issues: List[str],
-    suggestions: List[str],
-    prepared_status: Dict[str, Dict[str, Any]],
+    issues: list[dict[str, object]],
+    prepared_status: dict[str, dict[str, object]],
 ) -> None:
     for tool_name, status in prepared_status.items():
         if not status["enabled"] or status["ready"]:
             continue
-        missing = ", ".join(str(path) for path in status["missing"])
-        issues.append(f"{status['label']} 준비 파일이 일부 없어요 ({missing})")
-        suggestions.append(
-            f"`{PREPARED_TOOL_CONFIGS[tool_name].setup_command}` 를 다시 실행하면 {status['label']} 준비 파일을 자동으로 채워줘요"
+        raw_missing = status.get("missing", [])
+        missing_items = (
+            cast(list[object], raw_missing) if isinstance(raw_missing, list) else []
+        )
+        missing = ", ".join(str(path) for path in missing_items)
+        setup_command = PREPARED_TOOL_CONFIGS[tool_name].setup_command
+        issues.append(
+            {
+                "found": f"{status['label']} 준비 파일이 일부 없어요 ({missing})",
+                "next_step": f"`{setup_command}` 를 다시 실행하면 {status['label']} 준비 파일을 자동으로 채워줘요",
+                "path": None,
+                "category": "metadata",
+                "severity": "medium",
+                "recommended_command": setup_command,
+                "can_auto_fix": False,
+                "auto_fix_label": None,
+            }
         )
 
 
-def _render_mcp_lines(stats: Dict[str, Any]) -> List[str]:
+def _render_mcp_lines(stats: dict[str, object]) -> list[str]:
     raw = stats.get("mcp_status")
     if not isinstance(raw, dict):
         return []
-    lines: List[str] = []
+    raw_statuses = cast(dict[str, object], raw)
+    lines: list[str] = []
     for tool_name in MCP_TOOL_CONFIGS:
-        status = raw.get(tool_name)
-        if not isinstance(status, dict) or not status.get("enabled"):
+        raw_status = raw_statuses.get(tool_name)
+        if not isinstance(raw_status, dict):
+            continue
+        status = cast(dict[str, object], raw_status)
+        if not status.get("enabled"):
             continue
         label = str(status.get("label") or tool_name)
         state = status.get("state")
@@ -262,14 +328,18 @@ def _render_mcp_lines(stats: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _render_prepared_tool_lines(stats: Dict[str, Any]) -> List[str]:
+def _render_prepared_tool_lines(stats: dict[str, object]) -> list[str]:
     raw = stats.get("prepared_tool_status")
     if not isinstance(raw, dict):
         return []
-    lines: List[str] = []
+    raw_statuses = cast(dict[str, object], raw)
+    lines: list[str] = []
     for tool_name in PREPARED_TOOL_CONFIGS:
-        status = raw.get(tool_name)
-        if not isinstance(status, dict) or not status.get("enabled"):
+        raw_status = raw_statuses.get(tool_name)
+        if not isinstance(raw_status, dict):
+            continue
+        status = cast(dict[str, object], raw_status)
+        if not status.get("enabled"):
             continue
         label = str(status.get("label") or tool_name)
         if status.get("ready"):
@@ -279,10 +349,32 @@ def _render_prepared_tool_lines(stats: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def analyze_project_v2(root: Path, strict: bool = False) -> DoctorV2Report:
+def analyze_project_v2(
+    root: Path, strict: bool = False, force: bool = False
+) -> DoctorV2Report:
+    from vibelign.core.analysis_cache import load_analysis_cache, save_analysis_cache
+    from vibelign.core.meta_paths import MetaPaths
+    from datetime import datetime, timezone
+
+    meta = MetaPaths(root)
+    cached = load_analysis_cache(meta.analysis_cache_path, root, force=force)
+    if cached is not None:
+        cached_score = cached.get("project_score")
+        cached_status = cached.get("status")
+        cached_coverage = cached.get("anchor_coverage")
+        cached_stats = cast(dict[str, object], cached.get("stats", {}))
+        cached_issues = cast(list[dict[str, object]], cached.get("issues", []))
+        cached_actions = cast(list[str], cached.get("recommended_actions", []))
+        return DoctorV2Report(
+            project_score=cached_score if isinstance(cached_score, int) else 0,
+            status=cached_status if isinstance(cached_status, str) else "High Risk",
+            anchor_coverage=cached_coverage if isinstance(cached_coverage, int) else 0,
+            stats=cached_stats,
+            issues=cached_issues,
+            recommended_actions=cached_actions,
+        )
+
     legacy = analyze_project(root, strict=strict)
-    project_score = max(0, 100 - (legacy.score * 4))
-    status = _build_status(project_score)
     coverage = _anchor_coverage(root)
     stats = dict(legacy.stats)
     project_map, project_map_error = load_project_map(root)
@@ -293,30 +385,52 @@ def analyze_project_v2(root: Path, strict: bool = False) -> DoctorV2Report:
     stats["project_map_loaded"] = project_map is not None
     stats["mcp_status"] = mcp_status
     stats["prepared_tool_status"] = prepared_tool_status
-    issues = list(legacy.issues)
-    suggestions = list(legacy.suggestions)
+    issues: list[dict[str, object]] = list(legacy.issues)
     if project_map is not None:
         stats["project_map_file_count"] = project_map.file_count
         stats["project_map_generated_at"] = project_map.generated_at
     elif project_map_error == "unsupported_project_map_schema":
-        issues.append(".vibelign/project_map.json 파일의 버전이 맞지 않아요")
-        suggestions.append("vib start 를 다시 실행하면 자동으로 고쳐져요")
+        issues.append(
+            {
+                "found": ".vibelign/project_map.json 파일의 버전이 맞지 않아요",
+                "next_step": "vib start 를 다시 실행하면 자동으로 고쳐져요",
+                "path": ".vibelign/project_map.json",
+                "category": "metadata",
+                "severity": "medium",
+                "check_type": "unsupported_project_map_schema",
+            }
+        )
     elif project_map_error == "invalid_project_map":
-        issues.append(".vibelign/project_map.json 파일을 읽을 수 없어요")
-        suggestions.append("vib start 를 다시 실행하면 자동으로 고쳐져요")
-    _append_mcp_issues(issues, suggestions, mcp_status)
-    _append_prepared_tool_issues(issues, suggestions, prepared_tool_status)
-    return DoctorV2Report(
+        issues.append(
+            {
+                "found": ".vibelign/project_map.json 파일을 읽을 수 없습니다",
+                "next_step": "vib start 를 다시 실행하면 자동으로 고쳐져요",
+                "path": ".vibelign/project_map.json",
+                "category": "metadata",
+                "severity": "medium",
+                "check_type": "invalid_project_map",
+            }
+        )
+    _append_mcp_issues(issues, mcp_status)
+    _append_prepared_tool_issues(issues, prepared_tool_status)
+    project_score = _project_score_from_issues(issues)
+    status = _build_status(project_score)
+    detailed_issues = _issue_details(issues)
+    report = DoctorV2Report(
         project_score=project_score,
         status=status,
         anchor_coverage=coverage,
         stats=stats,
-        issues=_issue_details(issues, suggestions),
-        recommended_actions=_recommended_actions(suggestions),
+        issues=detailed_issues,
+        recommended_actions=_recommended_actions(detailed_issues),
     )
+    generated_at = datetime.now(timezone.utc).isoformat()
+    meta.ensure_vibelign_dir()
+    save_analysis_cache(meta.analysis_cache_path, root, report.to_dict(), generated_at)
+    return report
 
 
-def build_doctor_envelope(root: Path, strict: bool = False) -> Dict[str, Any]:
+def build_doctor_envelope(root: Path, strict: bool = False) -> dict[str, object]:
     report = analyze_project_v2(root, strict=strict)
     return {"ok": True, "error": None, "data": report.to_dict()}
 
@@ -371,12 +485,15 @@ def render_doctor_markdown(
     if detailed and report.issues:
         lines.extend(["", "자세히 보면:"])
         for item in report.issues:
-            lines.extend(
-                [
-                    f"- 찾은 문제: {item['found']}",
-                    f"  왜 중요하냐면: {item['why_it_matters']}",
-                    f"  다음에 하면 좋은 일: {item['next_step']}",
-                ]
+            sev = str(item.get("severity", "low")).upper()
+            cat = str(item.get("category", "metadata"))
+            lines.append(f"- [{sev}][{cat}] {item['found']}")
+            lines.append(f"  왜 중요하냐면: {item['why_it_matters']}")
+            lines.append(f"  다음에 하면 좋은 일: {item['next_step']}")
+            if item.get("recommended_command"):
+                lines.append(f"  추천 명령: {item['recommended_command']}")
+            lines.append(
+                "  자동 수정: 가능" if item.get("can_auto_fix") else "  자동 수정: 불가"
             )
 
     if fix_hints or report.recommended_actions:
@@ -387,7 +504,7 @@ def render_doctor_markdown(
     return "\n".join(lines) + "\n"
 
 
-def render_doctor_json(envelope: Dict[str, Any]) -> str:
+def render_doctor_json(envelope: dict[str, object]) -> str:
     return json.dumps(envelope, indent=2, ensure_ascii=False)
 
 

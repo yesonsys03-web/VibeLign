@@ -14,7 +14,7 @@ from vibelign.commands.vib_start_cmd import (
     _status_line,
     _tool_readiness,
 )
-from vibelign.vib_cli import build_parser as build_vib_parser
+from vibelign.cli.vib_cli import build_parser as build_vib_parser
 
 
 class VibStartTest(unittest.TestCase):
@@ -163,6 +163,51 @@ class VibStartTest(unittest.TestCase):
         args = parser.parse_args(["start", "--all-tools"])
         self.assertTrue(args.all_tools)
         self.assertFalse(args.force)
+
+    def test_basic_cli_watch_parser_accepts_auto_fix(self):
+        parser = build_basic_parser()
+        args = parser.parse_args(["watch", "--auto-fix"])
+        self.assertTrue(args.auto_fix)
+
+    def test_basic_cli_includes_claude_hook_command(self):
+        parser = build_basic_parser()
+        args = parser.parse_args(["claude-hook", "status"])
+        self.assertEqual(args.command, "claude-hook")
+        self.assertEqual(args.action, "status")
+
+    def test_basic_cli_includes_plan_structure_command(self):
+        parser = build_basic_parser()
+        args = parser.parse_args(["plan-structure", "OAuth 인증 추가"])
+        self.assertEqual(args.command, "plan-structure")
+        self.assertEqual(args.feature, ["OAuth 인증 추가"])
+
+
+class TestPagesRoutesUiClassification(unittest.TestCase):
+    """C2 Part 1: pages/ and routes/ must classify as ui_modules.
+
+    Without this, C2's layer-routing rule can't identify ui-layer callers
+    in project_map.files[rel].imported_by.
+    """
+
+    def test_pages_directory_is_classified_as_ui(self):
+        from vibelign.commands.vib_start_cmd import _build_project_map
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "pages").mkdir()
+            (root / "pages" / "signup.py").write_text("def handle(): pass\n")
+            pm = _build_project_map(root, force_scan=True)
+            self.assertIn("pages/signup.py", pm["ui_modules"])
+
+    def test_routes_directory_is_classified_as_ui(self):
+        from vibelign.commands.vib_start_cmd import _build_project_map
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "routes").mkdir()
+            (root / "routes" / "users.py").write_text("def get(): pass\n")
+            pm = _build_project_map(root, force_scan=True)
+            self.assertIn("routes/users.py", pm["ui_modules"])
 
 
 if __name__ == "__main__":

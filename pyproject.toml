@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vibelign"
-version = "1.7.2"
+version = "2.0.0"
 description = "AI coding safety system for vibecoders"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.10"
@@ -20,7 +20,7 @@ classifiers = [
     "Topic :: Software Development :: Build Tools",
     "Topic :: Software Development :: Quality Assurance",
 ]
-dependencies = ["anthropic>=0.40.0", "rich>=13.9.0", "mcp>=1.0.0"]
+dependencies = ["anthropic>=0.40.0", "rich>=13.9.0", "mcp>=1.0.0", "watchdog>=3.0.0", "typing_extensions>=4.0.0; python_version < '3.12'"]
 
 [project.urls]
 Homepage = "https://yesonsys03-web.github.io/VibeLign/"
@@ -31,11 +31,17 @@ Releases = "https://github.com/yesonsys03-web/VibeLign/releases"
 
 [project.scripts]
 vibelign = "vibelign.cli:main"
-vib = "vibelign.vib_cli:main"
-vibelign-mcp = "vibelign.mcp_server:main"
+vib = "vibelign.cli.vib_cli:main"
+vibelign-mcp = "vibelign.mcp.mcp_server:main"
 
 [tool.setuptools.packages.find]
 include = ["vibelign*"]
 
 [tool.pyright]
-exclude = [".venv", "build"]
+exclude = [
+    ".venv",
+    ".vibelign",
+    "build",
+    "tests/benchmark",
+    "vibelign-gui/src-tauri/target",
+]

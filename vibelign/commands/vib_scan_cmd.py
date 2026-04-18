@@ -1,8 +1,11 @@
 # === ANCHOR: VIB_SCAN_CMD_START ===
+import importlib
+from argparse import Namespace
 from pathlib import Path
-from typing import Any
+from typing import Callable, cast
 
 from vibelign.core.meta_paths import MetaPaths
+from vibelign.core.project_root import resolve_project_root
 from vibelign.terminal_render import (
     clack_info,
     clack_intro,
@@ -13,25 +16,32 @@ from vibelign.terminal_render import (
 )
 
 
-def _write_project_map(root: Path, meta: MetaPaths) -> dict:
+def _write_project_map(root: Path, meta: MetaPaths) -> dict[str, object]:
     import json
-    from vibelign.commands.vib_start_cmd import _build_project_map
 
-    project_map = _build_project_map(root)
-    meta.project_map_path.write_text(
+    build_project_map = cast(
+        Callable[[Path], dict[str, object]],
+        getattr(
+            importlib.import_module("vibelign.commands.vib_start_cmd"),
+            "_build_project_map",
+        ),
+    )
+
+    project_map = build_project_map(root)
+    _ = meta.project_map_path.write_text(
         json.dumps(project_map, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
     return project_map
 
 
-def run_vib_scan(args: Any) -> None:
+def run_vib_scan(args: Namespace) -> None:
     """앵커 스캔 + 코드맵 생성 + 앵커 인덱스 갱신을 한 번에 수행."""
     import json
     import types
     from vibelign.commands.vib_anchor_cmd import run_vib_anchor
 
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
     meta = MetaPaths(root)
 
     clack_intro("VibeLign 스캔")
@@ -80,8 +90,8 @@ def run_vib_scan(args: Any) -> None:
             clack_step("문제 파일 앵커 재삽입 중...")
             fixed: list[str] = []
             for p in problem_paths:
-                strip_anchors(p)
-                insert_module_anchors(p)
+                _ = strip_anchors(p)
+                _ = insert_module_anchors(p)
                 fixed.append(str(p.relative_to(root)))
             clack_success(f"앵커 재삽입 완료: {', '.join(fixed)}")
         else:
@@ -97,8 +107,8 @@ def run_vib_scan(args: Any) -> None:
         meta.ensure_vibelign_dir()
         project_map = _write_project_map(root, meta)
         # anchor_index.json도 코드맵 데이터에서 추출해 저장 (중복 스캔 없음)
-        anchor_index = project_map["anchor_index"]
-        meta.anchor_index_path.write_text(
+        anchor_index = cast(dict[str, list[str]], project_map.get("anchor_index", {}))
+        _ = meta.anchor_index_path.write_text(
             json.dumps(
                 {
                     "schema_version": 1,
@@ -112,8 +122,7 @@ def run_vib_scan(args: Any) -> None:
             encoding="utf-8",
         )
         clack_success(
-            f"코드맵 갱신 완료: {project_map['file_count']}개 파일, "
-            f"앵커 {len(anchor_index)}개 파일 포함"
+            f"코드맵 갱신 완료: {project_map['file_count']}개 파일, 앵커 {len(anchor_index)}개 파일 포함"
         )
     else:
         clack_info("project_map.json 없음 — vib init 또는 vib start를 먼저 실행하세요")

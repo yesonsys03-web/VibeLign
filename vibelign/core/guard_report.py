@@ -1,6 +1,25 @@
 # === ANCHOR: GUARD_REPORT_START ===
 from dataclasses import dataclass, asdict
-from typing import Any, Dict
+from collections.abc import Mapping
+from typing import Protocol
+
+JsonScalar = str | int | float | bool | None
+JsonValue = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+JsonObject = Mapping[str, object]
+
+
+class DoctorLike(Protocol):
+    level: str
+    score: int
+    stats: dict[str, object]
+
+    def to_dict(self) -> JsonObject: ...
+
+
+class ExplainLike(Protocol):
+    risk_level: str
+
+    def to_dict(self) -> JsonObject: ...
 
 
 @dataclass
@@ -13,13 +32,14 @@ class GuardReport:
     blocked: bool
     summary: str
     recommendations: list[str]
-    doctor: Dict[str, Any]
-    explain: Dict[str, Any]
+    doctor: dict[str, object]
+    explain: dict[str, object]
 
     # === ANCHOR: GUARD_REPORT_TO_DICT_START ===
-    def to_dict(self):
-# === ANCHOR: GUARD_REPORT_GUARDREPORT_END ===
+    def to_dict(self) -> dict[str, object]:
+        # === ANCHOR: GUARD_REPORT_GUARDREPORT_END ===
         return asdict(self)
+
     # === ANCHOR: GUARD_REPORT_TO_DICT_END ===
 
 
@@ -30,6 +50,8 @@ def _doctor_level_label(level: str) -> str:
         "WARNING": "주의",
         "HIGH": "위험",
     }.get(level, level)
+
+
 # === ANCHOR: GUARD_REPORT__DOCTOR_LEVEL_LABEL_END ===
 
 
@@ -40,6 +62,8 @@ def _risk_label(level: str) -> str:
         "MEDIUM": "보통",
         "HIGH": "높음",
     }.get(level, level)
+
+
 # === ANCHOR: GUARD_REPORT__RISK_LABEL_END ===
 
 
@@ -50,11 +74,13 @@ def _overall_label(level: str) -> str:
         "WARNING": "한 번 더 확인 필요",
         "HIGH": "지금은 멈추는 편이 안전함",
     }.get(level, level)
+
+
 # === ANCHOR: GUARD_REPORT__OVERALL_LABEL_END ===
 
 
 # === ANCHOR: GUARD_REPORT_COMBINE_GUARD_START ===
-def combine_guard(doctor, explain):
+def combine_guard(doctor: DoctorLike, explain: ExplainLike) -> GuardReport:
     total = doctor.score + {"LOW": 0, "MEDIUM": 3, "HIGH": 6}.get(explain.risk_level, 0)
     overall = (
         "HIGH"
@@ -64,7 +90,7 @@ def combine_guard(doctor, explain):
         else "GOOD"
     )
     blocked = overall == "HIGH"
-    recs = []
+    recs: list[str] = []
     if blocked:
         recs.append("변경된 파일을 확인할 때까지 AI 수정을 멈추세요.")
     if doctor.stats.get("oversized_entry_files", 0):
@@ -85,8 +111,10 @@ def combine_guard(doctor, explain):
         blocked,
         f"프로젝트 기본 상태는 {_doctor_level_label(doctor.level)}이고 점수는 {doctor.score}점입니다. 최근 바뀐 내용의 위험도는 {_risk_label(explain.risk_level)}이고, 전체 판단은 '{_overall_label(overall)}' 입니다.",
         recs,
-        doctor.to_dict(),
-        explain.to_dict(),
+        dict(doctor.to_dict()),
+        dict(explain.to_dict()),
     )
+
+
 # === ANCHOR: GUARD_REPORT_COMBINE_GUARD_END ===
 # === ANCHOR: GUARD_REPORT_END ===

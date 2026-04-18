@@ -9,6 +9,7 @@ __pycache__/
 *.pyo
 *.egg-info/
 dist/
+dist-vib/
 build/
 .eggs/
 
@@ -31,3 +32,9 @@ vibelign_exports/
 .vibelign/checkpoints/
 VibeLign_dev_plan/
 .vibelign/scan_cache.json
+dist/
+build/
+
+# API 키 파일
+api_keys.json
+*.api_keys

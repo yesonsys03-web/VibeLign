@@ -4,13 +4,17 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from vibelign.core.codespeak import build_codespeak, parse_codespeak_v0, is_valid_codespeak_v0
+from vibelign.core.codespeak import (
+    build_codespeak,
+    parse_codespeak_v0,
+    is_valid_codespeak_v0,
+)
 from vibelign.core.patch_suggester import (
     suggest_patch,
     score_path,
     choose_anchor,
     choose_suggested_anchor,
-    tokenize,
+    resolve_target_for_role,
 )
 
 
@@ -20,8 +24,11 @@ class CodeSpeakParsingTest(unittest.TestCase):
     def test_valid_codespeak(self):
         result = parse_codespeak_v0("ui.component.progress_bar.add")
         self.assertIsNotNone(result)
-        self.assertEqual(result["layer"], "ui")
-        self.assertEqual(result["action"], "add")
+        parsed = result
+        if parsed is None:
+            self.fail("parse_codespeak_v0 should return a parsed mapping")
+        self.assertEqual(parsed["layer"], "ui")
+        self.assertEqual(parsed["action"], "add")
 
     def test_invalid_format_missing_parts(self):
         self.assertIsNone(parse_codespeak_v0("ui.component.add"))
@@ -96,6 +103,26 @@ class PatchSuggesterScoreTest(unittest.TestCase):
         path = Path("main.py")
         score, rationale = score_path(path, [], "main.py")
         self.assertIsInstance(score, int)
+
+    def test_resolve_target_for_role_returns_structured_object(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "vibelign-gui/src/App.tsx").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (root / "vibelign-gui/src/App.tsx").write_text(
+                "// === ANCHOR: NAV_TABS_START ===\n"
+                "export default function App() { return <div>nav-tabs</div>; }\n"
+                "// === ANCHOR: NAV_TABS_END ===\n",
+                encoding="utf-8",
+            )
+            resolution = resolve_target_for_role(
+                root, "상단 메뉴 CHECKPOINTS", role="destination"
+            )
+            if resolution is None:
+                self.fail("resolve_target_for_role should return a structured object")
+            self.assertEqual(resolution.role, "destination")
+            self.assertEqual(resolution.target_file, "vibelign-gui/src/App.tsx")
 
 
 class ChooseAnchorTest(unittest.TestCase):

@@ -1,6 +1,7 @@
 import subprocess
 import unittest
 from pathlib import Path
+from typing import cast
 from unittest.mock import patch
 
 from vibelign.core import fast_tools
@@ -25,6 +26,14 @@ class FastToolsTest(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs["encoding"], "utf-8")
         self.assertEqual(run.call_args.kwargs["errors"], "replace")
         self.assertTrue(run.call_args.kwargs["text"])
+
+        cmd = cast(list[str], run.call_args.args[0])
+        for excluded in ("target", "env", ".mypy_cache", ".sisyphus"):
+            self.assertIn("--exclude", cmd)
+            self.assertIn(excluded, cmd)
+        self.assertIn("-e", cmd)
+        self.assertIn("py", cmd)
+        self.assertIn("tsx", cmd)
 
     def test_find_source_files_fd_returns_empty_on_decode_error(self):
         with patch.object(fast_tools, "_FD", "fd"):
@@ -51,6 +60,25 @@ class FastToolsTest(unittest.TestCase):
                 result = fast_tools.grep_anchors_rg(Path("/tmp/project"))
 
         self.assertEqual(result, {})
+
+    def test_grep_anchors_rg_uses_shared_scan_globs(self):
+        completed = subprocess.CompletedProcess(
+            args=["rg"],
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
+
+        with patch.object(fast_tools, "_RG", "rg"):
+            with patch(
+                "vibelign.core.fast_tools.subprocess.run", return_value=completed
+            ) as run:
+                _ = fast_tools.grep_anchors_rg(Path("/tmp/project"))
+
+        cmd = cast(list[str], run.call_args.args[0])
+        for ignored in (".vibelign", "target", "build", "dist", "node_modules"):
+            self.assertIn("--glob", cmd)
+            self.assertIn(f"!{ignored}/**", cmd)
 
 
 if __name__ == "__main__":

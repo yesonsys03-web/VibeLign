@@ -1,3 +1,4 @@
+# === ANCHOR: VIB_SECRETS_CMD_START ===
 from argparse import Namespace
 from pathlib import Path
 
@@ -5,6 +6,7 @@ from vibelign.core.git_hooks import (
     install_pre_commit_secret_hook,
     uninstall_pre_commit_secret_hook,
 )
+from vibelign.core.project_root import resolve_project_root
 from vibelign.core.secret_scan import SecretFinding, scan_staged_secrets
 from vibelign.terminal_render import (
     clack_error,
@@ -16,6 +18,7 @@ from vibelign.terminal_render import (
 )
 
 
+# === ANCHOR: VIB_SECRETS_CMD__PRINT_FINDINGS_START ===
 def _print_findings(findings: list[SecretFinding]) -> None:
     for finding in findings:
         location = finding.path
@@ -24,8 +27,12 @@ def _print_findings(findings: list[SecretFinding]) -> None:
         clack_warn(f"{location} [{finding.rule_id}] {finding.snippet}")
 
 
+# === ANCHOR: VIB_SECRETS_CMD__PRINT_FINDINGS_END ===
+
+
+# === ANCHOR: VIB_SECRETS_CMD_RUN_VIB_SECRETS_START ===
 def run_vib_secrets(args: Namespace) -> None:
-    root = Path.cwd()
+    root = resolve_project_root(Path.cwd())
 
     if getattr(args, "install_hook", False):
         result = install_pre_commit_secret_hook(root)
@@ -35,7 +42,7 @@ def run_vib_secrets(args: Namespace) -> None:
         if result.status == "existing-hook":
             clack_warn("이미 다른 커밋 자동 실행 설정이 있어서 덮어쓰지 않았어요.")
             clack_info(
-                "그 설정 안에 `vib secrets --staged` 한 줄을 추가하면 같이 쓸 수 있어요."
+                "그 설정 안에 `vib secrets --staged`와 `vib guard --strict`를 추가하면 같이 쓸 수 있어요."
             )
             raise SystemExit(1)
         if result.status == "chmod-failed":
@@ -45,7 +52,7 @@ def run_vib_secrets(args: Namespace) -> None:
             if result.detail:
                 clack_info(result.detail)
             raise SystemExit(1)
-        clack_success("이제부터 커밋할 때마다 비밀정보를 자동 검사해요.")
+        clack_success("이제부터 커밋할 때마다 비밀정보와 strict guard를 자동 검사해요.")
         if result.path is not None:
             clack_info(str(result.path))
         return
@@ -87,3 +94,7 @@ def run_vib_secrets(args: Namespace) -> None:
         raise SystemExit(1)
 
     clack_success("staged 변경사항에서 비밀정보를 찾지 못했어요.")
+
+
+# === ANCHOR: VIB_SECRETS_CMD_RUN_VIB_SECRETS_END ===
+# === ANCHOR: VIB_SECRETS_CMD_END ===

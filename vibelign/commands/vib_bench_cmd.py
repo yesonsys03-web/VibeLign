@@ -1,11 +1,19 @@
 # === ANCHOR: VIB_BENCH_CMD_START ===
 """vib bench — 앵커 효과 검증 벤치마크."""
+
+import importlib
 import json
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Literal, Protocol, TypedDict, cast
 
+try:
+    from typing import NotRequired
+except ImportError:
+    from typing_extensions import NotRequired
+
+from vibelign.commands.bench_fixtures import BENCHMARK_DIR, SAMPLE_PROJECT
 from vibelign.terminal_render import (
     clack_info,
     clack_intro,
@@ -15,19 +23,521 @@ from vibelign.terminal_render import (
     clack_warn,
 )
 
-BENCHMARK_DIR = Path(__file__).resolve().parent.parent.parent / "tests" / "benchmark"
-SAMPLE_PROJECT = BENCHMARK_DIR / "sample_project"
 SCENARIOS_PATH = BENCHMARK_DIR / "scenarios.json"
+
+# === ANCHOR: VIB_BENCH_PATCH_METRICS_START ===
+# Patch-accuracy bench runner helpers (C5, 2026-04-12).
+
+PATCH_BASELINE_PATH = BENCHMARK_DIR / "patch_accuracy_baseline.json"
+PATCH_PREFILTER_TOP_N = 3
+
+
+def _compute_files_ok(target_file: str, correct_files: list[str]) -> bool:
+    """True when suggest_patch's target_file is in the scenario's correct set."""
+    return target_file in correct_files
+
+
+def _compute_anchor_ok(
+    target_anchor: str, correct_anchor: str | None
+) -> bool | None:
+    """True/False when the scenario specifies an anchor, None otherwise.
+
+    Scenarios like `add_password_change` have `correct_anchor: null` — they
+    are excluded from the anchor_ok denominator.
+    """
+    if correct_anchor is None:
+        return None
+    return target_anchor == correct_anchor
+
+
+def _compute_recall_at_3(
+    candidates: list[tuple[str, int]], correct_files: list[str]
+) -> bool:
+    """True when any correct file appears in the top-N deterministic candidates.
+
+    `candidates` is a list of (relpath, score) pairs already sorted descending.
+    N = PATCH_PREFILTER_TOP_N.
+    """
+    top_paths = {relpath for relpath, _score in candidates[:PATCH_PREFILTER_TOP_N]}
+    return any(cf in top_paths for cf in correct_files)
+
+
+# === ANCHOR: VIB_BENCH_PATCH_METRICS_END ===
+
+
+# === ANCHOR: VIB_BENCH_PATCH_MEASURE_START ===
+
+
+def _measure_patch_accuracy(sandbox: Path) -> dict:
+    """Run all 5 scenarios x 2 modes against `sandbox`, compute metrics.
+
+    `sandbox` must already be prepared via `prepare_patch_sandbox`.
+    Returns a dict with `scenarios` (per-scenario metric map) and `totals`
+    (aggregated strings like "3/5"). Ready to diff against a baseline file.
+    """
+    from vibelign.core.patch_suggester import score_candidates, suggest_patch
+
+    scenarios_raw = _load_scenarios()
+    scenarios: dict[str, dict] = {}
+
+    for sc in scenarios_raw:
+        sid = sc["id"]
+        request = sc["request"]
+        correct_files = list(sc["correct_files"])
+        correct_anchor = sc.get("correct_anchor")
+
+        candidates = score_candidates(sandbox, request)
+        candidate_relpaths = [
+            (
+                str(path.relative_to(sandbox)).replace("\\", "/"),
+                score,
+            )
+            for path, score in candidates
+        ]
+        recall = _compute_recall_at_3(candidate_relpaths, correct_files)
+
+        entry: dict[str, dict] = {}
+        for mode_key, use_ai in (("det", False), ("ai", True)):
+            result = suggest_patch(sandbox, request, use_ai=use_ai)
+            entry[mode_key] = {
+                "files_ok": _compute_files_ok(result.target_file, correct_files),
+                "anchor_ok": _compute_anchor_ok(
+                    result.target_anchor, correct_anchor
+                ),
+                "recall_at_3": recall,
+            }
+        scenarios[sid] = entry
+
+    totals = _compute_totals(scenarios)
+    return {"scenarios": scenarios, "totals": totals}
+
+
+def _compute_totals(scenarios: dict[str, dict]) -> dict[str, dict[str, str]]:
+    """Aggregate per-scenario booleans into 'N/M' strings by mode.
+
+    - files_ok / recall_at_3 denominator = number of scenarios
+    - anchor_ok denominator = scenarios where anchor_ok is not None
+    """
+    n_scenarios = len(scenarios)
+    totals: dict[str, dict[str, str]] = {}
+    for mode in ("det", "ai"):
+        files_hits = sum(
+            1 for s in scenarios.values() if s[mode]["files_ok"]
+        )
+        anchor_hits = sum(
+            1
+            for s in scenarios.values()
+            if s[mode]["anchor_ok"] is True
+        )
+        anchor_total = sum(
+            1
+            for s in scenarios.values()
+            if s[mode]["anchor_ok"] is not None
+        )
+        recall_hits = sum(
+            1 for s in scenarios.values() if s[mode]["recall_at_3"]
+        )
+        totals[mode] = {
+            "files_ok": f"{files_hits}/{n_scenarios}",
+            "anchor_ok": f"{anchor_hits}/{anchor_total}",
+            "recall_at_3": f"{recall_hits}/{n_scenarios}",
+        }
+    return totals
+
+
+def _load_patch_baseline() -> dict | None:
+    """Read `patch_accuracy_baseline.json`. Returns None if missing."""
+    if not PATCH_BASELINE_PATH.exists():
+        return None
+    return json.loads(PATCH_BASELINE_PATH.read_text(encoding="utf-8"))
+
+
+def _diff_against_baseline(current: dict, baseline: dict) -> dict:
+    """Compute regressions + improvements per (scenario, mode, metric).
+
+    Regression: baseline was True, current is False.
+    Improvement: baseline was False, current is True.
+    None (anchor_ok for no-anchor scenarios) is never a regression or improvement.
+    """
+    regressions: list[dict] = []
+    improvements: list[dict] = []
+    cur_scenarios = current.get("scenarios", {})
+    base_scenarios = baseline.get("scenarios", {})
+    for sid, cur_entry in cur_scenarios.items():
+        base_entry = base_scenarios.get(sid, {})
+        for mode in ("det", "ai"):
+            cur_metrics = cur_entry.get(mode, {})
+            base_metrics = base_entry.get(mode, {})
+            for metric in ("files_ok", "anchor_ok", "recall_at_3"):
+                was = base_metrics.get(metric)
+                now = cur_metrics.get(metric)
+                if was is None or now is None:
+                    continue
+                if was is True and now is False:
+                    regressions.append(
+                        {
+                            "scenario": sid,
+                            "mode": mode,
+                            "metric": metric,
+                            "was": was,
+                            "now": now,
+                        }
+                    )
+                elif was is False and now is True:
+                    improvements.append(
+                        {
+                            "scenario": sid,
+                            "mode": mode,
+                            "metric": metric,
+                            "was": was,
+                            "now": now,
+                        }
+                    )
+    return {"regressions": regressions, "improvements": improvements}
+
+
+def _write_patch_baseline(current: dict) -> None:
+    """Overwrite the baseline file with `current`, preserving metadata."""
+    from datetime import date
+
+    from vibelign.commands.bench_fixtures import PINNED_INTENTS_VERSION
+
+    payload = {
+        "pinned_intents_version": PINNED_INTENTS_VERSION,
+        "generated_at": date.today().isoformat(),
+        "notes": (
+            "Updated via `vib bench --patch --update-baseline`. "
+            "See docs/superpowers/specs/2026-04-12-patch-accuracy-c5-bench-runner-design.md."
+        ),
+        "scenarios": current["scenarios"],
+        "totals": current["totals"],
+    }
+    PATCH_BASELINE_PATH.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
+# === ANCHOR: VIB_BENCH_PATCH_MEASURE_END ===
+
+
+# === ANCHOR: VIB_BENCH_PATCH_RUNNER_START ===
+
+
+def _format_patch_report(current: dict, baseline: dict | None, diff: dict) -> str:
+    """Human-readable report showing totals vs baseline + per-scenario rows."""
+    lines = []
+    lines.append(
+        "Patch accuracy benchmark (pinned intents, 5 scenarios × 2 modes)"
+    )
+    if baseline is not None:
+        lines.append(
+            f"Baseline: {PATCH_BASELINE_PATH.relative_to(BENCHMARK_DIR.parent)} "
+            f"({baseline.get('generated_at', 'unknown')})"
+        )
+    else:
+        lines.append("Baseline: (none — this run could be used as a new baseline)")
+    lines.append("")
+
+    header = f"{'':<21}{'deterministic':<20}{'--ai':<20}"
+    lines.append(header)
+    for metric_key, metric_label in (
+        ("files_ok", "files_ok"),
+        ("anchor_ok", "anchor_ok"),
+        ("recall_at_3", "prefilter_recall@3"),
+    ):
+        det_cell = _format_totals_cell(
+            current["totals"]["det"][metric_key],
+            baseline["totals"]["det"][metric_key] if baseline else None,
+        )
+        ai_cell = _format_totals_cell(
+            current["totals"]["ai"][metric_key],
+            baseline["totals"]["ai"][metric_key] if baseline else None,
+        )
+        lines.append(f"  {metric_label:<19}{det_cell:<20}{ai_cell:<20}")
+    lines.append("")
+
+    lines.append("Per-scenario (files_ok / anchor_ok / recall@3):")
+    for sid, entry in current["scenarios"].items():
+        det_row = _format_scenario_row(entry["det"])
+        ai_row = _format_scenario_row(entry["ai"])
+        lines.append(f"  {sid:<26}det {det_row}   ai {ai_row}")
+    lines.append("")
+
+    if diff["regressions"]:
+        lines.append(f"Regressions: {len(diff['regressions'])}")
+        for r in diff["regressions"]:
+            lines.append(
+                f"  - {r['scenario']} [{r['mode']}] {r['metric']}: "
+                f"{r['was']} -> {r['now']}"
+            )
+    else:
+        lines.append("Regressions: none")
+
+    if diff["improvements"]:
+        lines.append(f"Improvements: {len(diff['improvements'])}")
+        for i in diff["improvements"]:
+            lines.append(
+                f"  + {i['scenario']} [{i['mode']}] {i['metric']}: "
+                f"{i['was']} -> {i['now']}"
+            )
+    else:
+        lines.append("Improvements: none")
+
+    return "\n".join(lines)
+
+
+def _format_totals_cell(current_str: str, baseline_str: str | None) -> str:
+    """Render 'N/M' with a (=/+k/-k) delta marker vs baseline."""
+    if baseline_str is None:
+        return f"{current_str}"
+    cur_num = int(current_str.split("/")[0])
+    base_num = int(baseline_str.split("/")[0])
+    delta = cur_num - base_num
+    if delta == 0:
+        marker = "(=)"
+    elif delta > 0:
+        marker = f"(+{delta})"
+    else:
+        marker = f"({delta})"
+    return f"{current_str} {marker}"
+
+
+def _format_scenario_row(entry: dict) -> str:
+    """Render one scenario row as three checkmarks/crosses/dashes."""
+
+    def glyph(v: bool | None) -> str:
+        if v is True:
+            return "✓"
+        if v is False:
+            return "✗"
+        return "—"
+
+    return (
+        f"{glyph(entry['files_ok'])} "
+        f"{glyph(entry['anchor_ok'])} "
+        f"{glyph(entry['recall_at_3'])}"
+    )
+
+
+def _run_patch_accuracy(
+    *, update_baseline: bool, as_json: bool
+) -> int:
+    """Execute the patch-accuracy bench. Returns desired process exit code."""
+    import tempfile
+
+    from vibelign.commands.bench_fixtures import prepare_patch_sandbox
+
+    baseline = _load_patch_baseline()
+    with tempfile.TemporaryDirectory() as tmp_str:
+        sandbox = prepare_patch_sandbox(Path(tmp_str))
+        current = _measure_patch_accuracy(sandbox)
+
+    if update_baseline:
+        _write_patch_baseline(current)
+        baseline = _load_patch_baseline()
+
+    diff = (
+        _diff_against_baseline(current, baseline)
+        if baseline is not None
+        else {"regressions": [], "improvements": []}
+    )
+
+    if as_json:
+        from vibelign.terminal_render import cli_print
+
+        cli_print(
+            json.dumps(
+                {
+                    "current": current,
+                    "baseline": baseline,
+                    "diff": diff,
+                    "update_baseline": update_baseline,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+    else:
+        report = _format_patch_report(current, baseline, diff)
+        from vibelign.terminal_render import cli_print
+
+        cli_print(report)
+
+    if update_baseline:
+        return 0
+    return 1 if diff["regressions"] else 0
+
+
+# === ANCHOR: VIB_BENCH_PATCH_RUNNER_END ===
+
+
+class BenchmarkScenario(TypedDict):
+    id: str
+    request: str
+    description: str
+    correct_files: list[str]
+    forbidden_files: NotRequired[list[str]]
+    correct_anchor: NotRequired[str]
+
+
+class ProjectMapData(TypedDict):
+    entry_files: list[str]
+    ui_modules: list[str]
+    service_modules: list[str]
+    core_modules: list[str]
+
+
+class AnchorMetaEntry(TypedDict, total=False):
+    intent: str
+    connects: list[str]
+
+
+class BenchScoreEntry(TypedDict):
+    condition: str
+    scenario_id: str
+    file_accuracy: float
+    precision: float
+    safety: float
+    anchor_respected: bool | None
+    modified_files: list[str]
+    extra_files: list[str]
+
+
+class BenchScores(TypedDict):
+    scenarios: list[BenchScoreEntry]
+
+
+class VibBenchArgs(Protocol):
+    generate: bool
+    score: bool
+    report: bool
+    json: bool
+
+
+ScoreMetric = Literal["file_accuracy", "precision", "safety"]
+
+
+class BuildProjectMapFn(Protocol):
+    def __call__(self, root: Path, force_scan: bool = False) -> dict[str, object]: ...
+
+
+def _empty_project_map() -> ProjectMapData:
+    return {
+        "entry_files": [],
+        "ui_modules": [],
+        "service_modules": [],
+        "core_modules": [],
+    }
+
+
+def _normalize_object_dict(value: object) -> dict[str, object] | None:
+    if not isinstance(value, dict):
+        return None
+    raw = cast(dict[object, object], value)
+    normalized: dict[str, object] = {}
+    for key, item in raw.items():
+        normalized[str(key)] = item
+    return normalized
+
+
+def _normalize_string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    raw = cast(list[object], value)
+    return [item for item in raw if isinstance(item, str)]
+
+
+def _normalize_scenario(value: object) -> BenchmarkScenario | None:
+    data = _normalize_object_dict(value)
+    if data is None:
+        return None
+    scenario_id = data.get("id")
+    request = data.get("request")
+    description = data.get("description")
+    if (
+        not isinstance(scenario_id, str)
+        or not isinstance(request, str)
+        or not isinstance(description, str)
+    ):
+        return None
+    normalized: BenchmarkScenario = {
+        "id": scenario_id,
+        "request": request,
+        "description": description,
+        "correct_files": _normalize_string_list(data.get("correct_files")),
+    }
+    forbidden_files = _normalize_string_list(data.get("forbidden_files"))
+    if forbidden_files:
+        normalized["forbidden_files"] = forbidden_files
+    correct_anchor = data.get("correct_anchor")
+    if isinstance(correct_anchor, str):
+        normalized["correct_anchor"] = correct_anchor
+    return normalized
+
+
+def _normalize_project_map(value: object) -> ProjectMapData:
+    data = _normalize_object_dict(value)
+    if data is None:
+        return _empty_project_map()
+    return {
+        "entry_files": _normalize_string_list(data.get("entry_files")),
+        "ui_modules": _normalize_string_list(data.get("ui_modules")),
+        "service_modules": _normalize_string_list(data.get("service_modules")),
+        "core_modules": _normalize_string_list(data.get("core_modules")),
+    }
+
+
+def _normalize_anchor_meta(value: object) -> dict[str, AnchorMetaEntry]:
+    data = _normalize_object_dict(value)
+    if data is None:
+        return {}
+    normalized: dict[str, AnchorMetaEntry] = {}
+    for name, entry_obj in data.items():
+        entry = _normalize_object_dict(entry_obj)
+        if entry is None:
+            continue
+        meta_entry: AnchorMetaEntry = {}
+        intent = entry.get("intent")
+        if isinstance(intent, str):
+            meta_entry["intent"] = intent
+        connects = _normalize_string_list(entry.get("connects"))
+        if connects:
+            meta_entry["connects"] = connects
+        normalized[name] = meta_entry
+    return normalized
+
+
+def _build_project_map_for_bench(root: Path) -> dict[str, object]:
+    vib_start_raw = cast(
+        object, importlib.import_module("vibelign.commands.vib_start_cmd")
+    )
+    build_project_map = cast(
+        BuildProjectMapFn, getattr(vib_start_raw, "_build_project_map")
+    )
+    return build_project_map(root)
 
 
 # === ANCHOR: VIB_BENCH_CMD__LOAD_SCENARIOS_START ===
-def _load_scenarios() -> List[Dict[str, Any]]:
-    return json.loads(SCENARIOS_PATH.read_text(encoding="utf-8"))
+def _load_scenarios() -> list[BenchmarkScenario]:
+    raw = cast(object, json.loads(SCENARIOS_PATH.read_text(encoding="utf-8")))
+    if not isinstance(raw, list):
+        return []
+    scenarios: list[BenchmarkScenario] = []
+    for item in cast(list[object], raw):
+        scenario = _normalize_scenario(item)
+        if scenario is not None:
+            scenarios.append(scenario)
+    return scenarios
+
+
 # === ANCHOR: VIB_BENCH_CMD__LOAD_SCENARIOS_END ===
 
 
 # === ANCHOR: VIB_BENCH_CMD__GENERATE_PLAIN_PROMPT_START ===
-def _generate_plain_prompt(scenario: Dict[str, Any], project_files: List[str]) -> str:
+def _generate_plain_prompt(
+    scenario: BenchmarkScenario, project_files: list[str]
+) -> str:
     """A조건: 앵커/코드맵 없이 plain prompt 생성."""
     lines = [
         f"Request: {scenario['request']}",
@@ -35,30 +545,38 @@ def _generate_plain_prompt(scenario: Dict[str, Any], project_files: List[str]) -
         "Project files:",
     ]
     lines.extend(f"- {f}" for f in sorted(project_files))
-    lines.extend([
-        "",
-        "Please modify the relevant file(s) to fulfill this request.",
-        "Do not rewrite entire files. Make the smallest change necessary.",
-    ])
+    lines.extend(
+        [
+            "",
+            "Please modify the relevant file(s) to fulfill this request.",
+            "Do not rewrite entire files. Make the smallest change necessary.",
+        ]
+    )
     return "\n".join(lines)
+
+
 # === ANCHOR: VIB_BENCH_CMD__GENERATE_PLAIN_PROMPT_END ===
 
 
 # === ANCHOR: VIB_BENCH_CMD__GENERATE_ANCHOR_PROMPT_START ===
 def _generate_anchor_prompt(
-    scenario: Dict[str, Any], root: Path, project_files: List[str]
-# === ANCHOR: VIB_BENCH_CMD__GENERATE_ANCHOR_PROMPT_END ===
+    scenario: BenchmarkScenario,
+    root: Path,
+    _project_files: list[str],
+    # === ANCHOR: VIB_BENCH_CMD__GENERATE_ANCHOR_PROMPT_END ===
 ) -> str:
     """B조건: 앵커+코드맵 포함 handoff prompt 생성."""
-    from vibelign.core.anchor_tools import collect_anchor_index, extract_anchors
+    from vibelign.core.anchor_tools import collect_anchor_index
     from vibelign.core.meta_paths import MetaPaths
 
     meta = MetaPaths(root)
 
     # 코드맵 로드
-    project_map = {}
+    project_map: ProjectMapData = _empty_project_map()
     if meta.project_map_path.exists():
-        project_map = json.loads(meta.project_map_path.read_text(encoding="utf-8"))
+        project_map = _normalize_project_map(
+            cast(object, json.loads(meta.project_map_path.read_text(encoding="utf-8")))
+        )
 
     # 앵커 인덱스
     anchor_index = collect_anchor_index(root)
@@ -91,29 +609,35 @@ def _generate_anchor_prompt(
     anchor_meta_path = meta.vibelign_dir / "anchor_meta.json"
     if anchor_meta_path.exists():
         try:
-            anchor_meta = json.loads(anchor_meta_path.read_text(encoding="utf-8"))
+            anchor_meta = _normalize_anchor_meta(
+                cast(object, json.loads(anchor_meta_path.read_text(encoding="utf-8")))
+            )
             if anchor_meta:
                 lines.extend(["", "## Anchor Details"])
                 for name, meta_entry in sorted(anchor_meta.items()):
                     parts = [f"- {name}"]
-                    if meta_entry.get("intent"):
-                        parts.append(f"  intent: {meta_entry['intent']}")
-                    if meta_entry.get("connects"):
-                        parts.append(f"  connects: {', '.join(meta_entry['connects'])}")
+                    intent = meta_entry.get("intent")
+                    if intent:
+                        parts.append(f"  intent: {intent}")
+                    connects = meta_entry.get("connects")
+                    if connects:
+                        parts.append(f"  connects: {', '.join(connects)}")
                     lines.extend(parts)
         except (json.JSONDecodeError, OSError):
             pass
 
-    lines.extend([
-        "",
-        "## Rules",
-        "- Only modify files relevant to the request",
-        "- Stay within anchor boundaries",
-        "- Do not rewrite entire files",
-        "- Do not remove ANCHOR markers",
-        "",
-        "Please modify the relevant file(s) to fulfill this request.",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Rules",
+            "- Only modify files relevant to the request",
+            "- Stay within anchor boundaries",
+            "- Do not rewrite entire files",
+            "- Do not remove ANCHOR markers",
+            "",
+            "Please modify the relevant file(s) to fulfill this request.",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -121,7 +645,6 @@ def _generate_anchor_prompt(
 def _run_generate(output_dir: Path) -> None:
     """A/B 조건별 프롬프트 생성."""
     from vibelign.core.anchor_tools import insert_module_anchors
-    from vibelign.commands.vib_start_cmd import _build_project_map
     from vibelign.core.meta_paths import MetaPaths
     from vibelign.core.project_scan import iter_source_files, relpath_str
 
@@ -133,11 +656,9 @@ def _run_generate(output_dir: Path) -> None:
         tmp_root = Path(tmp)
 
         # A조건: 앵커 없이 프롬프트 생성
-        shutil.copytree(SAMPLE_PROJECT, tmp_root / "project_a")
+        _ = shutil.copytree(SAMPLE_PROJECT, tmp_root / "project_a")
         proj_a = tmp_root / "project_a"
-        project_files = [
-            relpath_str(proj_a, p) for p in iter_source_files(proj_a)
-        ]
+        project_files = [relpath_str(proj_a, p) for p in iter_source_files(proj_a)]
 
         a_dir = output_dir / "condition_A_no_anchor"
         a_dir.mkdir(parents=True, exist_ok=True)
@@ -145,21 +666,21 @@ def _run_generate(output_dir: Path) -> None:
         clack_step("A조건: 앵커/코드맵 없는 프롬프트 생성 중...")
         for sc in scenarios:
             prompt = _generate_plain_prompt(sc, project_files)
-            (a_dir / f"{sc['id']}.txt").write_text(prompt, encoding="utf-8")
+            _ = (a_dir / f"{sc['id']}.txt").write_text(prompt, encoding="utf-8")
             clack_info(f"  {sc['id']}: {sc['description']}")
 
         # B조건: 앵커+코드맵 포함 프롬프트 생성
-        shutil.copytree(SAMPLE_PROJECT, tmp_root / "project_b")
+        _ = shutil.copytree(SAMPLE_PROJECT, tmp_root / "project_b")
         proj_b = tmp_root / "project_b"
 
         meta = MetaPaths(proj_b)
         meta.ensure_vibelign_dirs()
 
         for src_file in iter_source_files(proj_b):
-            insert_module_anchors(src_file)
+            _ = insert_module_anchors(src_file)
 
-        project_map = _build_project_map(proj_b)
-        meta.project_map_path.write_text(
+        project_map = _build_project_map_for_bench(proj_b)
+        _ = meta.project_map_path.write_text(
             json.dumps(project_map, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
@@ -167,23 +688,23 @@ def _run_generate(output_dir: Path) -> None:
         b_dir = output_dir / "condition_B_with_anchor"
         b_dir.mkdir(parents=True, exist_ok=True)
 
-        b_project_files = [
-            relpath_str(proj_b, p) for p in iter_source_files(proj_b)
-        ]
+        b_project_files = [relpath_str(proj_b, p) for p in iter_source_files(proj_b)]
 
         clack_step("B조건: 앵커+코드맵 포함 프롬프트 생성 중...")
         for sc in scenarios:
             prompt = _generate_anchor_prompt(sc, proj_b, b_project_files)
-            (b_dir / f"{sc['id']}.txt").write_text(prompt, encoding="utf-8")
+            _ = (b_dir / f"{sc['id']}.txt").write_text(prompt, encoding="utf-8")
             clack_info(f"  {sc['id']}: {sc['description']}")
+
+
 # === ANCHOR: VIB_BENCH_CMD__RUN_GENERATE_END ===
 
 
 # === ANCHOR: VIB_BENCH_CMD__RUN_SCORE_START ===
-def _run_score(results_dir: Path) -> Dict[str, Any]:
+def _run_score(results_dir: Path) -> BenchScores:
     """AI 수정 결과를 채점."""
     scenarios = _load_scenarios()
-    scores = {"scenarios": []}
+    scores: BenchScores = {"scenarios": []}
 
     for condition in ["condition_A_no_anchor", "condition_B_with_anchor"]:
         cond_dir = results_dir / condition
@@ -196,29 +717,32 @@ def _run_score(results_dir: Path) -> Dict[str, Any]:
                 continue
 
             # 수정된 파일 목록 확인
-            modified_files = []
+            modified_files: list[str] = []
             for f in sc_dir.iterdir():
                 if f.suffix == ".py":
-                    modified_files.append(f.name if "/" not in f.name else str(f.relative_to(sc_dir)))
+                    modified_files.append(
+                        f.name if "/" not in f.name else str(f.relative_to(sc_dir))
+                    )
 
             # 채점
             correct_files = set(sc["correct_files"])
             forbidden_files = set(sc.get("forbidden_files", []))
             modified_set = set(modified_files)
 
-            file_accuracy = len(correct_files & modified_set) / max(len(correct_files), 1)
+            file_accuracy = len(correct_files & modified_set) / max(
+                len(correct_files), 1
+            )
             safety = 1.0 if not (forbidden_files & modified_set) else 0.0
             extra_files = modified_set - correct_files
-            precision = (
-                len(correct_files & modified_set) / max(len(modified_set), 1)
-            )
+            precision = len(correct_files & modified_set) / max(len(modified_set), 1)
 
             # 앵커 경계 체크 (B조건에서만 의미 있음)
             anchor_respected = None
-            if condition == "condition_B_with_anchor" and sc.get("correct_anchor"):
-                anchor_respected = _check_anchor_boundary(sc_dir, sc["correct_anchor"])
+            correct_anchor = sc.get("correct_anchor")
+            if condition == "condition_B_with_anchor" and correct_anchor:
+                anchor_respected = _check_anchor_boundary(sc_dir, correct_anchor)
 
-            scores["scenarios"].append({
+            entry: BenchScoreEntry = {
                 "condition": condition,
                 "scenario_id": sc["id"],
                 "file_accuracy": round(file_accuracy, 2),
@@ -227,9 +751,12 @@ def _run_score(results_dir: Path) -> Dict[str, Any]:
                 "anchor_respected": anchor_respected,
                 "modified_files": sorted(modified_files),
                 "extra_files": sorted(extra_files),
-            })
+            }
+            scores["scenarios"].append(entry)
 
     return scores
+
+
 # === ANCHOR: VIB_BENCH_CMD__RUN_SCORE_END ===
 
 
@@ -243,11 +770,13 @@ def _check_anchor_boundary(sc_dir: Path, expected_anchor: str) -> bool:
             if expected_anchor in content:
                 return True
     return False
+
+
 # === ANCHOR: VIB_BENCH_CMD__CHECK_ANCHOR_BOUNDARY_END ===
 
 
 # === ANCHOR: VIB_BENCH_CMD__RUN_REPORT_START ===
-def _run_report(scores: Dict[str, Any]) -> str:
+def _run_report(scores: BenchScores) -> str:
     """채점 결과를 마크다운 리포트로 변환."""
     lines = [
         "# VibeLign 앵커 효과 벤치마크 결과",
@@ -260,60 +789,78 @@ def _run_report(scores: Dict[str, Any]) -> str:
     for entry in scores.get("scenarios", []):
         cond_label = "A (없음)" if "no_anchor" in entry["condition"] else "B (있음)"
         anchor_str = (
-            "O" if entry["anchor_respected"] is True
-            else "X" if entry["anchor_respected"] is False
+            "O"
+            if entry["anchor_respected"] is True
+            else "X"
+            if entry["anchor_respected"] is False
             else "-"
         )
         lines.append(
             f"| {entry['scenario_id']} | {cond_label} | "
-            f"{entry['file_accuracy']:.0%} | {entry['precision']:.0%} | "
-            f"{entry['safety']:.0%} | {anchor_str} |"
+            + f"{entry['file_accuracy']:.0%} | {entry['precision']:.0%} | "
+            + f"{entry['safety']:.0%} | {anchor_str} |"
         )
 
     # 평균 요약
     a_scores = [e for e in scores.get("scenarios", []) if "no_anchor" in e["condition"]]
-    b_scores = [e for e in scores.get("scenarios", []) if "with_anchor" in e["condition"]]
+    b_scores = [
+        e for e in scores.get("scenarios", []) if "with_anchor" in e["condition"]
+    ]
 
     if a_scores and b_scores:
         # === ANCHOR: VIB_BENCH_CMD_AVG_START ===
-        def avg(entries, key):
+        def avg(entries: list[BenchScoreEntry], key: ScoreMetric) -> float:
             vals = [e[key] for e in entries]
             return sum(vals) / len(vals) if vals else 0
+
         # === ANCHOR: VIB_BENCH_CMD_AVG_END ===
 
-        lines.extend([
-            "",
-            "## 평균 비교",
-            "",
-            "| 지표 | A (앵커 없음) | B (앵커 있음) | 차이 |",
-            "|------|-------------|-------------|------|",
-        ])
-        for key, label in [
+        lines.extend(
+            [
+                "",
+                "## 평균 비교",
+                "",
+                "| 지표 | A (앵커 없음) | B (앵커 있음) | 차이 |",
+                "|------|-------------|-------------|------|",
+            ]
+        )
+        metrics: list[tuple[ScoreMetric, str]] = [
             ("file_accuracy", "파일 정확도"),
             ("precision", "정밀도"),
             ("safety", "안전도"),
-        ]:
+        ]
+        for key, label in metrics:
             a_avg = avg(a_scores, key)
             b_avg = avg(b_scores, key)
             diff = b_avg - a_avg
             sign = "+" if diff >= 0 else ""
-            lines.append(
-                f"| {label} | {a_avg:.0%} | {b_avg:.0%} | {sign}{diff:.0%} |"
-            )
-# === ANCHOR: VIB_BENCH_CMD__RUN_REPORT_END ===
+            lines.append(f"| {label} | {a_avg:.0%} | {b_avg:.0%} | {sign}{diff:.0%} |")
+    # === ANCHOR: VIB_BENCH_CMD__RUN_REPORT_END ===
 
     return "\n".join(lines)
 
 
 # === ANCHOR: VIB_BENCH_CMD_RUN_VIB_BENCH_START ===
-def run_vib_bench(args: Any) -> None:
+def run_vib_bench(args: object) -> None:
     """앵커 효과 검증 벤치마크."""
     if not SAMPLE_PROJECT.exists():
-        clack_warn("벤치마크 테스트 프로젝트를 찾을 수 없어요: tests/benchmark/sample_project/")
+        clack_warn(
+            "벤치마크 테스트 프로젝트를 찾을 수 없어요: tests/benchmark/sample_project/"
+        )
         raise SystemExit(1)
 
     output_dir = BENCHMARK_DIR / "output"
     results_dir = BENCHMARK_DIR / "results"
+
+    do_patch = getattr(args, "patch", False)
+    update_baseline = getattr(args, "update_baseline", False)
+    as_json_flag = getattr(args, "json", False)
+
+    if do_patch:
+        exit_code = _run_patch_accuracy(
+            update_baseline=update_baseline, as_json=as_json_flag
+        )
+        raise SystemExit(exit_code)
 
     do_generate = getattr(args, "generate", False)
     do_score = getattr(args, "score", False)
@@ -330,7 +877,9 @@ def run_vib_bench(args: Any) -> None:
         clack_info("")
         clack_info("다음 단계:")
         clack_info("1. output/condition_A_no_anchor/ 의 프롬프트를 AI에게 전달")
-        clack_info("2. AI 수정 결과를 results/condition_A_no_anchor/{시나리오}/ 에 저장")
+        clack_info(
+            "2. AI 수정 결과를 results/condition_A_no_anchor/{시나리오}/ 에 저장"
+        )
         clack_info("3. output/condition_B_with_anchor/ 도 동일하게 반복")
         clack_info("4. vib bench --score 로 채점")
         clack_outro("프롬프트가 준비되었어요!")
@@ -340,28 +889,31 @@ def run_vib_bench(args: Any) -> None:
         if not results_dir.exists():
             clack_warn(
                 f"결과 디렉토리를 찾을 수 없어요: {results_dir}\n"
-                "AI 수정 결과를 results/ 폴더에 먼저 저장하세요."
+                + "AI 수정 결과를 results/ 폴더에 먼저 저장하세요."
             )
             raise SystemExit(1)
 
         scores = _run_score(results_dir)
         if as_json:
             from vibelign.terminal_render import cli_print
+
             cli_print(json.dumps(scores, indent=2, ensure_ascii=False))
         else:
             for entry in scores.get("scenarios", []):
                 clack_info(
                     f"{entry['scenario_id']} [{entry['condition']}]: "
-                    f"파일={entry['file_accuracy']:.0%} "
-                    f"정밀={entry['precision']:.0%} "
-                    f"안전={entry['safety']:.0%}"
+                    + f"파일={entry['file_accuracy']:.0%} "
+                    + f"정밀={entry['precision']:.0%} "
+                    + f"안전={entry['safety']:.0%}"
                 )
             clack_outro("채점 완료!")
 
         if do_report:
             report = _run_report(scores)
             report_path = BENCHMARK_DIR / "BENCHMARK_REPORT.md"
-            report_path.write_text(report, encoding="utf-8")
+            _ = report_path.write_text(report, encoding="utf-8")
             clack_success(f"리포트 생성: {report_path}")
+
+
 # === ANCHOR: VIB_BENCH_CMD_RUN_VIB_BENCH_END ===
 # === ANCHOR: VIB_BENCH_CMD_END ===

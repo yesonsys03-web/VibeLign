@@ -1,7 +1,11 @@
+# === ANCHOR: ANCHOR_TOOLS_START ===
+from collections.abc import Collection
 from pathlib import Path
+import hashlib
 import json
 import re
-from typing import Any, Optional
+import sys
+from typing import TypeAlias, TypedDict, cast
 
 from vibelign.core.project_map import ProjectMapSnapshot
 from vibelign.core.project_scan import iter_source_files, line_count, safe_read_text
@@ -10,6 +14,54 @@ from vibelign.core.project_scan import iter_source_files, line_count, safe_read_
 from vibelign.terminal_render import cli_print
 
 print = cli_print
+
+AllowedExts: TypeAlias = Collection[str]
+SymbolBlock: TypeAlias = tuple[int, int, str, str]
+
+
+class AnchorRecommendation(TypedDict):
+    path: str
+    score: int
+    reasons: list[str]
+    suggested_anchors: list[str]
+    line_count: int
+
+
+class AnchorMetadataEntry(TypedDict):
+    anchors: list[str]
+    suggested_anchors: list[str]
+
+
+class AnchorMetaEntry(TypedDict, total=False):
+    intent: str
+    connects: list[str]
+    warning: str
+    aliases: list[str]
+    description: str
+    _source: str
+    _content_hash: str
+
+
+def _normalize_object_dict(value: object) -> dict[str, object] | None:
+    if not isinstance(value, dict):
+        return None
+    raw = cast(dict[object, object], value)
+    normalized: dict[str, object] = {}
+    for key, item in raw.items():
+        normalized[str(key)] = item
+    return normalized
+
+
+def _normalize_string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    raw = cast(list[object], value)
+    normalized: list[str] = []
+    for item in raw:
+        if isinstance(item, str):
+            normalized.append(item)
+    return normalized
+
 
 COMMENT_PREFIX = {
     ".py": "#",
@@ -26,7 +78,7 @@ COMMENT_PREFIX = {
     ".hpp": "//",
     ".cs": "//",
 }
-ANCHOR_RE = re.compile(r"ANCHOR:\s*([A-Z0-9_]+)")
+ANCHOR_RE = re.compile(r"===\s*ANCHOR:\s*([A-Z0-9_]+)\s*===")
 PY_SYMBOL_RE = re.compile(
     r"^(?:async\s+def|def|class)\s+([A-Za-z_][A-Za-z0-9_]*)", re.MULTILINE
 )
@@ -40,21 +92,34 @@ CONST_FUNC_RE = re.compile(
 )
 
 
+# === ANCHOR: ANCHOR_TOOLS_BUILD_ANCHOR_NAME_START ===
 def build_anchor_name(path: Path) -> str:
     return re.sub(
         r"[^A-Z0-9_]", "_", path.stem.upper().replace("-", "_").replace(" ", "_")
     )
 
 
+# === ANCHOR: ANCHOR_TOOLS_BUILD_ANCHOR_NAME_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_NORMALIZE_ANCHOR_NAME_START ===
 def normalize_anchor_name(name: str) -> str:
     return re.sub(r"[^A-Z0-9_]", "_", name.upper())
 
 
+# === ANCHOR: ANCHOR_TOOLS_NORMALIZE_ANCHOR_NAME_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_BUILD_SYMBOL_ANCHOR_NAME_START ===
 def build_symbol_anchor_name(path: Path, symbol_name: str) -> str:
     return f"{build_anchor_name(path)}_{normalize_anchor_name(symbol_name)}"
 
 
-def build_anchor_block(path: Path):
+# === ANCHOR: ANCHOR_TOOLS_BUILD_SYMBOL_ANCHOR_NAME_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_BUILD_ANCHOR_BLOCK_START ===
+def build_anchor_block(path: Path) -> tuple[str, str]:
     prefix = COMMENT_PREFIX.get(path.suffix.lower(), "#")
     name = build_anchor_name(path)
     return (
@@ -63,20 +128,33 @@ def build_anchor_block(path: Path):
     )
 
 
-def preview_anchor_targets(root: Path, allowed_exts=None):
-    targets = []
+# === ANCHOR: ANCHOR_TOOLS_BUILD_ANCHOR_BLOCK_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_PREVIEW_ANCHOR_TARGETS_START ===
+def preview_anchor_targets(
+    root: Path, allowed_exts: AllowedExts | None = None
+) -> list[Path]:
+    targets: list[Path] = []
     for path in iter_source_files(root):
         if allowed_exts is not None and path.suffix.lower() not in allowed_exts:
             continue
         text = safe_read_text(path)
-        if text and "ANCHOR:" not in text:
+        if text and "=== ANCHOR:" not in text:
             targets.append(path)
     return targets
 
 
+# === ANCHOR: ANCHOR_TOOLS_PREVIEW_ANCHOR_TARGETS_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_ANCHOR_RECOMMENDATION_DETAILS_START ===
 def anchor_recommendation_details(
-    root: Path, path: Path, project_map: Optional[ProjectMapSnapshot] = None
-) -> dict[str, object]:
+    root: Path,
+    path: Path,
+    project_map: ProjectMapSnapshot | None = None,
+    # === ANCHOR: ANCHOR_TOOLS_ANCHOR_RECOMMENDATION_DETAILS_END ===
+) -> AnchorRecommendation:
     rel = str(path.relative_to(root))
     text = safe_read_text(path)
     symbol_suggestions = suggest_anchor_names(path)
@@ -137,12 +215,14 @@ def anchor_recommendation_details(
     }
 
 
+# === ANCHOR: ANCHOR_TOOLS_RECOMMEND_ANCHOR_TARGETS_START ===
 def recommend_anchor_targets(
     root: Path,
-    allowed_exts=None,
-    project_map: Optional[ProjectMapSnapshot] = None,
-) -> list[dict[str, Any]]:
-    recommendations = []
+    allowed_exts: AllowedExts | None = None,
+    project_map: ProjectMapSnapshot | None = None,
+    # === ANCHOR: ANCHOR_TOOLS_RECOMMEND_ANCHOR_TARGETS_END ===
+) -> list[AnchorRecommendation]:
+    recommendations: list[AnchorRecommendation] = []
     for path in preview_anchor_targets(root, allowed_exts=allowed_exts):
         recommendations.append(anchor_recommendation_details(root, path, project_map))
     recommendations.sort(
@@ -155,9 +235,10 @@ def recommend_anchor_targets(
     return recommendations
 
 
-def _python_symbol_blocks(text: str):
+# === ANCHOR: ANCHOR_TOOLS__PYTHON_SYMBOL_BLOCKS_START ===
+def _python_symbol_blocks(text: str) -> list[SymbolBlock]:
     lines = text.splitlines()
-    blocks = []
+    blocks: list[SymbolBlock] = []
     for idx, line in enumerate(lines):
         stripped = line.lstrip()
         if not stripped or stripped.startswith("#"):
@@ -185,9 +266,13 @@ def _python_symbol_blocks(text: str):
     return blocks
 
 
-def _js_symbol_blocks(text: str):
+# === ANCHOR: ANCHOR_TOOLS__PYTHON_SYMBOL_BLOCKS_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS__JS_SYMBOL_BLOCKS_START ===
+def _js_symbol_blocks(text: str) -> list[SymbolBlock]:
     lines = text.splitlines()
-    blocks = []
+    blocks: list[SymbolBlock] = []
     patterns = [
         re.compile(
             r"^(\s*)(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)"
@@ -201,7 +286,7 @@ def _js_symbol_blocks(text: str):
         stripped = line.lstrip()
         if not stripped or stripped.startswith("//"):
             continue
-        match = None
+        match: re.Match[str] | None = None
         for pattern in patterns:
             match = pattern.match(line)
             if match:
@@ -233,6 +318,10 @@ def _js_symbol_blocks(text: str):
     return blocks
 
 
+# === ANCHOR: ANCHOR_TOOLS__JS_SYMBOL_BLOCKS_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_INSERT_PYTHON_SYMBOL_ANCHORS_START ===
 def insert_python_symbol_anchors(path: Path) -> bool:
     if path.suffix.lower() != ".py":
         return False
@@ -267,6 +356,10 @@ def insert_python_symbol_anchors(path: Path) -> bool:
     return True
 
 
+# === ANCHOR: ANCHOR_TOOLS_INSERT_PYTHON_SYMBOL_ANCHORS_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_INSERT_JS_SYMBOL_ANCHORS_START ===
 def insert_js_symbol_anchors(path: Path) -> bool:
     if path.suffix.lower() not in {".js", ".ts", ".jsx", ".tsx"}:
         return False
@@ -301,6 +394,10 @@ def insert_js_symbol_anchors(path: Path) -> bool:
     return True
 
 
+# === ANCHOR: ANCHOR_TOOLS_INSERT_JS_SYMBOL_ANCHORS_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_INSERT_MODULE_ANCHORS_START ===
 def insert_module_anchors(path: Path) -> bool:
     text = safe_read_text(path)
     if not text:
@@ -320,7 +417,7 @@ def insert_module_anchors(path: Path) -> bool:
             return False
     try:
         lines = text.splitlines()
-        prefix_lines = []
+        prefix_lines: list[str] = []
         body_lines = lines
         while body_lines and (
             body_lines[0].startswith("#!")
@@ -328,7 +425,7 @@ def insert_module_anchors(path: Path) -> bool:
             or body_lines[0].startswith("# coding:")
         ):
             prefix_lines.append(body_lines.pop(0))
-        wrapped = []
+        wrapped: list[str] = []
         wrapped.extend(prefix_lines)
         if prefix_lines:
             wrapped.append("")
@@ -342,26 +439,95 @@ def insert_module_anchors(path: Path) -> bool:
     return True
 
 
+# === ANCHOR: ANCHOR_TOOLS_INSERT_MODULE_ANCHORS_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHORS_START ===
 def extract_anchors(path: Path) -> list[str]:
-    anchors = []
+    anchors: list[str] = []
     for match in ANCHOR_RE.finditer(safe_read_text(path)):
         raw = match.group(1)
-        base = re.sub(r"_(START|END)$", "", raw).rstrip("_")
+        base = re.sub(r"_(START|END)$", "", raw)
         anchors.append(base)
     return list(dict.fromkeys(anchors))
 
 
+# === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHORS_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHOR_SPANS_START ===
+_SIGNATURE_RE = re.compile(
+    r"^\s*(?:export\s+)?(?:async\s+)?"
+    r"(?:def |class |function |const |let |var )"
+    r".+",
+)
+
+
+def _find_signature(lines: list[str], start_line: int) -> str | None:
+    """_START 마커 다음 5줄 이내에서 함수/클래스 선언을 찾아 반환."""
+    for i in range(start_line, min(start_line + 5, len(lines))):
+        m = _SIGNATURE_RE.match(lines[i])
+        if m:
+            return lines[i].strip()
+    return None
+
+
+def extract_anchor_spans(path: Path) -> list[dict[str, object]]:
+    """각 앵커의 이름·시작줄·종료줄을 1-based 로 반환.
+
+    `_START` 마커가 나타난 줄을 start, 매칭되는 `_END` 마커의 줄을 end 로 기록.
+    짝 없는 `_END` 는 무시하고, 짝 없는 `_START` 는 end=None 으로 남긴다.
+    같은 이름이 중복 시 나타난 순서대로 모두 포함.
+    signature 가 감지되면 포함한다.
+    """
+    text = safe_read_text(path)
+    if not text:
+        return []
+    lines = text.splitlines()
+    pending: dict[str, list[int]] = {}
+    spans: list[dict[str, object]] = []
+    seen_counts: dict[str, int] = {}
+    for match in ANCHOR_RE.finditer(text):
+        raw = match.group(1)
+        line_no = text.count("\n", 0, match.start()) + 1
+        if raw.endswith("_START"):
+            base = re.sub(r"_START$", "", raw)
+            seen_counts[base] = seen_counts.get(base, 0) + 1
+            occurrence = seen_counts[base]
+            display_name = base if occurrence == 1 else f"{base}_{occurrence}"
+            pending.setdefault(base, []).append(len(spans))
+            span: dict[str, object] = {"name": display_name, "start": line_no, "end": None}
+            sig = _find_signature(lines, line_no)  # line_no is 1-based, lines is 0-based → lines[line_no] = next line
+            if sig:
+                span["signature"] = sig
+            spans.append(span)
+        elif raw.endswith("_END"):
+            base = re.sub(r"_END$", "", raw)
+            stack = pending.get(base)
+            if stack:
+                idx = stack.pop()
+                spans[idx]["end"] = line_no
+    return [span for span in spans if span["end"] is not None]
+
+
+# === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHOR_SPANS_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_SUGGEST_ANCHOR_NAMES_START ===
 def suggest_anchor_names(path: Path) -> list[str]:
     text = safe_read_text(path)
     if not text:
         return []
-    names = []
+    names: list[str] = []
     suffix = path.suffix.lower()
     if suffix == ".py":
-        names.extend(match.group(1) for match in PY_SYMBOL_RE.finditer(text))
+        for match in PY_SYMBOL_RE.finditer(text):
+            names.append(match.group(1))
     elif suffix in {".js", ".ts", ".jsx", ".tsx"}:
-        names.extend(match.group(1) for match in JS_SYMBOL_RE.finditer(text))
-        names.extend(match.group(1) for match in CONST_FUNC_RE.finditer(text))
+        for match in JS_SYMBOL_RE.finditer(text):
+            names.append(match.group(1))
+        for match in CONST_FUNC_RE.finditer(text):
+            names.append(match.group(1))
     normalized = [
         normalize_anchor_name(name)
         for name in names
@@ -370,14 +536,21 @@ def suggest_anchor_names(path: Path) -> list[str]:
     return list(dict.fromkeys(normalized[:24]))
 
 
-def collect_anchor_index(root: Path, allowed_exts=None) -> dict[str, list[str]]:
+# === ANCHOR: ANCHOR_TOOLS_SUGGEST_ANCHOR_NAMES_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_COLLECT_ANCHOR_INDEX_START ===
+def collect_anchor_index(
+    root: Path, allowed_exts: AllowedExts | None = None
+) -> dict[str, list[str]]:
     if allowed_exts is None:
         from vibelign.core.fast_tools import has_rg, grep_anchors_rg
+
         if has_rg():
             result = grep_anchors_rg(root)
             if result is not None:
                 return result
-    index = {}
+    index: dict[str, list[str]] = {}
     for path in iter_source_files(root):
         if allowed_exts is not None and path.suffix.lower() not in allowed_exts:
             continue
@@ -387,10 +560,16 @@ def collect_anchor_index(root: Path, allowed_exts=None) -> dict[str, list[str]]:
     return index
 
 
+# === ANCHOR: ANCHOR_TOOLS_COLLECT_ANCHOR_INDEX_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_COLLECT_ANCHOR_METADATA_START ===
 def collect_anchor_metadata(
-    root: Path, allowed_exts=None
-) -> dict[str, dict[str, list[str]]]:
-    metadata = {}
+    root: Path,
+    allowed_exts: AllowedExts | None = None,
+    # === ANCHOR: ANCHOR_TOOLS_COLLECT_ANCHOR_METADATA_END ===
+) -> dict[str, AnchorMetadataEntry]:
+    metadata: dict[str, AnchorMetadataEntry] = {}
     for path in iter_source_files(root):
         if allowed_exts is not None and path.suffix.lower() not in allowed_exts:
             continue
@@ -404,52 +583,110 @@ def collect_anchor_metadata(
     return metadata
 
 
-def load_anchor_meta(root: Path) -> dict[str, dict]:
+# === ANCHOR: ANCHOR_TOOLS_LOAD_ANCHOR_META_START ===
+def load_anchor_meta(root: Path) -> dict[str, AnchorMetaEntry]:
     """anchor_meta.json 로드. 없으면 빈 딕셔너리 반환."""
     from vibelign.core.meta_paths import MetaPaths
+
     meta = MetaPaths(root)
     if not meta.anchor_meta_path.exists():
         return {}
     try:
-        return json.loads(meta.anchor_meta_path.read_text(encoding="utf-8"))
+        raw = cast(
+            object, json.loads(meta.anchor_meta_path.read_text(encoding="utf-8"))
+        )
     except (OSError, json.JSONDecodeError):
         return {}
+    data = _normalize_object_dict(raw)
+    if data is None:
+        return {}
+    normalized: dict[str, AnchorMetaEntry] = {}
+    for key, value in data.items():
+        entry = _normalize_object_dict(value)
+        if entry is None:
+            continue
+        meta_entry: AnchorMetaEntry = {}
+        intent = entry.get("intent")
+        if isinstance(intent, str):
+            meta_entry["intent"] = intent
+        connects = _normalize_string_list(entry.get("connects"))
+        if connects:
+            meta_entry["connects"] = connects
+        warning = entry.get("warning")
+        if isinstance(warning, str):
+            meta_entry["warning"] = warning
+        aliases = _normalize_string_list(entry.get("aliases"))
+        if aliases:
+            meta_entry["aliases"] = aliases
+        description = entry.get("description")
+        if isinstance(description, str):
+            meta_entry["description"] = description
+        source = entry.get("_source")
+        if isinstance(source, str):
+            meta_entry["_source"] = source
+        content_hash = entry.get("_content_hash")
+        if isinstance(content_hash, str):
+            meta_entry["_content_hash"] = content_hash
+        normalized[key] = meta_entry
+    return normalized
 
 
-def save_anchor_meta(root: Path, data: dict[str, dict]) -> None:
+# === ANCHOR: ANCHOR_TOOLS_LOAD_ANCHOR_META_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_SAVE_ANCHOR_META_START ===
+def save_anchor_meta(root: Path, data: dict[str, AnchorMetaEntry]) -> None:
     """anchor_meta.json 저장."""
     from vibelign.core.meta_paths import MetaPaths
+
     meta = MetaPaths(root)
     meta.ensure_vibelign_dir()
-    meta.anchor_meta_path.write_text(
+    _ = meta.anchor_meta_path.write_text(
         json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
 
 
+# === ANCHOR: ANCHOR_TOOLS_SAVE_ANCHOR_META_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_SET_ANCHOR_INTENT_START ===
 def set_anchor_intent(
     root: Path,
     anchor_name: str,
     intent: str,
-    connects: Optional[list[str]] = None,
-    warning: Optional[str] = None,
+    connects: list[str] | None = None,
+    warning: str | None = None,
+    aliases: list[str] | None = None,
+    description: str | None = None,
+    # === ANCHOR: ANCHOR_TOOLS_SET_ANCHOR_INTENT_END ===
 ) -> None:
     """특정 앵커에 의도(intent) 정보를 저장한다."""
     data = load_anchor_meta(root)
-    entry: dict = data.get(anchor_name, {})
+    entry = data.get(anchor_name, {})
     entry["intent"] = intent
     if connects is not None:
         entry["connects"] = connects
     if warning is not None:
         entry["warning"] = warning
+    if aliases is not None:
+        entry["aliases"] = aliases
+    if description is not None:
+        entry["description"] = description
+    entry["_source"] = "manual"
     data[anchor_name] = entry
     save_anchor_meta(root, data)
 
 
-def get_anchor_intent(root: Path, anchor_name: str) -> dict:
+# === ANCHOR: ANCHOR_TOOLS_GET_ANCHOR_INTENT_START ===
+def get_anchor_intent(root: Path, anchor_name: str) -> AnchorMetaEntry:
     """특정 앵커의 의도 정보를 반환. 없으면 빈 딕셔너리."""
     return load_anchor_meta(root).get(anchor_name, {})
 
 
+# === ANCHOR: ANCHOR_TOOLS_GET_ANCHOR_INTENT_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHOR_LINE_RANGES_START ===
 def extract_anchor_line_ranges(path: Path) -> dict[str, tuple[int, int]]:
     """각 앵커의 START~END 줄 번호 반환. {anchor_name: (start_line, end_line)} (1-based)"""
     text = safe_read_text(path)
@@ -471,13 +708,17 @@ def extract_anchor_line_ranges(path: Path) -> dict[str, tuple[int, int]]:
     return ranges
 
 
+# === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHOR_LINE_RANGES_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHOR_BLOCKS_START ===
 def extract_anchor_blocks(path: Path) -> dict[str, str]:
     """각 앵커의 START~END 사이 코드를 추출. {anchor_name: code}"""
     text = safe_read_text(path)
     if not text:
         return {}
     blocks: dict[str, str] = {}
-    current_anchor: Optional[str] = None
+    current_anchor: str | None = None
     current_lines: list[str] = []
     for line in text.splitlines():
         m_start = re.search(r"ANCHOR:\s*([A-Z0-9_]+)_START", line)
@@ -496,48 +737,422 @@ def extract_anchor_blocks(path: Path) -> dict[str, str]:
     return blocks
 
 
-def generate_anchor_intents_with_ai(root: Path, paths: list[Path]) -> int:
-    """AI를 사용해 anchor intent를 자동 생성하고 저장. 반환: 등록된 intent 수"""
+# === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHOR_BLOCKS_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_GENERATE_ANCHOR_INTENTS_WITH_AI_START ===
+# ─── 코드 기반 aliases 생성 ────────────────────────────────────────────────────
+
+_REVERSE_ALIASES: dict[str, list[str]] = {}  # 영어→한국어 역방향 매핑 (lazy init)
+
+
+def _get_reverse_aliases() -> dict[str, list[str]]:
+    """patch_suggester의 _TOKEN_ALIASES를 역방향으로 변환. button→버튼 등."""
+    if _REVERSE_ALIASES:
+        return _REVERSE_ALIASES
+    try:
+        from vibelign.core.patch_suggester import _TOKEN_ALIASES
+        for korean, english_list in _TOKEN_ALIASES.items():
+            for eng in english_list:
+                if eng not in _REVERSE_ALIASES:
+                    _REVERSE_ALIASES[eng] = []
+                if korean not in _REVERSE_ALIASES[eng]:
+                    _REVERSE_ALIASES[eng].append(korean)
+    except ImportError:
+        pass
+    return _REVERSE_ALIASES
+
+
+def _split_anchor_name(anchor: str) -> list[str]:
+    """MAIN_WINDOW__APPLY_BTN_STYLE → ['main', 'window', 'apply', 'btn', 'style']"""
+    return [t.lower() for t in re.split(r"[_]+", anchor) if t]
+
+
+_CODE_IDENT_RE = re.compile(
+    r"(?:class|def|function|const|let|var|export)\s+([A-Za-z_]\w*)"
+)
+
+_ABBREV_MAP = {
+    "btn": "button",
+    "msg": "message",
+    "cfg": "config",
+    "dlg": "dialog",
+    "mgr": "manager",
+    "hdr": "header",
+    "nav": "navigation",
+    "auth": "authentication",
+    "img": "image",
+    "fmt": "format",
+    "lbl": "label",
+    "txt": "text",
+}
+
+
+def _extract_code_identifiers(code: str) -> list[str]:
+    """코드에서 class명, 함수명 등 식별자 추출 → 소문자 토큰 리스트."""
+    idents = _CODE_IDENT_RE.findall(code)
+    tokens: list[str] = []
+    for ident in idents:
+        parts = re.findall(r"[a-z]+|[A-Z][a-z]*|[0-9]+", ident)
+        tokens.extend(p.lower() for p in parts if len(p) > 1)
+    return tokens
+
+
+def generate_code_based_aliases(anchor: str, code: str) -> tuple[list[str], str]:
+    """앵커 이름과 코드에서 규칙 기반으로 aliases/description 생성."""
+    reverse = _get_reverse_aliases()
+    name_tokens = _split_anchor_name(anchor)
+    code_tokens = _extract_code_identifiers(code)
+
+    # 영어 aliases: 앵커 이름 토큰 + 약어 확장
+    eng_parts: list[str] = []
+    for t in name_tokens:
+        eng_parts.append(t)
+        if t in _ABBREV_MAP:
+            eng_parts.append(_ABBREV_MAP[t])
+
+    # 한국어 aliases: 역방향 매핑
+    kor_parts: list[str] = []
+    for t in eng_parts + code_tokens:
+        for korean in reverse.get(t, []):
+            if korean not in kor_parts:
+                kor_parts.append(korean)
+
+    # aliases 조합
+    aliases: list[str] = []
+    # 영어 alias: 공백 연결 (앵커 이름 기반)
+    eng_alias = " ".join(eng_parts[:6])
+    if eng_alias:
+        aliases.append(eng_alias)
+    # 한국어 aliases 개별 추가
+    aliases.extend(kor_parts[:4])
+    # 코드 식별자 기반 영어 alias
+    if code_tokens:
+        code_alias = " ".join(dict.fromkeys(code_tokens[:4]))
+        if code_alias and code_alias != eng_alias:
+            aliases.append(code_alias)
+
+    # description: 토큰 나열
+    desc_parts = [_ABBREV_MAP.get(t, t) for t in name_tokens[:5]]
+    description = " ".join(desc_parts)
+
+    return aliases, description
+
+
+def generate_code_based_intents(root: Path, paths: list[Path]) -> int:
+    """코드 기반으로 모든 앵커의 aliases/description을 생성. 기존 앵커도 갱신."""
+    existing = load_anchor_meta(root)
+    count = 0
+    for path in paths:
+        for anchor, code in extract_anchor_blocks(path).items():
+            aliases, description = generate_code_based_aliases(anchor, code)
+            if not aliases:
+                continue
+            entry = existing.get(anchor, {})
+            if entry.get("_source") in ("ai", "manual", "ai_failed"):
+                continue  # AI/수동/네거티브 캐시 항목은 코드 기반으로 덮어쓰지 않음
+            entry.setdefault("intent", description)
+            entry["aliases"] = aliases
+            entry["description"] = description
+            entry["_source"] = "code"
+            existing[anchor] = entry
+            count += 1
+    if count:
+        save_anchor_meta(root, existing)
+    return count
+
+
+# ─── AI 기반 aliases 보강 ──────────────────────────────────────────────────────
+
+_BATCH_SIZE = 20  # 한 번에 AI에 보내는 앵커 수
+_MAX_PARALLEL = 4  # 동시 배치 수
+
+
+def _generate_batch(
+    root: Path,
+    batch: dict[str, str],
+    generate_text_with_ai: object,
+) -> dict[str, AnchorMetaEntry]:
+    """앵커 배치 하나를 AI에 보내고 결과를 반환 (파일 쓰기 안 함)."""
+    from typing import cast, Callable
+
+    _gen = cast(Callable[..., tuple[str, list[str]]], generate_text_with_ai)
+    anchor_list = list(batch.keys())
+    numbered = "\n\n".join(
+        f"[{i + 1}] {name}\n{code}" for i, (name, code) in enumerate(batch.items())
+    )
+    prompt = (
+        "다음은 코드 파일의 각 구역(앵커)입니다.\n"
+        "각 구역에 대해 JSON 배열로 출력하세요. 다른 말은 하지 마세요.\n\n"
+        "각 항목 형식:\n"
+        '{"anchor": "앵커이름", "intent": "한 줄 설명(10~20자)", '
+        '"aliases": ["한국어 별칭1", "영어 별칭", ...], '
+        '"description": "이 구역이 하는 일을 한 문장으로"}\n\n'
+        "aliases 규칙:\n"
+        "- 사용자가 이 구역을 수정하고 싶을 때 쓸 법한 한국어/영어 표현 2~4개\n"
+        "- 코드 속 변수명, 클래스명, UI 요소명을 자연어로 풀어서 포함\n"
+        "- ⚠️ 절대 금지: 앵커 이름의 단어를 영어 그대로 나열 (BUILD_PATCH_STEPS → 'build patch steps' ❌, 'match rule' ❌)\n"
+        "- 영어 alias도 반드시 동의어/재표현 사용 (예: match_rule → 'find matching pattern', build_patch_steps → 'construct edit operations')\n"
+        "- 한국어 alias는 사용자 관점 자연어 (예: APPLY_BTN_STYLE → '전체적용 버튼', '적용 버튼 꾸미기')\n\n"
+        + numbered
+    )
+    text, _ = _gen(prompt, quiet=True)
+    if not text:
+        return {}
+    results: dict[str, AnchorMetaEntry] = {}
+    try:
+        json_text = text.strip()
+        if "```" in json_text:
+            start = json_text.find("[")
+            end = json_text.rfind("]") + 1
+            if start >= 0 and end > start:
+                json_text = json_text[start:end]
+        items = json.loads(json_text)
+        if isinstance(items, list):
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                anchor_name = item.get("anchor", "")
+                if anchor_name not in batch:
+                    continue
+                intent = item.get("intent", "")
+                if not intent:
+                    continue
+                entry: AnchorMetaEntry = {"intent": intent}
+                aliases = item.get("aliases")
+                if isinstance(aliases, list):
+                    entry["aliases"] = aliases
+                description = item.get("description")
+                if isinstance(description, str):
+                    entry["description"] = description
+                results[anchor_name] = entry
+    except (json.JSONDecodeError, ValueError):
+        parsed: dict[str, str] = {}
+        parts = re.split(r"\[(\d+)\]", text)
+        i = 1
+        while i + 1 < len(parts):
+            idx = int(parts[i]) - 1
+            val = parts[i + 1].strip().splitlines()[0].strip()
+            if 0 <= idx < len(anchor_list) and val:
+                parsed[anchor_list[idx]] = val
+            i += 2
+        for anchor, intent in parsed.items():
+            results[anchor] = {"intent": intent}
+    return results
+
+
+def _anchor_content_hash(code: str) -> str:
+    """AI 프롬프트에 쓰이는 구간(앞 400자)만 해시 — 내용이 같으면 AI 재호출 불필요."""
+    return hashlib.sha1(code[:400].encode("utf-8")).hexdigest()[:16]
+
+
+_CACHEABLE_SOURCES = ("ai", "manual", "ai_failed")
+
+
+def _classify_ai_error(exc: BaseException) -> str:
+    """stderr 파서가 token 단위로 쪼개므로, 공백 없는 짧은 라벨로 분류한다."""
+    name = type(exc).__name__.lower()
+    if "timeout" in name:
+        return "timeout"
+    if "connection" in name or "network" in name:
+        return "network"
+    if "ratelimit" in name or "quota" in name:
+        return "ratelimit"
+    if "auth" in name or "permission" in name:
+        return "auth"
+    if "json" in name or "decode" in name:
+        return "parse"
+    return name or "unknown"
+
+
+def _run_batches_parallel(
+    root: Path,
+    batches: list[dict[str, str]],
+    generate_text_with_ai: object,
+    stage: str,
+    total_so_far: int,
+    grand_total: int,
+) -> tuple[dict[str, AnchorMetaEntry], list[str]]:
+    """배치들을 병렬 실행. (성공 결과, 실패 앵커 목록) 반환. 진행/에러 emit."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    results: dict[str, AnchorMetaEntry] = {}
+    failed_anchors: list[str] = []
+    done = total_so_far
+    with ThreadPoolExecutor(max_workers=_MAX_PARALLEL) as pool:
+        futures = {
+            pool.submit(_generate_batch, root, batch, generate_text_with_ai): (i, batch)
+            for i, batch in enumerate(batches)
+        }
+        for future in as_completed(futures):
+            idx, batch = futures[future]
+            done += 1
+            try:
+                batch_result = future.result()
+                results.update(batch_result)
+                missing = [a for a in batch.keys() if a not in batch_result]
+                if missing:
+                    failed_anchors.extend(missing)
+                    _ = sys.stderr.write(
+                        f"[progress] step=ai-error stage={stage} batch={idx} msg=missing count={len(missing)}\n"
+                    )
+                    sys.stderr.flush()
+            except Exception as e:  # noqa: BLE001 — 배치 실패를 분류 후 삼킨다.
+                failed_anchors.extend(batch.keys())
+                _ = sys.stderr.write(
+                    f"[progress] step=ai-error stage={stage} batch={idx} msg={_classify_ai_error(e)} count={len(batch)}\n"
+                )
+                sys.stderr.flush()
+            _ = sys.stderr.write(
+                f"[progress] step=ai-batch done={done} total={grand_total}\n"
+            )
+            sys.stderr.flush()
+    return results, failed_anchors
+
+
+def generate_anchor_intents_with_ai(
+    root: Path,
+    paths: list[Path],
+    *,
+    force: bool = False,
+    stats_out: dict[str, int] | None = None,
+) -> int:
+    """AI를 사용해 anchor intent/aliases/description을 보강. 반환: 새로 등록된 intent 수.
+
+    해시 캐시 규칙:
+    - `_source in ("ai", "manual", "ai_failed")` + `_content_hash` 가 현재 내용과 같으면 건너뛴다.
+      (ai_failed 는 네거티브 캐시 — 내용이 바뀔 때까지 재시도 안 함.)
+    - 내용이 바뀌었으면 AI 재호출 (자동 무효화).
+    - force=True 이면 해시 무시하고 전부 재생성.
+
+    배치를 최대 _MAX_PARALLEL개씩 병렬 실행한다.
+    실패/누락된 앵커는 한 번 재시도하고, 그래도 실패하면 `_source="ai_failed"` 로 네거티브 캐시.
+    진행 상황은 stderr 에 `[progress] step=ai-{cache,batch,error,summary} ...` 형태로 흘린다.
+    """
     from vibelign.core.ai_explain import generate_text_with_ai, has_ai_provider
+
     if not has_ai_provider():
         return 0
     existing = load_anchor_meta(root)
     all_blocks: dict[str, str] = {}
+    hashes: dict[str, str] = {}
+    cached_hit = 0
+    backfill_anchors: list[str] = []
     for path in paths:
         for anchor, code in extract_anchor_blocks(path).items():
-            if anchor not in existing:
-                all_blocks[anchor] = code[:400]
+            entry = existing.get(anchor, {})
+            current_hash = _anchor_content_hash(code)
+            hashes[anchor] = current_hash
+            source = entry.get("_source")
+            stored_hash = entry.get("_content_hash")
+            if not force and source in _CACHEABLE_SOURCES:
+                # 구 항목(hash 없음)은 재호출 없이 해시만 채워둔다 — 다음부터 캐시 적용.
+                if stored_hash is None:
+                    backfill_anchors.append(anchor)
+                    cached_hit += 1
+                    continue
+                if stored_hash == current_hash:
+                    cached_hit += 1
+                    continue
+            all_blocks[anchor] = code[:400]
+    first_batch_count = (len(all_blocks) + _BATCH_SIZE - 1) // _BATCH_SIZE if all_blocks else 0
+    _ = sys.stderr.write(
+        f"[progress] step=ai-cache total={len(hashes)} cached={cached_hit} to_call={len(all_blocks)} batches={first_batch_count}\n"
+    )
+    sys.stderr.flush()
     if not all_blocks:
+        if stats_out is not None:
+            stats_out["total"] = len(hashes)
+            stats_out["cached_hit"] = cached_hit
+            stats_out["processed"] = 0
+            stats_out["batches"] = 0
+            stats_out["failed"] = 0
+            stats_out["retried"] = 0
         return 0
-    anchor_list = list(all_blocks.keys())
-    numbered = "\n\n".join(
-        f"[{i + 1}] {name}\n{code}"
-        for i, (name, code) in enumerate(all_blocks.items())
+    items = list(all_blocks.items())
+    first_batches = [
+        dict(items[start : start + _BATCH_SIZE])
+        for start in range(0, len(items), _BATCH_SIZE)
+    ]
+    # grand_total 은 재시도 배치가 뒤에 붙을 수 있으므로 진행 중 업데이트. 우선 1차만 카운트.
+    first_results, first_failed = _run_batches_parallel(
+        root, first_batches, generate_text_with_ai,
+        stage="first", total_so_far=0, grand_total=first_batch_count,
     )
-    prompt = (
-        "다음은 코드 파일의 각 구역(앵커)입니다.\n"
-        "각 구역이 무슨 일을 하는지 한국어로 한 줄(10~20자)로 설명해주세요.\n"
-        "반드시 아래 형식으로만 출력하세요. 다른 말은 하지 마세요.\n"
-        "[번호] 설명\n\n"
-        + numbered
+    retry_results: dict[str, AnchorMetaEntry] = {}
+    retry_failed: list[str] = []
+    retried_count = 0
+    if first_failed:
+        retry_blocks = {a: all_blocks[a] for a in first_failed if a in all_blocks}
+        retry_items = list(retry_blocks.items())
+        retry_batches = [
+            dict(retry_items[start : start + _BATCH_SIZE])
+            for start in range(0, len(retry_items), _BATCH_SIZE)
+        ]
+        retried_count = len(retry_blocks)
+        total_with_retry = first_batch_count + len(retry_batches)
+        _ = sys.stderr.write(
+            f"[progress] step=ai-retry anchors={retried_count} batches={len(retry_batches)}\n"
+        )
+        sys.stderr.flush()
+        retry_results, retry_failed = _run_batches_parallel(
+            root, retry_batches, generate_text_with_ai,
+            stage="retry", total_so_far=first_batch_count, grand_total=total_with_retry,
+        )
+    all_results: dict[str, AnchorMetaEntry] = {}
+    all_results.update(first_results)
+    all_results.update(retry_results)
+    final_failed = [a for a in retry_failed if a not in all_results]
+    # final_failed 는 중복 제거
+    final_failed = list(dict.fromkeys(final_failed))
+    _ = sys.stderr.write(
+        f"[progress] step=ai-summary processed={len(all_results)} failed={len(final_failed)} retried={retried_count}\n"
     )
-    text, _ = generate_text_with_ai(prompt, quiet=True)
-    if not text:
-        return 0
-    parsed: dict[str, str] = {}
-    parts = re.split(r"\[(\d+)\]", text)
-    i = 1
-    while i + 1 < len(parts):
-        idx = int(parts[i]) - 1
-        val = parts[i + 1].strip().splitlines()[0].strip()
-        if 0 <= idx < len(anchor_list) and val:
-            parsed[anchor_list[idx]] = val
-        i += 2
-    for anchor, intent in parsed.items():
-        set_anchor_intent(root, anchor, intent)
-    return len(parsed)
+    sys.stderr.flush()
+    if all_results or backfill_anchors or final_failed:
+        data = load_anchor_meta(root)
+        for anchor, entry in all_results.items():
+            merged = data.get(anchor, {})
+            merged.update(entry)
+            merged["_source"] = "ai"
+            anchor_hash = hashes.get(anchor)
+            if anchor_hash:
+                merged["_content_hash"] = anchor_hash
+            data[anchor] = merged
+        for anchor in backfill_anchors:
+            merged = data.get(anchor)
+            if merged is None:
+                continue
+            anchor_hash = hashes.get(anchor)
+            if anchor_hash and merged.get("_content_hash") != anchor_hash:
+                merged["_content_hash"] = anchor_hash
+                data[anchor] = merged
+        for anchor in final_failed:
+            anchor_hash = hashes.get(anchor)
+            if not anchor_hash:
+                continue
+            merged = data.get(anchor, {})
+            # 기존에 ai/manual 로 뭐가 있었으면 덮지 않음 — 실패한 경우에만 네거티브 캐시.
+            if merged.get("_source") in ("ai", "manual") and merged.get("_content_hash") == anchor_hash:
+                continue
+            merged["_source"] = "ai_failed"
+            merged["_content_hash"] = anchor_hash
+            data[anchor] = merged
+        save_anchor_meta(root, data)
+    if stats_out is not None:
+        stats_out["total"] = len(hashes)
+        stats_out["cached_hit"] = cached_hit
+        stats_out["processed"] = len(all_results)
+        stats_out["batches"] = first_batch_count
+        stats_out["failed"] = len(final_failed)
+        stats_out["retried"] = retried_count
+    return len(all_results)
 
 
+# === ANCHOR: ANCHOR_TOOLS_GENERATE_ANCHOR_INTENTS_WITH_AI_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_STRIP_ANCHORS_START ===
 def strip_anchors(path: Path) -> bool:
     """파일에서 모든 앵커 줄을 제거한다. 변경이 있으면 True를 반환."""
     text = safe_read_text(path)
@@ -548,20 +1163,24 @@ def strip_anchors(path: Path) -> bool:
     if len(cleaned) == len(lines):
         return False
     try:
-        path.write_text("\n".join(cleaned).rstrip() + "\n", encoding="utf-8")
+        _ = path.write_text("\n".join(cleaned).rstrip() + "\n", encoding="utf-8")
     except OSError as e:
         print(f"경고: {path} 앵커 제거 실패: {e}")
         return False
     return True
 
 
+# === ANCHOR: ANCHOR_TOOLS_STRIP_ANCHORS_END ===
+
+
+# === ANCHOR: ANCHOR_TOOLS_VALIDATE_ANCHOR_FILE_START ===
 def validate_anchor_file(path: Path) -> list[str]:
     text = safe_read_text(path)
     if not text:
         return ["파일 내용을 읽을 수 없습니다."]
-    start_markers = re.findall(r"ANCHOR:\s*([A-Z0-9_]+)_START\s*===", text)
-    end_markers = re.findall(r"ANCHOR:\s*([A-Z0-9_]+)_END\s*===", text)
-    problems = []
+    start_markers: list[str] = re.findall(r"ANCHOR:\s*([A-Z0-9_]+)_START\s*===", text)
+    end_markers: list[str] = re.findall(r"ANCHOR:\s*([A-Z0-9_]+)_END\s*===", text)
+    problems: list[str] = []
     for name in start_markers:
         if name not in end_markers:
             problems.append(f"{name}_START 에 대응하는 END 가 없습니다")
@@ -571,3 +1190,7 @@ def validate_anchor_file(path: Path) -> list[str]:
     if not start_markers and not end_markers:
         problems.append("앵커가 없습니다")
     return problems
+
+
+# === ANCHOR: ANCHOR_TOOLS_VALIDATE_ANCHOR_FILE_END ===
+# === ANCHOR: ANCHOR_TOOLS_END ===

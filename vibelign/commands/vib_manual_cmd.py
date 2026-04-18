@@ -3,15 +3,38 @@
 
 from __future__ import annotations
 
-from typing import TypedDict
+import json
+from argparse import Namespace
+from typing import Protocol, TypedDict
 
-from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
-from rich.text import Text
-from rich import box
+try:
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.text import Text
+    from rich import box
 
-console = Console()
+    HAS_RICH = True
+    console = Console()
+except ModuleNotFoundError:
+    HAS_RICH = False
+    Console = None  # type: ignore[assignment]
+    Panel = None  # type: ignore[assignment]
+    Table = None  # type: ignore[assignment]
+    Text = None  # type: ignore[assignment]
+    box = None  # type: ignore[assignment]
+
+    class _PlainConsole:
+        def print(self, *parts: object, **_: object) -> None:
+            print(" ".join(str(part) for part in parts))
+
+        def rule(self, title: str = "") -> None:
+            if title:
+                print(f"\n=== {title} ===")
+            else:
+                print("\n====================")
+
+    console = _PlainConsole()
 
 
 class ManualEntry(TypedDict, total=False):
@@ -23,6 +46,13 @@ class ManualEntry(TypedDict, total=False):
     examples: list[tuple[str, str]]
     options: list[tuple[str, str]]
     notes: list[str]  # 알아두면 좋은 동작 설명 (선택)
+
+
+class ManualArgs(Protocol):
+    command_name: str | None
+    save: bool
+    all: bool
+    json: bool
 
 
 # ──────────────────────────────────────────────
@@ -39,10 +69,12 @@ MANUAL: dict[str, ManualEntry] = {
             "AGENTS.md, AI_DEV_SYSTEM_SINGLE_FILE.md 같은 파일이 생기는데,\n"
             "이게 있어야 AI가 내 프로젝트를 제대로 이해하고 작업해요.\n\n"
             "Git을 쓰는 프로젝트라면 커밋 전에 비밀정보를 막아주는 보호도 같이 켜줘요.\n"
-            "그래서 API 키, 토큰, .env 같은 걸 실수로 올리려 하면 커밋 단계에서 한 번 더 잡아줘요.\n\n"
+            "그래서 API 키, 토큰, .env 같은 걸 실수로 올리려 하면 커밋 단계에서 한 번 더 잡아줘요.\n"
+            "지금은 여기에 `vib guard --strict` 검사도 같이 연결돼서 구조 문제까지 한 번 더 막아줘요.\n\n"
             "`vib start --all-tools`를 쓰면 Claude, Antigravity, OpenCode, Cursor, Codex 준비도 한 번에 해줘요.\n"
             "기본값은 기존 설정을 최대한 보존하면서 없는 것만 추가해요.\n"
-            "정말 다시 깔듯이 새로 만들고 싶을 때만 `--force`를 써요."
+            "정말 다시 깔듯이 새로 만들고 싶을 때만 `--force`를 써요.\n"
+            "`--quickstart`를 붙이면 start 뒤에 앵커까지 자동으로 넣어줘서 더 빨리 시작할 수 있어요."
         ),
         "when": [
             "새 프로젝트 폴더에서 VibeLign을 처음 쓸 때",
@@ -82,7 +114,11 @@ MANUAL: dict[str, ManualEntry] = {
             ),
             (
                 "비밀정보 커밋 보호",
-                "Git 저장소라면 커밋할 때마다 자동 검사도 같이 켜줘요.\n커밋 전에 API 키, 토큰, 개인키, .env 같은 걸 검사해줘요.",
+                "Git 저장소라면 커밋할 때마다 자동 검사도 같이 켜줘요.\n커밋 전에 API 키, 토큰, 개인키, .env 같은 걸 검사하고, strict guard도 같이 확인해줘요.",
+            ),
+            (
+                "message",
+                "start 뒤에 메모를 짧게 붙일 수도 있어요.\n예: vib start 첫 세팅 시작",
             ),
         ],
     },
@@ -169,6 +205,65 @@ MANUAL: dict[str, ManualEntry] = {
         ],
         "options": [],
     },
+    "docs-build": {
+        "emoji": "🧱",
+        "title": "vib docs-build",
+        "one_line": "문서 요약/다이어그램 캐시를 다시 만들어요",
+        "what": (
+            "Docs Viewer에서 오른쪽 요약이나 다이어그램이 예전 내용처럼 보일 때 쓰는 명령어예요.\n"
+            "쉽게 말하면 '문서용 캐시 다시 만들기'예요.\n\n"
+            "전체 문서를 한 번에 다시 만들 수도 있고,\n"
+            "특정 markdown 파일 하나만 골라서 다시 만들 수도 있어요."
+        ),
+        "when": [
+            "문서를 수정했는데 Docs Viewer가 안 바뀔 때",
+            "다이어그램이 예전 내용처럼 보일 때",
+            "특정 문서만 다시 생성하고 싶을 때",
+        ],
+        "examples": [
+            ("vib docs-build", "전체 문서 다시 만들기"),
+            ("vib docs-build PROJECT_CONTEXT.md", "루트 문서 하나만 다시 만들기"),
+            ("vib docs-build docs/wiki/index.md", "docs 하위 문서 하나만 다시 만들기"),
+        ],
+        "options": [
+            ("path", "다시 만들 markdown 파일 경로예요. 안 쓰면 전체 문서를 처리해요."),
+            ("--json", "결과를 JSON으로 보고 싶을 때 써요. 개발/디버깅용이에요."),
+        ],
+    },
+    "docs-index": {
+        "emoji": "🗂️",
+        "title": "vib docs-index",
+        "one_line": "Docs Viewer가 읽는 문서 목록과 계약 정보를 보여줘요",
+        "what": (
+            "Docs Viewer가 어떤 markdown 문서를 보여줄지 목록으로 정리해주는 명령어예요.\n"
+            "쉽게 말하면 '문서 리스트 확인하기'예요.\n\n"
+            "보통은 GUI가 내부적으로 많이 쓰고,\n"
+            "사람은 디버깅하거나 상태를 확인할 때 쓰면 돼요."
+        ),
+        "when": [
+            "Docs Viewer에 어떤 문서가 잡히는지 확인하고 싶을 때",
+            "문서 인덱스 문제를 디버깅할 때",
+            "visual contract/schema 정보를 보고 싶을 때",
+        ],
+        "examples": [
+            ("vib docs-index", "현재 프로젝트 문서 목록 보기"),
+            ("vib docs-index /path/to/project", "다른 프로젝트의 문서 목록 보기"),
+            (
+                "vib docs-index --visual-contract",
+                "docs visual schema/generator 계약 보기",
+            ),
+        ],
+        "options": [
+            (
+                "path",
+                "문서 목록을 만들 프로젝트 루트예요. 안 쓰면 현재 폴더를 사용해요.",
+            ),
+            (
+                "--visual-contract",
+                "docs visual artifact의 schema/generator 정보를 JSON으로 보여줘요.",
+            ),
+        ],
+    },
     "doctor": {
         "emoji": "🩺",
         "title": "vib doctor",
@@ -186,8 +281,9 @@ MANUAL: dict[str, ManualEntry] = {
         "examples": [
             ("vib doctor", "기본 점검 (점수 + 문제 목록)"),
             ("vib doctor --strict", "더 꼼꼼하게 점검"),
-            ("vib doctor --detailed", "문제마다 자세한 설명 포함"),
+            ("vib doctor --detailed", "문제마다 심각도·분류·추천 명령 포함"),
             ("vib doctor --fix", "앵커 없는 파일에 자동으로 앵커 추가"),
+            ("vib doctor --apply", "자동 수정 가능한 항목 일괄 적용"),
             ("vib doctor --write-report", "결과를 파일로 저장"),
         ],
         "options": [
@@ -195,11 +291,20 @@ MANUAL: dict[str, ManualEntry] = {
                 "--strict",
                 "기본 점검보다 더 꼼꼼하게 검사해요.\n작은 문제도 놓치지 않아요.",
             ),
-            ("--detailed", "각 문제마다 왜 문제인지 설명을 추가로 보여줘요."),
+            (
+                "--detailed",
+                "각 문제마다 심각도(HIGH/MEDIUM/LOW), 분류(구조/앵커/MCP 등),\n"
+                "왜 중요한지, 추천 명령, 자동 수정 가능 여부를 보여줘요.",
+            ),
             ("--fix-hints", "각 문제를 어떻게 고치면 되는지 힌트를 줘요."),
             (
                 "--fix",
                 "앵커가 없는 파일에 자동으로 앵커를 달아줘요.\n직접 하기 귀찮을 때 편해요.",
+            ),
+            (
+                "--apply",
+                "자동 수정 가능한 항목을 일괄 적용해요.\n"
+                "적용 전에 자동으로 체크포인트가 만들어져서 되돌릴 수 있어요.",
             ),
             (
                 "--write-report",
@@ -330,6 +435,7 @@ MANUAL: dict[str, ManualEntry] = {
         "examples": [
             ("vib guard", "기본 검사"),
             ("vib guard --strict", "더 꼼꼼하게 검사"),
+            ("vib guard --since-minutes 30", "최근 30분 변경만 검사"),
             ("vib guard --write-report", "결과를 파일로 저장"),
         ],
         "options": [
@@ -340,6 +446,14 @@ MANUAL: dict[str, ManualEntry] = {
             ),
             ("--write-report", "검사 결과를 파일로 저장해요."),
             ("--json", "결과를 JSON 형식으로 출력해요. (개발자용)"),
+            (
+                "구조 계획 확인",
+                "여러 파일을 크게 바꾸거나 새 production 파일을 만들면 plan-structure가 필요한지도 같이 알려줘요.",
+            ),
+            (
+                "신규 파일 앵커 검사",
+                "새 source 파일에 앵커가 하나도 없으면 warn 또는 fail로 알려줘요.\nstrict 모드에서는 fail로 막아요.",
+            ),
         ],
     },
     "explain": {
@@ -416,10 +530,15 @@ MANUAL: dict[str, ManualEntry] = {
         "examples": [
             ("vib watch", "실시간 감시 시작 (Ctrl+C 로 종료)"),
             ("vib watch --strict", "더 꼼꼼한 감시 모드"),
+            ("vib watch --auto-fix", "새 source 파일에 앵커를 자동으로 넣기"),
             ("vib watch --write-log", "감시 로그를 파일로 저장"),
         ],
         "options": [
             ("--strict", "더 꼼꼼하게 감시해요. 작은 변화도 잡아줘요."),
+            (
+                "--auto-fix",
+                "새 .py/.ts/.tsx/.js/.jsx 파일에 앵커가 없으면 저장 직후 자동으로 앵커를 넣어줘요.",
+            ),
             ("--write-log", "감시 중 발생한 일을 파일로 기록해요."),
             (
                 "--debounce-ms 숫자",
@@ -459,10 +578,11 @@ MANUAL: dict[str, ManualEntry] = {
     "config": {
         "emoji": "🔑",
         "title": "vib config",
-        "one_line": "AI 기능을 쓰기 위한 API 키를 설정해요",
+        "one_line": "AI 기능을 쓰기 위한 API 키와 지원 모델을 설정해요",
         "what": (
             "AI 기능(ask, patch --ai 등)을 사용하려면 API 키가 필요해요.\n"
-            "이 명령어로 Anthropic(Claude) 또는 Gemini API 키를 설정할 수 있어요."
+            "이 명령어로 Anthropic(Claude) 또는 Gemini API 키를 설정할 수 있어요.\n"
+            "즉, 현재 지원하는 모델은 Claude와 Gemini예요."
         ),
         "when": [
             "처음 설치하고 AI 기능을 쓰려고 할 때",
@@ -482,7 +602,8 @@ MANUAL: dict[str, ManualEntry] = {
             "API 키, 토큰, 개인키, .env 같은 비밀정보가 들어갔는지 확인해줘요.\n"
             "쉽게 말하면 '실수로 중요한 비밀번호를 인터넷에 올리기 전에 막아주는 문지기'예요.\n\n"
             "보통은 `vib start`를 하면 자동으로 연결돼서 따로 신경 쓸 일이 거의 없어요.\n"
-            "직접 확인하고 싶을 때만 `vib secrets --staged`를 실행하면 돼요."
+            "직접 확인하고 싶을 때만 `vib secrets --staged`를 실행하면 돼요.\n"
+            "자동 hook을 켜면 이제 비밀정보 검사뿐 아니라 `vib guard --strict`도 함께 돌아가요."
         ),
         "when": [
             "API 키나 .env를 실수로 커밋할 파일 목록에 넣은 것 같을 때",
@@ -501,7 +622,7 @@ MANUAL: dict[str, ManualEntry] = {
             ),
             (
                 "--install-hook",
-                "커밋 버튼을 누를 때마다 자동 검사되게 켜요.\n보통은 vib start가 자동으로 해줘요.",
+                "커밋 버튼을 누를 때마다 자동 검사되게 켜요.\n보통은 vib start가 자동으로 해줘요.\n이제 secrets 검사와 strict guard 검사가 같이 돌아가요.",
             ),
             (
                 "--uninstall-hook",
@@ -510,6 +631,78 @@ MANUAL: dict[str, ManualEntry] = {
             (
                 "오탐 예외 처리",
                 "진짜 비밀정보가 아닌데도 막히면 그 줄 끝에 `vibelign: allow-secret`를 붙여서 예외 처리할 수 있어요.",
+            ),
+        ],
+    },
+    "claude-hook": {
+        "emoji": "🪝",
+        "title": "vib claude-hook",
+        "one_line": "Claude PreToolUse 검사 on/off 상태를 관리해요",
+        "what": (
+            "Claude Code가 파일을 쓰기 전에 VibeLign 검사를 거치게 만드는 스위치예요.\n"
+            "쉽게 말하면 'Claude가 저장 버튼 누르기 전에 한 번 더 확인하는 문지기'예요.\n"
+            "이 명령어로 지금 켜져 있는지 보고, 켜고, 끌 수 있어요."
+        ),
+        "when": [
+            "Claude Code에서 PreToolUse 검사가 켜져 있는지 확인하고 싶을 때",
+            "Claude가 쓰기 전에 planning/anchor 검사를 하게 만들고 싶을 때",
+            "잠깐 검사만 끄고 싶을 때",
+        ],
+        "examples": [
+            ("vib claude-hook status", "현재 상태 보기"),
+            ("vib claude-hook enable", "검사 켜기"),
+            ("vib claude-hook disable", "검사 끄기"),
+        ],
+        "options": [
+            ("status", "지금 켜져 있는지, 설정 파일이 준비됐는지 보여줘요."),
+            (
+                "enable",
+                "Claude가 Write 도구를 쓰기 전에 VibeLign pre-check를 실행하게 해요.",
+            ),
+            ("disable", "검사는 끄지만 hook 엔트리는 남겨둬서 다시 켜기 쉽게 해요."),
+        ],
+    },
+    "plan-structure": {
+        "emoji": "🧱",
+        "title": "vib plan-structure",
+        "one_line": "코딩 전에 어느 파일을 바꿀지 구조 계획을 만들어요",
+        "what": (
+            "기능 설명을 바탕으로 어느 파일은 수정하고 어느 파일은 새로 만들어야 하는지 먼저 계획해요.\n"
+            "쉽게 말하면 '코딩 시작 전에 설계도 한 장 먼저 만드는 버튼'이에요.\n"
+            "계획은 `.vibelign/plans/` 아래에 저장되고, guard나 pre-check가 이 계획을 보고 검사할 수 있어요.\n\n"
+            "보통은 '계획 먼저 → 구현 → guard로 확인' 순서로 쓰면 돼요.\n"
+            "예를 들어 새 로그인 기능처럼 파일 여러 개가 같이 바뀌는 작업이면,\n"
+            "바로 코드를 쓰기 전에 이 명령어로 파일 배치를 먼저 정하는 거예요."
+        ),
+        "when": [
+            "새 기능을 추가해서 파일이 여러 개 바뀔 것 같을 때",
+            "새 production 파일을 만들기 전에 어디에 둘지 정하고 싶을 때",
+            "AI가 큰 기능을 한 파일에 몰아넣지 않게 막고 싶을 때",
+            "작은 단일 파일 수정이 아니라 작업 범위가 헷갈릴 때",
+        ],
+        "examples": [
+            ('vib plan-structure "OAuth 인증 추가"', "기본 구조 계획 만들기"),
+            ('vib plan-structure "watch 기능 확장"', "가장 쉬운 기본 사용법"),
+            (
+                'vib plan-structure --scope vibelign/core/ "watch 기능 확장"',
+                "특정 폴더만 보고 계획 만들기",
+            ),
+            ('vib plan-structure --ai "mcp handler 수정"', "AI 계획 메타데이터로 기록"),
+            (
+                'vib plan-structure "OAuth 인증 추가" → vib patch "OAuth 로그인 버튼과 서버 검증 추가" → vib guard --strict',
+                "추천 흐름 예시",
+            ),
+        ],
+        "options": [
+            (
+                "feature",
+                '무엇을 만들지 말로 적어요.\n예: vib plan-structure "로그인 기능 추가"',
+            ),
+            ("--scope", "분석할 폴더를 좁혀요.\n예: --scope vibelign/core/"),
+            ("--ai", "나중에 AI 흐름에서 참고할 plan metadata로 기록해요."),
+            (
+                "언제 안 써도 되나요?",
+                "문서만 고치거나, 테스트만 조금 손보거나, 설정 파일만 바꾸는 작은 작업이면 보통 없어도 돼요.",
             ),
         ],
     },
@@ -571,63 +764,41 @@ MANUAL: dict[str, ManualEntry] = {
         "options": [
             (
                 "--compact",
-                "파일 크기를 줄여서 토큰을 아껴요.\n"
-                "파일 트리를 얕게만 보여줘요 (깊이 2단계).\n"
-                "무료 플랜이나 토큰이 부족할 때 좋아요.",
+                "파일 크기를 줄여서 토큰을 아껴요.\n파일 트리를 얕게만 보여줘요 (깊이 2단계).\n무료 플랜이나 토큰이 부족할 때 좋아요.",
             ),
             (
                 "--full",
-                "파일 트리를 더 깊이까지 보여줘요 (깊이 4단계).\n"
-                "프로젝트가 복잡하거나 AI한테 더 많은 구조를 알려주고 싶을 때 써요.",
+                "파일 트리를 더 깊이까지 보여줘요 (깊이 4단계).\n프로젝트가 복잡하거나 AI한테 더 많은 구조를 알려주고 싶을 때 써요.",
             ),
             (
                 "--handoff",
-                "AI를 바꾸거나 새 채팅을 열기 직전에 쓰는 옵션이에요.\n"
-                "파일 맨 위에 'Session Handoff' 블록을 넣어줘요.\n"
-                "새 AI한테 '오늘 뭘 했는지, 다음에 뭘 해야 하는지' 한 줄로 알려줄 수 있어요.\n"
-                "⚠️ --compact, --full 과 같이 쓸 수 없어요.",
+                "AI를 바꾸거나 새 채팅을 열기 직전에 쓰는 옵션이에요.\n파일 맨 위에 'Session Handoff' 블록을 넣어줘요.\n새 AI한테 '오늘 뭘 했는지, 다음에 뭘 해야 하는지' 한 줄로 알려줄 수 있어요.\n⚠️ --compact, --full 과 같이 쓸 수 없어요.",
             ),
             (
                 "--print",
-                "--handoff 와 함께 써요.\n"
-                "인수인계 내용을 파일에 저장하면서 화면에도 바로 출력해줘요.\n"
-                "새 AI 채팅창에 복붙하기 편해요.",
+                "--handoff 와 함께 써요.\n인수인계 내용을 파일에 저장하면서 화면에도 바로 출력해줘요.\n새 AI 채팅창에 복붙하기 편해요.",
             ),
             (
                 "--no-prompt",
-                "--handoff 와 함께 써요.\n"
-                "보통은 '다음 AI가 뭘 해야 해?' 하고 물어보는데\n"
-                "이 옵션을 쓰면 아무것도 안 물어보고 자동으로 만들어줘요.\n"
-                "모르는 내용은 '(not provided)' 라고 표시돼요.",
+                "--handoff 와 함께 써요.\n보통은 '다음 AI가 뭘 해야 해?' 하고 물어보는데\n이 옵션을 쓰면 아무것도 안 물어보고 자동으로 만들어줘요.\n모르는 내용은 '(not provided)' 라고 표시돼요.",
             ),
             (
                 "--out 파일명",
-                "저장할 파일 이름을 바꿀 수 있어요.\n"
-                "기본값은 PROJECT_CONTEXT.md예요.\n"
-                "예: --out handoff.md",
+                "저장할 파일 이름을 바꿀 수 있어요.\n기본값은 PROJECT_CONTEXT.md예요.\n예: --out handoff.md",
             ),
             (
                 "--dry-run",
-                "파일을 실제로 저장하지 않고 '이런 내용이 들어갈 거예요'를 미리 보여줘요.\n"
-                "마치 게임에서 아이템 설명 읽고 살지 말지 결정하는 것처럼,\n"
-                "handoff 내용을 확인하고 나서 진짜로 실행할 수 있어요.\n"
-                "--handoff 와 함께 쓰는 게 가장 유용해요.",
+                "파일을 실제로 저장하지 않고 '이런 내용이 들어갈 거예요'를 미리 보여줘요.\n마치 게임에서 아이템 설명 읽고 살지 말지 결정하는 것처럼,\nhandoff 내용을 확인하고 나서 진짜로 실행할 수 있어요.\n--handoff 와 함께 쓰는 게 가장 유용해요.",
             ),
             (
                 "--help",
-                "transfer 명령어의 옵션 목록을 보여줘요.\n"
-                "뭘 써야 할지 모를 때 먼저 확인해보세요.",
+                "transfer 명령어의 옵션 목록을 보여줘요.\n뭘 써야 할지 모를 때 먼저 확인해보세요.",
             ),
         ],
         "notes": [
-            "Cursor처럼 MCP를 지원하는 AI 툴이 컨텍스트를 요청하면,\n"
-            "     VibeLign이 파일을 새로 만들지 않고 저장된 PROJECT_CONTEXT.md를 그대로 전달해요.\n"
-            "     그래서 handoff 블록이 날아가지 않아요.",
-            "--handoff 실행 후 vib checkpoint를 돌리면 handoff 블록이 사라져요.\n"
-            "     그럴 때 경고가 뜨니까, AI 전환 직전에 --handoff를 다시 실행하면 돼요.",
-            "--handoff를 실행하면 AGENTS.md에 규칙이 자동으로 추가돼요:\n"
-            "     '새 채팅 열면 PROJECT_CONTEXT.md 먼저 읽어라'\n"
-            "     Cursor, Antigravity, OpenCode 등 AGENTS.md를 읽는 AI 툴이 자동으로 인지해요.",
+            "Cursor처럼 MCP를 지원하는 AI 툴이 컨텍스트를 요청하면,\n     VibeLign이 파일을 새로 만들지 않고 저장된 PROJECT_CONTEXT.md를 그대로 전달해요.\n     그래서 handoff 블록이 날아가지 않아요.",
+            "--handoff 실행 후 vib checkpoint를 돌리면 handoff 블록이 사라져요.\n     그럴 때 경고가 뜨니까, AI 전환 직전에 --handoff를 다시 실행하면 돼요.",
+            "--handoff를 실행하면 AGENTS.md에 규칙이 자동으로 추가돼요:\n     '새 채팅 열면 PROJECT_CONTEXT.md 먼저 읽어라'\n     Cursor, Antigravity, OpenCode 등 AGENTS.md를 읽는 AI 툴이 자동으로 인지해요.",
         ],
     },
     "completion": {
@@ -705,6 +876,12 @@ MANUAL: dict[str, ManualEntry] = {
             "  AI는 파일 전체를 다시 쓰지 않아요.\n"
             "  꼭 필요한 부분만 최소한으로 수정해요.\n"
             "  관련 없는 파일은 절대 건드리지 않아요.\n\n"
+            "🔹 VibeLign patch 규칙\n"
+            "  복합 요청은 intent / source / destination / behavior_constraint 로 먼저 분해해요.\n"
+            "  삭제와 이동이 같이 나오면, 기능 삭제가 아니라 이동 + 보존인지 먼저 확인해요.\n"
+            "  source 와 destination 은 같은 규칙으로 처리하지 말고 역할별로 따로 해석해요.\n"
+            "  patch contract 나 codespeak 구조가 바뀌면 테스트와 문서도 같이 갱신해요.\n"
+            "  용어는 공통 문서와 glossary 기준으로 맞춰요.\n\n"
             "━━ 두 가지 수정 방식 ━━\n\n"
             "방식 1 — 일반 수정 (기본)\n"
             "  평소처럼 말하면 AI가 알아서 수정해요.\n"
@@ -895,7 +1072,8 @@ GROUPS = [
     ("🏁 처음 시작", ["start", "init", "install"]),
     ("💾 세이브 & 되돌리기", ["checkpoint", "undo", "history"]),
     ("🔬 점검 & 확인", ["doctor", "guard", "explain"]),
-    ("✏️ AI 수정 요청", ["patch", "anchor", "scan"]),
+    ("✏️ AI 수정 요청", ["patch", "anchor", "scan", "plan-structure"]),
+    ("📚 문서 보기 & 다시생성", ["docs-build", "docs-index"]),
     (
         "🗂️ 파일 & 설정",
         [
@@ -906,6 +1084,7 @@ GROUPS = [
             "secrets",
             "export",
             "watch",
+            "claude-hook",
             "completion",
         ],
     ),
@@ -927,58 +1106,92 @@ def _render_command(key: str) -> None:
         console.print("사용 가능한 커맨드: " + ", ".join(MANUAL.keys()))
         return
 
-    emoji = m["emoji"]
-    title = m["title"]
-    one_line = m["one_line"]
+    emoji = m.get("emoji", "")
+    title = m.get("title", key)
+    one_line = m.get("one_line", "")
+    what = m.get("what", "")
+    when = m.get("when", [])
+    examples = m.get("examples", [])
+    options = m.get("options", [])
+    notes = m.get("notes", [])
+
+    if not HAS_RICH:
+        print()
+        print(f"{emoji} {title} — {one_line}".strip())
+        print()
+        print("이게 뭐야?")
+        print(what)
+        if when:
+            print()
+            print("언제 써?")
+            for item in when:
+                print(f"- {item}")
+        if examples:
+            print()
+            print("이렇게 쳐봐")
+            for cmd, desc in examples:
+                print(f"- {cmd}  # {desc}")
+        if options:
+            print()
+            print("옵션 설명")
+            for opt, desc in options:
+                print(f"- {opt}: {desc.replace(chr(10), ' ')}")
+        if notes:
+            print()
+            print("알아두면 좋은 것")
+            for note in notes:
+                print(f"- {note}")
+        print()
+        return
 
     # 헤더 패널
     header = Text()
-    header.append(f"{emoji}  ", style="bold")
-    header.append(title, style="bold cyan")
-    header.append(f"  —  {one_line}", style="dim white")
+    _ = header.append(f"{emoji}  ", style="bold")
+    _ = header.append(title, style="bold cyan")
+    _ = header.append(f"  —  {one_line}", style="dim white")
     console.print(Panel(header, border_style="cyan", padding=(0, 2)))
 
     # 이게 뭐야?
     console.print()
     console.print("  [bold yellow]💡 이게 뭐야?[/bold yellow]")
-    for line in m["what"].splitlines():
+    for line in what.splitlines():
         console.print(f"     [white]{line}[/white]")
 
     # 언제 써?
-    if m["when"]:
+    if when:
         console.print()
         console.print("  [bold green]🕐 언제 써?[/bold green]")
-        for w in m["when"]:
+        for w in when:
             console.print(f"     [dim]•[/dim]  {w}")
 
     # 이렇게 쳐봐 (MCP는 AI한테 말하는 방식)
-    if m["examples"]:
+    if examples:
         console.print()
         label = "💬  AI한테 이렇게 말해봐" if key == "mcp" else "✏️  이렇게 쳐봐"
         console.print(f"  [bold magenta]{label}[/bold magenta]")
         tbl = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
         tbl.add_column(style="bold cyan", no_wrap=True)
         tbl.add_column(style="dim white")
-        for cmd, desc in m["examples"]:
+        for cmd, desc in examples:
             tbl.add_row(cmd, f"→  {desc}")
         console.print(tbl)
 
     # 옵션 설명
-    if m.get("options"):
+    if options:
         console.print()
         console.print("  [bold blue]⚙️  옵션 설명[/bold blue]")
         tbl = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
         tbl.add_column(style="bold cyan", no_wrap=True, width=24)
         tbl.add_column(style="white")
-        for opt, desc in m["options"]:
+        for opt, desc in options:
             tbl.add_row(opt, desc)
         console.print(tbl)
 
     # 알아두면 좋은 것
-    if m.get("notes"):
+    if notes:
         console.print()
         console.print("  [bold yellow]📝 알아두면 좋은 것[/bold yellow]")
-        for note in m["notes"]:
+        for note in notes:
             console.print(f"     [dim]•[/dim]  {note}")
 
     console.print()
@@ -986,6 +1199,19 @@ def _render_command(key: str) -> None:
 
 def _render_overview() -> None:
     """전체 커맨드 목록 개요 출력."""
+    if not HAS_RICH:
+        print()
+        print("VibeLign 전체 명령어 매뉴얼")
+        print("상세 보기: vib manual <커맨드명>")
+        print()
+        for group_name, keys in GROUPS:
+            print(group_name)
+            for k in keys:
+                m = MANUAL[k]
+                print(f"- {k}: {m.get('one_line', '')}")
+            print()
+        return
+
     console.print()
     console.print(
         Panel(
@@ -1014,8 +1240,8 @@ def _render_overview() -> None:
             m = MANUAL[k]
             tbl.add_row(
                 k,
-                m["emoji"],
-                m["one_line"],
+                m.get("emoji", ""),
+                m.get("one_line", ""),
             )
         console.print(tbl)
         console.print()
@@ -1048,7 +1274,9 @@ def _save_markdown() -> str:
         lines.append(f"### {group_name}\n")
         for k in keys:
             m = MANUAL[k]
-            lines.append(f"- [{m['emoji']} `vib {k}`](#{k}) — {m['one_line']}\n")
+            emoji = m.get("emoji", "")
+            one_line = m.get("one_line", "")
+            lines.append(f"- [{emoji} `vib {k}`](#{k}) — {one_line}\n")
         lines.append("\n")
 
     lines.append("---\n\n")
@@ -1057,24 +1285,30 @@ def _save_markdown() -> str:
         lines.append(f"## {group_name}\n\n")
         for k in keys:
             m = MANUAL[k]
-            emoji = m["emoji"]
-            lines.append(f"### {emoji} `{m['title']}`\n\n")
-            lines.append(f"> {m['one_line']}\n\n")
-            lines.append(f"**💡 이게 뭐야?**\n\n{m['what']}\n\n")
-            if m["when"]:
+            emoji = m.get("emoji", "")
+            title = m.get("title", f"vib {k}")
+            one_line = m.get("one_line", "")
+            what = m.get("what", "")
+            when = m.get("when", [])
+            examples = m.get("examples", [])
+            options = m.get("options", [])
+            lines.append(f"### {emoji} `{title}`\n\n")
+            lines.append(f"> {one_line}\n\n")
+            lines.append(f"**💡 이게 뭐야?**\n\n{what}\n\n")
+            if when:
                 lines.append("**🕐 언제 써?**\n\n")
-                for w in m["when"]:
+                for w in when:
                     lines.append(f"- {w}\n")
                 lines.append("\n")
-            if m["examples"]:
+            if examples:
                 lines.append("**✏️ 이렇게 쳐봐**\n\n```\n")
-                for cmd, desc in m["examples"]:
+                for cmd, desc in examples:
                     lines.append(f"{cmd}   # {desc}\n")
                 lines.append("```\n\n")
-            if m["options"]:
+            if options:
                 lines.append("**⚙️ 옵션 설명**\n\n")
                 lines.append("| 옵션 | 설명 |\n|------|------|\n")
-                for opt, desc in m["options"]:
+                for opt, desc in options:
                     desc_inline = desc.replace("\n", " ")
                     lines.append(f"| `{opt}` | {desc_inline} |\n")
                 lines.append("\n")
@@ -1083,7 +1317,7 @@ def _save_markdown() -> str:
     content = "".join(lines)
     save_path = "VIBELIGN_MANUAL.md"
     with open(save_path, "w", encoding="utf-8") as f:
-        f.write(content)
+        _ = f.write(content)
     return save_path
 
 
@@ -1092,10 +1326,12 @@ def _save_markdown() -> str:
 # ──────────────────────────────────────────────
 
 
-def run_vib_manual(args) -> None:
-    command = getattr(args, "command_name", None)
-    save = getattr(args, "save", False)
-    all_flag = getattr(args, "all", False)
+def run_vib_manual(args: ManualArgs | Namespace) -> None:
+    command_value = getattr(args, "command_name", None)
+    command = command_value if isinstance(command_value, str) else None
+    save = bool(getattr(args, "save", False))
+    all_flag = bool(getattr(args, "all", False))
+    json_flag = bool(getattr(args, "json", False))
 
     if save:
         path = _save_markdown()
@@ -1105,6 +1341,16 @@ def run_vib_manual(args) -> None:
         console.print(
             "[dim]이 파일을 AI한테 보여주면 VibeLign에 대해 더 잘 도와줄 수 있어요.[/dim]\n"
         )
+        return
+
+    if json_flag:
+        if command:
+            payload = MANUAL.get(command, {})
+        elif all_flag:
+            payload = MANUAL
+        else:
+            payload = MANUAL
+        print(json.dumps(payload, ensure_ascii=False))
         return
 
     if command:

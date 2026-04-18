@@ -187,6 +187,59 @@ class LocalCheckpointsTest(unittest.TestCase):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual([item["path"] for item in manifest["files"]], ["app.py"])
 
+    def test_create_checkpoint_keeps_vibelign_db_and_anchor_index(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "app.py").write_text("print('v1')\n", encoding="utf-8")
+            vibelign_dir = root / ".vibelign"
+            vibelign_dir.mkdir()
+            (vibelign_dir / "vibelign.db").write_text("db\n", encoding="utf-8")
+            (vibelign_dir / "anchor_index.json").write_text("{}\n", encoding="utf-8")
+            (vibelign_dir / "state.json").write_text("{}\n", encoding="utf-8")
+
+            summary = create_checkpoint(root, "with internal state")
+            self.assertIsNotNone(summary)
+
+            checkpoints = list_checkpoints(root)
+            self.assertEqual(len(checkpoints), 1)
+            manifest_path = (
+                root
+                / ".vibelign"
+                / "checkpoints"
+                / checkpoints[0].checkpoint_id
+                / "manifest.json"
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            paths = [item["path"] for item in manifest["files"]]
+            self.assertIn("app.py", paths)
+            self.assertIn(".vibelign/vibelign.db", paths)
+            self.assertIn(".vibelign/anchor_index.json", paths)
+            self.assertNotIn(".vibelign/state.json", paths)
+
+    def test_create_checkpoint_excludes_target_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "app.py").write_text("print('v1')\n", encoding="utf-8")
+            (root / "target").mkdir()
+            (root / "target" / "bundle.js").write_text("bundle\n", encoding="utf-8")
+
+            summary = create_checkpoint(root, "without target")
+            self.assertIsNotNone(summary)
+
+            checkpoint = list_checkpoints(root)[0]
+            manifest_path = (
+                root
+                / ".vibelign"
+                / "checkpoints"
+                / checkpoint.checkpoint_id
+                / "manifest.json"
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            paths = [item["path"] for item in manifest["files"]]
+
+            self.assertIn("app.py", paths)
+            self.assertNotIn("target/bundle.js", paths)
+
     def test_restore_checkpoint_rejects_invalid_checkpoint_id(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

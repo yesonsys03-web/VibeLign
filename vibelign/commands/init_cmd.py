@@ -3,9 +3,12 @@ import platform
 import shutil
 import subprocess
 import sys
+from argparse import Namespace
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional, Union
+
+
+_WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
 from vibelign.terminal_render import (
@@ -59,10 +62,10 @@ _UV_INSTALL_CMD = {
 
 
 def _run_text_subprocess(
-    cmd: Union[Sequence[str], str],
+    cmd: Sequence[str] | str,
     *,
     shell: bool = False,
-    timeout: Optional[int] = None,
+    timeout: int | None = None,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         cmd,
@@ -72,6 +75,7 @@ def _run_text_subprocess(
         encoding="utf-8",
         errors="replace",
         timeout=timeout,
+        creationflags=_WINDOWS_FLAGS,
     )
 
 
@@ -128,8 +132,7 @@ def _check_python() -> bool:
     cur = sys.version_info[:2]
     if cur < _MIN_PYTHON:
         _fail(
-            f"Python {cur[0]}.{cur[1]} 이에요. "
-            f"{_MIN_PYTHON[0]}.{_MIN_PYTHON[1]} 이상이 필요해요."
+            f"Python {cur[0]}.{cur[1]} 이에요. {_MIN_PYTHON[0]}.{_MIN_PYTHON[1]} 이상이 필요해요."
         )
         clack_info("python.org 에서 최신 Python을 설치해보세요.")
         return False
@@ -255,7 +258,7 @@ def _reinstall_local(source_root: Path) -> bool:
     try:
         import shutil
 
-        shutil.copytree(str(src), str(dest), dirs_exist_ok=True)
+        _ = shutil.copytree(str(src), str(dest), dirs_exist_ok=True)
         # .pyc 캐시 무효화
         for pyc in dest.rglob("*.pyc"):
             pyc.unlink(missing_ok=True)
@@ -281,7 +284,9 @@ def _reinstall(use_uv: bool, force: bool) -> bool:
     if use_uv:
         _step("uv 캐시를 정리하는 중...")
         try:
-            subprocess.run(["uv", "cache", "clean"], capture_output=True, timeout=15)
+            _ = subprocess.run(
+                ["uv", "cache", "clean"], capture_output=True, timeout=15
+            )
         except subprocess.TimeoutExpired:
             _warn("uv 캐시 정리 시간 초과 — 건너뜁니다.")
         cmd = ["uv", "tool", "install", "vibelign", "--no-cache"]
@@ -332,8 +337,8 @@ def _reinstall(use_uv: bool, force: bool) -> bool:
 
 
 # === ANCHOR: INIT_CMD_RUN_INIT_START ===
-def run_init(args) -> None:
-    force = getattr(args, "force", False)
+def run_init(args: Namespace) -> None:
+    force = bool(getattr(args, "force", False))
 
     clack_intro("VibeLign 업데이트 / 재설치")
 

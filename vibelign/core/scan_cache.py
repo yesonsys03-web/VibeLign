@@ -4,50 +4,65 @@
 파일별로 mtime + size를 캐시 키로 저장한다.
 변경된 파일만 re-scan하고, 나머지는 캐시에서 읽는다.
 """
+
 from __future__ import annotations
 
 import json
 import os
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Optional
+from typing import cast
+
+CacheEntry = Mapping[str, object]
 
 
-SCAN_CACHE_SCHEMA = 1
+SCAN_CACHE_SCHEMA = 2
 
 
-def load_scan_cache(cache_path: Path) -> dict[str, Any]:
+def load_scan_cache(cache_path: Path) -> dict[str, CacheEntry]:
     if not cache_path.exists():
         return {}
     try:
-        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+        payload_obj = cast(object, json.loads(cache_path.read_text(encoding="utf-8")))
+        if not isinstance(payload_obj, dict):
+            return {}
+        payload = cast(dict[str, object], payload_obj)
         if payload.get("schema_version") != SCAN_CACHE_SCHEMA:
             return {}
         entries = payload.get("entries", {})
-        return entries if isinstance(entries, dict) else {}
+        if not isinstance(entries, dict):
+            return {}
+        raw_entries = cast(dict[object, object], entries)
+        normalized_entries: dict[str, CacheEntry] = {}
+        for raw_path, raw_entry in raw_entries.items():
+            if isinstance(raw_path, str) and isinstance(raw_entry, dict):
+                normalized_entries[raw_path] = cast(dict[str, object], raw_entry)
+        return normalized_entries
     except (OSError, json.JSONDecodeError):
         return {}
 
 
-def save_scan_cache(cache_path: Path, entries: dict[str, Any]) -> None:
+def save_scan_cache(cache_path: Path, entries: dict[str, CacheEntry]) -> None:
     try:
         payload = {"schema_version": SCAN_CACHE_SCHEMA, "entries": entries}
         tmp = cache_path.with_suffix(".tmp")
-        tmp.write_text(
+        _ = tmp.write_text(
             json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
-        tmp.replace(cache_path)
+        _ = tmp.replace(cache_path)
     except OSError:
         pass
 
 
-def _cache_valid(entry: dict[str, Any], path: Path) -> bool:
+def _cache_valid(entry: CacheEntry, path: Path) -> bool:
     try:
         st = os.stat(path)
-        return (
-            abs(st.st_mtime - entry.get("mtime", 0)) < 0.001
-            and st.st_size == entry.get("size", -1)
-        )
+        mtime = entry.get("mtime", 0)
+        size = entry.get("size", -1)
+        if not isinstance(mtime, (int, float)) or not isinstance(size, int):
+            return False
+        return abs(st.st_mtime - float(mtime)) < 0.001 and st.st_size == size
     except OSError:
         return False
 
@@ -56,26 +71,27 @@ def incremental_scan(
     root: Path,
     cache_path: Path,
     force: bool = False,
-    invalidated: Optional[set[str]] = None,
-) -> dict[str, Any]:
+    invalidated: set[str] | None = None,
+) -> dict[str, CacheEntry]:
     """모든 소스 파일의 스캔 결과를 반환한다.
 
     - force=True: 캐시 무시, 전체 재스캔
     - invalidated: watch 이벤트로 변경된 파일 경로 집합 (즉시 재스캔)
     - 나머지 파일: mtime + size 비교 → 같으면 캐시, 다르면 재스캔
 
-    반환: {rel_path: {mtime, size, anchors, category, line_count}}
+    반환: {rel_path: {mtime, size, anchors, anchor_spans, category, line_count}}
     """
     from vibelign.core.project_scan import (
         classify_file,
+        extract_imports,
         iter_source_files,
         line_count,
         relpath_str,
     )
-    from vibelign.core.anchor_tools import extract_anchors
+    from vibelign.core.anchor_tools import extract_anchors, extract_anchor_spans
 
     cache = {} if force else load_scan_cache(cache_path)
-    new_cache: dict[str, Any] = {}
+    new_cache: dict[str, CacheEntry] = {}
     current_paths: set[str] = set()
 
     for path in iter_source_files(root):
@@ -93,6 +109,8 @@ def incremental_scan(
                     "mtime": st.st_mtime,
                     "size": st.st_size,
                     "anchors": extract_anchors(path),
+                    "anchor_spans": extract_anchor_spans(path),
+                    "imports": extract_imports(path),
                     "category": classify_file(path, rel),
                     "line_count": line_count(path),
                 }
@@ -104,4 +122,6 @@ def incremental_scan(
 
     save_scan_cache(cache_path, new_cache)
     return new_cache
+
+
 # === ANCHOR: SCAN_CACHE_END ===

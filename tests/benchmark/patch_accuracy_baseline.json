@@ -1,0 +1,259 @@
+{
+  "pinned_intents_version": "2026-04-12",
+  "generated_at": "2026-04-12",
+  "notes": "Updated via `vib bench --patch --update-baseline`. See docs/superpowers/specs/2026-04-12-patch-accuracy-c5-bench-runner-design.md.",
+  "scenarios": {
+    "change_error_msg": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "add_email_domain_check": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "fix_login_lock_bug": {
+      "det": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": true
+      }
+    },
+    "add_bio_length_limit": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "add_password_change": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": null,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": null,
+        "recall_at_3": true
+      }
+    },
+    "reduce_max_login_attempts": {
+      "det": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": false
+      },
+      "ai": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": false
+      }
+    },
+    "add_special_char_requirement": {
+      "det": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": true
+      }
+    },
+    "remove_password_confirm": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "hide_email_in_profile": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "change_server_port": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "change_signup_button_label": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "add_login_form_placeholder_kr": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "add_email_to_editable_fields": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "fix_login_error_not_clearing": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "fix_email_validation_broken": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "fix_profile_update_not_saving": {
+      "det": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": true
+      }
+    },
+    "fix_duplicate_signup": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "fix_token_not_issued": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "fix_password_stored_plaintext": {
+      "det": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": true,
+        "anchor_ok": true,
+        "recall_at_3": true
+      }
+    },
+    "fix_user_lookup_slow": {
+      "det": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": true
+      },
+      "ai": {
+        "files_ok": false,
+        "anchor_ok": false,
+        "recall_at_3": true
+      }
+    }
+  },
+  "totals": {
+    "det": {
+      "files_ok": "15/20",
+      "anchor_ok": "14/19",
+      "recall_at_3": "19/20"
+    },
+    "ai": {
+      "files_ok": "15/20",
+      "anchor_ok": "14/19",
+      "recall_at_3": "19/20"
+    }
+  }
+}

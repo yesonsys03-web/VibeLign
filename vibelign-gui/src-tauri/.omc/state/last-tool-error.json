@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"/Users/usabatch/.local/share/uv/tools/vibelign/bin/python3 -m pip show watchdog 2>/dev/null || /Users/usabatch/.local/share/uv/tools/vibelign/bin/python3 -c \\\"import watchdog; print('OK:',...",
+  "error": "Exit code 1\nTraceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nAttributeError: module 'watchdog' has no attribute '__version__'",
+  "timestamp": "2026-04-01T06:15:42.940Z",
+  "retry_count": 1
+}

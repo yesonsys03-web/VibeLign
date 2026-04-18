@@ -25,6 +25,10 @@ The goal is simple:
 
 Do not rewrite entire files unless the user explicitly asks for a rewrite.
 
+### AI 응답 스타일
+
+가능한 한 간결하게 응답하고, 불필요한 인사나 부연을 생략해.
+
 ---
 
 ## 1. Patch-First Editing Rules
@@ -43,6 +47,7 @@ Do not rewrite entire files unless the user explicitly asks for a rewrite.
 - keep diffs reviewable
 - keep changes easy to explain
 - prefer one focused change over many scattered changes
+- for a distinct new feature, default to a new file/module/component instead of appending it to an existing file
 
 ---
 
@@ -69,6 +74,20 @@ Examples:
 - service / worker / pipeline files → real logic
 - UI file → UI only
 - config file → configuration only
+- when a file starts accumulating a second responsibility, keep the old file as wiring and move the new behavior out
+
+### Module boundaries and file size (cohesion)
+
+- Prefer keeping code that changes together in the same module or directory; split when responsibilities clearly diverge.
+- Prefer paths and names that make a feature discoverable without opening many unrelated files.
+- If a file grows large, prefer adding new behavior in a new file or module rather than expanding the same file indefinitely (project checks such as ESLint `max-lines` and `watch_rules` may flag this).
+- Extract pieces that need isolated tests or reuse across features.
+- Avoid over-splitting: if understanding one feature requires hopping across many tiny files with no clear story, prefer a slightly larger cohesive unit.
+
+### Large pages or modules (e.g. major UI pages)
+
+- Do not treat one outer anchor as the only safe zone for an entire very large file; prefer sub-anchors per major section until the file can be split.
+- `vib patch` / CodeSpeak targeting works best when `target_anchor` spans a small, stable region.
 
 ---
 
@@ -106,6 +125,14 @@ If `.vibelign/project_map.json` exists:
 - Check `.vibelign/anchor_meta.json` for anchor intent and cross-file dependencies (`@CONNECTS`)
 - Do not modify files outside the categories relevant to the request
 
+### VibeLign patch-specific rules
+
+- 복합 요청은 `intent / source / destination / behavior_constraint`로 먼저 분해한다.
+- `삭제`와 `이동`이 같이 나오면 기능 삭제가 아니라 위치 이동 + 보존 제약인지 먼저 확인한다.
+- `source`와 `destination`은 같은 규칙으로 취급하지 말고 역할별로 따로 해석한다.
+- patch contract나 코드스픽 구조가 바뀌면 관련 테스트와 문서도 같이 갱신한다.
+- 용어는 공통 문서와 glossary 기준으로 맞춘다.
+
 ---
 
 ## 4. Structure Safety Rules
@@ -129,6 +156,7 @@ Avoid the following patterns unless explicitly required:
 - separate translation logic from UI state handling
 - separate configuration from execution logic
 - separate formatting / validation / retry logic when files grow too large
+- when a file keeps growing with new features, split the new feature into a new file instead of appending more code
 
 ---
 
@@ -166,6 +194,7 @@ When editing existing code:
 - avoid turning one file into the project center of gravity
 - if a file is already large, consider splitting instead of extending it further
 - if many new functions are being added to one module, ask whether a new module boundary is more appropriate
+- for a new feature, default to a new file/module/component first; only extend the existing file for a small bug fix or a local wiring tweak
 
 ### Soft guidance
 - small file: easy to edit safely
@@ -186,6 +215,7 @@ When editing existing code:
 - one function = one clear job
 - if a function has multiple "and" steps (read AND parse AND save), split it
 - helper logic that appears in more than one place → extract into its own function
+- if an anchor starts absorbing a second feature, move the new behavior out into a new file or sub-anchor
 
 ### Function naming
 Good examples:
