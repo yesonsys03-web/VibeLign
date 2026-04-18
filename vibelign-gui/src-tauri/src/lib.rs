@@ -1521,6 +1521,15 @@ pub fn run() {
                     Err(e) => eprintln!("VibeLign: CLI PATH 설치 실패 — {e}"),
                 }
             }
+            // 앱 이동/재설치로 래퍼 타겟이 stale 해지는 경우를 매 부팅 시 재검증한다.
+            // Why: onedir 래퍼는 번들 vib 의 절대경로를 품고 있어 .app 이 다른 폴더로 옮겨지면
+            //      터미널 `vib` 가 "No such file or directory" 로 깨진다.
+            #[cfg(not(debug_assertions))]
+            if let Some(bundled) = vib_path::find_bundled_vib() {
+                if let Err(e) = vib_path::refresh_gui_wrapper(&bundled) {
+                    eprintln!("VibeLign: CLI 래퍼 갱신 실패 — {e}");
+                }
+            }
             // vib 프리워밍: 백그라운드에서 `vib --version` 을 한 번 돌려 PyInstaller onefile
             // 압축 해제와 OS 파일 캐시를 미리 데워둔다. 사용자가 Doctor/DocsViewer 등 첫
             // 서브프로세스 호출을 할 때 체감 콜드스타트가 크게 줄어든다.
