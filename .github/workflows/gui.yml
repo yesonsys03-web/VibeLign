@@ -117,7 +117,9 @@ jobs:
         run: |
           mkdir -p macos-release
           cp -r src-tauri/target/release/bundle/dmg/*.dmg macos-release/ 2>/dev/null || true
-          cp -r src-tauri/target/release/bundle/macos/*.app macos-release/ 2>/dev/null || true
+          # NOTE: .app 디렉토리 번들은 복사하지 않는다. 디렉토리라서 `**/*` 글롭에
+          # 내부 수백 개 파일이 Release 에셋으로 흘러들어가고, 그중 0바이트 파일이
+          # GitHub API 422 (size >= 1) 를 유발. .dmg 안에 이미 .app 이 포함됨.
           printf '#!/bin/bash\n# VibeLign macOS 설치 스크립트\nset -e\nAPP_NAME="vibelign-gui.app"\nSEARCH_DIRS=("$HOME/Downloads" "$HOME/Desktop" "$(dirname "$0")")\necho "VibeLign 앱 찾는 중..."\nAPP_PATH=""\nfor DIR in "${SEARCH_DIRS[@]}"; do\n  if [ -d "$DIR/$APP_NAME" ]; then APP_PATH="$DIR/$APP_NAME"; break; fi\ndone\nif [ -z "$APP_PATH" ]; then\n  echo "오류: $APP_NAME 을 찾을 수 없습니다. Downloads 또는 Desktop 에 앱을 먼저 옮겨 주세요."\n  exit 1\nfi\necho "발견: $APP_PATH"\necho "macOS 격리 속성 제거 중..."\nxattr -rc "$APP_PATH"\necho "/Applications 로 복사 중..."\ncp -r "$APP_PATH" /Applications/\necho "설치 완료! VibeLign을 실행합니다."\nopen /Applications/$APP_NAME\n' > macos-release/install-macos.sh
           chmod +x macos-release/install-macos.sh
           printf 'VibeLign - macOS 설치 안내\n==========================\n\n처음 실행 시 "앱이 손상되었습니다" 오류가 뜨는 경우:\n\n방법 1 - 설치 스크립트 사용 (권장)\n  터미널에서 실행:\n  bash install-macos.sh\n\n방법 2 - 수동 해결\n  터미널에서 실행:\n  xattr -rc vibelign-gui.app\n  그 후 앱을 /Applications 폴더로 이동\n\n이 오류는 Apple 공증(notarization) 없이 배포된 앱에서\nmacOS Gatekeeper가 발생시키는 정상적인 보안 경고입니다.\n' > macos-release/README.txt
@@ -154,7 +156,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release-assets/windows/**/*
-            release-assets/macos/**/*
+            release-assets/windows/**/*.exe
+            release-assets/windows/**/*.msi
+            release-assets/macos/**/*.dmg
+            release-assets/macos/install-macos.sh
+            release-assets/macos/README.txt
           generate_release_notes: true
           fail_on_unmatched_files: false
