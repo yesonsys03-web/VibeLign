@@ -1,3 +1,4 @@
+// === ANCHOR: MOD_START ===
 //! Cross-platform onboarding scaffold. Shared types/helpers live here; the
 //! per-OS runners live in `windows` and `macos` sub-modules. During the
 //! refactor (Task 0), macOS still uses stubs, so some helpers appear dead on
@@ -653,3 +654,4 @@ pub mod testing {
         super::macos::uninstall_macos_track_in_home(home)
     }
 }
+// === ANCHOR: MOD_END ===

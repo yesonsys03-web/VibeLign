@@ -1,5 +1,7 @@
 #![cfg(target_os = "macos")]
 
+// === ANCHOR: MACOS_START ===
+
 use super::{
     append_onboarding_log, build_initial_onboarding_snapshot, build_onboarding_snapshot,
     clear_onboarding_logs, emit_onboarding_progress, onboarding_logs_available_from_state,
@@ -610,3 +612,4 @@ pub(crate) fn uninstall(
     );
     snapshot
 }
+// === ANCHOR: MACOS_END ===
