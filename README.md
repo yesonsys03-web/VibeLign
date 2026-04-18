@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="README.ko.md">🇰🇷 한국어</a> &nbsp;|&nbsp; <b>🇺🇸 English</b>
+  <a href="https://github.com/yesonsys03-web/VibeLign/blob/main/README.ko.md">🇰🇷 한국어</a> &nbsp;|&nbsp; <b>🇺🇸 English</b>
 </p>
 
 <p align="center">
@@ -27,7 +27,7 @@
 VibeLign (`vibelign`) is an AI coding safety **CLI + Desktop GUI** for vibe coding workflows.
 It helps developers and non-developers protect project structure, save checkpoints, undo bad AI edits, manage anchors, and block secret leaks before commit.
 
-> **🆕 v2.0**: Desktop app for macOS / Windows, per-document AI summarization, anchor intent regeneration. See [CHANGELOG](./CHANGELOG.md) and [migration notes](./MIGRATION_v1_to_v2.md).
+> **🆕 v2.0**: Desktop app for macOS / Windows, per-document AI summarization, anchor intent regeneration. See [CHANGELOG](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md) and [migration notes](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md).
 
 Documentation: `https://yesonsys03-web.github.io/VibeLign/`  
 Repository: `https://github.com/yesonsys03-web/VibeLign`  
@@ -322,7 +322,7 @@ VibeLign promises:
 - ⚡ **onedir runtime** — PyInstaller `onefile → onedir` removes GUI cold-start (1–3 s → instant)
 - 🏷️ **Anchor `_source` field** — `anchor_meta.json` now tracks `code / ai / manual / ai_failed` so AI/manual results are protected from code-based regeneration (use `--force` to override)
 - ⚠️ **Breaking**: `vibelign.vib_cli` → `vibelign.cli.vib_cli`; `vibelign.mcp_server` → `vibelign.mcp.mcp_server`
-- See [CHANGELOG.md](./CHANGELOG.md) · [MIGRATION_v1_to_v2.md](./MIGRATION_v1_to_v2.md)
+- See [CHANGELOG.md](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md) · [MIGRATION_v1_to_v2.md](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md)
 
 **v1.6.0** — MCP Server + AI Development Rules System:
 

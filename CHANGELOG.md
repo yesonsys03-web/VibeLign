@@ -6,6 +6,21 @@
 
 ---
 
+## [2.0.1] — 2026-04-18
+
+PyPI 렌더링 한정 문서 패치.
+
+### Fixed
+
+- README 의 `README.ko.md`, `CHANGELOG.md`, `MIGRATION_v1_to_v2.md` 상대 링크를 PyPI 페이지에서 404 나지 않도록 **절대 GitHub 링크** 로 변경. GitHub 에서는 기존과 동일하게 동작.
+
+### Notes
+
+- 코드 변경 없음. CLI / GUI 동작 동일.
+- v2.0.0 의 GUI 바이너리 (`.dmg` / `.exe` / `.msi`) 는 그대로 사용 가능. v2.0.1 은 PyPI 업로드만 의미를 가집니다.
+
+---
+
 ## [2.0.0] — 2026-04-18
 
 VibeLign 2.0 은 **데스크톱 GUI 런칭** + **MCP/Patch 모듈화** + **AI 옵트인 체계** 를 담은 메이저 릴리즈입니다.

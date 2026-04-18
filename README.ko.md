@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <b>🇰🇷 한국어</b> &nbsp;|&nbsp; <a href="README.md">🇺🇸 English</a>
+  <b>🇰🇷 한국어</b> &nbsp;|&nbsp; <a href="https://github.com/yesonsys03-web/VibeLign/blob/main/README.md">🇺🇸 English</a>
 </p>
 
 <p align="center">
@@ -27,7 +27,7 @@
 VibeLign(`vibelign`)은 바이브 코딩 작업을 더 안전하게 해주는 AI 코딩 안전 **CLI + 데스크톱 GUI** 예요.
 프로젝트 구조 보호, 체크포인트 저장, 되돌리기, 앵커 관리, 커밋 전 비밀정보 차단을 도와줘요.
 
-> **🆕 v2.0**: macOS / Windows 데스크톱 앱, 문서별 AI 요약, 앵커 intent 재생성. [CHANGELOG](./CHANGELOG.md) · [마이그레이션 가이드](./MIGRATION_v1_to_v2.md) 참고.
+> **🆕 v2.0**: macOS / Windows 데스크톱 앱, 문서별 AI 요약, 앵커 intent 재생성. [CHANGELOG](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md) · [마이그레이션 가이드](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md) 참고.
 
 문서: `https://yesonsys03-web.github.io/VibeLign/`  
 저장소: `https://github.com/yesonsys03-web/VibeLign`  
@@ -322,7 +322,7 @@ VibeLign이 보장하는 것:
 - ⚡ **onedir 런타임** — PyInstaller `onefile → onedir` 전환으로 GUI 콜드스타트(1~3초) 제거
 - 🏷️ **앵커 `_source` 필드** — `anchor_meta.json` 에 `code / ai / manual / ai_failed` 구분 도입해 AI/수동 결과를 코드 기반 재생성으로부터 보호 (`--force` 로 덮어쓰기 가능)
 - ⚠️ **Breaking**: `vibelign.vib_cli` → `vibelign.cli.vib_cli`; `vibelign.mcp_server` → `vibelign.mcp.mcp_server`
-- 자세한 내용은 [CHANGELOG.md](./CHANGELOG.md) · [MIGRATION_v1_to_v2.md](./MIGRATION_v1_to_v2.md)
+- 자세한 내용은 [CHANGELOG.md](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md) · [MIGRATION_v1_to_v2.md](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md)
 
 **v1.6.0** — MCP 서버 + AI 개발 규칙 시스템:
 
