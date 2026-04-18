@@ -1532,12 +1532,10 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
         reasons.append("요청 키워드와 파일 경로 간 겹침이 없어 confidence 하향")
     stateful_ui_request = _is_stateful_ui_request(request_tokens)
     # Deference rule (C6, 2026-04-12):
-    # - confidence == "low": AI always invoked (use_ai flag irrelevant)
-    # - confidence == "medium" + use_ai: AI invoked (user escape hatch)
-    # - confidence == "high" + use_ai: AI **skipped** — deterministic top-1
-    #   is trusted. Prevents --ai from overriding C1 verb-aware ranking on
-    #   scenarios where deterministic already found the right file.
-    # - use_ai=False + confidence != "low": AI not invoked (unchanged)
+    # - use_ai=False: AI **never** invoked (cost/latency escape hatch은 절대 존중).
+    # - confidence == "low" + use_ai: AI invoked (불확실하면 LLM 재정렬).
+    # - confidence == "medium" + use_ai: AI invoked (user escape hatch).
+    # - confidence == "high" + use_ai: AI skipped — deterministic top-1 신뢰.
     best_path_tokens = _path_tokens(relpath_str(root, best_path))
     best_is_frontend = best_path.suffix.lower() in _FRONTEND_EXTS
     ai_override_blocked_by_state_hint = (
@@ -1545,7 +1543,7 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
         and best_is_frontend
         and any(token in best_path_tokens for token in _STATE_OWNER_FILE_HINTS)
     )
-    should_use_ai = confidence == "low" or (
+    should_use_ai = (
         use_ai
         and confidence != "high"
         and not ai_override_blocked_by_state_hint

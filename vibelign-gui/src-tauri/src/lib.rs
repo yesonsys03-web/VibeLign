@@ -380,6 +380,15 @@ async fn enhance_doc_with_ai(
             if trimmed.is_empty() {
                 continue;
             }
+            // provider 는 프런트엔드 입력이므로 env 이름으로 조립하기 전 문자 화이트리스트로 검증한다.
+            // Why: 허용문자를 벗어난 이름은 플랫폼에 따라 env 주입/덮어쓰기가 가능하다.
+            if provider.is_empty()
+                || !provider
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_')
+            {
+                continue;
+            }
             let env_name = format!("VIBELIGN_DOCS_AI_MODEL_{}", provider.to_uppercase());
             command.env(env_name, trimmed);
         }
@@ -1137,7 +1146,12 @@ fn save_recent_projects(dirs: Vec<String>) -> Result<(), String> {
     data["recent_projects"] = serde_json::Value::Array(
         dirs.into_iter().map(serde_json::Value::String).collect(),
     );
-    std::fs::write(&path, data.to_string()).map_err(|e| e.to_string())
+    // 임시 파일에 쓰고 rename 으로 원자 교체한다.
+    // Why: API 키가 같은 파일에 저장되므로 중간 크래시 시 파일이 절단되면
+    // 키를 잃는다. 동일 디렉터리 내 rename 은 POSIX / Windows 에서 원자적이다.
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, data.to_string()).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
