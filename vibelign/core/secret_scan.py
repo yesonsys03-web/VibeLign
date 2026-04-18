@@ -272,6 +272,14 @@ def scan_staged_secrets(root: Path) -> SecretScanResult:
 _COMMIT_MARKER_PREFIX = "COMMIT_MARKER_"
 _DIFF_GIT_RE = re.compile(r"^diff --git a/(.*?) b/")
 
+_HISTORY_AUDIT_SKIP_PATHS: tuple[str, ...] = (
+    "tests/test_secret_scan.py",
+)
+
+
+def _is_history_audit_skipped(path: str) -> bool:
+    return path in _HISTORY_AUDIT_SKIP_PATHS
+
 
 # === ANCHOR: SECRET_SCAN_PARSE_GIT_LOG_CHUNKS_START ===
 def parse_git_log_chunks(
@@ -364,6 +372,13 @@ def scan_all_history(
             display_path = (
                 f"{commit_sha[:8]}:{file_path}" if commit_sha else file_path
             )
+            if _is_history_audit_skipped(file_path):
+                if commit_sha != last_reported:
+                    last_reported = commit_sha
+                    processed += 1
+                    if on_progress is not None:
+                        on_progress(processed, total)
+                continue
             if _looks_like_secret_file(file_path):
                 findings.append(
                     SecretFinding(

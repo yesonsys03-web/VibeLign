@@ -220,6 +220,26 @@ class ScanAllHistoryTest(unittest.TestCase):
             result = scan_all_history(root)
             self.assertEqual(result.findings, [])
 
+    def test_skips_scanner_self_test_fixture_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_git_repo(root)
+            fixture = root / "tests" / "test_secret_scan.py"
+            fixture.parent.mkdir(parents=True, exist_ok=True)
+            _ = fixture.write_text(
+                'password = "supersecretvalue123456"\n',  # vibelign: allow-secret
+                encoding="utf-8",
+            )
+            _git(root, "add", ".")
+            _git(root, "commit", "-q", "-m", "fixture")
+
+            result = scan_all_history(root)
+            self.assertEqual(
+                result.findings,
+                [],
+                f"expected fixture file to be skipped: {result.findings}",
+            )
+
 
 if __name__ == "__main__":
     _ = unittest.main()
