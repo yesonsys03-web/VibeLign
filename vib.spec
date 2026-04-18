@@ -71,10 +71,18 @@ a = Analysis(
 
 pyz = PYZ(a.pure)
 
+# onedir 빌드: 실행 파일은 슬림하게, 모든 바이너리/데이터는 `_internal/` 에 풀어둔다.
+# Why: onefile 은 매 실행마다 `$TMPDIR/_MEI{pid}/` 로 재압축 해제해 1~3초 콜드스타트.
+#      onedir 는 설치 시점에 한 번만 풀려 있어서 이후 호출은 dev 모드 수준으로 빠르다.
 exe = EXE(
-    pyz, a.scripts, a.binaries, a.datas, [],
+    pyz, a.scripts, [], exclude_binaries=True,
     name="vib", debug=False, bootloader_ignore_signals=False,
-    strip=False, upx=True, upx_exclude=[], runtime_tmpdir=None,
-    console=True, disable_windowed_traceback=False, argv_emulation=False,
+    strip=False, upx=True, console=True,
+    disable_windowed_traceback=False, argv_emulation=False,
     target_arch=None, codesign_identity=None, entitlements_file=None,
+)
+
+coll = COLLECT(
+    exe, a.binaries, a.zipfiles, a.datas,
+    strip=False, upx=True, upx_exclude=[], name="vib",
 )

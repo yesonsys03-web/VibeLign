@@ -34,8 +34,8 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": [
-      "binaries/vib"
+    "resources": [
+      "vib-runtime/**/*"
     ]
   }
 }
