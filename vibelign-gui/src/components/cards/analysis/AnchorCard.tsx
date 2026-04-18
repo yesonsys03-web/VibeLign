@@ -141,7 +141,7 @@ export default function AnchorCard({
           ? "앵커가 있는 파일이 없습니다"
           : `✅ code_count=${data.code_count}  ai_count=${data.ai_count}  total=${data.total_anchors}`;
       const tail = !useWithAi
-        ? "(AI 보강 OFF → 코드 기반만)"
+        ? "(AI 재생성 OFF → 코드 기반만)"
         : data.ai_available
         ? data.forced
           ? "(force 재생성)"
@@ -367,7 +367,7 @@ export default function AnchorCard({
         <div className="feature-card-body" style={{ padding: "6px 12px 8px" }}>
           <GuiCliOutputBlock
             text={out}
-            placeholder="앵커를 자동 삽입하고, AI로 intent/aliases를 보강합니다."
+            placeholder="코드가 바뀐 뒤 앵커의 intent/aliases를 재생성합니다."
             variant={st === "error" ? "error" : hasWarning ? "warn" : "default"}
           />
           <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
@@ -399,22 +399,22 @@ export default function AnchorCard({
             >--force</button>
             <button
               onClick={() => setUseWithAi((v) => !v)}
-              title="OFF: 코드 기반 aliases 만 생성 (빠름). ON: AI로 intent/aliases 보강 (API 호출)."
+              title="OFF: 코드 기반으로만 재생성. ON: AI로 재생성 (API 호출)."
               style={{
                 fontSize: 9, fontWeight: 700, padding: "2px 6px",
                 border: "2px solid #1A1A1A",
                 background: useWithAi ? "#1E2216" : "#fff",
                 color: useWithAi ? "#4DFF91" : "#1A1A1A", cursor: "pointer",
               }}
-            >AI 보강 {useWithAi ? "ON" : "OFF"}</button>
+            >AI 재생성 {useWithAi ? "ON" : "OFF"}</button>
             <button
               className="btn btn-sm"
               style={{ flex: 1, background: "#fff", color: "#1A1A1A", border: "2px solid #1A1A1A", fontSize: 10 }}
               disabled={st === "loading"}
               onClick={handleAutoIntent}
-              title={useWithAi ? "AI + 코드 기반으로 모든 앵커에 intent/aliases 부여" : "코드 기반으로만 aliases 부여 (AI 호출 없음)"}
+              title={useWithAi ? "AI로 모든 앵커 intent/aliases 재생성 (기존 AI 결과는 --force 시 덮어씀)" : "코드 기반으로만 재생성 (AI 호출 없음)"}
             >
-              {runMode === "autoIntent" ? <span className="spinner" /> : useWithAi ? "AI intent 보강" : "코드 기반 보강"}
+              {runMode === "autoIntent" ? <span className="spinner" /> : useWithAi ? "AI intent 재생성" : "코드 기반 재생성"}
             </button>
           </div>
           {runMode === "autoIntent" && useWithAi && aiProgress && aiProgress.total > 0 && (
