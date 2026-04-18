@@ -63,6 +63,23 @@ _HIGH_CONFIDENCE_RULES = [
     ("anthropic-api-key", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{40,}\b")),
     ("openai-api-key", re.compile(r"\bsk-[A-Za-z0-9]{32,}\b")),
     ("url-inline-key", re.compile(r"[?&]key=[A-Za-z0-9_-]{16,}")),
+    (
+        "jwt-token",
+        re.compile(
+            r"\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b"
+        ),
+    ),
+    (
+        "db-url-with-password",
+        re.compile(
+            r"\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp|amqps)://"
+            r"[^:/\s\"']+:[^@\s\"']+@[^\s\"']+"
+        ),
+    ),
+    (
+        "gcp-service-account",
+        re.compile(r'"type"\s*:\s*"service_account"'),
+    ),
 ]
 _BINARY_SECRET_PATHS = {
     ".env",
