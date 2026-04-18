@@ -5,7 +5,7 @@ from typing import Protocol, cast
 
 from vibelign.core.codespeak import CodeSpeakResult
 from vibelign.core.patch_suggester import resolve_target_for_role
-from vibelign.core.patch_suggester import suggest_patch_for_role
+from vibelign.core.patch_suggester import suggest_patch
 from vibelign.core.patch_suggester import tokenize
 
 
@@ -103,7 +103,7 @@ def resolve_patch_targeting(
             source_text = extracted_source
             if len(tokenize(source_text)) < 4:
                 source_text = request
-    suggestion = suggest_patch_for_role(root, source_text, role="source", use_ai=use_ai)
+    suggestion = suggest_patch(root, source_text, use_ai=use_ai)
     source_resolution_obj = cast(
         ResolutionLike | None,
         resolve_target_for_role(root, source_text, role="source", use_ai=use_ai),
@@ -116,8 +116,8 @@ def resolve_patch_targeting(
     if codespeak.patch_points.get("operation") == "move":
         destination_text = str(codespeak.patch_points.get("destination", "")).strip()
         if destination_text:
-            destination_suggestion = suggest_patch_for_role(
-                root, destination_text, use_ai=use_ai, role="destination"
+            destination_suggestion = suggest_patch(
+                root, destination_text, use_ai=use_ai
             )
             destination_resolution_obj = cast(
                 ResolutionLike | None,

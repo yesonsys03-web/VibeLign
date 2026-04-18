@@ -1631,12 +1631,6 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
     return suggestion
 
 
-def suggest_patch_for_role(
-    root: Path, request: str, role: str, use_ai: bool = True
-) -> PatchSuggestion:
-    return suggest_patch(root, request, use_ai=use_ai)
-
-
 def resolve_target_for_role(
     root: Path, request: str, role: str, use_ai: bool = True
 ) -> "Any":
