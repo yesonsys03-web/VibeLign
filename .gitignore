@@ -30,7 +30,6 @@ PROJECT_CONTEXT.md
 .vscode/
 .idea/
 .claude/
-.cursor/
 .vibelign/checkpoints/
 VibeLign_dev_plan/
 .vibelign/scan_cache.json
@@ -40,9 +39,6 @@ build/
 # Developer-local runtime state (not needed by end users)
 .omc/
 .sisyphus/
-
-# Internal dev planning docs (not needed by end users)
-docs/superpowers/
 
 # Editor backup files
 *~
