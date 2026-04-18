@@ -1129,6 +1129,11 @@ def choose_anchor(
         if raw_verb_cluster == _VERB_CLUSTER_DELETE and is_render_anchor:
             score -= 2
             rationale.append("삭제 요청이라 render 앵커 우선순위 낮춤")
+        # 음수 동점에서는 파일 뒤쪽 앵커가 이기도록 의도적으로 뒤집는다.
+        # Why: C3 wrapper-penalty 시나리오에서 RENDER/HANDLE 앵커가 같은 음수 점수로
+        # 묶이면 파일에서 뒤에 나오는 HANDLE (실제 제출 처리) 가 이겨야 한다.
+        # 근본 해법은 scorer 가 둘을 구분하도록 만드는 것이지만, 현재는 이 tie-break 에
+        # 의존한다 (test_wrapper_penalty_lets_leaf_win_over_wrapper 참고).
         if score > best_score or (score == best_score and score < 0):
             best_score = score
             best_anchor = anchor
@@ -1231,8 +1236,13 @@ def _ai_select_file(
             return None
         stateful_ui_request = _is_stateful_ui_request(request_tokens)
 
-        # 후보 풀 구성: 상위 점수 파일 10개 + ui_modules (중복 제거)
-        pool: list[Path] = [path for (_, path, _) in candidates[:10]]
+        # 후보 풀 구성: 점수 > 0 인 상위 파일 + ui_modules (중복 제거)
+        # Why: 모든 후보 점수가 음수라면 scorer 가 요청을 전혀 이해하지 못한 상태다.
+        # 이때 AI 에게 "하나만 골라달라" 고 하면 밑바닥 후보를 high-confidence 로
+        # 골라 오는 경로가 생긴다. 음수 후보는 제외하고, 비면 AI 호출 자체를 스킵한다.
+        pool: list[Path] = [path for (score, path, _) in candidates[:10] if score > 0]
+        if not pool:
+            return None
         if project_map is not None:
             for rel in getattr(project_map, "ui_modules", set()):
                 p = root / rel
@@ -1303,7 +1313,11 @@ def _ai_select_file(
             selected_path = pool[idx]
             return selected_path, ["AI가 파일 내용을 분석해 가장 적합한 파일을 선택함"]
         return None
-    except Exception:
+    except Exception as exc:
+        import logging
+        logging.getLogger("vibelign.patch_suggester").debug(
+            "AI 파일 선택 호출 실패 — deterministic top-1 유지: %s", exc
+        )
         return None
 
 
@@ -1396,12 +1410,13 @@ def _score_all_files(
     dict[str, AnchorMetaEntry],
     ProjectMapSnapshot | None,
     dict[str, list[dict[str, int | str]]],
+    dict[str, int],
 ]:
     """Rank every source file under `root` for the given `request`.
 
-    Returns (scored, metadata, anchor_meta, project_map, ui_label_idx).
+    Returns (scored, metadata, anchor_meta, project_map, ui_label_idx, alias_freq).
     `scored` is sorted descending by score, ties broken by path string.
-    `suggest_patch` consumes all 5 return values; `score_candidates`
+    `suggest_patch` consumes all 6 return values; `score_candidates`
     consumes only `scored`.
     """
     from vibelign.core.anchor_tools import load_anchor_meta
@@ -1573,8 +1588,21 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
                         anchor = f"[추천 앵커: {suggested_anchor}]"
                         ar = suggested_rationale
                 reasons = (original_reasons[:4] if original_reasons else []) + ai_reasons
+                # AI 선택 경로에도 det-top1 이 통과해야 했던 경로-overlap 게이트를
+                # 동일하게 적용한다. 겹침이 없으면 high 승격을 막고 medium 으로 상한한다.
+                # Why: 음수 점수 파일/ui_modules 주입 경로가 섞인 풀에서 AI 가 엉뚱한
+                # 파일을 골라도 "확신 있음" 으로 surface 되는 문제를 차단.
                 if confidence != "low":
-                    confidence = "high"  # AI가 직접 선택 시 신뢰도 유지
+                    if _meaningful_overlap(
+                        request_tokens,
+                        _path_tokens(relpath_str(root, best_path)),
+                    ):
+                        confidence = "high"
+                    else:
+                        confidence = "medium"
+                        reasons.append(
+                            "AI 선택 파일이 요청 키워드와 경로 겹침 없음 — confidence 상한 medium"
+                        )
             else:
                 reasons = reasons[:4] + ai_reasons
     suggestion = PatchSuggestion(
