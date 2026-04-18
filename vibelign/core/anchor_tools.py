@@ -1,8 +1,10 @@
 # === ANCHOR: ANCHOR_TOOLS_START ===
 from collections.abc import Collection
 from pathlib import Path
+import hashlib
 import json
 import re
+import sys
 from typing import TypeAlias, TypedDict, cast
 
 from vibelign.core.project_map import ProjectMapSnapshot
@@ -37,6 +39,7 @@ class AnchorMetaEntry(TypedDict, total=False):
     aliases: list[str]
     description: str
     _source: str
+    _content_hash: str
 
 
 def _normalize_object_dict(value: object) -> dict[str, object] | None:
@@ -621,6 +624,9 @@ def load_anchor_meta(root: Path) -> dict[str, AnchorMetaEntry]:
         source = entry.get("_source")
         if isinstance(source, str):
             meta_entry["_source"] = source
+        content_hash = entry.get("_content_hash")
+        if isinstance(content_hash, str):
+            meta_entry["_content_hash"] = content_hash
         normalized[key] = meta_entry
     return normalized
 
@@ -843,8 +849,8 @@ def generate_code_based_intents(root: Path, paths: list[Path]) -> int:
             if not aliases:
                 continue
             entry = existing.get(anchor, {})
-            if entry.get("_source") in ("ai", "manual"):
-                continue  # AI/수동 보강 항목은 코드 기반으로 덮어쓰지 않음
+            if entry.get("_source") in ("ai", "manual", "ai_failed"):
+                continue  # AI/수동/네거티브 캐시 항목은 코드 기반으로 덮어쓰지 않음
             entry.setdefault("intent", description)
             entry["aliases"] = aliases
             entry["description"] = description
@@ -935,56 +941,211 @@ def _generate_batch(
     return results
 
 
-def generate_anchor_intents_with_ai(
-    root: Path, paths: list[Path], *, force: bool = False
-) -> int:
-    """AI를 사용해 anchor intent/aliases/description을 보강. 반환: 등록된 intent 수.
+def _anchor_content_hash(code: str) -> str:
+    """AI 프롬프트에 쓰이는 구간(앞 400자)만 해시 — 내용이 같으면 AI 재호출 불필요."""
+    return hashlib.sha1(code[:400].encode("utf-8")).hexdigest()[:16]
 
-    이미 AI가 생성한 aliases가 있는 앵커는 건너뛴다.
-    force=True이면 기존 AI 생성 항목도 재생성한다.
-    배치를 최대 _MAX_PARALLEL개씩 병렬 실행한다.
-    """
+
+_CACHEABLE_SOURCES = ("ai", "manual", "ai_failed")
+
+
+def _classify_ai_error(exc: BaseException) -> str:
+    """stderr 파서가 token 단위로 쪼개므로, 공백 없는 짧은 라벨로 분류한다."""
+    name = type(exc).__name__.lower()
+    if "timeout" in name:
+        return "timeout"
+    if "connection" in name or "network" in name:
+        return "network"
+    if "ratelimit" in name or "quota" in name:
+        return "ratelimit"
+    if "auth" in name or "permission" in name:
+        return "auth"
+    if "json" in name or "decode" in name:
+        return "parse"
+    return name or "unknown"
+
+
+def _run_batches_parallel(
+    root: Path,
+    batches: list[dict[str, str]],
+    generate_text_with_ai: object,
+    stage: str,
+    total_so_far: int,
+    grand_total: int,
+) -> tuple[dict[str, AnchorMetaEntry], list[str]]:
+    """배치들을 병렬 실행. (성공 결과, 실패 앵커 목록) 반환. 진행/에러 emit."""
     from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    results: dict[str, AnchorMetaEntry] = {}
+    failed_anchors: list[str] = []
+    done = total_so_far
+    with ThreadPoolExecutor(max_workers=_MAX_PARALLEL) as pool:
+        futures = {
+            pool.submit(_generate_batch, root, batch, generate_text_with_ai): (i, batch)
+            for i, batch in enumerate(batches)
+        }
+        for future in as_completed(futures):
+            idx, batch = futures[future]
+            done += 1
+            try:
+                batch_result = future.result()
+                results.update(batch_result)
+                missing = [a for a in batch.keys() if a not in batch_result]
+                if missing:
+                    failed_anchors.extend(missing)
+                    _ = sys.stderr.write(
+                        f"[progress] step=ai-error stage={stage} batch={idx} msg=missing count={len(missing)}\n"
+                    )
+                    sys.stderr.flush()
+            except Exception as e:  # noqa: BLE001 — 배치 실패를 분류 후 삼킨다.
+                failed_anchors.extend(batch.keys())
+                _ = sys.stderr.write(
+                    f"[progress] step=ai-error stage={stage} batch={idx} msg={_classify_ai_error(e)} count={len(batch)}\n"
+                )
+                sys.stderr.flush()
+            _ = sys.stderr.write(
+                f"[progress] step=ai-batch done={done} total={grand_total}\n"
+            )
+            sys.stderr.flush()
+    return results, failed_anchors
+
+
+def generate_anchor_intents_with_ai(
+    root: Path,
+    paths: list[Path],
+    *,
+    force: bool = False,
+    stats_out: dict[str, int] | None = None,
+) -> int:
+    """AI를 사용해 anchor intent/aliases/description을 보강. 반환: 새로 등록된 intent 수.
+
+    해시 캐시 규칙:
+    - `_source in ("ai", "manual", "ai_failed")` + `_content_hash` 가 현재 내용과 같으면 건너뛴다.
+      (ai_failed 는 네거티브 캐시 — 내용이 바뀔 때까지 재시도 안 함.)
+    - 내용이 바뀌었으면 AI 재호출 (자동 무효화).
+    - force=True 이면 해시 무시하고 전부 재생성.
+
+    배치를 최대 _MAX_PARALLEL개씩 병렬 실행한다.
+    실패/누락된 앵커는 한 번 재시도하고, 그래도 실패하면 `_source="ai_failed"` 로 네거티브 캐시.
+    진행 상황은 stderr 에 `[progress] step=ai-{cache,batch,error,summary} ...` 형태로 흘린다.
+    """
     from vibelign.core.ai_explain import generate_text_with_ai, has_ai_provider
 
     if not has_ai_provider():
         return 0
-    # 이미 AI가 보강한 앵커만 건너뛰기 (코드 기반은 덮어씀)
     existing = load_anchor_meta(root)
     all_blocks: dict[str, str] = {}
+    hashes: dict[str, str] = {}
+    cached_hit = 0
+    backfill_anchors: list[str] = []
     for path in paths:
         for anchor, code in extract_anchor_blocks(path).items():
             entry = existing.get(anchor, {})
-            if not force and entry.get("_source") in ("ai", "manual"):
-                continue
+            current_hash = _anchor_content_hash(code)
+            hashes[anchor] = current_hash
+            source = entry.get("_source")
+            stored_hash = entry.get("_content_hash")
+            if not force and source in _CACHEABLE_SOURCES:
+                # 구 항목(hash 없음)은 재호출 없이 해시만 채워둔다 — 다음부터 캐시 적용.
+                if stored_hash is None:
+                    backfill_anchors.append(anchor)
+                    cached_hit += 1
+                    continue
+                if stored_hash == current_hash:
+                    cached_hit += 1
+                    continue
             all_blocks[anchor] = code[:400]
+    first_batch_count = (len(all_blocks) + _BATCH_SIZE - 1) // _BATCH_SIZE if all_blocks else 0
+    _ = sys.stderr.write(
+        f"[progress] step=ai-cache total={len(hashes)} cached={cached_hit} to_call={len(all_blocks)} batches={first_batch_count}\n"
+    )
+    sys.stderr.flush()
     if not all_blocks:
+        if stats_out is not None:
+            stats_out["total"] = len(hashes)
+            stats_out["cached_hit"] = cached_hit
+            stats_out["processed"] = 0
+            stats_out["batches"] = 0
+            stats_out["failed"] = 0
+            stats_out["retried"] = 0
         return 0
-    # 배치 분할 + 병렬 실행
     items = list(all_blocks.items())
-    batches = [
+    first_batches = [
         dict(items[start : start + _BATCH_SIZE])
         for start in range(0, len(items), _BATCH_SIZE)
     ]
+    # grand_total 은 재시도 배치가 뒤에 붙을 수 있으므로 진행 중 업데이트. 우선 1차만 카운트.
+    first_results, first_failed = _run_batches_parallel(
+        root, first_batches, generate_text_with_ai,
+        stage="first", total_so_far=0, grand_total=first_batch_count,
+    )
+    retry_results: dict[str, AnchorMetaEntry] = {}
+    retry_failed: list[str] = []
+    retried_count = 0
+    if first_failed:
+        retry_blocks = {a: all_blocks[a] for a in first_failed if a in all_blocks}
+        retry_items = list(retry_blocks.items())
+        retry_batches = [
+            dict(retry_items[start : start + _BATCH_SIZE])
+            for start in range(0, len(retry_items), _BATCH_SIZE)
+        ]
+        retried_count = len(retry_blocks)
+        total_with_retry = first_batch_count + len(retry_batches)
+        _ = sys.stderr.write(
+            f"[progress] step=ai-retry anchors={retried_count} batches={len(retry_batches)}\n"
+        )
+        sys.stderr.flush()
+        retry_results, retry_failed = _run_batches_parallel(
+            root, retry_batches, generate_text_with_ai,
+            stage="retry", total_so_far=first_batch_count, grand_total=total_with_retry,
+        )
     all_results: dict[str, AnchorMetaEntry] = {}
-    with ThreadPoolExecutor(max_workers=_MAX_PARALLEL) as pool:
-        futures = {
-            pool.submit(_generate_batch, root, batch, generate_text_with_ai): i
-            for i, batch in enumerate(batches)
-        }
-        for future in as_completed(futures):
-            try:
-                all_results.update(future.result())
-            except Exception:
-                continue
-    if all_results:
+    all_results.update(first_results)
+    all_results.update(retry_results)
+    final_failed = [a for a in retry_failed if a not in all_results]
+    # final_failed 는 중복 제거
+    final_failed = list(dict.fromkeys(final_failed))
+    _ = sys.stderr.write(
+        f"[progress] step=ai-summary processed={len(all_results)} failed={len(final_failed)} retried={retried_count}\n"
+    )
+    sys.stderr.flush()
+    if all_results or backfill_anchors or final_failed:
         data = load_anchor_meta(root)
         for anchor, entry in all_results.items():
             merged = data.get(anchor, {})
             merged.update(entry)
             merged["_source"] = "ai"
+            anchor_hash = hashes.get(anchor)
+            if anchor_hash:
+                merged["_content_hash"] = anchor_hash
+            data[anchor] = merged
+        for anchor in backfill_anchors:
+            merged = data.get(anchor)
+            if merged is None:
+                continue
+            anchor_hash = hashes.get(anchor)
+            if anchor_hash and merged.get("_content_hash") != anchor_hash:
+                merged["_content_hash"] = anchor_hash
+                data[anchor] = merged
+        for anchor in final_failed:
+            anchor_hash = hashes.get(anchor)
+            if not anchor_hash:
+                continue
+            merged = data.get(anchor, {})
+            # 기존에 ai/manual 로 뭐가 있었으면 덮지 않음 — 실패한 경우에만 네거티브 캐시.
+            if merged.get("_source") in ("ai", "manual") and merged.get("_content_hash") == anchor_hash:
+                continue
+            merged["_source"] = "ai_failed"
+            merged["_content_hash"] = anchor_hash
             data[anchor] = merged
         save_anchor_meta(root, data)
+    if stats_out is not None:
+        stats_out["total"] = len(hashes)
+        stats_out["cached_hit"] = cached_hit
+        stats_out["processed"] = len(all_results)
+        stats_out["batches"] = first_batch_count
+        stats_out["failed"] = len(final_failed)
+        stats_out["retried"] = retried_count
     return len(all_results)
 
 
