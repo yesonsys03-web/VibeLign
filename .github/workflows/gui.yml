@@ -2,6 +2,8 @@ name: GUI CI
 
 on:
   push:
+    tags:
+      - "v*.*.*"
     paths:
       - "vibelign-gui/**"
       - ".github/workflows/gui.yml"
@@ -26,7 +28,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
           - os: windows-latest
           - os: macos-latest    # Apple Silicon (aarch64) 네이티브 빌드
 
@@ -50,20 +51,6 @@ jobs:
 
       - name: Build frontend
         run: npm run build
-
-      - name: Install Linux system dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libjavascriptcoregtk-4.1-dev \
-            libsoup-3.0-dev \
-            patchelf \
-            rpm
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -114,17 +101,6 @@ jobs:
             echo "Signed: $APP"
           fi
 
-      - name: Upload Linux artifacts
-        if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
-        with:
-          name: vibelign-gui-linux
-          path: |
-            vibelign-gui/src-tauri/target/release/bundle/deb/*.deb
-            vibelign-gui/src-tauri/target/release/bundle/appimage/*.AppImage
-            vibelign-gui/src-tauri/target/release/bundle/rpm/*.rpm
-          if-no-files-found: warn
-
       - name: Upload Windows artifacts
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
@@ -153,3 +129,32 @@ jobs:
           name: vibelign-gui-macos-arm64
           path: vibelign-gui/macos-release/
           if-no-files-found: warn
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: vibelign-gui-windows
+          path: release-assets/windows
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: vibelign-gui-macos-arm64
+          path: release-assets/macos
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/windows/**/*
+            release-assets/macos/**/*
+          generate_release_notes: true
+          fail_on_unmatched_files: false
