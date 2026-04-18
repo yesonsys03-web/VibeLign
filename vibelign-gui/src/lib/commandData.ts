@@ -422,18 +422,31 @@ export const COMMANDS_CORE = [
     name: "secrets", icon: "🔑", color: "#FFE44D",
     title: "시크릿",
     short: "API 키가 실수로 올라가는 거 막기",
-    desc: "API 키, 비밀번호 같은 걸 실수로 GitHub에 올리는 걸 막아줘요. 커밋하기 전에 자동으로 체크해서 '위험한 내용 발견!' 하고 알려줘요.",
+    desc: "API 키, 비밀번호 같은 걸 실수로 GitHub에 올리는 걸 막아줘요. 상시검사는 커밋 때마다 자동, 정밀검사는 전체 히스토리를 1회 감사해요.",
     usage: "vib secrets",
-    tips: ["git commit 전에 자동으로 실행되게 설정할 수 있어요", "비밀 정보가 발견되면 커밋을 막아줘요"],
+    tips: [
+      "상시검사는 vib start가 자동으로 연결해줘요",
+      "정밀검사(--all)는 도입 직후·공개 전에 1회 권장 (시간 걸림)",
+    ],
     guide: [
       {
-        step: "기능", title: "비밀정보 커밋 방지",
+        step: "상시검사", title: "커밋 때마다 자동 (기본)",
         lines: [
           { t: "info",  v: "API 키, 토큰, .env 같은 걸 실수로 GitHub에 올리는 걸 막아줘요." },
           { t: "info",  v: "vib start를 하면 자동으로 연결돼요. 따로 신경 쓸 일이 거의 없어요." },
           { t: "label", v: "직접 확인하고 싶을 때" },
           { t: "code",  v: "vib secrets --staged" },
           { t: "info",  v: "지금 커밋하려는 내용에 비밀정보가 있는지 검사" },
+        ],
+      },
+      {
+        step: "정밀검사", title: "전체 히스토리 1회 감사 (시간 걸림)",
+        lines: [
+          { t: "info",  v: "과거 커밋에 이미 박혀있는 비밀정보까지 훑어요." },
+          { t: "info",  v: "도입 직후 / 오픈소스 공개 전 / 유출 의심 시 1회 실행 권장." },
+          { t: "code",  v: "vib secrets --all" },
+          { t: "info",  v: "규모에 따라 수십 초~수 분 소요. Ctrl-C로 중단 가능" },
+          { t: "info",  v: "발견 시 키는 즉시 로테이션, 이력 청소는 git filter-repo/BFG" },
         ],
       },
       {
@@ -451,7 +464,10 @@ export const COMMANDS_CORE = [
     ] as GuideStep[],
     flags: [
       { type: "select" as const, key: "_mode", label: "모드", options: [
-        { v: "--staged", l: "staged 검사" }, { v: "--install-hook", l: "훅 설치" }, { v: "--uninstall-hook", l: "훅 제거" },
+        { v: "--staged", l: "상시검사(staged)" },
+        { v: "--all", l: "정밀검사(전체 히스토리, 시간 걸림)" },
+        { v: "--install-hook", l: "훅 설치" },
+        { v: "--uninstall-hook", l: "훅 제거" },
       ]},
     ] as FlagDef[],
   },

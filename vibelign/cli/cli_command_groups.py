@@ -295,12 +295,18 @@ def register_extended_commands(
         ),
         epilog=(
             "이렇게 쓰세요:\n"
-            "  vib secrets --staged         지금 커밋할 내용 수동 검사\n"
+            "  vib secrets --staged         지금 커밋할 내용 수동 검사 (상시검사)\n"
+            "  vib secrets --all            전체 히스토리 정밀검사 (시간 걸림)\n"
             "  vib secrets --install-hook   커밋할 때마다 자동 검사되게 연결\n"
             "  vib secrets --uninstall-hook 자동 검사 연결 해제"
         ),
     )
     _ = p.add_argument("--staged", action="store_true", help="지금 커밋할 내용만 검사")
+    _ = p.add_argument(
+        "--all",
+        action="store_true",
+        help="전체 히스토리 정밀검사 (도입 직후·공개 전 권장, 시간 걸림)",
+    )
     _ = p.add_argument(
         "--install-hook", action="store_true", help="커밋할 때마다 자동 검사되게 연결"
     )

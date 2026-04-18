@@ -7,7 +7,11 @@ from vibelign.core.git_hooks import (
     uninstall_pre_commit_secret_hook,
 )
 from vibelign.core.project_root import resolve_project_root
-from vibelign.core.secret_scan import SecretFinding, scan_staged_secrets
+from vibelign.core.secret_scan import (
+    SecretFinding,
+    scan_all_history,
+    scan_staged_secrets,
+)
 from vibelign.terminal_render import (
     clack_error,
     clack_info,
@@ -71,9 +75,37 @@ def run_vib_secrets(args: Namespace) -> None:
         clack_warn("끄거나 지울 VibeLign 자동 검사가 없어요.")
         raise SystemExit(1)
 
+    if getattr(args, "all", False):
+        clack_intro("VibeLign 정밀검사 — 전체 히스토리")
+        clack_info("규모에 따라 시간이 걸릴 수 있어요. 중단하려면 Ctrl-C")
+
+        def _on_progress(done: int, total: int | None) -> None:
+            if total is not None:
+                clack_info(f"커밋 {done}/{total} 검사 중")
+            else:
+                clack_info(f"커밋 {done}개 검사 완료")
+
+        try:
+            history = scan_all_history(root, on_progress=_on_progress)
+        except Exception as exc:
+            clack_error(f"히스토리 검사 중 오류가 발생했어요: {exc}")
+            raise SystemExit(1) from exc
+
+        if history.has_findings:
+            clack_error("과거 커밋에 비밀정보로 보이는 값이 남아있어요.")
+            _print_findings(history.findings)
+            clack_info(
+                "키는 즉시 로테이션하세요. 이력 청소는 git filter-repo 또는 BFG를 사용하세요."
+            )
+            raise SystemExit(1)
+
+        clack_success("전체 히스토리에서 비밀정보를 찾지 못했어요.")
+        return
+
     if not getattr(args, "staged", False):
         clack_intro("VibeLign 비밀정보 점검")
         clack_info("지금 바로 검사하려면: vib secrets --staged")
+        clack_info("전체 히스토리 정밀검사는: vib secrets --all")
         clack_info("앞으로 커밋할 때마다 자동 검사하려면: vib secrets --install-hook")
         clack_outro("준비 완료")
         return

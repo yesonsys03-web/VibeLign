@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -266,4 +267,135 @@ def scan_staged_secrets(root: Path) -> SecretScanResult:
 
     return SecretScanResult(findings=findings)
 # === ANCHOR: SECRET_SCAN_SCAN_STAGED_SECRETS_END ===
+
+
+_COMMIT_MARKER_PREFIX = "COMMIT_MARKER_"
+_DIFF_GIT_RE = re.compile(r"^diff --git a/(.*?) b/")
+
+
+# === ANCHOR: SECRET_SCAN_PARSE_GIT_LOG_CHUNKS_START ===
+def parse_git_log_chunks(
+    lines: Iterable[str],
+) -> Iterator[tuple[str, str, str]]:
+    current_commit = ""
+    current_file = ""
+    buffer: list[str] = []
+
+    def _flush() -> tuple[str, str, str] | None:
+        nonlocal buffer, current_file
+        if buffer and current_file:
+            out = (current_commit, current_file, "\n".join(buffer))
+            buffer = []
+            current_file = ""
+            return out
+        buffer = []
+        current_file = ""
+        return None
+
+    for raw in lines:
+        line = raw.rstrip("\r\n")
+        if line.startswith(_COMMIT_MARKER_PREFIX):
+            flushed = _flush()
+            if flushed is not None:
+                yield flushed
+            current_commit = line[len(_COMMIT_MARKER_PREFIX):]
+            continue
+        m = _DIFF_GIT_RE.match(line)
+        if m is not None:
+            flushed = _flush()
+            if flushed is not None:
+                yield flushed
+            current_file = m.group(1)
+            buffer.append(line)
+            continue
+        if current_file:
+            buffer.append(line)
+
+    tail = _flush()
+    if tail is not None:
+        yield tail
+# === ANCHOR: SECRET_SCAN_PARSE_GIT_LOG_CHUNKS_END ===
+
+
+# === ANCHOR: SECRET_SCAN_SCAN_ALL_HISTORY_START ===
+def scan_all_history(
+    root: Path,
+    on_progress: Callable[[int, int | None], None] | None = None,
+) -> SecretScanResult:
+    if not (root / ".git").is_dir():
+        return SecretScanResult(findings=[])
+
+    total: int | None = None
+    try:
+        total_out = _run_git(root, ["rev-list", "--count", "--all"])
+        total = int(total_out.strip())
+    except (RuntimeError, ValueError):
+        total = None
+
+    findings: list[SecretFinding] = []
+
+    try:
+        git_bin = _find_git()
+    except FileNotFoundError:
+        return SecretScanResult(findings=[])
+
+    proc = subprocess.Popen(
+        [
+            git_bin,
+            "log",
+            "--all",
+            "-p",
+            "--no-color",
+            f"--format={_COMMIT_MARKER_PREFIX}%H",
+        ],
+        cwd=root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        encoding="utf-8",
+        errors="replace",
+        creationflags=_WINDOWS_FLAGS,
+    )
+    assert proc.stdout is not None
+
+    try:
+        last_reported = None
+        processed = 0
+        for commit_sha, file_path, diff_text in parse_git_log_chunks(proc.stdout):
+            display_path = (
+                f"{commit_sha[:8]}:{file_path}" if commit_sha else file_path
+            )
+            if _looks_like_secret_file(file_path):
+                findings.append(
+                    SecretFinding(
+                        path=display_path,
+                        rule_id="secret-file",
+                        line_number=None,
+                        snippet="secret-like file path",
+                    )
+                )
+            elif not (
+                diff_text.startswith("Binary files") or "GIT binary patch" in diff_text
+            ):
+                findings.extend(
+                    scan_unified_diff_for_secrets(diff_text, display_path)
+                )
+
+            if commit_sha != last_reported:
+                last_reported = commit_sha
+                processed += 1
+                if on_progress is not None:
+                    on_progress(processed, total)
+    finally:
+        try:
+            proc.stdout.close()
+        except OSError:
+            pass
+        try:
+            _ = proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            _ = proc.wait()
+
+    return SecretScanResult(findings=findings)
+# === ANCHOR: SECRET_SCAN_SCAN_ALL_HISTORY_END ===
 # === ANCHOR: SECRET_SCAN_END ===
