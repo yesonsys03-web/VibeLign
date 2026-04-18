@@ -400,4 +400,76 @@ pub fn install_cli_to_path() -> Result<String, String> {
     #[allow(unreachable_code)]
     Ok("지원하지 않는 플랫폼입니다".to_string())
 }
+
+/// GUI 앱이 다른 폴더로 이동/재설치되었을 때 `~/.local/bin/vib`(또는 `vib.cmd`) 래퍼가
+/// stale 한 번들 경로를 가리키고 있으면 현재 번들 경로로 재작성한다.
+///
+/// 안전장치:
+/// - symlink 는 사용자가 직접 관리하는 바이너리(uv/pipx)로 간주하고 절대 건드리지 않음.
+/// - 래퍼 sentinel 패턴이 맞지 않는 regular 파일(사용자가 `pip install --user` 등으로 심은
+///   일반 entry-point) 은 우리 래퍼가 아니라고 판단해 건드리지 않음.
+/// - 래퍼 안의 타겟 경로가 이미 현재 번들과 같으면 no-op.
+///
+/// 호출 시점: 매 GUI 부팅 setup() 에서. PATH 등록/shell rc 편집은 하지 않고 파일만 갱신.
+#[allow(dead_code)] // release(not(debug_assertions)) 빌드에서만 호출된다
+pub fn refresh_gui_wrapper(bundled_vib: &Path) -> Result<(), String> {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        let home = home_dir().ok_or("홈 디렉터리를 찾을 수 없습니다")?;
+        let dest = home.join(".local").join("bin").join("vib");
+        // symlink 는 사용자 수동 관리로 간주
+        if let Ok(meta) = dest.symlink_metadata() {
+            if meta.file_type().is_symlink() {
+                return Ok(());
+            }
+        } else {
+            // 최초 설치 전이면 install_cli_to_path 가 처리한다
+            return Ok(());
+        }
+        let content = std::fs::read_to_string(&dest).map_err(|e| e.to_string())?;
+        // 우리 래퍼 sentinel 체크 (install_cli_to_path 가 쓰는 포맷)
+        if !content.starts_with("#!/bin/sh\nexec \"") {
+            return Ok(());
+        }
+        let target = bundled_vib.to_string_lossy().to_string();
+        let expected = format!("#!/bin/sh\nexec \"{}\" \"$@\"\n", target.replace('"', "\\\""));
+        if content == expected {
+            return Ok(());
+        }
+        std::fs::write(&dest, expected)
+            .map_err(|e| format!("래퍼 재작성 실패: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let local_app_data = std::env::var("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .or_else(|_| {
+                home_dir()
+                    .ok_or("".to_string())
+                    .map(|h| h.join("AppData").join("Local"))
+            })
+            .map_err(|_| "LOCALAPPDATA를 찾을 수 없습니다".to_string())?;
+        let dest = local_app_data
+            .join("Programs")
+            .join("VibeLign")
+            .join("vib.cmd");
+        if !dest.exists() {
+            return Ok(());
+        }
+        let content = std::fs::read_to_string(&dest).map_err(|e| e.to_string())?;
+        if !content.starts_with("@echo off") {
+            return Ok(());
+        }
+        let target = bundled_vib.to_string_lossy().to_string();
+        let expected = format!("@echo off\r\n\"{}\" %*\r\n", target);
+        if content == expected {
+            return Ok(());
+        }
+        std::fs::write(&dest, expected)
+            .map_err(|e| format!("래퍼 재작성 실패: {}", e))?;
+    }
+
+    Ok(())
+}
 // === ANCHOR: VIB_PATH_END ===
