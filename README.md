@@ -14,6 +14,7 @@
 
 <p align="center">
   <a href="https://pypi.org/project/vibelign/"><img src="https://img.shields.io/pypi/v/vibelign?color=7c3aed&label=vibelign" alt="PyPI"/></a>
+  <a href="https://github.com/yesonsys03-web/VibeLign/releases/latest"><img src="https://img.shields.io/github/v/release/yesonsys03-web/VibeLign?color=22c55e&label=Desktop%20App" alt="GitHub Release"/></a>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python"/>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"/>
   <img src="https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20Cursor%20%7C%20Codex-orange" alt="AI Tools"/>
@@ -23,8 +24,10 @@
 
 # 🎮 VibeLign — Safety Guard for AI Coding
 
-VibeLign (`vibelign`) is an AI coding safety CLI for vibe coding workflows.
+VibeLign (`vibelign`) is an AI coding safety **CLI + Desktop GUI** for vibe coding workflows.
 It helps developers and non-developers protect project structure, save checkpoints, undo bad AI edits, manage anchors, and block secret leaks before commit.
+
+> **🆕 v2.0**: Desktop app for macOS / Windows, per-document AI summarization, anchor intent regeneration. See [CHANGELOG](./CHANGELOG.md) and [migration notes](./MIGRATION_v1_to_v2.md).
 
 Documentation: `https://yesonsys03-web.github.io/VibeLign/`  
 Repository: `https://github.com/yesonsys03-web/VibeLign`  
@@ -40,13 +43,15 @@ Releases: `https://github.com/yesonsys03-web/VibeLign/releases`
 >
 > **That's why we made this!**
 
-**Mac / Linux**
+**Desktop App (macOS / Windows)** — [📥 Download latest release](https://github.com/yesonsys03-web/VibeLign/releases/latest)
+
+**Mac / Linux (CLI)**
 ```bash
 pip install vibelign
 vib start
 ```
 
-**Windows** (PowerShell)
+**Windows** (PowerShell, CLI)
 ```powershell
 # Step 1: install uv — one-time setup, auto-configures PATH
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
@@ -246,6 +251,15 @@ pip install vibelign
 
 After installation, both `vib` and `vibelign` commands are available.
 
+### Option 3: Desktop App (GUI)
+
+Download the latest `.dmg` (macOS, Apple Silicon) or `.exe` / `.msi` (Windows) from the
+[Releases page](https://github.com/yesonsys03-web/VibeLign/releases/latest).
+The GUI bundles the `vib` runtime — no separate CLI install required.
+
+> macOS first-launch: if you see "app is damaged", open Terminal and run `xattr -rc vibelign-gui.app`
+> (ad-hoc signed, not notarized).
+
 ### Windows — if `vib` is not recognized after pip install
 
 When you install with pip on Windows, `vib.exe` is placed in the Python `Scripts` folder which may not be in PATH.
@@ -294,6 +308,21 @@ VibeLign promises:
 ---
 
 ## 📋 Release Notes
+
+**v2.0.0** — Desktop GUI + MCP/Patch Modularization + AI Opt-In:
+
+- 🖥️ **VibeLign GUI (macOS / Windows)** — Tauri desktop app
+  - Doctor page: one-click diagnosis + auto-apply
+  - Anchor card: anchor insertion + intent/aliases regeneration (code-based / AI-based, `--force` overwrites prior AI results)
+  - DocsViewer: per-document AI summarization
+  - Settings: API key management, global AI opt-in toggle
+- 🔌 **MCP server refactored** — `vibelign/mcp/` with dispatch/handlers/tool_specs split
+- 🧩 **Patch module split** — `vibelign/patch/` (builder · handoff · preview · targeting · …)
+- 🤖 **AI opt-in** — consent UI removed, single global toggle in Settings; Anthropic / OpenAI / Gemini auto-selected
+- ⚡ **onedir runtime** — PyInstaller `onefile → onedir` removes GUI cold-start (1–3 s → instant)
+- 🏷️ **Anchor `_source` field** — `anchor_meta.json` now tracks `code / ai / manual / ai_failed` so AI/manual results are protected from code-based regeneration (use `--force` to override)
+- ⚠️ **Breaking**: `vibelign.vib_cli` → `vibelign.cli.vib_cli`; `vibelign.mcp_server` → `vibelign.mcp.mcp_server`
+- See [CHANGELOG.md](./CHANGELOG.md) · [MIGRATION_v1_to_v2.md](./MIGRATION_v1_to_v2.md)
 
 **v1.6.0** — MCP Server + AI Development Rules System:
 
