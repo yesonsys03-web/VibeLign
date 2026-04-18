@@ -1,5 +1,7 @@
 #![cfg(target_os = "windows")]
 
+// === ANCHOR: WINDOWS_START ===
+
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -1128,3 +1130,4 @@ fn hide_console(cmd: &mut std::process::Command) {
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     cmd.creation_flags(CREATE_NO_WINDOW);
 }
+// === ANCHOR: WINDOWS_END ===
