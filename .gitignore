@@ -29,11 +29,22 @@ vibelign_exports/
 .vscode/
 .idea/
 .claude/
+.cursor/
 .vibelign/checkpoints/
 VibeLign_dev_plan/
 .vibelign/scan_cache.json
 dist/
 build/
+
+# Developer-local runtime state (not needed by end users)
+.omc/
+.sisyphus/
+
+# Internal dev planning docs (not needed by end users)
+docs/superpowers/
+
+# Editor backup files
+*~
 
 # API 키 파일
 api_keys.json
