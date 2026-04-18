@@ -168,8 +168,9 @@ def urlopen_read_with_retry(
             if wait is None:
                 wait = _compute_backoff_wait(attempt, base, cap)
             else:
+                # 서버가 Retry-After / retryDelay 를 지정한 경우에는 지터를 걸지 않는다.
+                # Why: 서버가 지정한 최소 대기값 아래로 지터가 당기면 다시 429 를 받는다.
                 wait = max(0.25, min(cap, wait))
-                wait = wait * (1.0 + random.uniform(-0.12, 0.12))
             time.sleep(wait)
         except urllib.error.URLError as e:
             last_exc = e
