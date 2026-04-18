@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "vibelign": {
+      "command": "vibelign-mcp",
+      "args": []
+    }
+  }
+}
