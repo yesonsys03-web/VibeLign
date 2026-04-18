@@ -84,11 +84,15 @@ fn read_docs_index_cache_file(root: &Path) -> Option<Vec<DocsIndexEntry>> {
     Some(payload.entries)
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct DocsVisualContract {
     schema_version: i64,
     generator_version: String,
 }
+
+// contract 는 vib 바이너리에 baked-in 된 정적 값이라 프로세스 수명 내에서 바뀌지 않는다.
+// 매 문서 클릭마다 vib subprocess 를 스폰하던 병목을 없애기 위해 첫 호출 결과를 메모리에 캐시한다.
+static DOCS_VISUAL_CONTRACT_CACHE: Mutex<Option<DocsVisualContract>> = Mutex::new(None);
 
 #[derive(Serialize)]
 struct DocsVisualReadResult {
@@ -286,15 +290,26 @@ fn rebuild_docs_index(root: String) -> Result<Vec<DocsIndexEntry>, String> {
 }
 
 fn read_docs_visual_contract(root: &str) -> Result<DocsVisualContract, String> {
+    if let Ok(guard) = DOCS_VISUAL_CONTRACT_CACHE.lock() {
+        if let Some(cached) = guard.as_ref() {
+            return Ok(cached.clone());
+        }
+    }
+
     let raw = run_docs_cache_helper(root, &["--print-visual-contract"])?;
     let payload: serde_json::Value = serde_json::from_str(raw.trim())
         .map_err(|e| format!("docs visual contract를 해석할 수 없어요: {e}"))?;
-    let contract = payload
+    let contract_value = payload
         .get("contract")
         .ok_or_else(|| "docs visual contract 항목이 없어요".to_string())?
         .clone();
-    serde_json::from_value::<DocsVisualContract>(contract)
-        .map_err(|e| format!("docs visual contract 형식이 올바르지 않아요: {e}"))
+    let contract: DocsVisualContract = serde_json::from_value(contract_value)
+        .map_err(|e| format!("docs visual contract 형식이 올바르지 않아요: {e}"))?;
+
+    if let Ok(mut guard) = DOCS_VISUAL_CONTRACT_CACHE.lock() {
+        *guard = Some(contract.clone());
+    }
+    Ok(contract)
 }
 
 #[tauri::command]
