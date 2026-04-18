@@ -1503,6 +1503,24 @@ pub fn run() {
                     Err(e) => eprintln!("VibeLign: CLI PATH 설치 실패 — {e}"),
                 }
             }
+            // vib 프리워밍: 백그라운드에서 `vib --version` 을 한 번 돌려 PyInstaller onefile
+            // 압축 해제와 OS 파일 캐시를 미리 데워둔다. 사용자가 Doctor/DocsViewer 등 첫
+            // 서브프로세스 호출을 할 때 체감 콜드스타트가 크게 줄어든다.
+            // Why: 릴리스 빌드에서 문서 클릭·Doctor 진입이 dev 모드보다 느렸던 주 원인이
+            //      PyInstaller onefile 압축 해제였다.
+            if let Some(vib) = vib_path::find_runtime_vib() {
+                std::thread::spawn(move || {
+                    let mut cmd = std::process::Command::new(&vib);
+                    cmd.arg("--version")
+                        .stdin(std::process::Stdio::null())
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .env("PYTHONUTF8", "1")
+                        .env("PYTHONIOENCODING", "utf-8");
+                    hide_console(&mut cmd);
+                    let _ = cmd.status();
+                });
+            }
             Ok(())
         })
         .manage(WatchState(watch_inner))
