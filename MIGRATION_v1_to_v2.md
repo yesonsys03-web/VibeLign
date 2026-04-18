@@ -104,7 +104,7 @@ API 키 위치 (`~/.vibelign/api_keys`) 는 동일합니다.
 ## 4. 데스크톱 GUI (선택 사항, 신규)
 
 2.0 부터 macOS / Windows 데스크톱 앱이 함께 제공됩니다.
-[릴리즈 페이지](https://github.com/topsphinx/VibeLign/releases/latest) 에서 `.dmg` / `.exe` / `.msi` 를 받아 설치하세요.
+[릴리즈 페이지](https://github.com/yesonsys03-web/VibeLign/releases/latest) 에서 `.dmg` / `.exe` / `.msi` 를 받아 설치하세요.
 
 GUI 는 내부적으로 `vib` CLI 를 호출하므로 **CLI-only 워크플로와 100% 호환** 됩니다.
 기존 `.vibelign/` 저장소는 그대로 열립니다.
@@ -131,4 +131,4 @@ GUI 는 내부적으로 `vib` CLI 를 호출하므로 **CLI-only 워크플로와
 ## 문제 보고
 
 마이그레이션 중 예상치 못한 동작이 있으면
-[GitHub Issues](https://github.com/topsphinx/VibeLign/issues) 에 `migration-v2` 라벨로 올려주세요.
+[GitHub Issues](https://github.com/yesonsys03-web/VibeLign/issues) 에 `migration-v2` 라벨로 올려주세요.
