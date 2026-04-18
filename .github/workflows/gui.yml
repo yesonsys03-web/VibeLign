@@ -73,19 +73,20 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Build vib sidecar binary
+      - name: Build vib onedir runtime
         shell: bash
         working-directory: ${{ github.workspace }}
         run: |
           pip install pyinstaller
           pip install -e .
-          mkdir -p vibelign-gui/src-tauri/binaries
           pyinstaller vib.spec --distpath dist-vib --noconfirm
-          TRIPLE=$(rustc -vV | sed -n 's/^host: //p')
-          EXT=""
-          if [[ "$TRIPLE" == *"windows"* ]]; then EXT=".exe"; fi
-          cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib-${TRIPLE}${EXT}"
-          cp "dist-vib/vib${EXT}" "vibelign-gui/src-tauri/binaries/vib${EXT}"
+          # onedir 산출물 전체를 Tauri resources 로 번들링할 경로에 복사한다.
+          # Why: onefile PyInstaller 는 매 실행마다 $TMPDIR/_MEI{pid}/ 로 재압축 해제해 1~3초
+          #      콜드스타트가 발생했다. onedir 는 설치 시점에 한 번만 풀려 있어 이후 모든
+          #      Doctor/DocsViewer 호출이 dev 모드 수준의 즉시 반응을 보인다.
+          rm -rf vibelign-gui/src-tauri/vib-runtime
+          mkdir -p vibelign-gui/src-tauri
+          cp -R dist-vib/vib vibelign-gui/src-tauri/vib-runtime
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2

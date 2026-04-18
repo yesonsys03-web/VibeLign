@@ -11,6 +11,14 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
+
+/// Tauri setup 단계에서 PathResolver 로 확정한 번들 vib 절대 경로.
+/// onedir PyInstaller 빌드에서는 실행 파일 옆에 `_internal/` 디렉터리가 함께 있어야 하므로
+/// 앱 resource 경로(`<App>.app/Contents/Resources/vib-runtime/vib` 등) 를 통째로 보존해야 한다.
+/// `current_exe()` 에서 올라가며 추측하는 기존 방식은 macOS 의 `.app` 레이아웃을 놓쳐서 쓰지 않는다.
+#[allow(dead_code)] // release(not(debug_assertions)) 빌드에서만 set/get 된다
+pub static BUNDLED_VIB_PATH: OnceLock<PathBuf> = OnceLock::new();
 
 /// Windows 에서 자식 프로세스 실행 시 검은 콘솔 창이 순간적으로 뜨는 것을 막는다.
 #[cfg(target_os = "windows")]
@@ -123,18 +131,33 @@ pub fn find_bundled_vib() -> Option<PathBuf> {
 
 #[cfg(not(debug_assertions))]
 pub fn find_bundled_vib() -> Option<PathBuf> {
-    // 0. 번들 sidecar — 앱 실행파일 옆에 있는 vib (Python 불필요)
+    // 0-a. Tauri setup 에서 resource_dir 기반으로 주입한 절대 경로 (권장 경로).
+    if let Some(p) = BUNDLED_VIB_PATH.get() {
+        if is_nonempty_file(p) {
+            return Some(p.clone());
+        }
+    }
+
+    // 0-b. Fallback: 앱 실행파일 옆의 vib-runtime 디렉터리를 직접 탐색.
+    //      setup() 훅 이전에 호출되는 경로(현재는 없음)를 위한 안전망.
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            // Tauri sidecar: vib-{target-triple} 또는 vib
-            let candidates = [
-                // 컴파일 타임에 확정된 Rust 타겟 트리플 사용
-                // e.g. vib-aarch64-apple-darwin / vib-x86_64-pc-windows-msvc / vib-x86_64-unknown-linux-gnu
-                dir.join(format!("vib-{}", env!("TARGET_TRIPLE"))),
-                dir.join("vib"),
+            let mut candidates: Vec<PathBuf> = Vec::new();
+            #[cfg(target_os = "macos")]
+            {
+                // <App>.app/Contents/MacOS/vibelign-gui  →  Resources/vib-runtime/vib
+                if let Some(contents) = dir.parent() {
+                    candidates.push(contents.join("Resources").join("vib-runtime").join("vib"));
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                candidates.push(dir.join("vib-runtime").join("vib"));
                 #[cfg(target_os = "windows")]
-                dir.join("vib.exe"),
-            ];
+                candidates.push(dir.join("vib-runtime").join("vib.exe"));
+                // Tauri Linux 에선 resources 가 `<prefix>/lib/vibelign-gui/` 아래로 들어간다.
+                // 대표적으로 AppImage/deb 모두 실행파일과 같은 디렉터리에 resources 를 두므로 위 한 줄이면 충분하다.
+            }
             for candidate in &candidates {
                 if is_nonempty_file(candidate) {
                     return Some(candidate.clone());
@@ -319,7 +342,11 @@ pub fn install_cli_to_path() -> Result<String, String> {
             }
             std::fs::remove_file(&dest).map_err(|e| e.to_string())?;
         }
-        std::fs::copy(&vib, &dest).map_err(|e| format!("바이너리 복사 실패: {}", e))?;
+        // onedir 번들은 `vib` 옆의 `_internal/` 디렉터리까지 함께 있어야 실행된다.
+        // 단일 바이너리 복사로는 동작하지 않으므로 번들 절대 경로로 exec 하는 얇은 쉘 래퍼를 심는다.
+        let target = vib.to_string_lossy().to_string();
+        let wrapper = format!("#!/bin/sh\nexec \"{}\" \"$@\"\n", target.replace('"', "\\\""));
+        std::fs::write(&dest, wrapper).map_err(|e| format!("래퍼 스크립트 작성 실패: {}", e))?;
         std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755))
             .map_err(|e| e.to_string())?;
 
@@ -343,8 +370,18 @@ pub fn install_cli_to_path() -> Result<String, String> {
         let dest_dir = local_app_data.join("Programs").join("VibeLign");
         std::fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
 
-        let dest = dest_dir.join("vib.exe");
-        std::fs::copy(&vib, &dest).map_err(|e| format!("바이너리 복사 실패: {}", e))?;
+        // onedir 번들은 `vib.exe` 옆의 `_internal/` 디렉터리까지 함께 있어야 실행된다.
+        // 단일 바이너리 복사로는 동작하지 않으므로 번들 절대 경로를 호출하는 .cmd 래퍼를 심는다.
+        let dest = dest_dir.join("vib.cmd");
+        let target = vib.to_string_lossy().to_string();
+        let wrapper = format!("@echo off\r\n\"{}\" %*\r\n", target);
+        std::fs::write(&dest, wrapper).map_err(|e| format!("래퍼 스크립트 작성 실패: {}", e))?;
+
+        // 이전 버전이 설치한 단일 바이너리 vib.exe 가 남아있으면 PATHEXT 해석 순서상 .cmd 보다 우선될 수 있어 제거한다.
+        let legacy_exe = dest_dir.join("vib.exe");
+        if legacy_exe.exists() {
+            let _ = std::fs::remove_file(&legacy_exe);
+        }
 
         // 레지스트리 user PATH에 추가 (PowerShell)
         let dir_str = dest_dir.to_string_lossy().to_string();

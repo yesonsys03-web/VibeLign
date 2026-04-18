@@ -11,6 +11,8 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::Emitter;
+#[cfg(not(debug_assertions))]
+use tauri::Manager;
 
 use onboarding::{OnboardingRuntime, OnboardingState};
 
@@ -1491,7 +1493,23 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .setup(|_app| {
+        .setup(|app| {
+            // 번들된 vib 실행파일 경로를 OnceLock 에 주입한다.
+            // PyInstaller onedir 빌드는 `vib` 와 sibling `_internal/` 이 함께 있어야 실행되므로
+            // Tauri PathResolver 의 resource_dir 를 통째로 보존하는 이 경로만 안전하다.
+            #[cfg(not(debug_assertions))]
+            {
+                if let Ok(resource_dir) = app.path().resource_dir() {
+                    #[cfg(target_os = "windows")]
+                    let bundled = resource_dir.join("vib-runtime").join("vib.exe");
+                    #[cfg(not(target_os = "windows"))]
+                    let bundled = resource_dir.join("vib-runtime").join("vib");
+                    let _ = vib_path::BUNDLED_VIB_PATH.set(bundled);
+                }
+            }
+            #[cfg(debug_assertions)]
+            let _ = &app;
+
             // 기존 gui_config.json 키를 api_keys.json으로 마이그레이션 (최초 1회)
             migrate_legacy_keys();
             // vib CLI 자동 PATH 설치는 버전당 1회만 수행한다.
