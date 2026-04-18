@@ -1,6 +1,6 @@
 // === ANCHOR: SETTINGS_START ===
 import { useState, useEffect, useMemo } from "react";
-import { saveProviderApiKey, deleteProviderApiKey, getVibPath, getEnvKeyStatus } from "../lib/vib";
+import { saveProviderApiKey, deleteProviderApiKey, getVibPath, getEnvKeyStatus, getAiEnhancement, setAiEnhancement } from "../lib/vib";
 
 const PROVIDER_MODELS: Record<string, string[]> = {
   ANTHROPIC: ["claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"],
@@ -41,9 +41,8 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
       return {};
     }
   });
-  const [aiConsentAccepted, setAiConsentAccepted] = useState<boolean>(
-    () => localStorage.getItem("vibelign.docs.ai.consent") === "accepted",
-  );
+  const [aiEnhancement, setAiEnhancementState] = useState<boolean | null>(null);
+  const [aiEnhancementSaving, setAiEnhancementSaving] = useState(false);
 
   const handleModelChange = (provider: string, model: string) => {
     const newModels = { ...models, [provider]: model };
@@ -55,6 +54,29 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
     getVibPath().then(setVibPath).catch(() => setVibPath(null));
     getEnvKeyStatus().then(setEnvKeys).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!projectDir) {
+      setAiEnhancementState(null);
+      return;
+    }
+    getAiEnhancement(projectDir)
+      .then(setAiEnhancementState)
+      .catch(() => setAiEnhancementState(null));
+  }, [projectDir]);
+
+  async function handleToggleAiEnhancement(next: boolean) {
+    if (!projectDir) return;
+    setAiEnhancementSaving(true);
+    try {
+      const applied = await setAiEnhancement(projectDir, next);
+      setAiEnhancementState(applied);
+    } catch (e) {
+      setMsg({ type: "err", text: `AI 보강 설정 실패: ${e}` });
+    } finally {
+      setAiEnhancementSaving(false);
+    }
+  }
 
   function savedKey(provider: string): string {
     const v = providerKeys[provider]?.trim();
@@ -369,27 +391,43 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
           )}
         </div>
 
-        {/* AI 요약 동의 섹션 */}
+        {/* AI 앵커 보강 토글 섹션 */}
         <div className="card" style={{ marginTop: 16 }}>
           <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
-            AI 요약 동의 상태
+            AI 앵커 intent 자동 보강
           </div>
           <div style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 10 }}>
-            DocsViewer 에서 AI 요약 버튼을 누를 때 문서 내용이 외부 API 로 전송됩니다.
-            {aiConsentAccepted ? " 항상 허용 상태입니다." : " 매번 확인 모달이 뜹니다."}
+            <code style={{ color: "#888" }}>vib anchor --auto-intent</code> 및 Doctor apply 실행 시
+            앵커 <b>20개 단위로 배치 묶어</b> AI에 호출합니다 (배치 4개 병렬). 내용이 안 바뀐 앵커는
+            해시 캐시로 자동 건너뜁니다. 그래도 코드 많거나 첫 실행일 땐 수십 초 걸릴 수 있어
+            기본은 OFF (코드 기반 aliases 만 생성). ON 이면 프로젝트 전역에서 자동 수행됩니다.
           </div>
-          {aiConsentAccepted ? (
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => {
-                localStorage.removeItem("vibelign.docs.ai.consent");
-                setAiConsentAccepted(false);
-              }}
-            >
-              동의 취소 (다시 물어보기)
-            </button>
-          ) : null}
+          {!projectDir ? (
+            <div style={{ fontSize: 11, color: "#777" }}>프로젝트를 먼저 선택하세요.</div>
+          ) : aiEnhancement === null ? (
+            <div style={{ fontSize: 11, color: "#777" }}>상태 불러오는 중…</div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <button
+                className="btn btn-sm"
+                disabled={aiEnhancementSaving}
+                onClick={() => handleToggleAiEnhancement(!aiEnhancement)}
+                style={{
+                  background: aiEnhancement ? "#4DFF91" : "#1A1A1A",
+                  color: aiEnhancement ? "#1A1A1A" : "#888",
+                  border: "2px solid #1A1A1A",
+                  fontWeight: 700,
+                }}
+              >
+                {aiEnhancementSaving ? <span className="spinner" /> : aiEnhancement ? "ON" : "OFF"}
+              </button>
+              <span style={{ fontSize: 11, color: "#888", fontFamily: "IBM Plex Mono, monospace" }}>
+                ai_enhancement: {aiEnhancement ? "true" : "false"}
+              </span>
+            </div>
+          )}
         </div>
+
       </div>
     </div>
   );

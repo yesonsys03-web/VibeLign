@@ -1,5 +1,5 @@
 // === ANCHOR: ANCHOR_CARD_START ===
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AnchorAutoIntentResult,
   AnchorMetaEntry,
@@ -7,6 +7,7 @@ import {
   anchorListMeta,
   anchorSetIntent,
   buildGuiAiEnv,
+  getAiEnhancement,
   runVib,
 } from "../../../lib/vib";
 import { CardState } from "../../../lib/commands";
@@ -40,7 +41,14 @@ export default function AnchorCard({
   const [showResultModal, setShowResultModal] = useState(false);
 
   const [force, setForce] = useState(false);
+  const [useWithAi, setUseWithAi] = useState(false);
+  const [aiProgress, setAiProgress] = useState<{ done: number; total: number; cached: number; toCall: number } | null>(null);
   const [lastAuto, setLastAuto] = useState<AnchorAutoIntentResult | null>(null);
+
+  useEffect(() => {
+    if (!projectDir) return;
+    getAiEnhancement(projectDir).then(setUseWithAi).catch(() => {});
+  }, [projectDir]);
 
   const [showEditor, setShowEditor] = useState(false);
   const [meta, setMeta] = useState<Record<string, AnchorMetaEntry>>({});
@@ -91,7 +99,7 @@ export default function AnchorCard({
   }
 
   async function handleAutoIntent() {
-    if (aiKeyStatusLoaded && !hasAnyAiKey) {
+    if (useWithAi && aiKeyStatusLoaded && !hasAnyAiKey) {
       setOutputWarn("API 키를 먼저 설정해주세요", false, true);
       if (onOpenSettings) onOpenSettings("AI intent 보강을 쓰려면 먼저 설정에서 API 키를 입력해주세요.");
       return;
@@ -100,26 +108,53 @@ export default function AnchorCard({
     setSt("loading");
     setOut("");
     setHasWarning(false);
+    setAiProgress(null);
     try {
       const aiEnv = buildGuiAiEnv(providerKeys, apiKey);
-      const { data, stderrLog } = await anchorAutoIntentJson(projectDir, { force, aiEnv });
+      const { data, stderrLog } = await anchorAutoIntentJson(projectDir, {
+        force,
+        aiEnv,
+        withAi: useWithAi,
+        onProgress: useWithAi
+          ? (ev) => {
+              if (ev.step === "ai-cache") {
+                setAiProgress({
+                  done: 0,
+                  total: ev.batches ?? 0,
+                  cached: ev.cached ?? 0,
+                  toCall: ev.to_call ?? 0,
+                });
+              } else if (ev.step === "ai-batch") {
+                setAiProgress((prev) => ({
+                  done: ev.done ?? 0,
+                  total: ev.total ?? prev?.total ?? 0,
+                  cached: prev?.cached ?? 0,
+                  toCall: prev?.toCall ?? 0,
+                }));
+              }
+            }
+          : undefined,
+      });
       setLastAuto(data);
       const header =
         data.total_anchors === 0
           ? "앵커가 있는 파일이 없습니다"
           : `✅ code_count=${data.code_count}  ai_count=${data.ai_count}  total=${data.total_anchors}`;
-      const tail = data.ai_available
+      const tail = !useWithAi
+        ? "(AI 보강 OFF → 코드 기반만)"
+        : data.ai_available
         ? data.forced
           ? "(force 재생성)"
           : ""
         : "(AI 키 없음 → 코드 기반만 적용)";
       const log = stderrLog ? `${stderrLog}\n\n${header} ${tail}`.trim() : `${header} ${tail}`.trim();
-      const warn = data.total_anchors > 0 && !data.ai_available && data.ai_count === 0;
+      const warn = useWithAi && data.total_anchors > 0 && !data.ai_available && data.ai_count === 0;
       setOutputWarn(log, warn, false);
     } catch (e) {
       setOutputWarn(String(e), false, true);
     } finally {
       setRunMode(null);
+      setAiProgress(null);
     }
   }
 
@@ -363,18 +398,46 @@ export default function AnchorCard({
               }}
             >--force</button>
             <button
+              onClick={() => setUseWithAi((v) => !v)}
+              title="OFF: 코드 기반 aliases 만 생성 (빠름). ON: AI로 intent/aliases 보강 (API 호출)."
+              style={{
+                fontSize: 9, fontWeight: 700, padding: "2px 6px",
+                border: "2px solid #1A1A1A",
+                background: useWithAi ? "#1E2216" : "#fff",
+                color: useWithAi ? "#4DFF91" : "#1A1A1A", cursor: "pointer",
+              }}
+            >AI 보강 {useWithAi ? "ON" : "OFF"}</button>
+            <button
               className="btn btn-sm"
               style={{ flex: 1, background: "#fff", color: "#1A1A1A", border: "2px solid #1A1A1A", fontSize: 10 }}
               disabled={st === "loading"}
               onClick={handleAutoIntent}
-              title="AI + 코드 기반으로 모든 앵커에 intent/aliases 부여"
+              title={useWithAi ? "AI + 코드 기반으로 모든 앵커에 intent/aliases 부여" : "코드 기반으로만 aliases 부여 (AI 호출 없음)"}
             >
-              {runMode === "autoIntent" ? <span className="spinner" /> : "AI intent 보강"}
+              {runMode === "autoIntent" ? <span className="spinner" /> : useWithAi ? "AI intent 보강" : "코드 기반 보강"}
             </button>
           </div>
+          {runMode === "autoIntent" && useWithAi && aiProgress && aiProgress.total > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+              <div style={{
+                flex: 1, height: 5, background: "#cfd8dc", border: "1px solid #1A1A1A", overflow: "hidden",
+              }}>
+                <div style={{
+                  width: `${Math.min(100, (aiProgress.done / aiProgress.total) * 100)}%`,
+                  height: "100%", background: "#4DFF91", transition: "width 0.2s ease",
+                }} />
+              </div>
+              <span style={{ fontSize: 9, color: "#555", minWidth: 56, textAlign: "right" }}>
+                {aiProgress.done}/{aiProgress.total} 배치
+              </span>
+            </div>
+          )}
           {lastAuto && (
             <div style={{ fontSize: 9, color: "#666", marginBottom: 4 }}>
               최근: code={lastAuto.code_count} / ai={lastAuto.ai_count} / total={lastAuto.total_anchors}
+              {(lastAuto.ai_cached_hit ?? 0) ? ` · 캐시 ${lastAuto.ai_cached_hit}` : ""}
+              {(lastAuto.ai_retried ?? 0) ? ` · 재시도 ${lastAuto.ai_retried}` : ""}
+              {(lastAuto.ai_failed ?? 0) ? ` · 실패 ${lastAuto.ai_failed}` : ""}
               {lastAuto.ai_available ? "" : " · AI 키 없음"}
             </div>
           )}

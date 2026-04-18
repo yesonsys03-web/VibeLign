@@ -303,6 +303,49 @@ export async function runVib(
   });
 }
 
+export interface VibProgressEvent {
+  step: string;
+  done?: number | null;
+  total?: number | null;
+  cached?: number | null;
+  to_call?: number | null;
+  batches?: number | null;
+  message?: string | null;
+  stage?: string | null;
+  batch?: number | null;
+  count?: number | null;
+  processed?: number | null;
+  failed?: number | null;
+  retried?: number | null;
+  anchors?: number | null;
+}
+
+/** vib CLI 를 실행하면서 stderr `[progress]` 라인을 실시간 이벤트로 받는다. */
+export async function runVibWithProgress(
+  args: string[],
+  cwd: string | undefined,
+  env: Record<string, string> | undefined,
+  onProgress: (e: VibProgressEvent) => void,
+): Promise<VibResult> {
+  const rootEnv: Record<string, string> = cwd
+    ? { VIBELIGN_PROJECT_ROOT: cwd }
+    : {};
+  const eventName = `vib-progress:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+  const unlisten: UnlistenFn = await listen<VibProgressEvent>(eventName, (ev) => {
+    onProgress(ev.payload);
+  });
+  try {
+    return await invoke<VibResult>("run_vib_with_progress", {
+      args,
+      cwd: cwd ?? null,
+      env: { ...GUI_VIB_PLAIN_ENV, ...rootEnv, ...(env ?? {}) },
+      eventName,
+    });
+  } finally {
+    unlisten();
+  }
+}
+
 // ─── 편의 함수 ─────────────────────────────────────────────────────────────────
 
 export async function vibStart(cwd: string, tools?: string[]): Promise<VibResult> {
@@ -367,8 +410,28 @@ export async function doctorApply(cwd: string, aiEnv?: Record<string, string>): 
   return JSON.parse(res.stdout);
 }
 
-export async function anchorAutoIntent(cwd: string, aiEnv?: Record<string, string>): Promise<unknown> {
-  const res = await runVib(["anchor", "--auto-intent"], cwd, aiEnv);
+export async function getAiEnhancement(cwd: string): Promise<boolean> {
+  const res = await runVib(["config", "--ai-enhance", "status", "--json"], cwd);
+  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  const parsed = JSON.parse(res.stdout) as { ok?: boolean; data?: { ai_enhancement?: boolean } };
+  return Boolean(parsed.data?.ai_enhancement);
+}
+
+export async function setAiEnhancement(cwd: string, enabled: boolean): Promise<boolean> {
+  const res = await runVib(["config", "--ai-enhance", enabled ? "enable" : "disable", "--json"], cwd);
+  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  const parsed = JSON.parse(res.stdout) as { ok?: boolean; data?: { ai_enhancement?: boolean } };
+  return Boolean(parsed.data?.ai_enhancement);
+}
+
+export async function anchorAutoIntent(
+  cwd: string,
+  aiEnv?: Record<string, string>,
+  withAi = false,
+): Promise<unknown> {
+  const args = ["anchor", "--auto-intent"];
+  if (withAi) args.push("--with-ai");
+  const res = await runVib(args, cwd, aiEnv);
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
   return res.stdout;
 }
@@ -385,6 +448,11 @@ export interface AnchorMetaEntry {
 export interface AnchorAutoIntentResult {
   code_count: number;
   ai_count: number;
+  ai_cached_hit?: number;
+  ai_total_considered?: number;
+  ai_batches?: number;
+  ai_failed?: number;
+  ai_retried?: number;
   total_anchors: number;
   ai_available: boolean;
   forced: boolean;
@@ -399,11 +467,19 @@ export interface AnchorAutoIntentRun {
 
 export async function anchorAutoIntentJson(
   cwd: string,
-  opts?: { force?: boolean; aiEnv?: Record<string, string> }
+  opts?: {
+    force?: boolean;
+    aiEnv?: Record<string, string>;
+    withAi?: boolean;
+    onProgress?: (e: VibProgressEvent) => void;
+  }
 ): Promise<AnchorAutoIntentRun> {
   const args = ["anchor", "--auto-intent", "--json"];
   if (opts?.force) args.push("--force");
-  const res = await runVib(args, cwd, opts?.aiEnv);
+  if (opts?.withAi) args.push("--with-ai");
+  const res = opts?.onProgress
+    ? await runVibWithProgress(args, cwd, opts.aiEnv, opts.onProgress)
+    : await runVib(args, cwd, opts?.aiEnv);
   const stdout = res.stdout.trim();
   if (!stdout) throw new Error(res.stderr || `exit ${res.exit_code}`);
   const parsed = JSON.parse(stdout) as {

@@ -3,6 +3,7 @@ from argparse import Namespace
 import os
 import json
 import getpass
+import sys
 import urllib.request
 from pathlib import Path
 from typing import Protocol, TypedDict, cast
@@ -256,8 +257,55 @@ def _select_gemini_model(api_key: str | None, current_model: str) -> str | None:
 # === ANCHOR: CONFIG_CMD__SELECT_GEMINI_MODEL_END ===
 
 
+# === ANCHOR: CONFIG_CMD__RUN_AI_ENHANCE_START ===
+def _run_ai_enhance(action: str, json_mode: bool) -> None:
+    """`.vibelign/config.yaml` 의 `ai_enhancement` 플래그를 조회/토글한다."""
+    from vibelign.core.hook_setup import (
+        is_ai_enhancement_enabled,
+        set_ai_enhancement_enabled,
+    )
+    from vibelign.core.project_root import resolve_project_root
+
+    root = resolve_project_root(Path.cwd())
+    msg: str | None
+    if action == "enable":
+        set_ai_enhancement_enabled(root, True)
+        enabled = True
+        msg = "AI 앵커 intent 자동 보강을 켰어요."
+    elif action == "disable":
+        set_ai_enhancement_enabled(root, False)
+        enabled = False
+        msg = "AI 앵커 intent 자동 보강을 껐어요."
+    else:
+        enabled = is_ai_enhancement_enabled(root)
+        msg = None
+
+    if json_mode:
+        _ = sys.stdout.write(
+            json.dumps(
+                {
+                    "ok": True,
+                    "error": None,
+                    "data": {"ai_enhancement": enabled, "action": action},
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+        return
+    if msg:
+        clack_success(msg)
+    clack_info(f"ai_enhancement: {'true' if enabled else 'false'}")
+# === ANCHOR: CONFIG_CMD__RUN_AI_ENHANCE_END ===
+
+
 # === ANCHOR: CONFIG_CMD_RUN_CONFIG_START ===
 def run_config(_args: Namespace) -> None:
+    ai_enhance_action = getattr(_args, "ai_enhance", None)
+    if ai_enhance_action:
+        _run_ai_enhance(str(ai_enhance_action), bool(getattr(_args, "json", False)))
+        return
+
     clack_intro("VibeLign API 키 설정")
 
     # 무료 API 안내

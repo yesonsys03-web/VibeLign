@@ -1,6 +1,6 @@
 // === ANCHOR: DOCTOR_START ===
 import { useState, useEffect, useCallback } from "react";
-import { doctorJson, doctorPlanJson, doctorApply, anchorAutoIntent, buildGuiAiEnv } from "../lib/vib";
+import { doctorJson, doctorPlanJson, doctorApply, anchorAutoIntentJson, getAiEnhancement, buildGuiAiEnv } from "../lib/vib";
 
 interface Issue {
   severity: "high" | "medium" | "low";
@@ -53,6 +53,11 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
   const [error, setError] = useState<string | null>(null);
   const [applyMsg, setApplyMsg] = useState<string | null>(null);
   const [aiStatus, setAiStatus] = useState<string | null>(null);
+  const [useWithAi, setUseWithAi] = useState(false);
+  const [aiProgress, setAiProgress] = useState<{ done: number; total: number; cached: number; toCall: number } | null>(null);
+  const [aiErrors, setAiErrors] = useState<string[]>([]);
+  const [aiStderrLog, setAiStderrLog] = useState<string | null>(null);
+  const [showStderrLog, setShowStderrLog] = useState(false);
 
   const loadReport = useCallback(async () => {
     setLoading(true);
@@ -81,6 +86,13 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
   }, [projectDir]);
 
   useEffect(() => { loadReport(); }, [loadReport]);
+
+  useEffect(() => {
+    if (!projectDir) return;
+    getAiEnhancement(projectDir)
+      .then(setUseWithAi)
+      .catch(() => {});
+  }, [projectDir]);
 
   function scoreClass(score: number) {
     if (score >= 80) return "score-high";
@@ -120,11 +132,62 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
         setApplyMsg(`완료: ${result.done ?? 0}개 자동 적용, ${result.manual ?? 0}개 수동 필요`);
         await Promise.all([loadReport(), loadPlan()]);
         if (result.needs_ai_aliases) {
-          setAiStatus("AI aliases 생성 중...");
-          anchorAutoIntent(projectDir, aiEnv)
-            .then(() => setAiStatus("AI aliases 생성 완료"))
-            .catch(() => setAiStatus("AI aliases 생성 실패"))
-            .finally(() => setTimeout(() => setAiStatus(null), 5000));
+          if (useWithAi) {
+            const started = Date.now();
+            setAiStatus("AI aliases 생성 준비 중...");
+            setAiProgress(null);
+            setAiErrors([]);
+            setAiStderrLog(null);
+            setShowStderrLog(false);
+            anchorAutoIntentJson(projectDir, {
+              aiEnv,
+              withAi: true,
+              onProgress: (ev) => {
+                if (ev.step === "ai-cache") {
+                  const total = ev.total ?? 0;
+                  const cached = ev.cached ?? 0;
+                  const toCall = ev.to_call ?? 0;
+                  setAiProgress({ done: 0, total: ev.batches ?? 0, cached, toCall });
+                  if (toCall === 0) {
+                    setAiStatus(`캐시 히트 ${cached}/${total} — API 호출 없음`);
+                  } else {
+                    setAiStatus(`AI 보강 중... (신규 ${toCall}개, 캐시 ${cached}개)`);
+                  }
+                } else if (ev.step === "ai-batch") {
+                  setAiProgress((prev) => ({
+                    done: ev.done ?? 0,
+                    total: ev.total ?? prev?.total ?? 0,
+                    cached: prev?.cached ?? 0,
+                    toCall: prev?.toCall ?? 0,
+                  }));
+                } else if (ev.step === "ai-error") {
+                  const stage = ev.stage ?? "?";
+                  const reason = ev.message ?? "unknown";
+                  const cnt = ev.count ?? 0;
+                  setAiErrors((prev) => [...prev, `[${stage}] batch=${ev.batch ?? "?"} 사유=${reason} 앵커=${cnt}개`]);
+                }
+              },
+            })
+              .then(({ data, stderrLog }) => {
+                setAiStderrLog(stderrLog || null);
+                const elapsed = ((Date.now() - started) / 1000).toFixed(1);
+                const cached = data.ai_cached_hit ?? 0;
+                const failed = data.ai_failed ?? 0;
+                const retried = data.ai_retried ?? 0;
+                const parts: string[] = [`AI 보강 완료 (${elapsed}s)`];
+                if (data.ai_count) parts.push(`신규 ${data.ai_count}개`);
+                if (cached) parts.push(`캐시 ${cached}개`);
+                if (retried) parts.push(`재시도 ${retried}개`);
+                if (failed) parts.push(`실패 ${failed}개(네거티브캐시)`);
+                if (!data.ai_count && !cached) parts.push("변경 없음");
+                setAiStatus(parts.join(" · "));
+              })
+              .catch((e) => setAiStatus(`AI aliases 생성 실패: ${e}`))
+              .finally(() => setTimeout(() => { setAiStatus(null); setAiProgress(null); }, 8000));
+          } else {
+            setAiStatus("AI aliases 보강은 APPLY 옆 체크박스를 켠 뒤 다시 실행하세요 (또는 Settings 에서 전역 ON)");
+            setTimeout(() => setAiStatus(null), 8000);
+          }
         }
       }
     } catch (e) {
@@ -176,6 +239,25 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
             onClick={() => { setView("plan"); if (!plan) loadPlan(); }}>
             PLAN
           </button>
+          <label
+            title="체크 시 이번 apply 에서만 AI aliases 보강까지 실행합니다 (기본값은 Settings 의 ai_enhancement)."
+            style={{
+              display: "flex", alignItems: "center", gap: 4,
+              fontSize: 10, fontWeight: 700, color: useWithAi ? "#4DFF91" : "#888",
+              cursor: "pointer", userSelect: "none",
+              border: "2px solid #1A1A1A",
+              background: useWithAi ? "#1E2216" : "transparent",
+              padding: "2px 6px",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={useWithAi}
+              onChange={(e) => setUseWithAi(e.target.checked)}
+              style={{ margin: 0, cursor: "pointer" }}
+            />
+            AI 보강
+          </label>
           <button className="btn btn-sm" onClick={handleApply} disabled={applying}>
             {applying ? <span className="spinner" /> : "APPLY ▶"}
           </button>
@@ -189,10 +271,68 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
           margin: "0 20px 8px",
           background: aiStatus.includes("완료") ? "#e8f5e9" : aiStatus.includes("실패") ? "#fce4ec" : "#e3f2fd",
           color: "#333",
-          display: "flex", alignItems: "center", gap: 8,
+          display: "flex", flexDirection: "column", gap: 6,
         }}>
-          {!aiStatus.includes("완료") && !aiStatus.includes("실패") && <span className="spinner" />}
-          {aiStatus}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {!aiStatus.includes("완료") && !aiStatus.includes("실패") && <span className="spinner" />}
+            <span>{aiStatus}</span>
+          </div>
+          {aiProgress && aiProgress.total > 0 && !aiStatus.includes("완료") && !aiStatus.includes("실패") && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{
+                flex: 1, height: 6, background: "#cfd8dc", borderRadius: 3, overflow: "hidden",
+              }}>
+                <div style={{
+                  width: `${Math.min(100, (aiProgress.done / aiProgress.total) * 100)}%`,
+                  height: "100%", background: "#4DFF91", transition: "width 0.2s ease",
+                }} />
+              </div>
+              <span style={{ fontSize: 11, color: "#555", minWidth: 60, textAlign: "right" }}>
+                {aiProgress.done}/{aiProgress.total} 배치
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+      {aiErrors.length > 0 && (
+        <div className="alert" style={{
+          margin: "0 20px 8px", background: "#fff8e1", color: "#5D4037",
+          display: "flex", flexDirection: "column", gap: 2,
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: 700, fontSize: 12 }}>⚠ 배치 경고 {aiErrors.length}건</span>
+            <button className="btn btn-ghost btn-sm" style={{ fontSize: 10, padding: "2px 8px" }} onClick={() => setAiErrors([])}>닫기</button>
+          </div>
+          {aiErrors.slice(-6).map((e, i) => (
+            <div key={i} style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 10 }}>{e}</div>
+          ))}
+        </div>
+      )}
+      {aiStderrLog && (
+        <div className="alert" style={{ margin: "0 20px 8px", background: "#fafafa", color: "#333" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ fontSize: 10, padding: "2px 8px", border: "1px solid #888" }}
+              onClick={() => setShowStderrLog((v) => !v)}
+            >
+              {showStderrLog ? "stderr 로그 숨기기" : `stderr 로그 보기 (${aiStderrLog.split("\n").length} 줄)`}
+            </button>
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ fontSize: 10, padding: "2px 8px" }}
+              onClick={() => { setAiStderrLog(null); setShowStderrLog(false); }}
+            >
+              닫기
+            </button>
+          </div>
+          {showStderrLog && (
+            <pre style={{
+              marginTop: 6, padding: 8, background: "#1A1A1A", color: "#ddd",
+              fontSize: 10, lineHeight: 1.4, maxHeight: 320, overflow: "auto",
+              fontFamily: "IBM Plex Mono, monospace", whiteSpace: "pre-wrap", wordBreak: "break-word",
+            }}>{aiStderrLog}</pre>
+          )}
         </div>
       )}
 

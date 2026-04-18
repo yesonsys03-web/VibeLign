@@ -166,6 +166,37 @@ def get_claude_hook_status(root: Path) -> dict[str, object]:
 # === ANCHOR: HOOK_SETUP_GET_CLAUDE_HOOK_STATUS_END ===
 
 
+# === ANCHOR: HOOK_SETUP_IS_AI_ENHANCEMENT_ENABLED_START ===
+def is_ai_enhancement_enabled(root: Path) -> bool:
+    """`.vibelign/config.yaml` 의 `ai_enhancement` 플래그를 읽는다. 기본 False (옵트인)."""
+    meta = MetaPaths(root)
+    content = _read_config_text(meta)
+    for line in content.splitlines():
+        if line.strip().startswith("ai_enhancement:"):
+            value = line.split(":", 1)[1].strip().lower()
+            return value == "true"
+    return False
+# === ANCHOR: HOOK_SETUP_IS_AI_ENHANCEMENT_ENABLED_END ===
+
+
+# === ANCHOR: HOOK_SETUP_SET_AI_ENHANCEMENT_ENABLED_START ===
+def set_ai_enhancement_enabled(root: Path, enabled: bool) -> None:
+    meta = MetaPaths(root)
+    meta.ensure_vibelign_dir()
+    content = _read_config_text(meta)
+    lines = content.splitlines() if content else ["schema_version: 1"]
+    updated = False
+    for index, line in enumerate(lines):
+        if line.strip().startswith("ai_enhancement:"):
+            lines[index] = f"ai_enhancement: {'true' if enabled else 'false'}"
+            updated = True
+            break
+    if not updated:
+        lines.append(f"ai_enhancement: {'true' if enabled else 'false'}")
+    _ = meta.config_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+# === ANCHOR: HOOK_SETUP_SET_AI_ENHANCEMENT_ENABLED_END ===
+
+
 # === ANCHOR: HOOK_SETUP_ENSURE_CLAUDE_PRETOOLUSE_HOOK_START ===
 def ensure_claude_pretooluse_hook(root: Path) -> ClaudeHookResult:
     settings_path = _claude_settings_path(root)

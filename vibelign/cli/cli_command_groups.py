@@ -94,12 +94,27 @@ def register_extended_commands(
 
     p = sub.add_parser(
         "config",
-        help="API 키 설정",
+        help="API 키 및 AI 보강 옵트인 설정",
         description=(
-            "AI 기능을 쓰려면 API 키가 필요해요.\n이 명령어로 설정할 수 있어요."
+            "AI 기능을 쓰려면 API 키가 필요해요.\n"
+            "API 키 설정(인터랙티브) + 앵커 AI 보강 on/off 토글을 함께 관리해요."
         ),
-        epilog="이렇게 쓰세요:\n  vib config    API 키 설정하기",
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib config                               API 키 설정 (인터랙티브)\n"
+            "  vib config --ai-enhance status           AI 앵커 보강 상태 조회\n"
+            "  vib config --ai-enhance enable           AI 앵커 보강 켜기\n"
+            "  vib config --ai-enhance disable          AI 앵커 보강 끄기"
+        ),
     )
+    _ = p.add_argument(
+        "--ai-enhance",
+        dest="ai_enhance",
+        choices=["enable", "disable", "status"],
+        default=None,
+        help="앵커 AI intent 자동 보강 on/off 토글 (.vibelign/config.yaml)",
+    )
+    _ = p.add_argument("--json", action="store_true", help="JSON으로 출력")
     p.set_defaults(func=lazy_command("vibelign.commands.config_cmd", "run_config"))
 
     p = sub.add_parser(
@@ -190,6 +205,11 @@ def register_extended_commands(
         "--force",
         action="store_true",
         help="--auto-intent 시 기존 AI 생성 항목도 재생성",
+    )
+    _ = p.add_argument(
+        "--with-ai",
+        action="store_true",
+        help="--auto-intent 시 AI 보강까지 실행 (기본: 코드 기반만)",
     )
     _ = p.add_argument(
         "--aliases",

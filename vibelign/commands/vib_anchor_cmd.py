@@ -41,10 +41,14 @@ def _collect_anchor_metadata(
 
 
 def _generate_anchor_intents_with_ai(
-    root: Path, anchored: list[Path], *, force: bool = False
+    root: Path,
+    anchored: list[Path],
+    *,
+    force: bool = False,
+    stats_out: dict[str, int] | None = None,
 ) -> int:
     return anchor_tools_mod.generate_anchor_intents_with_ai(
-        root, anchored, force=force
+        root, anchored, force=force, stats_out=stats_out
     )
 
 
@@ -264,25 +268,53 @@ def run_vib_anchor(args: object) -> None:
             code_count = generate_code_based_intents(root, anchored)
             if code_count:
                 _progress("code", f"✅ 코드 기반 aliases 생성 완료: {code_count}개")
-            # 2단계: AI 보강 (API 키 있을 때만)
+            # 2단계: AI 보강 (--with-ai 또는 config.yaml `ai_enhancement: true` + API 키 있을 때만)
+            from vibelign.core.hook_setup import is_ai_enhancement_enabled
+            with_ai = bool(getattr(args, "with_ai", False)) or is_ai_enhancement_enabled(root)
             ai_available = has_ai_provider()
-            _progress(
-                "ai",
-                f"🤖 AI가 {len(anchored)}개 파일의 앵커 intent를 보강 중..."
-                if ai_available
-                else "⚠️ AI 키가 없어 AI 보강 생략",
-            )
-            ai_count = (
-                _generate_anchor_intents_with_ai(root, anchored, force=force)
-                if ai_available
-                else 0
-            )
-            if ai_count:
-                _progress("ai", f"✅ AI 보강 완료: {ai_count}개")
-            elif ai_available and not code_count:
+            ai_stats: dict[str, int] = {}
+            if with_ai:
                 _progress(
                     "ai",
-                    "⚠️  intent 자동 생성 실패 (API 키 확인 또는 vib anchor --set-intent 로 직접 등록)",
+                    f"🤖 AI가 {len(anchored)}개 파일의 앵커 intent를 보강 중..."
+                    if ai_available
+                    else "⚠️ AI 키가 없어 AI 보강 생략",
+                )
+                ai_count = (
+                    _generate_anchor_intents_with_ai(
+                        root, anchored, force=force, stats_out=ai_stats
+                    )
+                    if ai_available
+                    else 0
+                )
+                if ai_count:
+                    cached = ai_stats.get("cached_hit", 0)
+                    retried = ai_stats.get("retried", 0)
+                    failed = ai_stats.get("failed", 0)
+                    extras: list[str] = []
+                    if cached:
+                        extras.append(f"캐시 {cached}개 재사용")
+                    if retried:
+                        extras.append(f"재시도 {retried}개")
+                    if failed:
+                        extras.append(f"실패 {failed}개 → 네거티브 캐시")
+                    suffix = f" ({', '.join(extras)})" if extras else ""
+                    _progress("ai", f"✅ AI 보강 완료: {ai_count}개{suffix}")
+                elif ai_available and ai_stats.get("cached_hit", 0):
+                    _progress(
+                        "ai",
+                        f"✅ 캐시 히트 {ai_stats['cached_hit']}개 — AI 재호출 없음",
+                    )
+                elif ai_available and not code_count:
+                    _progress(
+                        "ai",
+                        "⚠️  intent 자동 생성 실패 (API 키 확인 또는 vib anchor --set-intent 로 직접 등록)",
+                    )
+            else:
+                ai_count = 0
+                _progress(
+                    "ai",
+                    "ℹ️ AI 보강은 --with-ai 옵션으로만 실행됩니다 (기본 OFF)",
                 )
 
         if json_mode:
@@ -296,6 +328,11 @@ def run_vib_anchor(args: object) -> None:
                         "data": {
                             "code_count": code_count,
                             "ai_count": ai_count,
+                            "ai_cached_hit": ai_stats.get("cached_hit", 0),
+                            "ai_total_considered": ai_stats.get("total", 0),
+                            "ai_batches": ai_stats.get("batches", 0),
+                            "ai_failed": ai_stats.get("failed", 0),
+                            "ai_retried": ai_stats.get("retried", 0),
                             "total_anchors": len(anchored),
                             "ai_available": ai_available,
                             "forced": force,
