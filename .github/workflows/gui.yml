@@ -106,7 +106,7 @@ jobs:
           }
           config = {
             "bundle": {
-              "createUpdaterArtifacts": true
+              "createUpdaterArtifacts": True
             },
             "plugins": {
               "updater": payload
