@@ -118,6 +118,22 @@ fn is_nonempty_file(path: &Path) -> bool {
     std::fs::metadata(path).map_or(false, |m| m.len() > 0)
 }
 
+#[cfg(any(target_os = "windows", test))]
+fn normalize_windows_unc_path(path: &Path) -> PathBuf {
+    let path_str = path.to_string_lossy();
+    PathBuf::from(
+        path_str
+            .strip_prefix(r"\\?\")
+            .unwrap_or(path_str.as_ref()),
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn build_windows_vib_wrapper(path: &Path) -> String {
+    let target = normalize_windows_unc_path(path).to_string_lossy().to_string();
+    format!("@echo off\r\n\"{}\" %*\r\n", target)
+}
+
 /// GUI 런타임이 사용할 번들 vib를 찾는다. 없으면 None.
 ///
 /// dev 빌드(`debug_assertions`)에서는 항상 None 을 반환해 `find_vib` 폴백(시스템 `vib`,
@@ -304,7 +320,15 @@ fn find_uv_tool_vib() -> Option<PathBuf> {
 }
 
 pub fn find_runtime_vib() -> Option<PathBuf> {
-    find_bundled_vib().or_else(find_vib)
+    let vib = find_bundled_vib().or_else(find_vib)?;
+    #[cfg(target_os = "windows")]
+    {
+        return Some(normalize_windows_unc_path(&vib));
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Some(vib)
+    }
 }
 
 pub fn find_watch_vib() -> Option<PathBuf> {
@@ -373,8 +397,7 @@ pub fn install_cli_to_path() -> Result<String, String> {
         // onedir 번들은 `vib.exe` 옆의 `_internal/` 디렉터리까지 함께 있어야 실행된다.
         // 단일 바이너리 복사로는 동작하지 않으므로 번들 절대 경로를 호출하는 .cmd 래퍼를 심는다.
         let dest = dest_dir.join("vib.cmd");
-        let target = vib.to_string_lossy().to_string();
-        let wrapper = format!("@echo off\r\n\"{}\" %*\r\n", target);
+        let wrapper = build_windows_vib_wrapper(&vib);
         std::fs::write(&dest, wrapper).map_err(|e| format!("래퍼 스크립트 작성 실패: {}", e))?;
 
         // 이전 버전이 설치한 단일 바이너리 vib.exe 가 남아있으면 PATHEXT 해석 순서상 .cmd 보다 우선될 수 있어 제거한다.
@@ -461,8 +484,7 @@ pub fn refresh_gui_wrapper(bundled_vib: &Path) -> Result<(), String> {
         if !content.starts_with("@echo off") {
             return Ok(());
         }
-        let target = bundled_vib.to_string_lossy().to_string();
-        let expected = format!("@echo off\r\n\"{}\" %*\r\n", target);
+        let expected = build_windows_vib_wrapper(bundled_vib);
         if content == expected {
             return Ok(());
         }
@@ -471,5 +493,29 @@ pub fn refresh_gui_wrapper(bundled_vib: &Path) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_windows_unc_path;
+    use std::path::Path;
+
+    #[test]
+    fn normalize_windows_unc_path_removes_extended_prefix() {
+        let path = Path::new(r"\\?\C:\Users\yeson\AppData\Local\vibelign-gui\vib-runtime\vib.exe");
+        assert_eq!(
+            normalize_windows_unc_path(path),
+            Path::new(r"C:\Users\yeson\AppData\Local\vibelign-gui\vib-runtime\vib.exe")
+        );
+    }
+
+    #[test]
+    fn normalize_windows_unc_path_keeps_normal_windows_path() {
+        let path = Path::new(r"C:\Users\yeson\AppData\Local\vibelign-gui\vib-runtime\vib.exe");
+        assert_eq!(
+            normalize_windows_unc_path(path),
+            Path::new(r"C:\Users\yeson\AppData\Local\vibelign-gui\vib-runtime\vib.exe")
+        );
+    }
 }
 // === ANCHOR: VIB_PATH_END ===
