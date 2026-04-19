@@ -85,11 +85,14 @@ jobs:
           workspaces: vibelign-gui/src-tauri
 
       - name: Configure updater plugin for release build
-        if: startsWith(github.ref, 'refs/tags/v') && secrets.TAURI_UPDATER_PUBKEY != ''
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         env:
           TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
         run: |
+          if [[ -z "${TAURI_UPDATER_PUBKEY}" ]]; then
+            exit 0
+          fi
           python - <<'PY'
           import json
           import os
@@ -107,6 +110,7 @@ jobs:
       - name: Build Tauri app
         shell: bash
         env:
+          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
