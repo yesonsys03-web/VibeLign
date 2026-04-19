@@ -132,9 +132,21 @@ jobs:
             BUILD_CMD="npm run tauri build -- --features updater --config src-tauri/tauri.updater.generated.conf.json"
           fi
           if [[ "$RUNNER_OS" == "macOS" ]]; then
+            success=false
             for i in 1 2 3; do
-              eval "$BUILD_CMD" && break || (echo "Attempt $i failed, retrying in 10s..."; sleep 10)
+              if eval "$BUILD_CMD"; then
+                success=true
+                break
+              fi
+              if [[ "$i" -lt 3 ]]; then
+                echo "Attempt $i failed, retrying in 10s..."
+                sleep 10
+              fi
             done
+            if [[ "$success" != true ]]; then
+              echo "Tauri build failed after 3 attempts"
+              exit 1
+            fi
           else
             eval "$BUILD_CMD"
           fi
