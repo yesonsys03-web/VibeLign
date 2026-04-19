@@ -187,7 +187,7 @@ jobs:
           from pathlib import Path
 
           root = Path("windows-release")
-          app_version = json.loads(Path("vibelign-gui/src-tauri/tauri.conf.json").read_text(encoding="utf-8"))["version"]
+          app_version = json.loads(Path("src-tauri/tauri.conf.json").read_text(encoding="utf-8"))["version"]
           candidates = sorted(root.glob("*.exe"))
           if not candidates:
               raise SystemExit("No Windows updater EXE found")
@@ -248,7 +248,7 @@ jobs:
           from pathlib import Path
 
           root = Path("macos-release")
-          app_version = json.loads(Path("vibelign-gui/src-tauri/tauri.conf.json").read_text(encoding="utf-8"))["version"]
+          app_version = json.loads(Path("src-tauri/tauri.conf.json").read_text(encoding="utf-8"))["version"]
           candidates = sorted(root.glob("*.app.tar.gz"))
           if not candidates:
               raise SystemExit("No macOS updater archive found")
