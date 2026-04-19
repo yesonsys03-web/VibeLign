@@ -1,6 +1,7 @@
 // === ANCHOR: APP_START ===
 import { useState, useEffect, Component, ReactNode } from "react";
 import CustomTitleBar from "./components/CustomTitleBar";
+import UpdateBanner from "./components/UpdateBanner";
 import Onboarding from "./pages/Onboarding";
 import Doctor from "./pages/Doctor";
 import Home from "./pages/Home";
@@ -106,6 +107,10 @@ export default function App() {
           projectDir={projectDir}
           onSettings={projectDir ? () => openSettings() : undefined}
         />
+      </ErrorBoundary>
+
+      <ErrorBoundary>
+        <UpdateBanner />
       </ErrorBoundary>
 
       <ErrorBoundary>
