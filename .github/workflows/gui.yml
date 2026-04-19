@@ -132,10 +132,12 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          APP=$(find src-tauri/target/release/bundle/macos -name "*.app" | head -1)
+          APP=$(find src-tauri/target -path "*/release/bundle/macos/*.app" -print -quit 2>/dev/null || true)
           if [ -n "$APP" ]; then
             codesign --force --deep --sign - "$APP"
             echo "Signed: $APP"
+          else
+            echo "No macOS .app bundle found under src-tauri/target; skipping ad-hoc codesign"
           fi
 
       - name: Prepare Windows release package
@@ -191,9 +193,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p macos-release
-          cp -r src-tauri/target/release/bundle/dmg/*.dmg macos-release/ 2>/dev/null || true
-          cp -f src-tauri/target/release/bundle/macos/*.app.tar.gz macos-release/ 2>/dev/null || true
-          cp -f src-tauri/target/release/bundle/macos/*.app.tar.gz.sig macos-release/ 2>/dev/null || true
+          find src-tauri/target -path "*/release/bundle/dmg/*.dmg" -exec cp -f {} macos-release/ \; 2>/dev/null || true
+          find src-tauri/target -path "*/release/bundle/macos/*.app.tar.gz" -exec cp -f {} macos-release/ \; 2>/dev/null || true
+          find src-tauri/target -path "*/release/bundle/macos/*.app.tar.gz.sig" -exec cp -f {} macos-release/ \; 2>/dev/null || true
           # NOTE: .app 디렉토리 번들은 복사하지 않는다. 디렉토리라서 `**/*` 글롭에
           # 내부 수백 개 파일이 Release 에셋으로 흘러들어가고, 그중 0바이트 파일이
           # GitHub API 422 (size >= 1) 를 유발. .dmg 안에 이미 .app 이 포함됨.
