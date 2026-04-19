@@ -56,6 +56,7 @@ function ThreadsIcon({ size = 14 }: { size?: number }) {
 interface OnboardingProps {
   onComplete: (projectDir: string, apiKey: string | null) => void;
   onResume?: (dir: string) => void;
+  onRemoveRecent?: (dir: string) => void;
   recentDirs?: string[];
 }
 
@@ -139,7 +140,7 @@ const ONBOARDING_GUIDE_STEPS: {
   },
 ];
 
-export default function Onboarding({ onComplete, onResume, recentDirs = [] }: OnboardingProps) {
+export default function Onboarding({ onComplete, onResume, onRemoveRecent, recentDirs = [] }: OnboardingProps) {
   const [vibFound, setVibFound] = useState<string | null>(null);
   const [vibChecking, setVibChecking] = useState(true);
   const [selectedDir, setSelectedDir] = useState("");
@@ -1051,6 +1052,32 @@ export default function Onboarding({ onComplete, onResume, recentDirs = [] }: On
                   </span>
                 )}
                 <span style={{ fontSize: 10, color: "#555", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dir}</span>
+                {onRemoveRecent && (
+                  <button
+                    type="button"
+                    aria-label={`${dir} 최근 프로젝트 목록에서 제거`}
+                    title="최근 프로젝트 목록에서 제거 (프로젝트 파일은 삭제되지 않음)"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveRecent(dir);
+                    }}
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 900,
+                      color: "#888",
+                      border: "1px solid #1A1A1A",
+                      background: "transparent",
+                      width: 18,
+                      height: 18,
+                      lineHeight: "16px",
+                      textAlign: "center",
+                      cursor: "pointer",
+                      flexShrink: 0,
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
                 <span style={{ fontSize: 11, color: "#4D9FFF", fontWeight: 700, flexShrink: 0 }}>▶</span>
               </div>
             ))}

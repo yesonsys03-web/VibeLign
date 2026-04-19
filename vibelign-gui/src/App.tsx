@@ -94,6 +94,12 @@ export default function App() {
     saveRecentProjects(next).catch(() => {});
   }
 
+  function removeFromRecent(dir: string) {
+    const next = recentDirs.filter((d) => d !== dir);
+    setRecentDirs(next);
+    saveRecentProjects(next).catch(() => {});
+  }
+
   function openSettings(reason?: string) {
     setPrevPage(page === "settings" ? prevPage : page);
     setSettingsNotice(typeof reason === "string" ? reason : null);
@@ -119,6 +125,7 @@ export default function App() {
             recentDirs={recentDirs}
             onComplete={(dir, key) => { addToRecent(dir); setProjectDir(dir); if (key) setApiKey(key); }}
             onResume={(dir) => { addToRecent(dir); setProjectDir(dir); }}
+            onRemoveRecent={(dir) => removeFromRecent(dir)}
           />
         ) : (
           <>
