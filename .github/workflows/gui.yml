@@ -172,36 +172,44 @@ jobs:
           cp -f src-tauri/target/release/bundle/nsis/*.exe.sig windows-release/ 2>/dev/null || true
           cp -f src-tauri/target/release/bundle/msi/*.msi windows-release/ 2>/dev/null || true
           cp -f src-tauri/target/release/bundle/msi/*.msi.sig windows-release/ 2>/dev/null || true
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]] && [[ -n "${TAURI_SIGNING_PRIVATE_KEY}" ]] && [[ -n "${TAURI_UPDATER_PUBKEY:-}" ]]; then
-            python - <<'PY'
-            import glob
-            import json
-            import os
-            from pathlib import Path
 
-            root = Path("windows-release")
-            candidates = sorted(root.glob("*.msi")) or sorted(root.glob("*.exe"))
-            if not candidates:
+      - name: Generate Windows updater manifest
+        if: runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [[ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]] || [[ -z "${TAURI_UPDATER_PUBKEY}" ]]; then
+            exit 0
+          fi
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("windows-release")
+          candidates = sorted(root.glob("*.msi")) or sorted(root.glob("*.exe"))
+          if not candidates:
               raise SystemExit("No Windows updater installer found")
-            asset = candidates[0]
-            sig = Path(f"{asset}.sig")
-            if not sig.exists():
+          asset = candidates[0]
+          sig = Path(f"{asset}.sig")
+          if not sig.exists():
               raise SystemExit(f"Missing Windows signature for {asset.name}")
 
-            version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
-            payload = {
+          version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          payload = {
               "version": version,
               "notes": "See GitHub release notes for details.",
               "platforms": {
-                "windows-x86_64": {
-                  "signature": sig.read_text(encoding="utf-8").strip(),
-                  "url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{os.environ['GITHUB_REF_NAME']}/{asset.name}",
-                }
+                  "windows-x86_64": {
+                      "signature": sig.read_text(encoding="utf-8").strip(),
+                      "url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{os.environ['GITHUB_REF_NAME']}/{asset.name}",
+                  }
               },
-            }
-            (root / "latest.windows.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
-            PY
-          fi
+          }
+          (root / "latest.windows.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+          PY
 
       - name: Upload Windows artifacts
         if: runner.os == 'Windows'
