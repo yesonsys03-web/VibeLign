@@ -84,15 +84,44 @@ jobs:
         with:
           workspaces: vibelign-gui/src-tauri
 
+      - name: Configure updater plugin for release build
+        if: startsWith(github.ref, 'refs/tags/v') && secrets.TAURI_UPDATER_PUBKEY != ''
+        shell: bash
+        env:
+          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          payload = {
+            "pubkey": os.environ["TAURI_UPDATER_PUBKEY"],
+            "endpoints": [
+              f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/latest/download/latest.json"
+            ],
+          }
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as fh:
+            fh.write(f"TAURI_UPDATER_PLUGIN_CONFIG={json.dumps(payload)}\n")
+          PY
+
       - name: Build Tauri app
         shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
+          BUILD_CMD="npm run tauri build"
+          export VITE_APP_UPDATER_ENABLED=false
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]] && [[ -n "${TAURI_SIGNING_PRIVATE_KEY}" ]] && [[ -n "${TAURI_UPDATER_PUBKEY:-}" ]]; then
+            export VITE_APP_UPDATER_ENABLED=true
+            BUILD_CMD="npm run tauri build -- --features updater --config src-tauri/tauri.updater.conf.json"
+          fi
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             for i in 1 2 3; do
-              npm run tauri build && break || (echo "Attempt $i failed, retrying in 10s..."; sleep 10)
+              eval "$BUILD_CMD" && break || (echo "Attempt $i failed, retrying in 10s..."; sleep 10)
             done
           else
-            npm run tauri build
+            eval "$BUILD_CMD"
           fi
 
       - name: Ad-hoc codesign macOS app bundle
@@ -105,14 +134,52 @@ jobs:
             echo "Signed: $APP"
           fi
 
+      - name: Prepare Windows release package
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p windows-release
+          cp -f src-tauri/target/release/bundle/nsis/*.exe windows-release/ 2>/dev/null || true
+          cp -f src-tauri/target/release/bundle/nsis/*.exe.sig windows-release/ 2>/dev/null || true
+          cp -f src-tauri/target/release/bundle/msi/*.msi windows-release/ 2>/dev/null || true
+          cp -f src-tauri/target/release/bundle/msi/*.msi.sig windows-release/ 2>/dev/null || true
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]] && [[ -n "${TAURI_SIGNING_PRIVATE_KEY}" ]] && [[ -n "${TAURI_UPDATER_PUBKEY:-}" ]]; then
+            python - <<'PY'
+            import glob
+            import json
+            import os
+            from pathlib import Path
+
+            root = Path("windows-release")
+            candidates = sorted(root.glob("*.msi")) or sorted(root.glob("*.exe"))
+            if not candidates:
+              raise SystemExit("No Windows updater installer found")
+            asset = candidates[0]
+            sig = Path(f"{asset}.sig")
+            if not sig.exists():
+              raise SystemExit(f"Missing Windows signature for {asset.name}")
+
+            version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+            payload = {
+              "version": version,
+              "notes": "See GitHub release notes for details.",
+              "platforms": {
+                "windows-x86_64": {
+                  "signature": sig.read_text(encoding="utf-8").strip(),
+                  "url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{os.environ['GITHUB_REF_NAME']}/{asset.name}",
+                }
+              },
+            }
+            (root / "latest.windows.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            PY
+          fi
+
       - name: Upload Windows artifacts
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: vibelign-gui-windows
-          path: |
-            vibelign-gui/src-tauri/target/release/bundle/nsis/*.exe
-            vibelign-gui/src-tauri/target/release/bundle/msi/*.msi
+          path: vibelign-gui/windows-release/
           if-no-files-found: warn
 
       - name: Prepare macOS release package
@@ -121,12 +188,43 @@ jobs:
         run: |
           mkdir -p macos-release
           cp -r src-tauri/target/release/bundle/dmg/*.dmg macos-release/ 2>/dev/null || true
+          cp -f src-tauri/target/release/bundle/macos/*.app.tar.gz macos-release/ 2>/dev/null || true
+          cp -f src-tauri/target/release/bundle/macos/*.app.tar.gz.sig macos-release/ 2>/dev/null || true
           # NOTE: .app 디렉토리 번들은 복사하지 않는다. 디렉토리라서 `**/*` 글롭에
           # 내부 수백 개 파일이 Release 에셋으로 흘러들어가고, 그중 0바이트 파일이
           # GitHub API 422 (size >= 1) 를 유발. .dmg 안에 이미 .app 이 포함됨.
           printf '#!/bin/bash\n# VibeLign macOS 설치 스크립트\nset -e\nAPP_NAME="vibelign-gui.app"\nSEARCH_DIRS=("$HOME/Downloads" "$HOME/Desktop" "$(dirname "$0")")\necho "VibeLign 앱 찾는 중..."\nAPP_PATH=""\nfor DIR in "${SEARCH_DIRS[@]}"; do\n  if [ -d "$DIR/$APP_NAME" ]; then APP_PATH="$DIR/$APP_NAME"; break; fi\ndone\nif [ -z "$APP_PATH" ]; then\n  echo "오류: $APP_NAME 을 찾을 수 없습니다. Downloads 또는 Desktop 에 앱을 먼저 옮겨 주세요."\n  exit 1\nfi\necho "발견: $APP_PATH"\necho "macOS 격리 속성 제거 중..."\nxattr -rc "$APP_PATH"\necho "/Applications 로 복사 중..."\ncp -r "$APP_PATH" /Applications/\necho "설치 완료! VibeLign을 실행합니다."\nopen /Applications/$APP_NAME\n' > macos-release/install-macos.sh
           chmod +x macos-release/install-macos.sh
           printf 'VibeLign - macOS 설치 안내\n==========================\n\n처음 실행 시 "앱이 손상되었습니다" 오류가 뜨는 경우:\n\n방법 1 - 설치 스크립트 사용 (권장)\n  터미널에서 실행:\n  bash install-macos.sh\n\n방법 2 - 수동 해결\n  터미널에서 실행:\n  xattr -rc vibelign-gui.app\n  그 후 앱을 /Applications 폴더로 이동\n\n이 오류는 Apple 공증(notarization) 없이 배포된 앱에서\nmacOS Gatekeeper가 발생시키는 정상적인 보안 경고입니다.\n' > macos-release/README.txt
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]] && [[ -n "${TAURI_SIGNING_PRIVATE_KEY}" ]] && [[ -n "${TAURI_UPDATER_PUBKEY:-}" ]]; then
+            python - <<'PY'
+            import json
+            import os
+            from pathlib import Path
+
+            root = Path("macos-release")
+            candidates = sorted(root.glob("*.app.tar.gz"))
+            if not candidates:
+              raise SystemExit("No macOS updater archive found")
+            asset = candidates[0]
+            sig = Path(f"{asset}.sig")
+            if not sig.exists():
+              raise SystemExit(f"Missing macOS signature for {asset.name}")
+
+            version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+            payload = {
+              "version": version,
+              "notes": "See GitHub release notes for details.",
+              "platforms": {
+                "darwin-aarch64": {
+                  "signature": sig.read_text(encoding="utf-8").strip(),
+                  "url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{os.environ['GITHUB_REF_NAME']}/{asset.name}",
+                }
+              },
+            }
+            (root / "latest.macos.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            PY
+          fi
 
       - name: Upload macOS artifacts (Apple Silicon)
         if: runner.os == 'macOS'
@@ -156,14 +254,55 @@ jobs:
           name: vibelign-gui-macos-arm64
           path: release-assets/macos
 
+      - name: Merge updater manifests
+        shell: bash
+        run: |
+          if [[ ! -f release-assets/windows/latest.windows.json && ! -f release-assets/macos/latest.macos.json ]]; then
+            exit 0
+          fi
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest_paths = [
+            Path("release-assets/windows/latest.windows.json"),
+            Path("release-assets/macos/latest.macos.json"),
+          ]
+          version = None
+          notes = "See GitHub release notes for details."
+          platforms = {}
+
+          for path in manifest_paths:
+            if not path.exists():
+              continue
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            version = version or payload.get("version")
+            notes = payload.get("notes") or notes
+            platforms.update(payload.get("platforms", {}))
+
+          if not version or not platforms:
+            raise SystemExit("Missing updater manifest fragments")
+
+          output = {
+            "version": version,
+            "notes": notes,
+            "platforms": platforms,
+          }
+          Path("release-assets/latest.json").write_text(json.dumps(output, indent=2), encoding="utf-8")
+          PY
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             release-assets/windows/**/*.exe
             release-assets/windows/**/*.msi
+            release-assets/windows/**/*.sig
             release-assets/macos/**/*.dmg
+            release-assets/macos/**/*.app.tar.gz
+            release-assets/macos/**/*.sig
             release-assets/macos/install-macos.sh
             release-assets/macos/README.txt
+            release-assets/latest.json
           generate_release_notes: true
           fail_on_unmatched_files: false
