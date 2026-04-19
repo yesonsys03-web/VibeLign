@@ -96,6 +96,7 @@ jobs:
           python - <<'PY'
           import json
           import os
+          from pathlib import Path
 
           payload = {
             "pubkey": os.environ["TAURI_UPDATER_PUBKEY"],
@@ -103,8 +104,18 @@ jobs:
               f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/latest/download/latest.json"
             ],
           }
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as fh:
-            fh.write(f"TAURI_UPDATER_PLUGIN_CONFIG={json.dumps(payload)}\n")
+          config = {
+            "bundle": {
+              "createUpdaterArtifacts": true
+            },
+            "plugins": {
+              "updater": payload
+            }
+          }
+          Path("src-tauri/tauri.updater.generated.conf.json").write_text(
+            json.dumps(config, indent=2),
+            encoding="utf-8",
+          )
           PY
 
       - name: Build Tauri app
@@ -118,7 +129,7 @@ jobs:
           export VITE_APP_UPDATER_ENABLED=false
           if [[ "${GITHUB_REF}" == refs/tags/v* ]] && [[ -n "${TAURI_SIGNING_PRIVATE_KEY}" ]] && [[ -n "${TAURI_UPDATER_PUBKEY:-}" ]]; then
             export VITE_APP_UPDATER_ENABLED=true
-            BUILD_CMD="npm run tauri build -- --features updater --config src-tauri/tauri.updater.conf.json"
+            BUILD_CMD="npm run tauri build -- --features updater --config src-tauri/tauri.updater.generated.conf.json"
           fi
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             for i in 1 2 3; do
@@ -202,35 +213,44 @@ jobs:
           printf '#!/bin/bash\n# VibeLign macOS 설치 스크립트\nset -e\nAPP_NAME="vibelign-gui.app"\nSEARCH_DIRS=("$HOME/Downloads" "$HOME/Desktop" "$(dirname "$0")")\necho "VibeLign 앱 찾는 중..."\nAPP_PATH=""\nfor DIR in "${SEARCH_DIRS[@]}"; do\n  if [ -d "$DIR/$APP_NAME" ]; then APP_PATH="$DIR/$APP_NAME"; break; fi\ndone\nif [ -z "$APP_PATH" ]; then\n  echo "오류: $APP_NAME 을 찾을 수 없습니다. Downloads 또는 Desktop 에 앱을 먼저 옮겨 주세요."\n  exit 1\nfi\necho "발견: $APP_PATH"\necho "macOS 격리 속성 제거 중..."\nxattr -rc "$APP_PATH"\necho "/Applications 로 복사 중..."\ncp -r "$APP_PATH" /Applications/\necho "설치 완료! VibeLign을 실행합니다."\nopen /Applications/$APP_NAME\n' > macos-release/install-macos.sh
           chmod +x macos-release/install-macos.sh
           printf 'VibeLign - macOS 설치 안내\n==========================\n\n처음 실행 시 "앱이 손상되었습니다" 오류가 뜨는 경우:\n\n방법 1 - 설치 스크립트 사용 (권장)\n  터미널에서 실행:\n  bash install-macos.sh\n\n방법 2 - 수동 해결\n  터미널에서 실행:\n  xattr -rc vibelign-gui.app\n  그 후 앱을 /Applications 폴더로 이동\n\n이 오류는 Apple 공증(notarization) 없이 배포된 앱에서\nmacOS Gatekeeper가 발생시키는 정상적인 보안 경고입니다.\n' > macos-release/README.txt
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]] && [[ -n "${TAURI_SIGNING_PRIVATE_KEY}" ]] && [[ -n "${TAURI_UPDATER_PUBKEY:-}" ]]; then
-            python - <<'PY'
-            import json
-            import os
-            from pathlib import Path
 
-            root = Path("macos-release")
-            candidates = sorted(root.glob("*.app.tar.gz"))
-            if not candidates:
+      - name: Generate macOS updater manifest
+        if: runner.os == 'macOS' && startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [[ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]] || [[ -z "${TAURI_UPDATER_PUBKEY}" ]]; then
+            exit 0
+          fi
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("macos-release")
+          candidates = sorted(root.glob("*.app.tar.gz"))
+          if not candidates:
               raise SystemExit("No macOS updater archive found")
-            asset = candidates[0]
-            sig = Path(f"{asset}.sig")
-            if not sig.exists():
+          asset = candidates[0]
+          sig = Path(f"{asset}.sig")
+          if not sig.exists():
               raise SystemExit(f"Missing macOS signature for {asset.name}")
 
-            version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
-            payload = {
+          version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          payload = {
               "version": version,
               "notes": "See GitHub release notes for details.",
               "platforms": {
-                "darwin-aarch64": {
-                  "signature": sig.read_text(encoding="utf-8").strip(),
-                  "url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{os.environ['GITHUB_REF_NAME']}/{asset.name}",
-                }
+                  "darwin-aarch64": {
+                      "signature": sig.read_text(encoding="utf-8").strip(),
+                      "url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{os.environ['GITHUB_REF_NAME']}/{asset.name}",
+                  }
               },
-            }
-            (root / "latest.macos.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
-            PY
-          fi
+          }
+          (root / "latest.macos.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+          PY
 
       - name: Upload macOS artifacts (Apple Silicon)
         if: runner.os == 'macOS'
