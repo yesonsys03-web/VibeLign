@@ -189,12 +189,19 @@ fn read_file(root: String, path: PathBuf) -> Result<ReadFileResult, String> {
 
 /// Windows `canonicalize()` 가 반환하는 `\\?\` 접두사를 벗겨서
 /// 외부 프로세스가 경로를 올바르게 해석하도록 한다.
+///
+/// - `\\?\C:\path` → `C:\path`
+/// - `\\?\UNC\server\share\path` → `\\server\share\path`
+///   (네트워크 공유/WSL 경로; 이 케이스를 놓치면 CreateProcess 가 os error 267 로 거절한다)
 fn strip_unc_prefix(p: PathBuf) -> PathBuf {
     #[cfg(target_os = "windows")]
     {
         let s = p.to_string_lossy();
-        if let Some(stripped) = s.strip_prefix(r"\\?\") {
-            return PathBuf::from(stripped);
+        if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{rest}"));
+        }
+        if let Some(rest) = s.strip_prefix(r"\\?\") {
+            return PathBuf::from(rest);
         }
     }
     p
@@ -309,7 +316,10 @@ fn run_vib_docs_index(root: &Path, extra_args: &[&str]) -> Option<Result<String,
             let msg = if !stderr.is_empty() { stderr } else if !stdout.is_empty() { stdout } else { "vib docs-index 실행 실패".into() };
             Some(Err(format!("[vib docs-index] {msg}")))
         }
-        Err(err) => Some(Err(format!("[vib docs-index] 실행 실패: {err}"))),
+        Err(err) => Some(Err(format!(
+            "[vib docs-index] 실행 실패: {err}\n  vib={vib:?}\n  cwd={root:?}\n  os_error={os:?}",
+            os = err.raw_os_error()
+        ))),
     }
 }
 

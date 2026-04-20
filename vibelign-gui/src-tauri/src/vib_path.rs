@@ -121,11 +121,17 @@ fn is_nonempty_file(path: &Path) -> bool {
 #[cfg(any(target_os = "windows", test))]
 fn normalize_windows_unc_path(path: &Path) -> PathBuf {
     let path_str = path.to_string_lossy();
-    PathBuf::from(
-        path_str
-            .strip_prefix(r"\\?\")
-            .unwrap_or(path_str.as_ref()),
-    )
+    // `\\?\UNC\server\share\path` → `\\server\share\path`
+    // Why: canonicalize() 는 UNC(네트워크/WSL) 경로에 `\\?\UNC\` 접두사를 붙이는데,
+    //      이 형태를 CreateProcess(lpCurrentDirectory) 에 넘기면 os error 267 로 거절된다.
+    if let Some(rest) = path_str.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{rest}"));
+    }
+    // `\\?\C:\path` → `C:\path`
+    if let Some(rest) = path_str.strip_prefix(r"\\?\") {
+        return PathBuf::from(rest);
+    }
+    PathBuf::from(path_str.as_ref())
 }
 
 #[cfg(target_os = "windows")]
@@ -515,6 +521,26 @@ mod tests {
         assert_eq!(
             normalize_windows_unc_path(path),
             Path::new(r"C:\Users\yeson\AppData\Local\vibelign-gui\vib-runtime\vib.exe")
+        );
+    }
+
+    #[test]
+    fn normalize_windows_unc_path_rewrites_extended_unc_prefix() {
+        // VM / 네트워크 공유 / WSL 경로는 canonicalize() 결과가 `\\?\UNC\...` 로 떨어진다.
+        // 이 형태를 그대로 current_dir 에 넘기면 Windows 가 os error 267 로 거절한다.
+        let path = Path::new(r"\\?\UNC\vmware-host\Shared Folders\project\docs");
+        assert_eq!(
+            normalize_windows_unc_path(path),
+            Path::new(r"\\vmware-host\Shared Folders\project\docs")
+        );
+    }
+
+    #[test]
+    fn normalize_windows_unc_path_keeps_plain_unc_path() {
+        let path = Path::new(r"\\vmware-host\Shared Folders\project");
+        assert_eq!(
+            normalize_windows_unc_path(path),
+            Path::new(r"\\vmware-host\Shared Folders\project")
         );
     }
 }
