@@ -30,6 +30,8 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
   const [rebuildMessage, setRebuildMessage] = useState<string | null>(null);
   const [extraSources, setExtraSources] = useState<string[]>([]);
   const [isAddingSource, setIsAddingSource] = useState(false);
+  const [showAddSourcePanel, setShowAddSourcePanel] = useState(false);
+  const [addSourceInput, setAddSourceInput] = useState("");
   const [refreshTick, setRefreshTick] = useState(0);
   const markdownPaneRef = useRef<HTMLDivElement | null>(null);
   const layoutRef = useRef<HTMLDivElement | null>(null);
@@ -270,33 +272,36 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
   // === ANCHOR: DOCSVIEWER_RELATIVIZE_END ===
 
   // === ANCHOR: DOCSVIEWER_HANDLEADDSOURCE_START ===
+  async function handleBrowseForSource() {
+    // 네이티브 선택기로 숨김 폴더를 고를 수 없을 때를 위한 보조 수단.
+    // 가시 폴더를 고르고 싶으면 여기서 선택하면 input 에 상대 경로가 채워진다.
+    if (!projectDir) return;
+    const picked = await pickFolder(projectDir);
+    if (!picked) return;
+    const rel = relativizeInsideProject(projectDir, picked);
+    if (!rel) {
+      setRebuildMessage("프로젝트 루트 안쪽 폴더만 추가할 수 있어요.");
+      return;
+    }
+    setAddSourceInput(rel);
+  }
+
   async function handleAddSource() {
     if (!projectDir) return;
-    // 1차: 상대 경로 직접 입력(네이티브 선택기는 숨김 폴더가 안 보여서
-    // .omc/plans 같은 기본 유스케이스가 막힘). 비우고 확인하면 탐색기 폴백.
-    const typed = window.prompt(
-      "등록할 상대 경로를 입력하세요 (예: .omc/plans). 비워두면 폴더 탐색기로 열립니다.",
-      "",
-    );
-    if (typed === null) return;
+    const rel = addSourceInput.trim();
+    if (!rel) {
+      setRebuildMessage("경로를 입력하거나 탐색으로 폴더를 선택하세요.");
+      return;
+    }
     setIsAddingSource(true);
     setRebuildMessage(null);
     try {
-      let rel = typed.trim();
-      if (!rel) {
-        const picked = await pickFolder(projectDir);
-        if (!picked) { setIsAddingSource(false); return; }
-        const derived = relativizeInsideProject(projectDir, picked);
-        if (!derived) {
-          setRebuildMessage("프로젝트 루트 안쪽 폴더만 추가할 수 있어요.");
-          return;
-        }
-        rel = derived;
-      }
       const res = await addExtraDocSource(projectDir, rel);
       setDocsIndex(res.entries);
       setExtraSources(res.sources);
       setRebuildMessage(`추가 문서 소스 등록: ${rel} (${res.entries.length}개 문서)`);
+      setShowAddSourcePanel(false);
+      setAddSourceInput("");
     } catch (err: unknown) {
       setRebuildMessage(err instanceof Error ? err.message : "소스 추가에 실패했습니다.");
     } finally {
@@ -358,8 +363,8 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
           <button className="btn btn-ghost btn-sm" onClick={() => void handleRebuildIndex()} disabled={isRebuildingIndex || isRebuilding || isRefreshing} title="문서 인덱스를 다시 스캔해 사이드바 목록을 갱신해요">
             {isRebuildingIndex ? "인덱스 갱신 중..." : "↻ 인덱스"}
           </button>
-          <button className="btn btn-ghost btn-sm" onClick={() => void handleAddSource()} disabled={isAddingSource || isRebuildingIndex} title="추가 문서 소스 폴더를 등록해요">
-            {isAddingSource ? "추가 중..." : "+ 소스 추가"}
+          <button className="btn btn-ghost btn-sm" onClick={() => { setShowAddSourcePanel((v) => !v); setRebuildMessage(null); }} disabled={isAddingSource || isRebuildingIndex} title="추가 문서 소스 폴더를 등록해요 (숨김 폴더 포함)">
+            {isAddingSource ? "추가 중..." : showAddSourcePanel ? "× 취소" : "+ 소스 추가"}
           </button>
           <button className="btn btn-ghost btn-sm" onClick={() => void handleRefreshCurrent()} disabled={isRefreshing || isRebuilding || !selectedPath}>
             {isRefreshing ? "새로고침 중..." : "Refresh"}
@@ -370,6 +375,35 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
           <span style={{ fontSize: 11, color: "#666", fontWeight: 700 }}>PHASE 10</span>
         </div>
       </div>
+
+      {showAddSourcePanel ? (
+        <div className="card" style={{ margin: "0 20px 12px 20px", padding: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#888", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
+            추가 문서 소스 등록
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <input
+              type="text"
+              value={addSourceInput}
+              onChange={(e) => setAddSourceInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void handleAddSource(); if (e.key === "Escape") setShowAddSourcePanel(false); }}
+              placeholder="예: .omc/plans"
+              autoFocus
+              disabled={isAddingSource}
+              style={{ flex: "1 1 320px", minWidth: 200, padding: "6px 10px", fontFamily: "IBM Plex Mono, monospace", fontSize: 12 }}
+            />
+            <button className="btn btn-ghost btn-sm" onClick={() => void handleBrowseForSource()} disabled={isAddingSource} title="네이티브 폴더 선택기 (숨김 폴더는 OS 기본 단축키로 표시 필요)">
+              탐색
+            </button>
+            <button className="btn btn-sm" onClick={() => void handleAddSource()} disabled={isAddingSource || !addSourceInput.trim()}>
+              {isAddingSource ? "등록 중..." : "등록"}
+            </button>
+          </div>
+          <div style={{ fontSize: 11, color: "#666", marginTop: 6, lineHeight: 1.5 }}>
+            프로젝트 루트 기준 상대 경로. 숨김 폴더(.omc/plans 등)는 직접 입력하세요.
+          </div>
+        </div>
+      ) : null}
 
       <div
         ref={layoutRef}
