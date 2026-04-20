@@ -200,6 +200,71 @@ fn strip_unc_prefix(p: PathBuf) -> PathBuf {
     p
 }
 
+/// vib 서브프로세스가 fd/fdfind 같은 보조 바이너리를 찾을 수 있도록
+/// 플랫폼별 기본 설치 경로를 기존 PATH 뒤에 덧붙여 돌려준다.
+/// Why: GUI 번들에서 spawn 된 vib 는 로그인 셸 PATH 를 상속받지 못해
+///      Homebrew(/opt/homebrew/bin, /usr/local/bin)·Scoop shims·cargo bin 등을
+///      놓친다. 이 경우 fd 미탐지 → Python rglob 폴백 → `target/_internal`
+///      같은 빌드 산출물까지 스캔되어 코드맵이 부풀어 오른다.
+fn augmented_vib_path() -> std::ffi::OsString {
+    let existing = std::env::var_os("PATH").unwrap_or_default();
+
+    let mut extras: Vec<PathBuf> = Vec::new();
+
+    #[cfg(target_os = "macos")]
+    {
+        extras.push(PathBuf::from("/opt/homebrew/bin"));
+        extras.push(PathBuf::from("/usr/local/bin"));
+        extras.push(PathBuf::from("/usr/bin"));
+        if let Some(home) = std::env::var_os("HOME") {
+            extras.push(PathBuf::from(&home).join(".cargo").join("bin"));
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        extras.push(PathBuf::from("/usr/local/bin"));
+        extras.push(PathBuf::from("/usr/bin"));
+        if let Some(home) = std::env::var_os("HOME") {
+            extras.push(PathBuf::from(&home).join(".cargo").join("bin"));
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(user) = std::env::var_os("USERPROFILE") {
+            let user = PathBuf::from(&user);
+            extras.push(user.join("scoop").join("shims"));
+            extras.push(user.join(".cargo").join("bin"));
+        }
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            extras.push(
+                PathBuf::from(&local)
+                    .join("Microsoft")
+                    .join("WinGet")
+                    .join("Links"),
+            );
+        }
+        extras.push(PathBuf::from(r"C:\ProgramData\chocolatey\bin"));
+    }
+
+    let mut combined = std::ffi::OsString::new();
+    combined.push(&existing);
+    for extra in &extras {
+        if !extra.exists() {
+            continue;
+        }
+        if !combined.is_empty() {
+            #[cfg(windows)]
+            combined.push(";");
+            #[cfg(not(windows))]
+            combined.push(":");
+        }
+        combined.push(extra.as_os_str());
+    }
+    combined
+}
+
 /// `vib docs-index` 명령으로 docs index/visual contract를 받는다.
 /// vib sidecar에는 vibelign 패키지가 self-contained 되어 있어 별도 Python 환경이 없어도 동작한다.
 fn run_vib_docs_index(root: &Path, extra_args: &[&str]) -> Option<Result<String, String>> {
@@ -223,6 +288,7 @@ fn run_vib_docs_index(root: &Path, extra_args: &[&str]) -> Option<Result<String,
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
+        .env("PATH", augmented_vib_path())
         .env("PYTHONUTF8", "1")
         .env("PYTHONIOENCODING", "utf-8");
 
@@ -385,6 +451,7 @@ async fn enhance_doc_with_ai(
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
+        .env("PATH", augmented_vib_path())
         .env("VIBELIGN_PROJECT_ROOT", &root)
         .env("PYTHONUTF8", "1")
         .env("PYTHONIOENCODING", "utf-8");
@@ -621,6 +688,7 @@ fn start_watch(app: tauri::AppHandle, state: tauri::State<WatchState>, cwd: Stri
     watch_cmd.stdin(std::process::Stdio::piped());
     watch_cmd.stdout(std::process::Stdio::piped());
     watch_cmd.stderr(std::process::Stdio::piped());
+    watch_cmd.env("PATH", augmented_vib_path());
     watch_cmd.env("PYTHONUNBUFFERED", "1");
     #[cfg(target_os = "windows")]
     {
@@ -766,6 +834,7 @@ async fn run_vib(
         let mut cmd = std::process::Command::new(&vib);
         cmd.args(&args);
         cmd.stdin(std::process::Stdio::null());
+        cmd.env("PATH", augmented_vib_path());
 
         if let Some(dir) = cwd {
             cmd.current_dir(PathBuf::from(dir));
@@ -919,6 +988,7 @@ async fn run_vib_with_progress(
         cmd.stdin(std::process::Stdio::null());
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
+        cmd.env("PATH", augmented_vib_path());
         cmd.env("PYTHONUNBUFFERED", "1");
 
         if let Some(dir) = cwd {
@@ -1546,6 +1616,7 @@ pub fn run() {
                         .stdin(std::process::Stdio::null())
                         .stdout(std::process::Stdio::null())
                         .stderr(std::process::Stdio::null())
+                        .env("PATH", augmented_vib_path())
                         .env("PYTHONUTF8", "1")
                         .env("PYTHONIOENCODING", "utf-8");
                     hide_console(&mut cmd);

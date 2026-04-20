@@ -23,6 +23,7 @@ from vibelign.core.hook_setup import detect_tool, remove_old_hook, setup_hook_if
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_root import resolve_project_root
 from vibelign.core.project_scan import iter_source_files
+from vibelign.core.structure_policy import COMMON_IGNORED_DIRS
 from vibelign.terminal_render import (
     clack_info,
     clack_intro,
@@ -44,20 +45,13 @@ TOOL_DISPLAY_NAMES = {
     "codex": "Codex",
 }
 
-_TREE_SKIP = {
-    ".git",
-    "__pycache__",
-    "node_modules",
+_TREE_SKIP = COMMON_IGNORED_DIRS | {
     ".vibelign",
-    "build",
-    "dist",
-    ".venv",
-    "venv",
-    ".pytest_cache",
     ".ruff_cache",
-    ".mypy_cache",
     ".tox",
     "coverage",
+    "dist-vib",
+    "vib-runtime",
 }
 
 
