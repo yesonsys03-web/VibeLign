@@ -1,3 +1,4 @@
+// === ANCHOR: APPUPDATE_START ===
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
 
@@ -7,14 +8,19 @@ export interface AppUpdateProgress {
   percent: number | null;
 }
 
+// === ANCHOR: APPUPDATE_SHOULDCHECKFORUPDATES_START ===
 export function shouldCheckForUpdates(): boolean {
   return !import.meta.env.DEV && import.meta.env.VITE_APP_UPDATER_ENABLED === "true";
 }
+// === ANCHOR: APPUPDATE_SHOULDCHECKFORUPDATES_END ===
 
+// === ANCHOR: APPUPDATE_CHECKFORAPPUPDATE_START ===
 export async function checkForAppUpdate(): Promise<Update | null> {
   return check();
 }
+// === ANCHOR: APPUPDATE_CHECKFORAPPUPDATE_END ===
 
+// === ANCHOR: APPUPDATE_INSTALLAPPUPDATE_START ===
 export async function installAppUpdate(
   update: Update,
   onProgress?: (progress: AppUpdateProgress) => void,
@@ -48,11 +54,15 @@ export async function installAppUpdate(
     });
   });
 }
+// === ANCHOR: APPUPDATE_INSTALLAPPUPDATE_END ===
 
+// === ANCHOR: APPUPDATE_RELAUNCHAPP_START ===
 export async function relaunchApp(): Promise<void> {
   await relaunch();
 }
+// === ANCHOR: APPUPDATE_RELAUNCHAPP_END ===
 
+// === ANCHOR: APPUPDATE_FORMATUPDATEDATE_START ===
 export function formatUpdateDate(date?: string): string | null {
   if (!date) return null;
   const parsed = new Date(date);
@@ -63,10 +73,14 @@ export function formatUpdateDate(date?: string): string | null {
     day: "numeric",
   });
 }
+// === ANCHOR: APPUPDATE_FORMATUPDATEDATE_END ===
 
+// === ANCHOR: APPUPDATE_SUMMARIZEUPDATEBODY_START ===
 export function summarizeUpdateBody(body?: string): string | null {
   const normalized = body?.trim();
   if (!normalized) return null;
   const compact = normalized.replace(/\s+/g, " ");
   return compact.length > 180 ? `${compact.slice(0, 177)}...` : compact;
 }
+// === ANCHOR: APPUPDATE_SUMMARIZEUPDATEBODY_END ===
+// === ANCHOR: APPUPDATE_END ===

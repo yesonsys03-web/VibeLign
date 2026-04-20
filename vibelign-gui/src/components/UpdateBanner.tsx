@@ -1,3 +1,4 @@
+// === ANCHOR: UPDATEBANNER_START ===
 import { useEffect, useMemo, useState } from "react";
 import type { Update } from "@tauri-apps/plugin-updater";
 import {
@@ -19,12 +20,14 @@ type BannerStatus =
   | "error"
   | "dismissed";
 
+// === ANCHOR: UPDATEBANNER_PROGRESSLABEL_START ===
 function progressLabel(progress: AppUpdateProgress | null): string {
   if (!progress) return "다운로드 준비 중...";
   if (typeof progress.percent === "number") return `다운로드 중... ${progress.percent}%`;
   if (progress.downloadedBytes > 0) return `다운로드 중... ${Math.round(progress.downloadedBytes / 1024)}KB`;
   return "다운로드 중...";
 }
+// === ANCHOR: UPDATEBANNER_PROGRESSLABEL_END ===
 
 export default function UpdateBanner() {
   const [status, setStatus] = useState<BannerStatus>("idle");
@@ -37,6 +40,7 @@ export default function UpdateBanner() {
 
     let cancelled = false;
 
+    // === ANCHOR: UPDATEBANNER_RUN_START ===
     async function run() {
       setStatus("checking");
       setError(null);
@@ -63,6 +67,7 @@ export default function UpdateBanner() {
         setStatus("error");
       }
     }
+    // === ANCHOR: UPDATEBANNER_RUN_END ===
 
     void run();
 
@@ -82,6 +87,7 @@ export default function UpdateBanner() {
     };
   }, [update]);
 
+  // === ANCHOR: UPDATEBANNER_HANDLEINSTALL_START ===
   async function handleInstall() {
     if (!update) return;
     setStatus("installing");
@@ -95,7 +101,9 @@ export default function UpdateBanner() {
       setStatus("error");
     }
   }
+  // === ANCHOR: UPDATEBANNER_HANDLEINSTALL_END ===
 
+  // === ANCHOR: UPDATEBANNER_HANDLEDISMISS_START ===
   async function handleDismiss() {
     await update?.close().catch(() => {});
     setUpdate(null);
@@ -103,7 +111,9 @@ export default function UpdateBanner() {
     setError(null);
     setStatus("dismissed");
   }
+  // === ANCHOR: UPDATEBANNER_HANDLEDISMISS_END ===
 
+  // === ANCHOR: UPDATEBANNER_HANDLERELAUNCH_START ===
   async function handleRelaunch() {
     try {
       await relaunchApp();
@@ -112,6 +122,7 @@ export default function UpdateBanner() {
       setStatus("error");
     }
   }
+  // === ANCHOR: UPDATEBANNER_HANDLERELAUNCH_END ===
 
   if (status === "idle" || status === "dismissed" || status === "checking") {
     return null;
@@ -186,3 +197,4 @@ export default function UpdateBanner() {
     </div>
   );
 }
+// === ANCHOR: UPDATEBANNER_END ===
