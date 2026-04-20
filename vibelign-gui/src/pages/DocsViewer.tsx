@@ -272,15 +272,26 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
   // === ANCHOR: DOCSVIEWER_HANDLEADDSOURCE_START ===
   async function handleAddSource() {
     if (!projectDir) return;
+    // 1차: 상대 경로 직접 입력(네이티브 선택기는 숨김 폴더가 안 보여서
+    // .omc/plans 같은 기본 유스케이스가 막힘). 비우고 확인하면 탐색기 폴백.
+    const typed = window.prompt(
+      "등록할 상대 경로를 입력하세요 (예: .omc/plans). 비워두면 폴더 탐색기로 열립니다.",
+      "",
+    );
+    if (typed === null) return;
     setIsAddingSource(true);
     setRebuildMessage(null);
     try {
-      const picked = await pickFolder(projectDir);
-      if (!picked) { setIsAddingSource(false); return; }
-      const rel = relativizeInsideProject(projectDir, picked);
+      let rel = typed.trim();
       if (!rel) {
-        setRebuildMessage("프로젝트 루트 안쪽 폴더만 추가할 수 있어요.");
-        return;
+        const picked = await pickFolder(projectDir);
+        if (!picked) { setIsAddingSource(false); return; }
+        const derived = relativizeInsideProject(projectDir, picked);
+        if (!derived) {
+          setRebuildMessage("프로젝트 루트 안쪽 폴더만 추가할 수 있어요.");
+          return;
+        }
+        rel = derived;
       }
       const res = await addExtraDocSource(projectDir, rel);
       setDocsIndex(res.entries);
