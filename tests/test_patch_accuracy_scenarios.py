@@ -171,9 +171,8 @@ class PatchAccuracyScenarioTest(unittest.TestCase):
         self.assertEqual(result.target_file, "api/auth.py")
         self.assertEqual(result.target_anchor, "AUTH__HASH_PASSWORD")
 
-    @unittest.expectedFailure
     def test_fix_user_lookup_slow_selects_database_find(self):
-        """Det 한계: '사용자/조회'가 api 레이어를 끌어당김. DB 조회는 database.py."""
+        """Phase 1a import-graph boost + tiebreak 으로 det 경로에서 core/database.py 선택됨."""
         from unittest.mock import patch as mock_patch
 
         with mock_patch(
@@ -238,16 +237,16 @@ class TestAIDeference(unittest.TestCase):
 
         The deference rule only applies to `high` confidence. This guards
         against an over-broad fix that turns `--ai` into a no-op. With
-        pinned intents `fix_login_lock_bug` is the only scenario whose
-        deterministic run produces `low` confidence.
+        Phase 1a scoring, `change_server_port` produces `low` confidence
+        (entry-file path-token match only, no anchor/intent overlap).
         """
         from unittest.mock import patch as mock_patch
 
-        sc = self.scenarios["fix_login_lock_bug"]
+        sc = self.scenarios["change_server_port"]
         precheck = suggest_patch(self.sandbox, sc["request"], use_ai=False)
         self.assertEqual(
             precheck.confidence, "low",
-            "test premise broken: fix_login_lock_bug must be low confidence "
+            "test premise broken: change_server_port must be low confidence "
             "under the pinned-intent sandbox for this guard to be meaningful",
         )
 

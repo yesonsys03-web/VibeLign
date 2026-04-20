@@ -1331,6 +1331,10 @@ def _ai_select_file(
 # measurement data.
 _LAYER_ROUTING_BOOST = 18
 _LAYER_ROUTING_PENALTY = 3
+# Option A: import-graph callee 가산 (Phase 1a). bench sweep 으로 조정.
+_IMPORT_GRAPH_CALLEE_BOOST = 3
+# 동점 tiebreak: UI 레이어 파일 우선 (pages/, ui/, components/, views/)
+_UI_TIEBREAK_DIRS = ("pages/", "ui/", "components/", "views/")
 
 
 def _apply_layer_routing(
@@ -1459,7 +1463,106 @@ def _score_all_files(
                 score += ui_boost
                 rationale = rationale + ui_reasons
         scored.append((score, path, rationale))
-    scored.sort(key=lambda x: (-x[0], str(x[1])))
+
+    def _ui_tiebreak(path: Path) -> int:
+        """동점 시 UI 레이어 파일 우선 (0), 그 외 (1)."""
+        try:
+            rel = str(path.relative_to(root)).replace("\\", "/")
+        except ValueError:
+            rel = str(path).replace("\\", "/")
+        return 0 if any(rel.startswith(d) for d in _UI_TIEBREAK_DIRS) else 1
+
+    scored.sort(key=lambda x: (-x[0], _ui_tiebreak(x[1]), str(x[1])))
+
+    # Option A: import-graph callee 가산 (Phase 1a).
+    # 상위 TOP_K 파일이 import 하는 callee 파일에 _IMPORT_GRAPH_CALLEE_BOOST 를 1회 가산.
+    # VIBELIGN_IMPORT_GRAPH_BOOST=0 으로 비활성화 (rollback 용).
+    import os as _os
+    if _os.environ.get("VIBELIGN_IMPORT_GRAPH_BOOST", "1") != "0":
+        _TOP_K = 5
+        # Reverse import map 구축: callee_rel -> [caller_rel, ...]
+        # project_map.files[rel]["imported_by"] = "이 rel 파일을 import 하는 파일들" (caller list)
+        # 필요한 것: caller 가 import 하는 callee 목록 → project_map.files[caller]["imports"] 또는
+        # 역방향: callee_rel → caller_rel 목록은 imported_by 가 아니라
+        # "caller_rel 의 imports 에 callee_rel 이 있다" 이므로
+        # reverse_map[callee_rel] = [모든 caller_rel where callee_rel in caller.imports]
+        # project_map.files 의 "imports" 필드를 사용해 forward map 구축 후 역전.
+        _reverse_map: dict[str, list[str]] = {}
+        if project_map is not None:
+            for _caller_rel, _entry in project_map.files.items():
+                if not isinstance(_entry, dict):
+                    continue
+                for _callee_rel in _entry.get("imports", []):
+                    if isinstance(_callee_rel, str):
+                        _reverse_map.setdefault(_callee_rel, []).append(_caller_rel)
+        if not _reverse_map:
+            # Fallback: parse_local_imports 로 모든 파일을 스캔해 reverse_map 구축.
+            # parse_local_imports 는 절대 경로를 반환하고, macOS 에서는 /var 심볼릭 링크로
+            # root(/var/...)와 callee(/private/var/...) 가 달라 relative_to 가 실패한다.
+            # 이를 방지하기 위해 resolve() 로 실제 경로를 사용한다.
+            from vibelign.core.import_resolver import parse_local_imports
+            _root_resolved = root.resolve()
+            for _any_path in iter_source_files(root):
+                _caller_rel = relpath_str(_root_resolved, _any_path.resolve())
+                for _callee_path in parse_local_imports(_any_path, root):
+                    _callee_rel = relpath_str(_root_resolved, _callee_path.resolve())
+                    _reverse_map.setdefault(_callee_rel, []).append(_caller_rel)
+
+        # 상위 TOP_K 파일 (positive score 만) 의 rel 집합
+        # symlink 불일치 방지: resolve() 로 실제 경로 기준 rel 사용
+        _root_resolved = root.resolve()
+        _top_k_rels: set[str] = {
+            relpath_str(_root_resolved, _path.resolve())
+            for _score, _path, _ in scored[:_TOP_K]
+            if _score > 0
+        }
+
+        # Option 1 Guard: caller 수 계산용 reverse map (callee → [caller, ...])
+        # _reverse_map 은 이미 위에서 구축됨. callee 로 등장하는 rel 은 caller 가 있음.
+        # caller 수 = len(_reverse_map.get(rel, []))
+        # Entry file heuristic: 파일명이 entry file 패턴에 해당.
+        _ENTRY_FILE_NAMES = {
+            "app.py", "main.py", "index.py", "__main__.py",
+            "index.js", "index.ts", "index.jsx", "index.tsx",
+            "main.js", "main.ts", "app.js", "app.ts",
+        }
+        # UI leaf directories: 이 디렉터리 아래에 위치하고 caller 가 0 인 파일
+        _UI_LEAF_DIRS = ("pages/", "ui/", "components/", "views/")
+
+        def _is_entry_or_leaf(rel: str) -> bool:
+            """top-K 파일이 import graph의 source(entry) 또는 sink(UI leaf)이면 True."""
+            caller_count = len(_reverse_map.get(rel, []))
+            if caller_count > 0:
+                return False  # caller 가 있으면 source/sink 아님
+            file_name = rel.split("/")[-1]
+            if file_name in _ENTRY_FILE_NAMES:
+                return True
+            for _prefix in _UI_LEAF_DIRS:
+                if rel.startswith(_prefix):
+                    return True
+            return False
+
+        # 각 scored 항목에 대해 callee boost 가산 (stacking 없음 — 1회만)
+        # Option 1 Guard: entry/leaf top-K 파일은 callee boost 전파 skip
+        _guarded_top_k_rels: set[str] = {
+            _rel for _rel in _top_k_rels
+            if not _is_entry_or_leaf(_rel)
+        }
+
+        _boosted: list[tuple[int, Path, list[str]]] = []
+        for _score, _path, _rationale in scored:
+            _rel = relpath_str(_root_resolved, _path.resolve())
+            _callers_in_topk = [
+                _c for _c in _reverse_map.get(_rel, []) if _c in _guarded_top_k_rels
+            ]
+            if _callers_in_topk:
+                _boost = _IMPORT_GRAPH_CALLEE_BOOST  # stacking 없음
+                _reason = f"Option A: caller '{_callers_in_topk[0]}' 가 import 하는 파일이라 +{_boost} 가산"
+                _boosted.append((_score + _boost, _path, _rationale + [_reason]))
+            else:
+                _boosted.append((_score, _path, _rationale))
+        scored = _boosted
+        scored.sort(key=lambda x: (-x[0], _ui_tiebreak(x[1]), str(x[1])))
 
     # C2 layer routing post-processing. See _apply_layer_routing docstring.
     candidates = [(path, score) for score, path, _ in scored]
