@@ -13,6 +13,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from ..core import doc_sources as _DOC_SOURCES
 from ..core import docs_cache as _DOCS_CACHE
 from ..core import docs_index_cache as _DOCS_INDEX_CACHE
 from ..core import docs_visualizer as _DOCS_VISUALIZER
@@ -20,23 +21,39 @@ from ..core import meta_paths as _META_PATHS
 
 MetaPaths = _META_PATHS.MetaPaths
 build_docs_index = _DOCS_CACHE.build_docs_index
+build_docs_index_with_warnings = _DOCS_CACHE.build_docs_index_with_warnings
 visualize_markdown_file = _DOCS_VISUALIZER.visualize_markdown_file
 write_docs_index_cache = _DOCS_INDEX_CACHE.write_docs_index_cache
 
 
 # === ANCHOR: VIB_DOCS_BUILD_CMD_REBUILD_DOCS_INDEX_CACHE_START ===
-def rebuild_docs_index_cache(root: Path) -> list[_DOCS_CACHE.DocsIndexEntry]:
-    """docs index를 재계산하고 `.vibelign/docs_index.json` 에 캐시한 뒤 엔트리를 돌려준다.
+def rebuild_docs_index_cache_with_warnings(
+    root: Path,
+) -> tuple[list[_DOCS_CACHE.DocsIndexEntry], list[str]]:
+    """docs index를 재계산하고 `.vibelign/docs_index.json` 에 캐시한 뒤 (엔트리, 경고) 를 돌려준다.
 
     캐시 쓰기 실패는 치명적이지 않으므로 무시한다 (GUI는 subprocess 폴백으로 계속 동작).
     """
-
     resolved_root = root.resolve()
-    entries = build_docs_index(resolved_root)
+    meta = MetaPaths(resolved_root)
+    entries, warnings = build_docs_index_with_warnings(resolved_root)
+    doc_sources_obj = _DOC_SOURCES.load(meta)
+    fp = _DOC_SOURCES.fingerprint(doc_sources_obj.sources)
     try:
-        write_docs_index_cache(MetaPaths(resolved_root), entries)
+        write_docs_index_cache(
+            meta,
+            entries,
+            extra_source_roots=doc_sources_obj.sources,
+            sources_fingerprint=fp,
+        )
     except OSError as exc:
         print(f"docs index cache write skipped: {exc}", file=sys.stderr)
+    return entries, warnings
+
+
+def rebuild_docs_index_cache(root: Path) -> list[_DOCS_CACHE.DocsIndexEntry]:
+    """docs index를 재계산하고 `.vibelign/docs_index.json` 에 캐시한 뒤 엔트리를 돌려준다."""
+    entries, _warnings = rebuild_docs_index_cache_with_warnings(root)
     return entries
 # === ANCHOR: VIB_DOCS_BUILD_CMD_REBUILD_DOCS_INDEX_CACHE_END ===
 
@@ -134,7 +151,11 @@ def build_docs_visual_cache(
         )
         try:
             for relative_path, content in rendered:
-                target = tmp_dir / f"{relative_path}.json"
+                is_extra = entries[relative_path].source_root is not None
+                if is_extra:
+                    target = tmp_dir / "_extra" / f"{relative_path}.json"
+                else:
+                    target = tmp_dir / f"{relative_path}.json"
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(content, encoding="utf-8")
             if meta.docs_visual_dir.exists():
@@ -145,7 +166,8 @@ def build_docs_visual_cache(
             raise
     else:
         relative_path, content = rendered[0]
-        _atomic_write_text(meta.docs_visual_path(relative_path), content)
+        is_extra = entries[normalized].source_root is not None
+        _atomic_write_text(meta.docs_visual_path(relative_path, is_extra=is_extra), content)
 
     return {
         "ok": True,

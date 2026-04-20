@@ -219,5 +219,43 @@ def register_core_commands(
         func=lazy_command("vibelign.commands.vib_docs_build_cmd", "run_vib_docs_index")
     )
 
+    # doc-sources sub-subcommand: add / remove / list
+    p = sub.add_parser(
+        "doc-sources",
+        help="추가 문서 소스를 등록/제거/조회해요 (GUI 전용)",
+        description=(
+            "추가 문서 소스(.omc/plans 등)를 등록/제거/조회해요.\n"
+            "등록된 소스는 docs viewer 사이드바에 Custom 카테고리로 표시됩니다."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib doc-sources list\n"
+            "  vib doc-sources add .omc/plans\n"
+            "  vib doc-sources remove .omc/plans"
+        ),
+    )
+    doc_sources_sub = p.add_subparsers(
+        dest="doc_sources_action",
+        required=True,
+        metavar="{list,add,remove}",
+    )
+
+    p_list = doc_sources_sub.add_parser("list", help="등록된 추가 문서 소스 목록을 JSON으로 출력해요")
+    p_list.set_defaults(
+        func=lazy_command("vibelign.commands.vib_doc_sources_cmd", "run_vib_doc_sources_list")
+    )
+
+    p_add = doc_sources_sub.add_parser("add", help="추가 문서 소스를 등록해요")
+    _ = p_add.add_argument("path", help="등록할 문서 소스 경로 (프로젝트 루트 기준 상대 경로)")
+    p_add.set_defaults(
+        func=lazy_command("vibelign.commands.vib_doc_sources_cmd", "run_vib_doc_sources_add")
+    )
+
+    p_remove = doc_sources_sub.add_parser("remove", help="추가 문서 소스를 제거해요")
+    _ = p_remove.add_argument("path", help="제거할 문서 소스 경로")
+    p_remove.set_defaults(
+        func=lazy_command("vibelign.commands.vib_doc_sources_cmd", "run_vib_doc_sources_remove")
+    )
+
 
 # === ANCHOR: CLI_CORE_COMMANDS_END ===

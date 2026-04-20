@@ -35,6 +35,7 @@ VibeLign_dev_plan/
 .vibelign/scan_cache.json
 dist/
 build/
+vibelign-gui/.vite/
 
 # Developer-local runtime state (not needed by end users)
 .omc/

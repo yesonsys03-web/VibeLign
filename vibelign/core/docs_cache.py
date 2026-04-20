@@ -4,11 +4,14 @@ from __future__ import annotations
 import argparse
 import json
 import hashlib
+import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable
 
 from . import docs_scan as _DOCS_SCAN
+from . import doc_sources as _DOC_SOURCES
+from . import meta_paths as _META_PATHS
 
 
 DOCS_VISUAL_SCHEMA_VERSION = 2
@@ -22,6 +25,7 @@ class DocsIndexEntry:
     path: str
     title: str
     modified_at_ms: int
+    source_root: str | None = None
 # === ANCHOR: DOCS_CACHE_DOCSINDEXENTRY_END ===
 
 
@@ -75,12 +79,13 @@ def _read_title(path: Path) -> str:
 
 
 # === ANCHOR: DOCS_CACHE__ITER_INDEX_TARGETS_START ===
-def _iter_index_targets(root: Path) -> list[tuple[str, Path]]:
-    targets: list[tuple[str, Path]] = []
+def _iter_index_targets(root: Path) -> tuple[list[tuple[str, Path, str | None]], list[str]]:
+    targets: list[tuple[str, Path, str | None]] = []
     seen: set[Path] = set()
+    warnings: list[str] = []
 
     # === ANCHOR: DOCS_CACHE_ADD_START ===
-    def add(category: str, path: Path) -> None:
+    def add(category: str, path: Path, source_root: str | None = None) -> None:
         if not path.is_file():
             return
         try:
@@ -90,7 +95,7 @@ def _iter_index_targets(root: Path) -> list[tuple[str, Path]]:
         if resolved in seen:
             return
         seen.add(resolved)
-        targets.append((category, path))
+        targets.append((category, path, source_root))
 
     # VibeLign 전용 카테고리 — 알려진 경로를 먼저 등록해 카테고리 라벨을 보존한다.
     # === ANCHOR: DOCS_CACHE_ADD_END ===
@@ -129,23 +134,68 @@ def _iter_index_targets(root: Path) -> list[tuple[str, Path]]:
     if docs_dir.is_dir():
         for path in sorted(docs_dir.glob("**/*.md")):
             add("Docs", path)
-# === ANCHOR: DOCS_CACHE__ITER_INDEX_TARGETS_END ===
+
+    # 등록된 extra sources — allowlist 방식: 등록된 root만 직접 walk하고,
+    # 등록 root 내 hidden sub-dir는 _should_skip_dir로 계속 prune한다.
+    # built-in 패스가 먼저 실행됐으므로 seen에 이미 있는 파일은 자동으로 skip(built-in wins).
+    # NOTE: iter_markdown_files catchall 보다 먼저 실행해야 Custom 라벨이 Docs로 덮이지 않는다.
+    doc_sources_obj = _DOC_SOURCES.load(_META_PATHS.MetaPaths(root))
+    for source_rel in doc_sources_obj.sources:
+        extra_root = root / source_rel
+        if not extra_root.is_dir():
+            # 등록된 source가 삭제됐거나 dir가 아니면 silently skip
+            continue
+
+        count = 0
+        cap = _DOC_SOURCES.MAX_FILES_PER_SOURCE
+        capped = False
+        for dirpath, dirnames, filenames in os.walk(str(extra_root), followlinks=False):
+            # 등록된 source root 자체의 이름은 필터하지 않음 (allowlist 의도).
+            # subdirectory만 _should_skip_dir로 prune.
+            dirnames[:] = [d for d in dirnames if not _DOCS_SCAN._should_skip_dir(d)]
+            base = Path(dirpath)
+            for name in sorted(filenames):
+                if not name.lower().endswith(".md"):
+                    continue
+                if count >= cap:
+                    capped = True
+                    break
+                candidate = base / name
+                try:
+                    resolved = candidate.resolve()
+                except OSError:
+                    continue
+                if not resolved.is_file():
+                    continue
+                if resolved in seen:
+                    continue
+                count += 1
+                add("Custom", candidate, source_rel)
+            if capped:
+                break
+
+        if capped:
+            warnings.append(
+                f"extra source '{source_rel}': MAX_FILES_PER_SOURCE ({cap}) 초과 — "
+                f"처음 {cap}개 파일만 인덱싱됩니다."
+            )
 
     # 프로젝트 전체 재귀 스캔 — 사용자가 임의로 만든 markdown 폴더(예: VibeLign_dev_plan/) 도
     # 사이드바에 노출한다. IGNORED_DIRS + 숨김 디렉토리는 docs_scan 에서 프루닝된다.
     for path in _DOCS_SCAN.iter_markdown_files(root, is_excluded=lambda p: p in seen):
         add("Docs", path)
-# === ANCHOR: DOCS_CACHE__ITER_INDEX_TARGETS_END ===
 
-    return targets
+    return targets, warnings
+# === ANCHOR: DOCS_CACHE__ITER_INDEX_TARGETS_END ===
 
 
 # === ANCHOR: DOCS_CACHE_BUILD_DOCS_INDEX_START ===
-def build_docs_index(root: Path) -> list[DocsIndexEntry]:
+def build_docs_index_with_warnings(root: Path) -> tuple[list[DocsIndexEntry], list[str]]:
     resolved_root = root.resolve()
     entries: list[DocsIndexEntry] = []
 
-    for category, path in _iter_index_targets(resolved_root):
+    targets, warnings = _iter_index_targets(resolved_root)
+    for category, path, source_root in targets:
         resolved = path.resolve()
         rel = _normalize_path(resolved.relative_to(resolved_root))
         stat = resolved.stat()
@@ -155,11 +205,16 @@ def build_docs_index(root: Path) -> list[DocsIndexEntry]:
                 path=rel,
                 title=_read_title(resolved),
                 modified_at_ms=int(stat.st_mtime * 1000),
+                source_root=source_root,
             )
         )
 
     entries.sort(key=lambda item: (-item.modified_at_ms, item.path))
-    return entries
+    return entries, warnings
+
+
+def build_docs_index(root: Path) -> list[DocsIndexEntry]:
+    return build_docs_index_with_warnings(root)[0]
 # === ANCHOR: DOCS_CACHE_BUILD_DOCS_INDEX_END ===
 
 

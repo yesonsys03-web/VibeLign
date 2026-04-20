@@ -67,13 +67,18 @@ class MetaPaths:
     def docs_visual_dir(self) -> Path:
         return self.vibelign_dir / "docs_visual"
 
-    def docs_visual_path(self, source_relative_path: str) -> Path:
+    def docs_visual_path(self, source_relative_path: str, *, is_extra: bool = False) -> Path:
         rel = Path(source_relative_path.replace("\\", "/"))
-        return self.docs_visual_dir / Path(f"{rel.as_posix()}.json")
+        base = self.docs_visual_dir / "_extra" if is_extra else self.docs_visual_dir
+        return base / Path(f"{rel.as_posix()}.json")
 
     @property
     def docs_index_path(self) -> Path:
         return self.vibelign_dir / "docs_index.json"
+
+    @property
+    def doc_sources_path(self) -> Path:
+        return self.vibelign_dir / "doc_sources.json"
 
     def ensure_vibelign_dirs(self) -> None:
         self.vibelign_dir.mkdir(parents=True, exist_ok=True)

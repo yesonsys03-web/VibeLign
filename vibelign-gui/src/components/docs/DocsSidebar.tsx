@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { categoryColor, categoryLabel, DOC_CATEGORY_ORDER, filterDocsIndex, formatDocDate } from "../../lib/docs";
+import { categoryColor, categoryLabel, DOC_CATEGORY_ORDER, filterDocsIndex, formatCategoryWithSource, formatDocDate } from "../../lib/docs";
 import type { DocsIndexEntry } from "../../lib/vib";
 
 interface DocsSidebarProps {
@@ -122,6 +122,11 @@ export default function DocsSidebar({ docs, query, selectedPath, onQueryChange, 
                           >
                             {entry.path}
                           </div>
+                          {entry.category === "Custom" && entry.source_root ? (
+                            <div style={{ fontSize: 10, opacity: 0.6, marginTop: 1, color: "#8B4DFF" }}>
+                              {formatCategoryWithSource(entry)}
+                            </div>
+                          ) : null}
                           <div style={{ fontSize: 10, opacity: 0.6, marginTop: 2 }}>{formatDocDate(entry.modified_at_ms)}</div>
                         </span>
                       </button>

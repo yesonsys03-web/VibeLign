@@ -22,10 +22,18 @@ export interface ReadFileResult {
 }
 
 export interface DocsIndexEntry {
-  category: "Manual" | "Context" | "Wiki" | "Spec" | "Plan" | string;
+  category: "Manual" | "Context" | "Wiki" | "Spec" | "Plan" | "Custom" | "Root" | "Docs" | "Readme" | string;
   path: string;
   title: string;
   modified_at_ms: number;
+  source_root?: string | null;
+}
+
+export interface DocSourcesResponse {
+  ok: boolean;
+  sources: string[];
+  entries: DocsIndexEntry[];
+  warnings: string[];
 }
 
 export interface DocsVisualContract {
@@ -113,6 +121,23 @@ export async function rebuildDocsIndex(root: string): Promise<DocsIndexEntry[]> 
 
 export async function readDocsVisual(root: string, path: string): Promise<DocsVisualReadResult | null> {
   return invoke<DocsVisualReadResult | null>("read_docs_visual", { root, path });
+}
+
+export async function listExtraDocSources(root: string): Promise<DocSourcesResponse> {
+  return invoke<DocSourcesResponse>("list_extra_doc_sources", { root });
+}
+
+export async function addExtraDocSource(root: string, path: string): Promise<DocSourcesResponse> {
+  return invoke<DocSourcesResponse>("add_extra_doc_source", { root, path });
+}
+
+export async function removeExtraDocSource(root: string, path: string): Promise<DocSourcesResponse> {
+  return invoke<DocSourcesResponse>("remove_extra_doc_source", { root, path });
+}
+
+export async function pickFolder(defaultPath?: string): Promise<string | null> {
+  const result = await dialogOpen({ directory: true, multiple: false, defaultPath });
+  return typeof result === "string" ? result : null;
 }
 
 export interface EnhanceDocResult {

@@ -1,4 +1,5 @@
 // === ANCHOR: LIB_START ===
+mod docs_access;
 mod onboarding;
 mod vib_path;
 
@@ -56,9 +57,11 @@ struct DocsIndexEntry {
     path: String,
     title: String,
     modified_at_ms: i64,
+    #[serde(default)]
+    source_root: Option<String>,
 }
 
-const DOCS_INDEX_CACHE_SCHEMA_VERSION: i64 = 1;
+const DOCS_INDEX_CACHE_SCHEMA_VERSION: i64 = 2;
 
 #[derive(Deserialize)]
 struct DocsIndexCachePayload {
@@ -120,39 +123,6 @@ fn normalize_relative_doc_path(path: &std::path::Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
-/// Python `docs_scan.IGNORED_DIRS` 와 같은 집합 — 인덱스 스캔에서 제외되는 폴더는
-/// read_file 에서도 차단해 동일한 화이트리스트 규칙을 유지한다.
-const DOCS_READ_IGNORED_DIRS: &[&str] = &[
-    "node_modules", "target", "dist", "build", "out", "coverage",
-    ".next", ".nuxt", ".turbo", ".cache", ".venv", "venv", "env", ".env",
-    "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox",
-    ".gradle", ".idea", ".vscode", ".DS_Store",
-];
-
-fn is_allowed_doc_path(relative_path: &str) -> bool {
-    let lower = relative_path.to_ascii_lowercase();
-    if !lower.ends_with(".md") && !lower.ends_with(".markdown") {
-        return false;
-    }
-    // 경로 탈출 차단
-    if relative_path.contains("..") {
-        return false;
-    }
-    // 모든 세그먼트가 숨김/무시 목록이 아니어야 한다 — docs_scan 의 prune 규칙과 대칭.
-    for segment in relative_path.split('/') {
-        if segment.is_empty() {
-            return false;
-        }
-        if segment.starts_with('.') {
-            return false;
-        }
-        if DOCS_READ_IGNORED_DIRS.contains(&segment) {
-            return false;
-        }
-    }
-    true
-}
-
 fn resolve_doc_path(root: &str, path: PathBuf) -> Result<(PathBuf, String), String> {
     let root_path = PathBuf::from(root)
         .canonicalize()
@@ -169,7 +139,8 @@ fn resolve_doc_path(root: &str, path: PathBuf) -> Result<(PathBuf, String), Stri
         .strip_prefix(&root_path)
         .map_err(|_| "프로젝트 루트 밖 파일은 읽을 수 없어요".to_string())?;
     let relative_path = normalize_relative_doc_path(relative);
-    if !is_allowed_doc_path(&relative_path) {
+    let extras = docs_access::ExtraSourceAllowlist::load(&root_path);
+    if !docs_access::is_allowed_doc_path(&relative_path, &extras) {
         return Err("허용된 markdown 문서만 읽을 수 있어요".into());
     }
     Ok((canonical, relative_path))
@@ -399,10 +370,24 @@ fn read_docs_visual(root: String, path: PathBuf) -> Result<Option<DocsVisualRead
     let relative = resolved_path
         .strip_prefix(&root_path)
         .map_err(|_| "프로젝트 루트 밖 파일은 읽을 수 없어요".to_string())?;
-    let artifact_path = root_path
-        .join(".vibelign")
-        .join("docs_visual")
-        .join(format!("{}.json", normalize_relative_doc_path(relative)));
+    // Route extra source docs to `_extra/<rel>.json` to avoid hidden-dir nesting.
+    let extras = docs_access::ExtraSourceAllowlist::load(&root_path);
+    let is_extra = extras.roots().iter().any(|prefix| {
+        relative_path == *prefix
+            || relative_path.starts_with(&format!("{prefix}/"))
+    });
+    let artifact_path = if is_extra {
+        root_path
+            .join(".vibelign")
+            .join("docs_visual")
+            .join("_extra")
+            .join(format!("{}.json", normalize_relative_doc_path(relative)))
+    } else {
+        root_path
+            .join(".vibelign")
+            .join("docs_visual")
+            .join(format!("{}.json", normalize_relative_doc_path(relative)))
+    };
 
     if !artifact_path.exists() {
         return Ok(None);
@@ -419,6 +404,92 @@ fn read_docs_visual(root: String, path: PathBuf) -> Result<Option<DocsVisualRead
         artifact,
         contract,
     }))
+}
+
+// ─── 추가 문서 소스 관리 ────────────────────────────────────────────────────────
+
+#[derive(Serialize, Deserialize)]
+struct DocSourcesResponse {
+    ok: bool,
+    sources: Vec<String>,
+    entries: Vec<DocsIndexEntry>,
+    warnings: Vec<String>,
+}
+
+fn run_doc_sources_cmd(root: &str, args: &[&str]) -> Result<DocSourcesResponse, String> {
+    let root_path = strip_unc_prefix(
+        PathBuf::from(root)
+            .canonicalize()
+            .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?,
+    );
+    let vib = vib_path::find_runtime_vib()
+        .ok_or_else(|| "vib을 찾을 수 없어요. GUI를 재설치해 주세요.".to_string())?;
+    let mut command = std::process::Command::new(&vib);
+    command.arg("doc-sources");
+    for arg in args {
+        command.arg(arg);
+    }
+    command
+        .current_dir(&root_path)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .env("PATH", augmented_vib_path())
+        .env("VIBELIGN_PROJECT_ROOT", root_path.as_os_str())
+        .env("PYTHONUTF8", "1")
+        .env("PYTHONIOENCODING", "utf-8");
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let output = command.output().map_err(|e| {
+        format!(
+            "vib doc-sources 실행 실패: {e}\n  vib={vib:?}\n  os_error={os:?}",
+            os = e.raw_os_error()
+        )
+    })?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let raw = stdout.trim();
+
+    if raw.is_empty() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(format!("[vib doc-sources] 출력이 없어요: {stderr}"));
+    }
+
+    // Parse outer JSON — could be ok=true or ok=false
+    let value: serde_json::Value = serde_json::from_str(raw)
+        .map_err(|e| format!("[vib doc-sources] JSON 파싱 실패: {e}\n출력: {raw}"))?;
+
+    if value.get("ok").and_then(|v| v.as_bool()) == Some(false) {
+        let err = value.get("error")
+            .and_then(|v| v.as_str())
+            .unwrap_or("알 수 없는 오류")
+            .to_string();
+        return Err(err);
+    }
+
+    serde_json::from_value(value)
+        .map_err(|e| format!("[vib doc-sources] 응답 역직렬화 실패: {e}"))
+}
+
+#[tauri::command]
+fn list_extra_doc_sources(root: String) -> Result<DocSourcesResponse, String> {
+    run_doc_sources_cmd(&root, &["list"])
+}
+
+#[tauri::command]
+fn add_extra_doc_source(root: String, path: String) -> Result<DocSourcesResponse, String> {
+    run_doc_sources_cmd(&root, &["add", &path])
+}
+
+#[tauri::command]
+fn remove_extra_doc_source(root: String, path: String) -> Result<DocSourcesResponse, String> {
+    run_doc_sources_cmd(&root, &["remove", &path])
 }
 
 #[tauri::command]
@@ -1668,6 +1739,9 @@ pub fn run() {
             list_docs_index,
             rebuild_docs_index,
             read_docs_visual,
+            list_extra_doc_sources,
+            add_extra_doc_source,
+            remove_extra_doc_source,
             enhance_doc_with_ai,
             get_env_key_status,
             read_project_summary,

@@ -15,6 +15,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Iterable
 
+from . import doc_sources as _DOC_SOURCES
 from . import docs_cache as _DOCS_CACHE
 from . import meta_paths as _META_PATHS
 
@@ -23,15 +24,23 @@ DocsIndexEntry = _DOCS_CACHE.DocsIndexEntry
 MetaPaths = _META_PATHS.MetaPaths
 
 
-DOCS_INDEX_CACHE_SCHEMA_VERSION = 1
+DOCS_INDEX_CACHE_SCHEMA_VERSION = 2
 
 
 # === ANCHOR: DOCS_INDEX_CACHE_PAYLOAD_START ===
-def _make_payload(root: Path, entries: Iterable[DocsIndexEntry]) -> dict[str, object]:
+def _make_payload(
+    root: Path,
+    entries: Iterable[DocsIndexEntry],
+    *,
+    extra_source_roots: list[str],
+    sources_fingerprint: str,
+) -> dict[str, object]:
     return {
         "schema_version": DOCS_INDEX_CACHE_SCHEMA_VERSION,
         "root": str(root.resolve()),
         "generated_at_ms": int(time.time() * 1000),
+        "sources_fingerprint": sources_fingerprint,
+        "allowlist": {"extra_source_roots": extra_source_roots},
         "entries": [asdict(entry) for entry in entries],
     }
 # === ANCHOR: DOCS_INDEX_CACHE_PAYLOAD_END ===
@@ -39,7 +48,11 @@ def _make_payload(root: Path, entries: Iterable[DocsIndexEntry]) -> dict[str, ob
 
 # === ANCHOR: DOCS_INDEX_CACHE_WRITE_START ===
 def write_docs_index_cache(
-    meta: MetaPaths, entries: Iterable[DocsIndexEntry]
+    meta: MetaPaths,
+    entries: Iterable[DocsIndexEntry],
+    *,
+    extra_source_roots: list[str],
+    sources_fingerprint: str,
 ) -> Path:
     """docs index 캐시를 원자적으로 기록한다.
 
@@ -49,7 +62,12 @@ def write_docs_index_cache(
 
     meta.ensure_vibelign_dir()
     target = meta.docs_index_path
-    payload = _make_payload(meta.root, entries)
+    payload = _make_payload(
+        meta.root,
+        entries,
+        extra_source_roots=extra_source_roots,
+        sources_fingerprint=sources_fingerprint,
+    )
     serialized = json.dumps(payload, ensure_ascii=False)
 
     fd, tmp_name = tempfile.mkstemp(
@@ -111,6 +129,15 @@ def read_docs_index_cache(meta: MetaPaths) -> list[DocsIndexEntry] | None:
     except OSError:
         return None
 
+    # Verify sources_fingerprint against current doc_sources
+    cached_fingerprint = payload.get("sources_fingerprint")
+    if not isinstance(cached_fingerprint, str):
+        return None
+    current_sources = _DOC_SOURCES.load(meta).sources
+    current_fingerprint = _DOC_SOURCES.fingerprint(current_sources)
+    if cached_fingerprint != current_fingerprint:
+        return None
+
     raw_entries = payload.get("entries")
     if not isinstance(raw_entries, list):
         return None
@@ -126,6 +153,7 @@ def read_docs_index_cache(meta: MetaPaths) -> list[DocsIndexEntry] | None:
                     path=str(item["path"]),
                     title=str(item["title"]),
                     modified_at_ms=int(item["modified_at_ms"]),
+                    source_root=item.get("source_root"),
                 )
             )
         except (KeyError, TypeError, ValueError):

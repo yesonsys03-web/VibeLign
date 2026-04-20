@@ -7,7 +7,7 @@ export interface DocsSection {
   level: number;
 }
 
-export const DOC_CATEGORY_ORDER = ["Context", "Readme", "Manual", "Wiki", "Spec", "Plan", "Root", "Docs"] as const;
+export const DOC_CATEGORY_ORDER = ["Context", "Readme", "Manual", "Wiki", "Spec", "Plan", "Custom", "Root", "Docs"] as const;
 
 // === ANCHOR: DOCS_CATEGORYCOLOR_START ===
 export function categoryColor(category: string): string {
@@ -18,6 +18,7 @@ export function categoryColor(category: string): string {
     case "Wiki": return "#4DFF91";
     case "Spec": return "#7B4DFF";
     case "Plan": return "#F5621E";
+    case "Custom": return "#8B4DFF";
     case "Root": return "#888888";
     case "Docs": return "#3DBFA8";
     default: return "#1A1A1A";
@@ -34,12 +35,20 @@ export function categoryLabel(category: string): string {
     case "Wiki": return "Wiki";
     case "Spec": return "Spec";
     case "Plan": return "Plan";
+    case "Custom": return "Custom";
     case "Root": return "Root";
     case "Docs": return "Docs";
     default: return category;
   }
 }
 // === ANCHOR: DOCS_CATEGORYLABEL_END ===
+
+export function formatCategoryWithSource(entry: DocsIndexEntry): string {
+  if (entry.category === "Custom" && entry.source_root) {
+    return `Custom · ${entry.source_root}`;
+  }
+  return categoryLabel(entry.category);
+}
 
 // === ANCHOR: DOCS_LOADDOCSINDEX_START ===
 export async function loadDocsIndex(root: string): Promise<DocsIndexEntry[]> {

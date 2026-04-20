@@ -3,8 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import DocsSidebar from "../components/docs/DocsSidebar";
 import MarkdownPane from "../components/docs/MarkdownPane";
 import VisualSummaryPane from "../components/docs/VisualSummaryPane";
-import { extractSections, loadDoc, loadDocsIndex, reloadDocsIndex } from "../lib/docs";
-import { readDocsVisual, runVib, type DocsIndexEntry, type DocsVisualReadResult, type ReadFileResult } from "../lib/vib";
+import { extractSections, loadDoc, reloadDocsIndex } from "../lib/docs";
+import { addExtraDocSource, listExtraDocSources, pickFolder, readDocsVisual, removeExtraDocSource, runVib, type DocsIndexEntry, type DocsVisualReadResult, type ReadFileResult } from "../lib/vib";
 
 export type DocsTrustState = "markdown-only" | "enhanced-synced" | "enhanced-stale" | "enhanced-failed";
 
@@ -28,6 +28,8 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRebuildingIndex, setIsRebuildingIndex] = useState(false);
   const [rebuildMessage, setRebuildMessage] = useState<string | null>(null);
+  const [extraSources, setExtraSources] = useState<string[]>([]);
+  const [isAddingSource, setIsAddingSource] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
   const markdownPaneRef = useRef<HTMLDivElement | null>(null);
   const layoutRef = useRef<HTMLDivElement | null>(null);
@@ -50,21 +52,23 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
     setIndexLoading(true);
     setIndexError(null);
 
-    loadDocsIndex(projectDir)
-      .then((entries) => {
+    listExtraDocSources(projectDir)
+      .then((res) => {
         if (cancelled) return;
-        setDocsIndex(entries);
+        setDocsIndex(res.entries);
+        setExtraSources(res.sources);
         setSelectedPath((current) => {
-          if (current && entries.some((entry) => entry.path === current)) {
+          if (current && res.entries.some((entry) => entry.path === current)) {
             return current;
           }
-          return entries.find((entry) => entry.path === "PROJECT_CONTEXT.md")?.path ?? entries[0]?.path ?? null;
+          return res.entries.find((entry) => entry.path === "PROJECT_CONTEXT.md")?.path ?? res.entries[0]?.path ?? null;
         });
         setIndexLoading(false);
       })
       .catch((err: unknown) => {
         if (!cancelled) {
           setDocsIndex([]);
+          setExtraSources([]);
           setSelectedPath(null);
           setIndexError(err instanceof Error ? err.message : typeof err === "string" ? err : "문서 인덱스를 읽을 수 없어요");
           setIndexLoading(false);
@@ -235,13 +239,18 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
     setRebuildMessage(null);
     setIndexError(null);
     try {
-      const entries = await reloadDocsIndex(projectDir);
-      setDocsIndex(entries);
+      // Use listExtraDocSources to refresh both entries and extraSources in one call.
+      // reloadDocsIndex (the ↻ 인덱스 button) forces a backend rebuild, then we also
+      // refresh extra sources so the remove-buttons panel stays in sync.
+      await reloadDocsIndex(projectDir); // forces cache invalidation
+      const res = await listExtraDocSources(projectDir);
+      setDocsIndex(res.entries);
+      setExtraSources(res.sources);
       setSelectedPath((current) => {
-        if (current && entries.some((entry) => entry.path === current)) return current;
-        return entries.find((entry) => entry.path === "PROJECT_CONTEXT.md")?.path ?? entries[0]?.path ?? null;
+        if (current && res.entries.some((entry) => entry.path === current)) return current;
+        return res.entries.find((entry) => entry.path === "PROJECT_CONTEXT.md")?.path ?? res.entries[0]?.path ?? null;
       });
-      setRebuildMessage(`문서 인덱스를 다시 만들었습니다 (${entries.length}개).`);
+      setRebuildMessage(`문서 인덱스를 다시 만들었습니다 (${res.entries.length}개).`);
     } catch (err: unknown) {
       setIndexError(err instanceof Error ? err.message : "문서 인덱스를 다시 만드는 데 실패했습니다.");
     } finally {
@@ -249,6 +258,56 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
     }
   }
   // === ANCHOR: DOCSVIEWER_HANDLEREBUILDINDEX_END ===
+
+  // === ANCHOR: DOCSVIEWER_RELATIVIZE_START ===
+  function relativizeInsideProject(root: string, abs: string): string | null {
+    const n = (s: string) => s.replaceAll("\\", "/").replace(/\/+$/, "");
+    const r = n(root), a = n(abs);
+    if (a === r) return null;
+    if (a.startsWith(r + "/")) return a.slice(r.length + 1);
+    return null;
+  }
+  // === ANCHOR: DOCSVIEWER_RELATIVIZE_END ===
+
+  // === ANCHOR: DOCSVIEWER_HANDLEADDSOURCE_START ===
+  async function handleAddSource() {
+    if (!projectDir) return;
+    setIsAddingSource(true);
+    setRebuildMessage(null);
+    try {
+      const picked = await pickFolder(projectDir);
+      if (!picked) { setIsAddingSource(false); return; }
+      const rel = relativizeInsideProject(projectDir, picked);
+      if (!rel) {
+        setRebuildMessage("프로젝트 루트 안쪽 폴더만 추가할 수 있어요.");
+        return;
+      }
+      const res = await addExtraDocSource(projectDir, rel);
+      setDocsIndex(res.entries);
+      setExtraSources(res.sources);
+      setRebuildMessage(`추가 문서 소스 등록: ${rel} (${res.entries.length}개 문서)`);
+    } catch (err: unknown) {
+      setRebuildMessage(err instanceof Error ? err.message : "소스 추가에 실패했습니다.");
+    } finally {
+      setIsAddingSource(false);
+    }
+  }
+  // === ANCHOR: DOCSVIEWER_HANDLEADDSOURCE_END ===
+
+  // === ANCHOR: DOCSVIEWER_HANDLEREMOVESOURCE_START ===
+  async function handleRemoveSource(source: string) {
+    if (!projectDir) return;
+    setRebuildMessage(null);
+    try {
+      const res = await removeExtraDocSource(projectDir, source);
+      setDocsIndex(res.entries);
+      setExtraSources(res.sources);
+      setRebuildMessage(`추가 문서 소스 제거: ${source}`);
+    } catch (err: unknown) {
+      setRebuildMessage(err instanceof Error ? err.message : "소스 제거에 실패했습니다.");
+    }
+  }
+  // === ANCHOR: DOCSVIEWER_HANDLEREMOVESOURCE_END ===
 
   // === ANCHOR: DOCSVIEWER_HANDLEPHASESELECT_START ===
   function handlePhaseSelect(sectionId: string) {
@@ -287,6 +346,9 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <button className="btn btn-ghost btn-sm" onClick={() => void handleRebuildIndex()} disabled={isRebuildingIndex || isRebuilding || isRefreshing} title="문서 인덱스를 다시 스캔해 사이드바 목록을 갱신해요">
             {isRebuildingIndex ? "인덱스 갱신 중..." : "↻ 인덱스"}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => void handleAddSource()} disabled={isAddingSource || isRebuildingIndex} title="추가 문서 소스 폴더를 등록해요">
+            {isAddingSource ? "추가 중..." : "+ 소스 추가"}
           </button>
           <button className="btn btn-ghost btn-sm" onClick={() => void handleRefreshCurrent()} disabled={isRefreshing || isRebuilding || !selectedPath}>
             {isRefreshing ? "새로고침 중..." : "Refresh"}
@@ -344,6 +406,33 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
             <div><span className="terminal-prompt">docs</span>: {docsIndex.length}</div>
             <div><span className="terminal-prompt">path</span>: {doc?.path ?? selectedPath ?? "none"}</div>
             <div><span className="terminal-prompt">source_hash</span>: {doc?.source_hash ?? "pending"}</div>
+          </div>
+
+          <div className="card">
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#888", marginBottom: 10, textTransform: "uppercase", letterSpacing: 1 }}>
+              추가 문서 소스
+            </div>
+            {extraSources.length === 0 ? (
+              <div style={{ fontSize: 12, color: "#666", lineHeight: 1.6 }}>
+                등록된 추가 소스 없음
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {extraSources.map((source) => (
+                  <div key={source} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11, flex: 1, wordBreak: "break-all", color: "#8B4DFF", fontWeight: 600 }}>{source}</span>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      style={{ fontSize: 10, padding: "2px 6px" }}
+                      onClick={() => void handleRemoveSource(source)}
+                      title={`${source} 제거`}
+                    >
+                      제거
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div> : null}
 
