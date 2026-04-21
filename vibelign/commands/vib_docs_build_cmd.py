@@ -212,7 +212,12 @@ def run_vib_docs_enhance(args: argparse.Namespace) -> None:
 
     relative_path = target.replace("\\", "/")
     meta = MetaPaths(root)
-    artifact_path = meta.docs_visual_path(relative_path)
+    extra_sources = _DOC_SOURCES.load(meta).sources
+    is_extra = any(
+        relative_path == src or relative_path.startswith(f"{src}/")
+        for src in extra_sources
+    )
+    artifact_path = meta.docs_visual_path(relative_path, is_extra=is_extra)
     if not artifact_path.exists():
         print(
             f"artifact 가 없어요. 먼저 vib docs-build '{relative_path}' 를 실행하세요.",

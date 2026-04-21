@@ -707,3 +707,178 @@ class RustLiteralRegressionTest(unittest.TestCase):
             code,
             "lib.rs must not reference doc_sources.json in non-comment code",
         )
+
+
+class DocsEnhanceExtraSourceRoutingTest(unittest.TestCase):
+    """run_vib_docs_enhance가 extra source 문서의 artifact를 _extra/ 경로에서 찾고 써야 한다."""
+
+    def _get_doc_sources(self):
+        return sys.modules["vibelign.core.doc_sources"]
+
+    def _get_meta_paths(self):
+        return sys.modules["vibelign.core.meta_paths"]
+
+    def _install_ai_stub(self):
+        stub = types.ModuleType("vibelign.core.docs_ai_enhance")
+
+        def call_auto(_source_text):
+            return {
+                "fields": {
+                    "tldr_one_liner": "stub one liner",
+                    "key_rules": [],
+                    "success_criteria": [],
+                    "edge_cases": [],
+                    "components": [],
+                },
+                "model": "stub-model",
+                "provider": "stub",
+                "tokens_input": 0,
+                "tokens_output": 0,
+                "cost_usd": 0.0,
+            }
+
+        stub.call_auto = call_auto
+        sys.modules["vibelign.core.docs_ai_enhance"] = stub
+
+    def test_enhance_extra_source_finds_and_writes_under_extra(self):
+        """extra source 문서는 artifact가 _extra/ 아래 있으므로 enhance도 거기서 찾아야 한다."""
+        doc_sources = self._get_doc_sources()
+        meta_paths = self._get_meta_paths()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir()
+            (root / ".omc" / "plans").mkdir(parents=True)
+            (root / ".omc" / "plans" / "plan.md").write_text(
+                "# Extra Plan\n\nBody.\n", encoding="utf-8"
+            )
+
+            meta = meta_paths.MetaPaths(root)
+            doc_sources.add(meta, ".omc/plans")
+
+            docs_build_cmd.build_docs_visual_cache(root, ".omc/plans/plan.md")
+            extra_artifact = (
+                root
+                / ".vibelign"
+                / "docs_visual"
+                / "_extra"
+                / ".omc"
+                / "plans"
+                / "plan.md.json"
+            )
+            self.assertTrue(
+                extra_artifact.exists(),
+                "precondition: build should place extra artifact under _extra/",
+            )
+
+            self._install_ai_stub()
+            os.environ["VIBELIGN_PROJECT_ROOT"] = str(root)
+            try:
+                docs_build_cmd.run_vib_docs_enhance(
+                    Namespace(path=".omc/plans/plan.md", json=False)
+                )
+            finally:
+                os.environ.pop("VIBELIGN_PROJECT_ROOT", None)
+
+            payload = json.loads(extra_artifact.read_text(encoding="utf-8"))
+            self.assertIn(
+                "ai_fields",
+                payload,
+                "enhance should merge ai_fields into the _extra/ artifact",
+            )
+            self.assertEqual(payload["ai_fields"]["model"], "stub-model")
+
+            wrong_path = (
+                root
+                / ".vibelign"
+                / "docs_visual"
+                / ".omc"
+                / "plans"
+                / "plan.md.json"
+            )
+            self.assertFalse(
+                wrong_path.exists(),
+                "enhance must not create a built-in-path artifact for extra source",
+            )
+
+    def test_enhance_extra_source_accepts_windows_style_input(self):
+        """CLI에서 Windows 역슬래시 경로로 들어와도 _extra/ artifact를 찾아야 한다."""
+        doc_sources = self._get_doc_sources()
+        meta_paths = self._get_meta_paths()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir()
+            (root / ".omc" / "plans").mkdir(parents=True)
+            (root / ".omc" / "plans" / "plan.md").write_text(
+                "# Extra Plan\n\nBody.\n", encoding="utf-8"
+            )
+
+            meta = meta_paths.MetaPaths(root)
+            doc_sources.add(meta, ".omc/plans")
+
+            docs_build_cmd.build_docs_visual_cache(root, ".omc/plans/plan.md")
+            extra_artifact = (
+                root
+                / ".vibelign"
+                / "docs_visual"
+                / "_extra"
+                / ".omc"
+                / "plans"
+                / "plan.md.json"
+            )
+            self.assertTrue(extra_artifact.exists())
+
+            self._install_ai_stub()
+            os.environ["VIBELIGN_PROJECT_ROOT"] = str(root)
+            try:
+                docs_build_cmd.run_vib_docs_enhance(
+                    Namespace(path=".omc\\plans\\plan.md", json=False)
+                )
+            finally:
+                os.environ.pop("VIBELIGN_PROJECT_ROOT", None)
+
+            payload = json.loads(extra_artifact.read_text(encoding="utf-8"))
+            self.assertEqual(payload["ai_fields"]["model"], "stub-model")
+
+    def test_enhance_builtin_source_still_uses_original_path(self):
+        """built-in 문서의 artifact 경로는 _extra/ 가 붙으면 안 된다 (regression guard)."""
+        meta_paths = self._get_meta_paths()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir()
+            (root / "PROJECT_CONTEXT.md").write_text(
+                "# Session Handoff\n\nbody\n", encoding="utf-8"
+            )
+
+            meta = meta_paths.MetaPaths(root)
+            _ = meta  # silence lint
+
+            docs_build_cmd.build_docs_visual_cache(root, "PROJECT_CONTEXT.md")
+            builtin_artifact = (
+                root / ".vibelign" / "docs_visual" / "PROJECT_CONTEXT.md.json"
+            )
+            self.assertTrue(builtin_artifact.exists())
+
+            self._install_ai_stub()
+            os.environ["VIBELIGN_PROJECT_ROOT"] = str(root)
+            try:
+                docs_build_cmd.run_vib_docs_enhance(
+                    Namespace(path="PROJECT_CONTEXT.md", json=False)
+                )
+            finally:
+                os.environ.pop("VIBELIGN_PROJECT_ROOT", None)
+
+            payload = json.loads(builtin_artifact.read_text(encoding="utf-8"))
+            self.assertEqual(payload["ai_fields"]["model"], "stub-model")
+            self.assertFalse(
+                (
+                    root
+                    / ".vibelign"
+                    / "docs_visual"
+                    / "_extra"
+                    / "PROJECT_CONTEXT.md.json"
+                ).exists(),
+                "built-in enhance must not spill into _extra/",
+            )
