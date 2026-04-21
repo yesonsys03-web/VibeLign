@@ -151,10 +151,19 @@ export default function App() {
               <div style={{ flex: 1 }} />
               <button
                 className="nav-tab"
-                style={{ borderRight: "none", fontSize: 11, color: "#777" }}
+                style={{
+                  borderRight: "none",
+                  fontSize: 11,
+                  color: "#777",
+                  maxWidth: 260,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  display: "block",
+                }}
+                title={projectDir}
                 onClick={() => { stopWatch().catch(() => {}); setProjectDir(null); setPage("home"); }}
               >
-                {projectDir.split("/").slice(-1)[0]} ↩
+                {projectDir.replace(/\\/g, "/").split("/").filter(Boolean).slice(-1)[0] || projectDir} ↩
               </button>
             </div>
 
