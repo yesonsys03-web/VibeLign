@@ -19,6 +19,7 @@ class MetaPathsTest(unittest.TestCase):
             root / ".vibelign" / "reports" / "patch_latest.json",
         )
         self.assertEqual(meta.doc_sources_path, root / ".vibelign" / "doc_sources.json")
+        self.assertEqual(meta.work_memory_path, root / ".vibelign" / "work_memory.json")
 
 
 if __name__ == "__main__":

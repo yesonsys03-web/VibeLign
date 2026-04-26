@@ -52,6 +52,10 @@ class MetaPaths:
         return self.vibelign_dir / "watch.log"
 
     @property
+    def work_memory_path(self) -> Path:
+        return self.vibelign_dir / "work_memory.json"
+
+    @property
     def scan_cache_path(self) -> Path:
         return self.vibelign_dir / "scan_cache.json"
 
