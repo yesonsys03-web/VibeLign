@@ -181,6 +181,8 @@ def register_extended_commands(
             "이렇게 쓰세요:\n"
             "  vib anchor --suggest                                앵커 추천 받기\n"
             "  vib anchor --auto                                   자동으로 앵커 삽입\n"
+            "  vib anchor --auto --paths src/app.py                 특정 파일만 앵커 삽입\n"
+            "  vib anchor --auto --module-only --paths src/app.py   파일 전체 앵커만 삽입\n"
             "  vib anchor --auto-intent                            AI가 모든 앵커 intent 자동 생성\n"
             "  vib anchor --validate                               앵커 검증\n"
             '  vib anchor --set-intent ANCHOR_NAME --intent "설명"  앵커 의도 직접 등록\n'

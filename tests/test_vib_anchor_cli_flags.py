@@ -1,6 +1,7 @@
 """CLI regression: `vib anchor --set-intent` forwards extras (aliases/description/warning/connects)."""
 import json
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -206,3 +207,16 @@ def test_auto_paths_rejects_outside_project(anchor_project: Path) -> None:
         run_vib_anchor(args)
 
     assert "프로젝트 밖 경로" in str(exc_info.value)
+
+
+def test_anchor_help_lists_path_and_module_only_examples() -> None:
+    parser = build_parser()
+    subparsers_action = cast(
+        Any,
+        next(action for action in parser._actions if getattr(action, "choices", None)),
+    )
+    anchor_parser = subparsers_action.choices["anchor"]
+    help_text = anchor_parser.format_help()
+
+    assert "vib anchor --auto --paths src/app.py" in help_text
+    assert "vib anchor --auto --module-only --paths src/app.py" in help_text

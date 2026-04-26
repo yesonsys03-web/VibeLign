@@ -275,6 +275,8 @@ vib doctor   # 기본 점검 (점수 + 문제 목록)
 vib doctor --strict   # 더 꼼꼼하게 점검
 vib doctor --detailed   # 문제마다 자세한 설명 포함
 vib doctor --fix   # 앵커 없는 파일에 자동으로 앵커 추가
+vib doctor --fix-anchors --dry-run   # 수정 없이 앵커가 필요한 파일만 먼저 확인
+vib doctor --fix-anchors --paths src/app.py   # 특정 파일 하나만 안전하게 앵커 추가
 vib doctor --write-report   # 결과를 파일로 저장
 ```
 
@@ -286,6 +288,9 @@ vib doctor --write-report   # 결과를 파일로 저장
 | `--detailed` | 각 문제마다 왜 문제인지 설명을 추가로 보여줘요. |
 | `--fix-hints` | 각 문제를 어떻게 고치면 되는지 힌트를 줘요. |
 | `--fix` | 앵커가 없는 파일에 자동으로 앵커를 달아줘요. 직접 하기 귀찮을 때 편해요. |
+| `--fix-anchors` | 앵커 없는 파일만 명시적으로 정리해요. `--dry-run`으로 먼저 확인하거나 `--paths`로 파일을 하나만 지정할 수 있어요. |
+| `--dry-run` | doctor의 앵커 자동 수정에서 실제 파일을 바꾸지 않고 대상만 미리 보여줘요. |
+| `--paths src/app.py` | doctor의 앵커 자동 수정을 특정 파일로 제한해요. 예: `--paths src/app.py tests/test_app.py` |
 | `--write-report` | 점검 결과를 파일로 저장해요. 나중에 다시 볼 수 있어요. |
 | `--json` | 결과를 JSON 형식으로 출력해요. (개발자용) |
 
@@ -426,6 +431,11 @@ vib anchor --auto   # 모든 파일에 자동으로 앵커 달기 (가장 많이
 vib anchor --suggest   # 어떻게 달면 좋을지 추천만 보기 (실제로 바꾸지 않음)
 vib anchor --validate   # 앵커가 제대로 달려있는지 검사
 vib anchor --dry-run   # 실제로 바꾸지 않고 어떻게 바뀔지 미리 보기
+vib anchor --auto --paths src/app.py   # 특정 파일 하나에만 앵커 달기
+vib anchor --auto --module-only --paths src/app.py   # 고급: 함수/클래스 대신 파일 전체 앵커만 달기
+vib anchor --auto-intent   # 모든 앵커 의도 설명 자동 생성
+vib anchor --set-intent ANCHOR_NAME --intent "설명"   # 앵커 의도 직접 등록
+vib anchor --list-intent   # 등록된 앵커 의도 목록 보기
 vib anchor --only-ext .py   # Python 파일만 처리
 ```
 
@@ -433,11 +443,24 @@ vib anchor --only-ext .py   # Python 파일만 처리
 
 | 옵션 | 설명 |
 |------|------|
+| `--help` | anchor 명령 도움말을 보여줘요. |
 | `--auto` | 모든 파일에 자동으로 앵커를 달아줘요. 처음 설정할 때 이걸 써요. |
 | `--suggest` | 앵커를 어떻게 달면 좋을지 추천만 보여줘요. 실제로 파일을 바꾸지는 않아요. |
 | `--validate` | 앵커가 올바르게 달려있는지 검사해요. 짝이 안 맞는 앵커를 찾아줘요. |
 | `--dry-run` | 실제로 바꾸지 않고 어떻게 바뀔지만 미리 보여줘요. |
+| `--paths src/app.py` | 특정 파일만 대상으로 실행해요. 예: `--paths src/app.py tests/test_app.py` |
+| `--module-only` | 고급 옵션이에요. 함수/클래스 단위 앵커 대신 파일 전체 앵커만 달아요. 기본값은 더 세밀한 함수/클래스 앵커까지 함께 다는 방식이에요. |
 | `--only-ext .py` | 특정 확장자의 파일만 처리해요. 예: --only-ext .py (파이썬만), --only-ext .js (자바스크립트만) |
+| `--set-intent ANCHOR_NAME` | 특정 앵커에 사람이 직접 의도(intent)를 등록해요. `--intent`와 함께 사용해요. |
+| `--intent TEXT` | `--set-intent`로 등록할 의도 설명 문구예요. |
+| `--list-intent` | 등록된 앵커 의도 목록을 보여줘요. |
+| `--auto-intent` | 코드 기반으로 모든 앵커의 의도 설명을 자동 생성해요. |
+| `--force` | `--auto-intent` 실행 시 기존 AI 생성 항목도 다시 만들어요. |
+| `--with-ai` | `--auto-intent` 실행 시 코드 기반 결과에 AI 보강까지 적용해요. |
+| `--aliases A,B,C` | `--set-intent` 보조 옵션이에요. 검색에 쓸 별칭을 쉼표로 등록해요. |
+| `--description TEXT` | `--set-intent` 보조 옵션이에요. 앵커의 상세 설명을 등록해요. |
+| `--warning TEXT` | `--set-intent` 보조 옵션이에요. AI에게 전달할 주의사항을 등록해요. |
+| `--connects A,B,C` | `--set-intent` 보조 옵션이에요. 연결된 앵커 이름을 쉼표로 등록해요. |
 | `--json` | 결과를 JSON 형식으로 출력해요. (개발자용) |
 
 ---
@@ -542,6 +565,8 @@ vib transfer --full   # 파일 트리를 더 깊이 포함
 vib transfer --handoff   # AI 전환용 인수인계 블록 포함
 vib transfer --handoff --print   # 인수인계 내용을 화면에도 출력
 vib transfer --handoff --no-prompt   # 질문 없이 자동으로 만들기
+vib transfer --handoff --session-summary "현재 세션 작업"   # 현재 세션 요약 직접 지정
+vib transfer --handoff --first-next-action "다음 할 일"   # 새 AI의 첫 작업 직접 지정
 vib transfer --handoff --dry-run   # 저장 없이 내용 미리 보기
 vib transfer --out ctx.md   # 파일 이름 바꾸기
 ```
@@ -555,6 +580,8 @@ vib transfer --out ctx.md   # 파일 이름 바꾸기
 | `--handoff` | AI를 바꾸거나 새 채팅을 열기 직전에 쓰는 옵션이에요. 파일 맨 위에 'Session Handoff' 블록을 넣어줘요. 새 AI한테 '오늘 뭘 했는지, 다음에 뭘 해야 하는지' 한 줄로 알려줄 수 있어요. ⚠️ --compact, --full 과 같이 쓸 수 없어요. |
 | `--print` | --handoff 와 함께 써요. 인수인계 내용을 파일에 저장하면서 화면에도 바로 출력해줘요. 새 AI 채팅창에 복붙하기 편해요. |
 | `--no-prompt` | --handoff 와 함께 써요. 보통은 '다음 AI가 뭘 해야 해?' 하고 물어보는데 이 옵션을 쓰면 아무것도 안 물어보고 자동으로 만들어줘요. 모르는 내용은 '(not provided)' 라고 표시돼요. |
+| `--session-summary 텍스트` | --handoff 와 함께 써요. 현재 세션에서 한 일을 직접 한 줄로 넣고 싶을 때 써요. 자동 요약보다 사용자가 쓴 문장을 우선해서 Session Handoff에 넣어요. |
+| `--first-next-action 텍스트` | --handoff 와 함께 써요. 새 AI가 제일 먼저 해야 할 일을 직접 지정해요. 예: --first-next-action "실패한 테스트부터 다시 실행" |
 | `--out 파일명` | 저장할 파일 이름을 바꿀 수 있어요. 기본값은 PROJECT_CONTEXT.md예요. 예: --out handoff.md |
 | `--dry-run` | 파일을 실제로 저장하지 않고 '이런 내용이 들어갈 거예요'를 미리 보여줘요. 마치 게임에서 아이템 설명 읽고 살지 말지 결정하는 것처럼, handoff 내용을 확인하고 나서 진짜로 실행할 수 있어요. --handoff 와 함께 쓰는 게 가장 유용해요. |
 | `--help` | transfer 명령어의 옵션 목록을 보여줘요. 뭘 써야 할지 모를 때 먼저 확인해보세요. |
@@ -964,4 +991,3 @@ cat AI_DEV_SYSTEM_SINGLE_FILE.md   # 규칙 파일 직접 보기
 | `어떤 AI든 적용` | AGENTS.md를 읽는 Claude Code, OpenCode, Cursor 모두 자동 적용 |
 
 ---
-
