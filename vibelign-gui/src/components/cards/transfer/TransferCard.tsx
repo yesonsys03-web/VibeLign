@@ -3,6 +3,8 @@ import { useState } from "react";
 import { vibTransfer } from "../../../lib/vib";
 import { CardState } from "../../../lib/commands";
 
+const GUI_HANDOFF_NEXT_ACTION = "Active intent와 Verification snapshot을 확인하고, Warnings / risks를 정리한 뒤 관련 테스트를 재실행하세요.";
+
 interface TransferCardProps {
   projectDir: string;
 }
@@ -15,7 +17,11 @@ export default function TransferCard({ projectDir }: TransferCardProps) {
   async function handleTransfer() {
     setSt("loading");
     try {
-      const r = await vibTransfer(projectDir, { handoff, compact });
+      const r = await vibTransfer(projectDir, {
+        handoff,
+        compact,
+        firstNextAction: handoff ? GUI_HANDOFF_NEXT_ACTION : undefined,
+      });
       if (!r.ok) throw new Error(r.stderr || `exit ${r.exit_code}`);
       setSt("done");
     } catch {
@@ -43,6 +49,11 @@ export default function TransferCard({ projectDir }: TransferCardProps) {
       </div>
       <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
         <div style={{ fontSize: 16.5, color: "#555", marginBottom: 8 }}>PROJECT_CONTEXT 생성</div>
+        {handoff && (
+          <div style={{ fontSize: 10, color: "#555", lineHeight: 1.35, marginBottom: 6 }}>
+            현재 세션 작업과 다음 할 일을 자동으로 정리해서 새 AI가 바로 이어받게 해요.
+          </div>
+        )}
         <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
           <button onClick={() => setHandoff((s) => !s)} style={{
             flex: 1, fontSize: 9, fontWeight: 700, padding: "2px 0",

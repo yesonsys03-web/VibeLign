@@ -653,9 +653,23 @@ export async function vibScan(cwd: string): Promise<VibResult> {
   return runVib(["scan"], cwd);
 }
 
-export async function vibTransfer(cwd: string, opts?: { handoff?: boolean; compact?: boolean; full?: boolean }): Promise<VibResult> {
+export async function vibTransfer(
+  cwd: string,
+  opts?: {
+    handoff?: boolean;
+    compact?: boolean;
+    full?: boolean;
+    sessionSummary?: string;
+    firstNextAction?: string;
+  },
+): Promise<VibResult> {
   const args = ["transfer"];
-  if (opts?.handoff) { args.push("--handoff"); args.push("--no-prompt"); }
+  if (opts?.handoff) {
+    args.push("--handoff");
+    args.push("--no-prompt");
+    if (opts.sessionSummary) args.push("--session-summary", opts.sessionSummary);
+    if (opts.firstNextAction) args.push("--first-next-action", opts.firstNextAction);
+  }
   if (opts?.compact) args.push("--compact");
   if (opts?.full) args.push("--full");
   return runVib(args, cwd);
