@@ -30,6 +30,7 @@ def handle_handoff_create(
     from vibelign.commands.vib_transfer_cmd import (
         HandoffData,
         build_context_content,
+        enrich_handoff_with_work_memory,
         get_changed_files,
         get_recent_checkpoints,
         inject_agents_handoff_instruction,
@@ -86,6 +87,8 @@ def handle_handoff_create(
             },
         ),
     )
+
+    handoff_data = enrich_handoff_with_work_memory(root, handoff_data)
 
     content = build_context_content(root, handoff_data=handoff_data)
     ctx_path = root / "PROJECT_CONTEXT.md"

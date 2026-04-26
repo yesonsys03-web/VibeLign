@@ -171,7 +171,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
             "properties": {
                 "session_summary": {
                     "type": "string",
-                    "description": "오늘 한 작업 요약 (한두 줄 bullet)",
+                    "description": "현재 세션에서 작업한 내용 요약 (한두 줄 bullet)",
                 },
                 "first_next_action": {
                     "type": "string",
@@ -179,7 +179,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
                 },
                 "completed_work": {
                     "type": "string",
-                    "description": "완료된 작업 요약 (선택)",
+                    "description": "현재 세션 변경 기록 또는 완료된 작업 요약 (선택)",
                 },
                 "unfinished_work": {
                     "type": "string",

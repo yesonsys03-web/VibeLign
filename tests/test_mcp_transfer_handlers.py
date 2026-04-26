@@ -52,6 +52,112 @@ class McpTransferHandlersTest(unittest.TestCase):
         self.assertIn("## Session Handoff", content)
         self.assertIn("fixed auth flow", content)
 
+    def test_handle_handoff_create_enriches_from_work_memory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            vg_dir = root / ".vibelign"
+            vg_dir.mkdir()
+            _ = (vg_dir / "work_memory.json").write_text(
+                """
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-26T00:00:00Z",
+  "recent_events": [
+    {
+      "time": "2026-04-26T00:00:00Z",
+      "kind": "modified",
+      "path": "vibelign/core/watch_engine.py",
+      "message": "watch engine updated",
+      "action": "Run MCP transfer regression tests."
+    }
+  ],
+  "relevant_files": [
+    {
+      "path": "vibelign/core/watch_engine.py",
+      "why": "Recently modified by watch integration work."
+    }
+  ],
+  "warnings": [
+    {
+      "time": "2026-04-26T00:00:00Z",
+      "kind": "warning",
+      "path": "vibelign/core/watch_engine.py",
+      "message": "Large file warning",
+      "action": "Keep edits localized."
+    }
+  ],
+  "decisions": [],
+  "verification": ["uv run pytest tests/test_mcp_transfer_handlers.py"]
+}
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = handle_handoff_create(
+                root,
+                {
+                    "session_summary": "mcp supplied summary",
+                    "first_next_action": "mcp supplied next action",
+                },
+                TextContent,
+            )
+            content = (root / "PROJECT_CONTEXT.md").read_text(encoding="utf-8")
+
+        self.assertEqual(len(result), 1)
+        self.assertIn("mcp supplied summary", content)
+        self.assertIn("mcp supplied next action", content)
+        self.assertIn("Relevant files", content)
+        self.assertIn("Live working changes", content)
+        self.assertNotIn("Recent factual changes", content)
+        self.assertIn("Warnings / risks", content)
+        self.assertIn("Verification snapshot", content)
+        self.assertIn("watch engine updated", content)
+
+    def test_handle_handoff_create_preserves_mcp_priority_over_work_memory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            vg_dir = root / ".vibelign"
+            vg_dir.mkdir()
+            _ = (vg_dir / "work_memory.json").write_text(
+                """
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-26T00:00:00Z",
+  "recent_events": [
+    {
+      "time": "2026-04-26T00:00:00Z",
+      "kind": "modified",
+      "path": "vibelign/core/watch_engine.py",
+      "message": "watch engine updated",
+      "action": "work memory next action"
+    }
+  ],
+  "relevant_files": [],
+  "warnings": [],
+  "decisions": [],
+  "verification": []
+}
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            _ = handle_handoff_create(
+                root,
+                {
+                    "session_summary": "mcp summary wins",
+                    "first_next_action": "mcp next action wins",
+                },
+                TextContent,
+            )
+            content = (root / "PROJECT_CONTEXT.md").read_text(encoding="utf-8")
+
+        self.assertIn("mcp summary wins", content)
+        self.assertIn("mcp next action wins", content)
+        self.assertNotIn("현재 세션에서 `vibelign/core/watch_engine.py`", content)
+        self.assertNotIn("- 다음 할 일: work memory next action", content)
+
     def test_handle_project_context_get_returns_existing_file_when_present(
         self,
     ) -> None:
