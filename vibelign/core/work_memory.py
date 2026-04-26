@@ -122,6 +122,14 @@ def _normalize_string_list(raw: object, limit: int) -> list[str]:
     return items[:limit]
 
 
+def _warning_summary_line(warning: WorkMemoryEvent) -> str:
+    path = warning.get("path") or "(unknown)"
+    message = warning.get("message") or "(warning)"
+    action = warning.get("action") or ""
+    line = f"{path} — {message}"
+    return f"{line} → {action}" if action else line
+
+
 def _prune_events(events: list[WorkMemoryEvent], limit: int) -> list[WorkMemoryEvent]:
     return events[-limit:]
 
@@ -338,7 +346,7 @@ def build_transfer_summary(path: Path) -> WorkMemorySummary | None:
 
     warning_lines: list[str] = []
     for warning in reversed(state["warnings"]):
-        line = f"{warning.get('path') or '(unknown)'} — {warning.get('message') or '(warning)'}"
+        line = _warning_summary_line(warning)
         if line not in warning_lines:
             warning_lines.append(line)
         if len(warning_lines) >= MAX_WARNINGS_SUMMARY:

@@ -121,6 +121,24 @@ def test_transfer_summary_deduplicates_recent_lines(tmp_path: Path) -> None:
     assert summary.get("warnings", []).count("src/app.py — app.py에 앵커가 없습니다") == 1
 
 
+def test_transfer_summary_preserves_warning_action(tmp_path: Path) -> None:
+    path = tmp_path / ".vibelign" / "work_memory.json"
+    record_warning(
+        path,
+        rel_path="src/app.py",
+        message="app.py에 앵커가 없습니다",
+        action="vib doctor --fix-anchors --paths src/app.py",
+    )
+
+    summary = build_transfer_summary(path)
+
+    assert summary is not None
+    warnings = summary.get("warnings", [])
+    assert warnings == [
+        "src/app.py — app.py에 앵커가 없습니다 → vib doctor --fix-anchors --paths src/app.py"
+    ]
+
+
 def test_record_event_skips_unsafe_absolute_paths(tmp_path: Path) -> None:
     path = tmp_path / ".vibelign" / "work_memory.json"
     record_event(path, kind="modified", rel_path="/Users/me/secret.py", message="secret")
