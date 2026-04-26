@@ -398,23 +398,13 @@ def insert_js_symbol_anchors(path: Path) -> bool:
 
 
 # === ANCHOR: ANCHOR_TOOLS_INSERT_MODULE_ANCHORS_START ===
-def insert_module_anchors(path: Path) -> bool:
+def insert_module_only_anchors(path: Path) -> bool:
     text = safe_read_text(path)
     if not text:
         return False
     start, end = build_anchor_block(path)
     if start in text or end in text:
         return False
-    if path.suffix.lower() == ".py":
-        _ = insert_python_symbol_anchors(path)
-        text = safe_read_text(path)
-        if not text:
-            return False
-    elif path.suffix.lower() in {".js", ".ts", ".jsx", ".tsx"}:
-        _ = insert_js_symbol_anchors(path)
-        text = safe_read_text(path)
-        if not text:
-            return False
     try:
         lines = text.splitlines()
         prefix_lines: list[str] = []
@@ -437,6 +427,32 @@ def insert_module_anchors(path: Path) -> bool:
         print(f"경고: {path}에 앵커를 쓸 수 없습니다: {e}")
         return False
     return True
+
+
+def insert_auto_anchors(path: Path, *, module_only: bool = False) -> bool:
+    if module_only:
+        return insert_module_only_anchors(path)
+    return insert_module_anchors(path)
+
+
+def insert_module_anchors(path: Path) -> bool:
+    text = safe_read_text(path)
+    if not text:
+        return False
+    start, end = build_anchor_block(path)
+    if start in text or end in text:
+        return False
+    if path.suffix.lower() == ".py":
+        _ = insert_python_symbol_anchors(path)
+        text = safe_read_text(path)
+        if not text:
+            return False
+    elif path.suffix.lower() in {".js", ".ts", ".jsx", ".tsx"}:
+        _ = insert_js_symbol_anchors(path)
+        text = safe_read_text(path)
+        if not text:
+            return False
+    return insert_module_only_anchors(path)
 
 
 # === ANCHOR: ANCHOR_TOOLS_INSERT_MODULE_ANCHORS_END ===

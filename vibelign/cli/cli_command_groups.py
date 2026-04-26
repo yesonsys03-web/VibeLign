@@ -140,6 +140,18 @@ def register_extended_commands(
     _ = p.add_argument(
         "--fix", action="store_true", help="앵커 없는 파일에 자동으로 앵커 추가"
     )
+    _ = p.add_argument(
+        "--fix-anchors",
+        action="store_true",
+        help="앵커 없는 파일만 명시적으로 자동 정리",
+    )
+    _ = p.add_argument("--dry-run", action="store_true", help="수정 없이 대상만 미리 보기")
+    _ = p.add_argument(
+        "--paths",
+        nargs="+",
+        default=None,
+        help="특정 파일만 대상으로 실행",
+    )
     _ = p.add_argument("--write-report", action="store_true", help="결과를 파일로 저장")
     plan_group = p.add_mutually_exclusive_group()
     _ = plan_group.add_argument(
@@ -177,6 +189,17 @@ def register_extended_commands(
     )
     _ = p.add_argument("--suggest", action="store_true", help="앵커 추천 받기")
     _ = p.add_argument("--auto", action="store_true", help="자동으로 앵커 삽입")
+    _ = p.add_argument(
+        "--module-only",
+        action="store_true",
+        help="고급: 함수/클래스 단위 대신 파일 전체 앵커만 삽입",
+    )
+    _ = p.add_argument(
+        "--paths",
+        nargs="+",
+        default=None,
+        help="특정 파일만 대상으로 실행 (예: --paths src/app.py tests/test_app.py)",
+    )
     _ = p.add_argument("--validate", action="store_true", help="앵커 검증")
     _ = p.add_argument(
         "--dry-run", action="store_true", help="실제로 바꾸지 않고 미리 보기"
@@ -504,6 +527,7 @@ def register_extended_commands(
             "  vib transfer --handoff --print     Handoff 요약을 콘솔에도 출력\n"
             "  vib transfer --handoff --no-prompt 프롬프트 없이 자동 생성\n"
             "  vib transfer --handoff --session-summary \"현재 세션 작업\" --first-next-action \"다음 할 일\"\n"
+            "  vib transfer --handoff --dry-run   파일 저장 없이 미리 보기\n"
             "  vib transfer --out ctx.md          파일명 지정\n"
             "\n"
             "주의: --handoff와 --compact/--full은 함께 쓸 수 없습니다."

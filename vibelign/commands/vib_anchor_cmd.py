@@ -52,8 +52,8 @@ def _generate_anchor_intents_with_ai(
     )
 
 
-def _insert_module_anchors(path: Path) -> bool:
-    return anchor_tools_mod.insert_module_anchors(path)
+def _insert_anchors(path: Path, *, module_only: bool = False) -> bool:
+    return anchor_tools_mod.insert_auto_anchors(path, module_only=module_only)
 
 
 def _load_anchor_meta(root: Path) -> AnchorMetaMap:
@@ -119,6 +119,59 @@ def _allowed_exts(value: str) -> set[str] | None:
     return normalized
 
 
+def _paths_arg(value: object) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        raw_items = cast(list[object], value)
+        return [item for item in raw_items if isinstance(item, str) and item.strip()]
+    return []
+
+
+def _target_paths_from_args(root: Path, raw_paths: list[str]) -> list[Path] | None:
+    if not raw_paths:
+        return None
+    targets: list[Path] = []
+    for raw_path in raw_paths:
+        normalized_path = raw_path.replace("\\", "/")
+        candidate = (root / normalized_path).resolve()
+        try:
+            _ = candidate.relative_to(root)
+        except ValueError as exc:
+            raise SystemExit(f"오류: 프로젝트 밖 경로는 사용할 수 없습니다: {raw_path}") from exc
+        if candidate.is_file():
+            targets.append(candidate)
+    return targets
+
+
+def _recommend_path_targets(
+    root: Path,
+    paths: list[Path],
+    allowed_exts: set[str] | None,
+    project_map: ProjectMapSnapshot | None,
+) -> list[Recommendation]:
+    recommendations: list[Recommendation] = []
+    for path in paths:
+        if allowed_exts is not None and path.suffix.lower() not in allowed_exts:
+            continue
+        if anchor_tools_mod.extract_anchors(path):
+            continue
+        details = anchor_tools_mod.anchor_recommendation_details(root, path, project_map)
+        recommendations.append(cast(Recommendation, cast(object, details)))
+
+    def sort_key(item: Recommendation) -> tuple[int, int, str]:
+        score = item.get("score", 0)
+        line_count_value = item.get("line_count", 0)
+        line_count_int = line_count_value if isinstance(line_count_value, int) else 0
+        score_int = score if isinstance(score, int) else 0
+        return (-score_int, -line_count_int, str(item.get("path", "")))
+
+    recommendations.sort(
+        key=sort_key
+    )
+    return recommendations
+
+
 def _update_anchor_state(_root: Path, meta: MetaPaths) -> None:
     if not meta.state_path.exists():
         return
@@ -163,6 +216,8 @@ def run_vib_anchor(args: object) -> None:
     suggest_mode = bool(getattr(args, "suggest", False))
     dry_run = bool(getattr(args, "dry_run", False))
     auto_mode = bool(getattr(args, "auto", False))
+    module_only = bool(getattr(args, "module_only", False))
+    path_targets = _target_paths_from_args(root, _paths_arg(getattr(args, "paths", None)))
 
     if isinstance(set_intent, str) and set_intent:
         if not intent:
@@ -402,8 +457,10 @@ def run_vib_anchor(args: object) -> None:
         print(f"Anchor index saved: {meta.anchor_index_path.relative_to(root)}")
         return
 
-    recommendations = _recommend_anchor_targets(
-        root, allowed_exts=allowed_exts, project_map=project_map
+    recommendations = (
+        _recommend_path_targets(root, path_targets, allowed_exts, project_map)
+        if path_targets is not None
+        else _recommend_anchor_targets(root, allowed_exts=allowed_exts, project_map=project_map)
     )
     targets = [root / str(item["path"]) for item in recommendations]
     if suggest_mode or dry_run:
@@ -474,7 +531,7 @@ def run_vib_anchor(args: object) -> None:
 
     changed: list[str] = []
     for path in targets:
-        if _insert_module_anchors(path):
+        if _insert_anchors(path, module_only=module_only):
             changed.append(str(path.relative_to(root)))
     index = _write_anchor_index(root, meta, allowed_exts)
     _update_anchor_state(root, meta)

@@ -144,3 +144,65 @@ def test_auto_intent_json_stdout_is_pure_json_even_with_ai_chatter(
     assert payload["data"]["total_anchors"] == 1
     # ✅ / 🤖 같은 chatter 는 stderr 로 가야 한다
     assert "✅" in captured.err or "🤖" in captured.err
+
+
+def test_auto_paths_limits_anchor_insertion_to_requested_files(
+    anchor_project: Path,
+) -> None:
+    included = anchor_project / "included.py"
+    skipped = anchor_project / "skipped.py"
+    included.write_text("def included():\n    return True\n", encoding="utf-8")
+    skipped.write_text("def skipped():\n    return True\n", encoding="utf-8")
+
+    args = _parse(["anchor", "--auto", "--paths", "included.py"])
+    run_vib_anchor(args)
+
+    assert "ANCHOR:" in included.read_text(encoding="utf-8")
+    assert "ANCHOR:" not in skipped.read_text(encoding="utf-8")
+
+
+def test_auto_module_only_wraps_file_without_symbol_anchors(
+    anchor_project: Path,
+) -> None:
+    src = anchor_project / "service.py"
+    src.write_text("def login():\n    return True\n", encoding="utf-8")
+
+    args = _parse(["anchor", "--auto", "--module-only", "--paths", "service.py"])
+    run_vib_anchor(args)
+
+    text = src.read_text(encoding="utf-8")
+    assert "ANCHOR: SERVICE_START" in text
+    assert "ANCHOR: SERVICE_LOGIN_START" not in text
+
+
+def test_auto_paths_accepts_windows_style_separators(anchor_project: Path) -> None:
+    src_dir = anchor_project / "src"
+    src_dir.mkdir()
+    included = src_dir / "included.py"
+    included.write_text("def included():\n    return True\n", encoding="utf-8")
+
+    args = _parse(["anchor", "--auto", "--paths", "src\\included.py"])
+    run_vib_anchor(args)
+
+    assert "ANCHOR:" in included.read_text(encoding="utf-8")
+
+
+def test_auto_default_keeps_module_and_symbol_anchors(anchor_project: Path) -> None:
+    src = anchor_project / "service.py"
+    src.write_text("def login():\n    return True\n", encoding="utf-8")
+
+    args = _parse(["anchor", "--auto", "--paths", "service.py"])
+    run_vib_anchor(args)
+
+    text = src.read_text(encoding="utf-8")
+    assert "ANCHOR: SERVICE_START" in text
+    assert "ANCHOR: SERVICE_LOGIN_START" in text
+
+
+def test_auto_paths_rejects_outside_project(anchor_project: Path) -> None:
+    args = _parse(["anchor", "--auto", "--paths", "../outside.py"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        run_vib_anchor(args)
+
+    assert "프로젝트 밖 경로" in str(exc_info.value)
