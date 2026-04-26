@@ -33,9 +33,11 @@ from vibelign.terminal_render import (
 _TRANSFER_MARKER = "<!-- VibeLign Transfer Context -->"
 
 _SKIP_DIRS = set(TRANSFER_TREE_IGNORED_DIRS)
+_SKIP_DIRS_LOWER = {item.lower() for item in _SKIP_DIRS}
 _SKIP_EXTS = set(HANDOFF_SKIP_EXTENSIONS)
 _KEY_FILE_NAMES = set(HANDOFF_KEY_FILE_NAMES)
 _HANDOFF_SKIP_PREFIXES = SHARED_HANDOFF_SKIP_PREFIXES
+_HANDOFF_SKIP_DIR_SUFFIXES = (".egg-info",)
 
 
 class CheckpointSummary(TypedDict):
@@ -57,6 +59,7 @@ class HandoffData(TypedDict, total=False):
     active_intent: str | None
     session_summary: str | None
     changed_files: list[str]
+    change_details: list[str]
     completed_work: str | None
     unfinished_work: str | None
     first_next_action: str | None
@@ -230,10 +233,95 @@ def _get_changed_files(root: Path) -> list[str]:
     files = [
         f
         for f in files
-        if not any(f.startswith(p) for p in _HANDOFF_SKIP_PREFIXES)
-        and not f.endswith((".pyc", ".pyo"))
+        if _should_include_handoff_path(f) and not f.endswith((".pyc", ".pyo"))
     ]
     return files[:10]
+
+
+def _should_include_handoff_path(path: str) -> bool:
+    normalized_path = path.replace("\\", "/").strip()
+    if not normalized_path or any(
+        normalized_path.startswith(p) for p in _HANDOFF_SKIP_PREFIXES
+    ):
+        return False
+    for part in normalized_path.split("/"):
+        normalized_part = part.lower()
+        if normalized_part in _SKIP_DIRS_LOWER:
+            return False
+        if any(normalized_part.endswith(suffix) for suffix in _HANDOFF_SKIP_DIR_SUFFIXES):
+            return False
+    return True
+
+
+def _working_tree_numstat(root: Path) -> dict[str, str]:
+    stats: dict[str, str] = {}
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--numstat", "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=root,
+            timeout=5,
+            creationflags=_WINDOWS_FLAGS,
+        )
+    except Exception:
+        return stats
+    for line in result.stdout.splitlines():
+        parts = line.split("\t")
+        if len(parts) < 3:
+            continue
+        added, removed, raw_path = parts[0], parts[1], parts[2]
+        path = raw_path.split(" => ")[-1].strip("{}")
+        if not _should_include_handoff_path(path):
+            continue
+        stats[path] = "binary changed" if "-" in (added, removed) else f"+{added}/-{removed}"
+    return stats
+
+
+def _status_label(code: str) -> str:
+    if "?" in code:
+        return "untracked"
+    if "A" in code:
+        return "added"
+    if "D" in code:
+        return "deleted"
+    if "R" in code:
+        return "renamed"
+    return "modified"
+
+
+def _get_working_tree_change_details(root: Path) -> list[str]:
+    """Return concise git working-tree details for handoff continuation."""
+    details: list[str] = []
+    stats = _working_tree_numstat(root)
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            cwd=root,
+            timeout=5,
+            creationflags=_WINDOWS_FLAGS,
+        )
+    except Exception:
+        return details
+    for line in result.stdout.splitlines():
+        if len(line) < 4:
+            continue
+        code = line[:2]
+        raw_path = line[3:].strip()
+        path = raw_path.split(" -> ")[-1]
+        if not _should_include_handoff_path(path):
+            continue
+        detail = f"{path} — {_status_label(code)}"
+        stat = stats.get(path) or stats.get(raw_path)
+        if stat:
+            detail += f" ({stat})"
+        if detail not in details:
+            details.append(detail)
+        if len(details) >= 8:
+            break
+    return details
 
 
 def _detect_project_name(root: Path) -> str:
@@ -464,6 +552,13 @@ def _build_handoff_block(data: HandoffData) -> str:
     lines.append(completed)
     lines.append("")
 
+    change_details = _handoff_lines(data.get("change_details"))
+    if change_details:
+        lines.append("### Code change details")
+        for item in change_details[:8]:
+            lines.append(f"- {item}")
+        lines.append("")
+
     verification = _handoff_lines(data.get("verification"))
     lines.append("### Verification snapshot")
     if verification:
@@ -520,6 +615,9 @@ def _build_handoff_block(data: HandoffData) -> str:
     state_references = _handoff_lines(data.get("state_references"))
     if state_references:
         lines.append("### State references")
+        lines.append(
+            "PROJECT_CONTEXT.md 요약만으로 부족하면 아래 상태 파일도 함께 읽으세요."
+        )
         for item in state_references[:3]:
             lines.append(f"- `{item}`")
 
@@ -533,6 +631,16 @@ def _merge_changed_files(primary: list[str], secondary: list[str]) -> list[str]:
         if item and item not in merged:
             merged.append(item)
     return merged[:10]
+
+
+def _merge_handoff_lines(primary: list[str], secondary: list[str], limit: int = 8) -> list[str]:
+    merged: list[str] = []
+    for item in primary + secondary:
+        if item and item not in merged:
+            merged.append(item)
+        if len(merged) >= limit:
+            break
+    return merged
 
 
 def _live_working_changes_from_events(events: object) -> list[str]:
@@ -638,6 +746,10 @@ def _enrich_handoff_with_work_memory(root: Path, data: HandoffData) -> HandoffDa
     data["changed_files"] = _merge_changed_files(
         _handoff_files(data.get("changed_files")),
         _handoff_files(summary.get("changed_files")),
+    )
+    data["change_details"] = _merge_handoff_lines(
+        _handoff_lines(data.get("change_details")),
+        _handoff_lines(summary.get("change_details")),
     )
     relevant_files = summary.get("relevant_files")
     if relevant_files:
@@ -867,7 +979,8 @@ def _get_uncommitted_summary(root: Path) -> str | None:
             l.strip()
             for l in result.stdout.splitlines()
             if l.strip()
-            and not any(l[3:].strip().startswith(p) for p in _HANDOFF_SKIP_PREFIXES)
+            and len(l) > 3
+            and _should_include_handoff_path(l[3:].strip())
         ]
         if not lines:
             return None
@@ -959,6 +1072,7 @@ def _collect_handoff_data_from_cli(
         "quality": "auto-drafted",
         "session_summary": None,
         "changed_files": changed_files,
+        "change_details": _get_working_tree_change_details(root),
         "completed_work": None,
         "unfinished_work": None,
         "first_next_action": None,

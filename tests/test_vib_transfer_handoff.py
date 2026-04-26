@@ -23,6 +23,7 @@ def _make_handoff_data(**kwargs: object) -> HandoffData:
         "active_intent": None,
         "session_summary": None,
         "changed_files": [],
+        "change_details": [],
         "completed_work": None,
         "unfinished_work": None,
         "first_next_action": None,
@@ -64,6 +65,22 @@ def test_handoff_block_required_fields():
     assert block.index("### Recent git context") > block.index("### Relevant files")
     assert "`auth.py`" in block
     assert "Write tests for auth flow" in block
+
+
+def test_handoff_block_renders_code_change_details():
+    data = _make_handoff_data(
+        session_summary="Improved handoff continuation",
+        change_details=[
+            "vibelign/commands/vib_transfer_cmd.py — modified (+12/-2)",
+            "tests/test_vib_transfer_handoff.py — modified (+8/-0)",
+        ],
+    )
+
+    block = _build_handoff_block(data)
+
+    assert "### Code change details" in block
+    assert "vibelign/commands/vib_transfer_cmd.py — modified (+12/-2)" in block
+    assert block.index("### Code change details") < block.index("### Verification snapshot")
 
 
 def test_handoff_block_missing_fields_render_as_not_provided():
@@ -349,6 +366,8 @@ def test_handoff_no_prompt_includes_work_memory_facts_when_present(tmp_path):
     assert "현재 세션에서" in content
     assert "Relevant files" in content
     assert "Live working changes" in content
+    assert "Code change details" in content
+    assert "vibelign/core/watch_engine.py — modified: watch engine updated" in content
     assert "Concrete next steps" in content
     assert "Recent factual changes" not in content
     assert "Warnings / risks" in content
@@ -494,10 +513,50 @@ def test_handoff_live_working_changes_removes_redundant_modified_message(tmp_pat
 
     content = out_path.read_text(encoding="utf-8")
     live_changes_section = content.split("### Live working changes", 1)[1].split(
-        "### Verification snapshot", 1
+        "### Code change details", 1
     )[0]
     assert "modified: tests/test_vib_transfer_handoff.py" in live_changes_section
     assert "tests/test_vib_transfer_handoff.py — tests/test_vib_transfer_handoff.py modified" not in live_changes_section
+
+
+def test_handoff_no_prompt_includes_git_working_tree_details(tmp_path):
+    tracked = tmp_path / "tracked.py"
+    tracked.write_text("before\n", encoding="utf-8")
+
+    with mock.patch("os.getcwd", return_value=str(tmp_path)):
+        import subprocess
+
+        subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+        subprocess.run(["git", "add", "tracked.py"], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "initial"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            env={
+                "GIT_AUTHOR_NAME": "Test",
+                "GIT_AUTHOR_EMAIL": "test@example.com",
+                "GIT_COMMITTER_NAME": "Test",
+                "GIT_COMMITTER_EMAIL": "test@example.com",
+            },
+        )
+        tracked.write_text("before\nafter\n", encoding="utf-8")
+        (tmp_path / "new_file.py").write_text("new\n", encoding="utf-8")
+        egg_info_dir = tmp_path / "vibelign.egg-info"
+        egg_info_dir.mkdir()
+        (egg_info_dir / "PKG-INFO").write_text("Metadata-Version: 2.1\n", encoding="utf-8")
+        (egg_info_dir / "SOURCES.txt").write_text("vibelign/__init__.py\n", encoding="utf-8")
+
+        out_path = tmp_path / "PROJECT_CONTEXT.md"
+        args = _make_args(handoff=True, no_prompt=True, out=str(out_path))
+        run_transfer(args)
+
+    content = out_path.read_text(encoding="utf-8")
+    assert "### Code change details" in content
+    assert "tracked.py — modified" in content
+    assert "new_file.py — untracked" in content
+    assert "vibelign.egg-info" not in content
+    assert "PKG-INFO" not in content
 
 
 def test_handoff_without_work_memory_keeps_fallback_behavior(tmp_path):
@@ -522,6 +581,8 @@ def test_handoff_block_stays_bounded_and_avoids_raw_logs():
 
     block = _build_handoff_block(data)
 
+    assert "PROJECT_CONTEXT.md 요약만으로 부족하면 아래 상태 파일도 함께 읽으세요." in block
+    assert "`.vibelign/work_memory.json`" in block
     assert block.count("- event") <= 5
     assert block.count("- warning") <= 5
     assert block.count("- verification") <= 5
