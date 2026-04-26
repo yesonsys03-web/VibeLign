@@ -54,13 +54,21 @@ class HandoffData(TypedDict, total=False):
     generated_at: str
     source: str
     quality: str
+    active_intent: str | None
     session_summary: str | None
     changed_files: list[str]
     completed_work: str | None
     unfinished_work: str | None
     first_next_action: str | None
+    concrete_next_steps: list[str]
     decision_context: DecisionContext | None
     latest_checkpoint: str | None
+    recent_git_context: list[str]
+    relevant_files: list[dict[str, str]]
+    recent_events: list[str]
+    warnings: list[str]
+    verification: list[str]
+    state_references: list[str]
 
 
 class TransferArgs(Protocol):
@@ -71,6 +79,8 @@ class TransferArgs(Protocol):
     print_mode: bool
     dry_run: bool
     out: str | None
+    session_summary: str | None
+    first_next_action: str | None
 
 
 _TIMESTAMP_PATTERN = re.compile(r"\s*\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)\s*$")
@@ -115,6 +125,10 @@ def _handoff_text(value: object, default: str = "(not provided)") -> str:
     return value if isinstance(value, str) and value else default
 
 
+def _handoff_markdown_text(value: str) -> str:
+    return " ".join(value.split()).replace("`", "'")
+
+
 def _handoff_files(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -124,6 +138,38 @@ def _handoff_files(value: object) -> list[str]:
         if isinstance(item, str):
             items.append(item)
     return items
+
+
+def _handoff_lines(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    items: list[str] = []
+    for item in cast(list[object], value):
+        if isinstance(item, str) and item:
+            items.append(_handoff_markdown_text(item))
+    return items
+
+
+def _handoff_relevant_files(value: object) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    entries: list[dict[str, str]] = []
+    for item in cast(list[object], value):
+        normalized = _normalize_object_dict(item)
+        if normalized is None:
+            continue
+        path = normalized.get("path")
+        why = normalized.get("why")
+        if isinstance(path, str) and path:
+            entries.append(
+                {
+                    "path": _handoff_markdown_text(path),
+                    "why": _handoff_markdown_text(why)
+                    if isinstance(why, str) and why
+                    else "Relevant to recent work.",
+                }
+            )
+    return entries
 
 
 def _handoff_decision_context(value: object) -> DecisionContext | None:
@@ -389,17 +435,59 @@ def _build_handoff_block(data: HandoffData) -> str:
     )
     lines.append("")
 
+    active_intent = _handoff_text(data.get("active_intent"), "") or _infer_active_intent(
+        data
+    )
+    if active_intent:
+        lines.append("### Active intent")
+        lines.append(active_intent)
+        lines.append("")
+
     # 요약
     summary = _handoff_text(data.get("session_summary"))
-    lines.append(f"### 오늘 작업 요약")
+    lines.append("### 현재 세션 작업 요약")
     lines.append(summary)
     lines.append("")
 
-    # 완료된 작업 (상세)
+    concrete_next_steps = _build_concrete_next_steps(data)
+    unfinished = _handoff_text(data.get("unfinished_work"), "")
+    lines.append("### Concrete next steps")
+    if unfinished:
+        lines.append(f"- 미완료: {unfinished}")
+    for item in concrete_next_steps[:5]:
+        lines.append(f"- {item}")
+    lines.append("")
+
+    # 현재 세션에서 감지된 실제 변경 기록
     completed = _handoff_text(data.get("completed_work"))
-    lines.append("### 완료된 작업")
+    lines.append("### Live working changes")
     lines.append(completed)
     lines.append("")
+
+    verification = _handoff_lines(data.get("verification"))
+    lines.append("### Verification snapshot")
+    if verification:
+        for item in verification[:5]:
+            lines.append(f"- {item}")
+    else:
+        lines.append(
+            "- Not recorded in work memory. Rerun the relevant tests/build before committing."
+        )
+    lines.append("")
+
+    relevant_files = _handoff_relevant_files(data.get("relevant_files"))
+    if relevant_files:
+        lines.append("### Relevant files")
+        for entry in relevant_files[:5]:
+            lines.append(f"- `{entry['path']}` — {entry['why']}")
+        lines.append("")
+
+    recent_git_context = _handoff_lines(data.get("recent_git_context"))
+    if recent_git_context:
+        lines.append("### Recent git context")
+        for item in recent_git_context[:5]:
+            lines.append(f"- {item}")
+        lines.append("")
 
     # 변경 파일
     changed = _handoff_files(data.get("changed_files"))
@@ -413,13 +501,12 @@ def _build_handoff_block(data: HandoffData) -> str:
         lines.append("(not provided)")
     lines.append("")
 
-    # 미완료 / 후속 작업
-    unfinished = _handoff_text(data.get("unfinished_work"))
-    next_action = _handoff_text(data.get("first_next_action"))
-    lines.append("### 후속 작업")
-    lines.append(f"- 미완료: {unfinished}")
-    lines.append(f"- 다음 할 일: {next_action}")
-    lines.append("")
+    warnings = _handoff_lines(data.get("warnings"))
+    if warnings:
+        lines.append("### Warnings / risks")
+        for item in warnings[:5]:
+            lines.append(f"- {item}")
+        lines.append("")
 
     # Decision context (optional)
     dc = _handoff_decision_context(data.get("decision_context"))
@@ -428,9 +515,154 @@ def _build_handoff_block(data: HandoffData) -> str:
         lines.append(f"- 시도: {dc.get('tried') or '(not provided)'}")
         lines.append(f"- 막힌 이유: {dc.get('blocked_by') or '(not provided)'}")
         lines.append(f"- 새 방향: {dc.get('switched_to') or '(not provided)'}")
+        lines.append("")
+
+    state_references = _handoff_lines(data.get("state_references"))
+    if state_references:
+        lines.append("### State references")
+        for item in state_references[:3]:
+            lines.append(f"- `{item}`")
 
     lines.append("")
     return "\n".join(lines)
+
+
+def _merge_changed_files(primary: list[str], secondary: list[str]) -> list[str]:
+    merged: list[str] = []
+    for item in primary + secondary:
+        if item and item not in merged:
+            merged.append(item)
+    return merged[:10]
+
+
+def _live_working_changes_from_events(events: object) -> list[str]:
+    live_changes: list[str] = []
+    for event in _handoff_lines(events):
+        if event.startswith("warning:"):
+            continue
+        display = event
+        if ": " in event and " — " in event:
+            kind_and_path, message = event.split(" — ", 1)
+            kind, path = kind_and_path.split(": ", 1)
+            if message in {f"{path} {kind}", f"{path} {kind}d", f"{path} modified"}:
+                display = f"{kind}: {path}"
+        if display in live_changes:
+            continue
+        live_changes.append(display)
+    return live_changes[:5]
+
+
+def _is_handoff_reading_instruction(value: object) -> bool:
+    text = _handoff_text(value, "")
+    if not text:
+        return False
+    return "PROJECT_CONTEXT.md" in text and "Session Handoff" in text and "먼저 읽" in text
+
+
+def _mentions_any(text: str, markers: tuple[str, ...]) -> bool:
+    lower_text = text.lower()
+    return any(marker.lower() in lower_text for marker in markers)
+
+
+def _infer_active_intent(data: HandoffData) -> str | None:
+    paths = " ".join(
+        _handoff_files(data.get("changed_files"))
+        + [entry["path"] for entry in _handoff_relevant_files(data.get("relevant_files"))]
+    )
+    if any(
+        marker in paths
+        for marker in (
+            "work_memory",
+            "vib_transfer_cmd",
+            "TransferCard",
+            "mcp_transfer",
+            "mcp_tool_specs",
+        )
+    ):
+        return (
+            "transfer/work_memory 기반 Session Handoff 품질을 개선해, 새 AI가 현재 세션의 "
+            "의도·검증·다음 작업을 바로 이어받게 만드는 중입니다."
+        )
+    summary = _handoff_text(data.get("session_summary"), "")
+    return summary or None
+
+
+def _build_concrete_next_steps(data: HandoffData) -> list[str]:
+    steps: list[str] = []
+    next_action = _handoff_text(data.get("first_next_action"), "")
+    if next_action and not _is_handoff_reading_instruction(next_action):
+        steps.append(next_action)
+    else:
+        steps.extend(_handoff_lines(data.get("concrete_next_steps")))
+    verification = _handoff_lines(data.get("verification"))
+    mentions_verification = any(
+        _mentions_any(step, ("pytest", "build", "test", "테스트", "verification"))
+        for step in steps
+    )
+    if verification:
+        steps.append("Verification snapshot을 기준으로 실패나 회귀가 없는지 확인하세요.")
+    elif not mentions_verification:
+        steps.append("관련 pytest/build를 재실행하고 Verification snapshot을 갱신하세요.")
+    mentions_warnings = any(
+        _mentions_any(step, ("warning", "warnings", "risk", "risks", "경고"))
+        for step in steps
+    )
+    if _handoff_lines(data.get("warnings")) and not mentions_warnings:
+        steps.append("Warnings / risks를 검토하고 실제 수정 대상과 허용 가능한 경고를 구분하세요.")
+    if _handoff_text(data.get("unfinished_work"), ""):
+        steps.append("unrelated 변경을 분리한 뒤 handoff 관련 변경만 커밋 준비하세요.")
+    if not steps:
+        steps.append("현재 Session Handoff의 Active intent에 맞춰 다음 작업을 이어가세요.")
+    return steps[:5]
+
+
+def _enrich_handoff_with_work_memory(root: Path, data: HandoffData) -> HandoffData:
+    from vibelign.core.meta_paths import MetaPaths
+    from vibelign.core.work_memory import build_transfer_summary
+
+    summary = build_transfer_summary(MetaPaths(root).work_memory_path)
+    if summary is None:
+        return data
+
+    if not data.get("active_intent"):
+        data["active_intent"] = summary.get("active_intent")
+    if not data.get("session_summary"):
+        data["session_summary"] = summary.get("session_summary")
+    if not data.get("first_next_action"):
+        data["first_next_action"] = summary.get("first_next_action")
+    if not data.get("unfinished_work"):
+        data["unfinished_work"] = summary.get("unfinished_work")
+    concrete_next_steps = summary.get("concrete_next_steps")
+    if concrete_next_steps:
+        data["concrete_next_steps"] = concrete_next_steps
+    data["changed_files"] = _merge_changed_files(
+        _handoff_files(data.get("changed_files")),
+        _handoff_files(summary.get("changed_files")),
+    )
+    relevant_files = summary.get("relevant_files")
+    if relevant_files:
+        data["relevant_files"] = cast(list[dict[str, str]], relevant_files)
+    recent_events = summary.get("recent_events")
+    if recent_events:
+        data["recent_events"] = recent_events
+        if not data.get("completed_work"):
+            live_changes = _live_working_changes_from_events(recent_events)
+            if live_changes:
+                data["completed_work"] = "\n".join(f"- {event}" for event in live_changes)
+    warnings = summary.get("warnings")
+    if warnings:
+        data["warnings"] = warnings
+    verification = summary.get("verification")
+    if verification:
+        data["verification"] = verification
+    state_references = summary.get("state_references")
+    if state_references:
+        data["state_references"] = state_references
+    return data
+
+
+def enrich_handoff_with_work_memory(root: Path, data: HandoffData) -> HandoffData:
+    return _enrich_handoff_with_work_memory(root, data)
 
 
 def _build_context_content(
@@ -653,7 +885,7 @@ def _handoff_quality(data: HandoffData) -> tuple[str, str]:
     if summary and summary != "(not provided)":
         score += 40
     else:
-        missing.append("오늘 한 작업 요약")
+        missing.append("현재 세션 작업 요약")
 
     next_action = _handoff_text(data.get("first_next_action"), "")
     if next_action and next_action != "(not provided)":
@@ -709,7 +941,12 @@ def get_changed_files(root: Path) -> list[str]:
     return _get_changed_files(root)
 
 
-def _collect_handoff_data_from_cli(root: Path, no_prompt: bool) -> HandoffData:
+def _collect_handoff_data_from_cli(
+    root: Path,
+    no_prompt: bool,
+    session_summary: str | None = None,
+    first_next_action: str | None = None,
+) -> HandoffData:
     """CLI 경로(파일 기반 폴백)로 handoff_data 수집."""
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
     changed_files = _get_changed_files(root)
@@ -732,8 +969,8 @@ def _collect_handoff_data_from_cli(root: Path, no_prompt: bool) -> HandoffData:
     # git 커밋 메시지로 session_summary 초안 생성
     recent_commits = _get_recent_commits(root, n=5)
     commit_draft = ", ".join(recent_commits) if recent_commits else None
-    if commit_draft:
-        data["session_summary"] = commit_draft
+    if recent_commits:
+        data["recent_git_context"] = recent_commits
 
     # 상세 커밋 정보로 completed_work 자동 생성
     detailed = _get_detailed_commits(root, n=10)
@@ -750,6 +987,23 @@ def _collect_handoff_data_from_cli(root: Path, no_prompt: bool) -> HandoffData:
     uncommitted = _get_uncommitted_summary(root)
     if uncommitted:
         data["unfinished_work"] = uncommitted
+
+    data = _enrich_handoff_with_work_memory(root, data)
+    current_session_events = _live_working_changes_from_events(data.get("recent_events"))
+    if current_session_events:
+        data["completed_work"] = "\n".join(
+            f"- {event}" for event in current_session_events[:5]
+        )
+
+    if commit_draft and not data.get("session_summary"):
+        data["session_summary"] = commit_draft
+
+    if session_summary:
+        data["session_summary"] = session_summary
+        data["quality"] = "gui-assisted"
+    if first_next_action:
+        data["first_next_action"] = first_next_action
+        data["quality"] = "gui-assisted"
 
     if no_prompt:
         return data
@@ -768,9 +1022,12 @@ def _collect_handoff_data_from_cli(root: Path, no_prompt: bool) -> HandoffData:
         clack_info(f"     최근 체크포인트: {latest_cp}")
 
     # git 커밋 초안 확인
-    if commit_draft:
+    if data.get("session_summary"):
         clack_info("")
-        clack_info("  💡 오늘 한 작업 초안 (최근 커밋 기반):")
+        clack_info("  💡 현재 세션 작업 요약이 이미 준비되어 있어요.")
+    elif commit_draft:
+        clack_info("")
+        clack_info("  💡 현재 세션 작업 초안 (최근 커밋 기반):")
         for c in recent_commits:
             clack_info(f"     • {c}")
         clack_info("")
@@ -781,7 +1038,7 @@ def _collect_handoff_data_from_cli(root: Path, no_prompt: bool) -> HandoffData:
         if keep == "n":
             data["session_summary"] = None
             try:
-                manual = input("  오늘 한 작업 요약 (한 줄): ").strip()
+                manual = input("  현재 세션 작업 요약 (한 줄): ").strip()
             except (EOFError, KeyboardInterrupt):
                 manual = ""
             if manual:
@@ -789,7 +1046,7 @@ def _collect_handoff_data_from_cli(root: Path, no_prompt: bool) -> HandoffData:
     else:
         clack_info("")
         try:
-            manual = input("  오늘 한 작업 요약 (선택, 엔터 = 건너뜀): ").strip()
+            manual = input("  현재 세션 작업 요약 (선택, 엔터 = 건너뜀): ").strip()
         except (EOFError, KeyboardInterrupt):
             manual = ""
         if manual:
@@ -798,13 +1055,16 @@ def _collect_handoff_data_from_cli(root: Path, no_prompt: bool) -> HandoffData:
     clack_info("")
 
     # 필수: 다음 AI 첫 번째 할 일
-    try:
-        next_action = input("  다음 AI가 먼저 할 일을 한 줄로 알려주세요: ").strip()
-    except (EOFError, KeyboardInterrupt):
-        next_action = ""
-    if next_action:
-        data["first_next_action"] = next_action
-        data["quality"] = "user-reviewed"
+    if data.get("first_next_action"):
+        clack_info("  다음 AI 첫 작업도 이미 준비되어 있어요.")
+    else:
+        try:
+            next_action = input("  다음 AI가 먼저 할 일을 한 줄로 알려주세요: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            next_action = ""
+        if next_action:
+            data["first_next_action"] = next_action
+            data["quality"] = "user-reviewed"
 
     # 선택: 방향 전환 컨텍스트
     try:
@@ -840,6 +1100,8 @@ def run_transfer(args: object) -> None:
     print_mode = _arg_bool(args, "print_mode")
     dry_run = _arg_bool(args, "dry_run")
     out_file = _arg_text(args, "out") or "PROJECT_CONTEXT.md"
+    session_summary = _arg_text(args, "session_summary")
+    first_next_action = _arg_text(args, "first_next_action")
     out_path = root / out_file
 
     # --handoff와 --compact/--full 동시 사용 불가
@@ -850,7 +1112,12 @@ def run_transfer(args: object) -> None:
     clack_step("프로젝트 분석 중...")
 
     if handoff:
-        handoff_data = _collect_handoff_data_from_cli(root, no_prompt=no_prompt)
+        handoff_data = _collect_handoff_data_from_cli(
+            root,
+            no_prompt=no_prompt,
+            session_summary=session_summary,
+            first_next_action=first_next_action,
+        )
         content = _build_context_content(root, handoff_data=handoff_data)
     else:
         handoff_data = None

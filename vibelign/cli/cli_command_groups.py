@@ -503,6 +503,7 @@ def register_extended_commands(
             "  vib transfer --handoff             AI 전환용 Session Handoff 블록 포함\n"
             "  vib transfer --handoff --print     Handoff 요약을 콘솔에도 출력\n"
             "  vib transfer --handoff --no-prompt 프롬프트 없이 자동 생성\n"
+            "  vib transfer --handoff --session-summary \"현재 세션 작업\" --first-next-action \"다음 할 일\"\n"
             "  vib transfer --out ctx.md          파일명 지정\n"
             "\n"
             "주의: --handoff와 --compact/--full은 함께 쓸 수 없습니다."
@@ -524,6 +525,18 @@ def register_extended_commands(
         dest="no_prompt",
         action="store_true",
         help="프롬프트 없이 자동 생성 (--handoff 전용)",
+    )
+    _ = p.add_argument(
+        "--session-summary",
+        dest="session_summary",
+        default=None,
+        help="Session Handoff에 넣을 현재 세션 작업 요약 (--handoff 전용)",
+    )
+    _ = p.add_argument(
+        "--first-next-action",
+        dest="first_next_action",
+        default=None,
+        help="Session Handoff에 넣을 다음 AI의 첫 작업 (--handoff 전용)",
     )
     _ = p.add_argument(
         "--dry-run",

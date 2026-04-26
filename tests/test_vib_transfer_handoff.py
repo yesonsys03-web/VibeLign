@@ -20,6 +20,7 @@ def _make_handoff_data(**kwargs: object) -> HandoffData:
         "generated_at": "2026-03-23 12:00",
         "source": "file_fallback",
         "quality": "auto-drafted",
+        "active_intent": None,
         "session_summary": None,
         "changed_files": [],
         "completed_work": None,
@@ -27,6 +28,8 @@ def _make_handoff_data(**kwargs: object) -> HandoffData:
         "first_next_action": None,
         "decision_context": None,
         "latest_checkpoint": None,
+        "recent_git_context": [],
+        "concrete_next_steps": [],
     }
     base.update(kwargs)
     return cast(HandoffData, cast(object, base))
@@ -38,15 +41,27 @@ def _make_handoff_data(**kwargs: object) -> HandoffData:
 def test_handoff_block_required_fields():
     data = _make_handoff_data(
         session_summary="Fixed login bug",
+        recent_git_context=["fix(auth): previous login cleanup"],
+        relevant_files=[{"path": "auth.py", "why": "Authentication flow under test."}],
         changed_files=["auth.py", "tests/test_auth.py"],
         first_next_action="Write tests for auth flow",
     )
     block = _build_handoff_block(data)
 
     assert "## Session Handoff" in block
+    assert "현재 세션 작업 요약" in block
     assert "file_fallback" in block
     assert "auto-drafted" in block
+    assert "### Active intent" in block
     assert "Fixed login bug" in block
+    assert "### Recent git context" in block
+    assert "fix(auth): previous login cleanup" in block
+    assert "### Concrete next steps" in block
+    assert "### Verification snapshot" in block
+    assert block.index("### 현재 세션 작업 요약") < block.index("### Concrete next steps")
+    assert "### Live working changes" in block
+    assert block.index("### Live working changes") < block.index("### Verification snapshot")
+    assert block.index("### Recent git context") > block.index("### Relevant files")
     assert "`auth.py`" in block
     assert "Write tests for auth flow" in block
 
@@ -57,9 +72,8 @@ def test_handoff_block_missing_fields_render_as_not_provided():
 
     # All optional fields missing → "(not provided)"
     assert "(not provided)" in block
-    # Should appear for: session_summary, changed_files, completed_work,
-    # unfinished_work, first_next_action
-    assert block.count("(not provided)") >= 4
+    # Should appear for: session_summary, live changes, changed_files
+    assert block.count("(not provided)") >= 3
 
 
 def test_handoff_block_with_decision_context():
@@ -207,6 +221,8 @@ def _make_args(**kwargs):
         no_prompt=False,
         print_mode=False,
         out=None,
+        session_summary=None,
+        first_next_action=None,
     )
     defaults.update(kwargs)
     return argparse.Namespace(**defaults)
@@ -254,3 +270,259 @@ def test_handoff_no_prompt_writes_file_with_block(tmp_path):
     content = out_path.read_text(encoding="utf-8")
     assert "## Session Handoff" in content
     assert "auto-drafted" in content
+
+
+def test_handoff_accepts_non_interactive_summary_and_next_action(tmp_path):
+    out_path = tmp_path / "PROJECT_CONTEXT.md"
+    args = _make_args(
+        handoff=True,
+        no_prompt=True,
+        out=str(out_path),
+        session_summary="GUI generated a beginner friendly handoff",
+        first_next_action="Read the Session Handoff first",
+    )
+
+    with mock.patch("os.getcwd", return_value=str(tmp_path)):
+        run_transfer(args)
+
+    content = out_path.read_text(encoding="utf-8")
+    assert "GUI generated a beginner friendly handoff" in content
+    assert "Read the Session Handoff first" in content
+    assert "gui-assisted" in content
+
+
+def test_handoff_no_prompt_includes_work_memory_facts_when_present(tmp_path):
+    vibelign_dir = tmp_path / ".vibelign"
+    vibelign_dir.mkdir()
+    work_memory_path = vibelign_dir / "work_memory.json"
+    work_memory_path.write_text(
+        """
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-26T00:00:00Z",
+  "recent_events": [
+    {
+      "time": "2026-04-26T00:00:00Z",
+      "kind": "warning",
+      "path": "vibelign/commands/vib_transfer_cmd.py",
+      "message": "Large file warning",
+      "action": "Keep edits localized."
+    },
+    {
+      "time": "2026-04-26T00:00:00Z",
+      "kind": "modified",
+      "path": "vibelign/core/watch_engine.py",
+      "message": "watch engine updated",
+      "action": "Run the targeted watch and transfer tests."
+    }
+  ],
+  "relevant_files": [
+    {
+      "path": "vibelign/core/watch_engine.py",
+      "why": "Recently modified by watch integration work."
+    }
+  ],
+  "warnings": [
+    {
+      "time": "2026-04-26T00:00:00Z",
+      "kind": "warning",
+      "path": "vibelign/core/watch_engine.py",
+      "message": "Large file warning",
+      "action": "Keep edits localized."
+    }
+  ],
+  "decisions": [],
+  "verification": ["uv run pytest tests/test_watch_engine.py"]
+}
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    out_path = tmp_path / "PROJECT_CONTEXT.md"
+    args = _make_args(handoff=True, no_prompt=True, out=str(out_path))
+
+    with mock.patch("os.getcwd", return_value=str(tmp_path)):
+        run_transfer(args)
+
+    content = out_path.read_text(encoding="utf-8")
+    assert "현재 세션 작업 요약" in content
+    assert "현재 세션에서" in content
+    assert "Relevant files" in content
+    assert "Live working changes" in content
+    assert "Concrete next steps" in content
+    assert "Recent factual changes" not in content
+    assert "Warnings / risks" in content
+    assert "Verification snapshot" in content
+    assert "State references" in content
+    assert "Run the targeted watch and transfer tests." in content
+
+
+def test_handoff_work_memory_summary_wins_over_commit_fallback(tmp_path):
+    vibelign_dir = tmp_path / ".vibelign"
+    vibelign_dir.mkdir()
+    (vibelign_dir / "work_memory.json").write_text(
+        """
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-26T00:00:00Z",
+  "recent_events": [
+    {
+      "time": "2026-04-26T00:00:00Z",
+      "kind": "modified",
+      "path": "vibelign/core/work_memory.py",
+      "message": "work memory summary updated",
+      "action": "Review current-session handoff summary."
+    }
+  ],
+  "relevant_files": [],
+  "warnings": [],
+  "decisions": [],
+  "verification": []
+}
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    out_path = tmp_path / "PROJECT_CONTEXT.md"
+    args = _make_args(handoff=True, no_prompt=True, out=str(out_path))
+
+    with (
+        mock.patch("os.getcwd", return_value=str(tmp_path)),
+        mock.patch(
+            "vibelign.commands.vib_transfer_cmd._get_recent_commits",
+            return_value=["fix(gui): unrelated recent release"],
+        ),
+    ):
+        run_transfer(args)
+
+    content = out_path.read_text(encoding="utf-8")
+    session_section = content.split("### 현재 세션 작업 요약", 1)[1].split(
+        "### Concrete next steps", 1
+    )[0]
+    git_section = content.split("### Recent git context", 1)[1].split(
+        "### 변경 파일", 1
+    )[0]
+    assert "현재 세션에서 `vibelign/core/work_memory.py`" in session_section
+    assert "fix(gui): unrelated recent release" not in session_section
+    assert "fix(gui): unrelated recent release" in git_section
+
+
+def test_handoff_work_memory_completed_work_wins_over_commit_details(tmp_path):
+    vibelign_dir = tmp_path / ".vibelign"
+    vibelign_dir.mkdir()
+    (vibelign_dir / "work_memory.json").write_text(
+        """
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-26T00:00:00Z",
+  "recent_events": [
+    {
+      "time": "2026-04-26T00:00:00Z",
+      "kind": "modified",
+      "path": "vibelign/commands/vib_transfer_cmd.py",
+      "message": "handoff priority updated",
+      "action": "Regenerate PROJECT_CONTEXT.md."
+    }
+  ],
+  "relevant_files": [],
+  "warnings": [],
+  "decisions": [],
+  "verification": []
+}
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    out_path = tmp_path / "PROJECT_CONTEXT.md"
+    args = _make_args(handoff=True, no_prompt=True, out=str(out_path))
+
+    with (
+        mock.patch("os.getcwd", return_value=str(tmp_path)),
+        mock.patch(
+            "vibelign.commands.vib_transfer_cmd._get_detailed_commits",
+            return_value=[
+                {
+                    "hash": "abc1234",
+                    "message": "fix(gui): unrelated recent release",
+                    "files": "vibelign-gui/src/App.tsx",
+                }
+            ],
+        ),
+    ):
+        run_transfer(args)
+
+    content = out_path.read_text(encoding="utf-8")
+    assert "handoff priority updated" in content
+    live_changes_section = content.split("### Live working changes", 1)[1].split(
+        "### 변경 파일", 1
+    )[0]
+    assert "warning:" not in live_changes_section
+    assert "fix(gui): unrelated recent release" not in content
+
+
+def test_handoff_live_working_changes_removes_redundant_modified_message(tmp_path):
+    vibelign_dir = tmp_path / ".vibelign"
+    vibelign_dir.mkdir()
+    (vibelign_dir / "work_memory.json").write_text(
+        """
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-26T00:00:00Z",
+  "recent_events": [
+    {
+      "time": "2026-04-26T00:00:00Z",
+      "kind": "modified",
+      "path": "tests/test_vib_transfer_handoff.py",
+      "message": "tests/test_vib_transfer_handoff.py modified",
+      "action": "Review live working changes."
+    }
+  ],
+  "relevant_files": [],
+  "warnings": [],
+  "decisions": [],
+  "verification": []
+}
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    out_path = tmp_path / "PROJECT_CONTEXT.md"
+    args = _make_args(handoff=True, no_prompt=True, out=str(out_path))
+
+    with mock.patch("os.getcwd", return_value=str(tmp_path)):
+        run_transfer(args)
+
+    content = out_path.read_text(encoding="utf-8")
+    live_changes_section = content.split("### Live working changes", 1)[1].split(
+        "### Verification snapshot", 1
+    )[0]
+    assert "modified: tests/test_vib_transfer_handoff.py" in live_changes_section
+    assert "tests/test_vib_transfer_handoff.py — tests/test_vib_transfer_handoff.py modified" not in live_changes_section
+
+
+def test_handoff_without_work_memory_keeps_fallback_behavior(tmp_path):
+    out_path = tmp_path / "PROJECT_CONTEXT.md"
+    args = _make_args(handoff=True, no_prompt=True, out=str(out_path))
+
+    with mock.patch("os.getcwd", return_value=str(tmp_path)):
+        run_transfer(args)
+
+    content = out_path.read_text(encoding="utf-8")
+    assert "Relevant files" not in content
+    assert "Recent factual changes" not in content
+
+
+def test_handoff_block_stays_bounded_and_avoids_raw_logs():
+    data = _make_handoff_data(
+        recent_events=[f"event {index}" for index in range(20)],
+        warnings=[f"warning {index}" for index in range(20)],
+        verification=[f"verification {index}" for index in range(20)],
+        state_references=[".vibelign/work_memory.json"],
+    )
+
+    block = _build_handoff_block(data)
+
+    assert block.count("- event") <= 5
+    assert block.count("- warning") <= 5
+    assert block.count("- verification") <= 5
+    assert '{"level"' not in block
