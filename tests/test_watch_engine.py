@@ -5,8 +5,14 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import patch
 
-from vibelign.core.watch_engine import handle_deleted_path, is_watchable_path, run_watch
+from vibelign.core.watch_engine import (
+    handle_deleted_path,
+    is_watchable_path,
+    is_work_memory_recordable_rel_path,
+    run_watch,
+)
 from vibelign.core.watch_state import FileSnapshot, load_state, save_state
+from vibelign.core.work_memory import load_work_memory
 
 
 class WatchEngineEligibilityTest(unittest.TestCase):
@@ -46,6 +52,15 @@ class WatchEngineEligibilityTest(unittest.TestCase):
             self.assertFalse(is_watchable_path(cache))
             self.assertFalse(is_watchable_path(image))
 
+    def test_project_context_is_watchable_but_not_work_memory_recordable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            context_file = root / "PROJECT_CONTEXT.md"
+            _ = context_file.write_text("# Context\n", encoding="utf-8")
+
+            self.assertTrue(is_watchable_path(context_file))
+            self.assertFalse(is_work_memory_recordable_rel_path("PROJECT_CONTEXT.md"))
+
 
 class WatchEngineDeleteHandlingTest(unittest.TestCase):
     def test_handle_deleted_path_removes_state_and_logs_warning(self) -> None:
@@ -68,6 +83,7 @@ class WatchEngineDeleteHandlingTest(unittest.TestCase):
                 str(deleted),
                 json_mode=False,
                 log_path=log_path,
+                work_memory_path=root / ".vibelign" / "work_memory.json",
             )
 
             self.assertEqual("src/main.py", rel)
@@ -76,6 +92,8 @@ class WatchEngineDeleteHandlingTest(unittest.TestCase):
             self.assertEqual({}, saved)
             log_text = log_path.read_text(encoding="utf-8")
             self.assertIn('"message": "src/main.py 삭제됨"', log_text)
+            work_memory = load_work_memory(root / ".vibelign" / "work_memory.json")
+            self.assertEqual("deleted", work_memory["recent_events"][-1].get("kind"))
 
     def test_handle_deleted_path_ignores_unknown_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -90,6 +108,7 @@ class WatchEngineDeleteHandlingTest(unittest.TestCase):
                 state_path,
                 str(root / "src" / "other.py"),
                 log_path=log_path,
+                work_memory_path=root / ".vibelign" / "work_memory.json",
             )
 
             self.assertEqual("src/other.py", rel)
@@ -244,6 +263,14 @@ class WatchEngineDeleteHandlingTest(unittest.TestCase):
             self.assertIn('"message": "src/main.py 삭제됨"', log_text)
             project_map = project_map_path.read_text(encoding="utf-8")
             self.assertIn('"file_count": 0', project_map)
+            work_memory = load_work_memory(vg_dir / "work_memory.json")
+            self.assertTrue(
+                any(
+                    event.get("kind") == "deleted"
+                    and event.get("path") == "src/main.py"
+                    for event in work_memory["recent_events"]
+                )
+            )
 
     def test_run_watch_auto_fix_inserts_anchors_for_new_python_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -304,6 +331,14 @@ class WatchEngineDeleteHandlingTest(unittest.TestCase):
             self.assertIn("ANCHOR: MODULE_RUN_START", text)
             log_text = log_path.read_text(encoding="utf-8")
             self.assertIn("[auto-fix] 앵커 삽입: src/module.py", log_text)
+            work_memory = load_work_memory(vg_dir / "work_memory.json")
+            self.assertTrue(
+                any(
+                    event.get("kind") == "created"
+                    and event.get("path") == "src/module.py"
+                    for event in work_memory["recent_events"]
+                )
+            )
 
     def test_run_watch_on_moved_replaces_old_state_with_new_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -397,6 +432,133 @@ class WatchEngineDeleteHandlingTest(unittest.TestCase):
             project_map = project_map_path.read_text(encoding="utf-8")
             self.assertIn('"src/new.py"', project_map)
             self.assertNotIn('"src/old.py"', project_map)
+            work_memory = load_work_memory(vg_dir / "work_memory.json")
+            self.assertTrue(
+                any(
+                    event.get("kind") == "moved"
+                    and event.get("path") == "src/new.py"
+                    for event in work_memory["recent_events"]
+                )
+            )
+            move_events = [
+                event
+                for event in work_memory["recent_events"]
+                if event.get("kind") == "moved" and event.get("path") == "src/new.py"
+            ]
+            self.assertEqual(1, len(move_events))
+
+    def test_run_watch_captures_warning_events_in_work_memory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            vg_dir = root / ".vibelign"
+            vg_dir.mkdir()
+            warned = root / "src" / "main.py"
+            warned.parent.mkdir(parents=True)
+            warned.write_text("print('hello')\n" * 250, encoding="utf-8")
+
+            class FakeHandlerBase:
+                pass
+
+            class FakeObserver:
+                def __init__(self, callback) -> None:
+                    self.callback = callback
+                    self.handler = None
+
+                def schedule(
+                    self, event_handler: object, path: str, recursive: bool = False
+                ) -> None:
+                    _ = path
+                    _ = recursive
+                    self.handler = event_handler
+
+                def start(self) -> None:
+                    assert self.handler is not None
+                    self.callback(self.handler)
+
+                def stop(self) -> None:
+                    return None
+
+                def join(self) -> None:
+                    return None
+
+            def observer_factory():
+                return FakeObserver(
+                    lambda handler: handler.on_created(
+                        SimpleNamespace(is_directory=False, src_path=str(warned))
+                    )
+                )
+
+            with (
+                patch(
+                    "vibelign.core.watch_engine._import_watchdog_classes",
+                    return_value=(FakeHandlerBase, observer_factory),
+                ),
+                patch(
+                    "vibelign.core.watch_engine.time.sleep",
+                    side_effect=KeyboardInterrupt,
+                ),
+            ):
+                run_watch({"root": str(root), "write_log": True})
+
+            work_memory = load_work_memory(vg_dir / "work_memory.json")
+            self.assertTrue(work_memory["warnings"])
+            self.assertEqual("src/main.py", work_memory["warnings"][-1].get("path"))
+
+    def test_run_watch_does_not_record_project_context_in_work_memory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            vg_dir = root / ".vibelign"
+            vg_dir.mkdir()
+            context_file = root / "PROJECT_CONTEXT.md"
+            _ = context_file.write_text("# Context\n" * 250, encoding="utf-8")
+
+            class FakeHandlerBase:
+                pass
+
+            class FakeObserver:
+                def __init__(self, callback) -> None:
+                    self.callback = callback
+                    self.handler = None
+
+                def schedule(
+                    self, event_handler: object, path: str, recursive: bool = False
+                ) -> None:
+                    _ = path
+                    _ = recursive
+                    self.handler = event_handler
+
+                def start(self) -> None:
+                    assert self.handler is not None
+                    self.callback(self.handler)
+
+                def stop(self) -> None:
+                    return None
+
+                def join(self) -> None:
+                    return None
+
+            def observer_factory():
+                return FakeObserver(
+                    lambda handler: handler.on_modified(
+                        SimpleNamespace(is_directory=False, src_path=str(context_file))
+                    )
+                )
+
+            with (
+                patch(
+                    "vibelign.core.watch_engine._import_watchdog_classes",
+                    return_value=(FakeHandlerBase, observer_factory),
+                ),
+                patch(
+                    "vibelign.core.watch_engine.time.sleep",
+                    side_effect=KeyboardInterrupt,
+                ),
+            ):
+                run_watch({"root": str(root), "write_log": True})
+
+            work_memory = load_work_memory(vg_dir / "work_memory.json")
+            self.assertEqual([], work_memory["recent_events"])
+            self.assertEqual([], work_memory["warnings"])
 
     def test_run_watch_logs_delete_when_file_is_deleted_before_state_save(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -125,6 +125,10 @@ def is_watchable_event_path(path: Path) -> bool:
     return True
 
 
+def is_work_memory_recordable_rel_path(rel_path: str) -> bool:
+    return Path(rel_path).name.lower() not in WORK_MEMORY_EXCLUDED_NAMES_LOWER
+
+
 def _import_watchdog_classes() -> tuple[
     type[_WatchdogHandlerBase], _WatchdogObserverFactory
 ]:
@@ -167,6 +171,12 @@ WATCH_EXCLUDED_DIRS_LOWER = {part.lower() for part in WATCH_EXCLUDED_DIRS}
 WATCH_EXCLUDED_NAMES = {".DS_Store", "Thumbs.db"}
 
 WATCH_EXCLUDED_NAMES_LOWER = {name.lower() for name in WATCH_EXCLUDED_NAMES}
+
+WORK_MEMORY_EXCLUDED_NAMES = {"PROJECT_CONTEXT.md"}
+
+WORK_MEMORY_EXCLUDED_NAMES_LOWER = {
+    name.lower() for name in WORK_MEMORY_EXCLUDED_NAMES
+}
 
 WATCH_EXCLUDED_SUFFIXES = {
     ".png",
@@ -228,10 +238,12 @@ def handle_deleted_path(
     *,
     json_mode: bool = False,
     log_path: Path | None = None,
+    work_memory_path: Path | None = None,
 ) -> str | None:
     from vibelign.core.project_scan import relpath_str
     from vibelign.core.watch_reporter import emit
     from vibelign.core.watch_state import save_state
+    from vibelign.core.work_memory import record_event
 
     path = Path(src_path)
     rel = relpath_str(root, path)
@@ -247,6 +259,15 @@ def handle_deleted_path(
     emit(deleted_event, json_mode=json_mode, log_path=log_path)
     if existing is not None:
         save_state(state_path, state)
+    if work_memory_path is not None and is_work_memory_recordable_rel_path(rel):
+        record_event(
+            work_memory_path,
+            kind="deleted",
+            rel_path=rel,
+            message=f"{rel} deleted",
+            action="Confirm the deletion intent or restore the file if needed.",
+            relevant_reason="Recently deleted in watch.",
+        )
     return rel
 
 
@@ -272,6 +293,7 @@ def run_watch(config: WatchConfig) -> None:
 
     from vibelign.core.watch_rules import classify_event
     from vibelign.core.project_scan import relpath_str
+    from vibelign.core.meta_paths import MetaPaths
     from vibelign.core.watch_state import (
         FileSnapshot,
         hash_text,
@@ -279,6 +301,7 @@ def run_watch(config: WatchConfig) -> None:
         save_state,
     )
     from vibelign.core.watch_reporter import emit
+    from vibelign.core.work_memory import record_event, record_warning
 
     # === ANCHOR: WATCH_ENGINE_VIBELIGNWATCHHANDLER_START ===
     class VibeLignWatchHandler(file_system_event_handler_base):
@@ -303,6 +326,8 @@ def run_watch(config: WatchConfig) -> None:
             self.auto_fix: bool = auto_fix
             self.debounce_ms: int = debounce_ms
             self.state: dict[str, FileSnapshot] = load_state(state_path)
+            self.meta: MetaPaths = MetaPaths(root)
+            self.work_memory_path: Path = self.meta.work_memory_path
             self.last_seen: dict[str, float] = {}
             self.global_timer: threading.Timer | None = None
             self.pending_changes: list[str] = []
@@ -431,7 +456,9 @@ def run_watch(config: WatchConfig) -> None:
                     for rel, data in scan.items()
                     if data.get("anchors")
                 }
-                resolved_imports, imported_by = _resolve_import_graph(scan)
+                resolved_imports, imported_by = _resolve_import_graph(
+                    cast(dict[str, object], cast(object, scan))
+                )
                 files = {
                     rel: {
                         "category": data["category"],
@@ -546,7 +573,7 @@ def run_watch(config: WatchConfig) -> None:
         # === ANCHOR: WATCH_ENGINE__REFRESH_PROJECT_MAP_END ===
 
         # === ANCHOR: WATCH_ENGINE__PROCESS_START ===
-        def _process(self, src_path: str) -> None:
+        def _process(self, src_path: str, event_kind: str = "modified") -> None:
             path = Path(src_path)
             if not self._eligible(path) or self._debounced(path):
                 return
@@ -561,6 +588,7 @@ def run_watch(config: WatchConfig) -> None:
             new_lines = len(text.splitlines())
             new_sha = hash_text(text)
             old = self.state.get(rel)
+            normalized_kind = event_kind if not (event_kind == "modified" and old is None) else "created"
             old_lines = old.lines if old else None
             if old and old.sha1 == new_sha:
                 return
@@ -585,11 +613,28 @@ def run_watch(config: WatchConfig) -> None:
                 }
                 emit(ok_event, json_mode=self.json_mode, log_path=self.log_path)
             else:
+                should_record_work_memory = is_work_memory_recordable_rel_path(rel)
                 for item in warnings:
                     item["path"] = rel
                     emit(item, json_mode=self.json_mode, log_path=self.log_path)
+                    if should_record_work_memory:
+                        record_warning(
+                            self.work_memory_path,
+                            rel_path=rel,
+                            message=item.get("message", ""),
+                            action=item.get("action", ""),
+                        )
             self.state[rel] = FileSnapshot(rel, new_lines, new_sha)
             save_state(self.state_path, self.state)
+            if is_work_memory_recordable_rel_path(rel):
+                record_event(
+                    self.work_memory_path,
+                    kind=normalized_kind,
+                    rel_path=rel,
+                    message=f"{rel} {normalized_kind}",
+                    action="Review the latest change and refresh transfer handoff if needed.",
+                    relevant_reason=f"Recently {normalized_kind} in watch.",
+                )
             # === ANCHOR: WATCH_ENGINE_VIBELIGNWATCHHANDLER_END ===
             self._schedule_global_update(rel)
 
@@ -598,14 +643,14 @@ def run_watch(config: WatchConfig) -> None:
         # === ANCHOR: WATCH_ENGINE_ON_MODIFIED_START ===
         def on_modified(self, event: _WatchSrcEvent) -> None:
             if not event.is_directory:
-                self._process(event.src_path)
+                self._process(event.src_path, event_kind="modified")
 
         # === ANCHOR: WATCH_ENGINE_ON_MODIFIED_END ===
 
         # === ANCHOR: WATCH_ENGINE_ON_CREATED_START ===
         def on_created(self, event: _WatchSrcEvent) -> None:
             if not event.is_directory:
-                self._process(event.src_path)
+                self._process(event.src_path, event_kind="created")
 
         # === ANCHOR: WATCH_ENGINE_ON_CREATED_END ===
 
@@ -621,10 +666,11 @@ def run_watch(config: WatchConfig) -> None:
                         event.src_path,
                         json_mode=self.json_mode,
                         log_path=self.log_path,
+                        work_memory_path=self.work_memory_path,
                     )
                     if deleted_rel:
                         self._schedule_global_update(deleted_rel)
-                self._process(event.dest_path)
+                self._process(event.dest_path, event_kind="moved")
 
         # === ANCHOR: WATCH_ENGINE_ON_MOVED_END ===
 
@@ -640,6 +686,7 @@ def run_watch(config: WatchConfig) -> None:
                         event.src_path,
                         json_mode=self.json_mode,
                         log_path=self.log_path,
+                        work_memory_path=self.work_memory_path,
                     )
                     if deleted_rel:
                         self._schedule_global_update(deleted_rel)
