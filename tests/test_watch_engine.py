@@ -52,6 +52,22 @@ class WatchEngineEligibilityTest(unittest.TestCase):
             self.assertFalse(is_watchable_path(cache))
             self.assertFalse(is_watchable_path(image))
 
+    def test_python_egg_info_artifacts_are_skipped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            egg_info_dir = root / "vibelign.egg-info"
+            egg_info_dir.mkdir()
+            package_info = egg_info_dir / "PKG-INFO"
+            _ = package_info.write_text("Metadata-Version: 2.1\n", encoding="utf-8")
+
+            self.assertFalse(is_watchable_path(package_info))
+            self.assertFalse(
+                is_work_memory_recordable_rel_path("vibelign.egg-info/PKG-INFO")
+            )
+            self.assertFalse(
+                is_work_memory_recordable_rel_path("vibelign.egg-info/SOURCES.txt")
+            )
+
     def test_project_context_is_watchable_but_not_work_memory_recordable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -106,7 +106,7 @@ def _config_int(config: WatchConfig, key: str, default: int) -> int:
 def is_watchable_path(path: _WatchPathLike) -> bool:
     if not path.is_file():
         return False
-    if any(part.lower() in WATCH_EXCLUDED_DIRS_LOWER for part in path.parts):
+    if any(_is_excluded_dir_part(part) for part in path.parts):
         return False
     if path.name.lower() in WATCH_EXCLUDED_NAMES_LOWER:
         return False
@@ -116,7 +116,7 @@ def is_watchable_path(path: _WatchPathLike) -> bool:
 
 
 def is_watchable_event_path(path: Path) -> bool:
-    if any(part.lower() in WATCH_EXCLUDED_DIRS_LOWER for part in path.parts):
+    if any(_is_excluded_dir_part(part) for part in path.parts):
         return False
     if path.name.lower() in WATCH_EXCLUDED_NAMES_LOWER:
         return False
@@ -126,7 +126,17 @@ def is_watchable_event_path(path: Path) -> bool:
 
 
 def is_work_memory_recordable_rel_path(rel_path: str) -> bool:
-    return Path(rel_path).name.lower() not in WORK_MEMORY_EXCLUDED_NAMES_LOWER
+    path = Path(rel_path)
+    if any(_is_excluded_dir_part(part) for part in path.parts):
+        return False
+    return path.name.lower() not in WORK_MEMORY_EXCLUDED_NAMES_LOWER
+
+
+def _is_excluded_dir_part(part: str) -> bool:
+    normalized = part.lower()
+    return normalized in WATCH_EXCLUDED_DIRS_LOWER or any(
+        normalized.endswith(suffix) for suffix in WATCH_EXCLUDED_DIR_SUFFIXES
+    )
 
 
 def _import_watchdog_classes() -> tuple[
@@ -165,6 +175,8 @@ WATCH_EXCLUDED_DIRS = {
     "bin",
     "obj",
 }
+
+WATCH_EXCLUDED_DIR_SUFFIXES = (".egg-info",)
 
 WATCH_EXCLUDED_DIRS_LOWER = {part.lower() for part in WATCH_EXCLUDED_DIRS}
 
