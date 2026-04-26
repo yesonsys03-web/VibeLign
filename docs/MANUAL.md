@@ -768,7 +768,23 @@ The new AI reads the handoff block first and continues work immediately.
 vib transfer --handoff             # interactive: asks what the next AI should do first
 vib transfer --handoff --no-prompt # automatic: fills what it can from repo signals
 vib transfer --handoff --print     # also prints a short summary to the console
+vib transfer --handoff --session-summary "current session work"
+vib transfer --handoff --first-next-action "next action"
+vib transfer --handoff --dry-run   # preview without writing PROJECT_CONTEXT.md
+vib transfer --out ctx.md          # write to a different filename
 ```
+
+Handoff-specific flags:
+
+- `--session-summary "..."` — directly sets the current-session summary in the Session Handoff block.
+- `--first-next-action "..."` — directly sets what the next AI should do first.
+- `--dry-run` — previews the generated handoff content without saving it.
+- `--print` — saves the file and also prints the handoff summary to the console.
+- `--no-prompt` — skips interactive questions and uses recorded project/session signals where possible.
+
+Compatibility:
+
+- `--handoff` cannot be used together with `--compact` or `--full`.
 
 **`checkpoint` vs `transfer --handoff` — what's the difference?**
 

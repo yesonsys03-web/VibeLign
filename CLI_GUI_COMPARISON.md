@@ -103,9 +103,14 @@
 | 기능 | CLI 플래그 | GUI 구현 | 상태 |
 |------|----------|--------|------|
 | 기본 생성 | - | ✓ | 완전 |
-| 경량 버전 | `--compact` | ✗ | **누락** |
+| 경량 버전 | `--compact` | ✓ | 완전 |
 | 전체 포함 | `--full` | ✗ | **누락** |
-| Handoff 블록 | `--handoff` | ✗ | **누락** |
+| Handoff 블록 | `--handoff` | ✓ | 완전 |
+| Handoff 자동 생성 | `--no-prompt` | ✓ | `--handoff` 실행 시 자동 적용 |
+| Handoff 콘솔 출력 | `--print` | ✗ | **누락** |
+| Handoff 요약 직접 지정 | `--session-summary <TEXT>` | ✗ | **누락** |
+| 다음 작업 직접 지정 | `--first-next-action <TEXT>` | 부분 | GUI 기본 문구 자동 전달, 사용자 입력 UI 없음 |
+| 미리 보기 | `--dry-run` | ✗ | **누락** |
 | 파일명 지정 | `--out <FILE>` | ✗ | **누락** |
 
 ---
@@ -225,7 +230,7 @@
 |---------|-------|---------|------|
 | 5️⃣ | **PATCH** | 전체 미구현 (5개 옵션) | 5 |
 | 6️⃣ | **ASK** | 전체 미구현 (3개 옵션) | 3 |
-| 7️⃣ | **TRANSFER** | `--compact`, `--full`, `--handoff`, `--out` | 4 |
+| 7️⃣ | **TRANSFER** | `--full`, `--print`, `--session-summary`, `--first-next-action`, `--dry-run`, `--out` | 6 |
 | 8️⃣ | **START** | `--all-tools`, `--tools`, `--force`, `--quickstart` | 4 |
 
 ### 🟢 LOW (선택 기능)
@@ -254,7 +259,7 @@
 ```
 ☐ PATCH    → 전체 구현 (8시간)
 ☐ ASK      → 전체 구현 (6시간)
-☐ TRANSFER → --handoff, --compact 모드 (4시간)
+☐ TRANSFER → --full, --print, --session-summary, --first-next-action, --dry-run, --out 보강 (4시간)
 ```
 **소계**: ~18시간
 
@@ -285,7 +290,7 @@
 
 ### 2. 텍스트 입력 (입력 필드)
 ```
---checkpoint-id, --since-minutes, --out, --tools, --only-ext
+--checkpoint-id, --since-minutes, --out, --tools, --only-ext, --session-summary, --first-next-action
 ```
 
 ### 3. 드롭다운 선택 (라디오/셀렉트)

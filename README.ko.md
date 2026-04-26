@@ -186,6 +186,8 @@ vib start
 | `vib rules` | AI 개발 규칙 전체 보기 |
 | `vib transfer` | AI 도구 전환용 `PROJECT_CONTEXT.md` 생성 |
 | `vib transfer --handoff` | Session Handoff 블록 추가 — 새 AI가 바로 이어서 작업 가능 |
+| `vib transfer --handoff --session-summary "작업 요약" --first-next-action "다음 할 일"` | handoff 요약과 다음 작업을 직접 지정 |
+| `vib transfer --handoff --dry-run` | 파일 저장 없이 handoff 내용 미리 보기 |
 | `vib completion` | 탭 누르면 자동완성되게 설정 |
 | `vib install` | 설치 방법을 단계별로 알려줌 |
 
@@ -214,8 +216,13 @@ vib undo
 
 # 토큰 한도 도달 또는 AI 툴 전환 전에
 vib transfer --handoff    # Session Handoff 블록 생성
+vib transfer --handoff --no-prompt --print  # 자동 생성 + 콘솔 출력
+vib transfer --handoff --session-summary "현재 세션 작업" --first-next-action "테스트 재실행"
+vib transfer --handoff --dry-run  # 저장 전 미리 보기
 # 새 AI에게: "PROJECT_CONTEXT.md 상단의 Session Handoff 블록 먼저 읽어줘"
 ```
+
+`transfer` 호환성: `--handoff`는 `--compact` 또는 `--full`과 함께 쓸 수 없습니다.
 
 이제 `vib start`를 실행하면 Git 저장소에서는 비밀정보 커밋 보호도 자동으로 켜져요.
 커밋 전에 지금 올리려는 내용에서 API 키, 토큰, 개인키, `.env` 같은 비밀정보 파일을 검사해서 실수 업로드를 막아줘요.

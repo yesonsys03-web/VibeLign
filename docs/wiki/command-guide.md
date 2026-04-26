@@ -19,6 +19,28 @@ For full details, use the linked canonical docs.
 | `vib transfer` | generating project handoff context | [`../../README.md`](../../README.md) |
 | `vib export` | generating AI-tool-specific config files | [`../../README.md`](../../README.md) |
 
+## Transfer / handoff quick reference
+
+Use `vib transfer` when switching AI tools, opening a fresh chat, or preserving context before a token limit.
+
+```bash
+vib transfer
+vib transfer --compact
+vib transfer --full
+vib transfer --handoff
+vib transfer --handoff --no-prompt --print
+vib transfer --handoff --session-summary "current session work" --first-next-action "next action"
+vib transfer --handoff --dry-run
+vib transfer --out ctx.md
+```
+
+- `--handoff` adds a `Session Handoff` block at the top of `PROJECT_CONTEXT.md`.
+- `--session-summary` and `--first-next-action` let you override the two most important handoff lines explicitly.
+- `--no-prompt` skips questions and fills what it can from project/session signals.
+- `--print` also prints the handoff summary to the console.
+- `--dry-run` previews without writing.
+- `--handoff` cannot be combined with `--compact` or `--full`.
+
 ## Rule Of Thumb
 
 - Before edit: `checkpoint`, `doctor`

@@ -186,6 +186,8 @@ vib start
 | `vib rules` | Show all AI development rules |
 | `vib transfer` | Generate `PROJECT_CONTEXT.md` for switching AI tools |
 | `vib transfer --handoff` | Add Session Handoff block so a new AI can continue immediately |
+| `vib transfer --handoff --session-summary "work" --first-next-action "next"` | Override the handoff summary and first next action |
+| `vib transfer --handoff --dry-run` | Preview handoff output without writing the file |
 | `vib completion` | Set up tab autocomplete |
 | `vib install` | Show step-by-step installation guide |
 
@@ -214,8 +216,13 @@ vib undo
 
 # Hitting a token limit or switching AI tools?
 vib transfer --handoff    # generates a Session Handoff block
+vib transfer --handoff --no-prompt --print  # automatic handoff + console summary
+vib transfer --handoff --session-summary "current session work" --first-next-action "rerun tests"
+vib transfer --handoff --dry-run  # preview before writing
 # Then tell the new AI: "Read PROJECT_CONTEXT.md first"
 ```
+
+`transfer` compatibility: `--handoff` cannot be combined with `--compact` or `--full`.
 
 `vib start` now also enables Git secret protection automatically when your project uses Git.
 Before each commit, VibeLign checks staged changes for API keys, tokens, private keys, and secret-like files such as `.env`.
