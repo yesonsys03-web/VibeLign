@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from vibelign.core.work_memory import (
@@ -145,6 +146,64 @@ def test_record_event_skips_unsafe_absolute_paths(tmp_path: Path) -> None:
 
     loaded = load_work_memory(path)
     assert loaded["recent_events"] == []
+
+
+def test_record_event_skips_generated_artifact_paths(tmp_path: Path) -> None:
+    path = tmp_path / ".vibelign" / "work_memory.json"
+    record_event(
+        path,
+        kind="modified",
+        rel_path="vibelign.egg-info/PKG-INFO",
+        message="PKG-INFO modified",
+    )
+
+    loaded = load_work_memory(path)
+    assert loaded["recent_events"] == []
+    assert loaded["relevant_files"] == []
+
+
+def test_load_work_memory_prunes_stale_generated_artifact_paths(tmp_path: Path) -> None:
+    path = tmp_path / ".vibelign" / "work_memory.json"
+    path.parent.mkdir()
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "updated_at": "2026-04-26T00:00:00Z",
+                "recent_events": [
+                    {
+                        "kind": "modified",
+                        "path": "vibelign.egg-info/SOURCES.txt",
+                        "message": "SOURCES.txt modified",
+                    },
+                    {
+                        "kind": "modified",
+                        "path": "src/app.py",
+                        "message": "src/app.py modified",
+                    },
+                ],
+                "relevant_files": [
+                    {"path": "vibelign.egg-info/PKG-INFO", "why": "Generated."},
+                    {"path": "src/app.py", "why": "Source file."},
+                ],
+                "warnings": [
+                    {
+                        "kind": "warning",
+                        "path": "vibelign.egg-info/PKG-INFO",
+                        "message": "PKG-INFO에 앵커가 없습니다",
+                    }
+                ],
+                "decisions": [],
+                "verification": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = load_work_memory(path)
+    assert [event.get("path") for event in loaded["recent_events"]] == ["src/app.py"]
+    assert loaded["relevant_files"] == [{"path": "src/app.py", "why": "Source file."}]
+    assert loaded["warnings"] == []
 
 
 def test_record_warning_skips_parent_traversal_paths(tmp_path: Path) -> None:

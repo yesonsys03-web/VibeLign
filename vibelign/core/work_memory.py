@@ -1,3 +1,4 @@
+# === ANCHOR: WORK_MEMORY_START ===
 from __future__ import annotations
 
 import json
@@ -18,22 +19,42 @@ MAX_RECENT_EVENTS_SUMMARY = 5
 MAX_RELEVANT_FILES_SUMMARY = 5
 MAX_WARNINGS_SUMMARY = 5
 MAX_VERIFICATION_SUMMARY = 5
+WORK_MEMORY_EXCLUDED_DIRS = {
+    ".vibelign",
+    "node_modules",
+    "dist",
+    "build",
+    "target",
+    ".next",
+    ".pnpm-store",
+    "__pycache__",
+    "coverage",
+    "out",
+    "bin",
+    "obj",
+}
+WORK_MEMORY_EXCLUDED_DIR_SUFFIXES = (".egg-info",)
 _WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:/")
 
 
+# === ANCHOR: WORK_MEMORY_WORKMEMORYEVENT_START ===
 class WorkMemoryEvent(TypedDict, total=False):
     time: str
     kind: str
     path: str
     message: str
     action: str
+# === ANCHOR: WORK_MEMORY_WORKMEMORYEVENT_END ===
 
 
+# === ANCHOR: WORK_MEMORY_RELEVANTFILEENTRY_START ===
 class RelevantFileEntry(TypedDict):
     path: str
     why: str
+# === ANCHOR: WORK_MEMORY_RELEVANTFILEENTRY_END ===
 
 
+# === ANCHOR: WORK_MEMORY_WORKMEMORYSTATE_START ===
 class WorkMemoryState(TypedDict):
     schema_version: int
     updated_at: str
@@ -42,8 +63,10 @@ class WorkMemoryState(TypedDict):
     warnings: list[WorkMemoryEvent]
     decisions: list[str]
     verification: list[str]
+# === ANCHOR: WORK_MEMORY_WORKMEMORYSTATE_END ===
 
 
+# === ANCHOR: WORK_MEMORY_WORKMEMORYSUMMARY_START ===
 class WorkMemorySummary(TypedDict, total=False):
     active_intent: str
     session_summary: str
@@ -51,17 +74,22 @@ class WorkMemorySummary(TypedDict, total=False):
     concrete_next_steps: list[str]
     unfinished_work: str
     changed_files: list[str]
+    change_details: list[str]
     relevant_files: list[RelevantFileEntry]
     recent_events: list[str]
     warnings: list[str]
     verification: list[str]
     state_references: list[str]
+# === ANCHOR: WORK_MEMORY_WORKMEMORYSUMMARY_END ===
 
 
+# === ANCHOR: WORK_MEMORY__UTC_NOW_START ===
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+# === ANCHOR: WORK_MEMORY__UTC_NOW_END ===
 
 
+# === ANCHOR: WORK_MEMORY__TRUNCATE_TEXT_START ===
 def _truncate_text(value: object, limit: int = MAX_TEXT_LENGTH) -> str:
     if not isinstance(value, str):
         return ""
@@ -69,8 +97,10 @@ def _truncate_text(value: object, limit: int = MAX_TEXT_LENGTH) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 1].rstrip() + "…"
+# === ANCHOR: WORK_MEMORY__TRUNCATE_TEXT_END ===
 
 
+# === ANCHOR: WORK_MEMORY__SAFE_RELATIVE_PATH_START ===
 def _safe_relative_path(value: object) -> str:
     text = _truncate_text(value, 200).replace("\\", "/")
     if not text:
@@ -78,9 +108,23 @@ def _safe_relative_path(value: object) -> str:
     parts = [part for part in text.split("/") if part]
     if text.startswith("/") or _WINDOWS_DRIVE_RE.match(text) or ".." in parts:
         return ""
+    if _is_excluded_memory_path(parts):
+        return ""
     return text
+# === ANCHOR: WORK_MEMORY__SAFE_RELATIVE_PATH_END ===
 
 
+def _is_excluded_memory_path(parts: list[str]) -> bool:
+    for part in parts:
+        normalized = part.lower()
+        if normalized in WORK_MEMORY_EXCLUDED_DIRS:
+            return True
+        if any(normalized.endswith(suffix) for suffix in WORK_MEMORY_EXCLUDED_DIR_SUFFIXES):
+            return True
+    return False
+
+
+# === ANCHOR: WORK_MEMORY__NORMALIZE_EVENT_START ===
 def _normalize_event(raw: object) -> WorkMemoryEvent | None:
     if not isinstance(raw, dict):
         return None
@@ -92,11 +136,15 @@ def _normalize_event(raw: object) -> WorkMemoryEvent | None:
         "message": _truncate_text(payload.get("message")),
         "action": _truncate_text(payload.get("action")),
     }
+    if payload.get("path") and not event["path"]:
+        return None
     if not any(event.values()):
         return None
     return event
+# === ANCHOR: WORK_MEMORY__NORMALIZE_EVENT_END ===
 
 
+# === ANCHOR: WORK_MEMORY__NORMALIZE_RELEVANT_FILE_START ===
 def _normalize_relevant_file(raw: object) -> RelevantFileEntry | None:
     if isinstance(raw, str):
         path = _safe_relative_path(raw)
@@ -109,8 +157,10 @@ def _normalize_relevant_file(raw: object) -> RelevantFileEntry | None:
     if not path:
         return None
     return {"path": path, "why": why or "Relevant to recent work."}
+# === ANCHOR: WORK_MEMORY__NORMALIZE_RELEVANT_FILE_END ===
 
 
+# === ANCHOR: WORK_MEMORY__NORMALIZE_STRING_LIST_START ===
 def _normalize_string_list(raw: object, limit: int) -> list[str]:
     if not isinstance(raw, list):
         return []
@@ -120,20 +170,26 @@ def _normalize_string_list(raw: object, limit: int) -> list[str]:
         if text:
             items.append(text)
     return items[:limit]
+# === ANCHOR: WORK_MEMORY__NORMALIZE_STRING_LIST_END ===
 
 
+# === ANCHOR: WORK_MEMORY__WARNING_SUMMARY_LINE_START ===
 def _warning_summary_line(warning: WorkMemoryEvent) -> str:
     path = warning.get("path") or "(unknown)"
     message = warning.get("message") or "(warning)"
     action = warning.get("action") or ""
     line = f"{path} — {message}"
     return f"{line} → {action}" if action else line
+# === ANCHOR: WORK_MEMORY__WARNING_SUMMARY_LINE_END ===
 
 
+# === ANCHOR: WORK_MEMORY__PRUNE_EVENTS_START ===
 def _prune_events(events: list[WorkMemoryEvent], limit: int) -> list[WorkMemoryEvent]:
     return events[-limit:]
+# === ANCHOR: WORK_MEMORY__PRUNE_EVENTS_END ===
 
 
+# === ANCHOR: WORK_MEMORY__PRUNE_RELEVANT_FILES_START ===
 def _prune_relevant_files(entries: list[RelevantFileEntry]) -> list[RelevantFileEntry]:
     deduped: list[RelevantFileEntry] = []
     seen: set[str] = set()
@@ -149,8 +205,10 @@ def _prune_relevant_files(entries: list[RelevantFileEntry]) -> list[RelevantFile
             break
     deduped.reverse()
     return deduped
+# === ANCHOR: WORK_MEMORY__PRUNE_RELEVANT_FILES_END ===
 
 
+# === ANCHOR: WORK_MEMORY_DEFAULT_WORK_MEMORY_STATE_START ===
 def default_work_memory_state() -> WorkMemoryState:
     return {
         "schema_version": SCHEMA_VERSION,
@@ -161,8 +219,10 @@ def default_work_memory_state() -> WorkMemoryState:
         "decisions": [],
         "verification": [],
     }
+# === ANCHOR: WORK_MEMORY_DEFAULT_WORK_MEMORY_STATE_END ===
 
 
+# === ANCHOR: WORK_MEMORY_PRUNE_WORK_MEMORY_STATE_START ===
 def prune_work_memory_state(state: WorkMemoryState) -> WorkMemoryState:
     state["schema_version"] = SCHEMA_VERSION
     state["updated_at"] = _truncate_text(state.get("updated_at"), 64)
@@ -174,8 +234,10 @@ def prune_work_memory_state(state: WorkMemoryState) -> WorkMemoryState:
         state.get("verification"), MAX_VERIFICATION
     )
     return state
+# === ANCHOR: WORK_MEMORY_PRUNE_WORK_MEMORY_STATE_END ===
 
 
+# === ANCHOR: WORK_MEMORY_LOAD_WORK_MEMORY_START ===
 def load_work_memory(path: Path) -> WorkMemoryState:
     if not path.exists():
         return default_work_memory_state()
@@ -211,8 +273,10 @@ def load_work_memory(path: Path) -> WorkMemoryState:
         payload.get("verification"), MAX_VERIFICATION
     )
     return prune_work_memory_state(state)
+# === ANCHOR: WORK_MEMORY_LOAD_WORK_MEMORY_END ===
 
 
+# === ANCHOR: WORK_MEMORY_SAVE_WORK_MEMORY_START ===
 def save_work_memory(path: Path, state: WorkMemoryState) -> None:
     pruned = prune_work_memory_state(state)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -221,10 +285,13 @@ def save_work_memory(path: Path, state: WorkMemoryState) -> None:
         json.dumps(pruned, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     _ = tmp_path.replace(path)
+# === ANCHOR: WORK_MEMORY_SAVE_WORK_MEMORY_END ===
 
 
+# === ANCHOR: WORK_MEMORY__APPEND_RELEVANT_FILE_START ===
 def _append_relevant_file(
     entries: list[RelevantFileEntry], path: str, why: str
+# === ANCHOR: WORK_MEMORY__APPEND_RELEVANT_FILE_END ===
 ) -> list[RelevantFileEntry]:
     rel_path = _safe_relative_path(path)
     rel_why = _truncate_text(why)
@@ -235,6 +302,7 @@ def _append_relevant_file(
     return _prune_relevant_files(updated)
 
 
+# === ANCHOR: WORK_MEMORY_RECORD_EVENT_START ===
 def record_event(
     path: Path,
     *,
@@ -243,6 +311,7 @@ def record_event(
     message: str,
     action: str = "",
     relevant_reason: str = "",
+# === ANCHOR: WORK_MEMORY_RECORD_EVENT_END ===
 ) -> None:
     safe_rel_path = _safe_relative_path(rel_path)
     if not safe_rel_path:
@@ -268,12 +337,14 @@ def record_event(
         return
 
 
+# === ANCHOR: WORK_MEMORY_RECORD_WARNING_START ===
 def record_warning(
     path: Path,
     *,
     rel_path: str,
     message: str,
     action: str = "",
+# === ANCHOR: WORK_MEMORY_RECORD_WARNING_END ===
 ) -> None:
     safe_rel_path = _safe_relative_path(rel_path)
     if not safe_rel_path:
@@ -300,6 +371,7 @@ def record_warning(
         return
 
 
+# === ANCHOR: WORK_MEMORY_ADD_VERIFICATION_START ===
 def add_verification(path: Path, message: str) -> None:
     state = load_work_memory(path)
     text = _truncate_text(message)
@@ -308,8 +380,10 @@ def add_verification(path: Path, message: str) -> None:
     state["verification"] = [item for item in state["verification"] if item != text] + [text]
     state["updated_at"] = _utc_now()
     save_work_memory(path, state)
+# === ANCHOR: WORK_MEMORY_ADD_VERIFICATION_END ===
 
 
+# === ANCHOR: WORK_MEMORY_ADD_DECISION_START ===
 def add_decision(path: Path, message: str) -> None:
     state = load_work_memory(path)
     text = _truncate_text(message)
@@ -318,8 +392,10 @@ def add_decision(path: Path, message: str) -> None:
     state["decisions"] = [item for item in state["decisions"] if item != text] + [text]
     state["updated_at"] = _utc_now()
     save_work_memory(path, state)
+# === ANCHOR: WORK_MEMORY_ADD_DECISION_END ===
 
 
+# === ANCHOR: WORK_MEMORY_BUILD_TRANSFER_SUMMARY_START ===
 def build_transfer_summary(path: Path) -> WorkMemorySummary | None:
     state = load_work_memory(path)
     has_content = any(
@@ -353,13 +429,22 @@ def build_transfer_summary(path: Path) -> WorkMemorySummary | None:
             break
     warning_lines.reverse()
     recent_event_lines: list[str] = []
+    change_detail_lines: list[str] = []
     for event in reversed(state["recent_events"]):
         line = f"{event.get('kind') or 'event'}: {event.get('path') or '(unknown)'} — {event.get('message') or '(no details)'}"
         if line not in recent_event_lines:
             recent_event_lines.append(line)
+        if event.get("kind") != "warning":
+            detail = f"{event.get('path') or '(unknown)'} — {event.get('kind') or 'event'}: {event.get('message') or '(no details)'}"
+            action = event.get("action") or ""
+            if action:
+                detail += f" → {action}"
+            if detail not in change_detail_lines:
+                change_detail_lines.append(detail)
         if len(recent_event_lines) >= MAX_RECENT_EVENTS_SUMMARY:
             break
     recent_event_lines.reverse()
+    change_detail_lines.reverse()
     relevant_files = state["relevant_files"][-MAX_RELEVANT_FILES_SUMMARY:]
     latest_action = next(
         (
@@ -396,6 +481,7 @@ def build_transfer_summary(path: Path) -> WorkMemorySummary | None:
     summary: WorkMemorySummary = {
         "session_summary": _truncate_text(session_summary),
         "changed_files": changed_files[:MAX_RELEVANT_FILES],
+        "change_details": change_detail_lines[:MAX_RECENT_EVENTS_SUMMARY],
         "relevant_files": relevant_files,
         "recent_events": recent_event_lines,
         "warnings": warning_lines,
@@ -410,3 +496,5 @@ def build_transfer_summary(path: Path) -> WorkMemorySummary | None:
     if warning_lines:
         summary["unfinished_work"] = _truncate_text("; ".join(warning_lines[:2]))
     return summary
+# === ANCHOR: WORK_MEMORY_BUILD_TRANSFER_SUMMARY_END ===
+# === ANCHOR: WORK_MEMORY_END ===
