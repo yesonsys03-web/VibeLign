@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vibelign"
-version = "2.0.25"
+version = "2.0.26"
 description = "AI coding safety system for vibecoders"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.10"
@@ -36,6 +36,7 @@ vibelign-mcp = "vibelign.mcp.mcp_server:main"
 
 [tool.setuptools.packages.find]
 include = ["vibelign*"]
+exclude = ["vibelign-gui*", "build*", "dist*", "promo*"]
 
 [tool.pyright]
 exclude = [
