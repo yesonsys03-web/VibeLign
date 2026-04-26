@@ -4,11 +4,11 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import cast
 
-from vibelign.core.anchor_tools import extract_anchors
+from vibelign.core.anchor_tools import extract_anchors, insert_auto_anchors
 from vibelign.core.project_map import load_project_map
 from vibelign.core.project_scan import iter_source_files, safe_read_text
 from vibelign.core.risk_analyzer import analyze_project
-from vibelign.core.structure_policy import is_trivial_package_init
+from vibelign.core.structure_policy import COMMON_IGNORED_DIRS, is_trivial_package_init
 
 
 STATUS_LEVELS = [
@@ -84,6 +84,84 @@ PREPARED_TOOL_CONFIGS = {
         setup_command="vib start --tools codex",
     ),
 }
+FIX_ANCHOR_EXTENSIONS = {".py", ".js", ".ts", ".jsx", ".tsx"}
+
+
+def _fix_anchor_relpath(root: Path, path: Path) -> str:
+    return str(path.relative_to(root)).replace("\\", "/")
+
+
+def _fix_anchor_requested_paths(root: Path, paths: list[str]) -> list[Path]:
+    requested: list[Path] = []
+    resolved_root = root.resolve()
+    for raw_path in paths:
+        normalized_path = raw_path.replace("\\", "/")
+        candidate = (root / normalized_path).resolve()
+        try:
+            _ = candidate.relative_to(resolved_root)
+        except ValueError as exc:
+            raise ValueError(f"project-outside path: {raw_path}") from exc
+        if candidate.is_file() and candidate.suffix.lower() in FIX_ANCHOR_EXTENSIONS:
+            requested.append(candidate)
+    return requested
+
+
+def _iter_fix_anchor_candidates(root: Path, paths: list[str] | None = None) -> list[Path]:
+    if paths:
+        return _fix_anchor_requested_paths(root, paths)
+    ignored = {part.lower() for part in COMMON_IGNORED_DIRS} | {".vibelign", "docs"}
+    candidates: list[Path] = []
+    resolved_root = root.resolve()
+    for path in root.rglob("*"):
+        try:
+            relative_parts = path.relative_to(root).parts
+        except ValueError:
+            continue
+        if any(part.lower() in ignored for part in relative_parts):
+            continue
+        if path.is_symlink():
+            continue
+        try:
+            resolved_path = path.resolve()
+            _ = resolved_path.relative_to(resolved_root)
+        except (OSError, ValueError):
+            continue
+        if not path.is_file() or path.suffix.lower() not in FIX_ANCHOR_EXTENSIONS:
+            continue
+        if is_trivial_package_init(path, safe_read_text(path)):
+            continue
+        candidates.append(path)
+    return candidates
+
+
+def fix_anchors_action(
+    root: Path, paths: list[str] | None = None, dry_run: bool = False
+) -> dict[str, object]:
+    from vibelign.core.protected_files import get_protected, is_protected
+
+    protected = get_protected(root)
+    anchored: list[str] = []
+    skipped: list[str] = []
+    errors: list[str] = []
+    for path in _iter_fix_anchor_candidates(root, paths):
+        rel = _fix_anchor_relpath(root, path)
+        try:
+            if is_protected(rel, protected):
+                skipped.append(f"{rel} (protected)")
+                continue
+            if extract_anchors(path):
+                skipped.append(f"{rel} (already anchored)")
+                continue
+            if dry_run:
+                anchored.append(rel)
+                continue
+            if insert_auto_anchors(path):
+                anchored.append(rel)
+            else:
+                skipped.append(f"{rel} (unsupported or unchanged)")
+        except Exception as exc:
+            errors.append(f"{rel}: {exc}")
+    return {"dry_run": dry_run, "anchored": anchored, "skipped": skipped, "errors": errors}
 
 
 def _build_status(score: int) -> str:

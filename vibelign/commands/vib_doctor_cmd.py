@@ -15,6 +15,7 @@ from vibelign.core.doctor_v2 import (
     build_doctor_envelope,
     render_doctor_json,
     render_doctor_markdown,
+    fix_anchors_action,
 )
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_root import resolve_project_root
@@ -109,6 +110,34 @@ def _run_fix(root: Path) -> None:
         clack_info("앵커를 추가할 수 있는 파일이 없었어요.")
 
 
+def _run_fix_anchors(
+    root: Path,
+    *,
+    paths: list[str] | None = None,
+    dry_run: bool = False,
+    as_json: bool = False,
+) -> None:
+    try:
+        result = fix_anchors_action(root, paths=paths, dry_run=dry_run)
+    except ValueError as exc:
+        raise SystemExit(f"오류: {exc}") from exc
+    if as_json:
+        print(
+            json.dumps({"ok": True, "error": None, "data": result}, ensure_ascii=False)
+        )
+        return
+    anchored = cast(list[str], result.get("anchored", []))
+    skipped = cast(list[str], result.get("skipped", []))
+    errors = cast(list[str], result.get("errors", []))
+    action_label = "변경 예정" if dry_run else "앵커 추가"
+    summary = "✓ {} files {}, {} skipped, {} errors".format(
+        len(anchored), action_label, len(skipped), len(errors)
+    )
+    print(summary)
+    for rel in anchored:
+        print(f"- {rel}")
+
+
 def _run_plan(root: Path, strict: bool, as_json: bool) -> None:
     """실행 계획 출력 — 파일 수정 없음."""
     from vibelign.terminal_render import clack_step
@@ -188,7 +217,6 @@ def _run_apply(root: Path, strict: bool, as_json: bool, force: bool = False) -> 
     from vibelign.terminal_render import (
         clack_step,
         clack_success,
-        clack_info,
         clack_warn,
     )
 
@@ -258,12 +286,24 @@ def run_vib_doctor(args: Namespace) -> None:
     as_json = bool(getattr(args, "json", False))
     write_report = bool(getattr(args, "write_report", False))
     fix = bool(getattr(args, "fix", False))
+    fix_anchors = bool(getattr(args, "fix_anchors", False))
+    dry_run = bool(getattr(args, "dry_run", False))
+    paths_value = getattr(args, "paths", None)
+    paths = (
+        [item for item in cast(list[object], paths_value) if isinstance(item, str)]
+        if isinstance(paths_value, list)
+        else None
+    )
     detailed = bool(getattr(args, "detailed", False))
     fix_hints = bool(getattr(args, "fix_hints", False))
     plan_mode = bool(getattr(args, "plan", False))
     patch_mode = bool(getattr(args, "patch", False))
     apply_mode = bool(getattr(args, "apply", False))
     force = bool(getattr(args, "force", False))
+
+    if fix_anchors:
+        _run_fix_anchors(root, paths=paths, dry_run=dry_run, as_json=as_json)
+        return
 
     if plan_mode:
         _run_plan(root, strict=strict, as_json=as_json)
