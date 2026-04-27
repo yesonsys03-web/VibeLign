@@ -5,12 +5,14 @@ import unittest.mock as mock
 from pathlib import Path
 from typing import cast
 
+from vibelign.core.work_memory import load_work_memory
 from vibelign.commands.vib_transfer_cmd import HandoffData
 from vibelign.commands.vib_transfer_cmd import (
     _build_file_tree,
     _build_context_content,
     _build_handoff_block,
     _get_changed_files,
+    persist_handoff_memory,
     run_transfer,
 )
 
@@ -136,6 +138,20 @@ def test_handoff_block_latest_checkpoint_not_provided_when_absent():
     assert "Latest checkpoint: (not provided)" in block
 
 
+def test_handoff_block_marks_checkpoint_as_reference_when_noted():
+    data = _make_handoff_data(
+        latest_checkpoint="v2.0.24",
+        latest_checkpoint_note="reference only; handoff/git state is current",
+    )
+
+    block = _build_handoff_block(data)
+
+    assert (
+        "Latest checkpoint: v2.0.24 (reference only; handoff/git state is current)"
+        in block
+    )
+
+
 # ── _build_context_content ──────────────────────────────────────────────────
 
 
@@ -240,6 +256,8 @@ def _make_args(**kwargs):
         out=None,
         session_summary=None,
         first_next_action=None,
+        verification=None,
+        decision=None,
     )
     defaults.update(kwargs)
     return argparse.Namespace(**defaults)
@@ -289,6 +307,26 @@ def test_handoff_no_prompt_writes_file_with_block(tmp_path):
     assert "auto-drafted" in content
 
 
+def test_context_content_handoff_section_one_uses_handoff_state(tmp_path):
+    data = _make_handoff_data(
+        active_intent="Improve Session Handoff continuation",
+        session_summary="Current handoff work",
+        unfinished_work="커밋되지 않은 변경 6개 파일",
+        latest_checkpoint="old checkpoint",
+    )
+
+    content = _build_context_content(tmp_path, handoff_data=data)
+    section_one = content.split("## 1. 지금 무엇을 작업 중인가", 1)[1].split(
+        "---", 1
+    )[0]
+
+    assert "**현재 작업**" in section_one
+    assert "Improve Session Handoff continuation" in section_one
+    assert "커밋되지 않은 변경 6개 파일" in section_one
+    assert "handoff/git 상태가 실제 이어받을 기준" in section_one
+    assert "**마지막 작업**" not in section_one
+
+
 def test_handoff_accepts_non_interactive_summary_and_next_action(tmp_path):
     out_path = tmp_path / "PROJECT_CONTEXT.md"
     args = _make_args(
@@ -306,6 +344,47 @@ def test_handoff_accepts_non_interactive_summary_and_next_action(tmp_path):
     assert "GUI generated a beginner friendly handoff" in content
     assert "Read the Session Handoff first" in content
     assert "gui-assisted" in content
+
+
+def test_handoff_accepts_structured_verification_and_persists_it(tmp_path):
+    out_path = tmp_path / "PROJECT_CONTEXT.md"
+    args = _make_args(
+        handoff=True,
+        no_prompt=True,
+        out=str(out_path),
+        session_summary="handoff verification captured separately",
+        first_next_action="review generated context",
+        verification=["uv run pytest tests/test_vib_transfer_handoff.py -> passed"],
+    )
+
+    with mock.patch("os.getcwd", return_value=str(tmp_path)):
+        run_transfer(args)
+
+    content = out_path.read_text(encoding="utf-8")
+    state = load_work_memory(tmp_path / ".vibelign" / "work_memory.json")
+    assert "uv run pytest tests/test_vib_transfer_handoff.py -> passed" in content
+    assert state["verification"][-1] == (
+        "uv run pytest tests/test_vib_transfer_handoff.py -> passed"
+    )
+
+
+def test_handoff_accepts_decision_and_persists_it(tmp_path):
+    out_path = tmp_path / "PROJECT_CONTEXT.md"
+    args = _make_args(
+        handoff=True,
+        no_prompt=True,
+        out=str(out_path),
+        decision=["Use git status as the handoff source of truth."],
+    )
+
+    with mock.patch("os.getcwd", return_value=str(tmp_path)):
+        run_transfer(args)
+
+    content = out_path.read_text(encoding="utf-8")
+    state = load_work_memory(tmp_path / ".vibelign" / "work_memory.json")
+    assert "### Active intent" in content
+    assert "Use git status as the handoff source of truth." in content
+    assert state["decisions"][-1] == "Use git status as the handoff source of truth."
 
 
 def test_handoff_no_prompt_includes_work_memory_facts_when_present(tmp_path):
@@ -479,6 +558,85 @@ def test_handoff_work_memory_completed_work_wins_over_commit_details(tmp_path):
     assert "fix(gui): unrelated recent release" not in content
 
 
+def test_stale_work_memory_does_not_replace_git_completed_work(tmp_path):
+    vibelign_dir = tmp_path / ".vibelign"
+    vibelign_dir.mkdir()
+    (vibelign_dir / "work_memory.json").write_text(
+        """
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-26T00:00:00Z",
+  "recent_events": [
+    {
+      "time": "2026-04-26T00:00:00Z",
+      "kind": "modified",
+      "path": "stale.py",
+      "message": "stale watch event",
+      "action": "Ignore stale watch data."
+    }
+  ],
+  "relevant_files": [],
+  "warnings": [],
+  "decisions": [],
+  "verification": []
+}
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    out_path = tmp_path / "PROJECT_CONTEXT.md"
+    args = _make_args(handoff=True, no_prompt=True, out=str(out_path))
+
+    with (
+        mock.patch("os.getcwd", return_value=str(tmp_path)),
+        mock.patch(
+            "vibelign.commands.vib_transfer_cmd._get_work_memory_staleness_warning",
+            return_value="work_memory/watch data may be stale; trust git status first.",
+        ),
+        mock.patch(
+            "vibelign.commands.vib_transfer_cmd._get_detailed_commits",
+            return_value=[
+                {
+                    "hash": "abc1234",
+                    "message": "feat: trusted git context",
+                    "files": "trusted.py",
+                }
+            ],
+        ),
+        mock.patch(
+            "vibelign.commands.vib_transfer_cmd._get_recent_commits",
+            return_value=["feat: trusted git context"],
+        ),
+    ):
+        run_transfer(args)
+
+    content = out_path.read_text(encoding="utf-8")
+    live_changes_section = content.split("### Live working changes", 1)[1].split(
+        "### Verification snapshot", 1
+    )[0]
+    assert "feat: trusted git context" in live_changes_section
+    assert "stale watch event" not in live_changes_section
+    assert "work_memory/watch data may be stale" in content
+
+
+def test_handoff_persists_decision_context_to_work_memory(tmp_path):
+    data = _make_handoff_data(
+        decision_context={
+            "tried": "watch-only handoff",
+            "blocked_by": "watch may be off",
+            "switched_to": "git-backed handoff contract",
+        },
+        verification=["uv run pytest tests/test_vib_transfer_handoff.py"],
+    )
+
+    persist_handoff_memory(tmp_path, data)
+
+    state = load_work_memory(tmp_path / ".vibelign" / "work_memory.json")
+    assert state["decisions"][-1].startswith("Handoff decision:")
+    assert "git-backed handoff contract" in state["decisions"][-1]
+    assert state["verification"][-1] == "uv run pytest tests/test_vib_transfer_handoff.py"
+
+
 def test_handoff_live_working_changes_removes_redundant_modified_message(tmp_path):
     vibelign_dir = tmp_path / ".vibelign"
     vibelign_dir.mkdir()
@@ -559,6 +717,164 @@ def test_handoff_no_prompt_includes_git_working_tree_details(tmp_path):
     assert "PKG-INFO" not in content
 
 
+def test_handoff_dirty_count_and_lists_share_git_status_source(tmp_path):
+    with mock.patch("os.getcwd", return_value=str(tmp_path)):
+        import subprocess
+
+        subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+        for index in range(9):
+            (tmp_path / f"tracked_{index}.py").write_text(
+                "before\n", encoding="utf-8"
+            )
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "initial"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            env={
+                "GIT_AUTHOR_NAME": "Test",
+                "GIT_AUTHOR_EMAIL": "test@example.com",
+                "GIT_COMMITTER_NAME": "Test",
+                "GIT_COMMITTER_EMAIL": "test@example.com",
+            },
+        )
+        for index in range(9):
+            (tmp_path / f"tracked_{index}.py").write_text(
+                "before\nafter\n", encoding="utf-8"
+            )
+        for index in range(3):
+            (tmp_path / f"untracked_{index}.py").write_text(
+                "new\n", encoding="utf-8"
+            )
+
+        out_path = tmp_path / "PROJECT_CONTEXT.md"
+        args = _make_args(handoff=True, no_prompt=True, out=str(out_path))
+        run_transfer(args)
+
+    content = out_path.read_text(encoding="utf-8")
+    assert "커밋되지 않은 변경 12개 파일" in content
+    assert "git status 기준 현재 변경 12개 파일" in content
+    assert "untracked_2.py — untracked" in content
+    assert "(+7)" in content
+
+
+def test_handoff_prioritizes_untracked_handoff_modules_when_many_changes(tmp_path):
+    with mock.patch("os.getcwd", return_value=str(tmp_path)):
+        import subprocess
+
+        subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+        for index in range(16):
+            (tmp_path / f"tracked_{index}.py").write_text(
+                "before\n", encoding="utf-8"
+            )
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "initial"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            env={
+                "GIT_AUTHOR_NAME": "Test",
+                "GIT_AUTHOR_EMAIL": "test@example.com",
+                "GIT_COMMITTER_NAME": "Test",
+                "GIT_COMMITTER_EMAIL": "test@example.com",
+            },
+        )
+        for index in range(16):
+            (tmp_path / f"tracked_{index}.py").write_text(
+                "before\nafter\n", encoding="utf-8"
+            )
+        transfer_module = tmp_path / "vibelign" / "commands" / "transfer_git_context.py"
+        transfer_module.parent.mkdir(parents=True)
+        transfer_module.write_text("# new module\n", encoding="utf-8")
+        transfer_test = tmp_path / "tests" / "test_transfer_git_context.py"
+        transfer_test.parent.mkdir()
+        transfer_test.write_text("def test_new():\n    assert True\n", encoding="utf-8")
+
+        out_path = tmp_path / "PROJECT_CONTEXT.md"
+        args = _make_args(handoff=True, no_prompt=True, out=str(out_path))
+        run_transfer(args)
+
+    content = out_path.read_text(encoding="utf-8")
+    live_section = content.split("### Live working changes", 1)[1].split(
+        "### Code change details", 1
+    )[0]
+    details_section = content.split("### Code change details", 1)[1].split(
+        "### Verification snapshot", 1
+    )[0]
+    changed_line = content.split("### 변경 파일", 1)[1].split("###", 1)[0]
+
+    assert "git status 기준 현재 변경 18개 파일" in content
+    assert "vibelign/commands/transfer_git_context.py — untracked" in live_section
+    assert "tests/test_transfer_git_context.py — untracked" in live_section
+    assert "vibelign/commands/transfer_git_context.py — untracked" in details_section
+    assert "tests/test_transfer_git_context.py — untracked" in details_section
+    assert "추가" not in live_section
+    assert "`vibelign/commands/transfer_git_context.py`" in changed_line
+    assert "`tests/test_transfer_git_context.py`" in changed_line
+
+
+def test_handoff_session_summary_prefers_git_dirty_state_over_watch_noise(tmp_path):
+    with mock.patch("os.getcwd", return_value=str(tmp_path)):
+        import subprocess
+
+        subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+        tracked = tmp_path / "handoff.py"
+        tracked.write_text("before\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "initial"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            env={
+                "GIT_AUTHOR_NAME": "Test",
+                "GIT_AUTHOR_EMAIL": "test@example.com",
+                "GIT_COMMITTER_NAME": "Test",
+                "GIT_COMMITTER_EMAIL": "test@example.com",
+            },
+        )
+        tracked.write_text("before\nafter\n", encoding="utf-8")
+        work_memory = tmp_path / ".vibelign" / "work_memory.json"
+        work_memory.parent.mkdir()
+        work_memory.write_text(
+            """
+{
+  "schema_version": 1,
+  "updated_at": "2099-01-01T00:00:00Z",
+  "recent_events": [
+    {
+      "time": "2099-01-01T00:00:00Z",
+      "kind": "modified",
+      "path": ".omc/project-memory.json",
+      "message": "agent state noise",
+      "action": "Ignore agent state."
+    }
+  ],
+  "relevant_files": [],
+  "warnings": [],
+  "decisions": [],
+  "verification": []
+}
+""".strip()
+            + "\n",
+            encoding="utf-8",
+        )
+
+        out_path = tmp_path / "PROJECT_CONTEXT.md"
+        args = _make_args(handoff=True, no_prompt=True, out=str(out_path))
+        run_transfer(args)
+
+    content = out_path.read_text(encoding="utf-8")
+    summary_section = content.split("### 현재 세션 작업 요약", 1)[1].split(
+        "### Concrete next steps", 1
+    )[0]
+    assert "Current uncommitted work has 1 handoff-visible file changes" in summary_section
+    assert "handoff.py — modified" in summary_section
+    assert ".omc/project-memory.json" not in summary_section
+
+
 def test_handoff_without_work_memory_keeps_fallback_behavior(tmp_path):
     out_path = tmp_path / "PROJECT_CONTEXT.md"
     args = _make_args(handoff=True, no_prompt=True, out=str(out_path))
@@ -587,3 +903,16 @@ def test_handoff_block_stays_bounded_and_avoids_raw_logs():
     assert block.count("- warning") <= 5
     assert block.count("- verification") <= 5
     assert '{"level"' not in block
+
+
+def test_handoff_block_shows_latest_verification_entries():
+    data = _make_handoff_data(
+        verification=[f"verification {index}" for index in range(5)],
+    )
+
+    block = _build_handoff_block(data)
+
+    assert "verification 0" not in block
+    assert "verification 1" not in block
+    assert "verification 2" in block
+    assert "verification 4" in block

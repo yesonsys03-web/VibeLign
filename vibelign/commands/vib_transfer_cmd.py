@@ -5,20 +5,17 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
-import sys
 from datetime import datetime
 from pathlib import Path
 
-_WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 from typing import Protocol, TypedDict, cast
 
+from vibelign.commands import transfer_git_context
 from vibelign.core.local_checkpoints import list_checkpoints, friendly_time
 from vibelign.core.project_root import resolve_project_root
 from vibelign.core.structure_policy import (
     HANDOFF_KEY_FILE_NAMES,
     HANDOFF_SKIP_EXTENSIONS,
-    HANDOFF_SKIP_PREFIXES as SHARED_HANDOFF_SKIP_PREFIXES,
     TRANSFER_TREE_IGNORED_DIRS,
 )
 from vibelign.terminal_render import (
@@ -31,13 +28,11 @@ from vibelign.terminal_render import (
 
 # PROJECT_CONTEXT.md 에 추가되는 마커 (중복 생성 방지용)
 _TRANSFER_MARKER = "<!-- VibeLign Transfer Context -->"
+_HANDOFF_CHANGE_DISPLAY_LIMIT = 30
 
 _SKIP_DIRS = set(TRANSFER_TREE_IGNORED_DIRS)
-_SKIP_DIRS_LOWER = {item.lower() for item in _SKIP_DIRS}
 _SKIP_EXTS = set(HANDOFF_SKIP_EXTENSIONS)
 _KEY_FILE_NAMES = set(HANDOFF_KEY_FILE_NAMES)
-_HANDOFF_SKIP_PREFIXES = SHARED_HANDOFF_SKIP_PREFIXES
-_HANDOFF_SKIP_DIR_SUFFIXES = (".egg-info",)
 
 
 class CheckpointSummary(TypedDict):
@@ -66,12 +61,16 @@ class HandoffData(TypedDict, total=False):
     concrete_next_steps: list[str]
     decision_context: DecisionContext | None
     latest_checkpoint: str | None
+    latest_checkpoint_note: str | None
     recent_git_context: list[str]
     relevant_files: list[dict[str, str]]
     recent_events: list[str]
     warnings: list[str]
     verification: list[str]
+    verification_to_persist: list[str]
+    decision_notes: list[str]
     state_references: list[str]
+    changed_file_count: int
 
 
 class TransferArgs(Protocol):
@@ -84,6 +83,8 @@ class TransferArgs(Protocol):
     out: str | None
     session_summary: str | None
     first_next_action: str | None
+    verification: list[str] | None
+    decision: list[str] | None
 
 
 _TIMESTAMP_PATTERN = re.compile(r"\s*\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)\s*$")
@@ -196,132 +197,23 @@ def _arg_text(args: object, name: str) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _arg_text_list(args: object, name: str) -> list[str]:
+    value = getattr(args, name, None)
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str) and item]
+
+
 def _get_changed_files(root: Path) -> list[str]:
-    """git 상태에서 변경된 파일 목록 수집 (최대 10개)."""
-    files: list[str] = []
-    try:
-        r1 = subprocess.run(
-            ["git", "diff", "--name-only", "HEAD"],
-            capture_output=True,
-            text=True,
-            cwd=root,
-            timeout=5,
-            creationflags=_WINDOWS_FLAGS,
-        )
-        for f in r1.stdout.splitlines():
-            f = f.strip()
-            if f:
-                files.append(f)
-
-        r2 = subprocess.run(
-            ["git", "status", "--porcelain"],
-            capture_output=True,
-            text=True,
-            cwd=root,
-            timeout=5,
-            creationflags=_WINDOWS_FLAGS,
-        )
-        for line in r2.stdout.splitlines():
-            if len(line) > 3:
-                fname = line[3:].strip()
-                if fname not in files:
-                    files.append(fname)
-    except Exception:
-        pass
-
-    # 시스템 파일 제거
-    files = [
-        f
-        for f in files
-        if _should_include_handoff_path(f) and not f.endswith((".pyc", ".pyo"))
-    ]
-    return files[:10]
-
-
-def _should_include_handoff_path(path: str) -> bool:
-    normalized_path = path.replace("\\", "/").strip()
-    if not normalized_path or any(
-        normalized_path.startswith(p) for p in _HANDOFF_SKIP_PREFIXES
-    ):
-        return False
-    for part in normalized_path.split("/"):
-        normalized_part = part.lower()
-        if normalized_part in _SKIP_DIRS_LOWER:
-            return False
-        if any(normalized_part.endswith(suffix) for suffix in _HANDOFF_SKIP_DIR_SUFFIXES):
-            return False
-    return True
-
-
-def _working_tree_numstat(root: Path) -> dict[str, str]:
-    stats: dict[str, str] = {}
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--numstat", "HEAD"],
-            capture_output=True,
-            text=True,
-            cwd=root,
-            timeout=5,
-            creationflags=_WINDOWS_FLAGS,
-        )
-    except Exception:
-        return stats
-    for line in result.stdout.splitlines():
-        parts = line.split("\t")
-        if len(parts) < 3:
-            continue
-        added, removed, raw_path = parts[0], parts[1], parts[2]
-        path = raw_path.split(" => ")[-1].strip("{}")
-        if not _should_include_handoff_path(path):
-            continue
-        stats[path] = "binary changed" if "-" in (added, removed) else f"+{added}/-{removed}"
-    return stats
-
-
-def _status_label(code: str) -> str:
-    if "?" in code:
-        return "untracked"
-    if "A" in code:
-        return "added"
-    if "D" in code:
-        return "deleted"
-    if "R" in code:
-        return "renamed"
-    return "modified"
+    return transfer_git_context.get_changed_files(root)
 
 
 def _get_working_tree_change_details(root: Path) -> list[str]:
-    """Return concise git working-tree details for handoff continuation."""
-    details: list[str] = []
-    stats = _working_tree_numstat(root)
-    try:
-        result = subprocess.run(
-            ["git", "status", "--porcelain"],
-            capture_output=True,
-            text=True,
-            cwd=root,
-            timeout=5,
-            creationflags=_WINDOWS_FLAGS,
-        )
-    except Exception:
-        return details
-    for line in result.stdout.splitlines():
-        if len(line) < 4:
-            continue
-        code = line[:2]
-        raw_path = line[3:].strip()
-        path = raw_path.split(" -> ")[-1]
-        if not _should_include_handoff_path(path):
-            continue
-        detail = f"{path} — {_status_label(code)}"
-        stat = stats.get(path) or stats.get(raw_path)
-        if stat:
-            detail += f" ({stat})"
-        if detail not in details:
-            details.append(detail)
-        if len(details) >= 8:
-            break
-    return details
+    return transfer_git_context.get_working_tree_change_details(root)
+
+
+def _get_working_tree_summary(root: Path) -> transfer_git_context.WorkingTreeSummary:
+    return transfer_git_context.get_working_tree_summary(root)
 
 
 def _detect_project_name(root: Path) -> str:
@@ -507,6 +399,9 @@ def _build_handoff_block(data: HandoffData) -> str:
     )
 
     cp_ref = _handoff_text(data.get("latest_checkpoint"))
+    cp_note = _handoff_text(data.get("latest_checkpoint_note"), "")
+    if cp_note and cp_ref != "(not provided)":
+        cp_ref = f"{cp_ref} ({cp_note})"
     lines.append(f"Latest checkpoint: {cp_ref}")
     lines.append("")
 
@@ -552,17 +447,17 @@ def _build_handoff_block(data: HandoffData) -> str:
     lines.append(completed)
     lines.append("")
 
-    change_details = _handoff_lines(data.get("change_details"))
+    change_details = _prioritize_change_details(_handoff_lines(data.get("change_details")))
     if change_details:
         lines.append("### Code change details")
-        for item in change_details[:8]:
+        for item in change_details[:_HANDOFF_CHANGE_DISPLAY_LIMIT]:
             lines.append(f"- {item}")
         lines.append("")
 
     verification = _handoff_lines(data.get("verification"))
     lines.append("### Verification snapshot")
     if verification:
-        for item in verification[:5]:
+        for item in verification[-3:]:
             lines.append(f"- {item}")
     else:
         lines.append(
@@ -585,12 +480,17 @@ def _build_handoff_block(data: HandoffData) -> str:
         lines.append("")
 
     # 변경 파일
-    changed = _handoff_files(data.get("changed_files"))
+    changed = _prioritize_changed_files(
+        _handoff_files(data.get("changed_files")),
+        _handoff_lines(data.get("change_details")),
+    )
+    changed_count = data.get("changed_file_count")
     lines.append("### 변경 파일")
     if changed:
         files_str = ", ".join(f"`{f}`" for f in changed[:5])
-        if len(changed) > 5:
-            files_str += f" … (+{len(changed) - 5})"
+        total = changed_count if isinstance(changed_count, int) else len(changed)
+        if total > 5:
+            files_str += f" … (+{total - 5})"
         lines.append(files_str)
     else:
         lines.append("(not provided)")
@@ -633,6 +533,88 @@ def _merge_changed_files(primary: list[str], secondary: list[str]) -> list[str]:
     return merged[:10]
 
 
+def _format_working_tree_live_changes(details: list[str], count: int) -> str | None:
+    if count <= 0:
+        return None
+    prioritized_details = _prioritize_change_details(details)
+    lines = [f"- git status 기준 현재 변경 {count}개 파일"]
+    shown_details = prioritized_details[:_HANDOFF_CHANGE_DISPLAY_LIMIT]
+    lines.extend(f"- {item}" for item in shown_details)
+    hidden = count - min(count, len(shown_details))
+    if hidden > 0:
+        lines.append(f"- … 추가 {hidden}개 변경은 git status --porcelain으로 확인")
+    return "\n".join(lines)
+
+
+def _prioritize_change_details(details: list[str]) -> list[str]:
+    return sorted(details, key=lambda detail: _change_priority(_detail_path(detail), detail))
+
+
+def _prioritize_changed_files(files: list[str], details: list[str]) -> list[str]:
+    detail_by_path = {_detail_path(detail): detail for detail in details}
+    return sorted(files, key=lambda path: _change_priority(path, detail_by_path.get(path, "")))
+
+
+def _detail_path(detail: str) -> str:
+    return detail.split(" — ", 1)[0]
+
+
+def _change_priority(path: str, detail: str) -> tuple[int, int, int, str]:
+    is_new = "— untracked" in detail or "— added" in detail
+    is_handoff_core = _looks_like_handoff_context_work([path])
+    is_auto_state = "/.omc/" in path or path.startswith(".omc/")
+    return (
+        0 if is_handoff_core else 1,
+        0 if is_new else 1,
+        1 if is_auto_state else 0,
+        path,
+    )
+
+
+def _format_working_tree_session_summary(
+    details: list[str], files: list[str], count: int
+) -> str | None:
+    if count <= 0:
+        return None
+    paths = files or [item.split(" — ", 1)[0] for item in details]
+    if _looks_like_handoff_context_work(paths):
+        return (
+            "Current uncommitted work is improving VibeLign Session Handoff "
+            "self-sufficiency for AI-to-AI continuation. Git status remains the "
+            f"source of truth for {count} handoff-visible changed files, while "
+            "the narrative summary preserves why the handoff work exists. The "
+            "changes cover transfer git-context collection, handoff rendering, "
+            "MCP/CLI verification flow, and regression tests. Before committing, "
+            "separate unrelated local state from the handoff-context changes and "
+            "keep the verification snapshot current."
+        )
+    samples = [item.split(" (", 1)[0] for item in details[:3]] or paths[:3]
+    if samples:
+        return (
+            f"Current uncommitted work has {count} handoff-visible file changes. "
+            f"Key changes: {'; '.join(samples)}. Review the intent behind these "
+            "changes, then update verification before committing."
+        )
+    return (
+        f"Current uncommitted work has {count} handoff-visible file changes. "
+        "Review the changed files for intent and update verification before committing."
+    )
+
+
+def _looks_like_handoff_context_work(paths: list[str]) -> bool:
+    joined = " ".join(paths)
+    return any(
+        marker in joined
+        for marker in (
+            "vib_transfer_cmd",
+            "transfer_git_context",
+            "mcp_transfer",
+            "test_vib_transfer_handoff",
+            "test_transfer_git_context",
+        )
+    )
+
+
 def _merge_handoff_lines(primary: list[str], secondary: list[str], limit: int = 8) -> list[str]:
     merged: list[str] = []
     for item in primary + secondary:
@@ -641,6 +623,30 @@ def _merge_handoff_lines(primary: list[str], secondary: list[str], limit: int = 
         if len(merged) >= limit:
             break
     return merged
+
+
+def _merge_verification_lines(
+    older: list[str], newer: list[str], limit: int = 5
+) -> list[str]:
+    merged: list[str] = []
+    for item in older + newer:
+        if not item:
+            continue
+        key = _verification_key(item)
+        merged = [
+            existing
+            for existing in merged
+            if _verification_key(existing) != key
+        ]
+        merged.append(item)
+    return merged[-limit:]
+
+
+def _verification_key(value: str) -> str:
+    command = value.partition(" -> ")[0].strip()
+    if command.startswith("uv run python -m py_compile"):
+        return "uv run python -m py_compile"
+    return command or value
 
 
 def _live_working_changes_from_events(events: object) -> list[str]:
@@ -665,6 +671,14 @@ def _is_handoff_reading_instruction(value: object) -> bool:
     if not text:
         return False
     return "PROJECT_CONTEXT.md" in text and "Session Handoff" in text and "먼저 읽" in text
+
+
+def _is_generic_watch_action(value: object) -> bool:
+    text = _handoff_text(value, "")
+    return text in {
+        "Review the latest change and refresh transfer handoff if needed.",
+        "Confirm the deletion intent or restore the file if needed.",
+    }
 
 
 def _mentions_any(text: str, markers: tuple[str, ...]) -> bool:
@@ -698,10 +712,23 @@ def _infer_active_intent(data: HandoffData) -> str | None:
 def _build_concrete_next_steps(data: HandoffData) -> list[str]:
     steps: list[str] = []
     next_action = _handoff_text(data.get("first_next_action"), "")
-    if next_action and not _is_handoff_reading_instruction(next_action):
+    if (
+        next_action
+        and not _is_handoff_reading_instruction(next_action)
+        and not _is_generic_watch_action(next_action)
+    ):
         steps.append(next_action)
     else:
-        steps.extend(_handoff_lines(data.get("concrete_next_steps")))
+        steps.extend(
+            item
+            for item in _handoff_lines(data.get("concrete_next_steps"))
+            if not _is_generic_watch_action(item)
+        )
+    if not steps and _looks_like_handoff_context_work(_handoff_files(data.get("changed_files"))):
+        steps.append(
+            "Review the uncommitted handoff-context changes, keep unrelated local "
+            "state separate, then prepare focused commits only after verification is current."
+        )
     verification = _handoff_lines(data.get("verification"))
     mentions_verification = any(
         _mentions_any(step, ("pytest", "build", "test", "테스트", "verification"))
@@ -730,6 +757,23 @@ def _enrich_handoff_with_work_memory(root: Path, data: HandoffData) -> HandoffDa
 
     summary = build_transfer_summary(MetaPaths(root).work_memory_path)
     if summary is None:
+        return data
+
+    stale_warning = _get_work_memory_staleness_warning(root)
+    if stale_warning:
+        if not data.get("active_intent"):
+            data["active_intent"] = summary.get("active_intent")
+        verification = summary.get("verification")
+        if verification:
+            data["verification"] = _merge_verification_lines(
+                verification, _handoff_lines(data.get("verification")), limit=5
+            )
+        state_references = summary.get("state_references")
+        if state_references:
+            data["state_references"] = state_references
+        data["warnings"] = _merge_handoff_lines(
+            [stale_warning], _handoff_lines(data.get("warnings"))
+        )
         return data
 
     if not data.get("active_intent"):
@@ -766,7 +810,9 @@ def _enrich_handoff_with_work_memory(root: Path, data: HandoffData) -> HandoffDa
         data["warnings"] = warnings
     verification = summary.get("verification")
     if verification:
-        data["verification"] = verification
+        data["verification"] = _merge_verification_lines(
+            verification, _handoff_lines(data.get("verification")), limit=5
+        )
     state_references = summary.get("state_references")
     if state_references:
         data["state_references"] = state_references
@@ -775,6 +821,30 @@ def _enrich_handoff_with_work_memory(root: Path, data: HandoffData) -> HandoffDa
 
 def enrich_handoff_with_work_memory(root: Path, data: HandoffData) -> HandoffData:
     return _enrich_handoff_with_work_memory(root, data)
+
+
+def _build_current_work_section(
+    checkpoints: list[CheckpointSummary], handoff_data: HandoffData | None
+) -> str:
+    last_work = checkpoints[0]["message"] if checkpoints else "(체크포인트 없음)"
+    last_time = checkpoints[0]["time"] if checkpoints else ""
+    if handoff_data is None:
+        return (
+            f"- **마지막 작업**: {last_time} — `{last_work}`\n"
+            "- **상태**: 작업 진행 중 (아래 체크포인트 기록 참고)"
+        )
+
+    active = _handoff_text(handoff_data.get("active_intent"), "") or _handoff_text(
+        handoff_data.get("session_summary"), "Session Handoff 기준 현재 작업"
+    )
+    unfinished = _handoff_text(handoff_data.get("unfinished_work"), "")
+    status = unfinished or "Session Handoff 기준으로 이어서 작업 가능"
+    return (
+        f"- **현재 작업**: `{active}`\n"
+        f"- **상태**: {status}\n"
+        f"- **체크포인트 참고**: {last_time} — `{last_work}` "
+        "(handoff/git 상태가 실제 이어받을 기준)"
+    )
 
 
 def _build_context_content(
@@ -796,9 +866,7 @@ def _build_context_content(
     max_depth = 2 if compact else (4 if full else 3)
     file_tree = _build_file_tree(root, max_depth=max_depth)
 
-    # 마지막 작업 (최근 체크포인트 메시지)
-    last_work = checkpoints[0]["message"] if checkpoints else "(체크포인트 없음)"
-    last_time = checkpoints[0]["time"] if checkpoints else ""
+    current_work_section = _build_current_work_section(checkpoints, handoff_data)
 
     # 체크포인트 테이블
     cp_rows = ""
@@ -831,8 +899,7 @@ def _build_context_content(
 
 ## 1. 지금 무엇을 작업 중인가
 
-- **마지막 작업**: {last_time} — `{last_work}`
-- **상태**: 작업 진행 중 (아래 체크포인트 기록 참고)
+{current_work_section}
 
 ---
 
@@ -907,86 +974,47 @@ def build_context_content(
 
 
 def _get_recent_commits(root: Path, n: int = 5) -> list[str]:
-    """최근 사용자 커밋 메시지 가져오기 (vibelign 자동 커밋 제외)."""
-    try:
-        result = subprocess.run(
-            ["git", "log", f"--max-count={n * 2}", "--pretty=format:%s", "--no-merges"],
-            capture_output=True,
-            text=True,
-            cwd=root,
-            timeout=5,
-            creationflags=_WINDOWS_FLAGS,
-        )
-        messages = [m.strip() for m in result.stdout.splitlines() if m.strip()]
-        # vibelign 자동 커밋 제외
-        messages = [m for m in messages if not m.startswith("vibelign:")]
-        return messages[:n]
-    except Exception:
-        return []
+    return transfer_git_context.get_recent_commits(root, n=n)
 
 
-def _get_detailed_commits(root: Path, n: int = 10) -> list[dict[str, str]]:
-    """최근 커밋의 해시, 메시지, 변경 파일을 수집한다."""
-    try:
-        result = subprocess.run(
-            [
-                "git",
-                "log",
-                f"--max-count={n * 2}",
-                "--pretty=format:%h\t%s",
-                "--no-merges",
-                "--name-only",
-            ],
-            capture_output=True,
-            text=True,
-            cwd=root,
-            timeout=10,
-            creationflags=_WINDOWS_FLAGS,
-        )
-        commits: list[dict[str, str]] = []
-        current: dict[str, str] | None = None
-        for line in result.stdout.splitlines():
-            if "\t" in line:
-                if current and not current["message"].startswith("vibelign:"):
-                    commits.append(current)
-                parts = line.split("\t", 1)
-                current = {"hash": parts[0], "message": parts[1], "files": ""}
-            elif line.strip() and current is not None:
-                fname = line.strip()
-                if not any(fname.startswith(p) for p in _HANDOFF_SKIP_PREFIXES):
-                    if current["files"]:
-                        current["files"] += ", "
-                    current["files"] += fname
-        if current and not current["message"].startswith("vibelign:"):
-            commits.append(current)
-        return commits[:n]
-    except Exception:
-        return []
+def _get_detailed_commits(root: Path, n: int = 10) -> list[transfer_git_context.DetailedCommit]:
+    return transfer_git_context.get_detailed_commits(root, n=n)
 
 
 def _get_uncommitted_summary(root: Path) -> str | None:
-    """커밋되지 않은 변경사항 요약을 반환한다."""
-    try:
-        result = subprocess.run(
-            ["git", "status", "--porcelain"],
-            capture_output=True,
-            text=True,
-            cwd=root,
-            timeout=5,
-            creationflags=_WINDOWS_FLAGS,
+    return transfer_git_context.get_uncommitted_summary(root)
+
+
+def _get_work_memory_staleness_warning(root: Path) -> str | None:
+    return transfer_git_context.get_work_memory_staleness_warning(root)
+
+
+def _persist_handoff_memory(root: Path, data: HandoffData) -> None:
+    """Persist explicit handoff facts so future transfers do not depend on watch."""
+    from vibelign.core.meta_paths import MetaPaths
+    from vibelign.core.work_memory import add_decision, add_verification
+
+    work_memory_path = MetaPaths(root).work_memory_path
+    decision_context = _handoff_decision_context(data.get("decision_context"))
+    if decision_context:
+        add_decision(
+            work_memory_path,
+            "Handoff decision: "
+            f"tried={decision_context['tried']}; "
+            f"blocked_by={decision_context['blocked_by']}; "
+            f"switched_to={decision_context['switched_to']}",
         )
-        lines = [
-            l.strip()
-            for l in result.stdout.splitlines()
-            if l.strip()
-            and len(l) > 3
-            and _should_include_handoff_path(l[3:].strip())
-        ]
-        if not lines:
-            return None
-        return f"커밋되지 않은 변경 {len(lines)}개 파일"
-    except Exception:
-        return None
+    verification_to_persist = _handoff_lines(data.get("verification_to_persist"))
+    if not verification_to_persist:
+        verification_to_persist = _handoff_lines(data.get("verification"))
+    for item in verification_to_persist:
+        add_verification(work_memory_path, item)
+    for item in _handoff_lines(data.get("decision_notes")):
+        add_decision(work_memory_path, item)
+
+
+def persist_handoff_memory(root: Path, data: HandoffData) -> None:
+    _persist_handoff_memory(root, data)
 
 
 def _handoff_quality(data: HandoffData) -> tuple[str, str]:
@@ -1054,15 +1082,24 @@ def get_changed_files(root: Path) -> list[str]:
     return _get_changed_files(root)
 
 
+def get_working_tree_summary(root: Path) -> transfer_git_context.WorkingTreeSummary:
+    return _get_working_tree_summary(root)
+
+
 def _collect_handoff_data_from_cli(
     root: Path,
     no_prompt: bool,
     session_summary: str | None = None,
     first_next_action: str | None = None,
+    verification: list[str] | None = None,
+    decision: list[str] | None = None,
 ) -> HandoffData:
     """CLI 경로(파일 기반 폴백)로 handoff_data 수집."""
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-    changed_files = _get_changed_files(root)
+    working_tree = _get_working_tree_summary(root)
+    changed_files = working_tree["files"]
+    change_details = working_tree["details"]
+    changed_count = working_tree["count"]
     checkpoints = _get_recent_checkpoints(root, n=1)
     latest_cp = checkpoints[0]["message"] if checkpoints else None
 
@@ -1070,15 +1107,24 @@ def _collect_handoff_data_from_cli(
         "generated_at": now_str,
         "source": "file_fallback",
         "quality": "auto-drafted",
-        "session_summary": None,
+        "session_summary": _format_working_tree_session_summary(
+            change_details, changed_files, changed_count
+        ),
         "changed_files": changed_files,
-        "change_details": _get_working_tree_change_details(root),
-        "completed_work": None,
-        "unfinished_work": None,
+        "changed_file_count": changed_count,
+        "change_details": change_details,
+        "completed_work": _format_working_tree_live_changes(change_details, changed_count),
+        "unfinished_work": working_tree["summary"],
         "first_next_action": None,
         "decision_context": None,
         "latest_checkpoint": latest_cp,
+        "latest_checkpoint_note": "reference only; handoff/git state is current"
+        if changed_count
+        else None,
+        "verification": verification or [],
+        "decision_notes": decision or [],
     }
+    git_completed_work: str | None = None
 
     # git 커밋 메시지로 session_summary 초안 생성
     recent_commits = _get_recent_commits(root, n=5)
@@ -1095,16 +1141,36 @@ def _collect_handoff_data_from_cli(
             if c["files"]:
                 line += f"\n  변경: {c['files']}"
             work_lines.append(line)
-        data["completed_work"] = "\n".join(work_lines)
+        git_completed_work = "\n".join(work_lines)
+        data["completed_work"] = git_completed_work
 
     # 커밋되지 않은 변경으로 unfinished_work 감지
-    uncommitted = _get_uncommitted_summary(root)
-    if uncommitted:
-        data["unfinished_work"] = uncommitted
-
+    stale_work_memory_warning = _get_work_memory_staleness_warning(root)
     data = _enrich_handoff_with_work_memory(root, data)
     current_session_events = _live_working_changes_from_events(data.get("recent_events"))
-    if current_session_events:
+    if stale_work_memory_warning:
+        data["warnings"] = _merge_handoff_lines(
+            [stale_work_memory_warning], _handoff_lines(data.get("warnings"))
+        )
+        data["changed_files"] = changed_files
+        data["changed_file_count"] = changed_count
+        data["change_details"] = change_details
+        if changed_count:
+            data["completed_work"] = _format_working_tree_live_changes(
+                change_details, changed_count
+            )
+        elif git_completed_work:
+            data["completed_work"] = git_completed_work
+        data.pop("recent_events", None)
+    elif changed_count:
+        data["changed_files"] = changed_files
+        data["changed_file_count"] = changed_count
+        data["change_details"] = change_details
+        data["unfinished_work"] = working_tree["summary"]
+        data["completed_work"] = _format_working_tree_live_changes(
+            change_details, changed_count
+        )
+    elif current_session_events:
         data["completed_work"] = "\n".join(
             f"- {event}" for event in current_session_events[:5]
         )
@@ -1117,6 +1183,16 @@ def _collect_handoff_data_from_cli(
         data["quality"] = "gui-assisted"
     if first_next_action:
         data["first_next_action"] = first_next_action
+        data["quality"] = "gui-assisted"
+    if verification:
+        data["verification"] = _merge_verification_lines(
+            _handoff_lines(data.get("verification")), verification, limit=5
+        )
+        data["verification_to_persist"] = verification
+        data["quality"] = "gui-assisted"
+    if decision:
+        data["decision_notes"] = decision
+        data["active_intent"] = decision[-1]
         data["quality"] = "gui-assisted"
 
     if no_prompt:
@@ -1216,6 +1292,8 @@ def run_transfer(args: object) -> None:
     out_file = _arg_text(args, "out") or "PROJECT_CONTEXT.md"
     session_summary = _arg_text(args, "session_summary")
     first_next_action = _arg_text(args, "first_next_action")
+    verification = _arg_text_list(args, "verification")
+    decision = _arg_text_list(args, "decision")
     out_path = root / out_file
 
     # --handoff와 --compact/--full 동시 사용 불가
@@ -1231,7 +1309,10 @@ def run_transfer(args: object) -> None:
             no_prompt=no_prompt,
             session_summary=session_summary,
             first_next_action=first_next_action,
+            verification=verification,
+            decision=decision,
         )
+        _persist_handoff_memory(root, handoff_data)
         content = _build_context_content(root, handoff_data=handoff_data)
     else:
         handoff_data = None
