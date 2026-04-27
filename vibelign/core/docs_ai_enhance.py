@@ -36,6 +36,8 @@ def _format_http_error(provider: str, model: str, error: urllib.error.HTTPError)
     if len(detail) > 1000:
         detail = detail[:1000] + "..."
     message = f"{provider} API 호출 실패: HTTP {error.code} {error.reason} (model={model})"
+    if provider == "Gemini" and "API_KEY_INVALID" in detail:
+        message += "\nGemini API 키가 유효하지 않아요. Settings에서 Gemini 키를 삭제한 뒤 아래 링크에서 새 키를 발급해 다시 저장해주세요.\nGoogle AI Studio API 키 발급: https://aistudio.google.com/app/apikey"
     if detail:
         message += f"\n응답 본문: {detail}"
     return message

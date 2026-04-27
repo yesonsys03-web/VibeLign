@@ -92,6 +92,30 @@ class AIEnhanceParsingTest(unittest.TestCase):
         self.assertIn("INVALID_ARGUMENT", message)
         self.assertIn("responseMimeType", message)
 
+    def test_formats_invalid_gemini_key_with_friendly_message(self):
+        body = json.dumps({
+            "error": {
+                "code": 400,
+                "message": "API Key not found. Please pass a valid API key.",
+                "status": "INVALID_ARGUMENT",
+                "details": [{"reason": "API_KEY_INVALID"}],
+            }
+        }).encode("utf-8")
+        error = urllib.error.HTTPError(
+            "https://generativelanguage.googleapis.com/v1beta/models/test:generateContent",
+            400,
+            "Bad Request",
+            {},
+            io.BytesIO(body),
+        )
+
+        message = enhance._format_http_error("Gemini", "test-model", error)
+
+        self.assertIn("Gemini API 키가 유효하지 않아요", message)
+        self.assertIn("Google AI Studio", message)
+        self.assertIn("https://aistudio.google.com/app/apikey", message)
+        self.assertIn("API_KEY_INVALID", message)
+
 
 if __name__ == "__main__":
     unittest.main()
