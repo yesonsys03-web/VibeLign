@@ -17,6 +17,9 @@ build/
 .venv/
 venv/
 env/
+.env/
+.env.*
+*.env
 
 # VibeLign generated output files
 VIBELIGN_PATCH_REQUEST.md
