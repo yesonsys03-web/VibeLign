@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.error
 import urllib.request
 from typing import Any
 
@@ -25,6 +26,19 @@ def _model_override(provider: str) -> str | None:
     env_name = f"VIBELIGN_DOCS_AI_MODEL_{provider.upper()}"
     value = os.environ.get(env_name, "").strip()
     return value or None
+
+
+def _format_http_error(provider: str, model: str, error: urllib.error.HTTPError) -> str:
+    try:
+        detail = error.read().decode("utf-8", errors="ignore").strip()
+    except Exception:
+        detail = ""
+    if len(detail) > 1000:
+        detail = detail[:1000] + "..."
+    message = f"{provider} API 호출 실패: HTTP {error.code} {error.reason} (model={model})"
+    if detail:
+        message += f"\n응답 본문: {detail}"
+    return message
 
 
 PROMPT_TEMPLATE = """You are a precise documentation summarizer for a developer tool.
@@ -217,7 +231,10 @@ def call_gemini(source_text: str, *, model: str | None = None) -> dict[str, Any]
         data=payload,
         headers={"content-type": "application/json"},
     )
-    raw = _HTTP_RETRY.urlopen_read_with_retry(req, timeout=60.0)
+    try:
+        raw = _HTTP_RETRY.urlopen_read_with_retry(req, timeout=60.0)
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(_format_http_error("Gemini", model, exc)) from exc
     body = json.loads(raw.decode("utf-8"))
     candidates = body.get("candidates") or []
     parts = (

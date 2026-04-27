@@ -1,8 +1,10 @@
 import importlib.util
+import io
 import json
 import sys
 import types
 import unittest
+import urllib.error
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -67,6 +69,28 @@ class AIEnhanceParsingTest(unittest.TestCase):
         fake_body = {"content": [{"type": "text", "text": "not json"}]}
         with self.assertRaises(ValueError):
             enhance.parse_anthropic_response(fake_body)
+
+    def test_formats_gemini_http_error_with_response_body(self):
+        body = json.dumps({
+            "error": {
+                "status": "INVALID_ARGUMENT",
+                "message": "model does not support responseMimeType",
+            }
+        }).encode("utf-8")
+        error = urllib.error.HTTPError(
+            "https://generativelanguage.googleapis.com/v1beta/models/test:generateContent",
+            400,
+            "Bad Request",
+            {},
+            io.BytesIO(body),
+        )
+
+        message = enhance._format_http_error("Gemini", "test-model", error)
+
+        self.assertIn("HTTP 400 Bad Request", message)
+        self.assertIn("model=test-model", message)
+        self.assertIn("INVALID_ARGUMENT", message)
+        self.assertIn("responseMimeType", message)
 
 
 if __name__ == "__main__":
