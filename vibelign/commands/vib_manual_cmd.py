@@ -843,6 +843,14 @@ MANUAL: dict[str, ManualEntry] = {
                 'vib transfer --handoff --first-next-action "다음 할 일"',
                 "새 AI가 먼저 할 일을 직접 넣기",
             ),
+            (
+                'vib transfer --handoff --verification "pytest 53 passed"',
+                "검증 결과를 직접 넣기",
+            ),
+            (
+                'vib transfer --handoff --decision "git 상태를 기준으로 삼기"',
+                "다음 AI가 볼 결정사항 저장하기",
+            ),
             ("vib transfer --handoff --dry-run", "저장 없이 내용 미리 보기"),
             ("vib transfer --out ctx.md", "파일 이름 바꾸기"),
         ],
@@ -874,6 +882,14 @@ MANUAL: dict[str, ManualEntry] = {
             (
                 "--first-next-action 텍스트",
                 "--handoff 와 함께 써요.\n새 AI가 제일 먼저 해야 할 일을 직접 지정해요.\n예: --first-next-action \"실패한 테스트부터 다시 실행\"",
+            ),
+            (
+                "--verification 텍스트",
+                "--handoff 와 함께 써요.\n테스트나 빌드 검증 결과를 직접 기록해요.\n여러 번 써서 pytest, build 같은 결과를 각각 남길 수 있어요.",
+            ),
+            (
+                "--decision 텍스트",
+                "--handoff 와 함께 써요.\n이번 세션에서 정한 중요한 방향이나 선택을 work_memory decisions에 저장해요.\n여러 번 써서 결정사항을 각각 남길 수 있어요.",
             ),
             (
                 "--out 파일명",

@@ -529,6 +529,8 @@ def register_extended_commands(
             "  vib transfer --handoff --print     Handoff 요약을 콘솔에도 출력\n"
             "  vib transfer --handoff --no-prompt 프롬프트 없이 자동 생성\n"
             "  vib transfer --handoff --session-summary \"현재 세션 작업\" --first-next-action \"다음 할 일\"\n"
+            "  vib transfer --handoff --verification \"pytest 통과\"\n"
+            "  vib transfer --handoff --decision \"git 상태를 source of truth로 유지\"\n"
             "  vib transfer --handoff --dry-run   파일 저장 없이 미리 보기\n"
             "  vib transfer --out ctx.md          파일명 지정\n"
             "\n"
@@ -563,6 +565,20 @@ def register_extended_commands(
         dest="first_next_action",
         default=None,
         help="Session Handoff에 넣을 다음 AI의 첫 작업 (--handoff 전용)",
+    )
+    _ = p.add_argument(
+        "--verification",
+        dest="verification",
+        action="append",
+        default=None,
+        help="Session Handoff에 넣을 검증 결과. 여러 번 지정 가능 (--handoff 전용)",
+    )
+    _ = p.add_argument(
+        "--decision",
+        dest="decision",
+        action="append",
+        default=None,
+        help="work_memory decisions에 저장할 handoff 결정. 여러 번 지정 가능 (--handoff 전용)",
     )
     _ = p.add_argument(
         "--dry-run",
