@@ -82,10 +82,10 @@ fn read_allowlist_from_docs_index(path: &Path) -> BTreeSet<String> {
 }
 
 /// Determine whether `relative_path` (already `/`-normalized, no leading `/`)
-/// is an allowed markdown document path.
+/// is an allowed document path.
 ///
 /// Rules:
-/// 1. Extension must be `.md` or `.markdown` (case-insensitive).
+/// 1. Extension must be one of the supported text document types.
 /// 2. Path must not contain `..`.
 /// 3. Empty segments are rejected.
 /// 4. If the path falls under a registered extra source root prefix:
@@ -98,7 +98,16 @@ pub fn is_allowed_doc_path(relative_path: &str, extras: &ExtraSourceAllowlist) -
     let lower = relative_path.to_ascii_lowercase();
 
     // 1) Extension check
-    if !lower.ends_with(".md") && !lower.ends_with(".markdown") {
+    if ![
+        ".md",
+        ".markdown",
+        ".txt",
+        ".csv",
+        ".json",
+    ]
+    .iter()
+    .any(|extension| lower.ends_with(extension))
+    {
         return false;
     }
 
@@ -185,8 +194,18 @@ mod tests {
     }
 
     #[test]
-    fn test_extension_txt_rejected() {
-        assert!(!is_allowed_doc_path("docs/note.txt", &empty_allowlist()));
+    fn test_extension_txt_accepted() {
+        assert!(is_allowed_doc_path("docs/note.txt", &empty_allowlist()));
+    }
+
+    #[test]
+    fn test_extension_csv_accepted() {
+        assert!(is_allowed_doc_path("docs/table.csv", &empty_allowlist()));
+    }
+
+    #[test]
+    fn test_extension_json_accepted() {
+        assert!(is_allowed_doc_path("docs/data.json", &empty_allowlist()));
     }
 
     #[test]

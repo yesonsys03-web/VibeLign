@@ -61,7 +61,7 @@ struct DocsIndexEntry {
     source_root: Option<String>,
 }
 
-const DOCS_INDEX_CACHE_SCHEMA_VERSION: i64 = 2;
+const DOCS_INDEX_CACHE_SCHEMA_VERSION: i64 = 3;
 
 #[derive(Deserialize)]
 struct DocsIndexCachePayload {
@@ -106,14 +106,14 @@ struct DocsVisualReadResult {
     contract: DocsVisualContract,
 }
 
-fn normalize_markdown_content(bytes: &[u8]) -> Result<String, String> {
+fn normalize_doc_content(bytes: &[u8]) -> Result<String, String> {
     let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes);
     let text = std::str::from_utf8(bytes)
-        .map_err(|_| "UTF-8 markdown 파일만 읽을 수 있어요".to_string())?;
+        .map_err(|_| "UTF-8 문서 파일만 읽을 수 있어요".to_string())?;
     Ok(text.replace("\r\n", "\n").replace('\r', "\n"))
 }
 
-fn hash_markdown_content(content: &str) -> String {
+fn hash_doc_content(content: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(content.as_bytes());
     format!("{:x}", hasher.finalize())
@@ -141,7 +141,7 @@ fn resolve_doc_path(root: &str, path: PathBuf) -> Result<(PathBuf, String), Stri
     let relative_path = normalize_relative_doc_path(relative);
     let extras = docs_access::ExtraSourceAllowlist::load(&root_path);
     if !docs_access::is_allowed_doc_path(&relative_path, &extras) {
-        return Err("허용된 markdown 문서만 읽을 수 있어요".into());
+        return Err("허용된 문서 파일(.md, .markdown, .txt, .csv, .json)만 읽을 수 있어요".into());
     }
     Ok((canonical, relative_path))
 }
@@ -150,10 +150,10 @@ fn resolve_doc_path(root: &str, path: PathBuf) -> Result<(PathBuf, String), Stri
 fn read_file(root: String, path: PathBuf) -> Result<ReadFileResult, String> {
     let (resolved_path, relative_path) = resolve_doc_path(&root, path)?;
     let bytes = std::fs::read(&resolved_path).map_err(|e| format!("문서를 읽을 수 없어요: {e}"))?;
-    let content = normalize_markdown_content(&bytes)?;
+    let content = normalize_doc_content(&bytes)?;
     Ok(ReadFileResult {
         path: relative_path,
-        source_hash: hash_markdown_content(&content),
+        source_hash: hash_doc_content(&content),
         content,
     })
 }
