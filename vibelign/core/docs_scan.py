@@ -1,5 +1,5 @@
 # === ANCHOR: DOCS_SCAN_START ===
-"""DocsViewer 인덱스용 재귀 markdown 스캔 전담 모듈.
+"""DocsViewer 인덱스용 재귀 문서 스캔 전담 모듈.
 
 os.walk 의 `dirs[:]` in-place pruning 으로 IGNORED_DIRS 를 워크에서 완전히 제외한다.
 rglob 는 트리 전체를 돌고 나서 필터링하므로 무거운 서브트리 (node_modules, target) 에서
@@ -41,6 +41,14 @@ IGNORED_DIRS: frozenset[str] = frozenset(
     }
 )
 
+SUPPORTED_DOC_EXTENSIONS: frozenset[str] = frozenset(
+    {".md", ".markdown", ".txt", ".csv", ".json"}
+)
+
+
+def is_supported_doc_file(name: str) -> bool:
+    return Path(name).suffix.lower() in SUPPORTED_DOC_EXTENSIONS
+
 
 # === ANCHOR: DOCS_SCAN__SHOULD_SKIP_DIR_START ===
 def _should_skip_dir(name: str) -> bool:
@@ -56,7 +64,7 @@ def _should_skip_dir(name: str) -> bool:
 def iter_markdown_files(
     root: Path, is_excluded: Callable[[Path], bool] | None = None
 ) -> list[Path]:
-    """root 아래 모든 .md 파일을 재귀적으로 수집한다.
+    """root 아래 DocsViewer가 읽을 수 있는 문서 파일을 재귀적으로 수집한다.
 
     - 숨김 디렉토리 (이름이 `.` 으로 시작) 와 IGNORED_DIRS 는 워크에서 pruned.
     - `is_excluded(resolved_path)` 가 True 를 주면 건너뛰어, 이미 명시 카테고리로 등록된
@@ -70,7 +78,7 @@ def iter_markdown_files(
         dirnames[:] = [d for d in dirnames if not _should_skip_dir(d)]
         base = Path(dirpath)
         for name in filenames:
-            if not name.lower().endswith(".md"):
+            if not is_supported_doc_file(name):
                 continue
             candidate = base / name
             try:

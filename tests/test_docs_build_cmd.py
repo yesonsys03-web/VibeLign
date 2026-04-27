@@ -114,6 +114,22 @@ class DocsBuildCmdTest(unittest.TestCase):
                 ).exists()
             )
 
+    def test_docs_index_includes_plain_text_csv_and_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir()
+            (root / "notes.txt").write_text("plain notes\n", encoding="utf-8")
+            (root / "docs").mkdir()
+            (root / "docs" / "table.csv").write_text("name,value\na,1\n", encoding="utf-8")
+            (root / "docs" / "data.json").write_text('{"ok": true}\n', encoding="utf-8")
+
+            entries = docs_build_cmd.build_docs_index(root)
+            paths = {entry.path for entry in entries}
+
+            self.assertIn("notes.txt", paths)
+            self.assertIn("docs/table.csv", paths)
+            self.assertIn("docs/data.json", paths)
+
     def test_bad_input_does_not_leave_partial_artifacts(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -285,6 +301,30 @@ class ExtraSourceIndexTest(unittest.TestCase):
             self.assertEqual(custom_entries[0].source_root, ".omc/plans")
             self.assertIn(".omc/plans/plan.md", custom_entries[0].path)
 
+    def test_extra_source_indexes_plain_text_csv_and_json(self):
+        docs_cache = self._get_docs_cache()
+        doc_sources = self._get_doc_sources()
+        meta_paths = self._get_meta_paths()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir()
+            (root / ".omc" / "plans").mkdir(parents=True)
+            (root / ".omc" / "plans" / "note.txt").write_text("note\n", encoding="utf-8")
+            (root / ".omc" / "plans" / "table.csv").write_text("a,b\n", encoding="utf-8")
+            (root / ".omc" / "plans" / "data.json").write_text("{}\n", encoding="utf-8")
+
+            meta = meta_paths.MetaPaths(root)
+            doc_sources.add(meta, ".omc/plans")
+
+            entries = docs_cache.build_docs_index(root)
+            paths = {e.path for e in entries if e.source_root == ".omc/plans"}
+
+            self.assertEqual(
+                paths,
+                {".omc/plans/note.txt", ".omc/plans/table.csv", ".omc/plans/data.json"},
+            )
+
     def test_unregistered_hidden_is_excluded(self):
         """.omc/other/x.md 는 등록 안 했으면 index에 나타나지 않는다."""
         docs_cache = self._get_docs_cache()
@@ -413,7 +453,7 @@ class Phase3CacheParityTest(unittest.TestCase):
         return sys.modules["vibelign.core.meta_paths"]
 
     def test_docs_index_cache_includes_allowlist_and_fingerprint(self):
-        """rebuild 후 docs_index.json 에 schema_version=2, allowlist, sources_fingerprint 가 포함된다."""
+        """rebuild 후 docs_index.json 에 현재 schema_version, allowlist, sources_fingerprint 가 포함된다."""
         doc_sources = self._get_doc_sources()
         meta_paths = self._get_meta_paths()
 
@@ -434,7 +474,7 @@ class Phase3CacheParityTest(unittest.TestCase):
             self.assertTrue(cache_path.exists())
             payload = json.loads(cache_path.read_text(encoding="utf-8"))
 
-            self.assertEqual(payload["schema_version"], 2)
+            self.assertEqual(payload["schema_version"], 3)
             self.assertIn("allowlist", payload)
             self.assertEqual(
                 payload["allowlist"]["extra_source_roots"], [".omc/plans"]
@@ -517,6 +557,30 @@ class Phase3CacheParityTest(unittest.TestCase):
 
             result = docs_index_cache.read_docs_index_cache(meta)
             self.assertIsNone(result, "Schema v1 cache should be invalidated")
+
+    def test_schema_v2_markdown_only_cache_is_invalidated(self):
+        """txt/csv/json 지원 전 schema=2 캐시는 stale 처리해야 한다."""
+        docs_index_cache = self._get_docs_index_cache()
+        meta_paths = self._get_meta_paths()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir()
+            meta = meta_paths.MetaPaths(root)
+            v2_payload = {
+                "schema_version": 2,
+                "root": str(root),
+                "generated_at_ms": 0,
+                "sources_fingerprint": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "allowlist": {"extra_source_roots": []},
+                "entries": [],
+            }
+            (root / ".vibelign" / "docs_index.json").write_text(
+                json.dumps(v2_payload), encoding="utf-8"
+            )
+
+            result = docs_index_cache.read_docs_index_cache(meta)
+            self.assertIsNone(result, "Schema v2 markdown-only cache should be invalidated")
 
     def test_full_build_writes_extra_under_underscore_extra(self):
         """full build 시 extra source 는 _extra/ 아래, built-in 은 기존 경로에 기록된다."""

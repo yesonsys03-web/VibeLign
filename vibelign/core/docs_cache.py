@@ -7,8 +7,6 @@ import hashlib
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable
-
 from . import docs_scan as _DOCS_SCAN
 from . import doc_sources as _DOC_SOURCES
 from . import meta_paths as _META_PATHS
@@ -78,6 +76,13 @@ def _read_title(path: Path) -> str:
 # === ANCHOR: DOCS_CACHE__READ_TITLE_END ===
 
 
+def _iter_supported_doc_files(directory: Path, pattern: str) -> list[Path]:
+    return sorted(
+        path for path in directory.glob(pattern)
+        if _DOCS_SCAN.is_supported_doc_file(path.name)
+    )
+
+
 # === ANCHOR: DOCS_CACHE__ITER_INDEX_TARGETS_START ===
 def _iter_index_targets(root: Path) -> tuple[list[tuple[str, Path, str | None]], list[str]]:
     targets: list[tuple[str, Path, str | None]] = []
@@ -102,7 +107,14 @@ def _iter_index_targets(root: Path) -> tuple[list[tuple[str, Path, str | None]],
     add("Context", root / "PROJECT_CONTEXT.md")
 
     # 일반 프로젝트도 흔히 두는 README — case-insensitive FS에서 중복 방지를 위해 첫 매치만.
-    for name in ("README.md", "Readme.md", "readme.md", "README.markdown"):
+    for name in (
+        "README.md",
+        "Readme.md",
+        "readme.md",
+        "README.markdown",
+        "README.txt",
+        "readme.txt",
+    ):
         candidate = root / name
         if candidate.is_file():
             add("Readme", candidate)
@@ -112,27 +124,27 @@ def _iter_index_targets(root: Path) -> tuple[list[tuple[str, Path, str | None]],
 
     wiki_dir = root / "docs" / "wiki"
     if wiki_dir.is_dir():
-        for path in sorted(wiki_dir.glob("**/*.md")):
+        for path in _iter_supported_doc_files(wiki_dir, "**/*"):
             add("Wiki", path)
 
     specs_dir = root / "docs" / "superpowers" / "specs"
     if specs_dir.is_dir():
-        for path in sorted(specs_dir.glob("*.md")):
+        for path in _iter_supported_doc_files(specs_dir, "*"):
             add("Spec", path)
 
     plans_dir = root / "docs" / "superpowers" / "plans"
     if plans_dir.is_dir():
-        for path in sorted(plans_dir.glob("*.md")):
+        for path in _iter_supported_doc_files(plans_dir, "*"):
             add("Plan", path)
 
-    # 일반 사용자 프로젝트 지원 — 루트 직속 .md (README 외)
-    for path in sorted(root.glob("*.md")):
+    # 일반 사용자 프로젝트 지원 — 루트 직속 문서 파일 (README 외)
+    for path in _iter_supported_doc_files(root, "*"):
         add("Root", path)
 
-    # docs/ 하위 모든 .md (위 카테고리에 속하지 않은 것만 "Docs"로 잡힘)
+    # docs/ 하위 모든 문서 파일 (위 카테고리에 속하지 않은 것만 "Docs"로 잡힘)
     docs_dir = root / "docs"
     if docs_dir.is_dir():
-        for path in sorted(docs_dir.glob("**/*.md")):
+        for path in _iter_supported_doc_files(docs_dir, "**/*"):
             add("Docs", path)
 
     # 등록된 extra sources — allowlist 방식: 등록된 root만 직접 walk하고,
@@ -155,7 +167,7 @@ def _iter_index_targets(root: Path) -> tuple[list[tuple[str, Path, str | None]],
             dirnames[:] = [d for d in dirnames if not _DOCS_SCAN._should_skip_dir(d)]
             base = Path(dirpath)
             for name in sorted(filenames):
-                if not name.lower().endswith(".md"):
+                if not _DOCS_SCAN.is_supported_doc_file(name):
                     continue
                 if count >= cap:
                     capped = True
@@ -180,7 +192,7 @@ def _iter_index_targets(root: Path) -> tuple[list[tuple[str, Path, str | None]],
                 f"처음 {cap}개 파일만 인덱싱됩니다."
             )
 
-    # 프로젝트 전체 재귀 스캔 — 사용자가 임의로 만든 markdown 폴더(예: VibeLign_dev_plan/) 도
+    # 프로젝트 전체 재귀 스캔 — 사용자가 임의로 만든 문서 폴더(예: VibeLign_dev_plan/) 도
     # 사이드바에 노출한다. IGNORED_DIRS + 숨김 디렉토리는 docs_scan 에서 프루닝된다.
     for path in _DOCS_SCAN.iter_markdown_files(root, is_excluded=lambda p: p in seen):
         add("Docs", path)
