@@ -197,9 +197,9 @@ def register_core_commands(
 
     p = sub.add_parser(
         "docs-index",
-        help="docs viewer용 markdown 인덱스를 JSON으로 출력해요 (GUI/Tauri 전용)",
+        help="docs viewer용 문서 인덱스를 JSON으로 출력해요 (GUI/Tauri 전용)",
         description=(
-            "docs viewer가 사용하는 markdown 문서 인덱스를 JSON으로 출력해요.\n"
+            "docs viewer가 사용하는 문서 인덱스를 JSON으로 출력해요.\n"
             "vib 자체에 vibelign 모듈이 포함돼 있어 별도 Python 환경이 없어도 동작해요."
         ),
         epilog=(

@@ -235,7 +235,7 @@ MANUAL: dict[str, ManualEntry] = {
         "title": "vib docs-index",
         "one_line": "Docs Viewer가 읽는 문서 목록과 계약 정보를 보여줘요",
         "what": (
-            "Docs Viewer가 어떤 markdown 문서를 보여줄지 목록으로 정리해주는 명령어예요.\n"
+            "Docs Viewer가 어떤 문서를 보여줄지 목록으로 정리해주는 명령어예요.\n"
             "쉽게 말하면 '문서 리스트 확인하기'예요.\n\n"
             "보통은 GUI가 내부적으로 많이 쓰고,\n"
             "사람은 디버깅하거나 상태를 확인할 때 쓰면 돼요."
