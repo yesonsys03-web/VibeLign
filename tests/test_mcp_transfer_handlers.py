@@ -1,10 +1,13 @@
 import importlib
 import tempfile
 import unittest
+from unittest import mock
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
+
+from vibelign.core.work_memory import load_work_memory
 
 
 @dataclass
@@ -51,6 +54,24 @@ class McpTransferHandlersTest(unittest.TestCase):
         self.assertIn("Session Handoff 블록 생성 완료", result[0].text)
         self.assertIn("## Session Handoff", content)
         self.assertIn("fixed auth flow", content)
+
+    def test_handle_handoff_create_persists_structured_verification(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = handle_handoff_create(
+                root,
+                {
+                    "session_summary": "fixed auth flow",
+                    "first_next_action": "run guard check",
+                    "verification": ["pytest transfer handlers passed"],
+                },
+                TextContent,
+            )
+            content = (root / "PROJECT_CONTEXT.md").read_text(encoding="utf-8")
+            state = load_work_memory(root / ".vibelign" / "work_memory.json")
+
+        self.assertIn("pytest transfer handlers passed", content)
+        self.assertEqual(state["verification"], ["pytest transfer handlers passed"])
 
     def test_handle_handoff_create_enriches_from_work_memory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -157,6 +178,100 @@ class McpTransferHandlersTest(unittest.TestCase):
         self.assertIn("mcp next action wins", content)
         self.assertNotIn("현재 세션에서 `vibelign/core/watch_engine.py`", content)
         self.assertNotIn("- 다음 할 일: work memory next action", content)
+
+    def test_handle_handoff_create_warns_without_importing_stale_watch_events(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            vg_dir = root / ".vibelign"
+            vg_dir.mkdir()
+            _ = (vg_dir / "work_memory.json").write_text(
+                """
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-26T00:00:00Z",
+  "recent_events": [
+    {
+      "time": "2026-04-26T00:00:00Z",
+      "kind": "modified",
+      "path": "vibelign/core/watch_engine.py",
+      "message": "stale watch event",
+      "action": "Do not trust stale watch data."
+    }
+  ],
+  "relevant_files": [],
+  "warnings": [],
+  "decisions": [],
+  "verification": []
+}
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with mock.patch(
+                "vibelign.commands.vib_transfer_cmd._get_work_memory_staleness_warning",
+                return_value="work_memory/watch data may be stale; trust git status first.",
+            ):
+                _ = handle_handoff_create(
+                    root,
+                    {
+                        "session_summary": "mcp supplied summary",
+                        "first_next_action": "mcp supplied next action",
+                    },
+                    TextContent,
+                )
+            content = (root / "PROJECT_CONTEXT.md").read_text(encoding="utf-8")
+
+        self.assertIn("work_memory/watch data may be stale", content)
+        self.assertNotIn("stale watch event", content)
+
+    def test_handle_handoff_create_keeps_verification_when_work_memory_is_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            vg_dir = root / ".vibelign"
+            vg_dir.mkdir()
+            _ = (vg_dir / "work_memory.json").write_text(
+                """
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-26T00:00:00Z",
+  "recent_events": [
+    {
+      "time": "2026-04-26T00:00:00Z",
+      "kind": "modified",
+      "path": "vibelign/core/watch_engine.py",
+      "message": "stale watch event"
+    }
+  ],
+  "relevant_files": [],
+  "warnings": [],
+  "decisions": [],
+  "verification": ["old verification from work memory"]
+}
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with mock.patch(
+                "vibelign.commands.vib_transfer_cmd._get_work_memory_staleness_warning",
+                return_value="work_memory/watch data may be stale; trust git status first.",
+            ):
+                _ = handle_handoff_create(
+                    root,
+                    {
+                        "session_summary": "mcp supplied summary",
+                        "first_next_action": "mcp supplied next action",
+                        "verification": ["fresh mcp verification passed"],
+                    },
+                    TextContent,
+                )
+            content = (root / "PROJECT_CONTEXT.md").read_text(encoding="utf-8")
+            state = load_work_memory(root / ".vibelign" / "work_memory.json")
+
+        self.assertIn("fresh mcp verification passed", content)
+        self.assertIn("old verification from work memory", content)
+        self.assertEqual(state["verification"][-1], "fresh mcp verification passed")
 
     def test_handle_project_context_get_returns_existing_file_when_present(
         self,

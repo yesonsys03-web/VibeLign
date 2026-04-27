@@ -13,13 +13,14 @@ MAX_RECENT_EVENTS = 20
 MAX_RELEVANT_FILES = 10
 MAX_WARNINGS = 10
 MAX_DECISIONS = 5
-MAX_VERIFICATION = 5
+MAX_VERIFICATION = 3
 MAX_TEXT_LENGTH = 400
 MAX_RECENT_EVENTS_SUMMARY = 5
 MAX_RELEVANT_FILES_SUMMARY = 5
 MAX_WARNINGS_SUMMARY = 5
-MAX_VERIFICATION_SUMMARY = 5
+MAX_VERIFICATION_SUMMARY = 3
 WORK_MEMORY_EXCLUDED_DIRS = {
+    ".omc",
     ".vibelign",
     "node_modules",
     "dist",
@@ -377,10 +378,20 @@ def add_verification(path: Path, message: str) -> None:
     text = _truncate_text(message)
     if not text:
         return
-    state["verification"] = [item for item in state["verification"] if item != text] + [text]
+    key = _verification_key(text)
+    state["verification"] = [
+        item for item in state["verification"] if _verification_key(item) != key
+    ] + [text]
     state["updated_at"] = _utc_now()
     save_work_memory(path, state)
 # === ANCHOR: WORK_MEMORY_ADD_VERIFICATION_END ===
+
+
+def _verification_key(value: str) -> str:
+    command, _, _result = value.partition(" -> ")
+    if command.startswith("uv run python -m py_compile"):
+        return "uv run python -m py_compile"
+    return command.strip() or value.strip()
 
 
 # === ANCHOR: WORK_MEMORY_ADD_DECISION_START ===

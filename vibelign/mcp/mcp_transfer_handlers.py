@@ -20,6 +20,14 @@ def _text(factory: TextContentFactory, text: str) -> list[object]:
 # === ANCHOR: MCP_TRANSFER_HANDLERS__TEXT_END ===
 
 
+def _string_list(value: object) -> list[str]:
+    if isinstance(value, str) and value:
+        return [value]
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str) and item]
+
+
 # === ANCHOR: MCP_TRANSFER_HANDLERS_HANDLE_HANDOFF_CREATE_START ===
 def handle_handoff_create(
     root: Path,
@@ -31,9 +39,10 @@ def handle_handoff_create(
         HandoffData,
         build_context_content,
         enrich_handoff_with_work_memory,
-        get_changed_files,
         get_recent_checkpoints,
+        get_working_tree_summary,
         inject_agents_handoff_instruction,
+        persist_handoff_memory,
     )
 
     session_summary = str(arguments.get("session_summary", ""))
@@ -42,6 +51,7 @@ def handle_handoff_create(
     unfinished_work = arguments.get("unfinished_work")
     raw_dc = arguments.get("decision_context")
     notes = arguments.get("notes")
+    verification = _string_list(arguments.get("verification"))
 
     if not session_summary or not first_next_action:
         return _text(
@@ -51,6 +61,7 @@ def handle_handoff_create(
 
     checkpoints = get_recent_checkpoints(root, n=1)
     latest_cp = checkpoints[0]["message"] if checkpoints else None
+    working_tree = get_working_tree_summary(root)
 
     full_summary = session_summary
     if notes:
@@ -78,17 +89,24 @@ def handle_handoff_create(
                 "source": "mcp_provided",
                 "quality": "ai-drafted",
                 "session_summary": full_summary,
-                "changed_files": get_changed_files(root),
+                "changed_files": working_tree["files"],
+                "changed_file_count": working_tree["count"],
+                "change_details": working_tree["details"],
                 "completed_work": str(completed_work) if completed_work else None,
-                "unfinished_work": str(unfinished_work) if unfinished_work else None,
+                "unfinished_work": str(unfinished_work)
+                if unfinished_work
+                else working_tree["summary"],
                 "first_next_action": first_next_action,
                 "decision_context": decision_context,
                 "latest_checkpoint": latest_cp,
+                "verification": verification,
+                "verification_to_persist": verification,
             },
         ),
     )
 
     handoff_data = enrich_handoff_with_work_memory(root, handoff_data)
+    persist_handoff_memory(root, handoff_data)
 
     content = build_context_content(root, handoff_data=handoff_data)
     ctx_path = root / "PROJECT_CONTEXT.md"

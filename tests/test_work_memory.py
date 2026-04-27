@@ -5,6 +5,7 @@ from vibelign.core.work_memory import (
     MAX_RECENT_EVENTS,
     MAX_RELEVANT_FILES,
     add_decision,
+    add_verification,
     build_transfer_summary,
     load_work_memory,
     record_event,
@@ -162,6 +163,48 @@ def test_record_event_skips_generated_artifact_paths(tmp_path: Path) -> None:
     assert loaded["relevant_files"] == []
 
 
+def test_record_event_skips_omc_agent_state_paths(tmp_path: Path) -> None:
+    path = tmp_path / ".vibelign" / "work_memory.json"
+    record_event(
+        path,
+        kind="modified",
+        rel_path=".omc/state/subagent-tracker.lock",
+        message="agent state noise",
+    )
+
+    loaded = load_work_memory(path)
+    assert loaded["recent_events"] == []
+    assert loaded["relevant_files"] == []
+
+
+def test_add_verification_replaces_same_command_result(tmp_path: Path) -> None:
+    path = tmp_path / ".vibelign" / "work_memory.json"
+    add_verification(path, "uv run pytest tests/test_work_memory.py -> 12 passed")
+    add_verification(path, "uv run pytest tests/test_work_memory.py -> 13 passed")
+
+    loaded = load_work_memory(path)
+    assert loaded["verification"] == [
+        "uv run pytest tests/test_work_memory.py -> 13 passed"
+    ]
+
+
+def test_add_verification_replaces_long_py_compile_command(tmp_path: Path) -> None:
+    path = tmp_path / ".vibelign" / "work_memory.json"
+    add_verification(
+        path,
+        "uv run python -m py_compile a.py b.py c.py -> success",
+    )
+    add_verification(
+        path,
+        "uv run python -m py_compile a.py b.py c.py d.py -> success",
+    )
+
+    loaded = load_work_memory(path)
+    assert loaded["verification"] == [
+        "uv run python -m py_compile a.py b.py c.py d.py -> success"
+    ]
+
+
 def test_load_work_memory_prunes_stale_generated_artifact_paths(tmp_path: Path) -> None:
     path = tmp_path / ".vibelign" / "work_memory.json"
     path.parent.mkdir()
@@ -178,15 +221,26 @@ def test_load_work_memory_prunes_stale_generated_artifact_paths(tmp_path: Path) 
                     },
                     {
                         "kind": "modified",
+                        "path": ".omc/project-memory.json",
+                        "message": "agent state noise",
+                    },
+                    {
+                        "kind": "modified",
                         "path": "src/app.py",
                         "message": "src/app.py modified",
                     },
                 ],
                 "relevant_files": [
                     {"path": "vibelign.egg-info/PKG-INFO", "why": "Generated."},
+                    {"path": ".omc/state/subagent-tracker.lock", "why": "Agent state."},
                     {"path": "src/app.py", "why": "Source file."},
                 ],
                 "warnings": [
+                    {
+                        "kind": "warning",
+                        "path": ".omc/project-memory.json",
+                        "message": "project-memory.json에 앵커가 없습니다",
+                    },
                     {
                         "kind": "warning",
                         "path": "vibelign.egg-info/PKG-INFO",
