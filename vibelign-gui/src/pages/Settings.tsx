@@ -1,5 +1,6 @@
 // === ANCHOR: SETTINGS_START ===
 import { useState, useEffect, useMemo } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { saveProviderApiKey, deleteProviderApiKey, getVibPath, getEnvKeyStatus, getAiEnhancement, setAiEnhancement } from "../lib/vib";
 
 const PROVIDER_MODELS: Record<string, string[]> = {
@@ -10,12 +11,12 @@ const PROVIDER_MODELS: Record<string, string[]> = {
   MOONSHOT: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
 };
 
-const GUI_KEY_PROVIDERS: { id: string; label: string; placeholder: string }[] = [
-  { id: "ANTHROPIC", label: "Anthropic", placeholder: "sk-ant-..." },
-  { id: "OPENAI", label: "OpenAI", placeholder: "sk-..." },
-  { id: "GEMINI", label: "Google Gemini", placeholder: "API 키 문자열" },
-  { id: "GLM", label: "GLM", placeholder: "..." },
-  { id: "MOONSHOT", label: "Moonshot", placeholder: "..." },
+const GUI_KEY_PROVIDERS: { id: string; label: string; placeholder: string; apiKeyUrl: string; costNote: string }[] = [
+  { id: "ANTHROPIC", label: "Anthropic", placeholder: "sk-ant-...", apiKeyUrl: "https://console.anthropic.com/settings/keys", costNote: "유료 API 키가 필요해요." },
+  { id: "OPENAI", label: "OpenAI", placeholder: "sk-...", apiKeyUrl: "https://platform.openai.com/settings/organization/api-keys", costNote: "유료 API 키가 필요해요." },
+  { id: "GEMINI", label: "Google Gemini", placeholder: "API 키 문자열", apiKeyUrl: "https://aistudio.google.com/app/apikey", costNote: "무료로 시작 가능한 키를 받을 수 있어요." },
+  { id: "GLM", label: "GLM", placeholder: "...", apiKeyUrl: "https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys", costNote: "유료 API 키가 필요할 수 있어요." },
+  { id: "MOONSHOT", label: "Moonshot", placeholder: "...", apiKeyUrl: "https://platform.moonshot.ai/console/api-keys", costNote: "유료 API 키가 필요할 수 있어요." },
 ];
 
 interface SettingsProps {
@@ -279,6 +280,10 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
           <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
             API 키 (제공자별)
           </div>
+          <div style={{ fontSize: 11, color: "#777", lineHeight: 1.6, marginBottom: 14 }}>
+            API 키는 AI 회사에서 발급받는 이용권이에요. 대부분은 사용량에 따라 비용이 나올 수 있고,
+            Google Gemini는 무료로 시작 가능한 키를 받을 수 있어요.
+          </div>
           {GUI_KEY_PROVIDERS.map((p, idx) => {
             const sk = savedKey(p.id);
             const envOnly = !sk && hasEnvProviderKey(p.id);
@@ -291,7 +296,21 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
                   borderBottom: idx < GUI_KEY_PROVIDERS.length - 1 ? "1px solid #2a2a2a" : "none",
                 }}
               >
-                <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 8, color: "#7DFF6B" }}>{p.label}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 11, color: "#7DFF6B" }}>{p.label}</div>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => openUrl(p.apiKeyUrl).catch(() => {})}
+                    style={{ fontSize: 10, padding: "3px 8px" }}
+                    title={`${p.label} API 키 발급 페이지 열기`}
+                  >
+                    키 받기 ↗
+                  </button>
+                </div>
+                <div style={{ marginBottom: 8, fontSize: 11, color: p.id === "GEMINI" ? "#4D7CFF" : "#777", fontWeight: p.id === "GEMINI" ? 700 : 500 }}>
+                  {p.costNote}
+                </div>
                 <div style={{ marginBottom: 8, fontSize: 12 }}>
                   상태:{" "}
                   {sk ? (
