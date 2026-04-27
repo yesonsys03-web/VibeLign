@@ -1,12 +1,12 @@
 // === ANCHOR: DOCSVIEWER_START ===
 import { useEffect, useMemo, useRef, useState } from "react";
+import DocumentPane from "../components/docs/DocumentPane";
 import DocsSidebar from "../components/docs/DocsSidebar";
-import MarkdownPane from "../components/docs/MarkdownPane";
 import VisualSummaryPane from "../components/docs/VisualSummaryPane";
 import { extractSections, loadDoc, reloadDocsIndex } from "../lib/docs";
 import { addExtraDocSource, listExtraDocSources, pickFolder, readDocsVisual, removeExtraDocSource, runVib, type DocsIndexEntry, type DocsVisualReadResult, type ReadFileResult } from "../lib/vib";
 
-export type DocsTrustState = "markdown-only" | "enhanced-synced" | "enhanced-stale" | "enhanced-failed";
+export type DocsTrustState = "source-only" | "enhanced-synced" | "enhanced-stale" | "enhanced-failed";
 
 interface DocsViewerProps {
   projectDir: string;
@@ -22,8 +22,8 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
   const [error, setError] = useState<string | null>(null);
   const [indexError, setIndexError] = useState<string | null>(null);
   const [visual, setVisual] = useState<DocsVisualReadResult | null>(null);
-  const [trustState, setTrustState] = useState<DocsTrustState>("markdown-only");
-  const [trustReason, setTrustReason] = useState<string>("artifact 없음 — markdown만 표시합니다.");
+  const [trustState, setTrustState] = useState<DocsTrustState>("source-only");
+  const [trustReason, setTrustReason] = useState<string>("artifact 없음 — 원문 문서만 표시합니다.");
   const [isRebuilding, setIsRebuilding] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRebuildingIndex, setIsRebuildingIndex] = useState(false);
@@ -88,7 +88,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
       setDoc(null);
       setVisual(null);
       setError(null);
-      setTrustState("markdown-only");
+      setTrustState("source-only");
       setTrustReason("문서를 선택하면 trust 상태를 계산합니다.");
       setIsLoading(false);
       return () => {
@@ -129,15 +129,15 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
     let cancelled = false;
     if (!projectDir || !selectedPath || !doc) {
       setVisual(null);
-      setTrustState("markdown-only");
-      setTrustReason("artifact 없음 — markdown만 표시합니다.");
+      setTrustState("source-only");
+      setTrustReason("artifact 없음 — 원문 문서만 표시합니다.");
       return () => {
         cancelled = true;
       };
     }
 
     setVisual(null);
-    setTrustState("markdown-only");
+    setTrustState("source-only");
     setTrustReason("artifact를 확인 중입니다...");
     setRebuildMessage(null);
 
@@ -146,8 +146,8 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
         if (cancelled) return;
         if (!result) {
           setVisual(null);
-          setTrustState("markdown-only");
-          setTrustReason("artifact가 아직 없어 markdown만 표시합니다.");
+          setTrustState("source-only");
+          setTrustReason("artifact가 아직 없어 원문 문서만 표시합니다.");
           return;
         }
 
@@ -167,12 +167,12 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
 
         if (result.artifact.source_hash !== doc.source_hash) {
           setTrustState("enhanced-stale");
-          setTrustReason("authoritative markdown hash와 artifact hash가 달라 stale 상태입니다.");
+          setTrustReason("authoritative document hash와 artifact hash가 달라 stale 상태입니다.");
           return;
         }
 
         setTrustState("enhanced-synced");
-        setTrustReason("open-time validation 통과 — 현재 enhancement는 최신 markdown와 동기화되었습니다.");
+        setTrustReason("open-time validation 통과 — 현재 enhancement는 최신 문서와 동기화되었습니다.");
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -190,7 +190,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
     if (trustState === "enhanced-synced") return { className: "alert-success", label: "ENHANCED SYNCED" };
     if (trustState === "enhanced-stale") return { className: "alert-warn", label: "ENHANCED STALE" };
     if (trustState === "enhanced-failed") return { className: "alert-error", label: "ENHANCED FAILED" };
-    return { className: "", label: "MARKDOWN ONLY" };
+    return { className: "", label: "SOURCE ONLY" };
   }, [trustState]);
 
   const enhancementPartiallyDisabled = useMemo(
@@ -499,7 +499,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
                 <button className="btn btn-ghost btn-sm" onClick={() => void handleRebuildArtifact()} disabled={isRebuilding || !selectedPath}>
                   {isRebuilding ? "재생성 중..." : "artifact 다시 만들기"}
                 </button>
-                <span style={{ fontSize: 11, opacity: 0.8 }}>fancy layer가 실패해도 markdown 원문은 계속 읽을 수 있습니다.</span>
+                <span style={{ fontSize: 11, opacity: 0.8 }}>fancy layer가 실패해도 원문 문서는 계속 읽을 수 있습니다.</span>
               </div>
             ) : null}
           </div>
@@ -508,7 +508,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
             <div className="card" style={{ textAlign: "center" }}>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: "IBM Plex Mono, monospace", fontSize: 12, fontWeight: 700 }}>
                 <span className="spinner" />
-                markdown 문서를 불러오는 중...
+                문서를 불러오는 중...
               </div>
             </div>
           ) : null}
@@ -531,7 +531,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: showVisualPane && !isMinimalLayout ? "minmax(0, 1.2fr) minmax(320px, 0.8fr)" : "minmax(0, 1fr)", gap: 12, alignItems: "start" }}>
                 <div style={{ minHeight: 0 }}>
-                  <MarkdownPane content={doc.content} containerRef={markdownPaneRef} />
+                  <DocumentPane path={doc.path} content={doc.content} containerRef={markdownPaneRef} />
                 </div>
                 {showVisualPane && visual ? (
                   <div style={{ minWidth: 0 }}>
@@ -547,7 +547,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
                 ) : null}
               </div>
               {enhancementPartiallyDisabled ? (
-                <div className="alert alert-warn">문서가 길어서 일부 enhancement만 축약했습니다. 그래도 summary pane과 원문 markdown는 계속 표시됩니다.</div>
+                <div className="alert alert-warn">문서가 길어서 일부 enhancement만 축약했습니다. 그래도 summary pane과 원문 문서는 계속 표시됩니다.</div>
               ) : null}
             </>
           ) : (!isLoading && !indexError && !error ? <div className="card">열 문서를 선택하세요.</div> : null)}

@@ -57,7 +57,7 @@ function provenanceNote(diagram: DocsVisualArtifact["diagram_blocks"][number]): 
   const provenance = diagramProvenance(diagram);
   const generator = diagram.generator ?? "";
   if (provenance === "heuristic") {
-    return "이 다이어그램은 문서 구조를 바탕으로 자동 생성된 보조 시각화입니다. 기준 원문은 왼쪽 markdown 입니다.";
+    return "이 다이어그램은 문서 구조를 바탕으로 자동 생성된 보조 시각화입니다. 기준 원문은 왼쪽 문서입니다.";
   }
   if (generator.startsWith("component-flow")) {
     return "이 다이어그램은 dependency graph가 아니라 구조 요약입니다.";
@@ -69,7 +69,7 @@ function getTrustPill(trustState: DocsTrustState) {
   if (trustState === "enhanced-synced") return { text: "SYNCED", bg: "#4DFF91", fg: "#1A1A1A" };
   if (trustState === "enhanced-stale") return { text: "STALE", bg: "#FFD166", fg: "#1A1A1A" };
   if (trustState === "enhanced-failed") return { text: "FAILED", bg: "#FF6B6B", fg: "#1A1A1A" };
-  return { text: "MD ONLY", bg: "#E8E4D8", fg: "#1A1A1A" };
+  return { text: "SOURCE ONLY", bg: "#E8E4D8", fg: "#1A1A1A" };
 }
 
 function sectionSummary(section: DocsVisualSection): string {
