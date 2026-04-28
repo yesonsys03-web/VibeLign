@@ -303,6 +303,22 @@ def _append_relevant_file(
     return _prune_relevant_files(updated)
 
 
+# === ANCHOR: WORK_MEMORY_ADD_RELEVANT_FILE_START ===
+def add_relevant_file(path: Path, file_path: str, why: str) -> None:
+    """Public 진입점 — relevant_files 에 entry 추가 (dedup, 절대/제외경로 차단).
+
+    Why: 기존 _append_relevant_file 은 record_event 내부 헬퍼였음.
+         MCP 도구·hook 등 외부 호출자가 직접 부를 public API.
+    """
+    state = load_work_memory(path)
+    state["relevant_files"] = _append_relevant_file(
+        state["relevant_files"], file_path, why
+    )
+    state["updated_at"] = _utc_now()
+    save_work_memory(path, state)
+# === ANCHOR: WORK_MEMORY_ADD_RELEVANT_FILE_END ===
+
+
 # === ANCHOR: WORK_MEMORY_RECORD_EVENT_START ===
 def record_event(
     path: Path,
