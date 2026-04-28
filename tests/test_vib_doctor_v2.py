@@ -36,15 +36,14 @@ class VibDoctorV2Test(unittest.TestCase):
                             "enabled": True,
                             "label": "Cursor",
                             "state": "registered",
-                        }
-                    },
-                    "prepared_tool_status": {
+                        },
                         "opencode": {
                             "enabled": True,
                             "label": "OpenCode",
-                            "ready": True,
-                        }
+                            "state": "registered",
+                        },
                     },
+                    "prepared_tool_status": {},
                 },
                 issues=[],
                 recommended_actions=["vib anchor --suggest"],
@@ -53,7 +52,7 @@ class VibDoctorV2Test(unittest.TestCase):
         self.assertIn("VibeLign 프로젝트 상태 보기", markdown)
         self.assertIn("프로젝트 점수: 82 / 100", markdown)
         self.assertIn("Cursor MCP: 연결됨", markdown)
-        self.assertIn("OpenCode: 준비됨", markdown)
+        self.assertIn("OpenCode MCP: 연결됨", markdown)
         self.assertIn("다음에 하면 좋은 일:", markdown)
 
     def test_doctor_envelope_contains_score_and_coverage(self):
@@ -306,7 +305,9 @@ class VibDoctorV2Test(unittest.TestCase):
                 )
             )
 
-    def test_doctor_reports_partial_opencode_preparation(self):
+    def test_doctor_reports_missing_opencode_mcp_registration(self):
+        # OpenCode 가 MCP 도구로 승격된 후 동작 검증:
+        # OPENCODE.md 만 있고 opencode.json 이 없으면 mcp_status 에 미등록으로 잡혀야 한다.
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "main.py").write_text("print('hello')\n", encoding="utf-8")
@@ -316,19 +317,17 @@ class VibDoctorV2Test(unittest.TestCase):
 
             data = cast(dict[str, object], envelope["data"])
             stats = cast(dict[str, object], data["stats"])
-            prepared = cast(dict[str, object], stats["prepared_tool_status"])
-            opencode = cast(dict[str, object], prepared["opencode"])
-            self.assertEqual(opencode["state"], "partial")
-            self.assertTrue(
-                any(
-                    "OpenCode 준비 파일이 일부 없어요" in str(item.get("found", ""))
-                    for item in cast(list[dict[str, object]], data["issues"])
-                )
+            mcp_status = cast(dict[str, object], stats["mcp_status"])
+            opencode = cast(dict[str, object], mcp_status["opencode"])
+            self.assertTrue(opencode["enabled"])
+            self.assertFalse(opencode["registered"])
+            self.assertIn(
+                opencode["state"], ("not_configured", "missing_server")
             )
             self.assertTrue(
                 any(
-                    "vib start --tools opencode" in action
-                    for action in cast(list[str], data["recommended_actions"])
+                    "opencode.json" in str(item.get("found", ""))
+                    for item in cast(list[dict[str, object]], data["issues"])
                 )
             )
 

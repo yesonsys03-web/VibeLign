@@ -43,8 +43,11 @@ class DoctorV2Report:
 @dataclass(frozen=True)
 class MCPToolConfig:
     label: str
-    config_path: Path
+    # priority order; absolute path = global config, relative path = root-relative
+    config_paths: list[Path]
     signals: list[Path]
+    config_format: str = "json"  # "json" or "toml"
+    servers_key: str = "mcpServers"  # JSON top-level key holding servers dict
 
 
 @dataclass(frozen=True)
@@ -57,33 +60,41 @@ class PreparedToolConfig:
 MCP_TOOL_CONFIGS = {
     "claude": MCPToolConfig(
         label="Claude Code",
-        config_path=Path(".claude/settings.json"),
+        # FIXED: Claude Code reads project-scope .mcp.json, not .claude/settings.json
+        config_paths=[Path(".mcp.json")],
         signals=[Path("CLAUDE.md"), Path("vibelign_exports/claude")],
     ),
     "cursor": MCPToolConfig(
         label="Cursor",
-        config_path=Path(".cursor/mcp.json"),
+        config_paths=[Path(".cursor/mcp.json")],
         signals=[Path(".cursorrules"), Path("vibelign_exports/cursor")],
+    ),
+    "opencode": MCPToolConfig(
+        label="OpenCode",
+        # project (root/opencode.json) precedes global (~/.config/opencode/opencode.json)
+        config_paths=[
+            Path("opencode.json"),
+            Path.home() / ".config" / "opencode" / "opencode.json",
+        ],
+        signals=[Path("OPENCODE.md"), Path("vibelign_exports/opencode")],
+        servers_key="mcp",
+    ),
+    "antigravity": MCPToolConfig(
+        label="Antigravity",
+        config_paths=[Path.home() / ".gemini" / "antigravity" / "mcp_config.json"],
+        signals=[Path("vibelign_exports/antigravity")],
+    ),
+    "codex": MCPToolConfig(
+        label="Codex",
+        config_paths=[Path.home() / ".codex" / "config.toml"],
+        signals=[Path("vibelign_exports/codex")],
+        config_format="toml",
     ),
 }
 
-PREPARED_TOOL_CONFIGS = {
-    "opencode": PreparedToolConfig(
-        label="OpenCode",
-        required_paths=[Path("OPENCODE.md"), Path("vibelign_exports/opencode")],
-        setup_command="vib start --tools opencode",
-    ),
-    "antigravity": PreparedToolConfig(
-        label="Antigravity",
-        required_paths=[Path("vibelign_exports/antigravity")],
-        setup_command="vib start --tools antigravity",
-    ),
-    "codex": PreparedToolConfig(
-        label="Codex",
-        required_paths=[Path("vibelign_exports/codex")],
-        setup_command="vib start --tools codex",
-    ),
-}
+# 5개 도구 모두 MCP 자동 등록되도록 통합 → PREPARED_TOOL_CONFIGS 는 비어있음.
+# (관련 검사 로직은 빈 dict 를 안전하게 반복하도록 그대로 둔다.)
+PREPARED_TOOL_CONFIGS: dict[str, PreparedToolConfig] = {}
 FIX_ANCHOR_EXTENSIONS = {".py", ".js", ".ts", ".jsx", ".tsx"}
 
 
@@ -242,47 +253,103 @@ def _recommended_actions(issues: list[dict[str, object]]) -> list[str]:
     return actions[:6]
 
 
+def _resolve_config_path(root: Path, p: Path) -> Path:
+    """Absolute path 는 그대로(글로벌 설정), relative 는 root 기준으로 풀어준다."""
+    return p if p.is_absolute() else root / p
+
+
+def _humanize_config_path(path: Path, root: Path) -> str:
+    """사용자 출력용으로 root 상대 또는 ~/ 단축 경로."""
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        pass
+    try:
+        return f"~/{path.relative_to(Path.home())}"
+    except ValueError:
+        return str(path)
+
+
+def _check_vibelign_in_config(config_path: Path, tool: MCPToolConfig) -> str:
+    """단일 설정 파일에서 vibelign MCP 등록 여부 확인.
+
+    반환값: 'registered' | 'missing_server' | 'invalid_json'
+    """
+    try:
+        text = config_path.read_text(encoding="utf-8")
+    except OSError:
+        return "missing_server"
+
+    if tool.config_format == "toml":
+        # Codex: TOML 의 [mcp_servers.vibelign] 섹션 헤더 존재 여부.
+        return (
+            "registered"
+            if "[mcp_servers.vibelign]" in text
+            else "missing_server"
+        )
+
+    try:
+        loaded = cast(object, json.loads(text))
+    except json.JSONDecodeError:
+        return "invalid_json"
+    if not isinstance(loaded, dict):
+        return "invalid_json"
+    loaded_dict = cast(dict[str, object], loaded)
+    servers = loaded_dict.get(tool.servers_key)
+    if not isinstance(servers, dict):
+        return "missing_server"
+    return "registered" if "vibelign" in servers else "missing_server"
+
+
 def _is_mcp_tool_enabled(root: Path, tool_name: str) -> bool:
     tool = MCP_TOOL_CONFIGS[tool_name]
-    config_path = root / tool.config_path
-    if config_path.exists():
-        return True
+    # 프로젝트 스코프 config (relative path) 만 "이 프로젝트에서 쓰는 도구" 신호로 간주.
+    # 글로벌 config (absolute path) 는 사용자 일반 설정이므로 enable 신호 아님.
+    for cp in tool.config_paths:
+        if not cp.is_absolute() and (root / cp).exists():
+            return True
     return any((root / signal).exists() for signal in tool.signals)
 
 
 def _read_mcp_server_status(root: Path, tool_name: str) -> dict[str, object]:
     tool = MCP_TOOL_CONFIGS[tool_name]
-    config_path = root / tool.config_path
+    primary_path = _resolve_config_path(root, tool.config_paths[0])
     status: dict[str, object] = {
         "enabled": _is_mcp_tool_enabled(root, tool_name),
         "registered": False,
-        "config_path": str(tool.config_path),
+        "config_path": _humanize_config_path(primary_path, root),
         "label": tool.label,
         "state": "not_configured",
     }
     if not status["enabled"]:
         status["state"] = "not_in_use"
         return status
-    if not config_path.exists():
-        return status
-    try:
-        loaded = cast(object, json.loads(config_path.read_text(encoding="utf-8")))
-    except (json.JSONDecodeError, OSError):
+
+    # 후보 경로들을 우선순위대로 검사 — vibelign 등록된 첫 번째를 기록.
+    invalid_seen: Path | None = None
+    any_exists = False
+    for cp in tool.config_paths:
+        resolved = _resolve_config_path(root, cp)
+        if not resolved.exists():
+            continue
+        any_exists = True
+        result = _check_vibelign_in_config(resolved, tool)
+        if result == "registered":
+            status["config_path"] = _humanize_config_path(resolved, root)
+            status["registered"] = True
+            status["state"] = "registered"
+            return status
+        if result == "invalid_json" and invalid_seen is None:
+            invalid_seen = resolved
+
+    if invalid_seen is not None:
+        status["config_path"] = _humanize_config_path(invalid_seen, root)
         status["state"] = "invalid_json"
         return status
-    if not isinstance(loaded, dict):
-        status["state"] = "invalid_json"
-        return status
-    loaded_dict = cast(dict[str, object], loaded)
-    mcp_servers = loaded_dict.get("mcpServers")
-    if not isinstance(mcp_servers, dict):
-        status["state"] = "missing_server"
-        return status
-    if "vibelign" not in mcp_servers:
-        status["state"] = "missing_server"
-        return status
-    status["registered"] = True
-    status["state"] = "registered"
+
+    # enabled (signals 있음) 인데 config 파일이 아예 없으면 not_configured,
+    # 파일은 있는데 vibelign 항목만 없으면 missing_server (의미 보존).
+    status["state"] = "missing_server" if any_exists else "not_configured"
     return status
 
 

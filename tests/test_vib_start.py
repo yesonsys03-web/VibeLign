@@ -45,16 +45,17 @@ class VibStartTest(unittest.TestCase):
             ["claude", "opencode", "cursor", "antigravity", "codex"],
         )
 
-    def test_tool_readiness_uses_ready_and_almost_ready_groups(self):
+    def test_tool_readiness_marks_all_tools_ready(self):
+        # 5개 도구 모두 MCP 자동 등록 → 전부 ready 분류.
         readiness = _tool_readiness(
             ["claude", "opencode", "cursor", "antigravity", "codex"]
         )
 
         self.assertEqual(
             readiness["ready"],
-            ["Claude", "OpenCode", "Cursor", "Antigravity"],
+            ["Claude", "OpenCode", "Cursor", "Antigravity", "Codex"],
         )
-        self.assertEqual(readiness["almost_ready"], ["Codex"])
+        self.assertEqual(readiness["almost_ready"], [])
 
     def test_register_mcp_cursor_creates_config_when_missing(self):
         with tempfile.TemporaryDirectory() as tmp:

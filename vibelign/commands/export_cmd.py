@@ -591,6 +591,15 @@ def export_tool_files(root: Path, tool: ExportTool, overwrite: bool = True) -> s
 
 # === ANCHOR: EXPORT_CMD_RUN_EXPORT_START ===
 def run_export(args: ExportArgs) -> None:
+    # Lazy import: vib_start_cmd 가 export_cmd 를 import 하므로 순환 import 회피.
+    from vibelign.commands.vib_start_cmd import (
+        _register_mcp_antigravity,
+        _register_mcp_claude,
+        _register_mcp_codex,
+        _register_mcp_cursor,
+        _register_mcp_opencode,
+    )
+
     root = Path.cwd()
 
     ai_dev_path = root / "AI_DEV_SYSTEM_SINGLE_FILE.md"
@@ -624,6 +633,8 @@ def run_export(args: ExportArgs) -> None:
             print("      덮어쓰지 않고 VibeLign 규칙을 뒤에 추가했습니다.")
         else:
             print("참고: CLAUDE.md에 이미 VibeLign 규칙이 있습니다 (건너뜀)")
+        if _register_mcp_claude(root):
+            print(".mcp.json 에 MCP 등록 완료  ← Claude Code 도구로 직접 호출 가능")
 
     elif args.tool == "opencode":
         result = write_opencode_md(root)
@@ -634,6 +645,9 @@ def run_export(args: ExportArgs) -> None:
             print("      덮어쓰지 않고 VibeLign 규칙을 뒤에 추가했습니다.")
         else:
             print("참고: OPENCODE.md에 이미 VibeLign 규칙이 있습니다 (건너뜀)")
+        registered, oc_path = _register_mcp_opencode(root, scope="project")
+        if registered:
+            print(f"{oc_path.name} 에 MCP 등록 완료 (프로젝트 스코프)")
 
     elif args.tool == "cursor":
         result = write_cursorrules(root)
@@ -644,9 +658,23 @@ def run_export(args: ExportArgs) -> None:
             print("      덮어쓰지 않고 VibeLign 규칙을 뒤에 추가했습니다.")
         else:
             print("참고: .cursorrules에 이미 VibeLign 규칙이 있습니다 (건너뜀)")
+        if _register_mcp_cursor(root):
+            print(".cursor/mcp.json 에 MCP 등록 완료")
+
+    elif args.tool == "antigravity":
+        registered, ag_path = _register_mcp_antigravity()
+        if registered:
+            print(f"{ag_path} 에 MCP 등록 완료 (글로벌)")
+        else:
+            print(f"참고: {ag_path} 에 이미 vibelign MCP 가 등록되어 있어요 (건너뜀)")
 
     elif args.tool == "codex":
         print("참고: Codex는 AGENTS.md를 자동으로 읽어요")
+        registered, cx_path = _register_mcp_codex()
+        if registered:
+            print(f"{cx_path} 에 [mcp_servers.vibelign] 추가 완료 (글로벌)")
+        else:
+            print(f"참고: {cx_path} 에 이미 [mcp_servers.vibelign] 항목이 있어요 (건너뜀)")
 
 
 # === ANCHOR: EXPORT_CMD_RUN_EXPORT_END ===

@@ -481,6 +481,28 @@ def _resolve_vib_command() -> str:
     return sys.executable
 
 
+def _resolve_mcp_command() -> tuple[str, list[str]]:
+    """MCP 서버 spawn 시 쓸 (command, args).
+
+    Why: 사용자/Antigravity/Cursor 의 실제 등록 케이스가 모두 `vibelign-mcp`
+         콘솔 스크립트를 쓰고 있어 그쪽으로 통일. 없으면 `vib mcp` subcommand,
+         frozen 번들이면 ~/.local/bin/vibelign-mcp 래퍼 또는 sys.executable.
+    """
+    if not getattr(sys, "frozen", False):
+        cmd = shutil.which("vibelign-mcp")
+        if cmd:
+            return cmd, []
+        vib_cmd = shutil.which("vib")
+        if vib_cmd:
+            return vib_cmd, ["mcp"]
+        return "vibelign-mcp", []
+
+    wrapper = Path.home() / ".local" / "bin" / "vibelign-mcp"
+    if wrapper.exists():
+        return str(wrapper), []
+    return sys.executable, ["mcp"]
+
+
 def _migrate_legacy_claude_settings_mcp(root: Path) -> None:
     """레거시: 과거 버전이 .claude/settings.json 의 mcpServers 에 적은 vibelign 항목 제거.
 
@@ -550,7 +572,8 @@ def _register_mcp_claude(root: Path) -> bool:
     if "vibelign" in servers:
         return False
 
-    servers["vibelign"] = {"command": _resolve_vib_command(), "args": ["mcp"]}
+    cmd, args = _resolve_mcp_command()
+    servers["vibelign"] = {"command": cmd, "args": args}
     _ = mcp_path.write_text(
         json.dumps(config, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
@@ -594,12 +617,140 @@ def _register_mcp_cursor(root: Path) -> bool:
     if "vibelign" in mcp_servers:
         return False
 
-    mcp_servers["vibelign"] = {"command": _resolve_vib_command(), "args": ["mcp"]}
+    cmd, args = _resolve_mcp_command()
+    mcp_servers["vibelign"] = {"command": cmd, "args": args}
     _ = settings_path.write_text(
         json.dumps(settings, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
     return True
+
+
+def _register_mcp_opencode(root: Path, scope: str = "project") -> tuple[bool, Path]:
+    """OpenCode mcp 설정에 vibelign 등록.
+
+    scope: "project" → 프로젝트 루트 opencode.json (Claude/Cursor 와 동일하게 git 공유)
+           "global"  → ~/.config/opencode/opencode.json (다른 프로젝트에도 적용)
+
+    Why: OpenCode 는 'mcp' 키 (Claude/Cursor 의 'mcpServers' 와 다름) 와
+         배열 형태 command 를 사용. project 가 global 보다 precedence 높음.
+    """
+    if scope == "project":
+        config_path = root / "opencode.json"
+    elif scope == "global":
+        config_path = Path.home() / ".config" / "opencode" / "opencode.json"
+    else:
+        raise ValueError(f"unknown scope: {scope}")
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if config_path.exists():
+        try:
+            loaded = cast(object, json.loads(config_path.read_text(encoding="utf-8")))
+            config = (
+                cast(dict[str, object], loaded) if isinstance(loaded, dict) else {}
+            )
+        except (json.JSONDecodeError, OSError):
+            backup = config_path.with_suffix(".json.bak")
+            _ = config_path.rename(backup)
+            clack_warn(
+                f"{config_path.name} 파일이 손상되어 백업했습니다. ({backup.name})\n  MCP 등록을 새로 진행합니다."
+            )
+            config = {}
+    else:
+        config = {}
+
+    existing = config.get("mcp")
+    mcp_section = (
+        cast(dict[str, object], existing) if isinstance(existing, dict) else {}
+    )
+    config["mcp"] = mcp_section
+    if "vibelign" in mcp_section:
+        return False, config_path
+
+    cmd, args = _resolve_mcp_command()
+    mcp_section["vibelign"] = {
+        "type": "local",
+        "command": [cmd, *args],
+        "enabled": True,
+    }
+    _ = config_path.write_text(
+        json.dumps(config, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return True, config_path
+
+
+def _register_mcp_antigravity() -> tuple[bool, Path]:
+    """Antigravity 글로벌 MCP 설정에 vibelign 등록.
+
+    Path: ~/.gemini/antigravity/mcp_config.json
+    Schema: Claude/Cursor 와 동일한 mcpServers.<name>.{command, args}
+
+    Why: Antigravity 는 project-local MCP 파일을 공식 지원하지 않아 글로벌 전용.
+    """
+    config_path = Path.home() / ".gemini" / "antigravity" / "mcp_config.json"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if config_path.exists():
+        try:
+            loaded = cast(object, json.loads(config_path.read_text(encoding="utf-8")))
+            config = (
+                cast(dict[str, object], loaded) if isinstance(loaded, dict) else {}
+            )
+        except (json.JSONDecodeError, OSError):
+            backup = config_path.with_suffix(".json.bak")
+            _ = config_path.rename(backup)
+            clack_warn(
+                f"{config_path.name} 파일이 손상되어 백업했습니다. ({backup.name})\n  MCP 등록을 새로 진행합니다."
+            )
+            config = {}
+    else:
+        config = {}
+
+    existing = config.get("mcpServers")
+    servers = (
+        cast(dict[str, object], existing) if isinstance(existing, dict) else {}
+    )
+    config["mcpServers"] = servers
+    if "vibelign" in servers:
+        return False, config_path
+
+    cmd, args = _resolve_mcp_command()
+    servers["vibelign"] = {"command": cmd, "args": args}
+    _ = config_path.write_text(
+        json.dumps(config, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return True, config_path
+
+
+def _register_mcp_codex() -> tuple[bool, Path]:
+    """Codex 글로벌 MCP 설정에 [mcp_servers.vibelign] 추가.
+
+    Path: ~/.codex/config.toml
+    Schema: TOML 테이블 [mcp_servers.<name>] 안에 command/args.
+
+    Why: Codex 는 project-local config 미지원, 글로벌 전용.
+         tomli/tomlkit deps 추가 없이 텍스트 append 로 처리 (기존 키 보존).
+    """
+    config_path = Path.home() / ".codex" / "config.toml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    existing = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+    if "[mcp_servers.vibelign]" in existing:
+        return False, config_path
+
+    cmd, args = _resolve_mcp_command()
+    cmd_str = json.dumps(cmd)
+    args_str = "[" + ", ".join(json.dumps(a) for a in args) + "]"
+    block = (
+        f"\n[mcp_servers.vibelign]\ncommand = {cmd_str}\nargs = {args_str}\n"
+    )
+
+    sep = "" if not existing or existing.endswith("\n") else "\n"
+    _ = config_path.write_text(existing + sep + block, encoding="utf-8")
+    return True, config_path
 
 
 # === ANCHOR: VIB_START_CMD__REGISTER_MCP_END ===
@@ -630,8 +781,20 @@ def _selected_start_tools(args: Namespace) -> list[str]:
     return _parse_start_tools(getattr(args, "tools", None))
 
 
+def _display_path(path: Path, root: Path) -> str:
+    """`vib start` 출력에 보일 사용자 친화 경로 (project 상대 또는 ~/ 단축)."""
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        pass
+    try:
+        return f"~/{path.relative_to(Path.home())}"
+    except ValueError:
+        return str(path)
+
+
 def _configure_start_tools(
-    root: Path, tools: list[str], force: bool = False
+    root: Path, tools: list[str], force: bool = False, opencode_scope: str = "project"
 ) -> list[str]:
     created: list[str] = []
 
@@ -654,6 +817,12 @@ def _configure_start_tools(
                 created.append("OPENCODE.md")
             elif result == "appended":
                 created.append("OPENCODE.md (규칙 추가)")
+            registered, oc_path = _register_mcp_opencode(root, scope=opencode_scope)
+            if registered:
+                scope_label = "글로벌" if opencode_scope == "global" else "프로젝트"
+                created.append(
+                    f"{_display_path(oc_path, root)} (MCP 등록, {scope_label})"
+                )
             continue
 
         if tool == "cursor":
@@ -670,27 +839,27 @@ def _configure_start_tools(
         if tool == "antigravity":
             _ = export_tool_files(root, "antigravity", overwrite=force)
             created.append("vibelign_exports/antigravity/")
+            registered, ag_path = _register_mcp_antigravity()
+            if registered:
+                created.append(f"{_display_path(ag_path, root)} (MCP 등록, 글로벌)")
             continue
 
         if tool == "codex":
             _ = export_tool_files(root, "codex", overwrite=force)
             created.append("vibelign_exports/codex/")
+            registered, cx_path = _register_mcp_codex()
+            if registered:
+                created.append(f"{_display_path(cx_path, root)} (MCP 등록, 글로벌)")
 
     return created
 
 
 def _tool_readiness(tools: list[str]) -> dict[str, list[str]]:
-    ready: list[str] = []
-    almost_ready: list[str] = []
-
-    for tool in tools:
-        label = TOOL_DISPLAY_NAMES[tool]
-        if tool in {"claude", "antigravity", "opencode", "cursor"}:
-            ready.append(label)
-        else:
-            almost_ready.append(label)
-
-    return {"ready": ready, "almost_ready": almost_ready}
+    # 5개 도구 (claude/cursor/opencode/antigravity/codex) 모두 MCP 자동 등록됨.
+    return {
+        "ready": [TOOL_DISPLAY_NAMES[t] for t in tools],
+        "almost_ready": [],
+    }
 
 
 def _print_tool_readiness_summary(tools: list[str]) -> None:
@@ -699,19 +868,12 @@ def _print_tool_readiness_summary(tools: list[str]) -> None:
 
     readiness = _tool_readiness(tools)
     ready = readiness["ready"]
-    almost_ready = readiness["almost_ready"]
 
     clack_step("AI 도구 준비 상태")
     if ready:
         clack_info("지금 바로 사용할 수 있어요")
         for tool in ready:
             clack_info(f"- {tool}")
-    if almost_ready:
-        clack_info("거의 끝났어요")
-        for tool in almost_ready:
-            clack_info(f"- {tool}")
-        if "Codex" in almost_ready:
-            clack_info("  Codex: Codex 설정에 VibeLign을 한 번만 연결하세요.")
 
 
 # === ANCHOR: VIB_START_CMD__SETUP_PROJECT_START ===
