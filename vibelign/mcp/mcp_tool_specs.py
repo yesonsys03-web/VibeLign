@@ -279,6 +279,36 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         },
     },
     {
+        "name": "transfer_set_decision",
+        "description": "현재 세션의 의사결정을 work_memory.decisions 에 누적합니다. PROJECT_CONTEXT.md 의 active_intent / Decision context 에 자동 반영됩니다. 두 옵션 사이에서 선택할 때, 의도가 바뀔 때 호출하세요. WHY 포함 권장.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["text"],
+            "properties": {"text": {"type": "string", "description": "결정 내용 한 줄."}},
+        },
+    },
+    {
+        "name": "transfer_set_verification",
+        "description": "테스트/검증 결과를 work_memory.verification 에 누적합니다. PROJECT_CONTEXT.md 의 Verification snapshot 에 자동 반영됩니다.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["text"],
+            "properties": {"text": {"type": "string", "description": "검증 명령 + 결과."}},
+        },
+    },
+    {
+        "name": "transfer_set_relevant",
+        "description": "이번 세션의 핵심 파일을 work_memory.relevant_files 에 등록합니다. PROJECT_CONTEXT.md 의 Relevant files 에 자동 반영됩니다.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+                "path": {"type": "string", "description": "프로젝트 루트 기준 상대 경로"},
+                "why": {"type": "string", "description": "왜 이 파일이 핵심인가."}
+            },
+        },
+    },
+    {
         "name": "anchor_get_meta",
         "description": (
             "anchor_meta.json을 반환합니다. anchor_name을 지정하면 해당 앵커의 메타만, "

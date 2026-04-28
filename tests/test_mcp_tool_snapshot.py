@@ -91,6 +91,9 @@ class McpToolSnapshotTest(unittest.TestCase):
                 "anchor_list",
                 "anchor_auto_intent",
                 "anchor_set_intent",
+                "transfer_set_decision",
+                "transfer_set_verification",
+                "transfer_set_relevant",
                 "anchor_get_meta",
                 "explain_get",
                 "config_get",
@@ -132,6 +135,9 @@ class McpToolSnapshotTest(unittest.TestCase):
             cast(list[str], by_name["handoff_create"].inputSchema.get("required", [])),
             ["session_summary", "first_next_action"],
         )
+        self.assertEqual(by_name["transfer_set_decision"].inputSchema["required"], ["text"])
+        self.assertEqual(by_name["transfer_set_verification"].inputSchema["required"], ["text"])
+        self.assertEqual(by_name["transfer_set_relevant"].inputSchema["required"], ["path"])
 
 
 if __name__ == "__main__":

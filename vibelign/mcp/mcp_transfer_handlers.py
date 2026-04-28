@@ -139,4 +139,49 @@ def handle_project_context_get(
         content = build_context_content(root, compact=compact, full=full)
 
     return _text(text_content, content)
+
+
+# === ANCHOR: MCP_TRANSFER_HANDLERS_HANDLE_TRANSFER_SET_DECISION_START ===
+def handle_transfer_set_decision(
+    root: Path, arguments: dict[str, object], text_content: TextContentFactory,
+) -> list[object]:
+    from vibelign.core.meta_paths import MetaPaths
+    from vibelign.core.work_memory import add_decision
+    text = arguments.get("text")
+    if not isinstance(text, str) or not text.strip():
+        return _text(text_content, "transfer_set_decision: text 인자가 필요해요.")
+    add_decision(MetaPaths(root).work_memory_path, text)
+    return _text(text_content, f"decisions[] 에 추가됨: {text[:60]}")
+# === ANCHOR: MCP_TRANSFER_HANDLERS_HANDLE_TRANSFER_SET_DECISION_END ===
+
+
+# === ANCHOR: MCP_TRANSFER_HANDLERS_HANDLE_TRANSFER_SET_VERIFICATION_START ===
+def handle_transfer_set_verification(
+    root: Path, arguments: dict[str, object], text_content: TextContentFactory,
+) -> list[object]:
+    from vibelign.core.meta_paths import MetaPaths
+    from vibelign.core.work_memory import add_verification
+    text = arguments.get("text")
+    if not isinstance(text, str) or not text.strip():
+        return _text(text_content, "transfer_set_verification: text 인자가 필요해요.")
+    add_verification(MetaPaths(root).work_memory_path, text)
+    return _text(text_content, f"verification[] 에 추가됨: {text[:60]}")
+# === ANCHOR: MCP_TRANSFER_HANDLERS_HANDLE_TRANSFER_SET_VERIFICATION_END ===
+
+
+# === ANCHOR: MCP_TRANSFER_HANDLERS_HANDLE_TRANSFER_SET_RELEVANT_START ===
+def handle_transfer_set_relevant(
+    root: Path, arguments: dict[str, object], text_content: TextContentFactory,
+) -> list[object]:
+    from vibelign.core.meta_paths import MetaPaths
+    from vibelign.core.work_memory import add_relevant_file
+    file_path = arguments.get("path")
+    why = arguments.get("why", "Relevant to recent work.")
+    if not isinstance(file_path, str) or not file_path.strip():
+        return _text(text_content, "transfer_set_relevant: path 인자가 필요해요.")
+    if not isinstance(why, str):
+        why = "Relevant to recent work."
+    add_relevant_file(MetaPaths(root).work_memory_path, file_path, why)
+    return _text(text_content, f"relevant_files[] 에 추가됨: {file_path}")
+# === ANCHOR: MCP_TRANSFER_HANDLERS_HANDLE_TRANSFER_SET_RELEVANT_END ===
 # === ANCHOR: MCP_TRANSFER_HANDLERS_END ===

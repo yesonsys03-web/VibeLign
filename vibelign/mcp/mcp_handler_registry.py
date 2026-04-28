@@ -278,6 +278,27 @@ def _handle_anchor_get_meta(
     return _anchor_handlers().handle_anchor_get_meta(root, arguments, text_content)
 
 
+def _handle_transfer_set_decision(
+    root: Path, arguments: dict[str, object], text_content: TextContentFactory
+) -> list[object]:
+    from vibelign.mcp.mcp_transfer_handlers import handle_transfer_set_decision
+    return handle_transfer_set_decision(root, arguments, text_content)
+
+
+def _handle_transfer_set_verification(
+    root: Path, arguments: dict[str, object], text_content: TextContentFactory
+) -> list[object]:
+    from vibelign.mcp.mcp_transfer_handlers import handle_transfer_set_verification
+    return handle_transfer_set_verification(root, arguments, text_content)
+
+
+def _handle_transfer_set_relevant(
+    root: Path, arguments: dict[str, object], text_content: TextContentFactory
+) -> list[object]:
+    from vibelign.mcp.mcp_transfer_handlers import handle_transfer_set_relevant
+    return handle_transfer_set_relevant(root, arguments, text_content)
+
+
 # === ANCHOR: MCP_HANDLER_REGISTRY__HANDLE_ANCHOR_LIST_START ===
 def _handle_anchor_list(
     root: Path, arguments: dict[str, object], text_content: TextContentFactory
@@ -311,6 +332,9 @@ DISPATCH_TABLE: dict[str, DispatchHandler] = {
     "anchor_auto_intent": _handle_anchor_auto_intent,
     "anchor_set_intent": _handle_anchor_set_intent,
     "anchor_get_meta": _handle_anchor_get_meta,
+    "transfer_set_decision": _handle_transfer_set_decision,
+    "transfer_set_verification": _handle_transfer_set_verification,
+    "transfer_set_relevant": _handle_transfer_set_relevant,
     "explain_get": _misc_handlers().handle_explain_get,
     "anchor_list": _handle_anchor_list,
     "config_get": _handle_config_get,
