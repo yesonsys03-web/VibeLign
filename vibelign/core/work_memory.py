@@ -388,6 +388,35 @@ def record_warning(
         return
 
 
+# === ANCHOR: WORK_MEMORY_RECORD_COMMIT_START ===
+def record_commit(path: Path, sha: str, message: str) -> None:
+    """recent_events 에 kind="commit" entry 추가. decisions[] 는 건드리지 않음.
+
+    Why: commit 메시지는 사실(fact) 이지 의사결정(decision) 이 아님.
+         decisions[-1] → active_intent 매핑이 release commit 으로 오염되지 않도록
+         별도 bucket (recent_events) 으로 격리한다. multi-line / 한글 / 이모지 안전.
+    """
+    text = _truncate_text(message)
+    if not text:
+        return
+    short = (sha or "")[:12] or "unknown"
+    try:
+        state = load_work_memory(path)
+        event: WorkMemoryEvent = {
+            "time": _utc_now(),
+            "kind": "commit",
+            "path": f"git/{short}",
+            "message": text,
+            "action": "",
+        }
+        state["recent_events"].append(event)
+        state["updated_at"] = event["time"]
+        save_work_memory(path, state)
+    except Exception:
+        return
+# === ANCHOR: WORK_MEMORY_RECORD_COMMIT_END ===
+
+
 # === ANCHOR: WORK_MEMORY_ADD_VERIFICATION_START ===
 def add_verification(path: Path, message: str) -> None:
     state = load_work_memory(path)
