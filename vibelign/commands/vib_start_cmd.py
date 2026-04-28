@@ -481,43 +481,78 @@ def _resolve_vib_command() -> str:
     return sys.executable
 
 
-def _register_mcp_claude(root: Path) -> bool:
-    """Claude Code .claude/settings.json에 vibelign MCP 서버를 등록한다.
-    이미 등록되어 있으면 False, 새로 등록하면 True 반환."""
-    claude_dir = root / ".claude"
-    settings_path = claude_dir / "settings.json"
-    claude_dir.mkdir(exist_ok=True)
+def _migrate_legacy_claude_settings_mcp(root: Path) -> None:
+    """레거시: 과거 버전이 .claude/settings.json 의 mcpServers 에 적은 vibelign 항목 제거.
 
-    if settings_path.exists():
+    Why: Claude Code 는 mcpServers 를 .claude/settings.json 이 아니라 프로젝트 루트의
+         .mcp.json (project scope) 에서 읽는다. 옛 등록은 무시되니까 죽은 키로 남아
+         사용자 혼란 방지를 위해 정리한다. settings.json 의 hooks/permissions/env 섹션은
+         그대로 유지.
+    """
+    settings_path = root / ".claude" / "settings.json"
+    if not settings_path.exists():
+        return
+    try:
+        loaded = cast(object, json.loads(settings_path.read_text(encoding="utf-8")))
+    except (json.JSONDecodeError, OSError):
+        return
+    if not isinstance(loaded, dict):
+        return
+    settings = cast(dict[str, object], loaded)
+    raw_servers = settings.get("mcpServers")
+    if not isinstance(raw_servers, dict):
+        return
+    servers = cast(dict[str, object], raw_servers)
+    if "vibelign" not in servers:
+        return
+    del servers["vibelign"]
+    if not servers:
+        del settings["mcpServers"]
+    _ = settings_path.write_text(
+        json.dumps(settings, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _register_mcp_claude(root: Path) -> bool:
+    """Claude Code 가 읽는 프로젝트 스코프 MCP 설정 파일(.mcp.json)에 vibelign 등록.
+
+    Why: Claude Code 는 mcpServers 를 .claude/settings.json 이 아니라
+         프로젝트 루트의 .mcp.json 에서 읽는다 (project scope, git 공유).
+         settings.json 은 hooks/permissions/env 전용.
+    """
+    _migrate_legacy_claude_settings_mcp(root)
+
+    mcp_path = root / ".mcp.json"
+    if mcp_path.exists():
         try:
-            loaded = cast(object, json.loads(settings_path.read_text(encoding="utf-8")))
-            settings = (
+            loaded = cast(object, json.loads(mcp_path.read_text(encoding="utf-8")))
+            config = (
                 cast(dict[str, object], loaded) if isinstance(loaded, dict) else {}
             )
         except (json.JSONDecodeError, OSError):
-            # 손상된 파일을 백업하고 새로 시작
-            backup = settings_path.with_suffix(".json.bak")
-            _ = settings_path.rename(backup)
+            backup = mcp_path.with_suffix(".json.bak")
+            _ = mcp_path.rename(backup)
             clack_warn(
-                f".claude/settings.json 파일이 손상되어 백업했습니다. ({backup.name})\n  MCP 등록을 새로 진행합니다."
+                f".mcp.json 파일이 손상되어 백업했습니다. ({backup.name})\n  MCP 등록을 새로 진행합니다."
             )
-            settings = {}
+            config = {}
     else:
-        settings = {}
+        config = {}
 
-    existing_mcp_servers = settings.get("mcpServers")
-    mcp_servers = (
-        cast(dict[str, object], existing_mcp_servers)
-        if isinstance(existing_mcp_servers, dict)
+    existing_servers = config.get("mcpServers")
+    servers = (
+        cast(dict[str, object], existing_servers)
+        if isinstance(existing_servers, dict)
         else {}
     )
-    settings["mcpServers"] = mcp_servers
-    if "vibelign" in mcp_servers:
+    config["mcpServers"] = servers
+    if "vibelign" in servers:
         return False
 
-    mcp_servers["vibelign"] = {"command": _resolve_vib_command(), "args": ["mcp"]}
-    _ = settings_path.write_text(
-        json.dumps(settings, indent=2, ensure_ascii=False) + "\n",
+    servers["vibelign"] = {"command": _resolve_vib_command(), "args": ["mcp"]}
+    _ = mcp_path.write_text(
+        json.dumps(config, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
     return True
@@ -609,7 +644,7 @@ def _configure_start_tools(
             elif result == "appended":
                 created.append("CLAUDE.md (규칙 추가)")
             if _register_mcp_claude(root):
-                created.append(".claude/settings.json (MCP 등록)")
+                created.append(".mcp.json (MCP 등록)")
             continue
 
         if tool == "opencode":
