@@ -244,10 +244,10 @@ def uninstall_post_commit_record_hook(root: Path) -> HookInstallResult:
 
     start = content.index(_POST_COMMIT_MARKER)
     end_idx = content.index(_POST_COMMIT_END, start) + len(_POST_COMMIT_END)
-    # 양 옆 빈 줄 정리
-    while start > 0 and content[start - 1] == "\n":
+    # 양 옆 최대 1개 newline 만 소비 (shebang/본문 보존)
+    if start > 0 and content[start - 1] == "\n":
         start -= 1
-    while end_idx < len(content) and content[end_idx] == "\n":
+    if end_idx < len(content) and content[end_idx] == "\n":
         end_idx += 1
     new_content = content[:start] + content[end_idx:]
     new_content = new_content.rstrip()

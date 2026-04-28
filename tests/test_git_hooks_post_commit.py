@@ -72,8 +72,23 @@ class PostCommitHookTest(unittest.TestCase):
             install_post_commit_record_hook(root)
             uninstall_post_commit_record_hook(root)
             content = hook.read_text()
+
+            # User content preserved
             self.assertIn("user hook", content)
             self.assertNotIn("post-commit-record v1", content)
+
+            # CRITICAL: shebang must be on its own first line, NOT fused with next line
+            lines = content.splitlines()
+            self.assertEqual(lines[0], "#!/bin/sh",
+                f"shebang corrupted: first line is '{lines[0]}'")
+
+            # CRITICAL: hook must be syntactically valid shell
+            result = subprocess.run(
+                ["sh", "-n", str(hook)],
+                capture_output=True,
+            )
+            self.assertEqual(result.returncode, 0,
+                f"sh -n failed: {result.stderr.decode()}")
 
     def test_uninstall_removes_file_when_only_vibelign_block(self):
         with tempfile.TemporaryDirectory() as tmp:
