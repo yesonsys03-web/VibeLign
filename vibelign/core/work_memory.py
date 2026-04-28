@@ -478,6 +478,18 @@ def add_decision(path: Path, message: str) -> None:
 # === ANCHOR: WORK_MEMORY_ADD_DECISION_END ===
 
 
+# === ANCHOR: WORK_MEMORY__IS_SYNTHETIC_EVENT_PATH_START ===
+def _is_synthetic_event_path(rel_path: str) -> bool:
+    """recent_events 의 sentinel path 여부 (record_commit/record_checkpoint 출처).
+
+    Why: 이 path 들은 실제 수정 파일이 아니라 synthetic event marker.
+         changed_files 사용자 출력에 들어가면 진짜 파일 경로를 evict 하므로
+         aggregator 에서 거른다. (recent_events / change_details 에는 그대로 둔다.)
+    """
+    return rel_path == "checkpoint" or rel_path.startswith("git/")
+# === ANCHOR: WORK_MEMORY__IS_SYNTHETIC_EVENT_PATH_END ===
+
+
 # === ANCHOR: WORK_MEMORY_BUILD_TRANSFER_SUMMARY_START ===
 def build_transfer_summary(path: Path) -> WorkMemorySummary | None:
     state = load_work_memory(path)
@@ -496,7 +508,9 @@ def build_transfer_summary(path: Path) -> WorkMemorySummary | None:
     changed_files: list[str] = []
     for event in state["recent_events"]:
         rel_path = event.get("path", "")
-        if rel_path and rel_path not in changed_files:
+        if not rel_path or _is_synthetic_event_path(rel_path):
+            continue
+        if rel_path not in changed_files:
             changed_files.append(rel_path)
     for entry in state["relevant_files"]:
         rel_path = entry["path"]
