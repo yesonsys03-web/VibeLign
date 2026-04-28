@@ -95,5 +95,25 @@ class VibStartHooksTest(unittest.TestCase):
                 os.chdir(previous)
 
 
+    def test_vib_start_installs_post_commit_record_hook(self) -> None:
+        import subprocess
+        from vibelign.commands.vib_start_cmd import run_vib_start
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
+            previous = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch("vibelign.commands.vib_start_cmd._selected_start_tools", return_value=[]):
+                    run_vib_start(Namespace(all_tools=False, tools=None, force=False, quickstart=False))
+            finally:
+                os.chdir(previous)
+
+            hook = root / ".git" / "hooks" / "post-commit"
+            self.assertTrue(hook.exists())
+            self.assertIn("post-commit-record v1", hook.read_text())
+
+
 if __name__ == "__main__":
     unittest.main()

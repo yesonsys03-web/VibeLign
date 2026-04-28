@@ -16,7 +16,10 @@ from vibelign.commands.export_cmd import (
     write_cursorrules,
     write_opencode_md,
 )
-from vibelign.core.git_hooks import install_pre_commit_secret_hook
+from vibelign.core.git_hooks import (
+    install_pre_commit_secret_hook,
+    install_post_commit_record_hook,
+)
 from vibelign.core.doctor_v2 import build_doctor_envelope
 from vibelign.core.ai_dev_system import AI_DEV_SYSTEM_CONTENT
 from vibelign.core.hook_setup import detect_tool, remove_old_hook, setup_hook_if_needed
@@ -967,6 +970,11 @@ def run_vib_start(args: Namespace) -> None:
                 "git을 찾을 수 없어서 자동 초기화를 건너뜠어요. git을 설치하면 비밀정보 자동 검사 등을 쓸 수 있어요."
             )
     secret_hook_result = install_pre_commit_secret_hook(root) if git_active else None
+    record_hook_result = (
+        install_post_commit_record_hook(root) if git_active else None
+    )
+    if record_hook_result and record_hook_result.status == "installed":
+        clack_success("git post-commit 훅 설치됨 (commit 메시지가 핸드오프로 자동 누적)")
 
     # [4] 출력
     clack_step("프로젝트 상태를 확인하는 중...")
