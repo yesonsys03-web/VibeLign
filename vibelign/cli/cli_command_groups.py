@@ -47,6 +47,21 @@ def _run_vib_rules(_: object) -> None:
 # === ANCHOR: CLI_COMMAND_GROUPS__RUN_VIB_RULES_END ===
 
 
+# === ANCHOR: CLI_COMMAND_GROUPS__RUN_VIB_MCP_START ===
+def _run_vib_mcp(_: object) -> None:
+    # Why: GUI 번들에서 `vib mcp` 한 진입점으로 MCP 서버를 띄울 수 있게 한다.
+    #      Claude Code/Cursor 등 외부 도구는 별도 `vibelign-mcp` 바이너리 없이
+    #      `vib` 절대경로 + `mcp` 인자만으로 동일 서버에 도달.
+    main = cast(
+        Callable[[], None],
+        importlib.import_module("vibelign.mcp.mcp_server").main,
+    )
+    main()
+
+
+# === ANCHOR: CLI_COMMAND_GROUPS__RUN_VIB_MCP_END ===
+
+
 # === ANCHOR: CLI_COMMAND_GROUPS_REGISTER_EXTENDED_COMMANDS_START ===
 def register_extended_commands(
     sub: SubparserFactory,
@@ -424,6 +439,9 @@ def register_extended_commands(
     p.set_defaults(
         func=lazy_command("vibelign.commands.vib_precheck_cmd", "run_vib_precheck")
     )
+
+    p = sub.add_parser("mcp", help=argparse.SUPPRESS)
+    p.set_defaults(func=_run_vib_mcp)
 
     p = sub.add_parser(
         "export",

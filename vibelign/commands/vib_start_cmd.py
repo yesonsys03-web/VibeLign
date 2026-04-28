@@ -459,6 +459,28 @@ def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object
 
 
 # === ANCHOR: VIB_START_CMD__REGISTER_MCP_START ===
+def _resolve_vib_command() -> str:
+    """MCP 등록 시 사용할 vib 실행 명령 경로.
+
+    Why: GUI 번들 사용자는 PATH 에 vib 가 잡혀 있지 않은 컨텍스트(예: Finder/Spotlight
+         에서 띄운 IDE)에서도 MCP 서버가 spawn 되어야 하므로 절대경로를 박는다.
+         pip install 사용자는 PATH 에서 찾은 vib 절대경로를 그대로 사용한다.
+    """
+    if not getattr(sys, "frozen", False):
+        return shutil.which("vib") or "vib"
+
+    if sys.platform == "win32":
+        # Windows: .cmd 래퍼는 일부 spawn 컨텍스트(Node.js child_process 등)에서
+        # shell:true 없이 실행 안 됨 → 번들 vib.exe 절대경로를 직접 지정
+        return sys.executable
+
+    # macOS/Linux: ~/.local/bin/vib 래퍼 우선 (앱 이동/재설치 시 자동 갱신되어 stale 경로 방지)
+    wrapper = Path.home() / ".local" / "bin" / "vib"
+    if wrapper.exists():
+        return str(wrapper)
+    return sys.executable
+
+
 def _register_mcp_claude(root: Path) -> bool:
     """Claude Code .claude/settings.json에 vibelign MCP 서버를 등록한다.
     이미 등록되어 있으면 False, 새로 등록하면 True 반환."""
@@ -493,7 +515,7 @@ def _register_mcp_claude(root: Path) -> bool:
     if "vibelign" in mcp_servers:
         return False
 
-    mcp_servers["vibelign"] = {"command": "vibelign-mcp", "args": []}
+    mcp_servers["vibelign"] = {"command": _resolve_vib_command(), "args": ["mcp"]}
     _ = settings_path.write_text(
         json.dumps(settings, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
@@ -537,7 +559,7 @@ def _register_mcp_cursor(root: Path) -> bool:
     if "vibelign" in mcp_servers:
         return False
 
-    mcp_servers["vibelign"] = {"command": "vibelign-mcp", "args": []}
+    mcp_servers["vibelign"] = {"command": _resolve_vib_command(), "args": ["mcp"]}
     _ = settings_path.write_text(
         json.dumps(settings, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
