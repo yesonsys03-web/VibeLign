@@ -464,6 +464,19 @@ def register_extended_commands(
     p.set_defaults(func=lazy_command("vibelign.commands.export_cmd", "run_export"))
 
     p = sub.add_parser(
+        "_internal_record_commit",
+        help=argparse.SUPPRESS,  # 사용자에게 숨김
+        description="post-commit 훅이 호출. stdin 으로 commit 메시지 받음.",
+    )
+    _ = p.add_argument("sha", help="git commit SHA")
+    p.set_defaults(
+        func=lazy_command(
+            "vibelign.commands.internal_record_commit_cmd",
+            "run_internal_record_commit",
+        )
+    )
+
+    p = sub.add_parser(
         "scan",
         help="앵커 스캔 + 코드맵 갱신을 한 번에 해요",
         description=(
