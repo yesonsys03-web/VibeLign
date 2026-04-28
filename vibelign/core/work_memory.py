@@ -417,6 +417,33 @@ def record_commit(path: Path, sha: str, message: str) -> None:
 # === ANCHOR: WORK_MEMORY_RECORD_COMMIT_END ===
 
 
+# === ANCHOR: WORK_MEMORY_RECORD_CHECKPOINT_START ===
+def record_checkpoint(path: Path, message: str) -> None:
+    """recent_events 에 kind="checkpoint" entry 추가. decisions/relevant_files 는 건드리지 않음.
+
+    Why: checkpoint_create 는 파일 변경이 아니라 state-save fact 이므로 record_event 의
+         파일 경로/relevant_files 경로와 분리한다.
+    """
+    text = _truncate_text(message)
+    if not text:
+        return
+    try:
+        state = load_work_memory(path)
+        event: WorkMemoryEvent = {
+            "time": _utc_now(),
+            "kind": "checkpoint",
+            "path": "checkpoint",
+            "message": text,
+            "action": "",
+        }
+        state["recent_events"].append(event)
+        state["updated_at"] = event["time"]
+        save_work_memory(path, state)
+    except Exception:
+        return
+# === ANCHOR: WORK_MEMORY_RECORD_CHECKPOINT_END ===
+
+
 # === ANCHOR: WORK_MEMORY_ADD_VERIFICATION_START ===
 def add_verification(path: Path, message: str) -> None:
     state = load_work_memory(path)

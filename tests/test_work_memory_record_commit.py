@@ -36,3 +36,26 @@ class RecordCommitTest(unittest.TestCase):
             wm = Path(tmp) / "work_memory.json"
             record_commit(wm, "abc1234", "")
             self.assertEqual(load_work_memory(wm)["recent_events"], [])
+
+
+class RecordCheckpointTest(unittest.TestCase):
+    def test_appends_checkpoint_event(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wm = Path(tmp) / "work_memory.json"
+            from vibelign.core.work_memory import record_checkpoint
+            record_checkpoint(wm, "v2.0.35 작업 전 안전 저장")
+
+            state = load_work_memory(wm)
+            event = state["recent_events"][-1]
+            self.assertEqual(event["kind"], "checkpoint")
+            self.assertEqual(event["path"], "checkpoint")
+            self.assertIn("v2.0.35", event["message"])
+            self.assertEqual(state["decisions"], [])
+            self.assertEqual(state["relevant_files"], [])
+
+    def test_skips_blank_checkpoint_message(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wm = Path(tmp) / "work_memory.json"
+            from vibelign.core.work_memory import record_checkpoint
+            record_checkpoint(wm, "")
+            self.assertEqual(load_work_memory(wm)["recent_events"], [])
