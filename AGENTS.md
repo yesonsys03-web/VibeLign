@@ -94,6 +94,29 @@ User: "바이브라인 언두해줘"
 
 See `AI_DEV_SYSTEM_SINGLE_FILE.md` for the complete ruleset.
 
+## Handoff Narrative Discipline
+
+work_memory.json 의 의미 칸은 *3 가지 경로* 로 채워집니다:
+
+| 필드 | 자동 캡처 (보강) | 명시 호출 (핵심) |
+|---|---|---|
+| `decisions[]` | (없음 — 자동 캡처 안 함) | `transfer_set_decision(text)` |
+| `verification[]` | guard_check 결과 | `transfer_set_verification(text)` |
+| `relevant_files[]` | patch_apply target | `transfer_set_relevant(path, why)` |
+| `recent_events[]` (kind=commit/checkpoint) | git post-commit / checkpoint_create | (호출 없음) |
+
+`decisions[-1]` 이 PROJECT_CONTEXT.md 의 **active_intent** 가 됩니다. 그러므로
+`transfer_set_decision` 은 **세션의 진짜 의사결정** 일 때만 호출하세요:
+
+- 두 옵션 사이에서 하나를 선택했을 때 (이유 포함, 1줄)
+- 의도가 바뀌었을 때 ("이제는 X 가 아니라 Y 를 추구")
+- 작업의 핵심 목표가 정해졌을 때
+
+**호출하지 말 것**:
+- 단순 진행 보고 ("이제 Task 3 시작")
+- commit 정렬 / 버전 bump 같은 메커니컬 작업
+- 검증 결과 (그건 `transfer_set_verification`)
+
 <!-- VibeLign Handoff Instruction -->
 ## AI 전환 / Session Handoff
 
@@ -204,4 +227,27 @@ User: "바이브라인 언두해줘"
 ## Full Rules
 
 See `AI_DEV_SYSTEM_SINGLE_FILE.md` for the complete ruleset.
+
+## Handoff Narrative Discipline
+
+work_memory.json 의 의미 칸은 *3 가지 경로* 로 채워집니다:
+
+| 필드 | 자동 캡처 (보강) | 명시 호출 (핵심) |
+|---|---|---|
+| `decisions[]` | (없음 — 자동 캡처 안 함) | `transfer_set_decision(text)` |
+| `verification[]` | guard_check 결과 | `transfer_set_verification(text)` |
+| `relevant_files[]` | patch_apply target | `transfer_set_relevant(path, why)` |
+| `recent_events[]` (kind=commit/checkpoint) | git post-commit / checkpoint_create | (호출 없음) |
+
+`decisions[-1]` 이 PROJECT_CONTEXT.md 의 **active_intent** 가 됩니다. 그러므로
+`transfer_set_decision` 은 **세션의 진짜 의사결정** 일 때만 호출하세요:
+
+- 두 옵션 사이에서 하나를 선택했을 때 (이유 포함, 1줄)
+- 의도가 바뀌었을 때 ("이제는 X 가 아니라 Y 를 추구")
+- 작업의 핵심 목표가 정해졌을 때
+
+**호출하지 말 것**:
+- 단순 진행 보고 ("이제 Task 3 시작")
+- commit 정렬 / 버전 bump 같은 메커니컬 작업
+- 검증 결과 (그건 `transfer_set_verification`)
 
