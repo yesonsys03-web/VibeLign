@@ -558,6 +558,103 @@ def test_handoff_work_memory_completed_work_wins_over_commit_details(tmp_path):
     assert "fix(gui): unrelated recent release" not in content
 
 
+def test_uncommitted_changes_preserve_work_memory_change_details(tmp_path):
+    """v2.0.36 회귀 방어:
+    작업 트리에 uncommitted 변경이 있어도 enrich 가 합쳐 둔 work_memory
+    recent_events (commit/watch) 가 Code change details / 변경 파일 섹션에서
+    삭제되면 안 된다.
+    """
+    vibelign_dir = tmp_path / ".vibelign"
+    vibelign_dir.mkdir()
+    (vibelign_dir / "work_memory.json").write_text(
+        """
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-29T00:11:15Z",
+  "recent_events": [
+    {
+      "time": "2026-04-29T00:09:07Z",
+      "kind": "commit",
+      "path": "git/54edb30a2311",
+      "message": "test: v2.0.35 hook activation",
+      "action": ""
+    },
+    {
+      "time": "2026-04-28T09:58:53Z",
+      "kind": "moved",
+      "path": "vibelign-gui/package.json",
+      "message": "vibelign-gui/package.json moved",
+      "action": "Review the latest change."
+    }
+  ],
+  "relevant_files": [],
+  "warnings": [],
+  "decisions": [],
+  "verification": []
+}
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    out_path = tmp_path / "PROJECT_CONTEXT.md"
+    args = _make_args(handoff=True, no_prompt=True, out=str(out_path))
+
+    fake_working_tree = {
+        "files": ["uv.lock"],
+        "details": ["uv.lock — modified (+1/-1)"],
+        "count": 1,
+        "summary": "커밋되지 않은 변경 1개 파일",
+    }
+
+    with (
+        mock.patch("os.getcwd", return_value=str(tmp_path)),
+        mock.patch(
+            "vibelign.commands.vib_transfer_cmd._get_working_tree_summary",
+            return_value=fake_working_tree,
+        ),
+        mock.patch(
+            "vibelign.commands.vib_transfer_cmd._get_changed_files",
+            return_value=["uv.lock"],
+        ),
+        mock.patch(
+            "vibelign.commands.vib_transfer_cmd._get_work_memory_staleness_warning",
+            return_value=None,
+        ),
+        mock.patch(
+            "vibelign.commands.vib_transfer_cmd._get_detailed_commits",
+            return_value=[],
+        ),
+        mock.patch(
+            "vibelign.commands.vib_transfer_cmd._get_recent_commits",
+            return_value=[],
+        ),
+    ):
+        run_transfer(args)
+
+    content = out_path.read_text(encoding="utf-8")
+
+    # Code change details 섹션: git status + work_memory commit/watch 둘 다 존재
+    code_change_section = content.split("### Code change details", 1)[1].split(
+        "### Verification snapshot", 1
+    )[0]
+    assert "uv.lock" in code_change_section, (
+        "git status 의 uv.lock 가 Code change details 에 사라짐"
+    )
+    assert "test: v2.0.35 hook activation" in code_change_section, (
+        "work_memory commit entry 가 Code change details 에 흐르지 않음 — "
+        "elif changed_count 분기가 enrich 결과를 덮어썼을 가능성"
+    )
+
+    # 변경 파일 섹션: work_memory 의 watch 파일 (vibelign-gui/package.json) 도 포함
+    changed_files_section = content.split("### 변경 파일", 1)[1].split(
+        "### Warnings", 1
+    )[0]
+    assert "uv.lock" in changed_files_section, "git status 파일이 변경 파일 섹션에 사라짐"
+    assert "vibelign-gui/package.json" in changed_files_section, (
+        "work_memory 의 파일 경로가 변경 파일 섹션에 흐르지 않음"
+    )
+
+
 def test_stale_work_memory_does_not_replace_git_completed_work(tmp_path):
     vibelign_dir = tmp_path / ".vibelign"
     vibelign_dir.mkdir()

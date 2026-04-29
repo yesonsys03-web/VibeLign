@@ -1163,9 +1163,11 @@ def _collect_handoff_data_from_cli(
             data["completed_work"] = git_completed_work
         data.pop("recent_events", None)
     elif changed_count:
-        data["changed_files"] = changed_files
-        data["changed_file_count"] = changed_count
-        data["change_details"] = change_details
+        # changed_files / change_details 는 enrich 단계에서 git status 와 work_memory
+        # recent_events 가 이미 합쳐졌으므로 덮어쓰지 않는다.
+        # changed_file_count 는 합쳐진 displayed 목록 크기에 맞춰 보정 (변경 파일 +N 표기 정확도).
+        merged_files = _handoff_files(data.get("changed_files"))
+        data["changed_file_count"] = max(changed_count, len(merged_files))
         data["unfinished_work"] = working_tree["summary"]
         data["completed_work"] = _format_working_tree_live_changes(
             change_details, changed_count
