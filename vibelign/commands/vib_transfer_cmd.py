@@ -539,20 +539,20 @@ def _build_top_dense_slots(data: HandoffData) -> tuple[str, str, str, str]:
     """Top-of-handoff dense 4 슬롯: Primary work item / Working tree truth / Next action / Done when.
 
     Why: 다음 AI 가 30초 안에 "작업 파일 / 진짜 상태 / 첫 행동 / 완료 조건" 파악할 수 있어야 함.
+    v2.0.38: dense 슬롯은 git status 만 본다 (사용자 평가의 "git 이 진실, work_memory 는 보조"
+    원칙). work_memory 가 잡은 vendored / build artifact 가 Primary 로 끼어드는 것을 방지.
     """
-    changed = _prioritize_changed_files(
-        _handoff_files(data.get("changed_files")),
-        _handoff_lines(data.get("change_details")),
-    )
-    changed_count = data.get("changed_file_count")
-    total = (
-        changed_count
-        if isinstance(changed_count, int) and changed_count > 0
-        else len(changed)
-    )
+    wt_details = _handoff_lines(data.get("working_tree_details"))
+    wt_paths: list[str] = []
+    for line in wt_details:
+        path = _detail_path(line)
+        if path and path not in wt_paths:
+            wt_paths.append(path)
+    wt_paths = _prioritize_changed_files(wt_paths, wt_details)
+    total = len(wt_paths)
 
-    if changed:
-        primary_files = ", ".join(f"`{f}`" for f in changed[:3])
+    if wt_paths:
+        primary_files = ", ".join(f"`{f}`" for f in wt_paths[:3])
         if total > 3:
             primary = f"{primary_files} … (+{total - 3})"
         else:
@@ -561,9 +561,8 @@ def _build_top_dense_slots(data: HandoffData) -> tuple[str, str, str, str]:
         primary = "(none)"
 
     if total > 0:
-        details = _handoff_lines(data.get("working_tree_details"))
         kind_counts: dict[str, int] = {}
-        for detail in details:
+        for detail in wt_details:
             for marker in ("untracked", "added", "modified", "deleted", "renamed"):
                 if f"— {marker}" in detail or f"— {marker} " in detail:
                     kind_counts[marker] = kind_counts.get(marker, 0) + 1

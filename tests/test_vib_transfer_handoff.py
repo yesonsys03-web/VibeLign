@@ -582,6 +582,36 @@ def test_handoff_work_memory_completed_work_wins_over_commit_details(tmp_path):
     assert "fix(gui): unrelated recent release" not in content
 
 
+def test_v2_0_38_dense_slots_ignore_work_memory_paths():
+    """v2.0.38 회귀 방어:
+    Primary work item / Working tree truth (count) 는 git status 만 본다.
+    work_memory 가 잡은 vendored / build artifact 가 dense 슬롯에 끼어들면 안 됨.
+    (사용자 평가: "git 이 진실, work_memory 는 보조")
+    """
+    data = _make_handoff_data(
+        # git 변경은 1개 파일
+        working_tree_details=["docs/spec.md — untracked"],
+        # work_memory enrich 가 잡은 vendored / build artifact 들이 changed_files 에 합쳐짐
+        changed_files=[
+            "docs/spec.md",
+            "vibelign-gui/src-tauri/vib-runtime/_internal/lib1.json",
+            "vibelign-gui/src-tauri/vib-runtime/_internal/lib2.json",
+            "vibelign-gui/src-tauri/vib-runtime/_internal/lib3.json",
+        ],
+        changed_file_count=4,  # 잘못된 보정 — 실제 git 은 1
+    )
+    block = _build_handoff_block(data)
+    # dense 슬롯 4 라인 (top of block, 첫 ### 섹션 직전까지) 추출
+    dense_chunk = block.split("\n### ", 1)[0]
+    # Primary work item 슬롯은 git 변경 1개만 노출해야 함
+    assert "**Primary work item**: `docs/spec.md`" in dense_chunk
+    assert "vib-runtime" not in dense_chunk, (
+        "dense 블록에 work_memory build artifact 가 끼어듦"
+    )
+    # Working tree truth count 도 git status 기준 1
+    assert "**Working tree truth**: 1 files" in dense_chunk
+
+
 def test_v2_0_37_top_dense_block_renders_4_slots():
     """v2.0.37: Session Handoff 맨 위에 dense 4-slot block.
     Primary work item / Working tree truth / Next action / Done when (마지막은 입력 시만 노출).
