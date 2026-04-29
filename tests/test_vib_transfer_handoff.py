@@ -8,9 +8,11 @@ from typing import cast
 from vibelign.core.work_memory import load_work_memory
 from vibelign.commands.vib_transfer_cmd import HandoffData
 from vibelign.commands.vib_transfer_cmd import (
+    _build_concrete_next_steps,
     _build_file_tree,
     _build_context_content,
     _build_handoff_block,
+    _format_working_tree_session_summary,
     _get_changed_files,
     persist_handoff_memory,
     run_transfer,
@@ -52,7 +54,10 @@ def test_handoff_block_required_fields():
     block = _build_handoff_block(data)
 
     assert "## Session Handoff" in block
-    assert "현재 세션 작업 요약" in block
+    # v2.0.37: top dense 4 슬롯 (Primary work item / Working tree truth / Next action / Done when)
+    assert "**Primary work item**" in block
+    assert "**Working tree truth**" in block
+    assert "**Next action**" in block
     assert "file_fallback" in block
     assert "auto-drafted" in block
     assert "### Active intent" in block
@@ -61,17 +66,23 @@ def test_handoff_block_required_fields():
     assert "fix(auth): previous login cleanup" in block
     assert "### Concrete next steps" in block
     assert "### Verification snapshot" in block
-    assert block.index("### 현재 세션 작업 요약") < block.index("### Concrete next steps")
-    assert "### Live working changes" in block
-    assert block.index("### Live working changes") < block.index("### Verification snapshot")
+    assert "### Working tree truth" in block
+    assert block.index("### Working tree truth") < block.index("### Verification snapshot")
     assert block.index("### Recent git context") > block.index("### Relevant files")
     assert "`auth.py`" in block
     assert "Write tests for auth flow" in block
 
 
 def test_handoff_block_renders_code_change_details():
+    """v2.0.37: Code change details → Working tree truth (git only) split.
+    git status 기반 details 는 working_tree_details 로 들어가야 함.
+    """
     data = _make_handoff_data(
         session_summary="Improved handoff continuation",
+        working_tree_details=[
+            "vibelign/commands/vib_transfer_cmd.py — modified (+12/-2)",
+            "tests/test_vib_transfer_handoff.py — modified (+8/-0)",
+        ],
         change_details=[
             "vibelign/commands/vib_transfer_cmd.py — modified (+12/-2)",
             "tests/test_vib_transfer_handoff.py — modified (+8/-0)",
@@ -80,19 +91,26 @@ def test_handoff_block_renders_code_change_details():
 
     block = _build_handoff_block(data)
 
-    assert "### Code change details" in block
+    assert "### Working tree truth" in block
     assert "vibelign/commands/vib_transfer_cmd.py — modified (+12/-2)" in block
-    assert block.index("### Code change details") < block.index("### Verification snapshot")
+    assert block.index("### Working tree truth") < block.index("### Verification snapshot")
 
 
 def test_handoff_block_missing_fields_render_as_not_provided():
+    """v2.0.37: dense block 은 빈 슬롯에 의미있는 라벨 ("(none)" / "clean working tree" /
+    "(set via transfer_set_decision)") 을 노출하므로, "(not provided)" 는 Latest checkpoint
+    와 변경 파일에서만 발생.
+    """
     data = _make_handoff_data()
     block = _build_handoff_block(data)
 
-    # All optional fields missing → "(not provided)"
     assert "(not provided)" in block
-    # Should appear for: session_summary, live changes, changed_files
-    assert block.count("(not provided)") >= 3
+    assert block.count("(not provided)") >= 2
+    # dense block placeholders
+    assert "Primary work item**: (none)" in block
+    assert "Working tree truth**: clean working tree" in block
+    # Done when 은 비어있을 때 라인 자체가 없어야 함
+    assert "**Done when**" not in block
 
 
 def test_handoff_block_with_decision_context():
@@ -415,7 +433,8 @@ def test_handoff_no_prompt_includes_work_memory_facts_when_present(tmp_path):
   "relevant_files": [
     {
       "path": "vibelign/core/watch_engine.py",
-      "why": "Recently modified by watch integration work."
+      "why": "Explicit pick from transfer_set_relevant.",
+      "source": "explicit"
     }
   ],
   "warnings": [
@@ -441,12 +460,15 @@ def test_handoff_no_prompt_includes_work_memory_facts_when_present(tmp_path):
         run_transfer(args)
 
     content = out_path.read_text(encoding="utf-8")
-    assert "현재 세션 작업 요약" in content
+    # v2.0.37: 현재 세션 작업 요약 섹션은 제거됨. session_summary 는 Active intent 로 흡수.
     assert "현재 세션에서" in content
-    assert "Relevant files" in content
-    assert "Live working changes" in content
-    assert "Code change details" in content
-    assert "vibelign/core/watch_engine.py — modified: watch engine updated" in content
+    assert "Active intent" in content
+    assert "Relevant files" in content  # explicit source 라 노출
+    assert "Working tree truth" in content
+    # work_memory recent_event 가 git status 에 없으므로 Supporting watch context 로
+    assert "Supporting watch context" in content
+    # v2.0.37: Supporting watch context 의 라인 포맷은 "KIND: PATH — MESSAGE"
+    assert "modified: vibelign/core/watch_engine.py — watch engine updated" in content
     assert "Concrete next steps" in content
     assert "Recent factual changes" not in content
     assert "Warnings / risks" in content
@@ -494,7 +516,8 @@ def test_handoff_work_memory_summary_wins_over_commit_fallback(tmp_path):
         run_transfer(args)
 
     content = out_path.read_text(encoding="utf-8")
-    session_section = content.split("### 현재 세션 작업 요약", 1)[1].split(
+    # v2.0.37: session_summary 는 Active intent 섹션으로 흡수됨
+    session_section = content.split("### Active intent", 1)[1].split(
         "### Concrete next steps", 1
     )[0]
     git_section = content.split("### Recent git context", 1)[1].split(
@@ -551,11 +574,110 @@ def test_handoff_work_memory_completed_work_wins_over_commit_details(tmp_path):
 
     content = out_path.read_text(encoding="utf-8")
     assert "handoff priority updated" in content
-    live_changes_section = content.split("### Live working changes", 1)[1].split(
-        "### 변경 파일", 1
+    # v2.0.37: Live working changes → Supporting watch context (work_memory only, no git here)
+    watch_section = content.split("### Supporting watch context", 1)[1].split(
+        "### Verification snapshot", 1
     )[0]
-    assert "warning:" not in live_changes_section
+    assert "warning:" not in watch_section
     assert "fix(gui): unrelated recent release" not in content
+
+
+def test_v2_0_37_top_dense_block_renders_4_slots():
+    """v2.0.37: Session Handoff 맨 위에 dense 4-slot block.
+    Primary work item / Working tree truth / Next action / Done when (마지막은 입력 시만 노출).
+    """
+    data = _make_handoff_data(
+        changed_files=["docs/spec.md"],
+        changed_file_count=1,
+        working_tree_details=["docs/spec.md — modified (+3/-1)"],
+        first_next_action="Review §12-5 / §12-6",
+        done_when="테스트 재통과 후 spec.md 만 단일 commit",
+    )
+    block = _build_handoff_block(data)
+    assert "**Primary work item**: `docs/spec.md`" in block
+    assert "**Working tree truth**: 1 files (modified 1)" in block
+    assert "**Next action**: Review §12-5 / §12-6" in block
+    assert "**Done when**: 테스트 재통과 후 spec.md 만 단일 commit" in block
+
+
+def test_v2_0_37_done_when_omitted_when_empty():
+    """v2.0.37: Done when 슬롯은 데이터 없으면 라인 자체가 없음 (placeholder 노이즈 방지)."""
+    data = _make_handoff_data(changed_files=["a.py"])
+    block = _build_handoff_block(data)
+    assert "**Primary work item**" in block
+    assert "**Done when**" not in block
+
+
+def test_v2_0_37_freshness_label_renders_in_verification_section():
+    """v2.0.37: Verification snapshot 섹션 옆에 [Freshness: fresh|stale] 라벨."""
+    data_stale = _make_handoff_data(
+        verification=["uv run pytest tests/test_x.py -> 12 passed"],
+        verification_freshness="stale",
+    )
+    block = _build_handoff_block(data_stale)
+    assert "### Verification snapshot [Freshness: stale]" in block
+    assert "Required rerun before commit" in block
+
+    data_fresh = _make_handoff_data(
+        verification=["uv run pytest tests/test_x.py -> 12 passed"],
+        verification_freshness="fresh",
+    )
+    block_fresh = _build_handoff_block(data_fresh)
+    assert "### Verification snapshot [Freshness: fresh]" in block_fresh
+    assert "Required rerun before commit" not in block_fresh
+
+
+def test_v2_0_37_supporting_watch_context_excludes_git_tracked_paths():
+    """v2.0.37: work_memory recent_events 중 git status 에 있는 path 는 Working tree truth
+    로만 흐르고, Supporting watch context 는 그 외 (commit, 과거 watch 등) 만 보임.
+    """
+    data = _make_handoff_data(
+        working_tree_details=["uv.lock — modified (+1/-1)"],
+        supporting_watch_context=[
+            "commit: git/abc1234 — fix(handoff): some commit msg",
+            "modified: vibelign-gui/old-file.py — old change",
+        ],
+    )
+    block = _build_handoff_block(data)
+    working = block.split("### Working tree truth", 1)[1].split("### Supporting watch context", 1)[0]
+    supporting = block.split("### Supporting watch context", 1)[1].split("### Verification snapshot", 1)[0]
+    assert "uv.lock" in working
+    assert "fix(handoff): some commit msg" in supporting
+    assert "uv.lock" not in supporting
+
+
+def test_v2_0_37_static_patch_rules_block_collapsed_to_one_line():
+    """v2.0.37: 정적 4줄 patch rules → 1줄 reference."""
+    data = _make_handoff_data()
+    block = _build_handoff_block(data)
+    assert "Patch rules: see AGENTS.md / AI_DEV_SYSTEM_SINGLE_FILE.md" in block
+    # 옛 4줄 블록의 마커가 사라졌는지
+    assert "Split composite requests into intent / source / destination" not in block
+
+
+def test_v2_0_37_smart_summary_single_md_file_inline():
+    """v2.0.37: 단일 .md 파일 시나리오는 결론형 요약 — authoritative spec 명시."""
+    summary = _format_working_tree_session_summary(
+        ["docs/regulation.md — modified (+5/-2)"],
+        ["docs/regulation.md"],
+        1,
+    )
+    assert summary is not None
+    assert "narrowed to the docs file `docs/regulation.md`" in summary
+    assert "authoritative" in summary
+
+
+def test_v2_0_37_smart_next_action_includes_rerun_command_for_stale_verification():
+    """v2.0.37: stale verification 이면 정확한 rerun 명령어를 next step 으로 승격."""
+    data = _make_handoff_data(
+        changed_files=["a.py"],
+        verification=["uv run pytest tests/test_a.py -> 5 passed"],
+        verification_freshness="stale",
+    )
+    steps = _build_concrete_next_steps(data)
+    rerun_step = next((s for s in steps if "Rerun" in s and "stale" in s.lower()), None)
+    assert rerun_step is not None
+    assert "uv run pytest tests/test_a.py" in rerun_step
 
 
 def test_uncommitted_changes_preserve_work_memory_change_details(tmp_path):
@@ -633,16 +755,19 @@ def test_uncommitted_changes_preserve_work_memory_change_details(tmp_path):
 
     content = out_path.read_text(encoding="utf-8")
 
-    # Code change details 섹션: git status + work_memory commit/watch 둘 다 존재
-    code_change_section = content.split("### Code change details", 1)[1].split(
+    # v2.0.37: Working tree truth 는 git status 만, Supporting watch context 는 work_memory 만.
+    working_tree_section = content.split("### Working tree truth", 1)[1].split(
+        "### Supporting watch context", 1
+    )[0]
+    assert "uv.lock" in working_tree_section, (
+        "git status 의 uv.lock 가 Working tree truth 에 사라짐"
+    )
+
+    supporting_section = content.split("### Supporting watch context", 1)[1].split(
         "### Verification snapshot", 1
     )[0]
-    assert "uv.lock" in code_change_section, (
-        "git status 의 uv.lock 가 Code change details 에 사라짐"
-    )
-    assert "test: v2.0.35 hook activation" in code_change_section, (
-        "work_memory commit entry 가 Code change details 에 흐르지 않음 — "
-        "elif changed_count 분기가 enrich 결과를 덮어썼을 가능성"
+    assert "test: v2.0.35 hook activation" in supporting_section, (
+        "work_memory commit entry 가 Supporting watch context 에 흐르지 않음"
     )
 
     # 변경 파일 섹션: work_memory 의 watch 파일 (vibelign-gui/package.json) 도 포함
@@ -708,11 +833,13 @@ def test_stale_work_memory_does_not_replace_git_completed_work(tmp_path):
         run_transfer(args)
 
     content = out_path.read_text(encoding="utf-8")
-    live_changes_section = content.split("### Live working changes", 1)[1].split(
-        "### Verification snapshot", 1
+    # v2.0.37: Live working changes 섹션 제거. stale 경우 git 신호는 Recent git context 로 노출.
+    git_context_section = content.split("### Recent git context", 1)[1].split(
+        "### 변경 파일", 1
     )[0]
-    assert "feat: trusted git context" in live_changes_section
-    assert "stale watch event" not in live_changes_section
+    assert "feat: trusted git context" in git_context_section
+    # stale work_memory event 는 Supporting watch context 든 어디든 등장하면 안 됨
+    assert "stale watch event" not in content
     assert "work_memory/watch data may be stale" in content
 
 
@@ -767,11 +894,13 @@ def test_handoff_live_working_changes_removes_redundant_modified_message(tmp_pat
         run_transfer(args)
 
     content = out_path.read_text(encoding="utf-8")
-    live_changes_section = content.split("### Live working changes", 1)[1].split(
-        "### Code change details", 1
+    # v2.0.37: 섹션 재구성 후 work_memory 이벤트는 Supporting watch context 로,
+    # _live_working_changes_from_events 가 redundant 메시지 패턴 (path+kind echo) 도 정리.
+    watch_section = content.split("### Supporting watch context", 1)[1].split(
+        "### Verification snapshot", 1
     )[0]
-    assert "modified: tests/test_vib_transfer_handoff.py" in live_changes_section
-    assert "tests/test_vib_transfer_handoff.py — tests/test_vib_transfer_handoff.py modified" not in live_changes_section
+    assert "modified: tests/test_vib_transfer_handoff.py" in watch_section
+    assert "tests/test_vib_transfer_handoff.py — tests/test_vib_transfer_handoff.py modified" not in watch_section
 
 
 def test_handoff_no_prompt_includes_git_working_tree_details(tmp_path):
@@ -807,7 +936,8 @@ def test_handoff_no_prompt_includes_git_working_tree_details(tmp_path):
         run_transfer(args)
 
     content = out_path.read_text(encoding="utf-8")
-    assert "### Code change details" in content
+    # v2.0.37: Code change details → Working tree truth (git only)
+    assert "### Working tree truth" in content
     assert "tracked.py — modified" in content
     assert "new_file.py — untracked" in content
     assert "vibelign.egg-info" not in content
@@ -850,8 +980,9 @@ def test_handoff_dirty_count_and_lists_share_git_status_source(tmp_path):
         run_transfer(args)
 
     content = out_path.read_text(encoding="utf-8")
-    assert "커밋되지 않은 변경 12개 파일" in content
-    assert "git status 기준 현재 변경 12개 파일" in content
+    assert "커밋되지 않은 변경 12개 파일" in content  # Concrete next steps unfinished_work
+    # v2.0.37: "git status 기준 현재 변경 N개 파일" 헤더는 dense 블록의 Working tree truth 슬롯으로 이동.
+    assert "**Working tree truth**: 12 files" in content
     assert "untracked_2.py — untracked" in content
     assert "(+7)" in content
 
@@ -894,20 +1025,18 @@ def test_handoff_prioritizes_untracked_handoff_modules_when_many_changes(tmp_pat
         run_transfer(args)
 
     content = out_path.read_text(encoding="utf-8")
-    live_section = content.split("### Live working changes", 1)[1].split(
-        "### Code change details", 1
-    )[0]
-    details_section = content.split("### Code change details", 1)[1].split(
-        "### Verification snapshot", 1
-    )[0]
+    # v2.0.37: Live working changes + Code change details → 단일 Working tree truth 섹션
+    working_tree_section = content.split("### Working tree truth", 1)[1].split(
+        "### Supporting watch context", 1
+    )[0] if "### Supporting watch context" in content else content.split(
+        "### Working tree truth", 1
+    )[1].split("### Verification snapshot", 1)[0]
     changed_line = content.split("### 변경 파일", 1)[1].split("###", 1)[0]
 
-    assert "git status 기준 현재 변경 18개 파일" in content
-    assert "vibelign/commands/transfer_git_context.py — untracked" in live_section
-    assert "tests/test_transfer_git_context.py — untracked" in live_section
-    assert "vibelign/commands/transfer_git_context.py — untracked" in details_section
-    assert "tests/test_transfer_git_context.py — untracked" in details_section
-    assert "추가" not in live_section
+    assert "**Working tree truth**: 18 files" in content
+    assert "vibelign/commands/transfer_git_context.py — untracked" in working_tree_section
+    assert "tests/test_transfer_git_context.py — untracked" in working_tree_section
+    assert "추가" not in working_tree_section
     assert "`vibelign/commands/transfer_git_context.py`" in changed_line
     assert "`tests/test_transfer_git_context.py`" in changed_line
 
@@ -964,11 +1093,12 @@ def test_handoff_session_summary_prefers_git_dirty_state_over_watch_noise(tmp_pa
         run_transfer(args)
 
     content = out_path.read_text(encoding="utf-8")
-    summary_section = content.split("### 현재 세션 작업 요약", 1)[1].split(
+    # v2.0.37: 현재 세션 작업 요약 섹션 제거. session_summary 는 Active intent 로 흡수.
+    summary_section = content.split("### Active intent", 1)[1].split(
         "### Concrete next steps", 1
     )[0]
-    assert "Current uncommitted work has 1 handoff-visible file changes" in summary_section
-    assert "handoff.py — modified" in summary_section
+    # v2.0.37: 1-file 시나리오는 새 narrative 로 — "Current work is narrowed to ..."
+    assert "narrowed to the source file `handoff.py`" in summary_section
     assert ".omc/project-memory.json" not in summary_section
 
 

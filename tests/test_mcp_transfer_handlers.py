@@ -95,7 +95,8 @@ class McpTransferHandlersTest(unittest.TestCase):
   "relevant_files": [
     {
       "path": "vibelign/core/watch_engine.py",
-      "why": "Recently modified by watch integration work."
+      "why": "Explicit pick from transfer_set_relevant.",
+      "source": "explicit"
     }
   ],
   "warnings": [
@@ -129,10 +130,13 @@ class McpTransferHandlersTest(unittest.TestCase):
         self.assertIn("mcp supplied summary", content)
         self.assertIn("mcp supplied next action", content)
         self.assertIn("Relevant files", content)
-        self.assertIn("Live working changes", content)
+        # v2.0.37: "Live working changes" → "Working tree truth" + "Supporting watch context"
+        self.assertIn("Working tree truth", content)
         self.assertNotIn("Recent factual changes", content)
         self.assertIn("Warnings / risks", content)
         self.assertIn("Verification snapshot", content)
+        # work_memory recent_event 가 git status 에 없으므로 Supporting watch context 로 흘러야 함
+        self.assertIn("Supporting watch context", content)
         self.assertIn("watch engine updated", content)
 
     def test_handle_handoff_create_preserves_mcp_priority_over_work_memory(self) -> None:

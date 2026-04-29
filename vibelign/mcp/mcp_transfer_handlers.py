@@ -52,6 +52,12 @@ def handle_handoff_create(
     raw_dc = arguments.get("decision_context")
     notes = arguments.get("notes")
     verification = _string_list(arguments.get("verification"))
+    done_when_arg = arguments.get("done_when")
+    done_when = (
+        str(done_when_arg).strip()
+        if isinstance(done_when_arg, str) and done_when_arg.strip()
+        else None
+    )
 
     if not session_summary or not first_next_action:
         return _text(
@@ -92,6 +98,7 @@ def handle_handoff_create(
                 "changed_files": working_tree["files"],
                 "changed_file_count": working_tree["count"],
                 "change_details": working_tree["details"],
+                "working_tree_details": list(working_tree["details"]),
                 "completed_work": str(completed_work) if completed_work else None,
                 "unfinished_work": str(unfinished_work)
                 if unfinished_work
@@ -101,6 +108,7 @@ def handle_handoff_create(
                 "latest_checkpoint": latest_cp,
                 "verification": verification,
                 "verification_to_persist": verification,
+                "done_when": done_when,
             },
         ),
     )
@@ -181,7 +189,7 @@ def handle_transfer_set_relevant(
         return _text(text_content, "transfer_set_relevant: path 인자가 필요해요.")
     if not isinstance(why, str):
         why = "Relevant to recent work."
-    add_relevant_file(MetaPaths(root).work_memory_path, file_path, why)
+    add_relevant_file(MetaPaths(root).work_memory_path, file_path, why, source="explicit")
     return _text(text_content, f"relevant_files[] 에 추가됨: {file_path}")
 # === ANCHOR: MCP_TRANSFER_HANDLERS_HANDLE_TRANSFER_SET_RELEVANT_END ===
 # === ANCHOR: MCP_TRANSFER_HANDLERS_END ===

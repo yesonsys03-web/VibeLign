@@ -12,8 +12,24 @@ class AddRelevantFileTest(unittest.TestCase):
             state = load_work_memory(wm)
             self.assertEqual(
                 state["relevant_files"][-1],
-                {"path": "vibelign/core/work_memory.py", "why": "core narrative store"},
+                {
+                    "path": "vibelign/core/work_memory.py",
+                    "why": "core narrative store",
+                    "source": "watch",
+                },
             )
+
+    def test_explicit_source_flows_to_handoff_relevant_files(self):
+        from vibelign.core.work_memory import build_transfer_summary
+        with tempfile.TemporaryDirectory() as tmp:
+            wm = Path(tmp) / "work_memory.json"
+            add_relevant_file(wm, "watch/x.py", "watch capture", source="watch")
+            add_relevant_file(wm, "explicit/y.py", "explicit pick", source="explicit")
+            summary = build_transfer_summary(wm)
+            self.assertIsNotNone(summary)
+            paths = [entry["path"] for entry in summary["relevant_files"]]
+            self.assertIn("explicit/y.py", paths)
+            self.assertNotIn("watch/x.py", paths)
 
     def test_dedups_by_path(self):
         with tempfile.TemporaryDirectory() as tmp:

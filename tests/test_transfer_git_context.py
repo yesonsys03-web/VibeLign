@@ -2,6 +2,7 @@ import subprocess
 from pathlib import Path
 
 from vibelign.commands.transfer_git_context import (
+    get_verification_freshness,
     get_working_tree_summary,
     get_work_memory_staleness_warning,
     should_include_handoff_path,
@@ -101,3 +102,38 @@ def test_working_tree_summary_keeps_readable_unicode_paths(tmp_path: Path) -> No
 
     assert "규칙수정안.md" in summary["files"]
     assert "규칙수정안.md — untracked" in summary["details"]
+
+
+def test_get_verification_freshness_marks_stale_when_files_change_after_verification(
+    tmp_path: Path,
+) -> None:
+    """v2.0.37: verification_updated_at < 작업 트리 dirty file mtime → stale."""
+    import time
+    from vibelign.core.work_memory import add_verification
+
+    _git(tmp_path, "init")
+    tracked = tmp_path / "tracked.py"
+    tracked.write_text("v1\n", encoding="utf-8")
+    _git(tmp_path, "add", "tracked.py")
+    _git(tmp_path, "commit", "-m", "initial")
+
+    work_memory = tmp_path / ".vibelign" / "work_memory.json"
+    add_verification(work_memory, "uv run pytest -> 5 passed")
+
+    # 그 후 작업 트리 파일이 수정되었으면 stale
+    time.sleep(0.05)
+    tracked.write_text("v2\n", encoding="utf-8")
+
+    label = get_verification_freshness(tmp_path)
+    assert label == "stale"
+
+
+def test_get_verification_freshness_returns_none_without_verification(tmp_path: Path) -> None:
+    _git(tmp_path, "init")
+    tracked = tmp_path / "tracked.py"
+    tracked.write_text("v1\n", encoding="utf-8")
+    _git(tmp_path, "add", "tracked.py")
+    _git(tmp_path, "commit", "-m", "initial")
+
+    label = get_verification_freshness(tmp_path)
+    assert label is None

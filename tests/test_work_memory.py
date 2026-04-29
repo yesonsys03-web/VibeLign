@@ -256,7 +256,9 @@ def test_load_work_memory_prunes_stale_generated_artifact_paths(tmp_path: Path) 
 
     loaded = load_work_memory(path)
     assert [event.get("path") for event in loaded["recent_events"]] == ["src/app.py"]
-    assert loaded["relevant_files"] == [{"path": "src/app.py", "why": "Source file."}]
+    assert loaded["relevant_files"] == [
+        {"path": "src/app.py", "why": "Source file.", "source": "watch"}
+    ]
     assert loaded["warnings"] == []
 
 

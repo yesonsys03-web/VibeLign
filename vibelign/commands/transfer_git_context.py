@@ -259,4 +259,62 @@ def _parse_timestamp(value: str) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+# === ANCHOR: TRANSFER_GIT_CONTEXT_GET_VERIFICATION_FRESHNESS_START ===
+def get_verification_freshness(root: Path) -> str | None:
+    """v2.0.37: 핸드오프 Verification snapshot 라벨용 freshness 판정.
+
+    "fresh" iff state["verification_updated_at"] >= max(HEAD commit time, working tree dirty file mtime).
+    "stale" iff verification 은 있는데 그 이후 git/working tree 변경 발생.
+    None iff verification 기록 없음 (호출측에서 라벨 생략).
+    """
+    work_memory_path = MetaPaths(root).work_memory_path
+    if not work_memory_path.exists():
+        return None
+    state = load_work_memory(work_memory_path)
+    if not state.get("verification"):
+        return None
+    verification_time = _parse_timestamp(state.get("verification_updated_at", ""))
+    if verification_time is None:
+        return "stale"
+    commit_time = _latest_commit_time(root)
+    working_tree_time = _latest_dirty_file_mtime(root)
+    benchmark = max(
+        (t for t in (commit_time, working_tree_time) if t is not None),
+        default=None,
+    )
+    if benchmark is None:
+        return "fresh"
+    return "fresh" if verification_time >= benchmark else "stale"
+# === ANCHOR: TRANSFER_GIT_CONTEXT_GET_VERIFICATION_FRESHNESS_END ===
+
+
+def _latest_dirty_file_mtime(root: Path) -> datetime | None:
+    """git status 가 잡은 dirty 파일들의 최신 mtime."""
+    try:
+        result = subprocess.run(
+            ["git", "-c", "core.quotePath=false", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            cwd=root,
+            timeout=5,
+            creationflags=_WINDOWS_FLAGS,
+        )
+    except Exception:
+        return None
+    latest: datetime | None = None
+    for raw_line in result.stdout.splitlines():
+        path_part = raw_line[3:].strip().split(" -> ")[-1].strip('"')
+        if not path_part or not should_include_handoff_path(path_part):
+            continue
+        full = root / path_part
+        try:
+            mtime = full.stat().st_mtime
+        except (FileNotFoundError, OSError):
+            continue
+        ts = datetime.fromtimestamp(mtime, tz=timezone.utc)
+        if latest is None or ts > latest:
+            latest = ts
+    return latest
+
+
 # === ANCHOR: TRANSFER_GIT_CONTEXT_END ===

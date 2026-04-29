@@ -44,9 +44,11 @@ class TransferMCPToolsTest(unittest.TestCase):
         _run(call_tool_dispatch("transfer_set_relevant",
             {"path": "vibelign/core/work_memory.py", "why": "core"},
             root=self.root, text_content=_tc))
+        # v2.0.37: transfer_set_relevant 는 source="explicit" 으로 기록되어
+        # 핸드오프 Relevant files 섹션에 노출됨.
         self.assertEqual(
             self._wm()["relevant_files"][-1],
-            {"path": "vibelign/core/work_memory.py", "why": "core"})
+            {"path": "vibelign/core/work_memory.py", "why": "core", "source": "explicit"})
 
     def test_set_decision_requires_text(self):
         result = _run(call_tool_dispatch("transfer_set_decision",

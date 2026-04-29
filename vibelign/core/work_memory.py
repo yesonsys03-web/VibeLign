@@ -49,14 +49,17 @@ class WorkMemoryEvent(TypedDict, total=False):
 
 
 # === ANCHOR: WORK_MEMORY_RELEVANTFILEENTRY_START ===
-class RelevantFileEntry(TypedDict):
+class RelevantFileEntry(TypedDict, total=False):
     path: str
     why: str
+    # v2.0.37: "explicit" (transfer_set_relevant) vs "watch" (mcp_dispatch capture).
+    # 핸드오프 Relevant files 섹션은 "explicit" 만 노출. legacy entry 는 "watch" 로 fallback.
+    source: str
 # === ANCHOR: WORK_MEMORY_RELEVANTFILEENTRY_END ===
 
 
 # === ANCHOR: WORK_MEMORY_WORKMEMORYSTATE_START ===
-class WorkMemoryState(TypedDict):
+class WorkMemoryState(TypedDict, total=False):
     schema_version: int
     updated_at: str
     recent_events: list[WorkMemoryEvent]
@@ -64,6 +67,9 @@ class WorkMemoryState(TypedDict):
     warnings: list[WorkMemoryEvent]
     decisions: list[str]
     verification: list[str]
+    # v2.0.37: verification 만 갱신되는 별도 timestamp.
+    # 핸드오프 freshness 라벨 계산용 — updated_at 은 모든 mutation 에 갱신되므로 부적절.
+    verification_updated_at: str
 # === ANCHOR: WORK_MEMORY_WORKMEMORYSTATE_END ===
 
 
@@ -149,7 +155,11 @@ def _normalize_event(raw: object) -> WorkMemoryEvent | None:
 def _normalize_relevant_file(raw: object) -> RelevantFileEntry | None:
     if isinstance(raw, str):
         path = _safe_relative_path(raw)
-        return {"path": path, "why": "Recently touched by watch."} if path else None
+        return (
+            {"path": path, "why": "Recently touched by watch.", "source": "watch"}
+            if path
+            else None
+        )
     if not isinstance(raw, dict):
         return None
     payload = cast(dict[object, object], raw)
@@ -157,7 +167,13 @@ def _normalize_relevant_file(raw: object) -> RelevantFileEntry | None:
     why = _truncate_text(payload.get("why"))
     if not path:
         return None
-    return {"path": path, "why": why or "Relevant to recent work."}
+    raw_source = payload.get("source")
+    source = raw_source if raw_source in ("explicit", "watch") else "watch"
+    return {
+        "path": path,
+        "why": why or "Relevant to recent work.",
+        "source": cast(str, source),
+    }
 # === ANCHOR: WORK_MEMORY__NORMALIZE_RELEVANT_FILE_END ===
 
 
@@ -195,12 +211,18 @@ def _prune_relevant_files(entries: list[RelevantFileEntry]) -> list[RelevantFile
     deduped: list[RelevantFileEntry] = []
     seen: set[str] = set()
     for entry in reversed(entries):
-        path = entry["path"]
+        path = entry.get("path", "")
         if not path or path in seen:
             continue
         seen.add(path)
+        source_raw = entry.get("source", "watch")
+        source = source_raw if source_raw in ("explicit", "watch") else "watch"
         deduped.append(
-            {"path": _truncate_text(path, 200), "why": _truncate_text(entry["why"])}
+            {
+                "path": _truncate_text(path, 200),
+                "why": _truncate_text(entry.get("why", "")),
+                "source": source,
+            }
         )
         if len(deduped) >= MAX_RELEVANT_FILES:
             break
@@ -219,6 +241,7 @@ def default_work_memory_state() -> WorkMemoryState:
         "warnings": [],
         "decisions": [],
         "verification": [],
+        "verification_updated_at": "",
     }
 # === ANCHOR: WORK_MEMORY_DEFAULT_WORK_MEMORY_STATE_END ===
 
@@ -273,6 +296,9 @@ def load_work_memory(path: Path) -> WorkMemoryState:
     state["verification"] = _normalize_string_list(
         payload.get("verification"), MAX_VERIFICATION
     )
+    state["verification_updated_at"] = _truncate_text(
+        payload.get("verification_updated_at"), 64
+    )
     return prune_work_memory_state(state)
 # === ANCHOR: WORK_MEMORY_LOAD_WORK_MEMORY_END ===
 
@@ -291,20 +317,29 @@ def save_work_memory(path: Path, state: WorkMemoryState) -> None:
 
 # === ANCHOR: WORK_MEMORY__APPEND_RELEVANT_FILE_START ===
 def _append_relevant_file(
-    entries: list[RelevantFileEntry], path: str, why: str
+    entries: list[RelevantFileEntry], path: str, why: str, source: str = "watch",
 # === ANCHOR: WORK_MEMORY__APPEND_RELEVANT_FILE_END ===
 ) -> list[RelevantFileEntry]:
     rel_path = _safe_relative_path(path)
     rel_why = _truncate_text(why)
     if not rel_path:
         return entries
-    updated = [entry for entry in entries if entry["path"] != rel_path]
-    updated.append({"path": rel_path, "why": rel_why or "Relevant to recent work."})
+    src = source if source in ("explicit", "watch") else "watch"
+    updated = [entry for entry in entries if entry.get("path") != rel_path]
+    updated.append(
+        {
+            "path": rel_path,
+            "why": rel_why or "Relevant to recent work.",
+            "source": src,
+        }
+    )
     return _prune_relevant_files(updated)
 
 
 # === ANCHOR: WORK_MEMORY_ADD_RELEVANT_FILE_START ===
-def add_relevant_file(path: Path, file_path: str, why: str) -> None:
+def add_relevant_file(
+    path: Path, file_path: str, why: str, source: str = "watch",
+) -> None:
     """Public 진입점 — relevant_files 에 entry 추가 (dedup, 절대/제외경로 차단).
 
     Why: 기존 _append_relevant_file 은 record_event 내부 헬퍼였음.
@@ -312,7 +347,7 @@ def add_relevant_file(path: Path, file_path: str, why: str) -> None:
     """
     state = load_work_memory(path)
     state["relevant_files"] = _append_relevant_file(
-        state["relevant_files"], file_path, why
+        state["relevant_files"], file_path, why, source=source,
     )
     state["updated_at"] = _utc_now()
     save_work_memory(path, state)
@@ -454,7 +489,9 @@ def add_verification(path: Path, message: str) -> None:
     state["verification"] = [
         item for item in state["verification"] if _verification_key(item) != key
     ] + [text]
-    state["updated_at"] = _utc_now()
+    now = _utc_now()
+    state["updated_at"] = now
+    state["verification_updated_at"] = now
     save_work_memory(path, state)
 # === ANCHOR: WORK_MEMORY_ADD_VERIFICATION_END ===
 
@@ -542,7 +579,12 @@ def build_transfer_summary(path: Path) -> WorkMemorySummary | None:
             break
     recent_event_lines.reverse()
     change_detail_lines.reverse()
-    relevant_files = state["relevant_files"][-MAX_RELEVANT_FILES_SUMMARY:]
+    # v2.0.37: 핸드오프 Relevant files 섹션은 명시 등록 (transfer_set_relevant) 만 노출.
+    # watch 자동 캡처는 Supporting watch context (recent_events) 로 이미 흐르므로 중복 제거.
+    explicit_relevant = [
+        entry for entry in state["relevant_files"] if entry.get("source") == "explicit"
+    ]
+    relevant_files = explicit_relevant[-MAX_RELEVANT_FILES_SUMMARY:]
     latest_action = next(
         (
             event.get("action", "")
