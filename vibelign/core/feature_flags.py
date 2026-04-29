@@ -3,6 +3,7 @@
 
 환경변수로 제어:
   VIBELIGN_USE_ACTION_ENGINE=true   Action Engine 활성화
+  VIBELIGN_DISABLE_RUST_CHECKPOINT=true   Roll back checkpoint engine to Python
 """
 from __future__ import annotations
 
@@ -10,6 +11,7 @@ import os
 
 _FLAG_ENV_MAP = {
     "USE_ACTION_ENGINE": "VIBELIGN_USE_ACTION_ENGINE",
+    "DISABLE_RUST_CHECKPOINT": "VIBELIGN_DISABLE_RUST_CHECKPOINT",
 }
 
 

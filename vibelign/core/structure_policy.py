@@ -4,6 +4,8 @@ from __future__ import annotations
 import ast
 import json
 import re
+import subprocess
+import sys
 from collections.abc import Iterable
 from pathlib import Path
 from typing import cast
@@ -34,6 +36,8 @@ COMMON_IGNORED_DIRS: frozenset[str] = frozenset(
         "CloudStorage",
     }
 )
+
+WINDOWS_SUBPROCESS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 GENERATED_ARTIFACT_DIR_NAMES: frozenset[str] = frozenset(
     {"dist", "build", "target", ".next", ".pnpm-store", "node_modules"}
