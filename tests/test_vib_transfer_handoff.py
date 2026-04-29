@@ -98,7 +98,7 @@ def test_handoff_block_renders_code_change_details():
 
 def test_handoff_block_missing_fields_render_as_not_provided():
     """v2.0.37: dense block 은 빈 슬롯에 의미있는 라벨 ("(none)" / "clean working tree" /
-    "(set via transfer_set_decision)") 을 노출하므로, "(not provided)" 는 Latest checkpoint
+    actionable fallback) 을 노출하므로, "(not provided)" 는 Latest checkpoint
     와 변경 파일에서만 발생.
     """
     data = _make_handoff_data()
@@ -109,6 +109,8 @@ def test_handoff_block_missing_fields_render_as_not_provided():
     # dense block placeholders
     assert "Primary work item**: (none)" in block
     assert "Working tree truth**: clean working tree" in block
+    assert "(set via transfer_set_decision)" not in block
+    assert "**Next action**: 관련 pytest/build를 재실행하고 Verification snapshot을 갱신하세요." in block
     # Done when 은 비어있을 때 라인 자체가 없어야 함
     assert "**Done when**" not in block
 
@@ -141,7 +143,10 @@ def test_handoff_block_no_decision_context_section_when_absent():
 
 
 def test_handoff_block_changed_files_capped_at_five():
-    data = _make_handoff_data(changed_files=[f"file{i}.py" for i in range(8)])
+    data = _make_handoff_data(
+        changed_files=[f"file{i}.py" for i in range(8)],
+        working_tree_details=[f"file{i}.py — modified (+1/-0)" for i in range(8)],
+    )
     block = _build_handoff_block(data)
     # Should show first 5 files and an ellipsis count
     assert "(+3)" in block
@@ -612,6 +617,23 @@ def test_v2_0_38_dense_slots_ignore_work_memory_paths():
     assert "**Working tree truth**: 1 files" in dense_chunk
 
 
+def test_v2_0_38_primary_work_item_prefers_specific_plan_doc_over_readme():
+    data = _make_handoff_data(
+        working_tree_details=[
+            "README.md — modified (+1/-0)",
+            "docs/superpowers/plans/VibeLign-규칙수정안-3.md — untracked",
+        ]
+    )
+
+    block = _build_handoff_block(data)
+
+    dense_chunk = block.split("\n### ", 1)[0]
+    assert (
+        "**Primary work item**: `docs/superpowers/plans/VibeLign-규칙수정안-3.md` (+1 supporting changes)"
+        in dense_chunk
+    )
+
+
 def test_v2_0_37_top_dense_block_renders_4_slots():
     """v2.0.37: Session Handoff 맨 위에 dense 4-slot block.
     Primary work item / Working tree truth / Next action / Done when (마지막은 입력 시만 노출).
@@ -800,14 +822,37 @@ def test_uncommitted_changes_preserve_work_memory_change_details(tmp_path):
         "work_memory commit entry 가 Supporting watch context 에 흐르지 않음"
     )
 
-    # 변경 파일 섹션: work_memory 의 watch 파일 (vibelign-gui/package.json) 도 포함
+    # 변경 파일 섹션: git working tree 파일만 포함
     changed_files_section = content.split("### 변경 파일", 1)[1].split(
         "### Warnings", 1
     )[0]
     assert "uv.lock" in changed_files_section, "git status 파일이 변경 파일 섹션에 사라짐"
-    assert "vibelign-gui/package.json" in changed_files_section, (
-        "work_memory 의 파일 경로가 변경 파일 섹션에 흐르지 않음"
+    assert "vibelign-gui/package.json" not in changed_files_section, (
+        "work_memory watch 경로가 변경 파일 섹션에 섞이면 안 됨"
     )
+
+
+def test_v2_0_38_warnings_prioritize_current_git_truth_and_isolate_watch_noise():
+    data = _make_handoff_data(
+        working_tree_details=["docs/spec.md — modified (+2/-1)"],
+        warnings=[
+            "docs/spec.md — spec has unresolved TODO → resolve before commit",
+            "vibelign-gui/src-tauri/vib-runtime/vib — vib에 앵커가 없습니다 → 'vib anchor'를 실행하거나 직접 앵커를 추가하세요.",
+        ],
+    )
+
+    block = _build_handoff_block(data)
+
+    primary_warning_section = block.split("### Warnings / risks", 1)[1].split(
+        "### Additional watch warnings", 1
+    )[0]
+    additional_warning_section = block.split("### Additional watch warnings", 1)[1].split(
+        "### State references", 1
+    )[0]
+
+    assert "docs/spec.md — spec has unresolved TODO" in primary_warning_section
+    assert "vib-runtime/vib" not in primary_warning_section
+    assert "vib-runtime/vib" in additional_warning_section
 
 
 def test_stale_work_memory_does_not_replace_git_completed_work(tmp_path):

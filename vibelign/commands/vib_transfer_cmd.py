@@ -416,8 +416,12 @@ def _build_handoff_block(data: HandoffData) -> str:
     )
     lines.append("")
 
+    concrete_next_steps = _build_concrete_next_steps(data)
+
     # v2.0.37: 맨 위 dense 4 슬롯 — 다음 AI 가 30초 안에 작업 파일/상태/첫 행동/완료 조건 파악
-    primary, status, next_action_line, done_when = _build_top_dense_slots(data)
+    primary, status, next_action_line, done_when = _build_top_dense_slots(
+        data, concrete_next_steps
+    )
     lines.append(f"- **Primary work item**: {primary}")
     lines.append(f"- **Working tree truth**: {status}")
     lines.append(f"- **Next action**: {next_action_line}")
@@ -433,7 +437,6 @@ def _build_handoff_block(data: HandoffData) -> str:
         lines.append(active_intent)
         lines.append("")
 
-    concrete_next_steps = _build_concrete_next_steps(data)
     unfinished = _handoff_text(data.get("unfinished_work"), "")
     lines.append("### Concrete next steps")
     if unfinished:
@@ -491,15 +494,12 @@ def _build_handoff_block(data: HandoffData) -> str:
             lines.append(f"- {item}")
         lines.append("")
 
-    changed = _prioritize_changed_files(
-        _handoff_files(data.get("changed_files")),
-        _handoff_lines(data.get("change_details")),
-    )
-    changed_count = data.get("changed_file_count")
+    changed = _working_tree_paths(data)
+    changed_count = len(changed)
     lines.append("### 변경 파일")
     if changed:
         files_str = ", ".join(f"`{f}`" for f in changed[:5])
-        total = changed_count if isinstance(changed_count, int) else len(changed)
+        total = changed_count
         if total > 5:
             files_str += f" … (+{total - 5})"
         lines.append(files_str)
@@ -509,10 +509,17 @@ def _build_handoff_block(data: HandoffData) -> str:
 
     warnings = _handoff_lines(data.get("warnings"))
     if warnings:
+        primary_warnings, secondary_warnings = _partition_warnings_for_display(data, warnings)
         lines.append("### Warnings / risks")
-        for item in warnings[:5]:
+        for item in primary_warnings[:5]:
             lines.append(f"- {item}")
         lines.append("")
+        if secondary_warnings:
+            lines.append("### Additional watch warnings")
+            lines.append("(secondary signal — act on these only if they match current git-truth work)")
+            for item in secondary_warnings[:5]:
+                lines.append(f"- {item}")
+            lines.append("")
 
     dc = _handoff_decision_context(data.get("decision_context"))
     if dc:
@@ -535,7 +542,9 @@ def _build_handoff_block(data: HandoffData) -> str:
     return "\n".join(lines)
 
 
-def _build_top_dense_slots(data: HandoffData) -> tuple[str, str, str, str]:
+def _build_top_dense_slots(
+    data: HandoffData, concrete_next_steps: list[str]
+) -> tuple[str, str, str, str]:
     """Top-of-handoff dense 4 슬롯: Primary work item / Working tree truth / Next action / Done when.
 
     Why: 다음 AI 가 30초 안에 "작업 파일 / 진짜 상태 / 첫 행동 / 완료 조건" 파악할 수 있어야 함.
@@ -543,20 +552,15 @@ def _build_top_dense_slots(data: HandoffData) -> tuple[str, str, str, str]:
     원칙). work_memory 가 잡은 vendored / build artifact 가 Primary 로 끼어드는 것을 방지.
     """
     wt_details = _handoff_lines(data.get("working_tree_details"))
-    wt_paths: list[str] = []
-    for line in wt_details:
-        path = _detail_path(line)
-        if path and path not in wt_paths:
-            wt_paths.append(path)
-    wt_paths = _prioritize_changed_files(wt_paths, wt_details)
+    wt_paths = _working_tree_paths(data)
     total = len(wt_paths)
 
     if wt_paths:
-        primary_files = ", ".join(f"`{f}`" for f in wt_paths[:3])
-        if total > 3:
-            primary = f"{primary_files} … (+{total - 3})"
+        lead = wt_paths[0]
+        if total > 1:
+            primary = f"`{lead}` (+{total - 1} supporting changes)"
         else:
-            primary = primary_files
+            primary = f"`{lead}`"
     else:
         primary = "(none)"
 
@@ -579,16 +583,83 @@ def _build_top_dense_slots(data: HandoffData) -> tuple[str, str, str, str]:
 
     next_action = _handoff_text(data.get("first_next_action"), "")
     if not next_action or _is_handoff_reading_instruction(next_action) or _is_generic_watch_action(next_action):
-        steps = _handoff_lines(data.get("concrete_next_steps"))
+        steps = concrete_next_steps
         next_action = next(
             (s for s in steps if s and not _is_generic_watch_action(s)), ""
         )
     if not next_action:
-        next_action = "(set via transfer_set_decision)"
+        next_action = _default_next_action_for_dense_slot(wt_paths, data)
 
     done_when = _handoff_text(data.get("done_when"), "")
 
     return primary, status, next_action, done_when
+
+
+def _working_tree_paths(data: HandoffData) -> list[str]:
+    wt_details = _handoff_lines(data.get("working_tree_details"))
+    wt_paths: list[str] = []
+    for line in wt_details:
+        path = _detail_path(line)
+        if path and path not in wt_paths:
+            wt_paths.append(path)
+    return sorted(wt_paths, key=lambda path: _primary_work_item_priority(path, wt_details))
+
+
+def _primary_work_item_priority(path: str, details: list[str]) -> tuple[int, int, int, int, str]:
+    detail_by_path = {_detail_path(detail): detail for detail in details}
+    detail = detail_by_path.get(path, "")
+    lower = path.lower()
+    is_plan_doc = lower.startswith("docs/superpowers/plans/") or lower.startswith(
+        "docs/superpowers/specs/"
+    )
+    is_readme = lower == "readme.md" or lower.endswith("/readme.md")
+    is_generated_runtime = "vib-runtime/" in lower or "/_internal/" in lower
+    is_docs = lower.endswith(".md")
+    is_new = "— untracked" in detail or "— added" in detail
+    return (
+        0 if _looks_like_handoff_context_work([path]) else 1,
+        0 if is_plan_doc else 1,
+        3 if is_generated_runtime else (2 if is_readme else 0),
+        0 if is_new else (1 if is_docs else 0),
+        lower,
+    )
+
+
+def _default_next_action_for_dense_slot(wt_paths: list[str], data: HandoffData) -> str:
+    verification = _handoff_lines(data.get("verification"))
+    freshness = _handoff_text(data.get("verification_freshness"), "")
+    if wt_paths:
+        lead = wt_paths[0]
+        if lead.endswith(".md"):
+            return f"Review `{lead}` first, treat its explicitly sectioned content as authoritative, then rerun verification before commit."
+        if lead.endswith((".py", ".ts", ".tsx", ".rs", ".js")):
+            return f"Review `{lead}` first, confirm the scope is still narrow, then rerun focused verification before commit."
+        return f"Review `{lead}` first, then confirm verification is current before commit."
+    if verification and freshness == "stale":
+        last_cmd = verification[-1].partition(" -> ")[0].strip()
+        if last_cmd:
+            return f"Rerun `{last_cmd}` before committing any remaining changes."
+    return "Review the current handoff state, pick the next scoped git-truth change, and refresh verification before commit."
+
+
+def _partition_warnings_for_display(
+    data: HandoffData, warnings: list[str]
+) -> tuple[list[str], list[str]]:
+    wt_paths = set(_working_tree_paths(data))
+    primary: list[str] = []
+    secondary: list[str] = []
+    for item in warnings:
+        if " — " not in item:
+            primary.append(item)
+            continue
+        path = _detail_path(item)
+        if path in wt_paths:
+            primary.append(item)
+        else:
+            secondary.append(item)
+    if primary:
+        return primary, secondary
+    return secondary[:5], secondary[5:]
 
 
 def _merge_changed_files(primary: list[str], secondary: list[str]) -> list[str]:
@@ -814,9 +885,8 @@ def _build_concrete_next_steps(data: HandoffData) -> list[str]:
         )
 
     # v2.0.37: 시나리오별 구체화 — 단일 파일이면 파일명 inline + kind 별 권장 액션
-    changed = _handoff_files(data.get("changed_files"))
-    changed_count = data.get("changed_file_count")
-    total = changed_count if isinstance(changed_count, int) else len(changed)
+    changed = _working_tree_paths(data)
+    total = len(changed)
     if total == 1 and changed:
         single = changed[0]
         if single.endswith(".md"):
