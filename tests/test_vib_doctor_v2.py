@@ -76,6 +76,51 @@ class VibDoctorV2Test(unittest.TestCase):
             )
             self.assertIn("project_map_loaded", cast(dict[str, object], data["stats"]))
 
+    def test_doctor_envelope_reports_checkpoint_engine_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "main.py").write_text("print('hello')\n", encoding="utf-8")
+            state_dir = root / ".vibelign"
+            state_dir.mkdir()
+            (state_dir / "state.json").write_text(
+                '{"engine_used":"python","last_fallback_reason":"RUST_ENGINE_UNAVAILABLE: rust engine binary missing"}\n',
+                encoding="utf-8",
+            )
+
+            envelope = build_doctor_envelope(root, strict=False)
+
+            data = cast(dict[str, object], envelope["data"])
+            stats = cast(dict[str, object], data["stats"])
+            checkpoint_engine = cast(
+                dict[str, object], stats["checkpoint_engine_status"]
+            )
+            self.assertEqual(checkpoint_engine["engine_used"], "python")
+            self.assertEqual(
+                checkpoint_engine["last_fallback_reason"],
+                "RUST_ENGINE_UNAVAILABLE: rust engine binary missing",
+            )
+
+    def test_doctor_markdown_reports_checkpoint_engine_state(self):
+        markdown = render_doctor_markdown(
+            DoctorV2Report(
+                project_score=90,
+                status="Safe",
+                anchor_coverage=100,
+                stats={
+                    "mcp_status": {},
+                    "prepared_tool_status": {},
+                    "checkpoint_engine_status": {
+                        "engine_used": "rust",
+                        "last_fallback_reason": None,
+                    },
+                },
+                issues=[],
+                recommended_actions=[],
+            )
+        )
+
+        self.assertIn("Checkpoint engine: Rust/SQLite 활성", markdown)
+
     def test_doctor_reports_small_anchorless_file_in_default_mode(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

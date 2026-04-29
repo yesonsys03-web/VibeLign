@@ -494,6 +494,46 @@ def _render_prepared_tool_lines(stats: dict[str, object]) -> list[str]:
     return lines
 
 
+def _collect_checkpoint_engine_status(root: Path) -> dict[str, object]:
+    from vibelign.core.meta_paths import MetaPaths
+
+    state_path = MetaPaths(root).state_path
+    status: dict[str, object] = {
+        "engine_used": "unknown",
+        "last_fallback_reason": None,
+    }
+    try:
+        loaded = cast(object, json.loads(state_path.read_text(encoding="utf-8")))
+    except (OSError, json.JSONDecodeError):
+        return status
+    if not isinstance(loaded, dict):
+        return status
+    state = cast(dict[str, object], loaded)
+    engine_used = state.get("engine_used")
+    fallback_reason = state.get("last_fallback_reason")
+    if isinstance(engine_used, str) and engine_used:
+        status["engine_used"] = engine_used
+    if isinstance(fallback_reason, str) and fallback_reason:
+        status["last_fallback_reason"] = fallback_reason
+    return status
+
+
+def _render_checkpoint_engine_lines(stats: dict[str, object]) -> list[str]:
+    raw = stats.get("checkpoint_engine_status")
+    if not isinstance(raw, dict):
+        return []
+    status = cast(dict[str, object], raw)
+    engine_used = str(status.get("engine_used") or "unknown")
+    fallback_reason = status.get("last_fallback_reason")
+    if engine_used == "rust":
+        return ["Checkpoint engine: Rust/SQLite 활성"]
+    if engine_used == "python":
+        if isinstance(fallback_reason, str) and fallback_reason:
+            return [f"Checkpoint engine: Python fallback 활성 ({fallback_reason})"]
+        return ["Checkpoint engine: Python fallback 활성"]
+    return ["Checkpoint engine: 아직 실행 기록 없음"]
+
+
 def analyze_project_v2(
     root: Path, strict: bool = False, force: bool = False
 ) -> DoctorV2Report:
@@ -508,6 +548,7 @@ def analyze_project_v2(
         cached_status = cached.get("status")
         cached_coverage = cached.get("anchor_coverage")
         cached_stats = cast(dict[str, object], cached.get("stats", {}))
+        cached_stats["checkpoint_engine_status"] = _collect_checkpoint_engine_status(root)
         cached_issues = cast(list[dict[str, object]], cached.get("issues", []))
         cached_actions = cast(list[str], cached.get("recommended_actions", []))
         return DoctorV2Report(
@@ -530,6 +571,7 @@ def analyze_project_v2(
     stats["project_map_loaded"] = project_map is not None
     stats["mcp_status"] = mcp_status
     stats["prepared_tool_status"] = prepared_tool_status
+    stats["checkpoint_engine_status"] = _collect_checkpoint_engine_status(root)
     issues: list[dict[str, object]] = list(legacy.issues)
     if project_map is not None:
         stats["project_map_file_count"] = project_map.file_count
@@ -620,6 +662,7 @@ def render_doctor_markdown(
     ]
     lines.extend(_render_mcp_lines(report.stats))
     lines.extend(_render_prepared_tool_lines(report.stats))
+    lines.extend(_render_checkpoint_engine_lines(report.stats))
     lines.extend(["", "먼저 보면 좋은 점:"])
     if report.issues:
         for index, item in enumerate(report.issues, 1):
