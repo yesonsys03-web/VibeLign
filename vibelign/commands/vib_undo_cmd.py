@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 
-from vibelign.core.local_checkpoints import (
+from vibelign.core.checkpoint_engine.router import (
     friendly_time,
     get_last_restore_error,
     list_checkpoints,

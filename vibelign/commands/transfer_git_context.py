@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import subprocess
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TypedDict
@@ -12,11 +11,11 @@ from vibelign.core.structure_policy import (
     HANDOFF_SKIP_EXTENSIONS,
     HANDOFF_SKIP_PREFIXES,
     TRANSFER_TREE_IGNORED_DIRS,
+    WINDOWS_SUBPROCESS_FLAGS,
 )
 from vibelign.core.work_memory import load_work_memory
 from vibelign.core.work_memory import WorkMemoryState
 
-_WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 _SKIP_DIRS_LOWER = {item.lower() for item in TRANSFER_TREE_IGNORED_DIRS}
 _SKIP_EXTS = set(HANDOFF_SKIP_EXTENSIONS)
 _HANDOFF_SKIP_DIR_SUFFIXES = (".egg-info",)
@@ -70,7 +69,7 @@ def get_working_tree_summary(root: Path, max_items: int = 20) -> WorkingTreeSumm
             text=True,
             cwd=root,
             timeout=5,
-            creationflags=_WINDOWS_FLAGS,
+            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
     except Exception:
         return {"count": 0, "files": [], "details": [], "summary": None}
@@ -113,7 +112,7 @@ def get_recent_commits(root: Path, n: int = 5) -> list[str]:
             text=True,
             cwd=root,
             timeout=5,
-            creationflags=_WINDOWS_FLAGS,
+            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
         messages = [item.strip() for item in result.stdout.splitlines() if item.strip()]
         return [message for message in messages if not message.startswith("vibelign:")][:n]
@@ -139,7 +138,7 @@ def get_detailed_commits(root: Path, n: int = 10) -> list[DetailedCommit]:
             text=True,
             cwd=root,
             timeout=10,
-            creationflags=_WINDOWS_FLAGS,
+            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
         commits: list[DetailedCommit] = []
         current: DetailedCommit | None = None
@@ -187,7 +186,7 @@ def get_work_memory_staleness_warning(root: Path) -> str | None:
 
 def _latest_watch_event_time(state: WorkMemoryState) -> datetime | None:
     latest: datetime | None = None
-    for event in state["recent_events"] + state["warnings"]:
+    for event in state.get("recent_events", []) + state.get("warnings", []):
         parsed = _parse_timestamp(event.get("time", ""))
         if parsed is not None and (latest is None or parsed > latest):
             latest = parsed
@@ -203,7 +202,7 @@ def _working_tree_numstat(root: Path) -> dict[str, str]:
             text=True,
             cwd=root,
             timeout=5,
-            creationflags=_WINDOWS_FLAGS,
+            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
     except Exception:
         return stats
@@ -239,7 +238,7 @@ def _latest_commit_time(root: Path) -> datetime | None:
             text=True,
             cwd=root,
             timeout=5,
-            creationflags=_WINDOWS_FLAGS,
+            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
     except Exception:
         return None
@@ -297,7 +296,7 @@ def _latest_dirty_file_mtime(root: Path) -> datetime | None:
             text=True,
             cwd=root,
             timeout=5,
-            creationflags=_WINDOWS_FLAGS,
+            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
     except Exception:
         return None

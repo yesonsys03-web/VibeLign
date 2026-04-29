@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import sys
 from argparse import Namespace
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import cast
@@ -26,7 +26,7 @@ from vibelign.core.hook_setup import detect_tool, remove_old_hook, setup_hook_if
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_root import resolve_project_root
 from vibelign.core.project_scan import iter_source_files
-from vibelign.core.structure_policy import COMMON_IGNORED_DIRS
+from vibelign.core.structure_policy import COMMON_IGNORED_DIRS, WINDOWS_SUBPROCESS_FLAGS
 from vibelign.terminal_render import (
     clack_info,
     clack_intro,
@@ -199,14 +199,13 @@ def _init_git(root: Path) -> bool:
     git = _find_git_exe()
     if not git:
         return False
-    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
     try:
         subprocess.run(
             [git, "init"],
             cwd=root,
             check=True,
             capture_output=True,
-            creationflags=flags,
+            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
         return True
     except (subprocess.CalledProcessError, OSError):
@@ -271,7 +270,7 @@ def _ensure_rule_files(root: Path, overwrite: bool = True) -> dict[str, list[str
 
 # === ANCHOR: VIB_START_CMD__RESOLVE_IMPORT_GRAPH_START ===
 def _resolve_import_graph(
-    scan: dict[str, object],
+    scan: Mapping[str, object],
 ) -> tuple[dict[str, list[str]], dict[str, set[str]]]:
     """raw import 문자열을 프로젝트 내 rel_path 로 best-effort 해석.
 

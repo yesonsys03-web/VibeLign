@@ -255,7 +255,7 @@ def ensure_claude_pretooluse_hook(root: Path) -> ClaudeHookResult:
 def setup_hook_if_needed(root: Path) -> ClaudeHookResult | None:
     from datetime import datetime
 
-    from vibelign.core.local_checkpoints import create_checkpoint, list_checkpoints
+    from vibelign.core.checkpoint_engine.router import create_checkpoint, list_checkpoints
 
     existing = list_checkpoints(root)
     if not (existing and "vib start 초기 저장" in existing[0].message):

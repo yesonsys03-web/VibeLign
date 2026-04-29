@@ -7,8 +7,7 @@ from argparse import Namespace
 from collections.abc import Sequence
 from pathlib import Path
 
-
-_WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+from vibelign.core.structure_policy import WINDOWS_SUBPROCESS_FLAGS
 
 
 from vibelign.terminal_render import (
@@ -75,7 +74,7 @@ def _run_text_subprocess(
         encoding="utf-8",
         errors="replace",
         timeout=timeout,
-        creationflags=_WINDOWS_FLAGS,
+        creationflags=WINDOWS_SUBPROCESS_FLAGS,
     )
 
 

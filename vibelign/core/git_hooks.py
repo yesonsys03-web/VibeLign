@@ -8,9 +8,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from vibelign.core.structure_policy import WINDOWS_SUBPROCESS_FLAGS
 
 _HOOK_MARKER = "# vibelign: pre-commit-enforcement v2"
-_WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
 @dataclass(frozen=True)
@@ -33,7 +33,7 @@ def _run_git_path(root: Path, *args: str) -> str | None:
             check=True,
             capture_output=True,
             text=True,
-            creationflags=_WINDOWS_FLAGS,
+            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
     except (FileNotFoundError, subprocess.CalledProcessError):
         return None

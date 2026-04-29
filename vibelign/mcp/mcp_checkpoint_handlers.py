@@ -26,7 +26,7 @@ def handle_checkpoint_create(
     text_content: TextContentFactory,
 # === ANCHOR: MCP_CHECKPOINT_HANDLERS_HANDLE_CHECKPOINT_CREATE_END ===
 ) -> list[object]:
-    from vibelign.core.local_checkpoints import create_checkpoint, friendly_time
+    from vibelign.core.checkpoint_engine.router import create_checkpoint, friendly_time
 
     message = str(arguments.get("message", ""))
     summary = create_checkpoint(root, message)
@@ -48,7 +48,7 @@ def handle_checkpoint_list(
     root: Path, text_content: TextContentFactory
 # === ANCHOR: MCP_CHECKPOINT_HANDLERS_HANDLE_CHECKPOINT_LIST_END ===
 ) -> list[object]:
-    from vibelign.core.local_checkpoints import friendly_time, list_checkpoints
+    from vibelign.core.checkpoint_engine.router import friendly_time, list_checkpoints
 
     checkpoints = list_checkpoints(root)
     if not checkpoints:
@@ -71,7 +71,7 @@ def handle_checkpoint_restore(
     text_content: TextContentFactory,
 # === ANCHOR: MCP_CHECKPOINT_HANDLERS_HANDLE_CHECKPOINT_RESTORE_END ===
 ) -> list[object]:
-    from vibelign.core.local_checkpoints import (
+    from vibelign.core.checkpoint_engine.router import (
         get_last_restore_error,
         restore_checkpoint,
     )

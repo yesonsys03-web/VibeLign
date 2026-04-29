@@ -6,7 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from vibelign.core.local_checkpoints import CheckpointSummary, create_checkpoint
+from vibelign.core.checkpoint_engine.contracts import CheckpointSummary
+from vibelign.core.checkpoint_engine.router import create_checkpoint
 
 
 def create_pre_apply_checkpoint(root: Path) -> Optional[CheckpointSummary]:

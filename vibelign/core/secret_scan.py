@@ -9,7 +9,7 @@ from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-_WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+from vibelign.core.structure_policy import WINDOWS_SUBPROCESS_FLAGS
 
 def _find_git() -> str:
     found = shutil.which("git")
@@ -127,7 +127,7 @@ def _run_git(root: Path, args: list[str]) -> str:
             text=True,
             encoding="utf-8",
             errors="replace",
-            creationflags=_WINDOWS_FLAGS,
+            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
         return completed.stdout
     except subprocess.CalledProcessError as e:
@@ -361,7 +361,7 @@ def scan_all_history(
         stderr=subprocess.DEVNULL,
         encoding="utf-8",
         errors="replace",
-        creationflags=_WINDOWS_FLAGS,
+        creationflags=WINDOWS_SUBPROCESS_FLAGS,
     )
     assert proc.stdout is not None
 

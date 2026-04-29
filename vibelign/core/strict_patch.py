@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from vibelign.core.anchor_tools import extract_anchor_line_ranges
-from vibelign.core.local_checkpoints import create_checkpoint
+from vibelign.core.checkpoint_engine.router import create_checkpoint
 from vibelign.core.patch_validation import (
     ERR_STRICT_ANCHOR_READ_FAIL,
     ERR_STRICT_FILE_NOT_FOUND,

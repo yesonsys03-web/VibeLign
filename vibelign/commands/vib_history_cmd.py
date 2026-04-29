@@ -2,7 +2,7 @@
 import re
 from pathlib import Path
 
-from vibelign.core.local_checkpoints import friendly_time, list_checkpoints
+from vibelign.core.checkpoint_engine.router import friendly_time, list_checkpoints
 from vibelign.core.project_root import resolve_project_root
 
 

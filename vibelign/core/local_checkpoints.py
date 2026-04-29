@@ -179,6 +179,10 @@ def _current_file_map(root: Path) -> dict[str, dict[str, object]]:
 # === ANCHOR: LOCAL_CHECKPOINTS__CURRENT_FILE_MAP_END ===
 
 
+def current_snapshot_file_map(root: Path) -> dict[str, dict[str, object]]:
+    return _current_file_map(root)
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS__LOAD_MANIFEST_START ===
 def _load_manifest(snapshot_dir: Path) -> dict[str, object] | None:
     manifest_path = _manifest_path(snapshot_dir)

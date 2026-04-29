@@ -327,12 +327,14 @@ def install_completion_powershell(parser, clack_info, clack_success, clack_warn)
         if str(vib_dir).lower() not in current_path.lower().split(";"):
             import subprocess
 
+            from vibelign.core.structure_policy import WINDOWS_SUBPROCESS_FLAGS
+
             new_path = current_path.rstrip(";") + ";" + str(vib_dir)
             _ = subprocess.run(
                 ["setx", "PATH", new_path],
                 capture_output=True,
                 text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW,
+                creationflags=WINDOWS_SUBPROCESS_FLAGS,
             )
     except Exception:
         pass

@@ -1,15 +1,13 @@
 # === ANCHOR: CHANGE_EXPLAINER_START ===
 from dataclasses import dataclass, asdict, field
 import subprocess
-import sys
 import time
 from collections.abc import Sequence
 from pathlib import Path
 
-_WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-
 from vibelign.core.project_map import enrich_change_kind, load_project_map
 from vibelign.core.project_scan import iter_project_files, relpath_str
+from vibelign.core.structure_policy import WINDOWS_SUBPROCESS_FLAGS
 
 FileSummary = dict[str, str]
 
@@ -162,7 +160,7 @@ def _run_git(root: Path, args: Sequence[str]) -> tuple[bool, str]:
             encoding="utf-8",
             errors="replace",
             check=False,
-            creationflags=_WINDOWS_FLAGS,
+            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
         return proc.returncode == 0, proc.stdout if proc.returncode == 0 else (
             proc.stderr or proc.stdout

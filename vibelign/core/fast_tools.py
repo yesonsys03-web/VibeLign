@@ -10,12 +10,13 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
-from vibelign.core.structure_policy import SCAN_IGNORED_DIRS, SOURCE_FILE_SUFFIXES
-
-_WINDOWS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+from vibelign.core.structure_policy import (
+    SCAN_IGNORED_DIRS,
+    SOURCE_FILE_SUFFIXES,
+    WINDOWS_SUBPROCESS_FLAGS,
+)
 
 _ANCHOR_RE = re.compile(r"ANCHOR:\s*([A-Z0-9_]+)")
 
@@ -45,7 +46,7 @@ def _run_text_command(cmd: list[str]) -> subprocess.CompletedProcess[str] | None
             encoding="utf-8",
             errors="replace",
             timeout=60,
-            creationflags=_WINDOWS_FLAGS,
+            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
     except (
         subprocess.TimeoutExpired,

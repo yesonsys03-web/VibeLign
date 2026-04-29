@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Protocol, TypedDict, cast
 
 from vibelign.commands import transfer_git_context
-from vibelign.core.local_checkpoints import list_checkpoints, friendly_time
+from vibelign.core.checkpoint_engine.router import list_checkpoints, friendly_time
 from vibelign.core.project_root import resolve_project_root
 from vibelign.core.structure_policy import (
     HANDOFF_KEY_FILE_NAMES,

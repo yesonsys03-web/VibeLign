@@ -3,9 +3,10 @@ import importlib
 import json
 from datetime import datetime
 from pathlib import Path
+from collections.abc import Sequence
 from typing import Protocol, cast
 
-from vibelign.core.local_checkpoints import (
+from vibelign.core.checkpoint_engine.router import (
     create_checkpoint,
     list_checkpoints,
 )
@@ -15,7 +16,6 @@ from vibelign.core.project_root import resolve_project_root
 from vibelign.terminal_render import cli_print
 
 print = cli_print
-
 
 class CheckpointLike(Protocol):
     checkpoint_id: str
@@ -47,6 +47,19 @@ def _checkpoint_to_dict(cp: CheckpointLike) -> dict[str, object]:
     }
 
 
+def list_for_cli(root: Path) -> tuple[Sequence[CheckpointLike], str | None]:
+    return list_checkpoints(root), None
+
+
+def create_for_cli(root: Path, message: str) -> tuple[CheckpointLike | None, str | None]:
+    return create_checkpoint(root, message), None
+
+
+def _print_warning(warning: str | None, as_json: bool) -> None:
+    if warning and not as_json:
+        print(warning)
+
+
 def run_vib_checkpoint(args: object) -> None:
     root = resolve_project_root(Path.cwd())
     as_json = bool(getattr(args, "json", False))
@@ -59,12 +72,13 @@ def run_vib_checkpoint(args: object) -> None:
     )
     first_part = message_parts[0] if message_parts else None
     if isinstance(first_part, str) and first_part.lower() == "list":
-        checkpoints = list_checkpoints(root)
+        checkpoints, warning = list_for_cli(root)
         if as_json:
             print(
                 json.dumps(
                     {
                         "ok": True,
+                        "warning": warning,
                         "checkpoints": [_checkpoint_to_dict(cp) for cp in checkpoints],
                     },
                     indent=2,
@@ -72,6 +86,7 @@ def run_vib_checkpoint(args: object) -> None:
                 )
             )
         else:
+            _print_warning(warning, as_json)
             if not checkpoints:
                 print("저장된 체크포인트가 없습니다.")
                 return
@@ -92,11 +107,17 @@ def run_vib_checkpoint(args: object) -> None:
     else:
         msg = f"vibelign: checkpoint ({timestamp})"
 
-    summary = create_checkpoint(root, msg)
+    summary, warning = create_for_cli(root, msg)
     if summary is None:
         if as_json:
-            print(json.dumps({"ok": False, "error": "no_changes"}, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {"ok": False, "error": "no_changes", "warning": warning},
+                    ensure_ascii=False,
+                )
+            )
         else:
+            _print_warning(warning, as_json)
             print("변경된 파일이 없습니다. 체크포인트를 건너뜁니다.")
         return
 
@@ -129,6 +150,7 @@ def run_vib_checkpoint(args: object) -> None:
             json.dumps(
                 {
                     "ok": True,
+                    "warning": warning,
                     "message": user_msg or "(메시지 없음)",
                     "file_count": summary.file_count,
                     "pruned_count": summary.pruned_count,
@@ -141,6 +163,7 @@ def run_vib_checkpoint(args: object) -> None:
         return
 
     display_msg = user_msg if user_msg else "(메시지 없음)"
+    _print_warning(warning, as_json)
     print(f"✓ 체크포인트 저장 완료!")
     print(f"  메시지: {display_msg}")
     print(f"  파일 수: {summary.file_count}개")

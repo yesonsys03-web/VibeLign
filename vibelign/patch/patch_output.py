@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import cast
 
 from vibelign.core.meta_paths import MetaPaths
+from vibelign.core.structure_policy import WINDOWS_SUBPROCESS_FLAGS
 from vibelign.terminal_render import clack_success, clack_warn
 
 
@@ -25,7 +26,7 @@ def copy_to_clipboard(text: str) -> None:
             proc = subprocess.Popen(
                 ["clip"],
                 stdin=subprocess.PIPE,
-                creationflags=subprocess.CREATE_NO_WINDOW,
+                creationflags=WINDOWS_SUBPROCESS_FLAGS,
             )
             _ = proc.communicate(text.encode("utf-16le"))
         else:

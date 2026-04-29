@@ -26,6 +26,7 @@ from vibelign.core.project_root import resolve_project_root
 from vibelign.core.protected_files import get_protected, is_protected
 from vibelign.core.risk_analyzer import analyze_project
 from vibelign.core.structure_policy import (
+    WINDOWS_SUBPROCESS_FLAGS,
     classify_structure_path,
     load_active_plan_payload,
     small_fix_line_threshold,
@@ -36,9 +37,6 @@ from vibelign.terminal_render import print_ai_response
 from vibelign.terminal_render import cli_print
 
 print = cli_print
-_WINDOWS_FLAGS = (
-    subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
-)
 
 
 class GuardDoctorData(TypedDict):
@@ -169,7 +167,7 @@ def _run_guard_git(root: Path, args: Sequence[str]) -> tuple[bool, str]:
             encoding="utf-8",
             errors="replace",
             check=False,
-            creationflags=_WINDOWS_FLAGS,
+            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
         return proc.returncode == 0, proc.stdout if proc.returncode == 0 else (
             proc.stderr or proc.stdout
