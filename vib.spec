@@ -1,11 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
 hidden_imports = [
     "vibelign.commands.__init__","vibelign.commands.anchor_cmd","vibelign.commands.ask_cmd",
     "vibelign.commands.checkpoint_cmd","vibelign.commands.config_cmd","vibelign.commands.doctor_cmd",
     "vibelign.commands.explain_cmd","vibelign.commands.export_cmd","vibelign.commands.guard_cmd",
-    "vibelign.commands.history_cmd","vibelign.commands.init_cmd","vibelign.commands.install_guide_cmd",
-    "vibelign.commands.patch_cmd","vibelign.commands.protect_cmd","vibelign.commands.undo_cmd",
+    "vibelign.commands.init_cmd","vibelign.commands.install_guide_cmd",
+    "vibelign.commands.patch_cmd","vibelign.commands.protect_cmd",
     "vibelign.commands.vib_anchor_cmd","vibelign.commands.vib_bench_cmd","vibelign.commands.vib_checkpoint_cmd",
     "vibelign.commands.vib_docs_build_cmd","vibelign.commands.vib_doc_sources_cmd",
     "vibelign.commands.vib_doctor_cmd","vibelign.commands.vib_explain_cmd","vibelign.commands.vib_guard_cmd",
@@ -31,6 +33,10 @@ hidden_imports = [
     "vibelign.core.structure_policy","vibelign.core.target_resolution",
     "vibelign.core.ui_label_index",
     "vibelign.core.watch_engine","vibelign.core.watch_reporter","vibelign.core.watch_rules","vibelign.core.watch_state",
+    "vibelign.core.checkpoint_engine","vibelign.core.checkpoint_engine.contracts",
+    "vibelign.core.checkpoint_engine.python_engine","vibelign.core.checkpoint_engine.router",
+    "vibelign.core.checkpoint_engine.rust_checkpoint_engine","vibelign.core.checkpoint_engine.rust_engine",
+    "vibelign.core.checkpoint_engine.shadow_runner",
     "vibelign.action_engine","vibelign.action_engine.action_planner",
     "vibelign.action_engine.executors.action_executor","vibelign.action_engine.executors.checkpoint_bridge",
     "vibelign.action_engine.generators.patch_generator","vibelign.action_engine.models.action",
@@ -50,17 +56,21 @@ hidden_imports = [
     "vibelign.patch.patch_preview","vibelign.patch.patch_render",
     "vibelign.patch.patch_steps","vibelign.patch.patch_targeting",
     "rich","rich.console","rich.markup","rich.table","rich.panel","rich.text","rich.style","rich.theme","rich.progress",
-    "git","gitdb","anthropic",
+    "anthropic",
     "watchdog","watchdog.observers","watchdog.observers.fsevents","watchdog.observers.inotify",
     "watchdog.observers.read_directory_changes","watchdog.observers.winapi",
     "watchdog.observers.polling","watchdog.events","typing_extensions",
 ]
 
+datas = []
+if Path("vibelign/_bundled").exists():
+    datas.append(("vibelign/_bundled", "vibelign/_bundled"))
+
 a = Analysis(
     ["vibelign/_vib_entry.py"],
     pathex=["."],
     binaries=[],
-    datas=[],
+    datas=datas,
     hiddenimports=hidden_imports,
     hookspath=[],
     hooksconfig={},
