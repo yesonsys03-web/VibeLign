@@ -126,6 +126,13 @@ GUI 는 내부적으로 `vib` CLI 를 호출하므로 **CLI-only 워크플로와
 - `vib patch` 는 2.0 에서 `target_anchor` 기반 소형 패치를 우선합니다.
   전면 재작성 요청은 거부되거나 여러 앵커 패치로 분할됩니다 (의도된 변경).
 
+### 6-1. Rust/SQLite 체크포인트 엔진으로 전환되는 버전
+
+- 새 체크포인트 이력(`vib checkpoint`, `vib history`, `vib undo`)은 Rust/SQLite 엔진을 기본으로 사용합니다.
+- 기존 JSON 체크포인트(`.vibelign/checkpoints/`)는 삭제하지 않고 디스크에 보존하지만, 새 SQLite 기본 이력에 자동 import/병합하지 않습니다.
+- 업그레이드 전에 오래된 체크포인트가 필요하다면 `.vibelign/checkpoints/`를 별도로 백업해두세요.
+- Rust 엔진 실행 환경 문제가 있으면 Python fallback이 사용자에게 표시되고, `vib doctor`에서 마지막 fallback 사유를 확인할 수 있습니다.
+
 ---
 
 ## 문제 보고

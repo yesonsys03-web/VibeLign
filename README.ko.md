@@ -316,6 +316,11 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**다음 버전** — Rust/SQLite 체크포인트 엔진:
+
+- `vib checkpoint`, `vib history`, `vib undo`가 Rust/SQLite 체크포인트 엔진을 기본으로 사용합니다. 번들 엔진을 실행할 수 없으면 Python fallback이 사용자에게 표시됩니다.
+- 기존 JSON 체크포인트(`.vibelign/checkpoints/`)는 디스크에 보존하지만 새 SQLite 기반 이력에 자동 import/병합하지 않습니다. 오래된 스냅샷이 필요하면 업그레이드 전에 `.vibelign/checkpoints/`를 백업해두세요.
+
 **v2.0.0** — 데스크톱 GUI + MCP/Patch 모듈화 + AI 옵트인:
 
 - 🖥️ **VibeLign GUI (macOS / Windows)** — Tauri 기반 데스크톱 앱

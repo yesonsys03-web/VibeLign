@@ -6,6 +6,15 @@
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **Checkpoint engine cutover**: `vib checkpoint`, `vib history`, and `vib undo` now use the Rust/SQLite checkpoint engine by default, with visible Python fallback for environment failures.
+- Legacy JSON checkpoints under `.vibelign/checkpoints/` are preserved on disk, but they are **not automatically imported or merged** into the new SQLite-backed default history/list/restore path. Back up `.vibelign/checkpoints/` before upgrading if you need old checkpoint snapshots.
+
+---
+
 ## [2.0.1] — 2026-04-18
 
 PyPI 렌더링 한정 문서 패치.

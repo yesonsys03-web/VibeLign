@@ -3,6 +3,7 @@ import importlib.util
 import unittest
 import ast
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
@@ -20,7 +21,9 @@ class DistributionMetadataTest(unittest.TestCase):
     def _load_project(self) -> dict[str, object]:
         text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         if tomllib is not None:
-            return cast(dict[str, object], tomllib.loads(text))
+            loads = cast(Callable[[str], object], getattr(tomllib, "loads"))
+            loaded = loads(text)
+            return cast(dict[str, object], loaded)
 
         project: dict[str, object] = {}
         urls: dict[str, str] = {}
@@ -83,6 +86,37 @@ class DistributionMetadataTest(unittest.TestCase):
         self.assertIn('vibelign = "vibelign.cli:main"', text)
         self.assertIn('vib = "vibelign.cli.vib_cli:main"', text)
         self.assertIn('vibelign-mcp = "vibelign.mcp.mcp_server:main"', text)
+
+    def test_rust_sidecar_is_declared_as_package_data(self):
+        text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+        self.assertIn("[tool.setuptools.package-data]", text)
+        self.assertIn('"_bundled/vibelign-engine"', text)
+        self.assertIn('"_bundled/vibelign-engine.exe"', text)
+        self.assertIn('"_bundled/vibelign-engine.sha256"', text)
+        self.assertIn('"_bundled/vibelign-engine.exe.sha256"', text)
+
+    def test_pyinstaller_spec_bundles_rust_sidecar_and_checkpoint_engine(self):
+        text = (ROOT / "vib.spec").read_text(encoding="utf-8")
+
+        self.assertIn('"vibelign.core.checkpoint_engine.rust_engine"', text)
+        self.assertIn('"vibelign.core.checkpoint_engine.rust_checkpoint_engine"', text)
+        self.assertIn('datas.append(("vibelign/_bundled", "vibelign/_bundled"))', text)
+        self.assertNotIn('"vibelign.commands.history_cmd"', text)
+        self.assertNotIn('"vibelign.commands.undo_cmd"', text)
+
+    def test_checkpoint_cutover_notice_is_user_visible(self):
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        migration = (ROOT / "MIGRATION_v1_to_v2.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        readme_ko = (ROOT / "README.ko.md").read_text(encoding="utf-8")
+
+        self.assertIn("Rust/SQLite", changelog)
+        self.assertIn("not automatically imported or merged", changelog)
+        self.assertIn("Rust/SQLite 체크포인트 엔진", migration)
+        self.assertIn("자동 import/병합하지 않습니다", migration)
+        self.assertIn("Back up `.vibelign/checkpoints/`", readme)
+        self.assertIn("업그레이드 전에 `.vibelign/checkpoints/`를 백업", readme_ko)
 
 
 if __name__ == "__main__":

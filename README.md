@@ -316,6 +316,11 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**Upcoming** — Rust/SQLite Checkpoint Engine:
+
+- `vib checkpoint`, `vib history`, and `vib undo` use the Rust/SQLite checkpoint engine by default, with visible Python fallback if the bundled engine cannot run.
+- Existing JSON checkpoints in `.vibelign/checkpoints/` are preserved on disk but are not automatically imported or merged into the new SQLite-backed history. Back up `.vibelign/checkpoints/` before upgrading if you still need old snapshots.
+
 **v2.0.0** — Desktop GUI + MCP/Patch Modularization + AI Opt-In:
 
 - 🖥️ **VibeLign GUI (macOS / Windows)** — Tauri desktop app
