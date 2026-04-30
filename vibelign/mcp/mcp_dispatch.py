@@ -1,6 +1,7 @@
 # === ANCHOR: MCP_DISPATCH_START ===
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Protocol, cast
 
@@ -45,8 +46,8 @@ async def call_tool_dispatch(
     result = handler(root, arguments, text_content)
     try:
         _auto_capture_narrative(name, arguments, result, root)
-    except Exception:
-        pass  # narrative 캡처 실패는 도구 결과를 망치지 않는다.
+    except Exception as exc:
+        print(f"[WARN] MCP narrative capture failed for {name}: {exc}", file=sys.stderr)
     return result
 
 

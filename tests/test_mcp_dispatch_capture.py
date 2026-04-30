@@ -145,10 +145,21 @@ class DispatchAutoCaptureTest(unittest.TestCase):
 
     def test_capture_failure_does_not_break_tool_result(self):
         """work_memory write 실패해도 도구 결과는 정상 반환."""
+        stderr: list[str] = []
+
+        def _capture_write(text: str) -> int:
+            stderr.append(text)
+            return len(text)
+
         with mock_patch.dict(mcp_dispatch.DISPATCH_TABLE,
             {"guard_check": lambda r, a, t: [{"type": "text", "text": "g"}]}):
             with mock_patch("vibelign.mcp.mcp_dispatch.add_verification",
                 side_effect=Exception("disk full")):
-                result = _run(call_tool_dispatch("guard_check", {},
-                    root=self.root, text_content=_tc))
+                with mock_patch("sys.stderr.write", side_effect=_capture_write):
+                    result = _run(call_tool_dispatch("guard_check", {},
+                        root=self.root, text_content=_tc))
         self.assertEqual(result[0]["text"], "g")
+        self.assertTrue(
+            any("MCP narrative capture failed for guard_check" in item for item in stderr),
+            f"capture warning expected; got: {stderr}",
+        )
