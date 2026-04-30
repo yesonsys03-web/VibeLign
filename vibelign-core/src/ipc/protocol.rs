@@ -1,4 +1,5 @@
 use crate::backup::checkpoint::{self, CheckpointCreateMetadata};
+use crate::backup::retention;
 use crate::backup::{diff, restore, suggestions};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -49,6 +50,9 @@ pub enum EngineRequest {
         root: PathBuf,
         keep_latest: usize,
     },
+    RetentionApply {
+        root: PathBuf,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -90,6 +94,15 @@ pub enum EngineResponse {
     Error {
         code: String,
         message: String,
+    },
+    #[serde(rename = "ok")]
+    RetentionOk {
+        result: String,
+        pruned_count: usize,
+        planned_count: usize,
+        planned_bytes: u64,
+        reclaimed_bytes: u64,
+        partial_failure: bool,
     },
 }
 
@@ -265,6 +278,20 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                 },
             }
         }
+        EngineRequest::RetentionApply { root } => match retention::apply(&root) {
+            Ok(result) => EngineResponse::RetentionOk {
+                result: "retention_applied".to_string(),
+                pruned_count: result.deleted_count,
+                planned_count: result.planned_count,
+                planned_bytes: result.planned_bytes,
+                reclaimed_bytes: result.reclaimed_bytes,
+                partial_failure: result.partial_failure,
+            },
+            Err(error) => EngineResponse::Error {
+                code: "RETENTION_APPLY_FAILED".to_string(),
+                message: error,
+            },
+        },
         EngineRequest::CheckpointDiff {
             root,
             from_checkpoint_id,
