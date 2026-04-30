@@ -1,6 +1,9 @@
 pub mod cas;
 pub mod checkpoint;
 pub mod create;
+pub mod diff;
 pub mod hasher;
+pub mod restore;
 pub mod retention;
 pub mod snapshot;
+pub mod suggestions;
