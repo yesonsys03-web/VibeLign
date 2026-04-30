@@ -37,12 +37,13 @@ export default function CodemapCard({ projectDir, watchOn, setWatchOn, mapMode, 
       if (running !== watchOn) setWatchOn(running);
       setWatchLogs(logs);
       setWatchError(errors.length ? errors.join("\n") : null);
-    } catch {}
+    } catch {
+      // Watch status is best-effort; the user can still run a fresh scan manually.
+    }
   }
 
   useEffect(() => {
     void syncWatchState();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -118,7 +119,9 @@ export default function CodemapCard({ projectDir, watchOn, setWatchOn, mapMode, 
               try {
                 const aiEnv = buildGuiAiEnv(providerKeys, apiKey);
                 await anchorAutoIntent(projectDir, aiEnv);
-              } catch {}
+              } catch {
+                // Alias refresh is optional; keep the card usable if the helper fails.
+              }
               setHintLoading(false);
               setActionHint(null);
             }}

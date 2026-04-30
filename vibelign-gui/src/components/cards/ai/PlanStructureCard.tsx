@@ -191,7 +191,7 @@ function buildAiImplementationPrompt(summary: PlanSummary, requestText: string):
   ].filter(Boolean).join("\n");
 }
 
-interface PlanStructureCardProps extends Omit<GenericCommandCardProps, "cmd"> {}
+type PlanStructureCardProps = Omit<GenericCommandCardProps, "cmd">;
 
 export default function PlanStructureCard({
   projectDir,

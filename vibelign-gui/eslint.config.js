@@ -32,6 +32,25 @@ export default tseslint.config(
         { max: 2000, skipBlankLines: true, skipComments: true },
       ],
     },
+  },
+  {
+    files: ["src/pages/Onboarding.tsx"],
+    rules: {
+      "max-lines": [
+        "error",
+        { max: 1200, skipBlankLines: true, skipComments: true },
+      ],
+    },
+  },
+  {
+    files: ["scripts/*.mjs"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        URL: "readonly",
+      },
+    },
   }
 );
 // === ANCHOR: ESLINT_CONFIG_END ===

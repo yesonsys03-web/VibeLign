@@ -81,7 +81,7 @@ const components: Components = {
       </pre>
     );
   },
-  code({ children, className, node, ...props }) {
+  code({ children, className, ...props }) {
     const text = String(children).replace(/\n$/, "");
     const language = /language-([\w-]+)/.exec(className || "")?.[1]?.toLowerCase();
     const isBlockCode = Boolean(className) || text.includes("\n");

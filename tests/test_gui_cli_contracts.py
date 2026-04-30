@@ -101,6 +101,46 @@ class GuiCliContractsTest(unittest.TestCase):
             self.assertIn("message", restored)
             self.assertIn("restored_at", restored)
 
+    def test_backup_dashboard_json_exposes_metadata_consumed_by_gui(self):
+        class Summary:
+            checkpoint_id = "cp_gui_auto"
+            message = "vibelign: checkpoint - before work"
+            created_at = "2026-04-30T10:00:00+09:00"
+            pinned = False
+            file_count = 3
+            pruned_count = 0
+            pruned_bytes = 0
+            total_size_bytes = 4096
+            trigger = "post_commit"
+            git_commit_message = "Add dashboard"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            previous = Path.cwd()
+            try:
+                os.chdir(Path(tmp))
+                with patch(
+                    "vibelign.commands.vib_checkpoint_cmd.list_for_cli",
+                    return_value=([Summary()], None),
+                ), patch("vibelign.commands.vib_checkpoint_cmd.print") as mocked_list:
+                    run_vib_checkpoint(Namespace(message=["list"], json=True))
+                    listed = _json_object(cast(object, mocked_list.call_args.args[0]))
+            finally:
+                os.chdir(previous)
+
+        checkpoints = cast(list[dict[str, object]], listed["checkpoints"])
+        self.assertEqual(checkpoints[0]["checkpoint_id"], "cp_gui_auto")
+        self.assertEqual(checkpoints[0]["total_size_bytes"], 4096)
+        self.assertEqual(checkpoints[0]["trigger"], "post_commit")
+        self.assertEqual(checkpoints[0]["git_commit_message"], "Add dashboard")
+
+    def test_backup_dashboard_lint_is_wired_into_gui_npm_lint(self):
+        root = Path(__file__).resolve().parents[1]
+        package = json.loads((root / "vibelign-gui" / "package.json").read_text(encoding="utf-8"))
+        lint_script = str(package["scripts"]["lint"])
+
+        self.assertIn("lint-backup-copy.mjs", lint_script)
+        self.assertTrue((root / "vibelign-gui" / "scripts" / "lint-backup-copy.mjs").exists())
+
 
 if __name__ == "__main__":
     _ = unittest.main()
