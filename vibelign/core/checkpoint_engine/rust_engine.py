@@ -314,6 +314,21 @@ def prune_checkpoints_with_rust(
     }, None
 
 
+def apply_retention_with_rust(root: Path) -> tuple[dict[str, object] | None, str | None]:
+    result = call_rust_engine(root, {"command": "retention_apply", "root": str(root)})
+    if not result.ok:
+        return None, _format_error(result, "rust retention cleanup failed")
+    if result.payload.get("result") != "retention_applied":
+        return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected retention cleanup result"
+    return {
+        "count": _coerce_int(result.payload.get("pruned_count", 0)),
+        "planned_count": _coerce_int(result.payload.get("planned_count", 0)),
+        "planned_bytes": _coerce_int(result.payload.get("planned_bytes", 0)),
+        "reclaimed_bytes": _coerce_int(result.payload.get("reclaimed_bytes", 0)),
+        "partial_failure": bool(result.payload.get("partial_failure", False)),
+    }, None
+
+
 def _summary_from_payload(
     payload: dict[str, object], fallback_message: str = ""
 ) -> CheckpointSummary | None:

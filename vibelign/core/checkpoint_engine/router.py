@@ -72,6 +72,13 @@ def prune_checkpoints(
     return get_checkpoint_engine().prune_checkpoints(root, policy)
 
 
+def apply_retention(root: Path) -> dict[str, object]:
+    engine = get_checkpoint_engine()
+    if hasattr(engine, "apply_retention"):
+        return engine.apply_retention(root)  # type: ignore[attr-defined]
+    return engine.prune_checkpoints(root, DEFAULT_RETENTION_POLICY)
+
+
 def get_last_restore_error() -> str:
     return get_checkpoint_engine().get_last_restore_error()
 

@@ -11,6 +11,7 @@ from typing import cast
 from vibelign.core.checkpoint_engine.contracts import CheckpointSummary, RetentionPolicy
 from vibelign.core.checkpoint_engine.python_engine import PythonCheckpointEngine
 from vibelign.core.checkpoint_engine.rust_engine import (
+    apply_retention_with_rust,
     create_checkpoint_with_rust,
     diff_checkpoints_with_rust,
     list_checkpoints_with_rust,
@@ -139,6 +140,16 @@ class RustCheckpointEngine:
                 self._record_fallback(root, warning or "rust checkpoint unavailable")
                 return self._fallback.prune_checkpoints(root, policy)
             raise RuntimeError(warning or "Rust checkpoint prune failed.")
+        _record_engine_state(root, "rust", None)
+        return result
+
+    def apply_retention(self, root: Path) -> dict[str, object]:
+        result, warning = apply_retention_with_rust(root)
+        if result is None:
+            if _is_environment_fallback(warning):
+                self._record_fallback(root, warning or "rust checkpoint unavailable")
+                return self._fallback.prune_checkpoints(root, DEFAULT_RETENTION_POLICY)
+            raise RuntimeError(warning or "Rust retention cleanup failed.")
         _record_engine_state(root, "rust", None)
         return result
 

@@ -9,6 +9,7 @@ from typing import cast
 from unittest.mock import patch
 
 from vibelign.core.checkpoint_engine.rust_engine import (
+    apply_retention_with_rust,
     call_rust_engine,
     create_checkpoint_with_rust,
     diff_checkpoints_with_rust,
@@ -181,6 +182,33 @@ class CheckpointRustEngineTest(unittest.TestCase):
 
             self.assertIsNone(warning)
             self.assertEqual(result, {"count": 2, "bytes": 42})
+
+    def test_apply_retention_with_rust_returns_cleanup_details(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            engine = root / "vibelign-engine"
+            _write_fake_engine(
+                engine,
+                '{"status":"ok","result":"retention_applied","pruned_count":1,'
+                + '"planned_count":1,"planned_bytes":99,"reclaimed_bytes":42,'
+                + '"partial_failure":false}',
+            )
+            _write_hash(engine)
+
+            with patch.dict(os.environ, {"VIBELIGN_ENGINE_PATH": str(engine)}, clear=False):
+                result, warning = apply_retention_with_rust(root)
+
+            self.assertIsNone(warning)
+            self.assertEqual(
+                result,
+                {
+                    "count": 1,
+                    "planned_count": 1,
+                    "planned_bytes": 99,
+                    "reclaimed_bytes": 42,
+                    "partial_failure": False,
+                },
+            )
 
     def test_diff_checkpoints_with_rust_returns_payload(self):
         with tempfile.TemporaryDirectory() as tmp:
