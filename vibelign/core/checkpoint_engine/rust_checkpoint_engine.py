@@ -12,9 +12,13 @@ from vibelign.core.checkpoint_engine.contracts import CheckpointSummary, Retenti
 from vibelign.core.checkpoint_engine.python_engine import PythonCheckpointEngine
 from vibelign.core.checkpoint_engine.rust_engine import (
     create_checkpoint_with_rust,
+    diff_checkpoints_with_rust,
     list_checkpoints_with_rust,
+    preview_restore_with_rust,
     prune_checkpoints_with_rust,
     restore_checkpoint_with_rust,
+    restore_files_with_rust,
+    restore_suggestions_with_rust,
 )
 from vibelign.core.local_checkpoints import DEFAULT_RETENTION_POLICY
 from vibelign.core.meta_paths import MetaPaths
@@ -85,6 +89,40 @@ class RustCheckpointEngine:
             return self._fallback.restore_checkpoint(root, checkpoint_id)
         self._last_restore_error = warning or "Rust checkpoint restore failed."
         return False
+
+    def diff_checkpoints(
+        self, root: Path, from_checkpoint_id: str, to_checkpoint_id: str
+    ) -> dict[str, object]:
+        result, warning = diff_checkpoints_with_rust(root, from_checkpoint_id, to_checkpoint_id)
+        if result is None:
+            raise RuntimeError(warning or "Rust checkpoint diff failed.")
+        _record_engine_state(root, "rust", None)
+        return result
+
+    def preview_restore(
+        self, root: Path, checkpoint_id: str, relative_paths: list[str] | None = None
+    ) -> dict[str, object]:
+        result, warning = preview_restore_with_rust(root, checkpoint_id, relative_paths)
+        if result is None:
+            raise RuntimeError(warning or "Rust checkpoint preview failed.")
+        _record_engine_state(root, "rust", None)
+        return result
+
+    def restore_files(self, root: Path, checkpoint_id: str, relative_paths: list[str]) -> int:
+        count, warning = restore_files_with_rust(root, checkpoint_id, relative_paths)
+        if count is None:
+            raise RuntimeError(warning or "Rust selected restore failed.")
+        _record_engine_state(root, "rust", None)
+        return count
+
+    def restore_suggestions(
+        self, root: Path, checkpoint_id: str, cap: int = 5
+    ) -> dict[str, object]:
+        result, warning = restore_suggestions_with_rust(root, checkpoint_id, cap)
+        if result is None:
+            raise RuntimeError(warning or "Rust checkpoint suggestions failed.")
+        _record_engine_state(root, "rust", None)
+        return result
 
     def has_changes_since_checkpoint(self, root: Path, checkpoint_id: str) -> bool:
         return self._fallback.has_changes_since_checkpoint(root, checkpoint_id)

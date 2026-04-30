@@ -11,10 +11,14 @@ from unittest.mock import patch
 from vibelign.core.checkpoint_engine.rust_engine import (
     call_rust_engine,
     create_checkpoint_with_rust,
+    diff_checkpoints_with_rust,
     find_rust_engine,
     list_checkpoints_with_rust,
+    preview_restore_with_rust,
     prune_checkpoints_with_rust,
     restore_checkpoint_with_rust,
+    restore_files_with_rust,
+    restore_suggestions_with_rust,
 )
 from vibelign.core.checkpoint_engine.rust_checkpoint_engine import RustCheckpointEngine
 from vibelign.core.checkpoint_engine.shadow_runner import (
@@ -177,6 +181,88 @@ class CheckpointRustEngineTest(unittest.TestCase):
 
             self.assertIsNone(warning)
             self.assertEqual(result, {"count": 2, "bytes": 42})
+
+    def test_diff_checkpoints_with_rust_returns_payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            engine = root / "vibelign-engine"
+            _write_fake_engine(
+                engine,
+                '{"status":"ok","result":"diffed","diff":{"added":[],"modified":[],"deleted":[],"summary":{"added_count":0}}}',
+            )
+            _write_hash(engine)
+
+            with patch.dict(os.environ, {"VIBELIGN_ENGINE_PATH": str(engine)}, clear=False):
+                result, warning = diff_checkpoints_with_rust(root, "from", "to")
+
+            self.assertIsNone(warning)
+            self.assertIsNotNone(result)
+            assert result is not None
+            self.assertIn("summary", result)
+
+    def test_preview_restore_with_rust_passes_selected_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            with patch(
+                "vibelign.core.checkpoint_engine.rust_engine.call_rust_engine",
+                return_value=type(
+                    "Result",
+                    (),
+                    {
+                        "ok": True,
+                        "payload": {
+                            "status": "ok",
+                            "result": "previewed",
+                            "preview": {"checkpoint_id": "cp1", "selected_files": []},
+                        },
+                    },
+                )(),
+            ) as mocked_call:
+                result, warning = preview_restore_with_rust(root, "cp1", ["app.py"])
+
+            self.assertIsNone(warning)
+            self.assertEqual(result, {"checkpoint_id": "cp1", "selected_files": []})
+            request = mocked_call.call_args.args[1]
+            self.assertEqual(request["command"], "checkpoint_restore_files_preview")
+            self.assertEqual(request["relative_paths"], ["app.py"])
+
+    def test_restore_files_with_rust_returns_count(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            engine = root / "vibelign-engine"
+            _write_fake_engine(
+                engine,
+                '{"status":"ok","result":"restored_files","restored_count":2}',
+            )
+            _write_hash(engine)
+
+            with patch.dict(os.environ, {"VIBELIGN_ENGINE_PATH": str(engine)}, clear=False):
+                count, warning = restore_files_with_rust(root, "cp1", ["a.txt", "b.txt"])
+
+            self.assertIsNone(warning)
+            self.assertEqual(count, 2)
+
+    def test_restore_suggestions_with_rust_returns_payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            engine = root / "vibelign-engine"
+            _write_fake_engine(
+                engine,
+                '{"status":"ok","result":"suggested","suggestions":[{"relative_path":"app.py","reason_code":"missing_now"}],"legacy_notice":null}',
+            )
+            _write_hash(engine)
+
+            with patch.dict(os.environ, {"VIBELIGN_ENGINE_PATH": str(engine)}, clear=False):
+                result, warning = restore_suggestions_with_rust(root, "cp1")
+
+            self.assertIsNone(warning)
+            self.assertIsNotNone(result)
+            assert result is not None
+            self.assertEqual(
+                result["suggestions"],
+                [{"relative_path": "app.py", "reason_code": "missing_now"}],
+            )
 
     def test_create_checkpoint_with_rust_distinguishes_no_changes(self):
         with tempfile.TemporaryDirectory() as tmp:

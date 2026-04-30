@@ -30,6 +30,38 @@ def restore_checkpoint(root: Path, checkpoint_id: str) -> bool:
     return get_checkpoint_engine().restore_checkpoint(root, checkpoint_id)
 
 
+def diff_checkpoints(
+    root: Path, from_checkpoint_id: str, to_checkpoint_id: str
+) -> dict[str, object]:
+    engine = get_checkpoint_engine()
+    if hasattr(engine, "diff_checkpoints"):
+        return engine.diff_checkpoints(root, from_checkpoint_id, to_checkpoint_id)  # type: ignore[attr-defined]
+    raise RuntimeError("checkpoint diff is not available")
+
+
+def preview_restore(
+    root: Path, checkpoint_id: str, relative_paths: list[str] | None = None
+) -> dict[str, object]:
+    engine = get_checkpoint_engine()
+    if hasattr(engine, "preview_restore"):
+        return engine.preview_restore(root, checkpoint_id, relative_paths)  # type: ignore[attr-defined]
+    raise RuntimeError("checkpoint preview is not available")
+
+
+def restore_files(root: Path, checkpoint_id: str, relative_paths: list[str]) -> int:
+    engine = get_checkpoint_engine()
+    if hasattr(engine, "restore_files"):
+        return engine.restore_files(root, checkpoint_id, relative_paths)  # type: ignore[attr-defined]
+    raise RuntimeError("selected checkpoint restore is not available")
+
+
+def restore_suggestions(root: Path, checkpoint_id: str, cap: int = 5) -> dict[str, object]:
+    engine = get_checkpoint_engine()
+    if hasattr(engine, "restore_suggestions"):
+        return engine.restore_suggestions(root, checkpoint_id, cap)  # type: ignore[attr-defined]
+    raise RuntimeError("checkpoint restore suggestions are not available")
+
+
 def has_changes_since_checkpoint(root: Path, checkpoint_id: str) -> bool:
     return get_checkpoint_engine().has_changes_since_checkpoint(root, checkpoint_id)
 

@@ -208,6 +208,95 @@ def restore_checkpoint_with_rust(root: Path, checkpoint_id: str) -> tuple[bool, 
     return True, None
 
 
+def diff_checkpoints_with_rust(
+    root: Path, from_checkpoint_id: str, to_checkpoint_id: str
+) -> tuple[dict[str, object] | None, str | None]:
+    result = call_rust_engine(
+        root,
+        {
+            "command": "checkpoint_diff",
+            "root": str(root),
+            "from_checkpoint_id": from_checkpoint_id,
+            "to_checkpoint_id": to_checkpoint_id,
+        },
+    )
+    if not result.ok:
+        return None, _format_error(result, "rust checkpoint diff failed")
+    if result.payload.get("result") != "diffed":
+        return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected checkpoint diff result"
+    diff = result.payload.get("diff")
+    if not isinstance(diff, dict):
+        return None, "RUST_ENGINE_PROTOCOL_ERROR: diff response missing diff"
+    return cast(dict[str, object], diff), None
+
+
+def preview_restore_with_rust(
+    root: Path, checkpoint_id: str, relative_paths: list[str] | None = None
+) -> tuple[dict[str, object] | None, str | None]:
+    request: dict[str, object] = {
+        "command": "checkpoint_restore_files_preview"
+        if relative_paths is not None
+        else "checkpoint_restore_preview",
+        "root": str(root),
+        "checkpoint_id": checkpoint_id,
+    }
+    if relative_paths is not None:
+        request["relative_paths"] = relative_paths
+    result = call_rust_engine(root, request)
+    if not result.ok:
+        return None, _format_error(result, "rust checkpoint preview failed")
+    if result.payload.get("result") != "previewed":
+        return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected checkpoint preview result"
+    preview = result.payload.get("preview")
+    if not isinstance(preview, dict):
+        return None, "RUST_ENGINE_PROTOCOL_ERROR: preview response missing preview"
+    return cast(dict[str, object], preview), None
+
+
+def restore_files_with_rust(
+    root: Path, checkpoint_id: str, relative_paths: list[str]
+) -> tuple[int | None, str | None]:
+    result = call_rust_engine(
+        root,
+        {
+            "command": "checkpoint_restore_files_safe",
+            "root": str(root),
+            "checkpoint_id": checkpoint_id,
+            "relative_paths": relative_paths,
+        },
+    )
+    if not result.ok:
+        return None, _format_error(result, "rust checkpoint selected restore failed")
+    if result.payload.get("result") != "restored_files":
+        return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected selected restore result"
+    return _coerce_int(result.payload.get("restored_count", 0)), None
+
+
+def restore_suggestions_with_rust(
+    root: Path, checkpoint_id: str, cap: int = 5
+) -> tuple[dict[str, object] | None, str | None]:
+    result = call_rust_engine(
+        root,
+        {
+            "command": "checkpoint_restore_suggestions",
+            "root": str(root),
+            "checkpoint_id": checkpoint_id,
+            "cap": cap,
+        },
+    )
+    if not result.ok:
+        return None, _format_error(result, "rust checkpoint suggestions failed")
+    if result.payload.get("result") != "suggested":
+        return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected checkpoint suggestions result"
+    suggestions = result.payload.get("suggestions")
+    if not isinstance(suggestions, list):
+        return None, "RUST_ENGINE_PROTOCOL_ERROR: suggestions response missing suggestions"
+    return {
+        "suggestions": suggestions,
+        "legacy_notice": result.payload.get("legacy_notice"),
+    }, None
+
+
 def prune_checkpoints_with_rust(
     root: Path, keep_latest: int = 30
 ) -> tuple[dict[str, int] | None, str | None]:
