@@ -5,6 +5,7 @@ import argparse
 import json
 import hashlib
 import os
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from . import docs_scan as _DOCS_SCAN
@@ -70,8 +71,8 @@ def _read_title(path: Path) -> str:
             stripped = line.strip()
             if stripped.startswith("#"):
                 return stripped.lstrip("#").strip() or path.stem
-    except OSError:
-        pass
+    except OSError as exc:
+        print(f"[WARN] docs title fallback for {path}: {exc}", file=sys.stderr)
     return path.stem.replace("-", " ").replace("_", " ").strip() or path.name
 # === ANCHOR: DOCS_CACHE__READ_TITLE_END ===
 
@@ -155,7 +156,9 @@ def _iter_index_targets(root: Path) -> tuple[list[tuple[str, Path, str | None]],
     for source_rel in doc_sources_obj.sources:
         extra_root = root / source_rel
         if not extra_root.is_dir():
-            # 등록된 source가 삭제됐거나 dir가 아니면 silently skip
+            warnings.append(
+                f"extra source '{source_rel}': 경로가 없거나 디렉터리가 아니어서 건너뜁니다."
+            )
             continue
 
         count = 0

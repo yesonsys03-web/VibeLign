@@ -7,6 +7,7 @@ import types
 import unittest
 from argparse import Namespace
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -438,6 +439,50 @@ class ExtraSourceIndexTest(unittest.TestCase):
                 any("2" in w for w in warnings),
                 f"Warning should mention the cap count; got: {warnings}",
             )
+
+    def test_missing_extra_source_emits_warning_but_keeps_building(self):
+        docs_cache = self._get_docs_cache()
+        doc_sources = self._get_doc_sources()
+        meta_paths = self._get_meta_paths()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir()
+            (root / "README.md").write_text("# Hello\n", encoding="utf-8")
+            (root / "missing_dir").mkdir()
+
+            meta = meta_paths.MetaPaths(root)
+            doc_sources.add(meta, "missing_dir")
+            (root / "missing_dir").rmdir()
+
+            entries, warnings = docs_cache.build_docs_index_with_warnings(root)
+
+            self.assertTrue(any(entry.category == "Readme" for entry in entries))
+            self.assertTrue(
+                any("missing_dir" in warning for warning in warnings),
+                f"Missing extra source warning expected; got: {warnings}",
+            )
+
+    def test_read_title_falls_back_with_warning(self):
+        docs_cache = self._get_docs_cache()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "broken-name.md"
+            target.write_text("# ignored\n", encoding="utf-8")
+
+            stderr = []
+
+            def _capture_write(text: str) -> int:
+                stderr.append(text)
+                return len(text)
+
+            with patch.object(Path, "read_text", side_effect=OSError("read failed")):
+                with patch("sys.stderr.write", side_effect=_capture_write):
+                    title = docs_cache._read_title(target)
+
+            self.assertEqual(title, "broken name")
+            self.assertTrue(any("docs title fallback" in item for item in stderr))
 
 
 class Phase3CacheParityTest(unittest.TestCase):
