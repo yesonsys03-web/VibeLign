@@ -72,7 +72,7 @@ export default function HistoryCard({ projectDir }: HistoryCardProps) {
           <div className="feature-card-icon"
             style={{ background: "#7B4DFF", color: "#fff", borderColor: "#7B4DFF", width: 28, height: 28, fontSize: 14, fontWeight: 900 }}>🕓</div>
           <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-            <span style={{ fontWeight: 700, fontSize: 18, flexShrink: 0 }}>히스토리</span>
+              <span style={{ fontWeight: 700, fontSize: 18, flexShrink: 0 }}>저장 기록</span>
             <span style={{ fontSize: 10, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>
               저장이 언제 찍혔는지 시간 순으로 보여 줘요
             </span>
@@ -90,7 +90,7 @@ export default function HistoryCard({ projectDir }: HistoryCardProps) {
         <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
           <GuiCliOutputBlock
             text={out}
-            placeholder="체크포인트 변경 이력 보기"
+            placeholder="저장 기록 보기"
             variant={st === "error" ? "error" : hasWarning ? "warn" : "default"}
           />
           <div style={{ display: "flex", gap: 4 }}>

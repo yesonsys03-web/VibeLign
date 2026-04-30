@@ -7,7 +7,7 @@ const CMD = COMMANDS.find((c) => c.name === "undo")!;
 
 interface UndoCardProps {
   projectDir: string;
-  onNavigate: (page: "checkpoints") => void;
+  onNavigate: (page: "backups") => void;
 }
 
 export default function UndoCard({ onNavigate }: UndoCardProps) {
@@ -38,7 +38,7 @@ export default function UndoCard({ onNavigate }: UndoCardProps) {
         <button
           className="btn btn-sm"
           style={{ width: "100%", background: CMD.color, color: "#fff", border: "2px solid #1A1A1A", fontSize: 10 }}
-          onClick={() => onNavigate("checkpoints")}
+          onClick={() => onNavigate("backups")}
         >
           UNDO ▶
         </button>

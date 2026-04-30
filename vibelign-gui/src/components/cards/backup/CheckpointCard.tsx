@@ -5,7 +5,7 @@ import { CardState } from "../../../lib/commands";
 
 interface CheckpointCardProps {
   projectDir: string;
-  onNavigate: (page: "checkpoints") => void;
+  onNavigate: (page: "backups") => void;
 }
 
 export default function CheckpointCard({ projectDir, onNavigate }: CheckpointCardProps) {
@@ -31,7 +31,7 @@ export default function CheckpointCard({ projectDir, onNavigate }: CheckpointCar
         <div className="feature-card-icon"
           style={{ background: "#7B4DFF", color: "#fff", borderColor: "#7B4DFF", width: 28, height: 28, fontSize: 12, fontWeight: 900 }}>💾</div>
         <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-          <span style={{ fontWeight: 700, fontSize: 18, flexShrink: 0 }}>체크포인트</span>
+          <span style={{ fontWeight: 700, fontSize: 18, flexShrink: 0 }}>백업</span>
           <span style={{ fontSize: 10, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>
             지금 코드 모습을 저장해 두면 나중에 그때로 되돌릴 수 있어요 (게임 세이브 같아요)
           </span>
@@ -55,7 +55,7 @@ export default function CheckpointCard({ projectDir, onNavigate }: CheckpointCar
             {st === "loading" ? <span className="spinner" /> : "저장 ▶"}
           </button>
           <button className="btn btn-ghost btn-sm" style={{ fontSize: 10, border: "2px solid #1A1A1A" }}
-            onClick={() => onNavigate("checkpoints")}>목록</button>
+            onClick={() => onNavigate("backups")}>목록</button>
         </div>
       </div>
     </div>
