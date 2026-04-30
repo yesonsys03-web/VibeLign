@@ -876,6 +876,22 @@ fn is_allowed_vib_env_key(k: &str) -> bool {
     ALLOWED_VIB_ENV_KEYS.contains(&k) || k.starts_with("VIBELIGN_")
 }
 
+fn apply_project_rust_engine_env(
+    cmd: &mut std::process::Command,
+    cwd: Option<&Path>,
+    env: Option<&HashMap<String, String>>,
+) {
+    if env
+        .and_then(|env_map| env_map.get("VIBELIGN_ENGINE_PATH"))
+        .is_some()
+    {
+        return;
+    }
+    if let Some(engine) = vib_path::find_runtime_rust_engine(cwd) {
+        cmd.env("VIBELIGN_ENGINE_PATH", engine);
+    }
+}
+
 /// vib 실행 파일 경로를 반환한다. 없으면 None.
 #[tauri::command]
 fn get_vib_path() -> Option<String> {
@@ -917,9 +933,12 @@ async fn run_vib(
         cmd.stdin(std::process::Stdio::null());
         cmd.env("PATH", augmented_vib_path());
 
-        if let Some(dir) = cwd {
-            cmd.current_dir(PathBuf::from(dir));
+        let cwd_path = cwd.map(PathBuf::from);
+        if let Some(dir) = cwd_path.as_ref() {
+            cmd.current_dir(dir);
         }
+
+        apply_project_rust_engine_env(&mut cmd, cwd_path.as_deref(), env.as_ref());
 
         // Windows에서 Python 서브프로세스의 stdout 인코딩을 UTF-8로 강제 설정 + 콘솔 창 숨김
         #[cfg(target_os = "windows")]
@@ -1072,9 +1091,12 @@ async fn run_vib_with_progress(
         cmd.env("PATH", augmented_vib_path());
         cmd.env("PYTHONUNBUFFERED", "1");
 
-        if let Some(dir) = cwd {
-            cmd.current_dir(PathBuf::from(dir));
+        let cwd_path = cwd.map(PathBuf::from);
+        if let Some(dir) = cwd_path.as_ref() {
+            cmd.current_dir(dir);
         }
+
+        apply_project_rust_engine_env(&mut cmd, cwd_path.as_deref(), env.as_ref());
 
         #[cfg(target_os = "windows")]
         {

@@ -13,6 +13,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
 
+use sha2::{Digest, Sha256};
+
 /// Tauri setup 단계에서 PathResolver 로 확정한 번들 vib 절대 경로.
 /// onedir PyInstaller 빌드에서는 실행 파일 옆에 `_internal/` 디렉터리가 함께 있어야 하므로
 /// 앱 resource 경로(`<App>.app/Contents/Resources/vib-runtime/vib` 등) 를 통째로 보존해야 한다.
@@ -116,6 +118,98 @@ fn configure_posix_shell_path(home: &Path, path_line: &str) -> Result<(), String
 
 fn is_nonempty_file(path: &Path) -> bool {
     std::fs::metadata(path).map_or(false, |m| m.len() > 0)
+}
+
+fn rust_engine_binary_name() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "vibelign-engine.exe"
+    } else {
+        "vibelign-engine"
+    }
+}
+
+fn sha256_manifest_path(path: &Path) -> PathBuf {
+    path.with_extension(format!(
+        "{}sha256",
+        path.extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| format!("{ext}."))
+            .unwrap_or_default()
+    ))
+}
+
+fn has_valid_sha256_manifest(path: &Path) -> bool {
+    let expected = match std::fs::read_to_string(sha256_manifest_path(path)) {
+        Ok(content) => content.split_whitespace().next().unwrap_or("").to_ascii_lowercase(),
+        Err(_) => return false,
+    };
+    if expected.is_empty() {
+        return false;
+    }
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(_) => return false,
+    };
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize()) == expected
+}
+
+fn find_rust_engine_under(base: &Path) -> Option<PathBuf> {
+    let engine_name = rust_engine_binary_name();
+    for profile in ["debug", "release"] {
+        let candidate = base
+            .join("vibelign-core")
+            .join("target")
+            .join(profile)
+            .join(engine_name);
+        if is_nonempty_file(&candidate) && has_valid_sha256_manifest(&candidate) {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+/// 프로젝트 소스 트리 또는 그 상위 경로에 빌드된 Rust checkpoint engine 이 있으면 반환한다.
+/// Why: GUI dev/runtime 은 설치된 `vib` 를 우선 찾을 수 있는데, 그 경우에도 현재 소스 트리의
+///      최신 checkpoint engine 을 명시해야 CAS(`rust_objects`) 저장 경로를 사용한다.
+pub fn find_project_rust_engine(root: &Path) -> Option<PathBuf> {
+    let start = if root.is_file() {
+        root.parent().unwrap_or(root)
+    } else {
+        root
+    };
+    for base in start.ancestors() {
+        if let Some(engine) = find_rust_engine_under(base) {
+            return Some(engine);
+        }
+    }
+    None
+}
+
+fn find_runtime_rust_engine_with_fallbacks(
+    project_root: Option<&Path>,
+    fallback_roots: &[PathBuf],
+) -> Option<PathBuf> {
+    if let Some(engine) = project_root.and_then(find_project_rust_engine) {
+        return Some(engine);
+    }
+    fallback_roots
+        .iter()
+        .find_map(|root| find_project_rust_engine(root))
+}
+
+/// GUI subprocess 에 주입할 로컬 Rust engine 을 찾는다.
+/// 백업 대상 프로젝트 밖에서 GUI를 실행하는 dev 흐름을 위해 current_exe/current_dir도 확인한다.
+pub fn find_runtime_rust_engine(project_root: Option<&Path>) -> Option<PathBuf> {
+    let mut fallback_roots: Vec<PathBuf> = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        fallback_roots.push(exe);
+    }
+    if let Ok(dir) = std::env::current_dir() {
+        fallback_roots.push(dir);
+    }
+    find_runtime_rust_engine_with_fallbacks(project_root, &fallback_roots)
 }
 
 #[cfg(any(target_os = "windows", test))]
@@ -503,8 +597,29 @@ pub fn refresh_gui_wrapper(bundled_vib: &Path) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_windows_unc_path;
-    use std::path::Path;
+    use super::{
+        find_project_rust_engine, find_runtime_rust_engine_with_fallbacks,
+        normalize_windows_unc_path, rust_engine_binary_name, sha256_manifest_path,
+    };
+    use sha2::{Digest, Sha256};
+    use std::path::{Path, PathBuf};
+
+    fn write_fake_engine(path: &Path, bytes: &[u8], valid_manifest: bool) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, bytes).unwrap();
+        let digest = if valid_manifest {
+            let mut hasher = Sha256::new();
+            hasher.update(bytes);
+            format!("{:x}", hasher.finalize())
+        } else {
+            "0".to_string()
+        };
+        std::fs::write(
+            sha256_manifest_path(path),
+            format!("{digest}  {}\n", path.file_name().unwrap().to_string_lossy()),
+        )
+        .unwrap();
+    }
 
     #[test]
     fn normalize_windows_unc_path_removes_extended_prefix() {
@@ -541,6 +656,63 @@ mod tests {
         assert_eq!(
             normalize_windows_unc_path(path),
             Path::new(r"\\vmware-host\Shared Folders\project")
+        );
+    }
+
+    #[test]
+    fn sha256_manifest_path_preserves_windows_exe_extension() {
+        assert_eq!(
+            sha256_manifest_path(Path::new("vibelign-engine.exe")),
+            PathBuf::from("vibelign-engine.exe.sha256")
+        );
+    }
+
+    #[test]
+    fn find_project_rust_engine_prefers_valid_debug_engine() {
+        let temp = tempfile::tempdir().unwrap();
+        let engine = temp
+            .path()
+            .join("vibelign-core")
+            .join("target")
+            .join("debug")
+            .join(rust_engine_binary_name());
+        write_fake_engine(&engine, b"debug-engine", true);
+
+        assert_eq!(find_project_rust_engine(temp.path()), Some(engine));
+    }
+
+    #[test]
+    fn find_project_rust_engine_rejects_bad_manifest() {
+        let temp = tempfile::tempdir().unwrap();
+        let engine = temp
+            .path()
+            .join("vibelign-core")
+            .join("target")
+            .join("debug")
+            .join(rust_engine_binary_name());
+        write_fake_engine(&engine, b"debug-engine", false);
+
+        assert_eq!(find_project_rust_engine(temp.path()), None);
+    }
+
+    #[test]
+    fn runtime_rust_engine_uses_fallback_when_project_is_external() {
+        let repo = tempfile::tempdir().unwrap();
+        let external_project = tempfile::tempdir().unwrap();
+        let engine = repo
+            .path()
+            .join("vibelign-core")
+            .join("target")
+            .join("debug")
+            .join(rust_engine_binary_name());
+        write_fake_engine(&engine, b"debug-engine", true);
+
+        assert_eq!(
+            find_runtime_rust_engine_with_fallbacks(
+                Some(external_project.path()),
+                &[PathBuf::from(repo.path())],
+            ),
+            Some(engine)
         );
     }
 }
