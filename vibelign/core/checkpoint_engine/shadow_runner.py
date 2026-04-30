@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import os
 import shutil
 import unicodedata
 from typing import cast
@@ -36,6 +37,12 @@ class ShadowComparisonResult:
 def prepare_shadow_run(
     root: Path, operation: str, payload: Mapping[str, object] | None = None
 ) -> ShadowRunResult:
+    if os.environ.get("VIBELIGN_SHADOW_COMPARE", "").strip() != "1":
+        return ShadowRunResult(
+            enabled=False,
+            operation=operation,
+            reason="Rust shadow comparison is disabled. Set VIBELIGN_SHADOW_COMPARE=1 to enable.",
+        )
     availability = find_rust_engine(root)
     if not availability.available:
         return ShadowRunResult(
