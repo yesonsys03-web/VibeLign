@@ -1,3 +1,4 @@
+use crate::backup::disk;
 use crate::backup::restore::{backup_source, checkpoint_context, copy_backup_file, target_path};
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -7,6 +8,7 @@ pub fn restore_selected(
     checkpoint_id: &str,
     relative_paths: &[String],
 ) -> Result<usize, String> {
+    disk::ensure_min_free_space(root)?;
     let (conn, is_v2, files) = checkpoint_context(root, checkpoint_id)?;
     let selected = relative_paths.iter().cloned().collect::<BTreeSet<_>>();
     let mut restored = 0_usize;

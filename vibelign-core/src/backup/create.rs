@@ -1,6 +1,7 @@
 // === ANCHOR: BACKUP_CREATE_START ===
 use crate::backup::cas;
 use crate::backup::checkpoint::{CheckpointCreateMetadata, CreatedCheckpoint};
+use crate::backup::disk;
 use crate::backup::snapshot::{collect, SnapshotFile};
 use crate::db::schema;
 use chrono::{SecondsFormat, Utc};
@@ -50,6 +51,7 @@ pub fn create_with_metadata(
     message: &str,
     metadata: CheckpointCreateMetadata,
 ) -> Result<Option<CreatedCheckpoint>, String> {
+    disk::ensure_min_free_space(root)?;
     let vibelign_dir = root.join(".vibelign");
     fs::create_dir_all(&vibelign_dir).map_err(|error| error.to_string())?;
     let db_path = vibelign_dir.join("vibelign.db");
