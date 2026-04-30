@@ -1,5 +1,6 @@
 // === ANCHOR: HISTORY_CARD_START ===
 import { useRef, useState } from "react";
+import BackupCard from "../../backup-dashboard/BackupCard";
 import { runVib } from "../../../lib/vib";
 import GuiCliOutputBlock from "../../GuiCliOutputBlock";
 import { CardState } from "../../../lib/commands";
@@ -67,16 +68,15 @@ export default function HistoryCard({ projectDir }: HistoryCardProps) {
           </div>
         </div>
       )}
-      <div className="feature-card" style={{ cursor: "default" }}>
-        <div className="feature-card-header" style={{ background: "#7B4DFF18", padding: "10px 14px" }}>
-          <div className="feature-card-icon"
-            style={{ background: "#7B4DFF", color: "#fff", borderColor: "#7B4DFF", width: 28, height: 28, fontSize: 14, fontWeight: 900 }}>🕓</div>
-          <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-              <span style={{ fontWeight: 700, fontSize: 18, flexShrink: 0 }}>저장 기록</span>
-            <span style={{ fontSize: 10, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>
-              저장이 언제 찍혔는지 시간 순으로 보여 줘요
-            </span>
-          </div>
+      <BackupCard
+        icon="🕓"
+        title="저장 기록"
+        subtitle="저장이 언제 찍혔는지 시간 순으로 보여 줘요"
+        headerStyle={{ background: "#7B4DFF18", padding: "10px 14px" }}
+        iconStyle={{ background: "#7B4DFF", color: "#fff", borderColor: "#7B4DFF", width: 28, height: 28, fontSize: 14, fontWeight: 900 }}
+        bodyStyle={{ padding: "8px 14px 10px" }}
+        actions={
+          <>
           {(st === "done" || (st === "idle" && out)) && !hasWarning && (
             <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#4DFF91", color: "#1A1A1A", border: "1px solid #1A1A1A" }}>완료</span>
           )}
@@ -86,25 +86,25 @@ export default function HistoryCard({ projectDir }: HistoryCardProps) {
           {st === "error" && (
             <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: "#FF4D4D", color: "#fff", border: "1px solid #1A1A1A" }}>오류</span>
           )}
+          </>
+        }
+      >
+        <GuiCliOutputBlock
+          text={out}
+          placeholder="저장 기록 보기"
+          variant={st === "error" ? "error" : hasWarning ? "warn" : "default"}
+        />
+        <div style={{ display: "flex", gap: 4 }}>
+          <button className="btn btn-sm" style={{ flex: 1, background: "#7B4DFF", color: "#fff", border: "2px solid #1A1A1A" }}
+            disabled={st === "loading"} onClick={handleRun}>
+            {st === "loading" ? <span className="spinner" /> : "HISTORY ▶"}
+          </button>
+          {out && (
+            <button className="btn btn-ghost btn-sm" style={{ fontSize: 9, border: "2px solid #1A1A1A", flexShrink: 0 }}
+              onClick={() => setShowModal(true)}>결과</button>
+          )}
         </div>
-        <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
-          <GuiCliOutputBlock
-            text={out}
-            placeholder="저장 기록 보기"
-            variant={st === "error" ? "error" : hasWarning ? "warn" : "default"}
-          />
-          <div style={{ display: "flex", gap: 4 }}>
-            <button className="btn btn-sm" style={{ flex: 1, background: "#7B4DFF", color: "#fff", border: "2px solid #1A1A1A" }}
-              disabled={st === "loading"} onClick={handleRun}>
-              {st === "loading" ? <span className="spinner" /> : "HISTORY ▶"}
-            </button>
-            {out && (
-              <button className="btn btn-ghost btn-sm" style={{ fontSize: 9, border: "2px solid #1A1A1A", flexShrink: 0 }}
-                onClick={() => setShowModal(true)}>결과</button>
-            )}
-          </div>
-        </div>
-      </div>
+      </BackupCard>
     </>
   );
 }
