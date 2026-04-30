@@ -1,9 +1,12 @@
 import os
+import stat
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+from vibelign.commands.internal_post_commit_cmd import run_internal_post_commit
 from vibelign.core.git_hooks import (
     install_post_commit_record_hook,
     uninstall_post_commit_record_hook,
@@ -25,7 +28,7 @@ class PostCommitHookTest(unittest.TestCase):
             self.assertTrue(hook.exists())
             self.assertTrue(os.access(hook, os.X_OK))
             content = hook.read_text()
-            self.assertIn("# vibelign: post-commit-record v1", content)
+            self.assertIn("# vibelign: post-commit-record v2", content)
             self.assertIn("# vibelign: post-commit-record-end", content)
 
     def test_idempotent(self):
@@ -56,10 +59,48 @@ class PostCommitHookTest(unittest.TestCase):
             # 셔뱅은 위 1줄, 그 직후 vibelign 블록, 그 다음 기존 사용자 hook
             lines = content.splitlines()
             shebang_idx = next(i for i, l in enumerate(lines) if l.startswith("#!"))
-            vib_start_idx = next(i for i, l in enumerate(lines) if "post-commit-record v1" in l)
+            vib_start_idx = next(i for i, l in enumerate(lines) if "post-commit-record v2" in l)
             user_idx = next(i for i, l in enumerate(lines) if "user hook" in l)
             self.assertLess(shebang_idx, vib_start_idx)
             self.assertLess(vib_start_idx, user_idx)
+
+    def test_upgrades_v1_hook_block_to_v2(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _git_init(root)
+            hook = root / ".git" / "hooks" / "post-commit"
+            hook.write_text(
+                "#!/bin/sh\n"
+                "# vibelign: post-commit-record v1\n"
+                "old command\n"
+                "# vibelign: post-commit-record-end\n"
+                "echo user hook\n",
+                encoding="utf-8",
+            )
+            hook.chmod(0o700)
+
+            result = install_post_commit_record_hook(root)
+            content = hook.read_text(encoding="utf-8")
+
+            self.assertEqual(result.status, "updated")
+            self.assertIn("# vibelign: post-commit-record v2", content)
+            self.assertNotIn("old command", content)
+            self.assertIn("echo user hook", content)
+            self.assertEqual(stat.S_IMODE(hook.stat().st_mode), 0o700)
+
+    def test_preserves_crlf_when_updating_existing_hook(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _git_init(root)
+            hook = root / ".git" / "hooks" / "post-commit"
+            hook.write_bytes(b"#!/bin/sh\r\necho user hook\r\n")
+            hook.chmod(0o755)
+
+            install_post_commit_record_hook(root)
+
+            content = hook.read_bytes()
+            self.assertIn(b"# vibelign: post-commit-record v2\r\n", content)
+            self.assertNotIn(b"# vibelign: post-commit-record v2\nsha=", content)
 
     def test_uninstall_preserves_existing_user_hook(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -75,7 +116,7 @@ class PostCommitHookTest(unittest.TestCase):
 
             # User content preserved
             self.assertIn("user hook", content)
-            self.assertNotIn("post-commit-record v1", content)
+            self.assertNotIn("post-commit-record v2", content)
 
             # CRITICAL: shebang must be on its own first line, NOT fused with next line
             lines = content.splitlines()
@@ -104,4 +145,21 @@ class PostCommitHookTest(unittest.TestCase):
             _git_init(root)
             install_post_commit_record_hook(root)
             content = (root / ".git" / "hooks" / "post-commit").read_text()
-            self.assertIn("python3 -m vibelign.cli.vib_cli _internal_record_commit", content)
+            self.assertIn("python -m vibelign.cli.vib_cli _internal_post_commit", content)
+            self.assertIn("py -3 -m vibelign.cli.vib_cli _internal_post_commit", content)
+            self.assertIn("python3 -m vibelign.cli.vib_cli _internal_post_commit", content)
+
+    def test_internal_post_commit_records_once_and_runs_auto_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch("sys.stdin.read", return_value="feat: demo"):
+                with patch(
+                    "vibelign.commands.internal_post_commit_cmd.record_commit_message"
+                ) as record:
+                    with patch(
+                        "vibelign.commands.internal_post_commit_cmd.create_post_commit_backup"
+                    ) as backup:
+                        run_internal_post_commit(type("Args", (), {"sha": "abc1234"})(), root=root)
+
+            record.assert_called_once_with(root, "abc1234", "feat: demo")
+            backup.assert_called_once_with(root, "abc1234", "feat: demo")

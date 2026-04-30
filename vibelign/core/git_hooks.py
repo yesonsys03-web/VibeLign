@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -177,8 +178,9 @@ def uninstall_pre_commit_secret_hook(root: Path) -> HookInstallResult:
 
 
 # === ANCHOR: GIT_HOOKS_POST_COMMIT_RECORD_START ===
-_POST_COMMIT_MARKER = "# vibelign: post-commit-record v1"
+_POST_COMMIT_MARKER_V2 = "# vibelign: post-commit-record v2"
 _POST_COMMIT_END = "# vibelign: post-commit-record-end"
+_POST_COMMIT_MARKER_RE = re.compile(r"# vibelign: post-commit-record v[12]")
 
 # vib → vibelign → python -m fallback. stdin 으로 commit 메시지 전달.
 _POST_COMMIT_BLOCK_TEMPLATE = """\
@@ -187,11 +189,15 @@ sha=$(git rev-parse HEAD 2>/dev/null)
 msg=$(git log -1 --pretty=%B 2>/dev/null)
 if [ -n "$sha" ] && [ -n "$msg" ]; then
     if command -v vib >/dev/null 2>&1; then
-        printf "%s" "$msg" | vib _internal_record_commit "$sha" >/dev/null 2>&1 || true
+        printf "%s" "$msg" | vib _internal_post_commit "$sha" >/dev/null 2>&1 || true
     elif command -v vibelign >/dev/null 2>&1; then
-        printf "%s" "$msg" | vibelign _internal_record_commit "$sha" >/dev/null 2>&1 || true
+        printf "%s" "$msg" | vibelign _internal_post_commit "$sha" >/dev/null 2>&1 || true
+    elif command -v python >/dev/null 2>&1; then
+        printf "%s" "$msg" | python -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null 2>&1 || true
+    elif command -v py >/dev/null 2>&1; then
+        printf "%s" "$msg" | py -3 -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null 2>&1 || true
     elif command -v python3 >/dev/null 2>&1; then
-        printf "%s" "$msg" | python3 -m vibelign.cli.vib_cli _internal_record_commit "$sha" >/dev/null 2>&1 || true
+        printf "%s" "$msg" | python3 -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null 2>&1 || true
     fi
 fi
 {end}
@@ -200,8 +206,32 @@ fi
 
 def _build_post_commit_block() -> str:
     return _POST_COMMIT_BLOCK_TEMPLATE.format(
-        marker=_POST_COMMIT_MARKER, end=_POST_COMMIT_END
+        marker=_POST_COMMIT_MARKER_V2, end=_POST_COMMIT_END
     )
+
+
+def _strip_post_commit_block(content: str) -> tuple[str, bool]:
+    marker_match = _POST_COMMIT_MARKER_RE.search(content)
+    if marker_match is None:
+        return content, False
+    end = content.find(_POST_COMMIT_END, marker_match.start())
+    if end < 0:
+        return content, False
+    start = marker_match.start()
+    end_idx = end + len(_POST_COMMIT_END)
+    if start > 0 and content[start - 1] == "\n":
+        start -= 1
+    if end_idx < len(content) and content[end_idx] == "\n":
+        end_idx += 1
+    return content[:start] + content[end_idx:], True
+
+
+def _with_newline_style(text: str, existing: str) -> str:
+    return text.replace("\n", "\r\n") if "\r\n" in existing else text
+
+
+def _read_hook_text(path: Path) -> str:
+    return path.read_bytes().decode("utf-8", errors="ignore")
 
 
 def install_post_commit_record_hook(root: Path) -> HookInstallResult:
@@ -213,21 +243,28 @@ def install_post_commit_record_hook(root: Path) -> HookInstallResult:
     block = _build_post_commit_block()
 
     if hook_path.exists():
-        existing = hook_path.read_text(encoding="utf-8")
-        if _POST_COMMIT_MARKER in existing:
+        original_mode = hook_path.stat().st_mode
+        existing = _read_hook_text(hook_path)
+        stripped, had_block = _strip_post_commit_block(existing)
+        if had_block and _POST_COMMIT_MARKER_V2 in existing:
             return HookInstallResult(status="already-installed", path=hook_path)
+        status = "updated" if had_block else "installed"
+        existing = stripped
         # shebang 보존 + 그 다음에 vibelign 블록 + 그 다음에 기존 본문
         if existing.startswith("#!"):
             shebang, _, rest = existing.partition("\n")
             new_content = f"{shebang}\n\n{block}\n{rest}"
         else:
             new_content = f"#!/bin/sh\n\n{block}\n{existing}"
+        new_content = _with_newline_style(new_content, existing)
     else:
+        original_mode = 0o755
+        status = "installed"
         new_content = f"#!/bin/sh\n\n{block}\n"
 
     hook_path.write_text(new_content, encoding="utf-8")
-    hook_path.chmod(0o755)
-    return HookInstallResult(status="installed", path=hook_path)
+    hook_path.chmod(original_mode)
+    return HookInstallResult(status=status, path=hook_path)
 
 
 def uninstall_post_commit_record_hook(root: Path) -> HookInstallResult:
@@ -238,25 +275,18 @@ def uninstall_post_commit_record_hook(root: Path) -> HookInstallResult:
     if not hook_path.exists():
         return HookInstallResult(status="missing", path=hook_path)
 
-    content = hook_path.read_text(encoding="utf-8")
-    if _POST_COMMIT_MARKER not in content:
+    content = _read_hook_text(hook_path)
+    new_content, had_block = _strip_post_commit_block(content)
+    if not had_block:
         return HookInstallResult(status="foreign-hook", path=hook_path)
-
-    start = content.index(_POST_COMMIT_MARKER)
-    end_idx = content.index(_POST_COMMIT_END, start) + len(_POST_COMMIT_END)
-    # 양 옆 최대 1개 newline 만 소비 (shebang/본문 보존)
-    if start > 0 and content[start - 1] == "\n":
-        start -= 1
-    if end_idx < len(content) and content[end_idx] == "\n":
-        end_idx += 1
-    new_content = content[:start] + content[end_idx:]
     new_content = new_content.rstrip()
 
     if new_content.strip() in ("", "#!/bin/sh"):
         hook_path.unlink()
         return HookInstallResult(status="removed", path=hook_path)
 
-    hook_path.write_text(new_content + "\n", encoding="utf-8")
+    suffix = "\r\n" if "\r\n" in content else "\n"
+    hook_path.write_text(_with_newline_style(new_content, content) + suffix, encoding="utf-8")
     return HookInstallResult(status="removed", path=hook_path)
 # === ANCHOR: GIT_HOOKS_POST_COMMIT_RECORD_END ===
 # === ANCHOR: GIT_HOOKS_END ===
