@@ -99,6 +99,7 @@ pub fn restore(root: &Path, checkpoint_id: &str) -> Result<(), String> {
         return Err("checkpoint database missing".to_string());
     }
     let conn = Connection::open(db_path).map_err(|error| error.to_string())?;
+    schema::initialize(&conn).map_err(|error| error.to_string())?;
     let engine_version: Option<Option<String>> = conn
         .query_row(
             "SELECT engine_version FROM checkpoints WHERE checkpoint_id = ?",
@@ -147,9 +148,13 @@ pub fn restore(root: &Path, checkpoint_id: &str) -> Result<(), String> {
         }
     }
     for (relative_path, storage_path, _size, object_hash) in snapshot_files {
+        let object_hash_for_restore = if is_v2 {
+            Some(object_hash.ok_or_else(|| "backup object hash missing".to_string())?)
+        } else {
+            None
+        };
         let source = if is_v2 {
-            let hash = object_hash.ok_or_else(|| "backup object hash missing".to_string())?;
-            cas::resolve_object(root, &conn, &hash)?
+            cas::resolve_object(root, &conn, object_hash_for_restore.as_deref().unwrap())?
         } else {
             resolve_under(root, &storage_path)
                 .ok_or_else(|| "storage path escaped project root".to_string())?
@@ -188,10 +193,17 @@ pub fn restore(root: &Path, checkpoint_id: &str) -> Result<(), String> {
         if was_readonly {
             set_readonly(&target, false)?;
         }
-        fs::copy(source, &target).map_err(|error| error.to_string())?;
+        let restore_result = if let Some(hash) = object_hash_for_restore {
+            cas::restore_object_to(root, &conn, &hash, &target)
+        } else {
+            fs::copy(source, &target)
+                .map(|_| ())
+                .map_err(|error| error.to_string())
+        };
         if was_readonly {
             set_readonly(&target, true)?;
         }
+        restore_result?;
     }
     Ok(())
 }
@@ -288,7 +300,8 @@ pub fn prune(root: &Path, keep_latest: usize) -> Result<PruneResult, String> {
             )
             .map_err(|error| error.to_string())?;
             tx.commit().map_err(|error| error.to_string())?;
-            cas::prune_unreferenced(root, &conn)?;
+            let pruned = cas::prune_unreferenced_detailed(root, &conn)?;
+            deleted.bytes += pruned.bytes;
         } else {
             let storage_dir = root
                 .join(".vibelign")
@@ -307,9 +320,9 @@ pub fn prune(root: &Path, keep_latest: usize) -> Result<PruneResult, String> {
                 params![checkpoint.checkpoint_id],
             )
             .map_err(|error| error.to_string())?;
+            deleted.bytes += checkpoint.total_size_bytes;
         }
         deleted.count += 1;
-        deleted.bytes += checkpoint.total_size_bytes;
     }
     Ok(deleted)
 }
@@ -403,6 +416,172 @@ mod tests {
     }
 
     #[test]
+    fn restores_zstd_compressed_cas_object() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let app = root.join("app.rs");
+        let original = "fn main() { println!(\"hello\"); }\n".repeat(256);
+        std::fs::write(&app, &original).unwrap();
+        let created = create(root, "first").unwrap().unwrap();
+        let conn = Connection::open(root.join(".vibelign/vibelign.db")).unwrap();
+        let (compression, original_size, stored_size): (String, i64, i64) = conn
+            .query_row(
+                "SELECT o.compression, c.original_size_bytes, c.stored_size_bytes
+                 FROM cas_objects o
+                 JOIN checkpoint_files f ON f.object_hash = o.hash
+                 JOIN checkpoints c ON c.checkpoint_id = f.checkpoint_id
+                 WHERE f.checkpoint_id = ?",
+                params![created.checkpoint_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(compression, "zstd");
+        assert_eq!(original_size, original.len() as i64);
+        assert!(stored_size < original_size);
+
+        std::fs::write(&app, "changed\n").unwrap();
+        restore(root, &created.checkpoint_id).unwrap();
+
+        assert_eq!(std::fs::read_to_string(app).unwrap(), original);
+    }
+
+    #[test]
+    fn restore_migrates_legacy_database_before_reading_checkpoint_columns() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let vibelign_dir = root.join(".vibelign");
+        let checkpoint_id = "legacy-cp";
+        let storage_dir = vibelign_dir
+            .join("rust_checkpoints")
+            .join(checkpoint_id)
+            .join("files");
+        std::fs::create_dir_all(&storage_dir).unwrap();
+        std::fs::write(storage_dir.join("app.py"), "print(1)\n").unwrap();
+        std::fs::write(root.join("app.py"), "print(2)\n").unwrap();
+        let conn = Connection::open(vibelign_dir.join("vibelign.db")).unwrap();
+        conn.execute_batch(
+            "
+            CREATE TABLE db_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            INSERT INTO db_meta(key, value) VALUES ('schema_version', '1');
+            CREATE TABLE checkpoints(
+                id INTEGER PRIMARY KEY,
+                checkpoint_id TEXT UNIQUE NOT NULL,
+                message TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                pinned INTEGER NOT NULL DEFAULT 0,
+                total_size_bytes INTEGER NOT NULL DEFAULT 0,
+                file_count INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE checkpoint_files(
+                id INTEGER PRIMARY KEY,
+                checkpoint_id TEXT NOT NULL,
+                relative_path TEXT NOT NULL,
+                hash TEXT NOT NULL,
+                hash_algo TEXT NOT NULL DEFAULT 'blake3',
+                size INTEGER NOT NULL,
+                storage_path TEXT NOT NULL DEFAULT ''
+            );
+            CREATE TABLE retention_policy(
+                id INTEGER PRIMARY KEY,
+                keep_latest INTEGER DEFAULT 30,
+                keep_daily_days INTEGER DEFAULT 14,
+                keep_weekly_weeks INTEGER DEFAULT 8,
+                max_total_size_bytes INTEGER DEFAULT 2147483648,
+                max_age_days INTEGER DEFAULT 180,
+                min_keep INTEGER DEFAULT 10,
+                updated_at TEXT
+            );
+            INSERT INTO retention_policy(id, updated_at) VALUES (1, datetime('now'));
+            CREATE TABLE cas_objects(hash TEXT PRIMARY KEY, storage_path TEXT NOT NULL, ref_count INTEGER DEFAULT 1, hash_algo TEXT DEFAULT 'blake3', size INTEGER);
+            ",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO checkpoints(checkpoint_id, message, created_at, total_size_bytes, file_count)
+             VALUES (?, 'legacy', '2026-04-30T00:00:00Z', 9, 1)",
+            params![checkpoint_id],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO checkpoint_files(checkpoint_id, relative_path, hash, size, storage_path)
+             VALUES (?, 'app.py', 'legacy-hash', 9, ?)",
+            params![
+                checkpoint_id,
+                format!(".vibelign/rust_checkpoints/{checkpoint_id}/files/app.py")
+            ],
+        )
+        .unwrap();
+        drop(conn);
+
+        restore(root, checkpoint_id).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(root.join("app.py")).unwrap(),
+            "print(1)\n"
+        );
+    }
+
+    #[test]
+    fn corrupted_compressed_object_does_not_overwrite_restore_target() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let app = root.join("app.rs");
+        let original = "fn main() { println!(\"hello\"); }\n".repeat(256);
+        std::fs::write(&app, &original).unwrap();
+        let created = create(root, "first").unwrap().unwrap();
+        let conn = Connection::open(root.join(".vibelign/vibelign.db")).unwrap();
+        let storage_path: String = conn
+            .query_row(
+                "SELECT o.storage_path
+                 FROM cas_objects o
+                 JOIN checkpoint_files f ON f.object_hash = o.hash
+                 WHERE f.checkpoint_id = ?",
+                params![created.checkpoint_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        std::fs::write(root.join(storage_path), "not zstd").unwrap();
+        std::fs::write(&app, "changed\n").unwrap();
+
+        let error = restore(root, &created.checkpoint_id).unwrap_err();
+
+        assert!(!error.is_empty());
+        assert_eq!(std::fs::read_to_string(&app).unwrap(), "changed\n");
+    }
+
+    #[test]
+    fn readonly_target_is_restored_after_compressed_restore_failure() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let app = root.join("app.rs");
+        let original = "fn main() { println!(\"hello\"); }\n".repeat(256);
+        std::fs::write(&app, &original).unwrap();
+        let created = create(root, "first").unwrap().unwrap();
+        let conn = Connection::open(root.join(".vibelign/vibelign.db")).unwrap();
+        let storage_path: String = conn
+            .query_row(
+                "SELECT o.storage_path
+                 FROM cas_objects o
+                 JOIN checkpoint_files f ON f.object_hash = o.hash
+                 WHERE f.checkpoint_id = ?",
+                params![created.checkpoint_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        std::fs::write(root.join(storage_path), "not zstd").unwrap();
+        std::fs::write(&app, "changed\n").unwrap();
+        let mut permissions = app.metadata().unwrap().permissions();
+        permissions.set_readonly(true);
+        std::fs::set_permissions(&app, permissions).unwrap();
+
+        let error = restore(root, &created.checkpoint_id).unwrap_err();
+
+        assert!(!error.is_empty());
+        assert_eq!(std::fs::read_to_string(&app).unwrap(), "changed\n");
+        assert!(app.metadata().unwrap().permissions().readonly());
+    }
+
+    #[test]
     fn prunes_old_checkpoint_rows_and_storage() {
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path();
@@ -433,6 +612,35 @@ mod tests {
                 |row| row.get::<_, i64>(0),
             )
             .is_err());
+    }
+
+    #[test]
+    fn prune_reports_actual_reclaimed_compressed_bytes() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let app = root.join("app.rs");
+        let first_content = "fn first() { println!(\"hello\"); }\n".repeat(256);
+        std::fs::write(&app, &first_content).unwrap();
+        let first = create(root, "first").unwrap().unwrap();
+        let conn = Connection::open(root.join(".vibelign/vibelign.db")).unwrap();
+        let first_stored_size: i64 = conn
+            .query_row(
+                "SELECT o.stored_size
+                 FROM cas_objects o
+                 JOIN checkpoint_files f ON f.object_hash = o.hash
+                 WHERE f.checkpoint_id = ?",
+                params![first.checkpoint_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        std::fs::write(&app, "fn second() { println!(\"hello\"); }\n".repeat(256)).unwrap();
+        create(root, "second").unwrap().unwrap();
+
+        let result = prune(root, 1).unwrap();
+
+        assert_eq!(result.count, 1);
+        assert_eq!(result.bytes, first_stored_size as u64);
+        assert!(result.bytes < first_content.len() as u64);
     }
 
     #[test]

@@ -93,6 +93,27 @@ fn backup_source(
 }
 
 fn copy_backup_file(root: &Path, target: &Path, source: &Path) -> Result<(), String> {
+    write_restored_file(root, target, |target| {
+        fs::copy(source, target).map_err(|error| error.to_string())?;
+        Ok(())
+    })
+}
+
+fn copy_backup_object(
+    root: &Path,
+    conn: &Connection,
+    target: &Path,
+    object_hash: &str,
+) -> Result<(), String> {
+    write_restored_file(root, target, |target| {
+        cas::restore_object_to(root, conn, object_hash, target)
+    })
+}
+
+fn write_restored_file<F>(root: &Path, target: &Path, mut write_file: F) -> Result<(), String>
+where
+    F: FnMut(&Path) -> Result<(), String>,
+{
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
         ensure_existing_path_has_no_symlink(parent)?;
@@ -110,10 +131,11 @@ fn copy_backup_file(root: &Path, target: &Path, source: &Path) -> Result<(), Str
     if was_readonly {
         set_readonly(target, false)?;
     }
-    fs::copy(source, target).map_err(|error| error.to_string())?;
+    let write_result = write_file(target);
     if was_readonly {
         set_readonly(target, true)?;
     }
+    write_result?;
     Ok(())
 }
 
