@@ -16,6 +16,12 @@ pub struct CasObject {
     pub ref_count: u32,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct PrunedCasObjects {
+    pub count: usize,
+    pub bytes: u64,
+}
+
 #[allow(dead_code)]
 pub fn cas_enabled() -> bool {
     true
@@ -108,12 +114,23 @@ pub fn decrement_ref(conn: &Connection, hash: &str) -> Result<(), String> {
 }
 
 pub fn prune_unreferenced(root: &Path, conn: &Connection) -> Result<usize, String> {
+    Ok(prune_unreferenced_detailed(root, conn)?.count)
+}
+
+pub fn prune_unreferenced_detailed(
+    root: &Path,
+    conn: &Connection,
+) -> Result<PrunedCasObjects, String> {
     let mut statement = conn
-        .prepare("SELECT hash, storage_path FROM cas_objects WHERE ref_count = 0")
+        .prepare("SELECT hash, storage_path, size FROM cas_objects WHERE ref_count = 0")
         .map_err(|error| error.to_string())?;
     let rows = statement
         .query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?.max(0) as u64,
+            ))
         })
         .map_err(|error| error.to_string())?;
     let mut objects = Vec::new();
@@ -122,8 +139,8 @@ pub fn prune_unreferenced(root: &Path, conn: &Connection) -> Result<usize, Strin
     }
     drop(statement);
 
-    let mut pruned = 0;
-    for (hash, storage_path) in objects {
+    let mut pruned = PrunedCasObjects { count: 0, bytes: 0 };
+    for (hash, storage_path, size) in objects {
         validate_hash(&hash)?;
         let object_path = object_path(root, &hash)?;
         let expected_storage_path = root_relative_path(root, &object_path)?;
@@ -137,7 +154,8 @@ pub fn prune_unreferenced(root: &Path, conn: &Connection) -> Result<usize, Strin
         }
         conn.execute("DELETE FROM cas_objects WHERE hash = ?", params![hash])
             .map_err(|error| error.to_string())?;
-        pruned += 1;
+        pruned.count += 1;
+        pruned.bytes += size;
     }
     Ok(pruned)
 }
