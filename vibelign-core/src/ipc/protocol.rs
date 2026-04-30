@@ -1,4 +1,5 @@
 use crate::backup::checkpoint::{self, CheckpointCreateMetadata};
+use crate::backup::{diff, restore, suggestions};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -19,6 +20,30 @@ pub enum EngineRequest {
     CheckpointRestore {
         root: PathBuf,
         checkpoint_id: String,
+    },
+    CheckpointDiff {
+        root: PathBuf,
+        from_checkpoint_id: String,
+        to_checkpoint_id: String,
+    },
+    CheckpointRestorePreview {
+        root: PathBuf,
+        checkpoint_id: String,
+    },
+    CheckpointRestoreFilesPreview {
+        root: PathBuf,
+        checkpoint_id: String,
+        relative_paths: Vec<String>,
+    },
+    CheckpointRestoreFilesSafe {
+        root: PathBuf,
+        checkpoint_id: String,
+        relative_paths: Vec<String>,
+    },
+    CheckpointRestoreSuggestions {
+        root: PathBuf,
+        checkpoint_id: String,
+        cap: Option<usize>,
     },
     CheckpointPrune {
         root: PathBuf,
@@ -56,6 +81,11 @@ pub enum EngineResponse {
         checkpoints: Option<Vec<ResponseCheckpoint>>,
         pruned_count: Option<usize>,
         pruned_bytes: Option<u64>,
+        diff: Option<diff::DiffResult>,
+        preview: Option<restore::preview::RestorePreview>,
+        restored_count: Option<usize>,
+        suggestions: Option<Vec<suggestions::RestoreSuggestion>>,
+        legacy_notice: Option<String>,
     },
     Error {
         code: String,
@@ -76,6 +106,11 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
             checkpoints: None,
             pruned_count: None,
             pruned_bytes: None,
+            diff: None,
+            preview: None,
+            restored_count: None,
+            suggestions: None,
+            legacy_notice: None,
         },
         EngineRequest::CheckpointCreate {
             root,
@@ -113,6 +148,11 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                         checkpoints: None,
                         pruned_count: None,
                         pruned_bytes: None,
+                        diff: None,
+                        preview: None,
+                        restored_count: None,
+                        suggestions: None,
+                        legacy_notice: None,
                     }
                 }
                 Ok(None) => EngineResponse::Ok {
@@ -126,6 +166,11 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                     checkpoints: None,
                     pruned_count: None,
                     pruned_bytes: None,
+                    diff: None,
+                    preview: None,
+                    restored_count: None,
+                    suggestions: None,
+                    legacy_notice: None,
                 },
                 Err(error) => EngineResponse::Error {
                     code: "CHECKPOINT_CREATE_FAILED".to_string(),
@@ -157,6 +202,11 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                     checkpoints: Some(checkpoints),
                     pruned_count: None,
                     pruned_bytes: None,
+                    diff: None,
+                    preview: None,
+                    restored_count: None,
+                    suggestions: None,
+                    legacy_notice: None,
                 }
             }
             Err(error) => EngineResponse::Error {
@@ -167,7 +217,7 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
         EngineRequest::CheckpointRestore {
             root,
             checkpoint_id,
-        } => match checkpoint::restore(&root, &checkpoint_id) {
+        } => match restore::full::restore_full(&root, &checkpoint_id) {
             Ok(()) => EngineResponse::Ok {
                 result: "restored".to_string(),
                 checkpoint_id: Some(checkpoint_id),
@@ -179,6 +229,11 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                 checkpoints: None,
                 pruned_count: None,
                 pruned_bytes: None,
+                diff: None,
+                preview: None,
+                restored_count: None,
+                suggestions: None,
+                legacy_notice: None,
             },
             Err(error) => EngineResponse::Error {
                 code: "CHECKPOINT_RESTORE_FAILED".to_string(),
@@ -198,6 +253,11 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                     checkpoints: None,
                     pruned_count: Some(result.count),
                     pruned_bytes: Some(result.bytes),
+                    diff: None,
+                    preview: None,
+                    restored_count: None,
+                    suggestions: None,
+                    legacy_notice: None,
                 },
                 Err(error) => EngineResponse::Error {
                     code: "CHECKPOINT_PRUNE_FAILED".to_string(),
@@ -205,6 +265,140 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                 },
             }
         }
+        EngineRequest::CheckpointDiff {
+            root,
+            from_checkpoint_id,
+            to_checkpoint_id,
+        } => match diff::between_checkpoints(&root, &from_checkpoint_id, &to_checkpoint_id) {
+            Ok(result) => EngineResponse::Ok {
+                result: "diffed".to_string(),
+                checkpoint_id: None,
+                created_at: None,
+                message: None,
+                file_count: None,
+                total_size_bytes: None,
+                files: None,
+                checkpoints: None,
+                pruned_count: None,
+                pruned_bytes: None,
+                diff: Some(result),
+                preview: None,
+                restored_count: None,
+                suggestions: None,
+                legacy_notice: None,
+            },
+            Err(error) => EngineResponse::Error {
+                code: "CHECKPOINT_DIFF_FAILED".to_string(),
+                message: error,
+            },
+        },
+        EngineRequest::CheckpointRestorePreview {
+            root,
+            checkpoint_id,
+        } => match restore::preview::preview_full(&root, &checkpoint_id) {
+            Ok(result) => EngineResponse::Ok {
+                result: "previewed".to_string(),
+                checkpoint_id: Some(checkpoint_id),
+                created_at: None,
+                message: None,
+                file_count: None,
+                total_size_bytes: None,
+                files: None,
+                checkpoints: None,
+                pruned_count: None,
+                pruned_bytes: None,
+                diff: None,
+                preview: Some(result),
+                restored_count: None,
+                suggestions: None,
+                legacy_notice: None,
+            },
+            Err(error) => EngineResponse::Error {
+                code: "CHECKPOINT_PREVIEW_FAILED".to_string(),
+                message: error,
+            },
+        },
+        EngineRequest::CheckpointRestoreFilesPreview {
+            root,
+            checkpoint_id,
+            relative_paths,
+        } => match restore::preview::preview_selected(&root, &checkpoint_id, &relative_paths) {
+            Ok(result) => EngineResponse::Ok {
+                result: "previewed".to_string(),
+                checkpoint_id: Some(checkpoint_id),
+                created_at: None,
+                message: None,
+                file_count: None,
+                total_size_bytes: None,
+                files: None,
+                checkpoints: None,
+                pruned_count: None,
+                pruned_bytes: None,
+                diff: None,
+                preview: Some(result),
+                restored_count: None,
+                suggestions: None,
+                legacy_notice: None,
+            },
+            Err(error) => EngineResponse::Error {
+                code: "CHECKPOINT_PREVIEW_FAILED".to_string(),
+                message: error,
+            },
+        },
+        EngineRequest::CheckpointRestoreFilesSafe {
+            root,
+            checkpoint_id,
+            relative_paths,
+        } => match restore::files::restore_selected(&root, &checkpoint_id, &relative_paths) {
+            Ok(count) => EngineResponse::Ok {
+                result: "restored_files".to_string(),
+                checkpoint_id: Some(checkpoint_id),
+                created_at: None,
+                message: None,
+                file_count: None,
+                total_size_bytes: None,
+                files: None,
+                checkpoints: None,
+                pruned_count: None,
+                pruned_bytes: None,
+                diff: None,
+                preview: None,
+                restored_count: Some(count),
+                suggestions: None,
+                legacy_notice: None,
+            },
+            Err(error) => EngineResponse::Error {
+                code: "CHECKPOINT_RESTORE_FILES_FAILED".to_string(),
+                message: error,
+            },
+        },
+        EngineRequest::CheckpointRestoreSuggestions {
+            root,
+            checkpoint_id,
+            cap,
+        } => match suggestions::suggest(&root, &checkpoint_id, cap.unwrap_or(5)) {
+            Ok(result) => EngineResponse::Ok {
+                result: "suggested".to_string(),
+                checkpoint_id: Some(checkpoint_id),
+                created_at: None,
+                message: None,
+                file_count: None,
+                total_size_bytes: None,
+                files: None,
+                checkpoints: None,
+                pruned_count: None,
+                pruned_bytes: None,
+                diff: None,
+                preview: None,
+                restored_count: None,
+                suggestions: Some(result.suggestions),
+                legacy_notice: result.legacy_notice,
+            },
+            Err(error) => EngineResponse::Error {
+                code: "CHECKPOINT_SUGGESTIONS_FAILED".to_string(),
+                message: error,
+            },
+        },
     }
 }
 
