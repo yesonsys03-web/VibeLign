@@ -163,8 +163,8 @@ def _record_engine_state(root: Path, engine_used: str, reason: str | None) -> No
         _ = state_path.write_text(
             json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
-    except OSError:
-        pass
+    except OSError as exc:
+        print(f"[WARN] checkpoint engine state write failed: {exc}", file=sys.stderr)
 
 
 def _parse_rust_time(value: str) -> datetime | None:

@@ -272,6 +272,39 @@ class CheckpointRustEngineTest(unittest.TestCase):
             )
             self.assertEqual(state["engine_used"], "rust")
 
+    def test_rust_checkpoint_engine_warns_when_state_write_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = (root / "app.py").write_text("print(1)\n", encoding="utf-8")
+            engine = RustCheckpointEngine()
+            stderr: list[str] = []
+
+            def _capture_write(text: str) -> int:
+                stderr.append(text)
+                return len(text)
+
+            original_write_text = Path.write_text
+
+            def _write_text_maybe_fail(path: Path, *args, **kwargs):
+                if path.name == "state.json":
+                    raise OSError("state read-only")
+                return original_write_text(path, *args, **kwargs)
+
+            with patch.dict(
+                os.environ, {"VIBELIGN_ENGINE_PATH": str(root / "missing")}, clear=False
+            ), patch(
+                "pathlib.Path.write_text", autospec=True, side_effect=_write_text_maybe_fail
+            ), patch(
+                "sys.stderr.write", side_effect=_capture_write
+            ):
+                summary = engine.create_checkpoint(root, "fallback")
+
+            self.assertIsNotNone(summary)
+            self.assertTrue(
+                any("checkpoint engine state write failed" in item for item in stderr),
+                f"state write warning expected; got: {stderr}",
+            )
+
     def test_shadow_runner_uses_unavailable_result_without_side_effects(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
