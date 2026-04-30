@@ -57,6 +57,7 @@ pub fn collect(root: &Path) -> std::io::Result<Vec<SnapshotFile>> {
         };
         let relative_text = normalize_relative(relative.to_path_buf());
         if relative_text.starts_with(".vibelign/rust_checkpoints/")
+            || relative_text.starts_with(".vibelign/rust_objects/")
             || relative_text.starts_with(".vibelign/checkpoints/")
         {
             continue;
@@ -95,6 +96,12 @@ mod tests {
         std::fs::create_dir(root.join(".vibelign")).unwrap();
         std::fs::write(root.join(".vibelign/anchor_index.json"), "{}\n").unwrap();
         std::fs::write(root.join(".vibelign/state.json"), "{}\n").unwrap();
+        std::fs::create_dir_all(root.join(".vibelign/rust_objects/blake3/ab/cd")).unwrap();
+        std::fs::write(
+            root.join(".vibelign/rust_objects/blake3/ab/cd/object"),
+            "stored\n",
+        )
+        .unwrap();
 
         let paths: Vec<String> = collect(root)
             .unwrap()
@@ -104,6 +111,7 @@ mod tests {
 
         assert!(paths.contains(&"app.py".to_string()));
         assert!(paths.contains(&".vibelign/anchor_index.json".to_string()));
+        assert!(!paths.contains(&".vibelign/rust_objects/blake3/ab/cd/object".to_string()));
         assert!(!paths.contains(&".vibelign/state.json".to_string()));
     }
 
