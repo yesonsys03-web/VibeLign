@@ -1,4 +1,5 @@
 import importlib
+import json
 import tempfile
 import unittest
 from collections.abc import Callable
@@ -28,6 +29,34 @@ handle_checkpoint_restore = cast(
     Callable[[Path, dict[str, object], type[TextContent]], list[TextContent]],
     checkpoint_handlers.handle_checkpoint_restore,
 )
+handle_checkpoint_diff = cast(
+    Callable[[Path, dict[str, object], type[TextContent]], list[TextContent]],
+    checkpoint_handlers.handle_checkpoint_diff,
+)
+handle_checkpoint_preview_restore = cast(
+    Callable[[Path, dict[str, object], type[TextContent]], list[TextContent]],
+    checkpoint_handlers.handle_checkpoint_preview_restore,
+)
+handle_checkpoint_restore_files = cast(
+    Callable[[Path, dict[str, object], type[TextContent]], list[TextContent]],
+    checkpoint_handlers.handle_checkpoint_restore_files,
+)
+handle_checkpoint_restore_suggestions = cast(
+    Callable[[Path, dict[str, object], type[TextContent]], list[TextContent]],
+    checkpoint_handlers.handle_checkpoint_restore_suggestions,
+)
+handle_checkpoint_has_changes = cast(
+    Callable[[Path, dict[str, object], type[TextContent]], list[TextContent]],
+    checkpoint_handlers.handle_checkpoint_has_changes,
+)
+handle_retention_apply = cast(
+    Callable[[Path, dict[str, object], type[TextContent]], list[TextContent]],
+    checkpoint_handlers.handle_retention_apply,
+)
+
+
+def _payload(result: list[TextContent]) -> dict[str, object]:
+    return cast(dict[str, object], json.loads(result[0].text))
 
 
 class McpCheckpointHandlersTest(unittest.TestCase):
@@ -62,6 +91,102 @@ class McpCheckpointHandlersTest(unittest.TestCase):
 
             self.assertEqual(len(result), 1)
             self.assertEqual(result[0].text, "오류: checkpoint_id가 필요합니다.")
+
+    def test_handle_checkpoint_diff_returns_json(self) -> None:
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch(
+                "vibelign.core.checkpoint_engine.router.diff_checkpoints",
+                return_value={"summary": {"added_count": 1}},
+            ):
+                payload = _payload(
+                    handle_checkpoint_diff(
+                        root,
+                        {"from_checkpoint_id": "old", "to_checkpoint_id": "new"},
+                        TextContent,
+                    )
+                )
+
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["diff"], {"summary": {"added_count": 1}})
+
+    def test_handle_checkpoint_preview_restore_returns_json(self) -> None:
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch(
+                "vibelign.core.checkpoint_engine.router.preview_restore",
+                return_value={"changes": []},
+            ):
+                payload = _payload(
+                    handle_checkpoint_preview_restore(
+                        root, {"checkpoint_id": "cp1", "relative_paths": ["app.py"]}, TextContent
+                    )
+                )
+
+            self.assertEqual(payload, {"ok": True, "preview": {"changes": []}})
+
+    def test_handle_checkpoint_restore_files_returns_json(self) -> None:
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch(
+                "vibelign.core.checkpoint_engine.router.restore_files",
+                return_value=2,
+            ):
+                payload = _payload(
+                    handle_checkpoint_restore_files(
+                        root, {"checkpoint_id": "cp1", "relative_paths": ["a.py", "b.py"]}, TextContent
+                    )
+                )
+
+            self.assertEqual(payload, {"ok": True, "restored_count": 2})
+
+    def test_handle_checkpoint_restore_suggestions_returns_json(self) -> None:
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch(
+                "vibelign.core.checkpoint_engine.router.restore_suggestions",
+                return_value={"suggestions": [{"relative_path": "app.py"}], "legacy_notice": None},
+            ):
+                payload = _payload(
+                    handle_checkpoint_restore_suggestions(root, {"checkpoint_id": "cp1"}, TextContent)
+                )
+
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["suggestions"], [{"relative_path": "app.py"}])
+
+    def test_handle_checkpoint_has_changes_returns_json(self) -> None:
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch(
+                "vibelign.core.checkpoint_engine.router.has_changes_since_checkpoint",
+                return_value=True,
+            ):
+                payload = _payload(handle_checkpoint_has_changes(root, {"checkpoint_id": "cp1"}, TextContent))
+
+            self.assertEqual(payload, {"has_changes": True, "ok": True})
+
+    def test_handle_retention_apply_returns_json(self) -> None:
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch(
+                "vibelign.core.checkpoint_engine.router.apply_retention",
+                return_value={"count": 1},
+            ):
+                payload = _payload(handle_retention_apply(root, {}, TextContent))
+
+            self.assertEqual(payload, {"cleanup": {"count": 1}, "ok": True})
 
 
 if __name__ == "__main__":
