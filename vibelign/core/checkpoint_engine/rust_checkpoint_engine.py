@@ -27,6 +27,7 @@ from vibelign.core.meta_paths import MetaPaths
 
 _ENV_FALLBACK_MARKERS = (
     "RUST_ENGINE_UNAVAILABLE",
+    "RUST_ENGINE_INTEGRITY_FAILED",
     "RUST_ENGINE_STARTUP_FAILED",
     "RUST_ENGINE_PROCESS_FAILED",
 )

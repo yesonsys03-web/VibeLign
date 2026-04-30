@@ -95,15 +95,19 @@ def _verify_integrity(binary_path: Path) -> str | None:
 
 
 def find_rust_engine(root: Path) -> RustEngineAvailability:
+    integrity_failure: RustEngineAvailability | None = None
     for candidate in _candidate_paths(root):
         if not candidate.exists() or not candidate.is_file():
             continue
         integrity_error = _verify_integrity(candidate)
         if integrity_error:
-            return RustEngineAvailability(
+            integrity_failure = RustEngineAvailability(
                 False, candidate, integrity_error, "RUST_ENGINE_INTEGRITY_FAILED"
             )
+            continue
         return RustEngineAvailability(True, candidate, None, None)
+    if integrity_failure is not None:
+        return integrity_failure
     return RustEngineAvailability(
         False, None, "rust engine binary missing", "RUST_ENGINE_UNAVAILABLE"
     )

@@ -67,6 +67,25 @@ class CheckpointRustEngineTest(unittest.TestCase):
             self.assertEqual(availability.reason, "integrity manifest missing")
             self.assertEqual(availability.code, "RUST_ENGINE_INTEGRITY_FAILED")
 
+    def test_integrity_failure_skips_to_next_valid_candidate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            broken_engine = root / "broken-engine"
+            valid_engine = root / "vibelign-core" / "target" / "debug" / "vibelign-engine"
+            valid_engine.parent.mkdir(parents=True)
+            _write_fake_engine(broken_engine, '{"status":"ok","result":"engine_info"}')
+            _ = broken_engine.with_suffix(broken_engine.suffix + ".sha256").write_text(
+                "0  broken-engine\n", encoding="utf-8"
+            )
+            _write_fake_engine(valid_engine, '{"status":"ok","result":"engine_info"}')
+            _write_hash(valid_engine)
+
+            with patch.dict(os.environ, {"VIBELIGN_ENGINE_PATH": str(broken_engine)}, clear=False):
+                availability = find_rust_engine(root)
+
+            self.assertTrue(availability.available)
+            self.assertEqual(availability.binary_path, valid_engine)
+
     def test_call_rust_engine_parses_ok_response(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -394,7 +413,7 @@ class CheckpointRustEngineTest(unittest.TestCase):
                 "RUST_ENGINE_UNAVAILABLE: rust engine binary missing",
             )
 
-    def test_rust_checkpoint_engine_does_not_fallback_on_integrity_failure(self):
+    def test_rust_checkpoint_engine_falls_back_on_integrity_failure(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _ = (root / "app.py").write_text("print(1)\n", encoding="utf-8")
@@ -408,10 +427,48 @@ class CheckpointRustEngineTest(unittest.TestCase):
             with patch.dict(
                 os.environ, {"VIBELIGN_ENGINE_PATH": str(engine_path)}, clear=False
             ):
-                with self.assertRaises(RuntimeError):
-                    _ = engine.create_checkpoint(root, "integrity")
+                summary = engine.create_checkpoint(root, "integrity")
 
-            self.assertFalse((root / ".vibelign" / "checkpoints").exists())
+            self.assertIsNotNone(summary)
+            state = cast(
+                dict[str, object],
+                json.loads(
+                    (root / ".vibelign" / "state.json").read_text(encoding="utf-8")
+                ),
+            )
+            self.assertEqual(state["engine_used"], "python")
+            self.assertEqual(
+                state["last_fallback_reason"],
+                "RUST_ENGINE_INTEGRITY_FAILED: integrity check failed",
+            )
+
+    def test_rust_checkpoint_list_falls_back_on_integrity_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            engine_path = root / "vibelign-engine"
+            _write_fake_engine(engine_path, '{"status":"ok","result":"engine_info"}')
+            _ = engine_path.with_suffix(engine_path.suffix + ".sha256").write_text(
+                "0  vibelign-engine\n", encoding="utf-8"
+            )
+            engine = RustCheckpointEngine()
+
+            with patch.dict(
+                os.environ, {"VIBELIGN_ENGINE_PATH": str(engine_path)}, clear=False
+            ):
+                checkpoints = engine.list_checkpoints(root)
+
+            self.assertEqual(checkpoints, [])
+            state = cast(
+                dict[str, object],
+                json.loads(
+                    (root / ".vibelign" / "state.json").read_text(encoding="utf-8")
+                ),
+            )
+            self.assertEqual(state["engine_used"], "python")
+            self.assertEqual(
+                state["last_fallback_reason"],
+                "RUST_ENGINE_INTEGRITY_FAILED: integrity check failed",
+            )
 
     def test_rust_checkpoint_engine_records_no_changes_as_rust(self):
         with tempfile.TemporaryDirectory() as tmp:
