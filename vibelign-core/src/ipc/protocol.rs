@@ -65,6 +65,7 @@ pub struct ResponseCheckpoint {
     pinned: bool,
     trigger: Option<String>,
     git_commit_message: Option<String>,
+    files: Vec<ResponseFile>,
 }
 
 #[derive(Debug, Serialize)]
@@ -206,6 +207,14 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                         pinned: checkpoint.pinned,
                         trigger: checkpoint.trigger,
                         git_commit_message: checkpoint.git_commit_message,
+                        files: checkpoint
+                            .files
+                            .into_iter()
+                            .map(|file| ResponseFile {
+                                relative_path: file.relative_path,
+                                size: file.size,
+                            })
+                            .collect(),
                     })
                     .collect();
                 EngineResponse::Ok {

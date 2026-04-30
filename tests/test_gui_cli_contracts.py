@@ -113,6 +113,10 @@ class GuiCliContractsTest(unittest.TestCase):
             total_size_bytes = 4096
             trigger = "post_commit"
             git_commit_message = "Add dashboard"
+            files = [
+                {"relative_path": "src/app.py", "size": 1024},
+                {"path": "docs/plan.md", "size_bytes": 3072},
+            ]
 
         with tempfile.TemporaryDirectory() as tmp:
             previous = Path.cwd()
@@ -132,6 +136,13 @@ class GuiCliContractsTest(unittest.TestCase):
         self.assertEqual(checkpoints[0]["total_size_bytes"], 4096)
         self.assertEqual(checkpoints[0]["trigger"], "post_commit")
         self.assertEqual(checkpoints[0]["git_commit_message"], "Add dashboard")
+        self.assertEqual(
+            checkpoints[0]["files"],
+            [
+                {"relative_path": "src/app.py", "size": 1024},
+                {"relative_path": "docs/plan.md", "size": 3072},
+            ],
+        )
 
     def test_backup_dashboard_lint_is_wired_into_gui_npm_lint(self):
         root = Path(__file__).resolve().parents[1]

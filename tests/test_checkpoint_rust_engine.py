@@ -205,7 +205,7 @@ class CheckpointRustEngineTest(unittest.TestCase):
                 '{"status":"ok","result":"listed","checkpoints":[{"checkpoint_id":"cp1",'
                 + '"created_at":"2026-04-29T00:00:00Z","message":"hello",'
                 + '"file_count":1,"total_size_bytes":9,"pinned":false,"trigger":"post_commit",'
-                + '"git_commit_message":"feat: demo"}]}',
+                + '"git_commit_message":"feat: demo","files":[{"relative_path":"app.py","size":9}]}]}',
             )
             _write_hash(engine)
 
@@ -219,6 +219,8 @@ class CheckpointRustEngineTest(unittest.TestCase):
             self.assertEqual(checkpoints[0].checkpoint_id, "cp1")
             self.assertEqual(checkpoints[0].trigger, "post_commit")
             self.assertEqual(checkpoints[0].git_commit_message, "feat: demo")
+            self.assertEqual(checkpoints[0].files[0].path, "app.py")
+            self.assertEqual(checkpoints[0].files[0].size_bytes, 9)
 
     def test_restore_checkpoint_with_rust_returns_success(self):
         with tempfile.TemporaryDirectory() as tmp:

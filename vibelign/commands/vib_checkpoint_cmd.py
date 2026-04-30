@@ -27,6 +27,21 @@ class CheckpointLike(Protocol):
     pruned_bytes: int
 
 
+def _checkpoint_file_to_dict(file_item: object) -> dict[str, object] | None:
+    path = getattr(file_item, "path", None)
+    size_bytes = getattr(file_item, "size_bytes", None)
+    if isinstance(file_item, dict):
+        file_dict = cast(dict[str, object], file_item)
+        path = file_dict.get("path") or file_dict.get("relative_path")
+        size_bytes = file_dict.get("size_bytes", file_dict.get("size", 0))
+    if not isinstance(path, str) or not path:
+        return None
+    return {
+        "relative_path": path.replace("\\", "/"),
+        "size": size_bytes if isinstance(size_bytes, int) else 0,
+    }
+
+
 class TransferBuilder(Protocol):
     def __call__(
         self,
@@ -52,6 +67,16 @@ def _checkpoint_to_dict(cp: CheckpointLike) -> dict[str, object]:
     git_commit_message = getattr(cp, "git_commit_message", None)
     if git_commit_message:
         payload["git_commit_message"] = git_commit_message
+    checkpoint_files = cast(Sequence[object], getattr(cp, "files", []))
+    files = [
+        item
+        for item in (
+            _checkpoint_file_to_dict(file_item)
+            for file_item in checkpoint_files
+        )
+        if item is not None
+    ]
+    payload["files"] = files
     return payload
 
 

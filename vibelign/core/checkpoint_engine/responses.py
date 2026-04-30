@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Protocol, cast
 
-from vibelign.core.local_checkpoints import CheckpointSummary
+from vibelign.core.local_checkpoints import CheckpointFileSummary, CheckpointSummary
 
 
 class RustResultLike(Protocol):
@@ -128,6 +128,7 @@ def summary_from_payload(
         return None
     trigger = payload.get("trigger")
     git_commit_message = payload.get("git_commit_message")
+    files = payload.get("files")
     return CheckpointSummary(
         checkpoint_id=checkpoint_id,
         created_at=str(payload.get("created_at", checkpoint_id)),
@@ -137,7 +138,28 @@ def summary_from_payload(
         pinned=bool(payload.get("pinned", False)),
         trigger=trigger if isinstance(trigger, str) else None,
         git_commit_message=git_commit_message if isinstance(git_commit_message, str) else None,
+        files=parse_file_summaries(files),
     )
+
+
+def parse_file_summaries(value: object) -> list[CheckpointFileSummary]:
+    if not isinstance(value, list):
+        return []
+    summaries: list[CheckpointFileSummary] = []
+    for raw in cast(list[object], value):
+        if not isinstance(raw, dict):
+            continue
+        item = cast(dict[str, object], raw)
+        path = item.get("relative_path") or item.get("path")
+        if not isinstance(path, str) or not path:
+            continue
+        summaries.append(
+            CheckpointFileSummary(
+                path=path.replace("\\", "/"),
+                size_bytes=coerce_int(item.get("size", item.get("size_bytes", 0))),
+            )
+        )
+    return summaries
 
 
 def coerce_int(value: object) -> int:

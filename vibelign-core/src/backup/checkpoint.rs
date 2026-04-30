@@ -23,6 +23,12 @@ pub struct CheckpointCreateMetadata {
 }
 
 #[derive(Debug, Clone)]
+pub struct ListedCheckpointFile {
+    pub relative_path: String,
+    pub size: u64,
+}
+
+#[derive(Debug, Clone)]
 pub struct ListedCheckpoint {
     pub checkpoint_id: String,
     pub created_at: String,
@@ -32,6 +38,7 @@ pub struct ListedCheckpoint {
     pub pinned: bool,
     pub trigger: Option<String>,
     pub git_commit_message: Option<String>,
+    pub files: Vec<ListedCheckpointFile>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -75,14 +82,42 @@ pub fn list(root: &Path) -> Result<Vec<ListedCheckpoint>, String> {
                 pinned: row.get::<_, i64>(5)? != 0,
                 trigger: row.get(6)?,
                 git_commit_message: row.get(7)?,
+                files: Vec::new(),
             })
         })
         .map_err(|error| error.to_string())?;
     let mut checkpoints = Vec::new();
     for row in rows {
-        checkpoints.push(row.map_err(|error| error.to_string())?);
+        let mut checkpoint = row.map_err(|error| error.to_string())?;
+        checkpoint.files = list_files_for_checkpoint(&conn, &checkpoint.checkpoint_id)?;
+        checkpoints.push(checkpoint);
     }
     Ok(checkpoints)
+}
+
+fn list_files_for_checkpoint(
+    conn: &Connection,
+    checkpoint_id: &str,
+) -> Result<Vec<ListedCheckpointFile>, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT relative_path, size FROM checkpoint_files
+             WHERE checkpoint_id = ? ORDER BY relative_path ASC",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map(params![checkpoint_id], |row| {
+            Ok(ListedCheckpointFile {
+                relative_path: row.get(0)?,
+                size: row.get::<_, i64>(1)?.max(0) as u64,
+            })
+        })
+        .map_err(|error| error.to_string())?;
+    let mut files = Vec::new();
+    for row in rows {
+        files.push(row.map_err(|error| error.to_string())?);
+    }
+    Ok(files)
 }
 
 pub fn create_with_metadata(

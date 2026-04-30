@@ -150,6 +150,8 @@ class LocalCheckpointsTest(unittest.TestCase):
             self.assertIsNotNone(summary)
             checkpoints = list_checkpoints(root)
             self.assertEqual(len(checkpoints), 1)
+            self.assertEqual(checkpoints[0].files[0].path, "app.py")
+            self.assertEqual(checkpoints[0].files[0].size_bytes, len("print('v1')\n"))
             manifest_path = (
                 root
                 / ".vibelign"

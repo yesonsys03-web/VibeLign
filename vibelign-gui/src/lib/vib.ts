@@ -600,12 +600,18 @@ export async function undoCheckpoint(cwd: string, checkpointId: string): Promise
 
 export type BackupSourceKind = "manual" | "auto" | "safe" | "unknown";
 
+export interface BackupFileEntry {
+  path: string;
+  sizeBytes: number;
+}
+
 export interface BackupEntry {
   id: string;
   note: string;
   createdAt?: string;
   fileCount?: number;
   totalSizeBytes: number;
+  files: BackupFileEntry[];
   sourceKind: BackupSourceKind;
   commitNote?: string;
 }
@@ -621,8 +627,16 @@ interface RawCheckpointEntry {
   created_at?: string;
   file_count?: number | null;
   total_size_bytes?: number | null;
+  files?: RawCheckpointFileEntry[] | null;
   trigger?: string | null;
   git_commit_message?: string | null;
+}
+
+interface RawCheckpointFileEntry {
+  relative_path?: string | null;
+  path?: string | null;
+  size?: number | null;
+  size_bytes?: number | null;
 }
 
 function backupSourceKind(trigger?: string | null): BackupSourceKind {
@@ -644,14 +658,26 @@ function cleanRawBackupNote(raw: RawCheckpointEntry): string {
 }
 
 function normalizeBackupEntry(raw: RawCheckpointEntry): BackupEntry {
+  const files = Array.isArray(raw.files) ? raw.files.map(normalizeBackupFileEntry).filter((entry): entry is BackupFileEntry => entry !== null) : [];
   return {
     id: raw.checkpoint_id ?? "",
     note: cleanRawBackupNote(raw),
     createdAt: raw.created_at,
     fileCount: typeof raw.file_count === "number" ? raw.file_count : undefined,
     totalSizeBytes: typeof raw.total_size_bytes === "number" ? raw.total_size_bytes : 0,
+    files,
     sourceKind: backupSourceKind(raw.trigger),
     commitNote: raw.git_commit_message ?? undefined,
+  };
+}
+
+function normalizeBackupFileEntry(raw: RawCheckpointFileEntry): BackupFileEntry | null {
+  const path = raw.relative_path ?? raw.path;
+  if (!path) return null;
+  const size = raw.size ?? raw.size_bytes ?? 0;
+  return {
+    path: path.replaceAll("\\", "/"),
+    sizeBytes: typeof size === "number" ? size : 0,
   };
 }
 

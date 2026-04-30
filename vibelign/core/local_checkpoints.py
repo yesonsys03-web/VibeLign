@@ -6,7 +6,7 @@ import re
 import shutil
 import stat
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import cast
@@ -18,6 +18,12 @@ from vibelign.core.structure_policy import (
     has_ignored_part,
     should_include_vibelign_file,
 )
+
+
+@dataclass
+class CheckpointFileSummary:
+    path: str
+    size_bytes: int
 
 
 @dataclass
@@ -33,6 +39,7 @@ class CheckpointSummary:
     pruned_bytes: int = 0
     trigger: str | None = None
     git_commit_message: str | None = None
+    files: list[CheckpointFileSummary] = field(default_factory=list)
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS_CHECKPOINTSUMMARY_END ===
@@ -214,6 +221,21 @@ def _manifest_files(manifest: dict[str, object]) -> list[dict[str, object]]:
 # === ANCHOR: LOCAL_CHECKPOINTS__MANIFEST_FILES_END ===
 
 
+def _manifest_file_summaries(manifest: dict[str, object]) -> list[CheckpointFileSummary]:
+    summaries: list[CheckpointFileSummary] = []
+    for item in _manifest_files(manifest):
+        path_value = item.get("path") or item.get("relative_path")
+        if not isinstance(path_value, str) or not path_value:
+            continue
+        summaries.append(
+            CheckpointFileSummary(
+                path=path_value.replace("\\", "/"),
+                size_bytes=_coerce_int(item.get("size", item.get("size_bytes", 0))),
+            )
+        )
+    return summaries
+
+
 # === ANCHOR: LOCAL_CHECKPOINTS__COERCE_INT_START ===
 def _coerce_int(value: object) -> int:
     if isinstance(value, bool):
@@ -297,6 +319,7 @@ def list_checkpoints(root: Path) -> list[CheckpointSummary]:
                     if isinstance(manifest.get("git_commit_message"), str)
                     else None
                 ),
+                files=_manifest_file_summaries(manifest),
             )
         )
     return summaries
