@@ -87,7 +87,7 @@ interface CardRenderProps {
   providerKeys?: Record<string, string>;
   hasAnyAiKey: boolean;
   aiKeyStatusLoaded: boolean;
-  onNavigate: (page: "checkpoints") => void;
+  onNavigate: (page: "backups") => void;
   onOpenSettings?: (reason?: string) => void;
   watchOn: boolean;
   setWatchOn: (v: boolean) => void;
@@ -123,7 +123,7 @@ interface HomeProps {
   providerKeys?: Record<string, string>;
   hasAnyAiKey?: boolean;
   aiKeyStatusLoaded?: boolean;
-  onNavigate: (page: "checkpoints") => void;
+  onNavigate: (page: "backups") => void;
   onOpenSettings?: (reason?: string) => void;
   initialView?: View;
   watchOn?: boolean;

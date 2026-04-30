@@ -6,7 +6,7 @@ import Onboarding from "./pages/Onboarding";
 import Doctor from "./pages/Doctor";
 import Home from "./pages/Home";
 import DocsViewer from "./pages/DocsViewer";
-import Checkpoints from "./pages/Checkpoints";
+import BackupDashboardPage from "./pages/BackupDashboard";
 import Settings from "./pages/Settings";
 import { getEnvKeyStatus, loadApiKey, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, stopWatch, openFolder } from "./lib/vib";
 import "./styles/brutalism.css";
@@ -50,7 +50,7 @@ class ErrorBoundary extends Component<
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
-type Page = "home" | "manual" | "docs" | "doctor" | "checkpoints" | "settings";
+type Page = "home" | "manual" | "docs" | "doctor" | "backups" | "settings";
 
 export default function App() {
   const [projectDir, setProjectDir] = useState<string | null>(null);
@@ -136,9 +136,6 @@ export default function App() {
               <button className={`nav-tab ${page === "doctor" ? "active" : ""}`} onClick={() => setPage("doctor")}>
                 Doctor
               </button>
-              <button className={`nav-tab ${page === "checkpoints" ? "active" : ""}`} onClick={() => setPage("checkpoints")}>
-                Checkpoints
-              </button>
               <button className={`nav-tab ${page === "manual" ? "active" : ""}`} onClick={() => setPage("manual")}>
                 메뉴얼
               </button>
@@ -147,6 +144,9 @@ export default function App() {
               </button>
               <button className={`nav-tab ${page === "docs" ? "active" : ""}`} onClick={() => setPage("docs")}>
                 DOCS VIEWER
+              </button>
+              <button className={`nav-tab ${page === "backups" ? "active" : ""}`} onClick={() => setPage("backups")}>
+                BACKUPS
               </button>
               <div style={{ flex: 1 }} />
               <button
@@ -173,7 +173,7 @@ export default function App() {
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
                 {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} />}
-                {page === "checkpoints" && <Checkpoints projectDir={projectDir} />}
+                {page === "backups" && <BackupDashboardPage projectDir={projectDir} />}
                 {page === "settings" && (
                   <>
                     <div style={{ padding: "8px 12px 0", borderBottom: "2px solid #1A1A1A" }}>
