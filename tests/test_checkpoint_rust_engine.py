@@ -21,6 +21,10 @@ from vibelign.core.checkpoint_engine.rust_engine import (
     restore_files_with_rust,
     restore_suggestions_with_rust,
 )
+from vibelign.core.checkpoint_engine.auto_backup import (
+    create_post_commit_backup,
+    set_auto_backup_enabled,
+)
 from vibelign.core.checkpoint_engine.rust_checkpoint_engine import RustCheckpointEngine
 from vibelign.core.checkpoint_engine.shadow_runner import (
     compare_checkpoint_create,
@@ -129,6 +133,49 @@ class CheckpointRustEngineTest(unittest.TestCase):
             self.assertEqual(request["trigger"], "post_commit")
             self.assertEqual(request["git_commit_sha"], "abc1234")
             self.assertEqual(request["git_commit_message"], "feat: demo")
+
+    def test_create_checkpoint_with_rust_uses_backup_timeout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            with patch(
+                "vibelign.core.checkpoint_engine.rust_engine.call_rust_engine",
+                return_value=type(
+                    "Result",
+                    (),
+                    {"ok": True, "payload": {"status": "ok", "result": "no_changes"}},
+                )(),
+            ) as mocked_call:
+                _ = create_checkpoint_with_rust(root, "hello")
+
+            self.assertEqual(mocked_call.call_args.kwargs["timeout_seconds"], 90)
+
+    def test_post_commit_auto_backup_passes_commit_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch(
+                "vibelign.core.checkpoint_engine.auto_backup.create_checkpoint_with_rust",
+                return_value=(None, None),
+            ) as mocked_create:
+                result = create_post_commit_backup(root, "abc1234", "feat: demo\n")
+
+            self.assertEqual(result.status, "no_changes")
+            _, _, kwargs = mocked_create.mock_calls[0]
+            self.assertEqual(kwargs["trigger"], "post_commit")
+            self.assertEqual(kwargs["git_commit_sha"], "abc1234")
+            self.assertEqual(kwargs["git_commit_message"], "feat: demo")
+
+    def test_post_commit_auto_backup_respects_db_toggle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            set_auto_backup_enabled(root, False)
+            with patch(
+                "vibelign.core.checkpoint_engine.auto_backup.create_checkpoint_with_rust"
+            ) as mocked_create:
+                result = create_post_commit_backup(root, "abc1234", "feat: demo")
+
+            self.assertEqual(result.status, "disabled")
+            mocked_create.assert_not_called()
 
     def test_list_checkpoints_with_rust_returns_summaries(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -13,6 +13,8 @@ from typing import cast
 from vibelign.core.local_checkpoints import CheckpointSummary
 from vibelign.core.structure_policy import WINDOWS_SUBPROCESS_FLAGS
 
+_BACKUP_COMMAND_TIMEOUT_SECONDS = 90
+
 
 @dataclass(frozen=True)
 class RustEngineAvailability:
@@ -163,7 +165,7 @@ def create_checkpoint_with_rust(
     if git_commit_message is not None:
         request["git_commit_message"] = git_commit_message
     result = call_rust_engine(
-        root, request
+        root, request, timeout_seconds=_BACKUP_COMMAND_TIMEOUT_SECONDS
     )
     if not result.ok:
         return None, _format_error(result, "rust checkpoint failed")
@@ -202,6 +204,7 @@ def restore_checkpoint_with_rust(root: Path, checkpoint_id: str) -> tuple[bool, 
             "root": str(root),
             "checkpoint_id": checkpoint_id,
         },
+        timeout_seconds=_BACKUP_COMMAND_TIMEOUT_SECONDS,
     )
     if not result.ok:
         return False, _format_error(result, "rust checkpoint restore failed")
@@ -242,7 +245,9 @@ def preview_restore_with_rust(
     }
     if relative_paths is not None:
         request["relative_paths"] = relative_paths
-    result = call_rust_engine(root, request)
+    result = call_rust_engine(
+        root, request, timeout_seconds=_BACKUP_COMMAND_TIMEOUT_SECONDS
+    )
     if not result.ok:
         return None, _format_error(result, "rust checkpoint preview failed")
     if result.payload.get("result") != "previewed":
@@ -264,6 +269,7 @@ def restore_files_with_rust(
             "checkpoint_id": checkpoint_id,
             "relative_paths": relative_paths,
         },
+        timeout_seconds=_BACKUP_COMMAND_TIMEOUT_SECONDS,
     )
     if not result.ok:
         return None, _format_error(result, "rust checkpoint selected restore failed")
@@ -315,7 +321,11 @@ def prune_checkpoints_with_rust(
 
 
 def apply_retention_with_rust(root: Path) -> tuple[dict[str, object] | None, str | None]:
-    result = call_rust_engine(root, {"command": "retention_apply", "root": str(root)})
+    result = call_rust_engine(
+        root,
+        {"command": "retention_apply", "root": str(root)},
+        timeout_seconds=_BACKUP_COMMAND_TIMEOUT_SECONDS,
+    )
     if not result.ok:
         return None, _format_error(result, "rust retention cleanup failed")
     if result.payload.get("result") != "retention_applied":
