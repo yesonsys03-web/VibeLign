@@ -129,6 +129,11 @@ def register_extended_commands(
         default=None,
         help="앵커 AI intent 자동 보강 on/off 토글 (.vibelign/config.yaml)",
     )
+    _ = p.add_argument(
+        "config_args",
+        nargs="*",
+        help=argparse.SUPPRESS,
+    )
     _ = p.add_argument("--json", action="store_true", help="JSON으로 출력")
     p.set_defaults(func=lazy_command("vibelign.commands.config_cmd", "run_config"))
 

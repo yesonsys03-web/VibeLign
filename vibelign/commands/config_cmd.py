@@ -299,11 +299,60 @@ def _run_ai_enhance(action: str, json_mode: bool) -> None:
 # === ANCHOR: CONFIG_CMD__RUN_AI_ENHANCE_END ===
 
 
+def _run_auto_backup(action: str, json_mode: bool) -> None:
+    from vibelign.core.checkpoint_engine.auto_backup import (
+        is_auto_backup_enabled,
+        set_auto_backup_enabled,
+    )
+    from vibelign.core.project_root import resolve_project_root
+
+    root = resolve_project_root(Path.cwd())
+    if action == "on":
+        set_auto_backup_enabled(root, True)
+        enabled = True
+        msg = "커밋 후 자동 저장을 켰어요."
+    elif action == "off":
+        set_auto_backup_enabled(root, False)
+        enabled = False
+        msg = "커밋 후 자동 저장을 껐어요."
+    else:
+        enabled = is_auto_backup_enabled(root)
+        msg = None
+
+    if json_mode:
+        _ = sys.stdout.write(
+            json.dumps(
+                {
+                    "ok": True,
+                    "error": None,
+                    "data": {"auto_backup_on_commit": enabled, "action": action},
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+        return
+    if msg:
+        clack_success(msg)
+    clack_info(f"auto_backup_on_commit: {'true' if enabled else 'false'}")
+
+
 # === ANCHOR: CONFIG_CMD_RUN_CONFIG_START ===
 def run_config(_args: Namespace) -> None:
     ai_enhance_action = getattr(_args, "ai_enhance", None)
     if ai_enhance_action:
         _run_ai_enhance(str(ai_enhance_action), bool(getattr(_args, "json", False)))
+        return
+
+    config_args = getattr(_args, "config_args", [])
+    config_parts = cast(list[object], config_args) if isinstance(config_args, list) else []
+    if config_parts:
+        if len(config_parts) == 2 and config_parts[0] == "auto-backup":
+            action = str(config_parts[1]).lower()
+            if action in {"on", "off", "status"}:
+                _run_auto_backup(action, bool(getattr(_args, "json", False)))
+                return
+        clack_error("사용법: vib config auto-backup on|off|status")
         return
 
     clack_intro("VibeLign API 키 설정")

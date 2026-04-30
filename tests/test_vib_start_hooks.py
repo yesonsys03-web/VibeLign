@@ -113,7 +113,7 @@ class VibStartHooksTest(unittest.TestCase):
 
             hook = root / ".git" / "hooks" / "post-commit"
             self.assertTrue(hook.exists())
-            self.assertIn("post-commit-record v1", hook.read_text())
+            self.assertIn("post-commit-record v2", hook.read_text())
 
     def test_set_auto_backup_on_commit_writes_db_meta_toggle(self) -> None:
         from vibelign.commands.vib_start_cmd import _set_auto_backup_on_commit
@@ -131,6 +131,27 @@ class VibStartHooksTest(unittest.TestCase):
             finally:
                 conn.close()
             self.assertEqual(value, "1")
+
+    def test_config_auto_backup_toggle_writes_db_meta(self) -> None:
+        from vibelign.commands.config_cmd import run_config
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            previous = Path.cwd()
+            try:
+                os.chdir(root)
+                run_config(Namespace(ai_enhance=None, config_args=["auto-backup", "off"], json=True))
+            finally:
+                os.chdir(previous)
+
+            conn = sqlite3.connect(root / ".vibelign" / "vibelign.db")
+            try:
+                value = conn.execute(
+                    "SELECT value FROM db_meta WHERE key = 'auto_backup_on_commit'"
+                ).fetchone()[0]
+            finally:
+                conn.close()
+            self.assertEqual(value, "0")
 
 
 if __name__ == "__main__":
