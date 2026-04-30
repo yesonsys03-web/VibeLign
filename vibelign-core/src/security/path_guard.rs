@@ -19,7 +19,8 @@ pub fn resolve_under(base: &Path, rel: &str) -> Option<PathBuf> {
 }
 
 fn has_textual_windows_escape(rel: &str) -> bool {
-    rel.starts_with("\\\\")
+    rel.starts_with('/')
+        || rel.starts_with("\\\\")
         || rel.as_bytes().get(1) == Some(&b':')
         || rel.split(['/', '\\']).any(|part| part == "..")
 }
