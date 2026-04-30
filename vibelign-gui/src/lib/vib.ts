@@ -598,6 +598,84 @@ export async function undoCheckpoint(cwd: string, checkpointId: string): Promise
   return JSON.parse(res.stdout);
 }
 
+export type BackupSourceKind = "manual" | "auto" | "safe" | "unknown";
+
+export interface BackupEntry {
+  id: string;
+  note: string;
+  createdAt?: string;
+  fileCount?: number;
+  totalSizeBytes: number;
+  sourceKind: BackupSourceKind;
+  commitNote?: string;
+}
+
+export interface BackupListResult {
+  backups: BackupEntry[];
+  warning?: string | null;
+}
+
+interface RawCheckpointEntry {
+  checkpoint_id?: string;
+  message?: string;
+  created_at?: string;
+  file_count?: number | null;
+  total_size_bytes?: number | null;
+  trigger?: string | null;
+  git_commit_message?: string | null;
+}
+
+function backupSourceKind(trigger?: string | null): BackupSourceKind {
+  if (trigger === "post_commit") return "auto";
+  if (trigger === "safe_restore") return "safe";
+  if (!trigger) return "manual";
+  return "unknown";
+}
+
+function cleanRawBackupNote(raw: RawCheckpointEntry): string {
+  const note = (raw.git_commit_message || raw.message || "")
+    .replace(/^vibelign:\s*checkpoint\s*-?\s*/i, "")
+    .replace(/\s*\(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}\)\s*$/, "")
+    .trim();
+  if (raw.trigger === "post_commit") {
+    return note ? `코드 저장 뒤 자동 보관 - ${note}` : "코드 저장 뒤 자동 보관";
+  }
+  return note || "메모 없는 저장본";
+}
+
+function normalizeBackupEntry(raw: RawCheckpointEntry): BackupEntry {
+  return {
+    id: raw.checkpoint_id ?? "",
+    note: cleanRawBackupNote(raw),
+    createdAt: raw.created_at,
+    fileCount: typeof raw.file_count === "number" ? raw.file_count : undefined,
+    totalSizeBytes: typeof raw.total_size_bytes === "number" ? raw.total_size_bytes : 0,
+    sourceKind: backupSourceKind(raw.trigger),
+    commitNote: raw.git_commit_message ?? undefined,
+  };
+}
+
+export async function backupCreate(cwd: string, note: string): Promise<unknown> {
+  return checkpointCreate(cwd, note);
+}
+
+export async function backupList(cwd: string): Promise<BackupListResult> {
+  const data = await checkpointList(cwd) as {
+    checkpoints?: RawCheckpointEntry[];
+    warning?: string | null;
+  };
+  return {
+    backups: (data.checkpoints ?? [])
+      .map(normalizeBackupEntry)
+      .filter((entry) => entry.id && entry.sourceKind !== "safe"),
+    warning: data.warning ?? null,
+  };
+}
+
+export async function backupRestore(cwd: string, backupId: string): Promise<unknown> {
+  return undoCheckpoint(cwd, backupId);
+}
+
 export interface GuardIssue { found: string; next_step: string; path: string }
 export interface GuardResult {
   status: string;
