@@ -80,6 +80,12 @@ class McpToolSnapshotTest(unittest.TestCase):
                 "checkpoint_create",
                 "checkpoint_list",
                 "checkpoint_restore",
+                "checkpoint_diff",
+                "checkpoint_preview_restore",
+                "checkpoint_restore_files",
+                "checkpoint_restore_suggestions",
+                "checkpoint_has_changes",
+                "retention_apply",
                 "project_context_get",
                 "doctor_run",
                 "guard_check",
@@ -118,6 +124,14 @@ class McpToolSnapshotTest(unittest.TestCase):
                 list[str], by_name["checkpoint_restore"].inputSchema.get("required", [])
             ),
             ["checkpoint_id"],
+        )
+        self.assertEqual(
+            by_name["checkpoint_diff"].inputSchema["required"],
+            ["from_checkpoint_id", "to_checkpoint_id"],
+        )
+        self.assertEqual(
+            by_name["checkpoint_restore_files"].inputSchema["required"],
+            ["checkpoint_id", "relative_paths"],
         )
         self.assertEqual(
             cast(list[str], by_name["protect_add"].inputSchema.get("required", [])),

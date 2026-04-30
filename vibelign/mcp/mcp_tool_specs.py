@@ -45,6 +45,78 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         },
     },
     {
+        "name": "checkpoint_diff",
+        "description": "두 저장 지점 사이에 바뀐 파일 요약을 JSON으로 반환합니다.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "from_checkpoint_id": {"type": "string", "description": "이전 저장 ID"},
+                "to_checkpoint_id": {"type": "string", "description": "나중 저장 ID"},
+            },
+            "required": ["from_checkpoint_id", "to_checkpoint_id"],
+        },
+    },
+    {
+        "name": "checkpoint_preview_restore",
+        "description": "되돌리기 전에 어떤 파일이 바뀔지 JSON으로 미리 확인합니다.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "checkpoint_id": {"type": "string", "description": "확인할 저장 ID"},
+                "relative_paths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "일부 파일만 확인할 때의 파일 경로 목록",
+                },
+            },
+            "required": ["checkpoint_id"],
+        },
+    },
+    {
+        "name": "checkpoint_restore_files",
+        "description": "선택한 파일만 저장 지점의 내용으로 되돌립니다. 다른 파일은 그대로 둡니다.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "checkpoint_id": {"type": "string", "description": "복원할 저장 ID"},
+                "relative_paths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "되돌릴 파일 경로 목록",
+                },
+            },
+            "required": ["checkpoint_id", "relative_paths"],
+        },
+    },
+    {
+        "name": "checkpoint_restore_suggestions",
+        "description": "되돌릴 때 먼저 확인하면 좋은 파일 추천을 JSON으로 반환합니다.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "checkpoint_id": {"type": "string", "description": "추천을 받을 저장 ID"},
+                "cap": {"type": "integer", "description": "추천 개수 상한 (기본값: 5)"},
+            },
+            "required": ["checkpoint_id"],
+        },
+    },
+    {
+        "name": "checkpoint_has_changes",
+        "description": "해당 저장 지점 이후 파일 변경이 있는지 JSON으로 반환합니다.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "checkpoint_id": {"type": "string", "description": "비교할 저장 ID"}
+            },
+            "required": ["checkpoint_id"],
+        },
+    },
+    {
+        "name": "retention_apply",
+        "description": "오래된 자동 저장을 안전 규칙에 따라 정리하고 결과를 JSON으로 반환합니다.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "project_context_get",
         "description": (
             "현재 프로젝트의 요약 컨텍스트를 생성합니다. "

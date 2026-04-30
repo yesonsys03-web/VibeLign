@@ -35,6 +35,30 @@ class CheckpointHandlersModule(Protocol):
     # === ANCHOR: MCP_HANDLER_REGISTRY_HANDLE_CHECKPOINT_RESTORE_END ===
     ) -> list[object]: ...
 
+    def handle_checkpoint_diff(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
+    def handle_checkpoint_preview_restore(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
+    def handle_checkpoint_restore_files(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
+    def handle_checkpoint_restore_suggestions(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
+    def handle_checkpoint_has_changes(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
+    def handle_retention_apply(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
 
 # === ANCHOR: MCP_HANDLER_REGISTRY_TRANSFERHANDLERSMODULE_START ===
 class TransferHandlersModule(Protocol):
@@ -321,6 +345,12 @@ DISPATCH_TABLE: dict[str, DispatchHandler] = {
     "checkpoint_create": _checkpoint_handlers().handle_checkpoint_create,
     "checkpoint_list": _handle_checkpoint_list,
     "checkpoint_restore": _checkpoint_handlers().handle_checkpoint_restore,
+    "checkpoint_diff": _checkpoint_handlers().handle_checkpoint_diff,
+    "checkpoint_preview_restore": _checkpoint_handlers().handle_checkpoint_preview_restore,
+    "checkpoint_restore_files": _checkpoint_handlers().handle_checkpoint_restore_files,
+    "checkpoint_restore_suggestions": _checkpoint_handlers().handle_checkpoint_restore_suggestions,
+    "checkpoint_has_changes": _checkpoint_handlers().handle_checkpoint_has_changes,
+    "retention_apply": _checkpoint_handlers().handle_retention_apply,
     "handoff_create": _transfer_handlers().handle_handoff_create,
     "project_context_get": _transfer_handlers().handle_project_context_get,
     "doctor_run": _health_handlers().handle_doctor_run,
