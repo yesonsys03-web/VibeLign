@@ -67,7 +67,8 @@ pub fn create_with_metadata(
     let checkpoint_id = checkpoint_id_from_time(&created_at);
     let tx = conn.transaction().map_err(|error| error.to_string())?;
     insert_checkpoint(&tx, &checkpoint_id, message, &created_at, &metadata, &plan)?;
-    insert_checkpoint_files(root, &tx, &checkpoint_id, &plan.files)?;
+    let stored_size_bytes = insert_checkpoint_files(root, &tx, &checkpoint_id, &plan.files)?;
+    update_checkpoint_stored_size(&tx, &checkpoint_id, stored_size_bytes)?;
     tx.commit().map_err(|error| error.to_string())?;
 
     let files = plan
@@ -247,7 +248,8 @@ fn insert_checkpoint_files(
     tx: &Transaction<'_>,
     checkpoint_id: &str,
     files: &[PlannedFile],
-) -> Result<(), String> {
+) -> Result<u64, String> {
+    let mut stored_size_bytes = 0_u64;
     for file in files {
         let object_hash = match &file.kind {
             PlannedFileKind::Reused { object_hash } => {
@@ -255,14 +257,15 @@ fn insert_checkpoint_files(
                 object_hash.clone()
             }
             PlannedFileKind::Changed => {
-                cas::store_object(
+                let object = cas::store_object(
                     root,
                     tx,
                     &file.snapshot.source_path,
                     &file.snapshot.hash,
                     file.snapshot.size,
-                )?
-                .hash
+                )?;
+                stored_size_bytes += object.stored_size;
+                object.hash
             }
         };
         tx.execute(
@@ -280,6 +283,19 @@ fn insert_checkpoint_files(
         )
         .map_err(|error| error.to_string())?;
     }
+    Ok(stored_size_bytes)
+}
+
+fn update_checkpoint_stored_size(
+    tx: &Transaction<'_>,
+    checkpoint_id: &str,
+    stored_size_bytes: u64,
+) -> Result<(), String> {
+    tx.execute(
+        "UPDATE checkpoints SET stored_size_bytes = ? WHERE checkpoint_id = ?",
+        params![stored_size_bytes as i64, checkpoint_id],
+    )
+    .map_err(|error| error.to_string())?;
     Ok(())
 }
 

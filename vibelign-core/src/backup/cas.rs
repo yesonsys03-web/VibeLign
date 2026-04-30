@@ -13,7 +13,15 @@ pub struct CasObject {
     pub hash: String,
     pub storage_path: String,
     pub size: u64,
+    pub stored_size: u64,
     pub ref_count: u32,
+}
+
+#[derive(Debug, Clone)]
+struct ObjectStorage {
+    compression: String,
+    stored_size: u64,
+    original_size: u64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -45,16 +53,30 @@ pub fn store_object(
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
         reject_object_store_symlink_ancestry(root, parent)?;
     }
-    write_object_if_missing(source, &object_path, hash)?;
-    verify_file_content(&object_path, hash, size)?;
-    let storage_path = root_relative_path(root, &object_path)?;
-    conn.execute(
-        "INSERT INTO cas_objects(hash, storage_path, ref_count, hash_algo, size, backend)
-         VALUES (?, ?, 1, 'blake3', ?, 'local')
-         ON CONFLICT(hash) DO UPDATE SET ref_count = ref_count + 1",
-        params![hash, storage_path, size as i64],
-    )
-    .map_err(|error| error.to_string())?;
+    let existing_storage = object_storage_from_db(conn, hash)?;
+    let storage = match existing_storage.as_ref() {
+        Some(storage) => storage.clone(),
+        None => write_object_if_missing(source, &object_path, hash, size)?,
+    };
+    verify_file_content(&object_path, hash, size, &storage.compression)?;
+    if existing_storage.is_some() {
+        increment_ref(conn, hash)?;
+    } else {
+        let storage_path = root_relative_path(root, &object_path)?;
+        conn.execute(
+            "INSERT INTO cas_objects(
+                 hash, storage_path, ref_count, hash_algo, size, backend, compression, stored_size
+             ) VALUES (?, ?, 1, 'blake3', ?, 'local', ?, ?)",
+            params![
+                hash,
+                storage_path,
+                storage.original_size as i64,
+                storage.compression,
+                storage.stored_size as i64,
+            ],
+        )
+        .map_err(|error| error.to_string())?;
+    }
     object_from_row(conn, hash)
 }
 
@@ -84,6 +106,52 @@ pub fn resolve_object(root: &Path, conn: &Connection, hash: &str) -> Result<Path
         return Err("backup object path escaped object store".to_string());
     }
     Ok(source)
+}
+
+pub fn restore_object_to(
+    root: &Path,
+    conn: &Connection,
+    hash: &str,
+    target: &Path,
+) -> Result<(), String> {
+    validate_hash(hash)?;
+    let source = resolve_object(root, conn, hash)?;
+    let storage = object_storage_from_db(conn, hash)?
+        .ok_or_else(|| "backup object missing from database".to_string())?;
+    let temp_path = create_restore_temp_file(target)?;
+    match storage.compression.as_str() {
+        "none" => {
+            fs::copy(&source, &temp_path).map_err(|error| {
+                let _ = fs::remove_file(&temp_path);
+                error.to_string()
+            })?;
+        }
+        "zstd" => {
+            let source_file = fs::File::open(&source).map_err(|error| error.to_string())?;
+            let mut target_file = fs::File::create(&temp_path).map_err(|error| {
+                let _ = fs::remove_file(&temp_path);
+                error.to_string()
+            })?;
+            zstd::stream::copy_decode(source_file, &mut target_file).map_err(|error| {
+                let _ = fs::remove_file(&temp_path);
+                error.to_string()
+            })?;
+            target_file.flush().map_err(|error| {
+                let _ = fs::remove_file(&temp_path);
+                error.to_string()
+            })?;
+        }
+        _ => {
+            let _ = fs::remove_file(&temp_path);
+            return Err("backup object compression is unsupported".to_string());
+        }
+    }
+    verify_file_content(&temp_path, hash, storage.original_size, "none").map_err(|error| {
+        let _ = fs::remove_file(&temp_path);
+        error
+    })?;
+    replace_target_with_temp(target, &temp_path)?;
+    Ok(())
 }
 
 #[allow(dead_code)]
@@ -122,7 +190,7 @@ pub fn prune_unreferenced_detailed(
     conn: &Connection,
 ) -> Result<PrunedCasObjects, String> {
     let mut statement = conn
-        .prepare("SELECT hash, storage_path, size FROM cas_objects WHERE ref_count = 0")
+        .prepare("SELECT hash, storage_path, stored_size FROM cas_objects WHERE ref_count = 0")
         .map_err(|error| error.to_string())?;
     let rows = statement
         .query_map([], |row| {
@@ -162,14 +230,15 @@ pub fn prune_unreferenced_detailed(
 
 fn object_from_row(conn: &Connection, hash: &str) -> Result<CasObject, String> {
     conn.query_row(
-        "SELECT hash, storage_path, size, ref_count FROM cas_objects WHERE hash = ?",
+        "SELECT hash, storage_path, size, stored_size, ref_count FROM cas_objects WHERE hash = ?",
         params![hash],
         |row| {
             Ok(CasObject {
                 hash: row.get(0)?,
                 storage_path: row.get(1)?,
                 size: row.get::<_, i64>(2)? as u64,
-                ref_count: row.get::<_, i64>(3)? as u32,
+                stored_size: row.get::<_, i64>(3)? as u64,
+                ref_count: row.get::<_, i64>(4)? as u32,
             })
         },
     )
@@ -192,17 +261,91 @@ fn object_path(root: &Path, hash: &str) -> Result<PathBuf, String> {
         .join(hash))
 }
 
-fn write_object_if_missing(source: &Path, destination: &Path, hash: &str) -> Result<(), String> {
-    if destination.exists() {
-        return Ok(());
+fn create_restore_temp_file(target: &Path) -> Result<PathBuf, String> {
+    let parent = target
+        .parent()
+        .ok_or_else(|| "restore target path has no parent".to_string())?;
+    let name = target
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("restore");
+    for attempt in 0..16_u8 {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|error| error.to_string())?
+            .as_nanos();
+        let temp_path = parent.join(format!(
+            ".{name}.restore.{}.{}.tmp",
+            std::process::id(),
+            nonce + u128::from(attempt)
+        ));
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp_path)
+        {
+            Ok(_) => return Ok(temp_path),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error.to_string()),
+        }
     }
-    let temp_path = create_temp_object_file(source, destination, hash)?;
+    Err("could not create temporary restore file".to_string())
+}
+
+#[cfg(not(windows))]
+fn replace_target_with_temp(target: &Path, temp_path: &Path) -> Result<(), String> {
+    fs::rename(temp_path, target).map_err(|error| {
+        let _ = fs::remove_file(temp_path);
+        error.to_string()
+    })
+}
+
+#[cfg(windows)]
+fn replace_target_with_temp(target: &Path, temp_path: &Path) -> Result<(), String> {
+    if target.exists() {
+        fs::remove_file(target).map_err(|error| {
+            let _ = fs::remove_file(temp_path);
+            error.to_string()
+        })?;
+    }
+    fs::rename(temp_path, target).map_err(|error| {
+        let _ = fs::remove_file(temp_path);
+        error.to_string()
+    })
+}
+
+fn object_storage_from_db(conn: &Connection, hash: &str) -> Result<Option<ObjectStorage>, String> {
+    conn.query_row(
+        "SELECT compression, stored_size, size FROM cas_objects WHERE hash = ?",
+        params![hash],
+        |row| {
+            Ok(ObjectStorage {
+                compression: row.get(0)?,
+                stored_size: row.get::<_, i64>(1)?.max(0) as u64,
+                original_size: row.get::<_, i64>(2)?.max(0) as u64,
+            })
+        },
+    )
+    .optional()
+    .map_err(|error| error.to_string())
+}
+
+fn write_object_if_missing(
+    source: &Path,
+    destination: &Path,
+    hash: &str,
+    size: u64,
+) -> Result<ObjectStorage, String> {
+    if destination.exists() {
+        return infer_existing_object_storage(destination, hash, size);
+    }
+    let (temp_path, storage) = create_temp_object_file(source, destination, hash, size)?;
     match fs::rename(&temp_path, destination) {
-        Ok(()) => Ok(()),
+        Ok(()) => Ok(storage),
         Err(error) if destination.exists() => {
             let _ = fs::remove_file(&temp_path);
             let _ = error;
-            Ok(())
+            infer_existing_object_storage(destination, hash, size)
         }
         Err(error) => {
             let _ = fs::remove_file(&temp_path);
@@ -211,11 +354,38 @@ fn write_object_if_missing(source: &Path, destination: &Path, hash: &str) -> Res
     }
 }
 
+fn infer_existing_object_storage(
+    destination: &Path,
+    hash: &str,
+    size: u64,
+) -> Result<ObjectStorage, String> {
+    let stored_size = destination
+        .metadata()
+        .map_err(|error| error.to_string())?
+        .len();
+    if verify_file_content(destination, hash, size, "none").is_ok() {
+        return Ok(ObjectStorage {
+            compression: "none".to_string(),
+            stored_size,
+            original_size: size,
+        });
+    }
+    if verify_file_content(destination, hash, size, "zstd").is_ok() {
+        return Ok(ObjectStorage {
+            compression: "zstd".to_string(),
+            stored_size,
+            original_size: size,
+        });
+    }
+    Err("backup object hash mismatch while being stored".to_string())
+}
+
 fn create_temp_object_file(
     source: &Path,
     destination: &Path,
     hash: &str,
-) -> Result<PathBuf, String> {
+    size: u64,
+) -> Result<(PathBuf, ObjectStorage), String> {
     let parent = destination
         .parent()
         .ok_or_else(|| "backup object path has no parent".to_string())?;
@@ -229,50 +399,150 @@ fn create_temp_object_file(
             std::process::id(),
             nonce + u128::from(attempt)
         ));
-        let mut destination_file = match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp_path)
-        {
-            Ok(file) => file,
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(error.to_string()),
-        };
-        let mut source_file = fs::File::open(source).map_err(|error| error.to_string())?;
-        std::io::copy(&mut source_file, &mut destination_file)
-            .map_err(|error| error.to_string())?;
-        destination_file
-            .flush()
-            .map_err(|error| error.to_string())?;
-        return Ok(temp_path);
+        if should_try_compression(source, size) {
+            match write_temp_zstd(source, &temp_path) {
+                Ok(stored_size) if stored_size < size => {
+                    return Ok((
+                        temp_path,
+                        ObjectStorage {
+                            compression: "zstd".to_string(),
+                            stored_size,
+                            original_size: size,
+                        },
+                    ));
+                }
+                Ok(_) => {
+                    let _ = fs::remove_file(&temp_path);
+                }
+                Err(error) => {
+                    let _ = fs::remove_file(&temp_path);
+                    return Err(error);
+                }
+            }
+        }
+        let stored_size = write_temp_plain(source, &temp_path)?;
+        return Ok((
+            temp_path,
+            ObjectStorage {
+                compression: "none".to_string(),
+                stored_size,
+                original_size: size,
+            },
+        ));
     }
     Err("could not create temporary backup object file".to_string())
 }
 
-fn verify_file_content(path: &Path, expected_hash: &str, expected_size: u64) -> Result<(), String> {
-    let metadata = path.metadata().map_err(|error| error.to_string())?;
-    if metadata.len() != expected_size {
+fn write_temp_zstd(source: &Path, temp_path: &Path) -> Result<u64, String> {
+    let source_file = fs::File::open(source).map_err(|error| error.to_string())?;
+    let mut destination_file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(temp_path)
+        .map_err(|error| error.to_string())?;
+    zstd::stream::copy_encode(source_file, &mut destination_file, 0)
+        .map_err(|error| error.to_string())?;
+    destination_file
+        .flush()
+        .map_err(|error| error.to_string())?;
+    Ok(temp_path
+        .metadata()
+        .map_err(|error| error.to_string())?
+        .len())
+}
+
+fn write_temp_plain(source: &Path, temp_path: &Path) -> Result<u64, String> {
+    let mut destination_file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(temp_path)
+        .map_err(|error| error.to_string())?;
+    let mut source_file = fs::File::open(source).map_err(|error| error.to_string())?;
+    std::io::copy(&mut source_file, &mut destination_file).map_err(|error| error.to_string())?;
+    destination_file
+        .flush()
+        .map_err(|error| error.to_string())?;
+    Ok(temp_path
+        .metadata()
+        .map_err(|error| error.to_string())?
+        .len())
+}
+
+fn should_try_compression(source: &Path, size: u64) -> bool {
+    if size == 0 {
+        return false;
+    }
+    let Some(extension) = source.extension().and_then(|value| value.to_str()) else {
+        return false;
+    };
+    matches!(
+        extension.to_ascii_lowercase().as_str(),
+        "css"
+            | "csv"
+            | "html"
+            | "js"
+            | "json"
+            | "jsx"
+            | "lock"
+            | "md"
+            | "py"
+            | "rs"
+            | "sql"
+            | "svg"
+            | "toml"
+            | "ts"
+            | "tsx"
+            | "txt"
+            | "xml"
+            | "yaml"
+            | "yml"
+    )
+}
+
+fn verify_file_content(
+    path: &Path,
+    expected_hash: &str,
+    expected_size: u64,
+    compression: &str,
+) -> Result<(), String> {
+    let (actual_hash, actual_size) = hash_file_with_compression(path, compression)?;
+    if actual_size != expected_size {
         return Err("backup object changed while being stored".to_string());
     }
-    let actual_hash = hash_file(path)?;
     if actual_hash != expected_hash {
         return Err("backup object hash mismatch while being stored".to_string());
     }
     Ok(())
 }
 
-fn hash_file(path: &Path) -> Result<String, String> {
-    let mut file = fs::File::open(path).map_err(|error| error.to_string())?;
+fn hash_file_with_compression(path: &Path, compression: &str) -> Result<(String, u64), String> {
+    match compression {
+        "none" => hash_reader(fs::File::open(path).map_err(|error| error.to_string())?),
+        "zstd" => {
+            let file = fs::File::open(path).map_err(|error| error.to_string())?;
+            let decoder =
+                zstd::stream::read::Decoder::new(file).map_err(|error| error.to_string())?;
+            hash_reader(decoder)
+        }
+        _ => Err("backup object compression is unsupported".to_string()),
+    }
+}
+
+fn hash_reader<R: Read>(mut reader: R) -> Result<(String, u64), String> {
     let mut hasher = blake3::Hasher::new();
+    let mut size = 0_u64;
     let mut buffer = [0_u8; 64 * 1024];
     loop {
-        let read = file.read(&mut buffer).map_err(|error| error.to_string())?;
+        let read = reader
+            .read(&mut buffer)
+            .map_err(|error| error.to_string())?;
         if read == 0 {
             break;
         }
         hasher.update(&buffer[..read]);
+        size += read as u64;
     }
-    Ok(hasher.finalize().to_hex().to_string())
+    Ok((hasher.finalize().to_hex().to_string(), size))
 }
 
 fn root_relative_path(root: &Path, path: &Path) -> Result<String, String> {
@@ -385,6 +655,56 @@ mod tests {
     }
 
     #[test]
+    fn compresses_text_object_and_records_storage_metadata() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let conn = Connection::open(root.join("cas.db")).unwrap();
+        schema::initialize(&conn).unwrap();
+        let text = "fn main() { println!(\"hello\"); }\n".repeat(256);
+        let file = root.join("app.rs");
+        std::fs::write(&file, &text).unwrap();
+        let hash = blake3::hash(text.as_bytes()).to_hex().to_string();
+
+        let object = store_object(root, &conn, &file, &hash, text.len() as u64).unwrap();
+
+        let (compression, stored_size): (String, i64) = conn
+            .query_row(
+                "SELECT compression, stored_size FROM cas_objects WHERE hash = ?",
+                params![hash],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(compression, "zstd");
+        assert!(stored_size > 0);
+        assert!(stored_size < text.len() as i64);
+        assert_eq!(object.size, text.len() as u64);
+    }
+
+    #[test]
+    fn skips_already_compressed_extension_even_when_bytes_are_repetitive() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let conn = Connection::open(root.join("cas.db")).unwrap();
+        schema::initialize(&conn).unwrap();
+        let bytes = vec![b'a'; 4096];
+        let file = root.join("asset.png");
+        std::fs::write(&file, &bytes).unwrap();
+        let hash = blake3::hash(&bytes).to_hex().to_string();
+
+        store_object(root, &conn, &file, &hash, bytes.len() as u64).unwrap();
+
+        let (compression, stored_size): (String, i64) = conn
+            .query_row(
+                "SELECT compression, stored_size FROM cas_objects WHERE hash = ?",
+                params![hash],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(compression, "none");
+        assert_eq!(stored_size, bytes.len() as i64);
+    }
+
+    #[test]
     fn prunes_only_unreferenced_objects() {
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path();
@@ -400,6 +720,26 @@ mod tests {
         assert_eq!(prune_unreferenced(root, &conn).unwrap(), 1);
 
         assert!(!root.join(object.storage_path).exists());
+    }
+
+    #[test]
+    fn prune_reports_compressed_stored_size_as_reclaimed_bytes() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let conn = Connection::open(root.join("cas.db")).unwrap();
+        schema::initialize(&conn).unwrap();
+        let text = "fn main() { println!(\"hello\"); }\n".repeat(256);
+        let file = root.join("app.rs");
+        std::fs::write(&file, &text).unwrap();
+        let hash = blake3::hash(text.as_bytes()).to_hex().to_string();
+        let object = store_object(root, &conn, &file, &hash, text.len() as u64).unwrap();
+
+        decrement_ref(&conn, &hash).unwrap();
+        let pruned = super::prune_unreferenced_detailed(root, &conn).unwrap();
+
+        assert_eq!(pruned.count, 1);
+        assert_eq!(pruned.bytes, object.stored_size);
+        assert!(pruned.bytes < text.len() as u64);
     }
 
     #[test]
