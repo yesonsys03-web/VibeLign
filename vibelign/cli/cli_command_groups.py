@@ -477,6 +477,19 @@ def register_extended_commands(
     )
 
     p = sub.add_parser(
+        "_internal_post_commit",
+        help=argparse.SUPPRESS,
+        description="post-commit 훅 내부 처리. stdin 으로 commit 메시지 받음.",
+    )
+    _ = p.add_argument("sha", help="git commit SHA")
+    p.set_defaults(
+        func=lazy_command(
+            "vibelign.commands.internal_post_commit_cmd",
+            "run_internal_post_commit",
+        )
+    )
+
+    p = sub.add_parser(
         "scan",
         help="앵커 스캔 + 코드맵 갱신을 한 번에 해요",
         description=(
