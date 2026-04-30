@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from vibelign.core import work_memory as work_memory_module
 from vibelign.core.work_memory import (
     MAX_RECENT_EVENTS,
     MAX_RELEVANT_FILES,
@@ -8,6 +9,8 @@ from vibelign.core.work_memory import (
     add_verification,
     build_transfer_summary,
     load_work_memory,
+    record_checkpoint,
+    record_commit,
     record_event,
     record_warning,
     save_work_memory,
@@ -20,6 +23,17 @@ def test_load_missing_file_returns_default_state(tmp_path: Path) -> None:
     assert state["recent_events"] == []
     assert state["relevant_files"] == []
     assert state["warnings"] == []
+
+
+def test_load_work_memory_warns_on_corrupt_json(tmp_path: Path, capsys) -> None:
+    path = tmp_path / ".vibelign" / "work_memory.json"
+    path.parent.mkdir()
+    path.write_text("{broken", encoding="utf-8")
+
+    state = load_work_memory(path)
+
+    assert state["recent_events"] == []
+    assert "work memory load failed" in capsys.readouterr().err
 
 
 def test_save_and_load_round_trip(tmp_path: Path) -> None:
@@ -39,6 +53,66 @@ def test_record_event_updates_updated_at(tmp_path: Path) -> None:
     loaded = load_work_memory(path)
     assert loaded["updated_at"]
     assert loaded["recent_events"][-1].get("path") == "src/app.py"
+
+
+def test_record_event_warns_and_stays_nonfatal_on_save_failure(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    path = tmp_path / ".vibelign" / "work_memory.json"
+
+    def fail_save(*_args, **_kwargs) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(work_memory_module, "save_work_memory", fail_save)
+
+    record_event(path, kind="modified", rel_path="src/app.py", message="changed app")
+
+    assert "work memory record_event failed" in capsys.readouterr().err
+
+
+def test_record_warning_warns_and_stays_nonfatal_on_save_failure(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    path = tmp_path / ".vibelign" / "work_memory.json"
+
+    def fail_save(*_args, **_kwargs) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(work_memory_module, "save_work_memory", fail_save)
+
+    record_warning(path, rel_path="src/app.py", message="anchor missing")
+
+    assert "work memory record_warning failed" in capsys.readouterr().err
+
+
+def test_record_commit_warns_and_stays_nonfatal_on_save_failure(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    path = tmp_path / ".vibelign" / "work_memory.json"
+
+    def fail_save(*_args, **_kwargs) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(work_memory_module, "save_work_memory", fail_save)
+
+    record_commit(path, "abc1234", "feat: handoff")
+
+    assert "work memory record_commit failed" in capsys.readouterr().err
+
+
+def test_record_checkpoint_warns_and_stays_nonfatal_on_save_failure(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    path = tmp_path / ".vibelign" / "work_memory.json"
+
+    def fail_save(*_args, **_kwargs) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(work_memory_module, "save_work_memory", fail_save)
+
+    record_checkpoint(path, "before handoff")
+
+    assert "work memory record_checkpoint failed" in capsys.readouterr().err
 
 
 def test_pruning_caps_lists(tmp_path: Path) -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TypedDict, cast
@@ -105,6 +106,10 @@ def _truncate_text(value: object, limit: int = MAX_TEXT_LENGTH) -> str:
         return text
     return text[: limit - 1].rstrip() + "…"
 # === ANCHOR: WORK_MEMORY__TRUNCATE_TEXT_END ===
+
+
+def _warn_work_memory_failure(operation: str, path: Path, error: Exception) -> None:
+    print(f"[WARN] work memory {operation} failed for {path}: {error}", file=sys.stderr)
 
 
 # === ANCHOR: WORK_MEMORY__SAFE_RELATIVE_PATH_START ===
@@ -267,7 +272,8 @@ def load_work_memory(path: Path) -> WorkMemoryState:
         return default_work_memory_state()
     try:
         raw = cast(object, json.loads(path.read_text(encoding="utf-8")))
-    except Exception:
+    except Exception as exc:
+        _warn_work_memory_failure("load", path, exc)
         return default_work_memory_state()
     if not isinstance(raw, dict):
         return default_work_memory_state()
@@ -385,7 +391,8 @@ def record_event(
         )
         state["updated_at"] = event["time"]
         save_work_memory(path, state)
-    except Exception:
+    except Exception as exc:
+        _warn_work_memory_failure("record_event", path, exc)
         return
 
 
@@ -419,7 +426,8 @@ def record_warning(
         )
         state["updated_at"] = warning["time"]
         save_work_memory(path, state)
-    except Exception:
+    except Exception as exc:
+        _warn_work_memory_failure("record_warning", path, exc)
         return
 
 
@@ -447,7 +455,8 @@ def record_commit(path: Path, sha: str, message: str) -> None:
         state["recent_events"].append(event)
         state["updated_at"] = event["time"]
         save_work_memory(path, state)
-    except Exception:
+    except Exception as exc:
+        _warn_work_memory_failure("record_commit", path, exc)
         return
 # === ANCHOR: WORK_MEMORY_RECORD_COMMIT_END ===
 
@@ -474,7 +483,8 @@ def record_checkpoint(path: Path, message: str) -> None:
         state["recent_events"].append(event)
         state["updated_at"] = event["time"]
         save_work_memory(path, state)
-    except Exception:
+    except Exception as exc:
+        _warn_work_memory_failure("record_checkpoint", path, exc)
         return
 # === ANCHOR: WORK_MEMORY_RECORD_CHECKPOINT_END ===
 
