@@ -2,7 +2,6 @@ use crate::backup::cas;
 use crate::backup::snapshot::{collect, SnapshotFile};
 use crate::db::schema;
 use crate::security::path_guard::resolve_under;
-use chrono::{SecondsFormat, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::fs;
 use std::path::Path;
@@ -37,14 +36,6 @@ pub struct ListedCheckpoint {
 pub struct PruneResult {
     pub count: usize,
     pub bytes: u64,
-}
-
-fn checkpoint_id_from_time(created_at: &str) -> String {
-    let compact: String = created_at
-        .chars()
-        .filter(|ch| ch.is_ascii_digit())
-        .collect();
-    format!("{}Z", &compact[..20.min(compact.len())])
 }
 
 pub fn list(root: &Path) -> Result<Vec<ListedCheckpoint>, String> {
@@ -95,107 +86,7 @@ pub fn create_with_metadata(
     message: &str,
     metadata: CheckpointCreateMetadata,
 ) -> Result<Option<CreatedCheckpoint>, String> {
-    let vibelign_dir = root.join(".vibelign");
-    fs::create_dir_all(&vibelign_dir).map_err(|error| error.to_string())?;
-    let db_path = vibelign_dir.join("vibelign.db");
-    let mut conn = Connection::open(db_path).map_err(|error| error.to_string())?;
-    schema::initialize(&conn).map_err(|error| error.to_string())?;
-    let files = collect(root).map_err(|error| error.to_string())?;
-    if matches_latest_snapshot(&conn, &files)? {
-        return Ok(None);
-    }
-    let created_at = Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true);
-    let checkpoint_id = checkpoint_id_from_time(&created_at);
-    let total_size_bytes = files.iter().map(|file| file.size).sum::<u64>();
-    let tx = conn.transaction().map_err(|error| error.to_string())?;
-    let trigger = metadata.trigger.unwrap_or_else(|| "manual".to_string());
-    tx.execute(
-        "INSERT INTO checkpoints(
-             checkpoint_id, message, created_at, pinned, total_size_bytes, file_count,
-             engine_version, trigger, git_commit_sha, git_commit_message,
-             original_size_bytes, stored_size_bytes, changed_file_count
-         ) VALUES (?, ?, ?, 0, ?, ?, 'rust-v2', ?, ?, ?, ?, ?, ?)",
-        params![
-            checkpoint_id,
-            message,
-            created_at,
-            total_size_bytes as i64,
-            files.len() as i64,
-            trigger,
-            metadata.git_commit_sha,
-            metadata.git_commit_message,
-            total_size_bytes as i64,
-            total_size_bytes as i64,
-            files.len() as i64,
-        ],
-    )
-    .map_err(|error| error.to_string())?;
-    for file in &files {
-        let source_path = resolve_under(root, &file.relative_path)
-            .ok_or_else(|| "source path escaped project root".to_string())?;
-        let object = cas::store_object(root, &tx, &source_path, &file.hash, file.size)?;
-        let storage_text = cas::storage_sentinel(&object.hash);
-        tx.execute(
-            "INSERT INTO checkpoint_files(
-                 checkpoint_id, relative_path, hash, hash_algo, size, storage_path, object_hash
-             ) VALUES (?, ?, ?, 'blake3', ?, ?, ?)",
-            params![
-                checkpoint_id,
-                file.relative_path,
-                file.hash,
-                file.size as i64,
-                storage_text,
-                object.hash,
-            ],
-        )
-        .map_err(|error| error.to_string())?;
-    }
-    tx.commit().map_err(|error| error.to_string())?;
-
-    Ok(Some(CreatedCheckpoint {
-        checkpoint_id,
-        created_at,
-        file_count: files.len(),
-        total_size_bytes,
-        files,
-    }))
-}
-
-fn matches_latest_snapshot(conn: &Connection, files: &[SnapshotFile]) -> Result<bool, String> {
-    let latest_id: Option<String> = conn
-        .query_row(
-            "SELECT checkpoint_id FROM checkpoints ORDER BY created_at DESC, checkpoint_id DESC LIMIT 1",
-            [],
-            |row| row.get(0),
-        )
-        .optional()
-        .map_err(|error| error.to_string())?;
-    let Some(checkpoint_id) = latest_id else {
-        return Ok(false);
-    };
-    let mut statement = conn
-        .prepare(
-            "SELECT relative_path, hash, size FROM checkpoint_files WHERE checkpoint_id = ? ORDER BY relative_path ASC",
-        )
-        .map_err(|error| error.to_string())?;
-    let rows = statement
-        .query_map(params![checkpoint_id], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, i64>(2)? as u64,
-            ))
-        })
-        .map_err(|error| error.to_string())?;
-    let mut latest = Vec::new();
-    for row in rows {
-        latest.push(row.map_err(|error| error.to_string())?);
-    }
-    let current = files
-        .iter()
-        .map(|file| (file.relative_path.clone(), file.hash.clone(), file.size))
-        .collect::<Vec<_>>();
-    Ok(current == latest)
+    crate::backup::create::create_with_metadata(root, message, metadata)
 }
 
 pub fn restore(root: &Path, checkpoint_id: &str) -> Result<(), String> {
