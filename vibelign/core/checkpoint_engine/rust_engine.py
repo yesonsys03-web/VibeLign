@@ -143,9 +143,27 @@ def call_rust_engine(
     )
 
 
-def create_checkpoint_with_rust(root: Path, message: str) -> tuple[CheckpointSummary | None, str | None]:
+def create_checkpoint_with_rust(
+    root: Path,
+    message: str,
+    *,
+    trigger: str | None = None,
+    git_commit_sha: str | None = None,
+    git_commit_message: str | None = None,
+) -> tuple[CheckpointSummary | None, str | None]:
+    request: dict[str, object] = {
+        "command": "checkpoint_create",
+        "root": str(root),
+        "message": message,
+    }
+    if trigger is not None:
+        request["trigger"] = trigger
+    if git_commit_sha is not None:
+        request["git_commit_sha"] = git_commit_sha
+    if git_commit_message is not None:
+        request["git_commit_message"] = git_commit_message
     result = call_rust_engine(
-        root, {"command": "checkpoint_create", "root": str(root), "message": message}
+        root, request
     )
     if not result.ok:
         return None, _format_error(result, "rust checkpoint failed")

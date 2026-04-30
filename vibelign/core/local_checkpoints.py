@@ -42,9 +42,9 @@ class RetentionPolicy:
     keep_latest: int = 30
     keep_daily_days: int = 14
     keep_weekly_weeks: int = 8
-    max_total_size_bytes: int = 2 * 1024 * 1024 * 1024
+    max_total_size_bytes: int = 1024 * 1024 * 1024
     max_age_days: int = 180
-    min_keep: int = 10
+    min_keep: int = 20
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS_RETENTIONPOLICY_END ===

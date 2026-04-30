@@ -92,6 +92,39 @@ class CheckpointRustEngineTest(unittest.TestCase):
             self.assertEqual(summary.checkpoint_id, "cp1")
             self.assertEqual(summary.file_count, 1)
 
+    def test_create_checkpoint_with_rust_passes_optional_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            with patch(
+                "vibelign.core.checkpoint_engine.rust_engine.call_rust_engine",
+                return_value=type(
+                    "Result",
+                    (),
+                    {
+                        "ok": True,
+                        "payload": {
+                            "status": "ok",
+                            "result": "no_changes",
+                        },
+                    },
+                )(),
+            ) as mocked_call:
+                summary, warning = create_checkpoint_with_rust(
+                    root,
+                    "hello",
+                    trigger="post_commit",
+                    git_commit_sha="abc1234",
+                    git_commit_message="feat: demo",
+                )
+
+            self.assertIsNone(summary)
+            self.assertIsNone(warning)
+            request = mocked_call.call_args.args[1]
+            self.assertEqual(request["trigger"], "post_commit")
+            self.assertEqual(request["git_commit_sha"], "abc1234")
+            self.assertEqual(request["git_commit_message"], "feat: demo")
+
     def test_list_checkpoints_with_rust_returns_summaries(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

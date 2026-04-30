@@ -19,6 +19,12 @@ from vibelign.core.local_checkpoints import (
 
 
 class LocalCheckpointsTest(unittest.TestCase):
+    def test_default_retention_policy_matches_backup_v2_defaults(self):
+        policy = local_checkpoints.DEFAULT_RETENTION_POLICY
+
+        self.assertEqual(policy.min_keep, 20)
+        self.assertEqual(policy.max_total_size_bytes, 1024 * 1024 * 1024)
+
     def test_create_checkpoint_and_list(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
