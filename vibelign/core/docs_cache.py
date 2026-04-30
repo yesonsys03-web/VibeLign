@@ -2,11 +2,16 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import html
 import json
 import hashlib
 import os
+import re
 import sys
+import zipfile
 from dataclasses import asdict, dataclass
+from io import StringIO
 from pathlib import Path
 from . import docs_scan as _DOCS_SCAN
 from . import doc_sources as _DOC_SOURCES
@@ -15,6 +20,7 @@ from . import meta_paths as _META_PATHS
 
 DOCS_VISUAL_SCHEMA_VERSION = 2
 DOCS_VISUAL_GENERATOR_VERSION = "heuristic-v2"
+TEXT_DOC_EXTENSIONS: frozenset[str] = frozenset({".md", ".markdown", ".txt", ".csv"})
 
 
 @dataclass(frozen=True)
@@ -52,6 +58,99 @@ def normalize_doc_text_bytes(raw: bytes) -> str:
 # === ANCHOR: DOCS_CACHE_NORMALIZE_DOC_TEXT_BYTES_END ===
 
 
+def _decode_utf8_document(raw: bytes, label: str) -> str:
+    try:
+        return normalize_doc_text_bytes(raw)
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"UTF-8 {label} 문서만 읽을 수 있어요") from exc
+
+
+def _read_json_document(path: Path) -> str:
+    text = _decode_utf8_document(path.read_bytes(), "JSON")
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return text
+    return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+
+
+def _read_csv_document(path: Path) -> str:
+    text = _decode_utf8_document(path.read_bytes(), "CSV")
+    rows = list(csv.reader(StringIO(text)))
+    if not rows:
+        return text
+    widths = [
+        max(len(row[index]) if index < len(row) else 0 for row in rows)
+        for index in range(max(len(row) for row in rows))
+    ]
+    rendered: list[str] = []
+    for row in rows:
+        rendered.append(
+            " | ".join(
+                (row[index] if index < len(row) else "").ljust(widths[index])
+                for index in range(len(widths))
+            ).rstrip()
+        )
+    return "\n".join(rendered) + "\n"
+
+
+def _xml_text_from_docx(path: Path) -> str:
+    try:
+        with zipfile.ZipFile(path) as archive:
+            raw = archive.read("word/document.xml")
+    except (KeyError, OSError, zipfile.BadZipFile) as exc:
+        raise ValueError("DOCX 본문을 읽을 수 없어요") from exc
+    xml = raw.decode("utf-8", errors="ignore")
+    xml = re.sub(r"</w:p>", "\n", xml)
+    xml = re.sub(r"</w:tr>", "\n", xml)
+    xml = re.sub(r"</w:tc>", "\t", xml)
+    text = re.sub(r"<[^>]+>", "", xml)
+    return html.unescape(text).replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
+
+
+def _printable_runs(raw: bytes) -> str:
+    ascii_runs = re.findall(rb"[\x09\x0a\x0d\x20-\x7e]{4,}", raw)
+    parts = [chunk.decode("utf-8", errors="ignore") for chunk in ascii_runs]
+    try:
+        utf16 = raw.decode("utf-16le", errors="ignore")
+    except UnicodeError:
+        utf16 = ""
+    parts.extend(re.findall(r"[\w\s가-힣.,;:!?()\[\]{}\-/]{8,}", utf16))
+    cleaned = [part.strip() for part in parts if part.strip()]
+    return "\n".join(cleaned[:400]) + ("\n" if cleaned else "")
+
+
+def _read_pdf_document(path: Path) -> str:
+    text = _printable_runs(path.read_bytes())
+    if text:
+        return text
+    raise ValueError("PDF 텍스트를 추출할 수 없어요")
+
+
+def _read_doc_document(path: Path) -> str:
+    text = _printable_runs(path.read_bytes())
+    if text:
+        return text
+    raise ValueError("DOC 텍스트를 추출할 수 없어요")
+
+
+def read_document_text(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix == ".json":
+        return _read_json_document(path)
+    if suffix == ".csv":
+        return _read_csv_document(path)
+    if suffix == ".docx":
+        return _xml_text_from_docx(path)
+    if suffix == ".pdf":
+        return _read_pdf_document(path)
+    if suffix == ".doc":
+        return _read_doc_document(path)
+    if suffix in TEXT_DOC_EXTENSIONS:
+        return _decode_utf8_document(path.read_bytes(), "텍스트")
+    raise ValueError(f"지원하지 않는 문서 형식입니다: {suffix or path.name}")
+
+
 # === ANCHOR: DOCS_CACHE_COMPUTE_SOURCE_HASH_FROM_TEXT_START ===
 def compute_source_hash_from_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -60,18 +159,26 @@ def compute_source_hash_from_text(text: str) -> str:
 
 # === ANCHOR: DOCS_CACHE_COMPUTE_SOURCE_HASH_START ===
 def compute_source_hash(path: Path) -> str:
-    return compute_source_hash_from_text(normalize_doc_text_bytes(path.read_bytes()))
+    return compute_source_hash_from_text(read_document_text(path))
 # === ANCHOR: DOCS_CACHE_COMPUTE_SOURCE_HASH_END ===
 
 
 # === ANCHOR: DOCS_CACHE__READ_TITLE_START ===
 def _read_title(path: Path) -> str:
     try:
-        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        if path.suffix.lower() in TEXT_DOC_EXTENSIONS | {".json", ".csv"}:
+            text = path.read_text(encoding="utf-8-sig").replace("\r\n", "\n").replace("\r", "\n")
+        else:
+            text = read_document_text(path)
+        for line in text.splitlines():
             stripped = line.strip()
             if stripped.startswith("#"):
                 return stripped.lstrip("#").strip() or path.stem
+            if stripped:
+                return stripped[:80]
     except OSError as exc:
+        print(f"[WARN] docs title fallback for {path}: {exc}", file=sys.stderr)
+    except ValueError as exc:
         print(f"[WARN] docs title fallback for {path}: {exc}", file=sys.stderr)
     return path.stem.replace("-", " ").replace("_", " ").strip() or path.name
 # === ANCHOR: DOCS_CACHE__READ_TITLE_END ===

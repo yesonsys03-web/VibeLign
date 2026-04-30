@@ -106,14 +106,69 @@ struct DocsVisualReadResult {
     contract: DocsVisualContract,
 }
 
-fn normalize_doc_content(bytes: &[u8]) -> Result<String, String> {
+fn normalize_text_document(bytes: &[u8]) -> Result<String, String> {
     let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes);
     let text = std::str::from_utf8(bytes)
-        .map_err(|_| "UTF-8 문서 파일만 읽을 수 있어요".to_string())?;
+        .map_err(|_| "UTF-8 텍스트 문서만 읽을 수 있어요".to_string())?;
     Ok(text.replace("\r\n", "\n").replace('\r', "\n"))
 }
 
-fn hash_doc_content(content: &str) -> String {
+fn printable_document_runs(bytes: &[u8]) -> String {
+    let mut runs: Vec<String> = Vec::new();
+    let mut current: Vec<u8> = Vec::new();
+    for byte in bytes {
+        let printable = matches!(*byte, b'\t' | b'\n' | b'\r' | b' '..=b'~');
+        if printable {
+            current.push(*byte);
+        } else {
+            if current.len() >= 4 {
+                runs.push(String::from_utf8_lossy(&current).trim().to_string());
+            }
+            current.clear();
+        }
+    }
+    if current.len() >= 4 {
+        runs.push(String::from_utf8_lossy(&current).trim().to_string());
+    }
+    runs.retain(|item| !item.is_empty());
+    runs.truncate(400);
+    if runs.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n", runs.join("\n"))
+    }
+}
+
+fn normalize_document_content(path: &Path, bytes: &[u8]) -> Result<String, String> {
+    let ext = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    match ext.as_str() {
+        "md" | "markdown" | "txt" | "csv" => normalize_text_document(bytes),
+        "json" => {
+            let text = normalize_text_document(bytes)?;
+            match serde_json::from_str::<serde_json::Value>(&text) {
+                Ok(value) => serde_json::to_string_pretty(&value)
+                    .map(|pretty| format!("{pretty}\n"))
+                    .map_err(|e| format!("JSON 문서를 정리할 수 없어요: {e}")),
+                Err(_) => Ok(text),
+            }
+        }
+        "pdf" | "docx" | "doc" => {
+            let text = printable_document_runs(bytes);
+            if text.is_empty() {
+                Err(format!("{} 문서에서 표시할 텍스트를 추출할 수 없어요", ext.to_uppercase()))
+            } else {
+                Ok(text)
+            }
+        }
+        _ => Err("지원하지 않는 문서 형식입니다".into()),
+    }
+}
+
+fn hash_document_content(content: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(content.as_bytes());
     format!("{:x}", hasher.finalize())
@@ -141,7 +196,7 @@ fn resolve_doc_path(root: &str, path: PathBuf) -> Result<(PathBuf, String), Stri
     let relative_path = normalize_relative_doc_path(relative);
     let extras = docs_access::ExtraSourceAllowlist::load(&root_path);
     if !docs_access::is_allowed_doc_path(&relative_path, &extras) {
-        return Err("허용된 문서 파일(.md, .markdown, .txt, .csv, .json)만 읽을 수 있어요".into());
+        return Err("허용된 문서 형식만 읽을 수 있어요".into());
     }
     Ok((canonical, relative_path))
 }
@@ -150,10 +205,10 @@ fn resolve_doc_path(root: &str, path: PathBuf) -> Result<(PathBuf, String), Stri
 fn read_file(root: String, path: PathBuf) -> Result<ReadFileResult, String> {
     let (resolved_path, relative_path) = resolve_doc_path(&root, path)?;
     let bytes = std::fs::read(&resolved_path).map_err(|e| format!("문서를 읽을 수 없어요: {e}"))?;
-    let content = normalize_doc_content(&bytes)?;
+    let content = normalize_document_content(&resolved_path, &bytes)?;
     Ok(ReadFileResult {
         path: relative_path,
-        source_hash: hash_doc_content(&content),
+        source_hash: hash_document_content(&content),
         content,
     })
 }

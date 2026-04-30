@@ -353,4 +353,4 @@ flowchart TD
             with self.assertRaises(ValueError) as ctx:
                 docs_visualizer.visualize_markdown_file(target)
 
-            self.assertIn("UTF-8 markdown", str(ctx.exception))
+            self.assertIn("UTF-8", str(ctx.exception))

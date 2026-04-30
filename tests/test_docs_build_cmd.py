@@ -5,6 +5,7 @@ import sys
 import tempfile
 import types
 import unittest
+import zipfile
 from argparse import Namespace
 from pathlib import Path
 from unittest.mock import patch
@@ -115,21 +116,45 @@ class DocsBuildCmdTest(unittest.TestCase):
                 ).exists()
             )
 
-    def test_docs_index_includes_plain_text_csv_and_json(self):
+    def test_docs_index_includes_supported_non_markdown_formats(self):
+        docs_cache = sys.modules["vibelign.core.docs_cache"]
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / ".vibelign").mkdir()
-            (root / "notes.txt").write_text("plain notes\n", encoding="utf-8")
             (root / "docs").mkdir()
-            (root / "docs" / "table.csv").write_text("name,value\na,1\n", encoding="utf-8")
-            (root / "docs" / "data.json").write_text('{"ok": true}\n', encoding="utf-8")
+            for name in (
+                "notes.txt",
+                "data.json",
+                "table.csv",
+                "manual.pdf",
+                "brief.docx",
+                "legacy.doc",
+            ):
+                (root / "docs" / name).write_bytes(b"Document text\n")
 
-            entries = docs_build_cmd.build_docs_index(root)
+            entries = docs_cache.build_docs_index(root)
             paths = {entry.path for entry in entries}
 
-            self.assertIn("notes.txt", paths)
-            self.assertIn("docs/table.csv", paths)
+            self.assertIn("docs/notes.txt", paths)
             self.assertIn("docs/data.json", paths)
+            self.assertIn("docs/table.csv", paths)
+            self.assertIn("docs/manual.pdf", paths)
+            self.assertIn("docs/brief.docx", paths)
+            self.assertIn("docs/legacy.doc", paths)
+
+    def test_read_document_text_extracts_docx_body(self):
+        docs_cache = sys.modules["vibelign.core.docs_cache"]
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "sample.docx"
+            xml = """
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body><w:p><w:r><w:t>Hello DOCX</w:t></w:r></w:p></w:body>
+            </w:document>
+            """
+            with zipfile.ZipFile(target, "w") as archive:
+                archive.writestr("word/document.xml", xml)
+
+            self.assertIn("Hello DOCX", docs_cache.read_document_text(target))
 
     def test_bad_input_does_not_leave_partial_artifacts(self):
         with tempfile.TemporaryDirectory() as tmp:

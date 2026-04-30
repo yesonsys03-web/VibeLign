@@ -12,6 +12,12 @@ from pathlib import Path
 from typing import Callable
 
 
+SUPPORTED_DOC_EXTENSIONS: frozenset[str] = frozenset(
+    {".md", ".markdown", ".txt", ".json", ".csv", ".pdf", ".docx", ".doc"}
+)
+MARKDOWN_DOC_EXTENSIONS: frozenset[str] = frozenset({".md", ".markdown"})
+
+
 # 스캔 단계에서 아예 내려가지 않을 디렉토리 이름들. 숨김 디렉토리는 이름 규칙(`.`)로 별도 제외.
 IGNORED_DIRS: frozenset[str] = frozenset(
     {
@@ -41,15 +47,6 @@ IGNORED_DIRS: frozenset[str] = frozenset(
     }
 )
 
-SUPPORTED_DOC_EXTENSIONS: frozenset[str] = frozenset(
-    {".md", ".markdown", ".txt", ".csv", ".json"}
-)
-
-
-def is_supported_doc_file(name: str) -> bool:
-    return Path(name).suffix.lower() in SUPPORTED_DOC_EXTENSIONS
-
-
 # === ANCHOR: DOCS_SCAN__SHOULD_SKIP_DIR_START ===
 def _should_skip_dir(name: str) -> bool:
     if not name:
@@ -58,6 +55,14 @@ def _should_skip_dir(name: str) -> bool:
         return True
     return name in IGNORED_DIRS
 # === ANCHOR: DOCS_SCAN__SHOULD_SKIP_DIR_END ===
+
+
+def is_supported_doc_file(path: Path | str) -> bool:
+    return Path(path).suffix.lower() in SUPPORTED_DOC_EXTENSIONS
+
+
+def is_markdown_doc_file(path: Path | str) -> bool:
+    return Path(path).suffix.lower() in MARKDOWN_DOC_EXTENSIONS
 
 
 # === ANCHOR: DOCS_SCAN_ITER_MARKDOWN_FILES_START ===

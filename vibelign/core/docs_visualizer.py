@@ -14,6 +14,7 @@ DOCS_VISUAL_SCHEMA_VERSION = _DOCS_CACHE.DOCS_VISUAL_SCHEMA_VERSION
 compute_source_hash = _DOCS_CACHE.compute_source_hash
 docs_visual_contract = _DOCS_CACHE.docs_visual_contract
 normalize_doc_text_bytes = _DOCS_CACHE.normalize_doc_text_bytes
+read_document_text = _DOCS_CACHE.read_document_text
 
 
 @dataclass(frozen=True)
@@ -1222,14 +1223,13 @@ def visualize_markdown_bytes(source_path: Path, raw: bytes) -> DocsVisualArtifac
 def visualize_markdown_file(source_path: Path) -> DocsVisualArtifact:
     resolved = source_path.resolve()
     try:
-        raw = resolved.read_bytes()
+        text = read_document_text(resolved)
     except OSError as exc:
         raise ValueError(f"문서를 읽을 수 없어요: {exc}") from exc
+    except ValueError as exc:
+        raise ValueError(str(exc)) from exc
 
-    try:
-        return visualize_markdown_bytes(resolved, raw)
-    except UnicodeDecodeError as exc:
-        raise ValueError("UTF-8 markdown만 visual artifact를 생성할 수 있어요") from exc
+    return visualize_markdown_bytes(resolved, text.encode("utf-8"))
 # === ANCHOR: DOCS_VISUALIZER_VISUALIZE_MARKDOWN_FILE_END ===
 
 
