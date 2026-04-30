@@ -30,6 +30,8 @@ pub struct ListedCheckpoint {
     pub file_count: usize,
     pub total_size_bytes: u64,
     pub pinned: bool,
+    pub trigger: Option<String>,
+    pub git_commit_message: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -58,8 +60,8 @@ pub fn list(root: &Path) -> Result<Vec<ListedCheckpoint>, String> {
     }
     let mut statement = conn
         .prepare(
-            "SELECT checkpoint_id, created_at, message, file_count, total_size_bytes, pinned
-             FROM checkpoints ORDER BY created_at DESC, checkpoint_id DESC",
+             "SELECT checkpoint_id, created_at, message, file_count, total_size_bytes, pinned, trigger, git_commit_message
+              FROM checkpoints ORDER BY created_at DESC, checkpoint_id DESC",
         )
         .map_err(|error| error.to_string())?;
     let rows = statement
@@ -71,6 +73,8 @@ pub fn list(root: &Path) -> Result<Vec<ListedCheckpoint>, String> {
                 file_count: row.get::<_, i64>(3)? as usize,
                 total_size_bytes: row.get::<_, i64>(4)? as u64,
                 pinned: row.get::<_, i64>(5)? != 0,
+                trigger: row.get(6)?,
+                git_commit_message: row.get(7)?,
             })
         })
         .map_err(|error| error.to_string())?;

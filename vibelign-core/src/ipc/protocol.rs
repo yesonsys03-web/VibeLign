@@ -63,6 +63,8 @@ pub struct ResponseCheckpoint {
     file_count: usize,
     total_size_bytes: u64,
     pinned: bool,
+    trigger: Option<String>,
+    git_commit_message: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -202,6 +204,8 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                         file_count: checkpoint.file_count,
                         total_size_bytes: checkpoint.total_size_bytes,
                         pinned: checkpoint.pinned,
+                        trigger: checkpoint.trigger,
+                        git_commit_message: checkpoint.git_commit_message,
                     })
                     .collect();
                 EngineResponse::Ok {
