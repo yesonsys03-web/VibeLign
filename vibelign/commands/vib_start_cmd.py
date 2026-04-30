@@ -1,6 +1,7 @@
 # === ANCHOR: VIB_START_CMD_START ===
 import json
 import shutil
+import sqlite3
 import subprocess
 import sys
 from argparse import Namespace
@@ -37,6 +38,8 @@ from vibelign.terminal_render import (
 )
 
 GITIGNORE_LINE = ".vibelign/checkpoints/"
+GITIGNORE_RUST_CHECKPOINTS_LINE = ".vibelign/rust_checkpoints/"
+GITIGNORE_RUST_OBJECTS_LINE = ".vibelign/rust_objects/"
 GITIGNORE_SCAN_CACHE_LINE = ".vibelign/scan_cache.json"
 LARGE_FILE_LINE_THRESHOLD = 300
 START_TOOL_CHOICES = ("claude", "opencode", "cursor", "antigravity", "codex")
@@ -220,7 +223,12 @@ def _ensure_gitignore_entry(root: Path) -> None:
     gitignore_path = root / ".gitignore"
     lines_to_add = [
         line
-        for line in [GITIGNORE_LINE, GITIGNORE_SCAN_CACHE_LINE]
+        for line in [
+            GITIGNORE_LINE,
+            GITIGNORE_RUST_CHECKPOINTS_LINE,
+            GITIGNORE_RUST_OBJECTS_LINE,
+            GITIGNORE_SCAN_CACHE_LINE,
+        ]
         if line
         not in (
             gitignore_path.read_text(encoding="utf-8", errors="ignore").splitlines()
@@ -241,6 +249,28 @@ def _ensure_gitignore_entry(root: Path) -> None:
 
 
 # === ANCHOR: VIB_START_CMD__ENSURE_GITIGNORE_ENTRY_END ===
+
+
+# === ANCHOR: VIB_START_CMD__SET_AUTO_BACKUP_START ===
+def _set_auto_backup_on_commit(root: Path, enabled: bool) -> None:
+    vibelign_dir = root / ".vibelign"
+    vibelign_dir.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(vibelign_dir / "vibelign.db")
+    try:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS db_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        conn.execute(
+            "INSERT INTO db_meta(key, value) VALUES ('auto_backup_on_commit', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            ("1" if enabled else "0",),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# === ANCHOR: VIB_START_CMD__SET_AUTO_BACKUP_END ===
 
 
 # === ANCHOR: VIB_START_CMD__ENSURE_RULE_FILES_START ===
@@ -972,6 +1002,7 @@ def run_vib_start(args: Namespace) -> None:
     record_hook_result = (
         install_post_commit_record_hook(root) if git_active else None
     )
+    _set_auto_backup_on_commit(root, git_active)
     if record_hook_result and record_hook_result.status == "installed":
         clack_success("git post-commit 훅 설치됨 (commit 메시지가 핸드오프로 자동 누적)")
 

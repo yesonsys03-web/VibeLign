@@ -6,6 +6,7 @@ from pathlib import Path
 from vibelign.cli import build_parser as build_basic_parser
 from vibelign.commands.export_cmd import export_tool_files
 from vibelign.commands.vib_start_cmd import (
+    _ensure_gitignore_entry,
     _ensure_rule_files,
     _next_step,
     _parse_start_tools,
@@ -145,6 +146,19 @@ class VibStartTest(unittest.TestCase):
             self.assertEqual(agents_path.read_text(encoding="utf-8"), "custom")
             self.assertNotIn("AGENTS.md", result["updated"])
             self.assertFalse((root / "AGENTS.md~").exists())
+
+    def test_ensure_gitignore_entry_includes_rust_backup_storage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            _ensure_gitignore_entry(root)
+            _ensure_gitignore_entry(root)
+
+            lines = (root / ".gitignore").read_text(encoding="utf-8").splitlines()
+            self.assertEqual(lines.count(".vibelign/checkpoints/"), 1)
+            self.assertEqual(lines.count(".vibelign/rust_checkpoints/"), 1)
+            self.assertEqual(lines.count(".vibelign/rust_objects/"), 1)
+            self.assertEqual(lines.count(".vibelign/scan_cache.json"), 1)
 
     def test_vib_cli_start_parser_accepts_tool_flags(self):
         parser = build_vib_parser()
