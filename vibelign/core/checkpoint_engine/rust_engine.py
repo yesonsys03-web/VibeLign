@@ -11,6 +11,28 @@ from pathlib import Path
 from typing import cast
 
 from vibelign.core.local_checkpoints import CheckpointSummary
+from vibelign.core.checkpoint_engine.requests import (
+    checkpoint_create_request,
+    checkpoint_diff_request,
+    checkpoint_list_request,
+    checkpoint_preview_request,
+    checkpoint_prune_request,
+    checkpoint_restore_files_request,
+    checkpoint_restore_request,
+    checkpoint_restore_suggestions_request,
+    retention_apply_request,
+)
+from vibelign.core.checkpoint_engine.responses import (
+    parse_checkpoint_create,
+    parse_checkpoint_list,
+    parse_diff,
+    parse_preview,
+    parse_prune,
+    parse_restore,
+    parse_restore_files,
+    parse_retention,
+    parse_suggestions,
+)
 from vibelign.core.structure_policy import WINDOWS_SUBPROCESS_FLAGS
 
 _BACKUP_COMMAND_TIMEOUT_SECONDS = 90
@@ -153,62 +175,31 @@ def create_checkpoint_with_rust(
     git_commit_sha: str | None = None,
     git_commit_message: str | None = None,
 ) -> tuple[CheckpointSummary | None, str | None]:
-    request: dict[str, object] = {
-        "command": "checkpoint_create",
-        "root": str(root),
-        "message": message,
-    }
-    if trigger is not None:
-        request["trigger"] = trigger
-    if git_commit_sha is not None:
-        request["git_commit_sha"] = git_commit_sha
-    if git_commit_message is not None:
-        request["git_commit_message"] = git_commit_message
+    request = checkpoint_create_request(
+        root,
+        message,
+        trigger=trigger,
+        git_commit_sha=git_commit_sha,
+        git_commit_message=git_commit_message,
+    )
     result = call_rust_engine(
         root, request, timeout_seconds=_BACKUP_COMMAND_TIMEOUT_SECONDS
     )
-    if not result.ok:
-        return None, _format_error(result, "rust checkpoint failed")
-    result_kind = result.payload.get("result")
-    if result_kind == "no_changes":
-        return None, None
-    if result_kind != "created":
-        return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected checkpoint create result"
-    summary = _summary_from_payload(result.payload, fallback_message=message)
-    if summary is None:
-        return None, "RUST_ENGINE_PROTOCOL_ERROR: created response missing checkpoint_id"
-    return summary, None
+    return parse_checkpoint_create(result, message)
 
 
 def list_checkpoints_with_rust(root: Path) -> tuple[list[CheckpointSummary] | None, str | None]:
-    result = call_rust_engine(root, {"command": "checkpoint_list", "root": str(root)})
-    if not result.ok:
-        return None, _format_error(result, "rust checkpoint list failed")
-    raw_checkpoints = result.payload.get("checkpoints")
-    if not isinstance(raw_checkpoints, list):
-        return None, "RUST_ENGINE_PROTOCOL_ERROR: list response missing checkpoints"
-    summaries: list[CheckpointSummary] = []
-    for raw_item in cast(list[object], raw_checkpoints):
-        if isinstance(raw_item, dict):
-            summary = _summary_from_payload(cast(dict[str, object], raw_item))
-            if summary is not None:
-                summaries.append(summary)
-    return summaries, None
+    result = call_rust_engine(root, checkpoint_list_request(root))
+    return parse_checkpoint_list(result)
 
 
 def restore_checkpoint_with_rust(root: Path, checkpoint_id: str) -> tuple[bool, str | None]:
     result = call_rust_engine(
         root,
-        {
-            "command": "checkpoint_restore",
-            "root": str(root),
-            "checkpoint_id": checkpoint_id,
-        },
+        checkpoint_restore_request(root, checkpoint_id),
         timeout_seconds=_BACKUP_COMMAND_TIMEOUT_SECONDS,
     )
-    if not result.ok:
-        return False, _format_error(result, "rust checkpoint restore failed")
-    return True, None
+    return parse_restore(result)
 
 
 def diff_checkpoints_with_rust(
@@ -216,46 +207,19 @@ def diff_checkpoints_with_rust(
 ) -> tuple[dict[str, object] | None, str | None]:
     result = call_rust_engine(
         root,
-        {
-            "command": "checkpoint_diff",
-            "root": str(root),
-            "from_checkpoint_id": from_checkpoint_id,
-            "to_checkpoint_id": to_checkpoint_id,
-        },
+        checkpoint_diff_request(root, from_checkpoint_id, to_checkpoint_id),
     )
-    if not result.ok:
-        return None, _format_error(result, "rust checkpoint diff failed")
-    if result.payload.get("result") != "diffed":
-        return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected checkpoint diff result"
-    diff = result.payload.get("diff")
-    if not isinstance(diff, dict):
-        return None, "RUST_ENGINE_PROTOCOL_ERROR: diff response missing diff"
-    return cast(dict[str, object], diff), None
+    return parse_diff(result)
 
 
 def preview_restore_with_rust(
     root: Path, checkpoint_id: str, relative_paths: list[str] | None = None
 ) -> tuple[dict[str, object] | None, str | None]:
-    request: dict[str, object] = {
-        "command": "checkpoint_restore_files_preview"
-        if relative_paths is not None
-        else "checkpoint_restore_preview",
-        "root": str(root),
-        "checkpoint_id": checkpoint_id,
-    }
-    if relative_paths is not None:
-        request["relative_paths"] = relative_paths
+    request = checkpoint_preview_request(root, checkpoint_id, relative_paths)
     result = call_rust_engine(
         root, request, timeout_seconds=_BACKUP_COMMAND_TIMEOUT_SECONDS
     )
-    if not result.ok:
-        return None, _format_error(result, "rust checkpoint preview failed")
-    if result.payload.get("result") != "previewed":
-        return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected checkpoint preview result"
-    preview = result.payload.get("preview")
-    if not isinstance(preview, dict):
-        return None, "RUST_ENGINE_PROTOCOL_ERROR: preview response missing preview"
-    return cast(dict[str, object], preview), None
+    return parse_preview(result)
 
 
 def restore_files_with_rust(
@@ -263,19 +227,10 @@ def restore_files_with_rust(
 ) -> tuple[int | None, str | None]:
     result = call_rust_engine(
         root,
-        {
-            "command": "checkpoint_restore_files_safe",
-            "root": str(root),
-            "checkpoint_id": checkpoint_id,
-            "relative_paths": relative_paths,
-        },
+        checkpoint_restore_files_request(root, checkpoint_id, relative_paths),
         timeout_seconds=_BACKUP_COMMAND_TIMEOUT_SECONDS,
     )
-    if not result.ok:
-        return None, _format_error(result, "rust checkpoint selected restore failed")
-    if result.payload.get("result") != "restored_files":
-        return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected selected restore result"
-    return _coerce_int(result.payload.get("restored_count", 0)), None
+    return parse_restore_files(result)
 
 
 def restore_suggestions_with_rust(
@@ -283,24 +238,9 @@ def restore_suggestions_with_rust(
 ) -> tuple[dict[str, object] | None, str | None]:
     result = call_rust_engine(
         root,
-        {
-            "command": "checkpoint_restore_suggestions",
-            "root": str(root),
-            "checkpoint_id": checkpoint_id,
-            "cap": cap,
-        },
+        checkpoint_restore_suggestions_request(root, checkpoint_id, cap),
     )
-    if not result.ok:
-        return None, _format_error(result, "rust checkpoint suggestions failed")
-    if result.payload.get("result") != "suggested":
-        return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected checkpoint suggestions result"
-    suggestions = result.payload.get("suggestions")
-    if not isinstance(suggestions, list):
-        return None, "RUST_ENGINE_PROTOCOL_ERROR: suggestions response missing suggestions"
-    return {
-        "suggestions": suggestions,
-        "legacy_notice": result.payload.get("legacy_notice"),
-    }, None
+    return parse_suggestions(result)
 
 
 def prune_checkpoints_with_rust(
@@ -308,70 +248,18 @@ def prune_checkpoints_with_rust(
 ) -> tuple[dict[str, int] | None, str | None]:
     result = call_rust_engine(
         root,
-        {"command": "checkpoint_prune", "root": str(root), "keep_latest": keep_latest},
+        checkpoint_prune_request(root, keep_latest),
     )
-    if not result.ok:
-        return None, _format_error(result, "rust checkpoint prune failed")
-    if "pruned_count" not in result.payload or "pruned_bytes" not in result.payload:
-        return None, "RUST_ENGINE_PROTOCOL_ERROR: prune response missing counts"
-    return {
-        "count": _coerce_int(result.payload.get("pruned_count", 0)),
-        "bytes": _coerce_int(result.payload.get("pruned_bytes", 0)),
-    }, None
+    return parse_prune(result)
 
 
 def apply_retention_with_rust(root: Path) -> tuple[dict[str, object] | None, str | None]:
     result = call_rust_engine(
         root,
-        {"command": "retention_apply", "root": str(root)},
+        retention_apply_request(root),
         timeout_seconds=_BACKUP_COMMAND_TIMEOUT_SECONDS,
     )
-    if not result.ok:
-        return None, _format_error(result, "rust retention cleanup failed")
-    if result.payload.get("result") != "retention_applied":
-        return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected retention cleanup result"
-    return {
-        "count": _coerce_int(result.payload.get("pruned_count", 0)),
-        "planned_count": _coerce_int(result.payload.get("planned_count", 0)),
-        "planned_bytes": _coerce_int(result.payload.get("planned_bytes", 0)),
-        "reclaimed_bytes": _coerce_int(result.payload.get("reclaimed_bytes", 0)),
-        "partial_failure": bool(result.payload.get("partial_failure", False)),
-    }, None
-
-
-def _summary_from_payload(
-    payload: dict[str, object], fallback_message: str = ""
-) -> CheckpointSummary | None:
-    checkpoint_id = payload.get("checkpoint_id")
-    if not isinstance(checkpoint_id, str) or not checkpoint_id:
-        return None
-    return CheckpointSummary(
-        checkpoint_id=checkpoint_id,
-        created_at=str(payload.get("created_at", checkpoint_id)),
-        message=str(payload.get("message", fallback_message)),
-        file_count=_coerce_int(payload.get("file_count", 0)),
-        total_size_bytes=_coerce_int(payload.get("total_size_bytes", 0)),
-        pinned=bool(payload.get("pinned", False)),
-    )
-
-
-def _coerce_int(value: object) -> int:
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str):
-        try:
-            return int(value)
-        except ValueError:
-            return 0
-    return 0
-
-
-def _format_error(result: RustEngineResult, fallback: str) -> str:
-    code = result.error_code or "RUST_ENGINE_ERROR"
-    message = result.error_message or fallback
-    return f"{code}: {message}"
+    return parse_retention(result)
 
 
 # === ANCHOR: CHECKPOINT_ENGINE_RUST_ENGINE_END ===

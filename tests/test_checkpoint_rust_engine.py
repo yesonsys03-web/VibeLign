@@ -185,7 +185,8 @@ class CheckpointRustEngineTest(unittest.TestCase):
                 engine,
                 '{"status":"ok","result":"listed","checkpoints":[{"checkpoint_id":"cp1",'
                 + '"created_at":"2026-04-29T00:00:00Z","message":"hello",'
-                + '"file_count":1,"total_size_bytes":9,"pinned":false}]}',
+                + '"file_count":1,"total_size_bytes":9,"pinned":false,"trigger":"post_commit",'
+                + '"git_commit_message":"feat: demo"}]}',
             )
             _write_hash(engine)
 
@@ -197,6 +198,8 @@ class CheckpointRustEngineTest(unittest.TestCase):
             assert checkpoints is not None
             self.assertEqual(len(checkpoints), 1)
             self.assertEqual(checkpoints[0].checkpoint_id, "cp1")
+            self.assertEqual(checkpoints[0].trigger, "post_commit")
+            self.assertEqual(checkpoints[0].git_commit_message, "feat: demo")
 
     def test_restore_checkpoint_with_rust_returns_success(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -521,7 +524,11 @@ class CheckpointRustEngineTest(unittest.TestCase):
             )
             _write_hash(engine)
 
-            with patch.dict(os.environ, {"VIBELIGN_ENGINE_PATH": str(engine)}, clear=False):
+            with patch.dict(
+                os.environ,
+                {"VIBELIGN_ENGINE_PATH": str(engine), "VIBELIGN_SHADOW_COMPARE": "1"},
+                clear=False,
+            ):
                 result = compare_checkpoint_create(root, "shadow qa")
 
             self.assertTrue(result.enabled)
@@ -542,7 +549,11 @@ class CheckpointRustEngineTest(unittest.TestCase):
             )
             _write_hash(engine)
 
-            with patch.dict(os.environ, {"VIBELIGN_ENGINE_PATH": str(engine)}, clear=False):
+            with patch.dict(
+                os.environ,
+                {"VIBELIGN_ENGINE_PATH": str(engine), "VIBELIGN_SHADOW_COMPARE": "1"},
+                clear=False,
+            ):
                 result = compare_checkpoint_create(root, "shadow qa")
 
             self.assertTrue(result.enabled)
