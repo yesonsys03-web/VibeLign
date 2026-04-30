@@ -466,6 +466,10 @@ mod tests {
         .unwrap_err();
 
         assert!(error.contains("safe storage directory"));
+        let remaining: i64 = conn
+            .query_row("SELECT COUNT(*) FROM checkpoints", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(remaining, 2);
     }
 
     #[test]

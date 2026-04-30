@@ -189,6 +189,8 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path();
         std::fs::write(root.join("e\u{301}.txt"), "accent\n").unwrap();
+        std::fs::create_dir(root.join("한글")).unwrap();
+        std::fs::write(root.join("한글").join("파일.txt"), "korean\n").unwrap();
 
         let paths: Vec<String> = collect(root)
             .unwrap()
@@ -197,6 +199,7 @@ mod tests {
             .collect();
 
         assert!(paths.contains(&"é.txt".to_string()));
+        assert!(paths.contains(&"한글/파일.txt".to_string()));
     }
 
     #[test]
@@ -225,6 +228,60 @@ mod tests {
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].size, content.len() as u64);
         assert_eq!(files[0].hash, blake3::hash(&content).to_hex().to_string());
+    }
+
+    #[test]
+    fn collects_zero_byte_files_as_real_snapshot_entries() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        std::fs::write(root.join("empty.txt"), []).unwrap();
+
+        let files = collect(root).unwrap();
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].relative_path, "empty.txt");
+        assert_eq!(files[0].size, 0);
+        assert_eq!(files[0].hash, blake3::hash(&[]).to_hex().to_string());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn ignores_symlinks_and_broken_symlinks_during_snapshot() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        std::fs::write(root.join("real.txt"), "real\n").unwrap();
+        symlink(root.join("real.txt"), root.join("link.txt")).unwrap();
+        symlink(root.join("missing.txt"), root.join("broken.txt")).unwrap();
+
+        let paths: Vec<String> = collect(root)
+            .unwrap()
+            .into_iter()
+            .map(|file| file.relative_path)
+            .collect();
+
+        assert_eq!(paths, vec!["real.txt".to_string()]);
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn macos_collects_executable_unicode_files_without_losing_normalized_name() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let path = root.join("스크립트.sh");
+        std::fs::write(&path, "#!/bin/sh\necho ok\n").unwrap();
+        let mut permissions = std::fs::metadata(&path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&path, permissions).unwrap();
+
+        let files = collect(root).unwrap();
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].relative_path, "스크립트.sh");
+        assert_eq!(files[0].size, 18);
     }
 
     #[test]

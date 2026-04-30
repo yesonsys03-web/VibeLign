@@ -229,4 +229,46 @@ mod tests {
         assert_eq!(diff.deleted[0].relative_path, "delete.txt");
         assert_eq!(diff.summary.unchanged_count, 1);
     }
+
+    #[test]
+    fn tracks_all_zero_byte_transition_shapes() {
+        let mut empty_from = BTreeMap::new();
+        let mut with_zero = BTreeMap::new();
+        with_zero.insert("zero.txt".to_string(), file("zero.txt", "empty", 0));
+        let added_zero = diff_maps(&empty_from, &with_zero);
+        assert_eq!(added_zero.summary.added_count, 1);
+        assert_eq!(added_zero.added[0].size, 0);
+
+        empty_from.insert("zero.txt".to_string(), file("zero.txt", "empty", 0));
+        let mut with_content = BTreeMap::new();
+        with_content.insert("zero.txt".to_string(), file("zero.txt", "content", 7));
+        let zero_to_content = diff_maps(&empty_from, &with_content);
+        assert_eq!(zero_to_content.summary.modified_count, 1);
+        assert_eq!(zero_to_content.modified[0].before_size, 0);
+        assert_eq!(zero_to_content.modified[0].after_size, 7);
+
+        let content_to_zero = diff_maps(&with_content, &empty_from);
+        assert_eq!(content_to_zero.summary.modified_count, 1);
+        assert_eq!(content_to_zero.modified[0].before_size, 7);
+        assert_eq!(content_to_zero.modified[0].after_size, 0);
+
+        let deleted_zero = diff_maps(&empty_from, &BTreeMap::new());
+        assert_eq!(deleted_zero.summary.deleted_count, 1);
+        assert_eq!(deleted_zero.deleted[0].size, 0);
+    }
+
+    #[test]
+    fn case_only_rename_is_reported_as_delete_and_add() {
+        let mut from = BTreeMap::new();
+        from.insert("App.tsx".to_string(), file("App.tsx", "a", 1));
+        let mut to = BTreeMap::new();
+        to.insert("app.tsx".to_string(), file("app.tsx", "a", 1));
+
+        let diff = diff_maps(&from, &to);
+
+        assert_eq!(diff.summary.added_count, 1);
+        assert_eq!(diff.summary.deleted_count, 1);
+        assert_eq!(diff.added[0].relative_path, "app.tsx");
+        assert_eq!(diff.deleted[0].relative_path, "App.tsx");
+    }
 }
