@@ -2,7 +2,7 @@ use rusqlite::{params, Connection, Result};
 use std::collections::HashSet;
 use unicode_normalization::UnicodeNormalization;
 
-const TARGET_SCHEMA_VERSION: i64 = 2;
+const TARGET_SCHEMA_VERSION: i64 = 3;
 const DEFAULT_MAX_TOTAL_SIZE_BYTES: i64 = 1_073_741_824;
 const OLD_MAX_TOTAL_SIZE_BYTES: i64 = 2_147_483_648;
 
@@ -70,10 +70,33 @@ pub fn apply_migrations(conn: &Connection, target: i64) -> Result<()> {
         return Ok(());
     }
     apply_v2_migration(conn)?;
+    if target >= 3 {
+        apply_v3_migration(conn)?;
+    }
     conn.execute(
         "INSERT INTO db_meta(key, value) VALUES ('schema_version', ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         params![target.to_string()],
+    )?;
+    Ok(())
+}
+
+fn apply_v3_migration(conn: &Connection) -> Result<()> {
+    add_column_if_missing(
+        conn,
+        "cas_objects",
+        "compression",
+        "TEXT NOT NULL DEFAULT 'none'",
+    )?;
+    add_column_if_missing(
+        conn,
+        "cas_objects",
+        "stored_size",
+        "INTEGER NOT NULL DEFAULT 0",
+    )?;
+    conn.execute(
+        "UPDATE cas_objects SET stored_size = size WHERE stored_size = 0 AND size IS NOT NULL",
+        [],
     )?;
     Ok(())
 }
@@ -216,7 +239,7 @@ mod tests {
     use rusqlite::{params, Connection};
 
     #[test]
-    fn initialize_applies_v2_migration_idempotently() {
+    fn initialize_applies_current_migrations_idempotently() {
         let conn = Connection::open_in_memory().unwrap();
 
         initialize(&conn).unwrap();
@@ -232,7 +255,9 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema_version, "2");
+        assert_eq!(schema_version, "3");
+        assert!(column_exists(&conn, "cas_objects", "compression").unwrap());
+        assert!(column_exists(&conn, "cas_objects", "stored_size").unwrap());
     }
 
     #[test]
