@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 import hashlib, json
+import sys
 from typing import TypedDict, cast
 
 
@@ -54,7 +55,8 @@ def load_state(path: Path) -> dict[str, FileSnapshot]:
             ):
                 state[key] = FileSnapshot(path=raw_path, lines=raw_lines, sha1=raw_sha1)
         return state
-    except Exception:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        print(f"[WARN] watch state load failed for {path}: {exc}", file=sys.stderr)
         return {}
 
 

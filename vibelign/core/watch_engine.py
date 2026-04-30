@@ -551,7 +551,15 @@ def run_watch(config: WatchConfig) -> None:
                             json_mode=self.json_mode,
                             log_path=self.log_path,
                         )
-            except Exception:
+            except Exception as exc:
+                warn_event: WatchPayload = {
+                    "level": "WARN",
+                    "path": "",
+                    "message": f"⚠️ 코드맵 자동 갱신 실패: {exc}",
+                    "why": "watch는 계속 동작하지만 .vibelign/project_map.json 이 최신이 아닐 수 있어요.",
+                    "action": "project_map.json 상태를 확인하고 필요하면 `vib start` 또는 `vib doctor --strict`를 실행하세요.",
+                }
+                emit(warn_event, json_mode=self.json_mode, log_path=self.log_path)
                 return
 
             if initial:

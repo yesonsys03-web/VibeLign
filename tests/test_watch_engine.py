@@ -1,3 +1,4 @@
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -76,6 +77,20 @@ class WatchEngineEligibilityTest(unittest.TestCase):
 
             self.assertTrue(is_watchable_path(context_file))
             self.assertFalse(is_work_memory_recordable_rel_path("PROJECT_CONTEXT.md"))
+
+    def test_load_state_warns_and_returns_empty_on_corrupt_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_path = root / ".vibelign" / "watch_state.json"
+            state_path.parent.mkdir(parents=True)
+            state_path.write_text("{broken", encoding="utf-8")
+
+            stderr = io.StringIO()
+            with patch("sys.stderr", stderr):
+                state = load_state(state_path)
+
+            self.assertEqual({}, state)
+            self.assertIn("watch state load failed", stderr.getvalue())
 
 
 class WatchEngineDeleteHandlingTest(unittest.TestCase):
@@ -679,6 +694,87 @@ class WatchEngineDeleteHandlingTest(unittest.TestCase):
             self.assertIn('"message": "src/temp.py 삭제됨"', log_text)
             project_map = project_map_path.read_text(encoding="utf-8")
             self.assertIn('"file_count": 0', project_map)
+
+    def test_run_watch_logs_warning_when_project_map_refresh_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            vg_dir = root / ".vibelign"
+            vg_dir.mkdir()
+            log_path = vg_dir / "watch.log"
+            project_map_path = vg_dir / "project_map.json"
+            created = root / "src" / "main.py"
+            created.parent.mkdir(parents=True)
+            created.write_text("print('hello')\n", encoding="utf-8")
+            project_map_path.write_text("{}\n", encoding="utf-8")
+
+            class FakeHandlerBase:
+                pass
+
+            class FakeTimer:
+                def __init__(self, _delay: float, callback):
+                    self._callback = callback
+
+                def start(self) -> None:
+                    return None
+
+                def cancel(self) -> None:
+                    return None
+
+                def fire(self) -> None:
+                    self._callback()
+
+            class FakeObserver:
+                def __init__(self, callback) -> None:
+                    self.callback = callback
+                    self.handler = None
+
+                def schedule(
+                    self, event_handler: object, path: str, recursive: bool = False
+                ) -> None:
+                    _ = path
+                    _ = recursive
+                    self.handler = event_handler
+
+                def start(self) -> None:
+                    assert self.handler is not None
+                    self.callback(self.handler)
+                    timer = getattr(self.handler, "global_timer", None)
+                    if timer is not None:
+                        timer.fire()
+
+                def stop(self) -> None:
+                    return None
+
+                def join(self) -> None:
+                    return None
+
+            def observer_factory():
+                return FakeObserver(
+                    lambda handler: handler.on_created(
+                        SimpleNamespace(is_directory=False, src_path=str(created))
+                    )
+                )
+
+            with (
+                patch(
+                    "vibelign.core.watch_engine._import_watchdog_classes",
+                    return_value=(FakeHandlerBase, observer_factory),
+                ),
+                patch("vibelign.core.watch_engine.threading.Timer", FakeTimer),
+                patch(
+                    "vibelign.core.scan_cache.incremental_scan",
+                    side_effect=RuntimeError("scan failed"),
+                ),
+                patch(
+                    "vibelign.core.watch_engine.time.sleep",
+                    side_effect=KeyboardInterrupt,
+                ),
+            ):
+                run_watch({"root": str(root), "write_log": True})
+
+            log_text = log_path.read_text(encoding="utf-8")
+            self.assertIn("코드맵 자동 갱신 실패", log_text)
+            self.assertIn("scan failed", log_text)
 
 
 if __name__ == "__main__":
