@@ -1,4 +1,4 @@
-use crate::backup::checkpoint;
+use crate::backup::checkpoint::{self, CheckpointCreateMetadata};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -9,6 +9,9 @@ pub enum EngineRequest {
     CheckpointCreate {
         root: PathBuf,
         message: String,
+        trigger: Option<String>,
+        git_commit_sha: Option<String>,
+        git_commit_message: Option<String>,
     },
     CheckpointList {
         root: PathBuf,
@@ -74,8 +77,22 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
             pruned_count: None,
             pruned_bytes: None,
         },
-        EngineRequest::CheckpointCreate { root, message } => {
-            match checkpoint::create(&root, &message) {
+        EngineRequest::CheckpointCreate {
+            root,
+            message,
+            trigger,
+            git_commit_sha,
+            git_commit_message,
+        } => {
+            match checkpoint::create_with_metadata(
+                &root,
+                &message,
+                CheckpointCreateMetadata {
+                    trigger,
+                    git_commit_sha,
+                    git_commit_message,
+                },
+            ) {
                 Ok(Some(created)) => {
                     let files = created
                         .files

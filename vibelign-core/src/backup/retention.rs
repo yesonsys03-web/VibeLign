@@ -15,9 +15,9 @@ impl Default for RetentionPolicy {
             keep_latest: 30,
             keep_daily_days: 14,
             keep_weekly_weeks: 8,
-            max_total_size_bytes: 2 * 1024 * 1024 * 1024,
+            max_total_size_bytes: 1024 * 1024 * 1024,
             max_age_days: 180,
-            min_keep: 10,
+            min_keep: 20,
         }
     }
 }
