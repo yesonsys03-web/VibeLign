@@ -9,9 +9,13 @@ export interface BackupDashboardStats {
   lastSavedLabel: string;
 }
 
-export interface DayBucket {
-  label: string;
-  count: number;
+export interface TimelinePoint {
+  id: string;
+  dateLabel: string;
+  timeLabel: string;
+  detailLabel: string;
+  sourceKind: BackupEntry["sourceKind"];
+  position: number;
 }
 
 export interface RestoreSuggestion {
@@ -65,13 +69,19 @@ export function buildStats(entries: BackupEntry[]): BackupDashboardStats {
   };
 }
 
-export function buildDayBuckets(entries: BackupEntry[]): DayBucket[] {
-  const counts = new Map<string, number>();
-  for (const entry of entries) {
-    const label = formatDayLabel(entry.createdAt);
-    counts.set(label, (counts.get(label) ?? 0) + 1);
-  }
-  return Array.from(counts.entries()).slice(0, 10).map(([label, count]) => ({ label, count }));
+export function buildTimelinePoints(entries: BackupEntry[]): TimelinePoint[] {
+  const visible = entries
+    .slice(0, 50)
+    .map((entry, index) => ({ entry, index, time: parseBackupTime(entry.createdAt) }))
+    .sort((left, right) => (left.time ?? left.index) - (right.time ?? right.index));
+  return visible.map(({ entry, time }, index) => ({
+    id: entry.id,
+    dateLabel: formatDayLabel(entry.createdAt),
+    timeLabel: formatTimeLabel(time, entry.createdAt),
+    detailLabel: `${cleanBackupNote(entry)} · ${formatSavedAt(entry.createdAt)}`,
+    sourceKind: entry.sourceKind,
+    position: timelinePosition(index, visible.length),
+  }));
 }
 
 function formatDayLabel(value?: string): string {
@@ -79,6 +89,22 @@ function formatDayLabel(value?: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value.slice(0, 10) || "날짜 없음";
   return date.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" });
+}
+
+function parseBackupTime(value?: string): number | null {
+  if (!value) return null;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? null : time;
+}
+
+function formatTimeLabel(time: number | null, fallback?: string): string {
+  if (time === null) return fallback?.slice(11, 16) || "시간 없음";
+  return new Date(time).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function timelinePosition(index: number, total: number): number {
+  if (total <= 1) return 8;
+  return 4 + (index / (total - 1)) * 92;
 }
 
 export function buildRestoreSuggestions(entries: BackupEntry[]): RestoreSuggestion[] {

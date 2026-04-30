@@ -7,7 +7,7 @@ import RestorePreviewPanel from "./RestorePreviewPanel";
 import RestoreSuggestions from "./RestoreSuggestions";
 import SafetySummary from "./SafetySummary";
 import StorageSavings from "./StorageSavings";
-import { buildDayBuckets, buildRestoreSuggestions, buildStats } from "./model";
+import { buildRestoreSuggestions, buildStats, buildTimelinePoints } from "./model";
 
 interface BackupDashboardProps {
   entries: BackupEntry[];
@@ -29,7 +29,7 @@ export default function BackupDashboard({ entries, loading, query, selectedId, r
       <SafetySummary stats={stats} loading={loading} onRefresh={onRefresh} />
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 14 }}>
         <StorageSavings stats={stats} />
-        <DateGraph buckets={buildDayBuckets(entries)} />
+        <DateGraph points={buildTimelinePoints(entries)} />
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 14 }}>
         <BackupFlow entries={entries} />
