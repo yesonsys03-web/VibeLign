@@ -31,6 +31,8 @@ class CheckpointSummary:
     pinned: bool = False
     pruned_count: int = 0
     pruned_bytes: int = 0
+    trigger: str | None = None
+    git_commit_message: str | None = None
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS_CHECKPOINTSUMMARY_END ===
@@ -285,6 +287,16 @@ def list_checkpoints(root: Path) -> list[CheckpointSummary]:
                 file_count=_coerce_int(manifest.get("file_count", 0)),
                 total_size_bytes=_coerce_int(manifest.get("total_size_bytes", 0)),
                 pinned=bool(manifest.get("pinned", False)),
+                trigger=(
+                    str(manifest["trigger"])
+                    if isinstance(manifest.get("trigger"), str)
+                    else None
+                ),
+                git_commit_message=(
+                    str(manifest["git_commit_message"])
+                    if isinstance(manifest.get("git_commit_message"), str)
+                    else None
+                ),
             )
         )
     return summaries

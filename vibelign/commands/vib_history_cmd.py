@@ -1,6 +1,7 @@
 # === ANCHOR: VIB_HISTORY_CMD_START ===
 import re
 from pathlib import Path
+from typing import Protocol
 
 from vibelign.core.checkpoint_engine.router import friendly_time, list_checkpoints
 from vibelign.core.project_root import resolve_project_root
@@ -13,7 +14,18 @@ print = cli_print
 _TIMESTAMP_PATTERN = re.compile(r"\s*\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)\s*$")
 
 
-def _clean_msg(msg: str) -> str:
+class HistoryCheckpoint(Protocol):
+    message: str
+    trigger: str | None
+    git_commit_message: str | None
+
+
+def _clean_msg(msg: str, trigger: str | None = None, git_commit_message: str | None = None) -> str:
+    if trigger == "post_commit":
+        suffix = (git_commit_message or "").strip().splitlines()[0:1]
+        if suffix and suffix[0]:
+            return f"코드 저장 후 자동 백업 - {suffix[0][:60]}"
+        return "코드 저장 후 자동 백업"
     for prefix in ("vibelign: checkpoint - ", "vibelign: checkpoint"):
         if msg.startswith(prefix):
             msg = msg[len(prefix) :]
@@ -25,9 +37,13 @@ def _clean_msg(msg: str) -> str:
     return msg or "(메시지 없음)"
 
 
+def _visible_checkpoints(checkpoints: list[HistoryCheckpoint]) -> list[HistoryCheckpoint]:
+    return [cp for cp in checkpoints if cp.trigger != "safe_restore"]
+
+
 def run_vib_history(_args: object) -> None:
     root = resolve_project_root(Path.cwd())
-    checkpoints = list_checkpoints(root)
+    checkpoints = _visible_checkpoints(list_checkpoints(root))
     if not checkpoints:
         print("저장된 체크포인트가 없습니다.")
         print("저장하려면: vib checkpoint '작업 내용'")
@@ -41,7 +57,7 @@ def run_vib_history(_args: object) -> None:
         marker = "  ◀ 최근" if i == 0 else ""
         pin = " [보호]" if cp.pinned else ""
         time_label = friendly_time(cp.created_at)
-        msg = _clean_msg(cp.message)
+        msg = _clean_msg(cp.message, cp.trigger, cp.git_commit_message)
         print(f"  [{i + 1:2}]  {time_label:<18}  {msg}{pin}{marker}")
     print()
     print(f"총 {len(checkpoints)}개의 체크포인트")

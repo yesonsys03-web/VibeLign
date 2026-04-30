@@ -38,13 +38,21 @@ class TransferBuilder(Protocol):
 
 
 def _checkpoint_to_dict(cp: CheckpointLike) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "checkpoint_id": cp.checkpoint_id,
         "message": cp.message,
         "created_at": cp.created_at,
         "pinned": cp.pinned,
         "file_count": getattr(cp, "file_count", None),
+        "total_size_bytes": getattr(cp, "total_size_bytes", 0),
     }
+    trigger = getattr(cp, "trigger", None)
+    if trigger:
+        payload["trigger"] = trigger
+    git_commit_message = getattr(cp, "git_commit_message", None)
+    if git_commit_message:
+        payload["git_commit_message"] = git_commit_message
+    return payload
 
 
 def list_for_cli(root: Path) -> tuple[Sequence[CheckpointLike], str | None]:

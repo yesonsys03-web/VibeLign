@@ -3,6 +3,7 @@ from argparse import Namespace
 import json
 import re
 from pathlib import Path
+from typing import Protocol
 
 from vibelign.core.checkpoint_engine.router import (
     friendly_time,
@@ -21,8 +22,19 @@ print = cli_print
 _TIMESTAMP_PATTERN = re.compile(r"\s*\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)\s*$")
 
 
-def _clean_msg(msg: str) -> str:
+class UndoCheckpoint(Protocol):
+    message: str
+    trigger: str | None
+    git_commit_message: str | None
+
+
+def _clean_msg(msg: str, trigger: str | None = None, git_commit_message: str | None = None) -> str:
     """메시지에서 vibelign 접두어와 날짜 접미어를 제거."""
+    if trigger == "post_commit":
+        suffix = (git_commit_message or "").strip().splitlines()[0:1]
+        if suffix and suffix[0]:
+            return f"코드 저장 후 자동 백업 - {suffix[0][:60]}"
+        return "코드 저장 후 자동 백업"
     for prefix in ("vibelign: checkpoint - ", "vibelign: checkpoint"):
         if msg.startswith(prefix):
             msg = msg[len(prefix) :]
@@ -31,6 +43,10 @@ def _clean_msg(msg: str) -> str:
     if msg.startswith("{") or len(msg) > 200:
         return "(자동 저장)"
     return msg or "(메시지 없음)"
+
+
+def _visible_checkpoints(checkpoints: list[UndoCheckpoint]) -> list[UndoCheckpoint]:
+    return [cp for cp in checkpoints if cp.trigger != "safe_restore"]
 
 
 def run_vib_undo(args: Namespace) -> None:
@@ -42,7 +58,7 @@ def run_vib_undo(args: Namespace) -> None:
     )
     force = bool(getattr(args, "force", False))
 
-    checkpoints = list_checkpoints(root)
+    checkpoints = _visible_checkpoints(list_checkpoints(root))
     if not checkpoints:
         if as_json:
             print(
@@ -82,7 +98,7 @@ def run_vib_undo(args: Namespace) -> None:
             marker = "  ← 가장 최근" if i == 0 else ""
             pin = " [보호]" if cp.pinned else ""
             time_label = friendly_time(cp.created_at)
-            msg = _clean_msg(cp.message)
+            msg = _clean_msg(cp.message, cp.trigger, cp.git_commit_message)
             print(f"  [{i + 1}] {time_label:<18}  {msg}{pin}{marker}")
         print(f"  [0] 취소")
         print()
@@ -111,7 +127,7 @@ def run_vib_undo(args: Namespace) -> None:
         target = checkpoints[idx]
 
     time_label = friendly_time(target.created_at)
-    msg = _clean_msg(target.message)
+    msg = _clean_msg(target.message, target.trigger, target.git_commit_message)
 
     # --force 없고 대화형 선택인 경우 확인 프롬프트
     if not force and not checkpoint_id:
