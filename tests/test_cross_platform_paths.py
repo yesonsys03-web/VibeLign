@@ -1,5 +1,8 @@
 import unittest
+import json
 
+from collections import Counter
+from datetime import datetime
 from pathlib import Path
 
 from vibelign.core.project_scan import relpath_str
@@ -47,6 +50,30 @@ class CrossPlatformPathTest(unittest.TestCase):
                 FakePath(("C:", "Repo", "DiSt", "bundle.js"), "bundle.js", ".js")
             )
         )
+
+    def test_windows_drive_and_unc_paths_are_classified_as_unsafe_inputs(self) -> None:
+        unsafe = [
+            "C:\\repo\\app.py",
+            "D:/repo/app.py",
+            "\\\\server\\share\\repo\\app.py",
+        ]
+
+        for value in unsafe:
+            with self.subTest(value=value):
+                self.assertRegex(value, r"(^[A-Za-z]:)|(^\\\\)")
+
+    def test_backup_dashboard_dst_fixture_groups_by_local_calendar_day(self) -> None:
+        fixture = Path(__file__).parent / "fixtures" / "timezone_dst_dashboard_fixture.json"
+        payload = json.loads(fixture.read_text(encoding="utf-8"))
+
+        grouped = Counter(
+            datetime.fromisoformat(item["created_at"]).date().isoformat()
+            for item in payload["backups"]
+        )
+
+        self.assertEqual(grouped["2026-03-29"], 2)
+        self.assertEqual(grouped["2026-03-30"], 1)
+        self.assertEqual(payload["timezone"], "Europe/Berlin")
 
 
 if __name__ == "__main__":
