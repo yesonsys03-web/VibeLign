@@ -76,8 +76,16 @@ def _execute_add_anchor(action: Action, root: Path) -> ExecutionResult:
             try:
                 from vibelign.core.anchor_tools import generate_code_based_intents
                 generate_code_based_intents(root, [path])
-            except Exception:
-                pass
+            except Exception as exc:
+                print(
+                    f"[WARN] code-based intent generation failed for {action.target_path}: {exc}",
+                    file=sys.stderr,
+                )
+                return ExecutionResult(
+                    action,
+                    "done",
+                    f"앵커 추가: {action.target_path} (code-based intent 생성 실패: {exc})",
+                )
             # AI 보강은 vib anchor --auto-intent 로 별도 실행 (APPLY 블로킹 방지)
             return ExecutionResult(action, "done", f"앵커 추가: {action.target_path}")
         return ExecutionResult(action, "failed", "앵커 삽입 실패")
@@ -161,8 +169,11 @@ def execute_plan(plan: Plan, root: Path, force: bool = False, quiet: bool = Fals
             from vibelign.core.anchor_tools import generate_code_based_intents
             generate_code_based_intents(root, anchored)
             needs_ai = True
-    except Exception:
-        pass
+    except Exception as exc:
+        print(
+            f"[WARN] bulk code-based intent generation failed: {exc}",
+            file=sys.stderr,
+        )
 
     # 분석 캐시 무효화 (파일이 변경됐으므로)
     try:
@@ -170,8 +181,11 @@ def execute_plan(plan: Plan, root: Path, force: bool = False, quiet: bool = Fals
         cache_path = MetaPaths(root).analysis_cache_path
         if cache_path.exists():
             cache_path.unlink()
-    except Exception:
-        pass
+    except Exception as exc:
+        print(
+            f"[WARN] analysis cache cleanup failed: {exc}",
+            file=sys.stderr,
+        )
 
     return ApplyResult(checkpoint_id=None, results=results, needs_ai_aliases=needs_ai)
 # === ANCHOR: ACTION_EXECUTOR_END ===
