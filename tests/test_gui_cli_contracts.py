@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
+from vibelign.commands.vib_backup_db_viewer_cmd import run_vib_backup_db_viewer
+from vibelign.commands.vib_backup_db_maintenance_cmd import run_vib_backup_db_maintenance
 from vibelign.commands.vib_checkpoint_cmd import run_vib_checkpoint
 from vibelign.commands.vib_doctor_cmd import run_vib_doctor
 from vibelign.commands.vib_undo_cmd import run_vib_undo
@@ -143,6 +145,78 @@ class GuiCliContractsTest(unittest.TestCase):
                 {"relative_path": "docs/plan.md", "size": 3072},
             ],
         )
+
+    def test_backup_db_viewer_json_contract(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.dict(os.environ, {"VIBELIGN_PROJECT_ROOT": str(root)}, clear=False), patch(
+                "vibelign.commands.vib_backup_db_viewer_cmd.inspect_backup_db",
+                return_value={
+                    "db_exists": False,
+                    "checkpoint_count": 0,
+                    "checkpoints": [],
+                    "retention_policy": None,
+                    "object_store": {"exists": False, "compression_summary": []},
+                },
+            ), patch("vibelign.commands.vib_backup_db_viewer_cmd.print") as mocked_print:
+                code = run_vib_backup_db_viewer(Namespace(root=str(root), json=True))
+                payload = _json_object(cast(object, mocked_print.call_args.args[0]))
+
+        self.assertEqual(code, 0)
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["db_exists"])
+        self.assertEqual(payload["checkpoints"], [])
+
+    def test_backup_db_viewer_json_error_is_user_readable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.dict(os.environ, {"VIBELIGN_PROJECT_ROOT": str(root)}, clear=False), patch(
+                "vibelign.commands.vib_backup_db_viewer_cmd.inspect_backup_db",
+                side_effect=RuntimeError("RUST_ENGINE_UNAVAILABLE: missing"),
+            ), patch("vibelign.commands.vib_backup_db_viewer_cmd.print") as mocked_print:
+                code = run_vib_backup_db_viewer(Namespace(root=str(root), json=True))
+                payload = _json_object(cast(object, mocked_print.call_args.args[0]))
+
+        self.assertEqual(code, 1)
+        self.assertFalse(payload["ok"])
+        self.assertIn("백업 관리 DB를 읽을 수 없어요", str(payload["error"]))
+
+    def test_backup_db_maintenance_json_contract_defaults_to_dry_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.dict(os.environ, {"VIBELIGN_PROJECT_ROOT": str(root)}, clear=False), patch(
+                "vibelign.commands.vib_backup_db_maintenance_cmd.maintain_backup_db",
+                return_value={
+                    "result": "backup_db_maintenance",
+                    "mode": "dry_run",
+                    "db_exists": True,
+                    "planned_action": "noop",
+                },
+            ) as mocked_maintain, patch("vibelign.commands.vib_backup_db_maintenance_cmd.print") as mocked_print:
+                code = run_vib_backup_db_maintenance(
+                    Namespace(root=str(root), json=True, apply=False)
+                )
+                payload = _json_object(cast(object, mocked_print.call_args.args[0]))
+
+        self.assertEqual(code, 0)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["mode"], "dry_run")
+        self.assertEqual(mocked_maintain.call_args.args, (root.resolve(),))
+        self.assertEqual(mocked_maintain.call_args.kwargs, {"apply": False})
+
+    def test_lazy_cli_propagates_command_return_code(self):
+        from vibelign.cli.cli_runtime import run_cli_with_args
+
+        def build_parser():
+            import argparse
+
+            parser = argparse.ArgumentParser()
+            sub = parser.add_subparsers(dest="command", required=True)
+            cmd = sub.add_parser("fail")
+            cmd.set_defaults(func=lambda _args: 7)
+            return parser
+
+        self.assertEqual(run_cli_with_args(build_parser, ["fail"]), 7)
 
     def test_backup_dashboard_lint_is_wired_into_gui_npm_lint(self):
         root = Path(__file__).resolve().parents[1]
