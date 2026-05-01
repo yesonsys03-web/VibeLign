@@ -101,7 +101,7 @@ const FALLBACK_TOPICS: HelpTopic[] = [
     command: "vib checkpoint",
     summary: "현재 상태를 저장해요.",
     answer:
-      "vib checkpoint는 지금 상태를 저장해두는 기능이에요. 나중에 문제가 생기면 이 시점으로 돌아갈 수 있어요.",
+      "vib checkpoint는 지금 상태를 저장해두는 기능이에요. 나중에 문제가 생기면 이 시점으로 돌아갈 수 있어요. Git commit 뒤 자동 백업은 Settings 또는 vib config auto-backup on|off|status로 조절하고, 실제 백업 DB 용량은 Backup DB Viewer에서 확인해요.",
   },
   {
     id: "undo",
@@ -221,7 +221,7 @@ const FALLBACK_TOPICS: HelpTopic[] = [
     command: "vib config",
     summary: "AI 기능용 API 키와 지원 모델을 설정해요.",
     answer:
-      "vib config는 AI 기능을 쓰기 위한 API 키를 설정해요. 현재는 Claude와 Gemini를 쓰도록 설정하는 곳이에요.",
+      "vib config는 AI 기능을 쓰기 위한 API 키와 프로젝트 옵션을 설정해요. 커밋 후 자동 백업은 vib config auto-backup on|off|status로 켜고 끌 수 있어요.",
   },
   {
     id: "export",
