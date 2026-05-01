@@ -1,6 +1,8 @@
 pub mod cas;
 pub mod checkpoint;
 pub mod create;
+pub mod db_maintenance;
+pub mod db_viewer;
 pub mod diff;
 pub mod disk;
 pub mod hasher;

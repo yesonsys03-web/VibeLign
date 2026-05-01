@@ -1,6 +1,6 @@
 use crate::backup::checkpoint::{self, CheckpointCreateMetadata};
 use crate::backup::retention;
-use crate::backup::{diff, restore, suggestions};
+use crate::backup::{db_maintenance, db_viewer, diff, restore, suggestions};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -52,6 +52,13 @@ pub enum EngineRequest {
     },
     RetentionApply {
         root: PathBuf,
+    },
+    BackupDbViewerInspect {
+        root: PathBuf,
+    },
+    BackupDbMaintenance {
+        root: PathBuf,
+        apply: bool,
     },
 }
 
@@ -106,6 +113,18 @@ pub enum EngineResponse {
         planned_bytes: u64,
         reclaimed_bytes: u64,
         partial_failure: bool,
+    },
+    #[serde(rename = "ok")]
+    BackupDbViewerInspectOk {
+        result: String,
+        #[serde(flatten)]
+        report: db_viewer::BackupDbViewerInspectReport,
+    },
+    #[serde(rename = "ok")]
+    BackupDbMaintenanceOk {
+        result: String,
+        #[serde(flatten)]
+        report: db_maintenance::DbMaintenanceReport,
     },
 }
 
@@ -305,6 +324,16 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                 message: error,
             },
         },
+        EngineRequest::BackupDbViewerInspect { root } => match db_viewer::inspect(&root) {
+            Ok(report) => EngineResponse::BackupDbViewerInspectOk {
+                result: "backup_db_viewer_inspect".to_string(),
+                report,
+            },
+            Err(error) => EngineResponse::Error {
+                code: "BACKUP_DB_VIEWER_INSPECT_FAILED".to_string(),
+                message: error,
+            },
+        },
         EngineRequest::CheckpointDiff {
             root,
             from_checkpoint_id,
@@ -439,6 +468,23 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                 message: error,
             },
         },
+        EngineRequest::BackupDbMaintenance { root, apply } => {
+            let result = if apply {
+                db_maintenance::compact(&root)
+            } else {
+                db_maintenance::inspect(&root)
+            };
+            match result {
+                Ok(report) => EngineResponse::BackupDbMaintenanceOk {
+                    result: "backup_db_maintenance".to_string(),
+                    report,
+                },
+                Err(error) => EngineResponse::Error {
+                    code: "BACKUP_DB_MAINTENANCE_FAILED".to_string(),
+                    message: error,
+                },
+            }
+        }
     }
 }
 
