@@ -195,13 +195,16 @@ class LocalCheckpointsTest(unittest.TestCase):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual([item["path"] for item in manifest["files"]], ["app.py"])
 
-    def test_create_checkpoint_keeps_vibelign_db_and_anchor_index(self):
+    def test_create_checkpoint_excludes_vibelign_db_and_keeps_anchor_index(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "app.py").write_text("print('v1')\n", encoding="utf-8")
             vibelign_dir = root / ".vibelign"
             vibelign_dir.mkdir()
             (vibelign_dir / "vibelign.db").write_text("db\n", encoding="utf-8")
+            (vibelign_dir / "vibelign.db-wal").write_text("wal\n", encoding="utf-8")
+            (vibelign_dir / "db_maintenance_backups").mkdir()
+            (vibelign_dir / "db_maintenance_backups" / "old.db").write_text("old\n", encoding="utf-8")
             (vibelign_dir / "anchor_index.json").write_text("{}\n", encoding="utf-8")
             (vibelign_dir / "state.json").write_text("{}\n", encoding="utf-8")
 
@@ -220,7 +223,9 @@ class LocalCheckpointsTest(unittest.TestCase):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             paths = [item["path"] for item in manifest["files"]]
             self.assertIn("app.py", paths)
-            self.assertIn(".vibelign/vibelign.db", paths)
+            self.assertNotIn(".vibelign/vibelign.db", paths)
+            self.assertNotIn(".vibelign/vibelign.db-wal", paths)
+            self.assertNotIn(".vibelign/db_maintenance_backups/old.db", paths)
             self.assertIn(".vibelign/anchor_index.json", paths)
             self.assertNotIn(".vibelign/state.json", paths)
 
