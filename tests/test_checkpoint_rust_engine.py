@@ -14,6 +14,7 @@ from vibelign.core.checkpoint_engine.rust_engine import (
     create_checkpoint_with_rust,
     diff_checkpoints_with_rust,
     find_rust_engine,
+    inspect_backup_db_with_rust,
     list_checkpoints_with_rust,
     preview_restore_with_rust,
     prune_checkpoints_with_rust,
@@ -26,6 +27,8 @@ from vibelign.core.checkpoint_engine.auto_backup import (
     set_auto_backup_enabled,
 )
 from vibelign.core.checkpoint_engine.rust_checkpoint_engine import RustCheckpointEngine
+from vibelign.core.checkpoint_engine.router import list_checkpoints
+from vibelign.core import local_checkpoints
 from vibelign.core.checkpoint_engine.shadow_runner import (
     compare_checkpoint_create,
     prepare_shadow_run,
@@ -98,6 +101,118 @@ class CheckpointRustEngineTest(unittest.TestCase):
 
             self.assertTrue(result.ok)
             self.assertEqual(result.payload["result"], "engine_info")
+
+    def test_backup_db_viewer_request_shape(self):
+        from vibelign.core.checkpoint_engine.requests import (
+            backup_db_viewer_inspect_request,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            self.assertEqual(
+                backup_db_viewer_inspect_request(root),
+                {"command": "backup_db_viewer_inspect", "root": str(root)},
+            )
+
+    def test_backup_db_maintenance_request_shape(self):
+        from vibelign.core.checkpoint_engine.requests import backup_db_maintenance_request
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            self.assertEqual(
+                backup_db_maintenance_request(root, apply=False),
+                {"command": "backup_db_maintenance", "root": str(root), "apply": False},
+            )
+            self.assertEqual(
+                backup_db_maintenance_request(root, apply=True),
+                {"command": "backup_db_maintenance", "root": str(root), "apply": True},
+            )
+
+    def test_parse_backup_db_viewer_inspect_response(self):
+        from vibelign.core.checkpoint_engine.responses import (
+            parse_backup_db_viewer_inspect,
+        )
+        from vibelign.core.checkpoint_engine.rust_engine import RustEngineResult
+
+        payload = {
+            "status": "ok",
+            "result": "backup_db_viewer_inspect",
+            "db_exists": True,
+            "checkpoint_count": 1,
+            "checkpoints": [{"checkpoint_id": "cp-1", "display_name": "backup"}],
+        }
+
+        parsed, warning = parse_backup_db_viewer_inspect(
+            RustEngineResult(ok=True, payload=payload)
+        )
+
+        self.assertIsNone(warning)
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
+        self.assertTrue(parsed["db_exists"])
+        self.assertEqual(parsed["checkpoint_count"], 1)
+        self.assertEqual(cast(list[dict[str, object]], parsed["checkpoints"])[0]["checkpoint_id"], "cp-1")
+
+    def test_inspect_backup_db_with_rust_calls_engine(self):
+        from vibelign.core.checkpoint_engine.rust_engine import RustEngineResult
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch(
+                "vibelign.core.checkpoint_engine.rust_engine.call_rust_engine",
+                return_value=RustEngineResult(
+                    ok=True,
+                    payload={
+                        "status": "ok",
+                        "result": "backup_db_viewer_inspect",
+                        "db_exists": False,
+                        "checkpoint_count": 0,
+                        "checkpoints": [],
+                    },
+                ),
+            ) as mocked_call:
+                report, warning = inspect_backup_db_with_rust(root)
+
+            self.assertIsNone(warning)
+            self.assertIsNotNone(report)
+            assert report is not None
+            self.assertEqual(
+                mocked_call.call_args.args[1],
+                {"command": "backup_db_viewer_inspect", "root": str(root)},
+            )
+            self.assertEqual(mocked_call.call_args.kwargs["timeout_seconds"], 90)
+            self.assertFalse(report["db_exists"])
+
+    def test_maintain_backup_db_with_rust_calls_engine(self):
+        from vibelign.core.checkpoint_engine.rust_engine import (
+            RustEngineResult,
+            maintain_backup_db_with_rust,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            payload = {
+                "status": "ok",
+                "result": "backup_db_maintenance",
+                "mode": "dry_run",
+                "db_exists": True,
+                "planned_action": "noop",
+            }
+            with patch(
+                "vibelign.core.checkpoint_engine.rust_engine.call_rust_engine",
+                return_value=RustEngineResult(ok=True, payload=payload),
+            ) as mocked_call:
+                report, warning = maintain_backup_db_with_rust(root, apply=False)
+
+            self.assertIsNone(warning)
+            self.assertEqual(report, payload)
+            self.assertEqual(
+                mocked_call.call_args.args[1],
+                {"command": "backup_db_maintenance", "root": str(root), "apply": False},
+            )
+            self.assertEqual(mocked_call.call_args.kwargs["timeout_seconds"], 90)
 
     def test_create_checkpoint_with_rust_returns_summary(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -173,13 +288,14 @@ class CheckpointRustEngineTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             with patch(
-                "vibelign.core.checkpoint_engine.auto_backup.create_checkpoint_with_rust",
-                return_value=(None, None),
+                "vibelign.core.checkpoint_engine.auto_backup.create_checkpoint",
+                return_value=None,
             ) as mocked_create:
                 result = create_post_commit_backup(root, "abc1234", "feat: demo\n")
 
             self.assertEqual(result.status, "no_changes")
-            _, _, kwargs = mocked_create.mock_calls[0]
+            _, args, kwargs = mocked_create.mock_calls[0]
+            self.assertEqual(args, (root, "vibelign: auto backup after commit abc1234"))
             self.assertEqual(kwargs["trigger"], "post_commit")
             self.assertEqual(kwargs["git_commit_sha"], "abc1234")
             self.assertEqual(kwargs["git_commit_message"], "feat: demo")
@@ -189,12 +305,70 @@ class CheckpointRustEngineTest(unittest.TestCase):
             root = Path(tmp)
             set_auto_backup_enabled(root, False)
             with patch(
-                "vibelign.core.checkpoint_engine.auto_backup.create_checkpoint_with_rust"
+                "vibelign.core.checkpoint_engine.auto_backup.create_checkpoint"
             ) as mocked_create:
                 result = create_post_commit_backup(root, "abc1234", "feat: demo")
 
             self.assertEqual(result.status, "disabled")
             mocked_create.assert_not_called()
+
+    def test_post_commit_auto_backup_falls_back_when_rust_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "app.py").write_text("print('hi')\n", encoding="utf-8")
+            missing_engine = root / "missing-vibelign-engine"
+
+            with patch.dict(
+                os.environ,
+                {"VIBELIGN_ENGINE_PATH": str(missing_engine)},
+                clear=False,
+            ):
+                result = create_post_commit_backup(root, "abc1234", "feat: demo")
+
+            self.assertEqual(result.status, "created")
+            checkpoints = list_checkpoints(root)
+            self.assertGreaterEqual(len(checkpoints), 1)
+            self.assertEqual(checkpoints[0].trigger, "post_commit")
+            self.assertEqual(checkpoints[0].git_commit_message, "feat: demo")
+
+            state = json.loads((root / ".vibelign" / "state.json").read_text())
+            self.assertEqual(state["engine_used"], "python")
+            self.assertIn("RUST_ENGINE_UNAVAILABLE", state["last_fallback_reason"])
+
+    def test_python_checkpoint_preserves_post_commit_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "app.py").write_text("print('hi')\n", encoding="utf-8")
+
+            summary = local_checkpoints.create_checkpoint(
+                root,
+                "vibelign: auto backup after commit abc1234",
+                trigger="post_commit",
+                git_commit_sha="abc1234",
+                git_commit_message="feat: demo",
+            )
+
+            self.assertIsNotNone(summary)
+            assert summary is not None
+            self.assertEqual(summary.trigger, "post_commit")
+            self.assertEqual(summary.git_commit_message, "feat: demo")
+
+            manifest = json.loads(
+                (
+                    root
+                    / ".vibelign"
+                    / "checkpoints"
+                    / summary.checkpoint_id
+                    / "manifest.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(manifest["trigger"], "post_commit")
+            self.assertEqual(manifest["git_commit_sha"], "abc1234")
+            self.assertEqual(manifest["git_commit_message"], "feat: demo")
+
+            listed = local_checkpoints.list_checkpoints(root)
+            self.assertEqual(listed[0].trigger, "post_commit")
+            self.assertEqual(listed[0].git_commit_message, "feat: demo")
 
     def test_list_checkpoints_with_rust_returns_summaries(self):
         with tempfile.TemporaryDirectory() as tmp:
