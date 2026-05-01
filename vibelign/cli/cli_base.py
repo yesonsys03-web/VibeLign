@@ -3,7 +3,7 @@ import argparse
 import importlib
 import sys
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Protocol, TypeVar
+from typing import TYPE_CHECKING, Protocol, TypeVar, cast
 
 try:
     from typing import override
@@ -137,11 +137,12 @@ MAIN_EPILOG = """\
 
 
 # === ANCHOR: CLI_BASE_LAZY_COMMAND_START ===
-def lazy_command(module_name: str, func_name: str) -> Callable[[object], None]:
+def lazy_command(module_name: str, func_name: str) -> Callable[[object], object]:
     # === ANCHOR: CLI_BASE_RUNNER_START ===
-    def runner(args: object) -> None:
+    def runner(args: object) -> object:
         module = importlib.import_module(module_name)
-        getattr(module, func_name)(args)
+        func = cast(Callable[[object], object], getattr(module, func_name))
+        return func(args)
 
     # === ANCHOR: CLI_BASE_RUNNER_END ===
     # === ANCHOR: CLI_BASE_LAZY_COMMAND_END ===

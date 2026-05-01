@@ -38,8 +38,10 @@ def run_cli(build_parser: Callable[[], argparse.ArgumentParser]) -> None:
         return
 
     args = parser.parse_args()
-    func = cast(Callable[[object], None], args.func)
-    func(args)
+    func = cast(Callable[[object], object], args.func)
+    result = func(args)
+    if isinstance(result, int):
+        raise SystemExit(result)
 # === ANCHOR: CLI_RUNTIME_RUN_CLI_END ===
 
 
