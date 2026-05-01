@@ -19,6 +19,21 @@ def _json_object(raw: object) -> dict[str, object]:
 
 
 class GuiCliContractsTest(unittest.TestCase):
+    def test_top_level_help_mentions_backup_db_commands(self):
+        from vibelign.cli.cli_base import MAIN_DESCRIPTION
+        from vibelign.commands.vib_manual_cmd import GROUPS, MANUAL
+
+        self.assertIn("backup-db-viewer", MAIN_DESCRIPTION)
+        self.assertIn("backup-db-maintenance", MAIN_DESCRIPTION)
+        self.assertIn("backup-db-viewer", MANUAL)
+        self.assertIn("backup-db-maintenance", MANUAL)
+
+        grouped_commands = {
+            command for _title, commands in GROUPS for command in commands
+        }
+        self.assertIn("backup-db-viewer", grouped_commands)
+        self.assertIn("backup-db-maintenance", grouped_commands)
+
     def test_doctor_json_exposes_fields_consumed_by_gui(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

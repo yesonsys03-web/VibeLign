@@ -91,6 +91,8 @@ VibeLign - AI한테 코딩 시켜도 안전하게 지켜주는 도구
   checkpoint  게임 세이브처럼 지금 상태를 저장해요
   undo        저장한 곳으로 되돌려요
   history     저장 목록을 봐요
+  backup-db-viewer       백업 DB 실제 사용량을 읽기 전용으로 확인해요
+  backup-db-maintenance  백업 DB 파일 크기를 안전하게 점검/정리해요
 
 점검 & 확인:
   doctor      프로젝트 건강 상태를 확인해요

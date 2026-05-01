@@ -216,6 +216,56 @@ MANUAL: dict[str, ManualEntry] = {
         ],
         "options": [],
     },
+    "backup-db-viewer": {
+        "emoji": "🗄️",
+        "title": "vib backup-db-viewer",
+        "one_line": "백업 관리 DB의 실제 저장 상태를 읽기 전용으로 확인해요",
+        "what": (
+            "Rust/SQLite 백업 관리 DB(.vibelign/vibelign.db)를 안전하게 들여다보는 명령어예요.\n"
+            "체크포인트 개수, DB/WAL/SHM 파일 크기, object store 실제 저장량을 구분해서 보여줘요.\n\n"
+            "읽기 전용이라 Raw SQL 실행, DB 편집, object 삭제 같은 위험한 작업은 하지 않아요."
+        ),
+        "when": [
+            "BACKUPS 화면의 '백업 범위'와 실제 디스크 사용량 차이를 확인할 때",
+            "자동 백업이 많이 쌓여 DB/object store 상태를 점검하고 싶을 때",
+            "Windows/macOS 번들 CLI에서 백업 DB 상태를 JSON으로 확인할 때",
+        ],
+        "examples": [
+            ("vib backup-db-viewer --json", "현재 프로젝트 백업 DB 상태를 JSON으로 확인"),
+            (
+                "vib backup-db-viewer --root /path/to/project --json",
+                "다른 프로젝트 루트의 백업 DB 상태 확인",
+            ),
+        ],
+        "options": [
+            ("--root", "확인할 프로젝트 루트예요. 안 쓰면 현재 폴더를 사용해요."),
+            ("--json", "GUI/스크립트가 읽기 좋은 JSON으로 출력해요."),
+        ],
+    },
+    "backup-db-maintenance": {
+        "emoji": "🧹",
+        "title": "vib backup-db-maintenance",
+        "one_line": "백업 관리 DB 파일 크기를 dry-run 우선으로 안전하게 점검/정리해요",
+        "what": (
+            "백업 관리 DB의 WAL/빈 페이지 상태를 점검하고 필요한 정리 계획을 보여주는 명령어예요.\n"
+            "기본값은 dry-run이라 실제 파일을 바꾸지 않고, `--apply`를 명시해야 정리를 실행해요.\n\n"
+            "실행 모드에서는 DB 파일을 먼저 백업한 뒤 WAL 정리와 조건부 VACUUM을 수행해요."
+        ),
+        "when": [
+            "커밋 후 자동 백업을 오래 켜둬 DB 파일 크기가 걱정될 때",
+            "정리 전에 어떤 작업이 필요한지 먼저 확인하고 싶을 때",
+            "백업 DB 파일을 안전하게 정리해야 할 때",
+        ],
+        "examples": [
+            ("vib backup-db-maintenance --json", "정리 계획만 확인하는 dry-run"),
+            ("vib backup-db-maintenance --apply --json", "DB 파일 백업 후 실제 정리 실행"),
+        ],
+        "options": [
+            ("--root", "확인/정리할 프로젝트 루트예요. 안 쓰면 현재 폴더를 사용해요."),
+            ("--apply", "dry-run이 아니라 실제 정리를 실행해요."),
+            ("--json", "GUI/스크립트가 읽기 좋은 JSON으로 출력해요."),
+        ],
+    },
     "docs-build": {
         "emoji": "🧱",
         "title": "vib docs-build",
@@ -1190,7 +1240,10 @@ MANUAL: dict[str, ManualEntry] = {
 # 그룹 순서
 GROUPS = [
     ("🏁 처음 시작", ["start", "init", "install"]),
-    ("💾 세이브 & 되돌리기", ["checkpoint", "undo", "history"]),
+    (
+        "💾 세이브 & 되돌리기",
+        ["checkpoint", "undo", "history", "backup-db-viewer", "backup-db-maintenance"],
+    ),
     ("🔬 점검 & 확인", ["doctor", "guard", "explain"]),
     ("✏️ AI 수정 요청", ["patch", "anchor", "scan", "plan-structure"]),
     ("📚 문서 보기 & 다시생성", ["docs-build", "docs-index"]),
