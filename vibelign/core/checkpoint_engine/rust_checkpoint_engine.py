@@ -14,7 +14,9 @@ from vibelign.core.checkpoint_engine.rust_engine import (
     apply_retention_with_rust,
     create_checkpoint_with_rust,
     diff_checkpoints_with_rust,
+    inspect_backup_db_with_rust,
     list_checkpoints_with_rust,
+    maintain_backup_db_with_rust,
     preview_restore_with_rust,
     prune_checkpoints_with_rust,
     restore_checkpoint_with_rust,
@@ -40,18 +42,44 @@ class RustCheckpointEngine:
         self._fallback: PythonCheckpointEngine = fallback or PythonCheckpointEngine()
         self._last_restore_error: str = ""
 
-    def create_checkpoint(self, root: Path, message: str) -> CheckpointSummary | None:
+    def create_checkpoint(
+        self,
+        root: Path,
+        message: str,
+        *,
+        trigger: str | None = None,
+        git_commit_sha: str | None = None,
+        git_commit_message: str | None = None,
+    ) -> CheckpointSummary | None:
         if _rust_disabled():
             self._record_fallback(root, "rust checkpoint disabled by environment")
-            return self._fallback.create_checkpoint(root, message)
-        summary, warning = create_checkpoint_with_rust(root, message)
+            return self._fallback.create_checkpoint(
+                root,
+                message,
+                trigger=trigger,
+                git_commit_sha=git_commit_sha,
+                git_commit_message=git_commit_message,
+            )
+        summary, warning = create_checkpoint_with_rust(
+            root,
+            message,
+            trigger=trigger,
+            git_commit_sha=git_commit_sha,
+            git_commit_message=git_commit_message,
+        )
         if summary is None:
             if warning is None:
                 _record_engine_state(root, "rust", None)
                 return None
             if _is_environment_fallback(warning):
                 self._record_fallback(root, warning or "rust checkpoint unavailable")
-                return self._fallback.create_checkpoint(root, message)
+                return self._fallback.create_checkpoint(
+                    root,
+                    message,
+                    trigger=trigger,
+                    git_commit_sha=git_commit_sha,
+                    git_commit_message=git_commit_message,
+                )
             raise RuntimeError(warning)
         pruned, prune_warning = prune_checkpoints_with_rust(
             root, DEFAULT_RETENTION_POLICY.keep_latest
@@ -149,8 +177,25 @@ class RustCheckpointEngine:
         if result is None:
             if _is_environment_fallback(warning):
                 self._record_fallback(root, warning or "rust checkpoint unavailable")
-                return self._fallback.prune_checkpoints(root, DEFAULT_RETENTION_POLICY)
+                pruned = self._fallback.prune_checkpoints(
+                    root, DEFAULT_RETENTION_POLICY
+                )
+                return {"count": pruned["count"], "bytes": pruned["bytes"]}
             raise RuntimeError(warning or "Rust retention cleanup failed.")
+        _record_engine_state(root, "rust", None)
+        return result
+
+    def inspect_backup_db(self, root: Path) -> dict[str, object]:
+        result, warning = inspect_backup_db_with_rust(root)
+        if result is None:
+            raise RuntimeError(warning or "Rust backup DB viewer inspect failed.")
+        _record_engine_state(root, "rust", None)
+        return result
+
+    def maintain_backup_db(self, root: Path, *, apply: bool = False) -> dict[str, object]:
+        result, warning = maintain_backup_db_with_rust(root, apply=apply)
+        if result is None:
+            raise RuntimeError(warning or "Rust backup DB maintenance failed.")
         _record_engine_state(root, "rust", None)
         return result
 
