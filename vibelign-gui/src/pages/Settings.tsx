@@ -1,7 +1,7 @@
 // === ANCHOR: SETTINGS_START ===
 import { useState, useEffect, useMemo } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { saveProviderApiKey, deleteProviderApiKey, getVibPath, getEnvKeyStatus, getAiEnhancement, setAiEnhancement } from "../lib/vib";
+import { saveProviderApiKey, deleteProviderApiKey, getVibPath, getEnvKeyStatus, getAiEnhancement, setAiEnhancement, getAutoBackupOnCommit, setAutoBackupOnCommit } from "../lib/vib";
 
 const PROVIDER_MODELS: Record<string, string[]> = {
   ANTHROPIC: ["claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"],
@@ -44,6 +44,8 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
   });
   const [aiEnhancement, setAiEnhancementState] = useState<boolean | null>(null);
   const [aiEnhancementSaving, setAiEnhancementSaving] = useState(false);
+  const [autoBackupOnCommit, setAutoBackupOnCommitState] = useState<boolean | null>(null);
+  const [autoBackupSaving, setAutoBackupSaving] = useState(false);
 
   const handleModelChange = (provider: string, model: string) => {
     const newModels = { ...models, [provider]: model };
@@ -59,11 +61,15 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
   useEffect(() => {
     if (!projectDir) {
       setAiEnhancementState(null);
+      setAutoBackupOnCommitState(null);
       return;
     }
     getAiEnhancement(projectDir)
       .then(setAiEnhancementState)
       .catch(() => setAiEnhancementState(null));
+    getAutoBackupOnCommit(projectDir)
+      .then(setAutoBackupOnCommitState)
+      .catch(() => setAutoBackupOnCommitState(null));
   }, [projectDir]);
 
   async function handleToggleAiEnhancement(next: boolean) {
@@ -76,6 +82,20 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
       setMsg({ type: "err", text: `AI 보강 설정 실패: ${e}` });
     } finally {
       setAiEnhancementSaving(false);
+    }
+  }
+
+  async function handleToggleAutoBackup(next: boolean) {
+    if (!projectDir) return;
+    setAutoBackupSaving(true);
+    try {
+      const applied = await setAutoBackupOnCommit(projectDir, next);
+      setAutoBackupOnCommitState(applied);
+      setMsg({ type: "ok", text: applied ? "커밋 후 자동 백업을 켰어요." : "커밋 후 자동 백업을 껐어요." });
+    } catch (e) {
+      setMsg({ type: "err", text: `자동 백업 설정 실패: ${e}` });
+    } finally {
+      setAutoBackupSaving(false);
     }
   }
 
@@ -406,6 +426,41 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
             <div style={{ fontSize: 11, color: "#777", lineHeight: 1.6 }}>
               <code style={{ color: "#888" }}>pip install vibelign</code> 으로 설치 후 재시작하세요.<br />
               설치 가이드: <code style={{ color: "#888" }}>vib install</code>
+            </div>
+          )}
+        </div>
+
+        {/* 커밋 후 자동 백업 토글 섹션 */}
+        <div className="card" style={{ marginTop: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
+            커밋 후 자동 백업
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 10 }}>
+            Git commit 이 끝날 때마다 VibeLign checkpoint를 자동으로 남깁니다. 복구 안전성을 높이려면 ON,
+            저장본 증가를 줄이고 필요할 때만 <code style={{ color: "#888" }}>vib checkpoint</code>를 쓰려면 OFF로 두세요.
+          </div>
+          {!projectDir ? (
+            <div style={{ fontSize: 11, color: "#777" }}>프로젝트를 먼저 선택하세요.</div>
+          ) : autoBackupOnCommit === null ? (
+            <div style={{ fontSize: 11, color: "#777" }}>상태 불러오는 중…</div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <button
+                className="btn btn-sm"
+                disabled={autoBackupSaving}
+                onClick={() => handleToggleAutoBackup(!autoBackupOnCommit)}
+                style={{
+                  background: autoBackupOnCommit ? "#4DFF91" : "#1A1A1A",
+                  color: autoBackupOnCommit ? "#1A1A1A" : "#888",
+                  border: "2px solid #1A1A1A",
+                  fontWeight: 700,
+                }}
+              >
+                {autoBackupSaving ? <span className="spinner" /> : autoBackupOnCommit ? "ON" : "OFF"}
+              </button>
+              <span style={{ fontSize: 11, color: "#888", fontFamily: "IBM Plex Mono, monospace" }}>
+                auto_backup_on_commit: {autoBackupOnCommit ? "true" : "false"}
+              </span>
             </div>
           )}
         </div>

@@ -440,6 +440,7 @@ export async function doctorApply(cwd: string, aiEnv?: Record<string, string>): 
 // Why: Doctor 페이지 mount 마다 `vib config --ai-enhance status` 가 PyInstaller
 //      콜드스타트를 맞아 지연을 만들었다.
 const aiEnhancementCache = new Map<string, boolean>();
+const autoBackupOnCommitCache = new Map<string, boolean>();
 
 export async function getAiEnhancement(cwd: string): Promise<boolean> {
   const cached = aiEnhancementCache.get(cwd);
@@ -458,6 +459,26 @@ export async function setAiEnhancement(cwd: string, enabled: boolean): Promise<b
   const parsed = JSON.parse(res.stdout) as { ok?: boolean; data?: { ai_enhancement?: boolean } };
   const value = Boolean(parsed.data?.ai_enhancement);
   aiEnhancementCache.set(cwd, value);
+  return value;
+}
+
+export async function getAutoBackupOnCommit(cwd: string): Promise<boolean> {
+  const cached = autoBackupOnCommitCache.get(cwd);
+  if (cached !== undefined) return cached;
+  const res = await runVib(["config", "auto-backup", "status", "--json"], cwd);
+  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  const parsed = JSON.parse(res.stdout) as { ok?: boolean; data?: { auto_backup_on_commit?: boolean } };
+  const value = Boolean(parsed.data?.auto_backup_on_commit);
+  autoBackupOnCommitCache.set(cwd, value);
+  return value;
+}
+
+export async function setAutoBackupOnCommit(cwd: string, enabled: boolean): Promise<boolean> {
+  const res = await runVib(["config", "auto-backup", enabled ? "on" : "off", "--json"], cwd);
+  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  const parsed = JSON.parse(res.stdout) as { ok?: boolean; data?: { auto_backup_on_commit?: boolean } };
+  const value = Boolean(parsed.data?.auto_backup_on_commit);
+  autoBackupOnCommitCache.set(cwd, value);
   return value;
 }
 
