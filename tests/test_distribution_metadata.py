@@ -99,6 +99,8 @@ class DistributionMetadataTest(unittest.TestCase):
     def test_pyinstaller_spec_bundles_rust_sidecar_and_checkpoint_engine(self):
         text = (ROOT / "vib.spec").read_text(encoding="utf-8")
 
+        self.assertIn('"vibelign.commands.vib_backup_db_viewer_cmd"', text)
+        self.assertIn('"vibelign.commands.vib_backup_db_maintenance_cmd"', text)
         self.assertIn('"vibelign.core.checkpoint_engine.rust_engine"', text)
         self.assertIn('"vibelign.core.checkpoint_engine.rust_checkpoint_engine"', text)
         self.assertIn('datas.append(("vibelign/_bundled", "vibelign/_bundled"))', text)
