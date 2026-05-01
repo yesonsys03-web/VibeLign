@@ -616,6 +616,63 @@ export interface BackupEntry {
   commitNote?: string;
 }
 
+export interface BackupDbViewerCheckpointRow {
+  checkpointId: string;
+  displayName: string;
+  createdAt: string;
+  pinned: boolean;
+  trigger?: string | null;
+  triggerLabel: string;
+  gitCommitSha?: string | null;
+  gitCommitMessage?: string | null;
+  fileCount: number;
+  totalSizeBytes: number;
+  originalSizeBytes: number;
+  storedSizeBytes: number;
+  reusedFileCount: number;
+  changedFileCount: number;
+  engineVersion?: string | null;
+  parentCheckpointId?: string | null;
+  internalBadges: string[];
+}
+
+export interface BackupDbViewerInspectResult {
+  dbExists: boolean;
+  dbPath: string;
+  dbFile: {
+    databaseBytes: number;
+    walBytes: number;
+    shmBytes: number;
+    totalBytes: number;
+  };
+  schemaVersion?: string | null;
+  checkpointCount: number;
+  rustV2Count: number;
+  legacyCount: number;
+  casObjectCount: number;
+  casRefCount: number;
+  totalOriginalSizeBytes: number;
+  totalStoredSizeBytes: number;
+  autoBackupOnCommit: boolean;
+  retentionPolicy?: {
+    keepLatest: number;
+    keepDailyDays: number;
+    keepWeeklyWeeks: number;
+    maxTotalSizeBytes: number;
+    maxAgeDays: number;
+    minKeep: number;
+  } | null;
+  objectStore: {
+    exists: boolean;
+    path: string;
+    compressionSummary: Array<{ compression: string; objectCount: number }>;
+    storedSizeBytes: number;
+    originalSizeBytes: number;
+  };
+  checkpoints: BackupDbViewerCheckpointRow[];
+  warnings: string[];
+}
+
 export interface BackupListResult {
   backups: BackupEntry[];
   warning?: string | null;
@@ -637,6 +694,161 @@ interface RawCheckpointFileEntry {
   path?: string | null;
   size?: number | null;
   size_bytes?: number | null;
+}
+
+interface RawBackupDbViewerCheckpointRow {
+  checkpoint_id?: string | null;
+  display_name?: string | null;
+  created_at?: string | null;
+  pinned?: boolean | number | null;
+  trigger?: string | null;
+  trigger_label?: string | null;
+  git_commit_sha?: string | null;
+  git_commit_message?: string | null;
+  file_count?: number | null;
+  total_size_bytes?: number | null;
+  original_size_bytes?: number | null;
+  stored_size_bytes?: number | null;
+  reused_file_count?: number | null;
+  changed_file_count?: number | null;
+  engine_version?: string | null;
+  parent_checkpoint_id?: string | null;
+  internal_badges?: string[] | null;
+}
+
+interface RawBackupDbViewerRetentionPolicy {
+  keep_latest?: number | null;
+  keep_daily_days?: number | null;
+  keep_weekly_weeks?: number | null;
+  max_total_size_bytes?: number | null;
+  max_age_days?: number | null;
+  min_keep?: number | null;
+}
+
+interface RawBackupDbViewerCompressionSummary {
+  compression?: string | null;
+  object_count?: number | null;
+}
+
+interface RawBackupDbViewerObjectStore {
+  exists?: boolean;
+  path?: string | null;
+  compression_summary?: RawBackupDbViewerCompressionSummary[] | null;
+  stored_size_bytes?: number | null;
+  original_size_bytes?: number | null;
+}
+
+interface RawBackupDbViewerDbFileStats {
+  database_bytes?: number | null;
+  wal_bytes?: number | null;
+  shm_bytes?: number | null;
+  total_bytes?: number | null;
+}
+
+interface RawBackupDbViewerInspectResult {
+  ok?: boolean;
+  error?: string;
+  db_exists?: boolean;
+  db_path?: string | null;
+  db_file?: RawBackupDbViewerDbFileStats | null;
+  schema_version?: string | null;
+  checkpoint_count?: number | null;
+  rust_v2_count?: number | null;
+  legacy_count?: number | null;
+  cas_object_count?: number | null;
+  cas_ref_count?: number | null;
+  total_original_size_bytes?: number | null;
+  total_stored_size_bytes?: number | null;
+  auto_backup_on_commit?: boolean;
+  retention_policy?: RawBackupDbViewerRetentionPolicy | null;
+  object_store?: RawBackupDbViewerObjectStore | null;
+  checkpoints?: RawBackupDbViewerCheckpointRow[] | null;
+  warnings?: string[] | null;
+}
+
+function readNumber(value: number | null | undefined): number {
+  return typeof value === "number" ? value : 0;
+}
+
+function normalizeDbFile(raw?: RawBackupDbViewerDbFileStats | null): BackupDbViewerInspectResult["dbFile"] {
+  return {
+    databaseBytes: readNumber(raw?.database_bytes),
+    walBytes: readNumber(raw?.wal_bytes),
+    shmBytes: readNumber(raw?.shm_bytes),
+    totalBytes: readNumber(raw?.total_bytes),
+  };
+}
+
+function normalizeRetentionPolicy(raw?: RawBackupDbViewerRetentionPolicy | null): BackupDbViewerInspectResult["retentionPolicy"] {
+  if (!raw) return null;
+  return {
+    keepLatest: readNumber(raw.keep_latest),
+    keepDailyDays: readNumber(raw.keep_daily_days),
+    keepWeeklyWeeks: readNumber(raw.keep_weekly_weeks),
+    maxTotalSizeBytes: readNumber(raw.max_total_size_bytes),
+    maxAgeDays: readNumber(raw.max_age_days),
+    minKeep: readNumber(raw.min_keep),
+  };
+}
+
+function normalizeObjectStore(raw?: RawBackupDbViewerObjectStore | null): BackupDbViewerInspectResult["objectStore"] {
+  const compressionItems = Array.isArray(raw?.compression_summary) ? raw.compression_summary : [];
+  return {
+    exists: raw?.exists === true,
+    path: typeof raw?.path === "string" ? raw.path : "",
+    compressionSummary: compressionItems.map((item) => ({
+      compression: item.compression ?? "unknown",
+      objectCount: readNumber(item.object_count),
+    })),
+    storedSizeBytes: readNumber(raw?.stored_size_bytes),
+    originalSizeBytes: readNumber(raw?.original_size_bytes),
+  };
+}
+
+function normalizeBackupDbViewerRow(raw: RawBackupDbViewerCheckpointRow): BackupDbViewerCheckpointRow {
+  return {
+    checkpointId: raw.checkpoint_id ?? "",
+    displayName: raw.display_name ?? "메모 없는 저장본",
+    createdAt: raw.created_at ?? "",
+    pinned: raw.pinned === true || raw.pinned === 1,
+    trigger: raw.trigger ?? null,
+    triggerLabel: raw.trigger_label ?? "수동 백업",
+    gitCommitSha: raw.git_commit_sha ?? null,
+    gitCommitMessage: raw.git_commit_message ?? null,
+    fileCount: readNumber(raw.file_count),
+    totalSizeBytes: readNumber(raw.total_size_bytes),
+    originalSizeBytes: readNumber(raw.original_size_bytes),
+    storedSizeBytes: readNumber(raw.stored_size_bytes),
+    reusedFileCount: readNumber(raw.reused_file_count),
+    changedFileCount: readNumber(raw.changed_file_count),
+    engineVersion: raw.engine_version ?? null,
+    parentCheckpointId: raw.parent_checkpoint_id ?? null,
+    internalBadges: Array.isArray(raw.internal_badges) ? raw.internal_badges : [],
+  };
+}
+
+function parseBackupDbViewerInspectResult(raw: RawBackupDbViewerInspectResult): BackupDbViewerInspectResult {
+  if (raw.ok === false) throw new Error(raw.error ?? "Backup DB Viewer 실패");
+  const checkpoints = Array.isArray(raw.checkpoints) ? raw.checkpoints : [];
+  const warnings = Array.isArray(raw.warnings) ? raw.warnings.filter((item): item is string => typeof item === "string") : [];
+  return {
+    dbExists: raw.db_exists === true,
+    dbPath: typeof raw.db_path === "string" ? raw.db_path : "",
+    dbFile: normalizeDbFile(raw.db_file),
+    schemaVersion: typeof raw.schema_version === "string" ? raw.schema_version : null,
+    checkpointCount: readNumber(raw.checkpoint_count),
+    rustV2Count: readNumber(raw.rust_v2_count),
+    legacyCount: readNumber(raw.legacy_count),
+    casObjectCount: readNumber(raw.cas_object_count),
+    casRefCount: readNumber(raw.cas_ref_count),
+    totalOriginalSizeBytes: readNumber(raw.total_original_size_bytes),
+    totalStoredSizeBytes: readNumber(raw.total_stored_size_bytes),
+    autoBackupOnCommit: raw.auto_backup_on_commit === true,
+    retentionPolicy: normalizeRetentionPolicy(raw.retention_policy),
+    objectStore: normalizeObjectStore(raw.object_store),
+    checkpoints: checkpoints.map(normalizeBackupDbViewerRow),
+    warnings,
+  };
 }
 
 function backupSourceKind(trigger?: string | null): BackupSourceKind {
@@ -696,6 +908,18 @@ export async function backupList(cwd: string): Promise<BackupListResult> {
       .filter((entry) => entry.id && entry.sourceKind !== "safe"),
     warning: data.warning ?? null,
   };
+}
+
+export async function backupDbViewerInspect(cwd: string): Promise<BackupDbViewerInspectResult> {
+  const res = await runVib(["backup-db-viewer", "--json"], cwd);
+  const stdout = res.stdout.trim();
+  if (!res.ok && stdout.startsWith("{")) {
+    const parsed = JSON.parse(stdout) as RawBackupDbViewerInspectResult;
+    return parseBackupDbViewerInspectResult(parsed);
+  }
+  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  const parsed = JSON.parse(stdout) as RawBackupDbViewerInspectResult;
+  return parseBackupDbViewerInspectResult(parsed);
 }
 
 export async function backupRestore(cwd: string, backupId: string): Promise<unknown> {
