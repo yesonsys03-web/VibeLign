@@ -132,6 +132,9 @@ vib start
 | `vib checkpoint` | Will ask for a message |
 | `vib undo` | Go back to last save |
 | `vib history` | See all saves |
+| `vib backup-db-viewer --json` | Inspect the Rust backup DB in read-only mode |
+| `vib backup-db-maintenance --json` | Dry-run backup DB file cleanup planning |
+| `vib backup-db-maintenance --apply --json` | Back up DB files, truncate WAL, and conditionally compact the DB |
 
 ### When Asking AI to Code
 

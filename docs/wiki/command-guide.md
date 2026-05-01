@@ -9,6 +9,9 @@ For full details, use the linked canonical docs.
 | `vib checkpoint` | saving state before risky edits | [`../../VIBELIGN_MANUAL.md`](../../VIBELIGN_MANUAL.md) |
 | `vib undo` | restoring a previous checkpoint | [`../../VIBELIGN_MANUAL.md`](../../VIBELIGN_MANUAL.md) |
 | `vib history` | reviewing saved checkpoints | [`../../VIBELIGN_MANUAL.md`](../../VIBELIGN_MANUAL.md) |
+| `vib backup-db-viewer --json` | inspecting the Rust backup DB in read-only mode | [`../../README.md`](../../README.md) |
+| `vib backup-db-maintenance --json` | planning safe backup DB file cleanup without changing it | [`../../README.md`](../../README.md) |
+| `vib backup-db-maintenance --apply --json` | backing up DB files, truncating WAL, and conditionally compacting SQLite | [`../../README.md`](../../README.md) |
 | `vib doctor` | checking project health | [`../../VIBELIGN_MANUAL.md`](../../VIBELIGN_MANUAL.md) |
 | `vib anchor` | adding or refreshing AI-safe edit markers | [`../../VIBELIGN_MANUAL.md`](../../VIBELIGN_MANUAL.md) |
 | `vib patch` | converting natural requests into safer edit instructions | [`../../README.md`](../../README.md) |

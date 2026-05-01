@@ -132,6 +132,9 @@ vib start
 | `vib checkpoint` | 저장할 때 메시지 입력하라고 뜸 |
 | `vib undo` | 마지막 세이브 지점으로 돌아감 |
 | `vib history` | 세이브 목록 보기 |
+| `vib backup-db-viewer --json` | Rust 백업 DB를 읽기 전용으로 확인 |
+| `vib backup-db-maintenance --json` | 백업 DB 파일 정리 계획을 dry-run으로 확인 |
+| `vib backup-db-maintenance --apply --json` | DB 파일 백업 후 WAL 정리와 조건부 DB 압축 실행 |
 
 ### AI한테 코딩 요청할 때
 
