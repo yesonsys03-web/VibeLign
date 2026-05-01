@@ -130,6 +130,7 @@ def register_core_commands(
         help="백업 관리 DB 상태를 읽기 전용으로 확인해요",
         description=(
             "Rust 백업 관리 DB(.vibelign/vibelign.db)를 읽기 전용으로 요약해요.\n"
+            "원본 합계와 실제 저장량(object store), DB/WAL/SHM 크기를 구분해 보여줘요.\n"
             "Raw SQL 실행이나 DB 편집은 지원하지 않아요."
         ),
         epilog=(
@@ -151,6 +152,7 @@ def register_core_commands(
         help="백업 관리 DB 파일 크기를 안전하게 점검/정리해요",
         description=(
             "Rust 백업 관리 DB(.vibelign/vibelign.db)의 WAL/빈 페이지를 점검해요.\n"
+            "커밋 후 자동 백업이 많아져도 먼저 dry-run으로 정리 계획만 확인할 수 있어요.\n"
             "기본은 dry-run이며, 실제 정리는 --apply를 명시해야 실행해요."
         ),
         epilog=(

@@ -134,7 +134,12 @@ MANUAL: dict[str, ManualEntry] = {
             "git commit 메시지처럼 '이 시점에 뭘 했는지' 적어두면\n"
             "나중에 vib undo 에서 어떤 걸 골라야 할지 쉽게 알 수 있어요.\n\n"
             "체크포인트 저장 시 PROJECT_CONTEXT.md도 자동으로 갱신돼요.\n"
-            "AI 툴을 바꿀 때 별도로 vib transfer를 실행하지 않아도 됩니다."
+            "AI 툴을 바꿀 때 별도로 vib transfer를 실행하지 않아도 됩니다.\n\n"
+            "Git 저장소에서는 commit 뒤 자동 백업을 켤 수 있어요.\n"
+            "커밋마다 저장본이 쌓이는 게 부담되면 `vib config auto-backup off`로 끄고,\n"
+            "필요할 때만 `vib checkpoint`로 수동 저장하면 됩니다.\n\n"
+            "BACKUPS 화면의 '백업 범위'는 복원 가능한 원본 크기의 합계예요.\n"
+            "중복 제거/압축 뒤 실제 디스크 사용량은 `vib backup-db-viewer --json` 또는 GUI의 Backup DB Viewer에서 확인하세요."
         ),
         "when": [
             "AI한테 수정을 시키기 바로 직전",
@@ -145,11 +150,17 @@ MANUAL: dict[str, ManualEntry] = {
             ("vib checkpoint", "실행 → 메시지 입력 화면이 나와요"),
             ('vib checkpoint "로그인 완성"', "메시지를 바로 지정해서 저장"),
             ('vib checkpoint "버그 수정 전"', "작업 전 백업"),
+            ("vib config auto-backup off", "commit 뒤 자동 백업 끄기"),
+            ("vib backup-db-viewer --json", "실제 백업 DB/object store 크기 확인"),
         ],
         "options": [
             (
                 "message",
                 '저장할 때 메모를 남길 수 있어요.\n메시지 없이 실행하면 입력 화면이 나와요.\n엔터만 누르면 메시지 없이 저장돼요.\n예: vib checkpoint "회원가입 버튼 추가"',
+            ),
+            (
+                "auto-backup",
+                "commit 뒤 자동 백업은 별도 설정이에요.\n`vib config auto-backup status`로 상태를 보고, on/off로 바꿀 수 있어요.",
             ),
         ],
     },

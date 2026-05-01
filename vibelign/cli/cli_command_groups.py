@@ -112,14 +112,16 @@ def register_extended_commands(
         help="API 키 및 AI 보강 옵트인 설정",
         description=(
             "AI 기능을 쓰려면 API 키가 필요해요.\n"
-            "API 키 설정(인터랙티브) + 앵커 AI 보강 on/off 토글을 함께 관리해요."
+            "API 키 설정(인터랙티브), 앵커 AI 보강, 커밋 후 자동 백업 on/off를 함께 관리해요."
         ),
         epilog=(
             "이렇게 쓰세요:\n"
             "  vib config                               API 키 설정 (인터랙티브)\n"
             "  vib config --ai-enhance status           AI 앵커 보강 상태 조회\n"
             "  vib config --ai-enhance enable           AI 앵커 보강 켜기\n"
-            "  vib config --ai-enhance disable          AI 앵커 보강 끄기"
+            "  vib config --ai-enhance disable          AI 앵커 보강 끄기\n"
+            "  vib config auto-backup status            커밋 후 자동 백업 상태 조회\n"
+            "  vib config auto-backup on|off            커밋 후 자동 백업 켜기/끄기"
         ),
     )
     _ = p.add_argument(

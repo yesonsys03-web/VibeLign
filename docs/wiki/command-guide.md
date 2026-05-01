@@ -9,6 +9,8 @@ For full details, use the linked canonical docs.
 | `vib checkpoint` | saving state before risky edits | [`../../VIBELIGN_MANUAL.md`](../../VIBELIGN_MANUAL.md) |
 | `vib undo` | restoring a previous checkpoint | [`../../VIBELIGN_MANUAL.md`](../../VIBELIGN_MANUAL.md) |
 | `vib history` | reviewing saved checkpoints | [`../../VIBELIGN_MANUAL.md`](../../VIBELIGN_MANUAL.md) |
+| `vib config auto-backup status` | checking whether commits create automatic checkpoints | [`../../VIBELIGN_MANUAL.md`](../../VIBELIGN_MANUAL.md) |
+| `vib config auto-backup on\|off` | enabling or disabling automatic post-commit checkpoints | [`../../VIBELIGN_MANUAL.md`](../../VIBELIGN_MANUAL.md) |
 | `vib backup-db-viewer --json` | inspecting the Rust backup DB in read-only mode | [`../../README.md`](../../README.md) |
 | `vib backup-db-maintenance --json` | planning safe backup DB file cleanup without changing it | [`../../README.md`](../../README.md) |
 | `vib backup-db-maintenance --apply --json` | backing up DB files, truncating WAL, and conditionally compacting SQLite | [`../../README.md`](../../README.md) |
@@ -50,3 +52,5 @@ vib transfer --out ctx.md
 - During edit prep: `anchor`, `patch`
 - After edit: `explain`, `guard`
 - For recovery: `undo`, `history`
+- For backup size questions: `backup-db-viewer` shows actual DB/object-store storage; BACKUPS “backup range” is logical restore coverage, not physical disk use.
+- If commits create too many automatic checkpoints: `vib config auto-backup off`, then use `vib checkpoint` manually when needed.
