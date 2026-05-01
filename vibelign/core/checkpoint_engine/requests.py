@@ -94,4 +94,12 @@ def retention_apply_request(root: Path) -> dict[str, object]:
     return {"command": "retention_apply", "root": str(root)}
 
 
+def backup_db_viewer_inspect_request(root: Path) -> dict[str, object]:
+    return {"command": "backup_db_viewer_inspect", "root": str(root)}
+
+
+def backup_db_maintenance_request(root: Path, *, apply: bool = False) -> dict[str, object]:
+    return {"command": "backup_db_maintenance", "root": str(root), "apply": apply}
+
+
 # === ANCHOR: CHECKPOINT_ENGINE_REQUESTS_END ===

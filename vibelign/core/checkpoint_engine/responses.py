@@ -120,6 +120,26 @@ def parse_retention(result: RustResultLike) -> tuple[dict[str, object] | None, s
     }, None
 
 
+def parse_backup_db_viewer_inspect(
+    result: RustResultLike,
+) -> tuple[dict[str, object] | None, str | None]:
+    if not result.ok:
+        return None, format_error(result, "rust backup db viewer inspect failed")
+    if result.payload.get("result") != "backup_db_viewer_inspect":
+        return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected backup_db_viewer_inspect result"
+    return dict(result.payload), None
+
+
+def parse_backup_db_maintenance(
+    result: RustResultLike,
+) -> tuple[dict[str, object] | None, str | None]:
+    if not result.ok:
+        return None, format_error(result, "rust backup db maintenance failed")
+    if result.payload.get("result") != "backup_db_maintenance":
+        return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected backup_db_maintenance result"
+    return dict(result.payload), None
+
+
 def summary_from_payload(
     payload: dict[str, object], fallback_message: str = ""
 ) -> CheckpointSummary | None:
