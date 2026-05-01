@@ -1,10 +1,12 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from vibelign.core.checkpoint_engine.router import (
     create_checkpoint,
     get_checkpoint_engine,
+    inspect_backup_db,
     list_checkpoints,
     restore_checkpoint,
 )
@@ -40,6 +42,22 @@ class CheckpointEngineRouterTest(unittest.TestCase):
             self.assertFalse(result.enabled)
             self.assertEqual(result.operation, "checkpoint_create")
             self.assertFalse((root / ".vibelign").exists())
+
+    def test_router_inspect_backup_db_delegates(self):
+        class FakeEngine:
+            def inspect_backup_db(self, root: Path) -> dict[str, object]:
+                return {"root": str(root), "db_exists": False}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch(
+                "vibelign.core.checkpoint_engine.router.get_checkpoint_engine",
+                return_value=FakeEngine(),
+            ):
+                report = inspect_backup_db(root)
+
+        self.assertFalse(report["db_exists"])
+        self.assertEqual(report["root"], str(root))
 
 
 if __name__ == "__main__":
