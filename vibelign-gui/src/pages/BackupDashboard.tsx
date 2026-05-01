@@ -16,6 +16,7 @@ export default function BackupDashboardPage({ projectDir }: BackupDashboardPageP
   const [newNote, setNewNote] = useState("");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeChildView, setActiveChildView] = useState<"list" | "db-viewer">("list");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -87,7 +88,7 @@ export default function BackupDashboardPage({ projectDir }: BackupDashboardPageP
         {notice && <div className="alert alert-success">{notice}</div>}
       </div>
       <div className="page-content" style={{ overflowY: "auto" }}>
-        <BackupDashboardView entries={entries} loading={loading} query={query} selectedId={selectedId} restoring={restoring} onRefresh={load} onQueryChange={setQuery} onSelect={setSelectedId} onRestore={handleRestore} />
+        <BackupDashboardView entries={entries} loading={loading} query={query} selectedId={selectedId} restoring={restoring} projectDir={projectDir} activeChildView={activeChildView} onRefresh={load} onQueryChange={setQuery} onSelect={setSelectedId} onRestore={handleRestore} onActiveChildViewChange={setActiveChildView} />
       </div>
     </div>
   );
