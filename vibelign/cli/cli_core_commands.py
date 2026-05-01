@@ -126,6 +126,50 @@ def register_core_commands(
     )
 
     p = sub.add_parser(
+        "backup-db-viewer",
+        help="백업 관리 DB 상태를 읽기 전용으로 확인해요",
+        description=(
+            "Rust 백업 관리 DB(.vibelign/vibelign.db)를 읽기 전용으로 요약해요.\n"
+            "Raw SQL 실행이나 DB 편집은 지원하지 않아요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib backup-db-viewer --json\n"
+            "  vib backup-db-viewer --root /path/to/project --json"
+        ),
+    )
+    _ = p.add_argument("--root", default=".", help="확인할 프로젝트 루트")
+    _ = p.add_argument("--json", action="store_true", help="결과를 JSON으로 반환")
+    p.set_defaults(
+        func=lazy_command(
+            "vibelign.commands.vib_backup_db_viewer_cmd", "run_vib_backup_db_viewer"
+        )
+    )
+
+    p = sub.add_parser(
+        "backup-db-maintenance",
+        help="백업 관리 DB 파일 크기를 안전하게 점검/정리해요",
+        description=(
+            "Rust 백업 관리 DB(.vibelign/vibelign.db)의 WAL/빈 페이지를 점검해요.\n"
+            "기본은 dry-run이며, 실제 정리는 --apply를 명시해야 실행해요."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib backup-db-maintenance --json\n"
+            "  vib backup-db-maintenance --apply --json"
+        ),
+    )
+    _ = p.add_argument("--root", default=".", help="확인할 프로젝트 루트")
+    _ = p.add_argument("--apply", action="store_true", help="DB 파일 백업 후 WAL 정리/조건부 VACUUM 실행")
+    _ = p.add_argument("--json", action="store_true", help="결과를 JSON으로 반환")
+    p.set_defaults(
+        func=lazy_command(
+            "vibelign.commands.vib_backup_db_maintenance_cmd",
+            "run_vib_backup_db_maintenance",
+        )
+    )
+
+    p = sub.add_parser(
         "undo",
         help="저장한 곳으로 되돌려요",
         description=(
