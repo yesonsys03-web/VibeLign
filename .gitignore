@@ -51,3 +51,5 @@ vibelign-gui/.vite/
 # API 키 파일
 api_keys.json
 *.api_keys
+.vibelign/rust_checkpoints/
+.vibelign/rust_objects/

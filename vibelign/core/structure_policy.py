@@ -90,7 +90,10 @@ SCAN_IGNORED_DIRS_LOWER: frozenset[str] = frozenset(
 )
 
 CHECKPOINT_EXTRA_IGNORED: frozenset[str] = frozenset()
-CHECKPOINT_IGNORED_DIRS: frozenset[str] = COMMON_IGNORED_DIRS | CHECKPOINT_EXTRA_IGNORED
+CHECKPOINT_EXTRA_IGNORED_DIRS: frozenset[str] = frozenset({"db_maintenance_backups"})
+CHECKPOINT_IGNORED_DIRS: frozenset[str] = (
+    COMMON_IGNORED_DIRS | CHECKPOINT_EXTRA_IGNORED | CHECKPOINT_EXTRA_IGNORED_DIRS
+)
 CHECKPOINT_IGNORED_DIRS_LOWER: frozenset[str] = frozenset(
     name.lower() for name in CHECKPOINT_IGNORED_DIRS
 )
@@ -117,6 +120,9 @@ CHECKPOINT_IGNORED_FILES: frozenset[str] = frozenset(
         "scan_cache.json",
         "analysis_cache.json",
         "ui_label_index.json",
+        "vibelign.db",
+        "vibelign.db-wal",
+        "vibelign.db-shm",
     }
 )
 

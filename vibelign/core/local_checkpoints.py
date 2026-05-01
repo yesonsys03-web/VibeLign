@@ -371,7 +371,14 @@ def _extract_tag(message: str) -> str:
 
 
 # === ANCHOR: LOCAL_CHECKPOINTS_CREATE_CHECKPOINT_START ===
-def create_checkpoint(root: Path, message: str) -> CheckpointSummary | None:
+def create_checkpoint(
+    root: Path,
+    message: str,
+    *,
+    trigger: str | None = None,
+    git_commit_sha: str | None = None,
+    git_commit_message: str | None = None,
+) -> CheckpointSummary | None:
     meta = MetaPaths(root)
     meta.ensure_vibelign_dirs()
     current_files = _current_file_map(root)
@@ -427,6 +434,12 @@ def create_checkpoint(root: Path, message: str) -> CheckpointSummary | None:
         ),
         "files": sorted(snapshot_files.values(), key=lambda item: str(item["path"])),
     }
+    if trigger:
+        manifest["trigger"] = trigger
+    if git_commit_sha:
+        manifest["git_commit_sha"] = git_commit_sha
+    if git_commit_message:
+        manifest["git_commit_message"] = git_commit_message
     _ = _manifest_path(snapshot_dir).write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
@@ -437,6 +450,8 @@ def create_checkpoint(root: Path, message: str) -> CheckpointSummary | None:
         file_count=len(snapshot_files),
         total_size_bytes=_coerce_int(manifest["total_size_bytes"]),
         pinned=False,
+        trigger=trigger,
+        git_commit_message=git_commit_message,
     )
     pruned = prune_checkpoints(root)
     summary.pruned_count = pruned["count"]

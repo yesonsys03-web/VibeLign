@@ -5,7 +5,7 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
-from vibelign.core.checkpoint_engine.rust_engine import create_checkpoint_with_rust
+from vibelign.core.checkpoint_engine.router import create_checkpoint
 
 
 AUTO_BACKUP_DB_KEY = "auto_backup_on_commit"
@@ -63,15 +63,16 @@ def create_post_commit_backup(
     clean_message = commit_message.strip()
     display_sha = commit_sha[:12] if commit_sha else "unknown"
     message = f"vibelign: auto backup after commit {display_sha}"
-    summary, warning = create_checkpoint_with_rust(
-        root,
-        message,
-        trigger="post_commit",
-        git_commit_sha=commit_sha,
-        git_commit_message=clean_message,
-    )
-    if warning:
-        return AutoBackupResult(status="warning", warning=warning)
+    try:
+        summary = create_checkpoint(
+            root,
+            message,
+            trigger="post_commit",
+            git_commit_sha=commit_sha,
+            git_commit_message=clean_message,
+        )
+    except RuntimeError as exc:
+        return AutoBackupResult(status="warning", warning=str(exc))
     if summary is None:
         return AutoBackupResult(status="no_changes")
     return AutoBackupResult(status="created", checkpoint_id=summary.checkpoint_id)
