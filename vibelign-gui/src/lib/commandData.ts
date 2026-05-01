@@ -61,8 +61,8 @@ export const COMMANDS_CORE = [
   {
     name: "checkpoint", icon: "💾", color: "#7B4DFF",
     title: "체크포인트",
-    short: "지금 상태를 저장 — 게임 세이브",
-    desc: "지금 코드 상태를 저장해요. AI가 코드를 망가뜨리기 전에 미리 저장해두면, 나중에 그 시점으로 되돌릴 수 있어요. 마치 게임에서 중간 저장하는 것처럼요.",
+    short: "지금 상태 저장 + 커밋 후 자동 백업",
+    desc: "지금 코드 상태를 저장해요. AI가 코드를 망가뜨리기 전에 미리 저장해두면, 나중에 그 시점으로 되돌릴 수 있어요. Git commit 뒤 자동 백업도 Settings에서 켜고 끌 수 있고, 쌓인 백업과 실제 DB 용량은 BACKUPS / Backup DB Viewer에서 확인해요.",
     usage: "vib checkpoint \"기능 추가 전\"",
     tips: ["AI한테 뭔가 시키기 전에 꼭 저장하세요", "설명을 짧게 써두면 나중에 찾기 쉬워요", "여러 번 저장해도 괜찮아요"],
     guide: [
@@ -71,6 +71,7 @@ export const COMMANDS_CORE = [
         lines: [
           { t: "info",  v: "AI 작업 전에 꼭 저장하세요. 나중에 이 시점으로 되돌릴 수 있어요." },
           { t: "info",  v: "저장 시 PROJECT_CONTEXT.md도 자동으로 갱신돼요." },
+          { t: "info",  v: "Git commit 뒤 자동 백업은 Settings에서 켜고 끌 수 있어요." },
           { t: "label", v: "메시지 없이 실행" },
           { t: "code",  v: "vib checkpoint" },
           { t: "info",  v: "→ 메시지 입력 화면이 나와요. 엔터만 누르면 메시지 없이 저장." },
@@ -87,6 +88,17 @@ export const COMMANDS_CORE = [
           { t: "code", v: "vib guard" },
           { t: "info", v: "→ 괜찮으면:    vib checkpoint \"완료\"" },
           { t: "info", v: "→ 문제 있으면: vib undo" },
+        ],
+      },
+      {
+        step: "백업 관리", title: "쌓인 백업과 실제 용량을 확인해요",
+        lines: [
+          { t: "info", v: "BACKUPS의 백업 범위는 복원 가능한 원본 크기 합계예요." },
+          { t: "info", v: "실제 디스크 사용량은 Backup DB Viewer에서 확인해요." },
+          { t: "code", v: "vib backup-db-viewer --json" },
+          { t: "info", v: "DB 파일이 커졌다면 먼저 dry-run으로 정리 계획을 확인하세요." },
+          { t: "code", v: "vib backup-db-maintenance --json" },
+          { t: "info", v: "필요할 때만 --apply를 붙여 실제 정리를 실행해요." },
         ],
       },
     ] as GuideStep[],

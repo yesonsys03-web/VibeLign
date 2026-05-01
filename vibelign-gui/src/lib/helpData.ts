@@ -101,7 +101,7 @@ const FALLBACK_TOPICS: HelpTopic[] = [
     command: "vib checkpoint",
     summary: "현재 상태를 저장해요.",
     answer:
-      "vib checkpoint는 지금 상태를 저장해두는 기능이에요. 나중에 문제가 생기면 이 시점으로 돌아갈 수 있어요. Git commit 뒤 자동 백업은 Settings 또는 vib config auto-backup on|off|status로 조절하고, 실제 백업 DB 용량은 Backup DB Viewer에서 확인해요.",
+      "vib checkpoint는 지금 상태를 저장해두는 기능이에요. 나중에 문제가 생기면 이 시점으로 돌아갈 수 있어요. Git commit 뒤 자동 백업은 Settings 또는 vib config auto-backup on|off|status로 조절하고, 쌓인 백업은 BACKUPS에서 확인해요. BACKUPS의 백업 범위는 복원 가능한 원본 크기 합계이고, 실제 백업 DB/object store 용량은 Backup DB Viewer에서 확인해요. DB 파일이 커졌다면 vib backup-db-maintenance --json으로 먼저 dry-run 점검한 뒤 필요할 때만 --apply로 정리해요.",
   },
   {
     id: "undo",
