@@ -4,6 +4,8 @@ import type { TimelinePoint } from "./model";
 
 interface DateGraphProps {
   points: TimelinePoint[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
 }
 
 interface DragState {
@@ -16,14 +18,19 @@ const TRACK_HEIGHT = 214;
 const PLOT_INSET = 26;
 const BASELINE_BOTTOM = 64;
 
-export default function DateGraph({ points }: DateGraphProps) {
+export default function DateGraph({ points, selectedId, onSelect }: DateGraphProps) {
   const [zoomIndex, setZoomIndex] = useState(0);
   const [activeId, setActiveId] = useState(points[points.length - 1]?.id ?? "");
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const zoom = ZOOM_LEVELS[zoomIndex];
-  const activePoint = points.find((point) => point.id === activeId) ?? points[points.length - 1];
+  const activePoint = points.find((point) => point.id === selectedId) ?? points.find((point) => point.id === activeId) ?? points[points.length - 1];
   const tickEvery = points.length > 18 ? 6 : points.length > 10 ? 4 : points.length > 5 ? 2 : 1;
+
+  function handleSelect(id: string) {
+    setActiveId(id);
+    onSelect(id);
+  }
 
   function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
     if (!scrollRef.current) return;
@@ -71,7 +78,7 @@ export default function DateGraph({ points }: DateGraphProps) {
               <TimelineTick key={`tick-${point.id}`} point={point} index={index} tickEvery={tickEvery} />
             ))}
             {points.map((point, index) => (
-              <TimelineMark key={point.id} point={point} index={index} active={point.id === activePoint?.id} onSelect={() => setActiveId(point.id)} />
+              <TimelineMark key={point.id} point={point} index={index} active={point.id === activePoint?.id} onSelect={() => handleSelect(point.id)} />
             ))}
             <div style={axisTitleStyle}>오래된 저장본 → 최신 저장본</div>
           </div>
@@ -93,13 +100,18 @@ export default function DateGraph({ points }: DateGraphProps) {
 }
 
 function TimelineMark({ point, index, active, onSelect }: { point: TimelinePoint; index: number; active: boolean; onSelect: () => void }) {
-  const color = point.sourceKind === "auto" ? "#FFFFFF" : "#FFD84D";
+  const color = active ? "#FFD84D" : point.sourceKind === "auto" ? "#FFFFFF" : "#FFD84D";
   const laneOffset = index % 2 === 0 ? 0 : 28;
+  function handlePointerDown(event: PointerEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+  }
+
   return (
     <button
       type="button"
       title={point.detailLabel}
       aria-label={point.detailLabel}
+      onPointerDown={handlePointerDown}
       onClick={onSelect}
       style={{
         position: "absolute",

@@ -28,6 +28,10 @@ interface BackupDashboardProps {
 export default function BackupDashboard({ entries, loading, query, selectedId, restoring, projectDir, activeChildView, onRefresh, onQueryChange, onSelect, onRestore, onActiveChildViewChange }: BackupDashboardProps) {
   const stats = buildStats(entries);
   const selected = entries.find((entry) => entry.id === selectedId) ?? null;
+  function handleTimelineSelect(id: string) {
+    onQueryChange("");
+    onSelect(id);
+  }
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <div className="nav-tabs" aria-label="Backup child views">
@@ -39,7 +43,7 @@ export default function BackupDashboard({ entries, loading, query, selectedId, r
       <SafetySummary stats={stats} loading={loading} onRefresh={onRefresh} />
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 14 }}>
         <StorageSavings stats={stats} entries={entries} />
-        <DateGraph points={buildTimelinePoints(entries)} />
+        <DateGraph points={buildTimelinePoints(entries)} selectedId={selectedId} onSelect={handleTimelineSelect} />
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 14 }}>
         <BackupFlow entries={entries} />

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { BackupEntry } from "../../lib/vib";
 import BackupCard from "./BackupCard";
 import { cleanBackupNote, filterBackups, formatBytes, formatSavedAt } from "./model";
@@ -10,8 +11,16 @@ interface FileHistoryTableProps {
   onSelect: (id: string) => void;
 }
 
+const HISTORY_LIST_MAX_HEIGHT = 320;
+
 export default function FileHistoryTable({ entries, query, selectedId, onQueryChange, onSelect }: FileHistoryTableProps) {
   const visible = filterBackups(entries, query);
+  const selectedButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    selectedButtonRef.current?.scrollIntoView({ block: "nearest" });
+  }, [selectedId]);
+
   return (
     <BackupCard
       icon="📋"
@@ -19,19 +28,24 @@ export default function FileHistoryTable({ entries, query, selectedId, onQueryCh
       subtitle="메모나 날짜로 원하는 저장본을 찾아요."
       headerStyle={{ background: "#F7F7F7", padding: "12px 14px" }}
       iconStyle={{ background: "#1A1A1A", borderColor: "#1A1A1A", color: "#fff" }}
-      bodyStyle={{ display: "grid", gap: 6 }}
+      bodyStyle={{ display: "grid", gap: 8 }}
       actions={
-        <input className="input-field" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="검색어" style={{ width: 160, fontSize: 11 }} />
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ fontSize: 11, fontWeight: 800, whiteSpace: "nowrap" }}>{visible.length}/{entries.length}</span>
+          <input className="input-field" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="검색어" style={{ width: 160, fontSize: 11 }} />
+        </div>
       }
     >
-      {visible.map((entry) => (
-        <button key={entry.id} className="btn btn-ghost btn-sm" onClick={() => onSelect(entry.id)} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "center", textAlign: "left", background: selectedId === entry.id ? "#FFF1B8" : "#fff" }}>
-          <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cleanBackupNote(entry)}</strong>
-          <span>{formatSavedAt(entry.createdAt)}</span>
-          <span>{formatBytes(entry.totalSizeBytes)}</span>
-        </button>
-      ))}
-      {visible.length === 0 && <div style={{ fontSize: 12, color: "#666" }}>찾은 내용이 없어요.</div>}
+      <div style={{ display: "grid", gap: 6, maxHeight: HISTORY_LIST_MAX_HEIGHT, overflowY: "auto", overscrollBehavior: "contain", paddingRight: visible.length > 6 ? 4 : 0 }}>
+        {visible.map((entry) => (
+          <button key={entry.id} ref={selectedId === entry.id ? selectedButtonRef : null} className="btn btn-ghost btn-sm" onClick={() => onSelect(entry.id)} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "center", textAlign: "left", background: selectedId === entry.id ? "#FFF1B8" : "#fff" }}>
+            <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cleanBackupNote(entry)}</strong>
+            <span>{formatSavedAt(entry.createdAt)}</span>
+            <span>{formatBytes(entry.totalSizeBytes)}</span>
+          </button>
+        ))}
+        {visible.length === 0 && <div style={{ fontSize: 12, color: "#666" }}>찾은 내용이 없어요.</div>}
+      </div>
     </BackupCard>
   );
 }

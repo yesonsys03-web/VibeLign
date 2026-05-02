@@ -7,12 +7,14 @@ interface BackupDbRowListProps {
   onSelect: (id: string) => void;
 }
 
+const DB_ROW_LIST_MAX_HEIGHT = 320;
+
 export default function BackupDbRowList({ rows, selectedId, onSelect }: BackupDbRowListProps) {
   if (rows.length === 0) {
     return <div style={{ fontSize: 12, color: "#666" }}>표시할 백업 DB row가 없어요.</div>;
   }
   return (
-    <div style={{ display: "grid", gap: 6 }}>
+    <div style={{ display: "grid", gap: 6, maxHeight: DB_ROW_LIST_MAX_HEIGHT, overflowY: "auto", overscrollBehavior: "contain", paddingRight: rows.length > 6 ? 4 : 0 }}>
       {rows.map((row) => (
         <button
           key={row.checkpointId}
