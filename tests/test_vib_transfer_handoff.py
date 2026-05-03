@@ -5,7 +5,7 @@ import unittest.mock as mock
 from pathlib import Path
 from typing import cast
 
-from vibelign.core.work_memory import load_work_memory
+from vibelign.core.memory.store import add_memory_decision, load_memory_state
 from vibelign.commands.vib_transfer_cmd import HandoffData
 from vibelign.commands.vib_transfer_cmd import (
     _build_concrete_next_steps,
@@ -319,6 +319,16 @@ def test_normal_transfer_writes_file(tmp_path):
     assert "<!-- VibeLign Transfer Context -->" in content
 
 
+def test_transfer_rejects_out_path_outside_project(tmp_path):
+    outside_path = tmp_path.parent / "outside_context.md"
+    args = _make_args(out="../outside_context.md")
+
+    with mock.patch("os.getcwd", return_value=str(tmp_path)):
+        run_transfer(args)
+
+    assert not outside_path.exists()
+
+
 def test_handoff_no_prompt_writes_file_with_block(tmp_path):
     out_path = tmp_path / "PROJECT_CONTEXT.md"
     args = _make_args(handoff=True, no_prompt=True, out=str(out_path))
@@ -328,6 +338,27 @@ def test_handoff_no_prompt_writes_file_with_block(tmp_path):
     content = out_path.read_text(encoding="utf-8")
     assert "## Session Handoff" in content
     assert "auto-drafted" in content
+
+
+def test_handoff_does_not_downgrade_newer_memory_schema(tmp_path):
+    work_memory = tmp_path / ".vibelign" / "work_memory.json"
+    work_memory.parent.mkdir()
+    original = '{"schema_version": 99, "future_field": {"keep": true}}\n'
+    work_memory.write_text(original, encoding="utf-8")
+    out_path = tmp_path / "PROJECT_CONTEXT.md"
+    args = _make_args(
+        handoff=True,
+        no_prompt=True,
+        out=str(out_path),
+        decision=["Future-safe decision should not persist"],
+        verification=["uv run pytest -> passed"],
+    )
+
+    with mock.patch("os.getcwd", return_value=str(tmp_path)):
+        run_transfer(args)
+
+    assert work_memory.read_text(encoding="utf-8") == original
+    assert out_path.exists()
 
 
 def test_context_content_handoff_section_one_uses_handoff_state(tmp_path):
@@ -369,6 +400,32 @@ def test_handoff_accepts_non_interactive_summary_and_next_action(tmp_path):
     assert "gui-assisted" in content
 
 
+def test_handoff_persists_explicit_next_action_for_future_readback(tmp_path):
+    out_path = tmp_path / "PROJECT_CONTEXT.md"
+    args = _make_args(
+        handoff=True,
+        no_prompt=True,
+        out=str(out_path),
+        session_summary="handoff next action captured separately",
+        first_next_action="Rerun the focused handoff tests",
+    )
+
+    with mock.patch("os.getcwd", return_value=str(tmp_path)):
+        run_transfer(args)
+
+    state = load_memory_state(tmp_path / ".vibelign" / "work_memory.json")
+    assert state.next_action is not None
+    assert state.next_action.text == "Rerun the focused handoff tests"
+
+    followup_path = tmp_path / "PROJECT_CONTEXT.followup.md"
+    followup_args = _make_args(handoff=True, no_prompt=True, out=str(followup_path))
+    with mock.patch("os.getcwd", return_value=str(tmp_path)):
+        run_transfer(followup_args)
+
+    content = followup_path.read_text(encoding="utf-8")
+    assert "Rerun the focused handoff tests" in content
+
+
 def test_handoff_accepts_structured_verification_and_persists_it(tmp_path):
     out_path = tmp_path / "PROJECT_CONTEXT.md"
     args = _make_args(
@@ -384,11 +441,39 @@ def test_handoff_accepts_structured_verification_and_persists_it(tmp_path):
         run_transfer(args)
 
     content = out_path.read_text(encoding="utf-8")
-    state = load_work_memory(tmp_path / ".vibelign" / "work_memory.json")
+    state = load_memory_state(tmp_path / ".vibelign" / "work_memory.json")
     assert "uv run pytest tests/test_vib_transfer_handoff.py -> passed" in content
-    assert state["verification"][-1] == (
+    assert [item.command for item in state.verification][-1] == (
         "uv run pytest tests/test_vib_transfer_handoff.py -> passed"
     )
+
+
+def test_handoff_uses_memory_stale_verification_when_git_freshness_missing(tmp_path):
+    vibelign_dir = tmp_path / ".vibelign"
+    vibelign_dir.mkdir()
+    (vibelign_dir / "work_memory.json").write_text(
+        """
+{
+  "schema_version": 1,
+  "verification": ["uv run pytest tests/test_transfer_git_context.py -> passed"]
+}
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    out_path = tmp_path / "PROJECT_CONTEXT.md"
+    args = _make_args(handoff=True, no_prompt=True, out=str(out_path))
+
+    with mock.patch("os.getcwd", return_value=str(tmp_path)), mock.patch(
+        "vibelign.commands.transfer_git_context.get_verification_freshness",
+        return_value=None,
+    ):
+        run_transfer(args)
+
+    content = out_path.read_text(encoding="utf-8")
+    assert "### Verification snapshot [Freshness: stale]" in content
+    assert "Required rerun before commit" in content
+    assert "Rerun (verification stale): `uv run pytest tests/test_transfer_git_context.py`" in content
 
 
 def test_handoff_accepts_decision_and_persists_it(tmp_path):
@@ -404,10 +489,10 @@ def test_handoff_accepts_decision_and_persists_it(tmp_path):
         run_transfer(args)
 
     content = out_path.read_text(encoding="utf-8")
-    state = load_work_memory(tmp_path / ".vibelign" / "work_memory.json")
+    state = load_memory_state(tmp_path / ".vibelign" / "work_memory.json")
     assert "### Active intent" in content
     assert "Use git status as the handoff source of truth." in content
-    assert state["decisions"][-1] == "Use git status as the handoff source of truth."
+    assert state.decisions[-1].text == "Use git status as the handoff source of truth."
 
 
 def test_handoff_no_prompt_includes_work_memory_facts_when_present(tmp_path):
@@ -930,10 +1015,44 @@ def test_handoff_persists_decision_context_to_work_memory(tmp_path):
 
     persist_handoff_memory(tmp_path, data)
 
-    state = load_work_memory(tmp_path / ".vibelign" / "work_memory.json")
-    assert state["decisions"][-1].startswith("Handoff decision:")
-    assert "git-backed handoff contract" in state["decisions"][-1]
-    assert state["verification"][-1] == "uv run pytest tests/test_vib_transfer_handoff.py"
+    state = load_memory_state(tmp_path / ".vibelign" / "work_memory.json")
+    assert state.decisions[-1].text.startswith("Handoff decision:")
+    assert "git-backed handoff contract" in state.decisions[-1].text
+    assert state.verification[-1].command == "uv run pytest tests/test_vib_transfer_handoff.py"
+
+
+def test_handoff_persistence_preserves_typed_decisions(tmp_path):
+    memory_path = tmp_path / ".vibelign" / "work_memory.json"
+    add_memory_decision(memory_path, "Keep typed handoff decision")
+    data = _make_handoff_data(
+        decision_notes=["Add typed handoff note"],
+        verification=["uv run pytest tests/test_vib_transfer_handoff.py"],
+        first_next_action="Rerun handoff tests",
+        first_next_action_confirmed=True,
+    )
+
+    persist_handoff_memory(tmp_path, data)
+
+    state = load_memory_state(memory_path)
+    assert [item.text for item in state.decisions] == [
+        "Keep typed handoff decision",
+        "Add typed handoff note",
+    ]
+    assert state.verification[-1].command == "uv run pytest tests/test_vib_transfer_handoff.py"
+    assert state.next_action is not None
+    assert state.next_action.text == "Rerun handoff tests"
+
+
+def test_handoff_does_not_persist_unconfirmed_inferred_next_action(tmp_path):
+    memory_path = tmp_path / ".vibelign" / "work_memory.json"
+    add_memory_decision(memory_path, "Keep typed decision")
+    data = _make_handoff_data(first_next_action="Inferred from memory")
+
+    persist_handoff_memory(tmp_path, data)
+
+    state = load_memory_state(memory_path)
+    assert state.next_action is None
+    assert [item.text for item in state.decisions] == ["Keep typed decision"]
 
 
 def test_handoff_live_working_changes_removes_redundant_modified_message(tmp_path):

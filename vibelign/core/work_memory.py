@@ -60,7 +60,7 @@ class RelevantFileEntry(TypedDict, total=False):
 
 
 # === ANCHOR: WORK_MEMORY_WORKMEMORYSTATE_START ===
-class WorkMemoryState(TypedDict, total=False):
+class WorkMemoryState(TypedDict):
     schema_version: int
     updated_at: str
     recent_events: list[WorkMemoryEvent]
@@ -68,6 +68,7 @@ class WorkMemoryState(TypedDict, total=False):
     warnings: list[WorkMemoryEvent]
     decisions: list[str]
     verification: list[str]
+    next_action: str
     # v2.0.37: verification 만 갱신되는 별도 timestamp.
     # 핸드오프 freshness 라벨 계산용 — updated_at 은 모든 mutation 에 갱신되므로 부적절.
     verification_updated_at: str
@@ -246,6 +247,7 @@ def default_work_memory_state() -> WorkMemoryState:
         "warnings": [],
         "decisions": [],
         "verification": [],
+        "next_action": "",
         "verification_updated_at": "",
     }
 # === ANCHOR: WORK_MEMORY_DEFAULT_WORK_MEMORY_STATE_END ===
@@ -262,6 +264,7 @@ def prune_work_memory_state(state: WorkMemoryState) -> WorkMemoryState:
     state["verification"] = _normalize_string_list(
         state.get("verification"), MAX_VERIFICATION
     )
+    state["next_action"] = _truncate_text(state.get("next_action"))
     return state
 # === ANCHOR: WORK_MEMORY_PRUNE_WORK_MEMORY_STATE_END ===
 
@@ -302,6 +305,7 @@ def load_work_memory(path: Path) -> WorkMemoryState:
     state["verification"] = _normalize_string_list(
         payload.get("verification"), MAX_VERIFICATION
     )
+    state["next_action"] = _truncate_text(payload.get("next_action"))
     state["verification_updated_at"] = _truncate_text(
         payload.get("verification_updated_at"), 64
     )
@@ -525,6 +529,16 @@ def add_decision(path: Path, message: str) -> None:
 # === ANCHOR: WORK_MEMORY_ADD_DECISION_END ===
 
 
+def set_next_action(path: Path, message: str) -> None:
+    state = load_work_memory(path)
+    text = _truncate_text(message)
+    if not text:
+        return
+    state["next_action"] = text
+    state["updated_at"] = _utc_now()
+    save_work_memory(path, state)
+
+
 # === ANCHOR: WORK_MEMORY__IS_SYNTHETIC_EVENT_PATH_START ===
 def _is_synthetic_event_path(rel_path: str) -> bool:
     """recent_events 의 sentinel path 여부 (record_commit/record_checkpoint 출처).
@@ -560,7 +574,7 @@ def build_transfer_summary(path: Path) -> WorkMemorySummary | None:
         if rel_path not in changed_files:
             changed_files.append(rel_path)
     for entry in state["relevant_files"]:
-        rel_path = entry["path"]
+        rel_path = entry.get("path", "")
         if rel_path not in changed_files:
             changed_files.append(rel_path)
 
@@ -637,9 +651,10 @@ def build_transfer_summary(path: Path) -> WorkMemorySummary | None:
         "verification": state["verification"][-MAX_VERIFICATION_SUMMARY:],
         "state_references": [".vibelign/work_memory.json"],
     }
-    if latest_action:
-        summary["first_next_action"] = _truncate_text(latest_action)
-        summary["concrete_next_steps"] = [_truncate_text(latest_action)]
+    next_action = state.get("next_action") or latest_action
+    if next_action:
+        summary["first_next_action"] = _truncate_text(next_action)
+        summary["concrete_next_steps"] = [_truncate_text(next_action)]
     if state["decisions"]:
         summary["active_intent"] = state["decisions"][-1]
     if warning_lines:

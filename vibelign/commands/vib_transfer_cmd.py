@@ -71,6 +71,7 @@ class HandoffData(TypedDict, total=False):
     decision_notes: list[str]
     state_references: list[str]
     changed_file_count: int
+    first_next_action_confirmed: bool
     # v2.0.37: top-of-handoff dense block + section restructure
     working_tree_details: list[str]
     supporting_watch_context: list[str]
@@ -933,16 +934,18 @@ def _build_concrete_next_steps(data: HandoffData) -> list[str]:
 
 def _enrich_handoff_with_work_memory(root: Path, data: HandoffData) -> HandoffData:
     from vibelign.core.meta_paths import MetaPaths
-    from vibelign.core.work_memory import build_transfer_summary
+    from vibelign.core.memory.store import build_handoff_summary
 
     # v2.0.37: verification freshness 라벨은 staleness 분기와 무관하게 항상 계산.
     freshness = transfer_git_context.get_verification_freshness(root)
     if freshness:
         data["verification_freshness"] = freshness
 
-    summary = build_transfer_summary(MetaPaths(root).work_memory_path)
+    summary = build_handoff_summary(MetaPaths(root).work_memory_path)
     if summary is None:
         return data
+    if not data.get("verification_freshness") and summary.get("verification_freshness"):
+        data["verification_freshness"] = summary.get("verification_freshness")
 
     stale_warning = _get_work_memory_staleness_warning(root)
     if stale_warning:
@@ -1193,29 +1196,53 @@ def _get_work_memory_staleness_warning(root: Path) -> str | None:
 def _persist_handoff_memory(root: Path, data: HandoffData) -> None:
     """Persist explicit handoff facts so future transfers do not depend on watch."""
     from vibelign.core.meta_paths import MetaPaths
-    from vibelign.core.work_memory import add_decision, add_verification
+    from vibelign.core.memory.store import (
+        add_memory_decision,
+        add_memory_verification,
+        is_memory_read_only,
+        set_memory_next_action,
+    )
 
     work_memory_path = MetaPaths(root).work_memory_path
+    if is_memory_read_only(work_memory_path):
+        clack_info(
+            "memory schema is newer than this VibeLign supports; skipping handoff memory persistence."
+        )
+        return
     decision_context = _handoff_decision_context(data.get("decision_context"))
     if decision_context:
-        add_decision(
+        add_memory_decision(
             work_memory_path,
             "Handoff decision: "
             f"tried={decision_context['tried']}; "
             f"blocked_by={decision_context['blocked_by']}; "
             f"switched_to={decision_context['switched_to']}",
+            updated_by="vib transfer --handoff",
         )
     verification_to_persist = _handoff_lines(data.get("verification_to_persist"))
     if not verification_to_persist:
         verification_to_persist = _handoff_lines(data.get("verification"))
     for item in verification_to_persist:
-        add_verification(work_memory_path, item)
+        add_memory_verification(work_memory_path, item)
     for item in _handoff_lines(data.get("decision_notes")):
-        add_decision(work_memory_path, item)
+        add_memory_decision(work_memory_path, item, updated_by="vib transfer --handoff")
+    next_action = _handoff_text(data.get("first_next_action"), "")
+    if next_action and data.get("first_next_action_confirmed") is True:
+        set_memory_next_action(work_memory_path, next_action)
 
 
 def persist_handoff_memory(root: Path, data: HandoffData) -> None:
     _persist_handoff_memory(root, data)
+
+
+def _resolve_transfer_out_path(root: Path, out_file: str) -> Path:
+    candidate = Path(out_file)
+    out_path = candidate if candidate.is_absolute() else root / candidate
+    root_resolved = root.resolve()
+    out_resolved = out_path.resolve(strict=False)
+    if out_resolved != root_resolved and root_resolved not in out_resolved.parents:
+        raise ValueError("--out path must stay inside the project root")
+    return out_resolved
 
 
 def _handoff_quality(data: HandoffData) -> tuple[str, str]:
@@ -1325,6 +1352,7 @@ def _collect_handoff_data_from_cli(
         else None,
         "verification": verification or [],
         "decision_notes": decision or [],
+        "first_next_action_confirmed": False,
     }
     git_completed_work: str | None = None
 
@@ -1387,6 +1415,7 @@ def _collect_handoff_data_from_cli(
         data["quality"] = "gui-assisted"
     if first_next_action:
         data["first_next_action"] = first_next_action
+        data["first_next_action_confirmed"] = True
         data["quality"] = "gui-assisted"
     if verification:
         data["verification"] = _merge_verification_lines(
@@ -1458,6 +1487,7 @@ def _collect_handoff_data_from_cli(
             next_action = ""
         if next_action:
             data["first_next_action"] = next_action
+            data["first_next_action_confirmed"] = True
             data["quality"] = "user-reviewed"
 
     # 선택: 방향 전환 컨텍스트
@@ -1498,7 +1528,11 @@ def run_transfer(args: object) -> None:
     first_next_action = _arg_text(args, "first_next_action")
     verification = _arg_text_list(args, "verification")
     decision = _arg_text_list(args, "decision")
-    out_path = root / out_file
+    try:
+        out_path = _resolve_transfer_out_path(root, out_file)
+    except ValueError as exc:
+        clack_info(f"오류: {exc}")
+        return
 
     # --handoff와 --compact/--full 동시 사용 불가
     if handoff and (compact or full):
