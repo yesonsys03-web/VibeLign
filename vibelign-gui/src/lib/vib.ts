@@ -166,6 +166,24 @@ export interface VibResult {
   exit_code: number;
 }
 
+export interface MemorySummaryResult {
+  activeIntent: string;
+  nextAction: string;
+  decisions: string[];
+  relevantFiles: string[];
+  verification: string[];
+  verificationFreshness: "fresh" | "stale" | "missing";
+  warning?: string;
+}
+
+export interface RecoveryPreviewResult {
+  summary: string;
+  options: string[];
+  driftCandidates: string[];
+  safeCheckpointCandidate: string;
+  raw: string;
+}
+
 export type OnboardingState =
   | "idle"
   | "diagnosing"
@@ -403,6 +421,77 @@ export async function doctorPlanJson(cwd: string): Promise<unknown> {
   const res = await runVib(["doctor", "--plan", "--json"], cwd);
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
   return JSON.parse(res.stdout);
+}
+
+export async function memorySummary(cwd: string): Promise<MemorySummaryResult> {
+  const res = await runVib(["memory", "show"], cwd);
+  if (!res.ok) throw new Error(res.stderr || res.stdout || `exit ${res.exit_code}`);
+  return parseMemorySummary(res.stdout);
+}
+
+export async function recoveryPreview(cwd: string): Promise<RecoveryPreviewResult> {
+  const res = await runVib(["recover", "--preview"], cwd);
+  if (!res.ok) throw new Error(res.stderr || res.stdout || `exit ${res.exit_code}`);
+  return parseRecoveryPreview(res.stdout);
+}
+
+function parseMemorySummary(stdout: string): MemorySummaryResult {
+  const lines = stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const verificationLines = sectionLines(lines, "Verification:");
+  return {
+    activeIntent: valueAfter(lines, "Active intent:") || "(none)",
+    nextAction: valueAfter(lines, "Next action:") || "(none)",
+    decisions: sectionLines(lines, "Decisions:"),
+    relevantFiles: sectionLines(lines, "Relevant files:"),
+    verification: verificationLines,
+    verificationFreshness: verificationFreshness(verificationLines),
+    warning: valueAfter(lines, "Warning:"),
+  };
+}
+
+function parseRecoveryPreview(stdout: string): RecoveryPreviewResult {
+  const lines = stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  return {
+    summary: valueAfter(lines, "Summary:") || "No recovery summary available.",
+    options: numberedLines(lines),
+    driftCandidates: sectionLines(lines, "Drift candidates (review before any restore):"),
+    safeCheckpointCandidate: safeCheckpoint(lines),
+    raw: stdout,
+  };
+}
+
+function valueAfter(lines: string[], prefix: string): string {
+  const line = lines.find((item) => item.startsWith(prefix));
+  return line ? line.slice(prefix.length).trim() : "";
+}
+
+function sectionLines(lines: string[], heading: string): string[] {
+  const start = lines.indexOf(heading);
+  if (start < 0) return [];
+  const result: string[] = [];
+  for (const line of lines.slice(start + 1)) {
+    if (!line.startsWith("- ")) break;
+    const item = line.slice(2).trim();
+    if (item !== "(none)") result.push(item);
+  }
+  return result;
+}
+
+function numberedLines(lines: string[]): string[] {
+  return lines.filter((line) => /^\d+\.\s/.test(line));
+}
+
+function verificationFreshness(lines: string[]): "fresh" | "stale" | "missing" {
+  if (lines.length === 0) return "missing";
+  return lines.some((line) => line.toLowerCase().includes("stale")) ? "stale" : "fresh";
+}
+
+function safeCheckpoint(lines: string[]): string {
+  const start = lines.indexOf("Safe checkpoint candidate:");
+  if (start < 0) return "";
+  const first = lines[start + 1] ?? "";
+  const second = lines[start + 2] ?? "";
+  return [first.replace(/^[- ]+/, ""), second].filter(Boolean).join(" — ");
 }
 
 /** GUI에 저장된 제공자 키 → `run_vib`용 환경변수 (레거시 Anthropic 단일 키 병합). */

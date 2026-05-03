@@ -31,6 +31,8 @@ import TransferCard from "../components/cards/transfer/TransferCard";
 import ExportCard from "../components/cards/transfer/ExportCard";
 import ProtectCard from "../components/cards/security/ProtectCard";
 import SecretsCard from "../components/cards/security/SecretsCard";
+import SessionMemoryCard from "../components/agent-memory/SessionMemoryCard";
+import RecoveryOptionsCard from "../components/agent-memory/RecoveryOptionsCard";
 import pkg from "../../package.json";
 
 // ── 드래그 래퍼 (핸들 전용) ────────────────────────────────────────────────────
@@ -102,6 +104,8 @@ function renderCard(id: string, p: CardRenderProps): ReactNode {
     case "guard":      return <GuardCard projectDir={p.projectDir} onGuardResult={p.onGuardResult} />;
     case "checkpoint": return <CheckpointCard projectDir={p.projectDir} onNavigate={p.onNavigate} />;
     case "transfer":   return <TransferCard projectDir={p.projectDir} />;
+    case "session-memory": return <SessionMemoryCard projectDir={p.projectDir} />;
+    case "recovery-options": return <RecoveryOptionsCard projectDir={p.projectDir} />;
     case "history":    return <HistoryCard projectDir={p.projectDir} />;
     case "patch":      return <PatchCard projectDir={p.projectDir} apiKey={p.apiKey} providerKeys={p.providerKeys} hasAnyAiKey={p.hasAnyAiKey} aiKeyStatusLoaded={p.aiKeyStatusLoaded} onOpenSettings={p.onOpenSettings} />;
     case "undo":       return <UndoCard projectDir={p.projectDir} onNavigate={p.onNavigate} />;

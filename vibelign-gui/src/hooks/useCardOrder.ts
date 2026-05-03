@@ -4,7 +4,7 @@ import { load } from "@tauri-apps/plugin-store";
 
 export const DEFAULT_CARD_ORDER = [
   "codemap", "guard", "checkpoint", "transfer",
-  "history", "patch", "undo", "anchor",
+  "session-memory", "recovery-options", "history", "patch", "undo", "anchor",
   "explain", "ask", "export", "protect", "secrets",
 ] as const;
 

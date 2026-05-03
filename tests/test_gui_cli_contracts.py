@@ -19,6 +19,26 @@ def _json_object(raw: object) -> dict[str, object]:
 
 
 class GuiCliContractsTest(unittest.TestCase):
+    def test_agent_memory_cards_are_wired_into_gui_home(self):
+        root = Path(__file__).resolve().parents[1]
+        session_card = root / "vibelign-gui" / "src" / "components" / "agent-memory" / "SessionMemoryCard.tsx"
+        recovery_card = root / "vibelign-gui" / "src" / "components" / "agent-memory" / "RecoveryOptionsCard.tsx"
+        home_text = (root / "vibelign-gui" / "src" / "pages" / "Home.tsx").read_text(encoding="utf-8")
+        order_text = (root / "vibelign-gui" / "src" / "hooks" / "useCardOrder.ts").read_text(encoding="utf-8")
+        vib_text = (root / "vibelign-gui" / "src" / "lib" / "vib.ts").read_text(encoding="utf-8")
+
+        self.assertTrue(session_card.exists())
+        self.assertTrue(recovery_card.exists())
+        self.assertIn("SessionMemoryCard", home_text)
+        self.assertIn("RecoveryOptionsCard", home_text)
+        self.assertIn('"session-memory"', order_text)
+        self.assertIn('"recovery-options"', order_text)
+        self.assertIn("memorySummary", vib_text)
+        self.assertIn("recoveryPreview", vib_text)
+        self.assertIn("verificationFreshness", vib_text)
+        self.assertIn("safeCheckpointCandidate", vib_text)
+        self.assertIn("driftCandidates", recovery_card.read_text(encoding="utf-8"))
+
     def test_top_level_help_mentions_backup_db_commands(self):
         from vibelign.cli.cli_base import MAIN_DESCRIPTION
         from vibelign.commands.vib_manual_cmd import GROUPS, MANUAL
