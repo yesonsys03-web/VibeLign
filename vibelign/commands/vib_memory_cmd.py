@@ -12,6 +12,7 @@ from vibelign.core.memory.store import (
     is_memory_read_only,
     load_memory_state,
     set_memory_active_intent,
+    set_memory_next_action,
 )
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_root import resolve_project_root
@@ -117,6 +118,19 @@ def run_vib_memory_intent(args: Namespace) -> None:
         return
     set_memory_active_intent(path, intent)
     print("Memory active intent saved.")
+
+
+def run_vib_memory_next(args: Namespace) -> None:
+    path = _memory_path()
+    next_action = " ".join(getattr(args, "next_action", []) or []).strip()
+    if not next_action:
+        print("Usage: vib memory next \"next action\"")
+        return
+    if is_memory_read_only(path):
+        print("Memory schema is newer than this VibeLign supports; next action was not saved.")
+        return
+    set_memory_next_action(path, next_action, updated_by="vib memory next")
+    print("Memory next action saved.")
 
 
 def run_vib_memory_relevant(args: Namespace) -> None:

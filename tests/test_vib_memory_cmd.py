@@ -7,6 +7,7 @@ from unittest.mock import patch
 from vibelign.commands.vib_memory_cmd import (
     run_vib_memory_decide,
     run_vib_memory_intent,
+    run_vib_memory_next,
     run_vib_memory_relevant,
     run_vib_memory_review,
     run_vib_memory_show,
@@ -57,6 +58,19 @@ def test_memory_relevant_saves_explicit_relevant_file(tmp_path: Path) -> None:
     assert [(item.path, item.why, item.source) for item in state.relevant_files] == [
         ("src/app.py", "main entry", "explicit")
     ]
+
+
+def test_memory_next_saves_explicit_next_action(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+
+    with patch("pathlib.Path.cwd", return_value=root):
+        run_vib_memory_next(Namespace(next_action=["Rerun", "handoff", "tests"]))
+
+    state = load_memory_state(root / ".vibelign" / "work_memory.json")
+    assert state.next_action is not None
+    assert state.next_action.text == "Rerun handoff tests"
+    assert state.next_action.source == "explicit"
+    assert state.next_action.updated_by == "vib memory next"
 
 
 def test_memory_relevant_preserves_typed_decision(tmp_path: Path) -> None:
@@ -161,6 +175,7 @@ def test_memory_write_commands_refuse_newer_schema(tmp_path: Path) -> None:
     with patch("pathlib.Path.cwd", return_value=root):
         run_vib_memory_decide(Namespace(decision=["Do", "not", "write"]))
         run_vib_memory_intent(Namespace(intent=["Do", "not", "write"]))
+        run_vib_memory_next(Namespace(next_action=["Do", "not", "write"]))
         run_vib_memory_relevant(Namespace(path="src/app.py", why=["do", "not", "write"]))
 
     assert memory_path.read_text(encoding="utf-8") == original
