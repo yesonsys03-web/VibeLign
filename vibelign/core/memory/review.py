@@ -30,6 +30,7 @@ class _MemoryFreshnessLike(Protocol):
     conflicting_fields: list[str]
     missing_next_action: bool
     missing_decision_after_patches: bool
+    patch_outside_intent_zone: list[str]
     active_trigger_ids: list[str]
 
 
@@ -109,6 +110,16 @@ def review_memory(path: Path, suppressed_trigger_ids: Iterable[str] | None = Non
             _trigger_suggestion(
                 "missing_decision_after_patches",
                 'Capture a decision after repeated patches with: vib memory decide "...".',
+            )
+        )
+    if freshness.patch_outside_intent_zone and not _is_suppressed(
+        "patch_outside_intent_zone", suppressed
+    ):
+        paths = ", ".join(freshness.patch_outside_intent_zone[:3])
+        suggestions.append(
+            _trigger_suggestion(
+                "patch_outside_intent_zone",
+                f"Review latest patch target outside the intent zone: {paths}.",
             )
         )
     if freshness.stale_verification_commands and not _is_suppressed("stale_verification", suppressed):
