@@ -174,6 +174,31 @@ def get_memory_review_trigger_actions() -> list[MemoryReviewTriggerAction]:
     return list(_SESSION_TRIGGER_ACTIONS)
 
 
+def persist_memory_review_trigger_actions(
+    root: Path,
+    *,
+    tool: str = "vib-cli",
+    source: str = "vib memory review",
+) -> int:
+    append_event, build_event, audit_path, audit_trigger = _memory_audit_helpers()
+    count = 0
+    for action in _SESSION_TRIGGER_ACTIONS:
+        audit_action = _audit_trigger_action(action.action)
+        event = build_event(
+            root,
+            event=f"memory_review_trigger_{audit_action}",
+            tool=tool,
+            trigger=audit_trigger(
+                id=action.trigger_id,
+                action=audit_action,
+                source=source,
+            ),
+        )
+        append_event(audit_path(root), event)
+        count += 1
+    return count
+
+
 def clear_memory_review_trigger_snoozes() -> None:
     _SESSION_SUPPRESSED_TRIGGER_IDS.clear()
     _SESSION_TRIGGER_ACTIONS.clear()
@@ -205,6 +230,10 @@ def _suppress_memory_review_triggers(action: TriggerAction, trigger_ids: Iterabl
     )
 
 
+def _audit_trigger_action(action: TriggerAction) -> str:
+    return "dismissed" if action == "dismiss" else "snoozed"
+
+
 def _suppressed_trigger_ids(trigger_ids: Iterable[str] | None) -> set[str]:
     return set(_SESSION_SUPPRESSED_TRIGGER_IDS) | set(_normalized_trigger_ids(trigger_ids or []))
 
@@ -225,4 +254,14 @@ def _build_redacted_memory_summary() -> _BuildRedactedSummary:
 def _assess_memory_freshness() -> _AssessMemoryFreshness:
     module = import_module("vibelign.core.memory.freshness")
     return cast(_AssessMemoryFreshness, getattr(module, "assess_memory_freshness"))
+
+
+def _memory_audit_helpers() -> tuple[Callable[..., None], Callable[..., object], Callable[[Path], Path], type]:
+    module = import_module("vibelign.core.memory.audit")
+    return (
+        cast(Callable[..., None], getattr(module, "append_memory_audit_event")),
+        cast(Callable[..., object], getattr(module, "build_memory_audit_event")),
+        cast(Callable[[Path], Path], getattr(module, "memory_audit_path")),
+        cast(type, getattr(module, "AuditTrigger")),
+    )
 # === ANCHOR: MEMORY_REVIEW_END ===

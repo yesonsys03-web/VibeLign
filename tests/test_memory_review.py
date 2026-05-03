@@ -39,6 +39,11 @@ def _get_memory_review_trigger_actions() -> Callable[[], list[object]]:
     return cast(Callable[[], list[object]], getattr(module, "get_memory_review_trigger_actions"))
 
 
+def _persist_memory_review_trigger_actions() -> Callable[[Path], int]:
+    module = import_module("vibelign.core.memory.review")
+    return cast(Callable[[Path], int], getattr(module, "persist_memory_review_trigger_actions"))
+
+
 def _clear_memory_review_trigger_snoozes() -> Callable[[], None]:
     module = import_module("vibelign.core.memory.review")
     return cast(Callable[[], None], getattr(module, "clear_memory_review_trigger_snoozes"))
@@ -317,6 +322,73 @@ def test_memory_review_clears_session_trigger_actions() -> None:
     clear_actions()
 
     assert get_actions() == []
+
+
+def test_memory_review_persists_session_trigger_actions_to_audit(tmp_path: Path) -> None:
+    clear_actions = _clear_memory_review_trigger_snoozes()
+    snooze = _snooze_memory_review_triggers()
+    dismiss = _dismiss_memory_review_triggers()
+    persist = _persist_memory_review_trigger_actions()
+
+    try:
+        clear_actions()
+        snooze(["stale_intent"])
+        dismiss(["missing_next_action"])
+
+        count = persist(tmp_path)
+    finally:
+        clear_actions()
+
+    audit_path = tmp_path / ".vibelign" / "memory_audit.jsonl"
+    payloads = cast(
+        list[dict[str, object]],
+        [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines()],
+    )
+    assert count == 2
+    assert [item["event"] for item in payloads] == [
+        "memory_review_trigger_snoozed",
+        "memory_review_trigger_dismissed",
+    ]
+    assert [item["trigger"] for item in payloads] == [
+        {"id": "stale_intent", "action": "snoozed", "source": "vibmemoryreview"},
+        {"id": "missing_next_action", "action": "dismissed", "source": "vibmemoryreview"},
+    ]
+
+
+def test_memory_review_persisting_actions_does_not_clear_session_state(tmp_path: Path) -> None:
+    path = tmp_path / ".vibelign" / "work_memory.json"
+    path.parent.mkdir()
+    _ = path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "active_intent": {"text": "Old goal", "stale": True},
+                "next_action": {"text": "Review freshness"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    clear_actions = _clear_memory_review_trigger_snoozes()
+    snooze = _snooze_memory_review_triggers()
+    get_actions = _get_memory_review_trigger_actions()
+    persist = _persist_memory_review_trigger_actions()
+
+    try:
+        clear_actions()
+        before = _review_memory()(path)
+        snooze(["stale_intent"])
+        count = persist(tmp_path)
+        after = _review_memory()(path)
+        actions = get_actions()
+    finally:
+        clear_actions()
+
+    assert count == 1
+    assert "stale_intent" in before.active_trigger_ids
+    assert "stale_intent" not in after.active_trigger_ids
+    assert [(getattr(item, "action"), getattr(item, "trigger_id")) for item in actions] == [
+        ("snooze", "stale_intent")
+    ]
 
 
 def test_memory_review_surfaces_repeated_patch_decision_trigger(tmp_path: Path) -> None:
