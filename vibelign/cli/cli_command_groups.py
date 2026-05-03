@@ -394,6 +394,22 @@ def register_extended_commands(
         func=lazy_command("vibelign.commands.vib_explain_cmd", "run_vib_explain")
     )
 
+    # === ANCHOR: CLI_COMMAND_GROUPS__RECOVER_COMMAND_START ===
+    p = sub.add_parser(
+        "recover",
+        help="AI가 망가뜨린 변경을 읽기 전용으로 진단해요",
+        description=(
+            "현재 변경 상태를 보고 안전한 복구 방향을 설명해요.\n"
+            "Phase 1에서는 파일을 수정하지 않습니다."
+        ),
+        epilog="이렇게 쓰세요:\n  vib recover --explain    복구 옵션 설명",
+    )
+    _ = p.add_argument("--explain", action="store_true", help="복구 옵션을 설명")
+    p.set_defaults(
+        func=lazy_command("vibelign.commands.vib_recover_cmd", "run_vib_recover")
+    )
+    # === ANCHOR: CLI_COMMAND_GROUPS__RECOVER_COMMAND_END ===
+
     p = sub.add_parser(
         "guard",
         help="AI가 코드를 망가뜨리지 않았는지 검사해요",
@@ -530,6 +546,52 @@ def register_extended_commands(
     _ = p.add_argument("file", help="파일 경로 (프로젝트 루트 기준)")
     _ = p.add_argument("anchor", help="앵커 이름 (_START/_END 없이)")
     p.set_defaults(func=lazy_command("vibelign.commands.vib_show_cmd", "run_vib_show"))
+
+    p = sub.add_parser(
+        "memory",
+        help="AI 작업 메모리를 확인하고 명시적으로 갱신해요",
+        description=(
+            "현재 작업 의도, 결정, 관련 파일, 검증 상태를 짧게 확인해요.\n"
+            "decide/relevant 는 사용자가 직접 입력한 내용만 저장합니다."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib memory show\n"
+            "  vib memory review\n"
+            "  vib memory intent \"현재 목표\"\n"
+            "  vib memory decide \"현재 목표\"\n"
+            "  vib memory relevant src/app.py \"핵심 파일\""
+        ),
+    )
+    memory_sub = p.add_subparsers(
+        dest="memory_action",
+        required=True,
+        metavar="{show,review,intent,decide,relevant}",
+    )
+    p_show = memory_sub.add_parser("show", help="저장된 메모리를 보여줘요")
+    p_show.set_defaults(
+        func=lazy_command("vibelign.commands.vib_memory_cmd", "run_vib_memory_show")
+    )
+    p_review = memory_sub.add_parser("review", help="handoff 전에 확인할 메모리를 검토해요")
+    p_review.set_defaults(
+        func=lazy_command("vibelign.commands.vib_memory_cmd", "run_vib_memory_review")
+    )
+    p_intent = memory_sub.add_parser("intent", help="현재 목표를 명시적으로 확정해요")
+    _ = p_intent.add_argument("intent", nargs="+", help="확정할 현재 목표")
+    p_intent.set_defaults(
+        func=lazy_command("vibelign.commands.vib_memory_cmd", "run_vib_memory_intent")
+    )
+    p_decide = memory_sub.add_parser("decide", help="중요한 결정을 명시적으로 저장해요")
+    _ = p_decide.add_argument("decision", nargs="+", help="저장할 결정 문장")
+    p_decide.set_defaults(
+        func=lazy_command("vibelign.commands.vib_memory_cmd", "run_vib_memory_decide")
+    )
+    p_relevant = memory_sub.add_parser("relevant", help="관련 파일을 명시적으로 저장해요")
+    _ = p_relevant.add_argument("path", help="프로젝트 상대 파일 경로")
+    _ = p_relevant.add_argument("why", nargs="+", help="왜 중요한지")
+    p_relevant.set_defaults(
+        func=lazy_command("vibelign.commands.vib_memory_cmd", "run_vib_memory_relevant")
+    )
 
     p = sub.add_parser(
         "plan-structure",
