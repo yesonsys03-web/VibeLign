@@ -71,6 +71,35 @@ class McpCheckpointHandlersTest(unittest.TestCase):
             self.assertIn("체크포인트 저장 완료", result[0].text)
             self.assertEqual(len(list_checkpoints(root)), 1)
 
+    def test_handle_checkpoint_create_writes_metadata_audit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = (root / "app.py").write_text("print('ok')\n", encoding="utf-8")
+            secret_text = "tok" + "en=fixtureSecretValue1234"
+
+            _ = handle_checkpoint_create(root, {"message": f"save {secret_text}"}, TextContent)
+            audit_text = (root / ".vibelign" / "memory_audit.jsonl").read_text(encoding="utf-8")
+            payload = json.loads(audit_text.splitlines()[-1])
+
+            self.assertEqual(payload["event"], "checkpoint_create")
+            self.assertEqual(payload["tool"], "mcp")
+            self.assertEqual(payload["result"], "success")
+            self.assertTrue(payload["sandwich_checkpoint_id"])
+            self.assertNotIn("fixtureSecretValue1234", audit_text)
+            self.assertNotIn("save token", audit_text)
+
+    def test_handle_checkpoint_create_audits_no_change_as_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            _ = handle_checkpoint_create(root, {"message": "empty"}, TextContent)
+            audit_text = (root / ".vibelign" / "memory_audit.jsonl").read_text(encoding="utf-8")
+            payload = json.loads(audit_text.splitlines()[-1])
+
+            self.assertEqual(payload["event"], "checkpoint_create")
+            self.assertEqual(payload["result"], "blocked")
+            self.assertIsNone(payload["sandwich_checkpoint_id"])
+
     def test_handle_checkpoint_list_returns_saved_checkpoint(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

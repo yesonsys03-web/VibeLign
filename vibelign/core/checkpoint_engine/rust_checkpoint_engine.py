@@ -232,6 +232,14 @@ def _rust_disabled() -> bool:
     }
 
 
+def _engine_state_recording_disabled() -> bool:
+    return os.environ.get("VIBELIGN_DISABLE_CHECKPOINT_ENGINE_STATE", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
 def _is_environment_fallback(reason: str | None) -> bool:
     if not reason:
         return False
@@ -239,6 +247,8 @@ def _is_environment_fallback(reason: str | None) -> bool:
 
 
 def _record_engine_state(root: Path, engine_used: str, reason: str | None) -> None:
+    if _engine_state_recording_disabled():
+        return
     state_path = MetaPaths(root).state_path
     state: dict[str, object] = {}
     try:

@@ -38,12 +38,31 @@ def handle_checkpoint_create(
 # === ANCHOR: MCP_CHECKPOINT_HANDLERS_HANDLE_CHECKPOINT_CREATE_END ===
 ) -> list[object]:
     from vibelign.core.checkpoint_engine.router import create_checkpoint, friendly_time
+    from vibelign.core.memory.audit import (
+        append_memory_audit_event,
+        build_memory_audit_event,
+        memory_audit_path,
+    )
 
     message = str(arguments.get("message", ""))
     summary = create_checkpoint(root, message)
     if summary is None:
+        append_memory_audit_event(
+            memory_audit_path(root),
+            build_memory_audit_event(root, event="checkpoint_create", tool="mcp", result="blocked"),
+        )
         text = "변경사항이 없어 체크포인트를 생성하지 않았습니다."
     else:
+        append_memory_audit_event(
+            memory_audit_path(root),
+            build_memory_audit_event(
+                root,
+                event="checkpoint_create",
+                tool="mcp",
+                result="success",
+                sandwich_checkpoint_id=summary.checkpoint_id,
+            ),
+        )
         text = (
             f"✓ 체크포인트 저장 완료\n"
             f"  ID: {summary.checkpoint_id}\n"
