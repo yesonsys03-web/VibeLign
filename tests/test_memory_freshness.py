@@ -15,6 +15,9 @@ class _MemoryFreshnessLike(Protocol):
     stale_verification_commands: list[str]
     stale_intent: bool
     stale_relevant_files: list[str]
+    conflicting_fields: list[str]
+    missing_next_action: bool
+    active_trigger_ids: list[str]
 
 
 def _assess_memory_freshness() -> Callable[[MemoryState], _MemoryFreshnessLike]:
@@ -52,6 +55,11 @@ def test_assess_memory_freshness_reports_stale_metadata() -> None:
     ]
     assert freshness.stale_intent is True
     assert freshness.stale_relevant_files == ["src/app.py", "src/previous.py"]
+    assert freshness.active_trigger_ids == [
+        "stale_verification",
+        "stale_intent",
+        "stale_relevant_files",
+    ]
 
 
 def test_assess_memory_freshness_marks_old_intent_stale() -> None:
@@ -98,8 +106,56 @@ def test_assess_memory_freshness_reports_empty_for_fresh_memory() -> None:
 
     assert freshness.verification_freshness == ""
     assert freshness.stale_verification_commands == []
+
+
+def test_assess_memory_freshness_detects_same_field_conflicts() -> None:
+    state = MemoryState(
+        next_action=MemoryTextField(text="Continue handoff"),
+        decisions=[
+            MemoryTextField(text="Use A", last_updated="2026-05-03T00:00:00Z"),
+            MemoryTextField(text="Use B", last_updated="2026-05-03T00:00:30Z"),
+        ],
+        observed_context=[
+            MemoryObservedContext(
+                kind="modified",
+                summary="first",
+                timestamp="2026-05-03T00:10:00Z",
+            ),
+            MemoryObservedContext(
+                kind="modified",
+                summary="second",
+                timestamp="2026-05-03T00:10:45Z",
+            ),
+        ],
+    )
+
+    freshness = _assess_memory_freshness()(state)
+
+    assert freshness.conflicting_fields == ["decisions", "observed_context"]
+    assert "conflict_detected" in freshness.active_trigger_ids
+
+
+def test_assess_memory_freshness_ignores_conflicts_outside_window() -> None:
+    state = MemoryState(
+        next_action=MemoryTextField(text="Continue handoff"),
+        decisions=[
+            MemoryTextField(text="Use A", last_updated="2026-05-03T00:00:00Z"),
+            MemoryTextField(text="Use B", last_updated="2026-05-03T00:02:01Z"),
+        ],
+        verification=[
+            MemoryVerification(command="pytest a", last_updated="2026-05-03T00:00:00Z"),
+            MemoryVerification(command="pytest b", last_updated="2026-05-03T00:01:01Z"),
+        ],
+    )
+
+    freshness = _assess_memory_freshness()(state)
+
+    assert freshness.conflicting_fields == []
+    assert freshness.missing_next_action is False
+    assert "conflict_detected" not in freshness.active_trigger_ids
     assert freshness.stale_intent is False
     assert freshness.stale_relevant_files == []
+    assert freshness.active_trigger_ids == []
 
 
 def test_assess_memory_freshness_marks_verification_stale_when_related_file_changes() -> None:
@@ -155,6 +211,34 @@ def test_assess_memory_freshness_ignores_scope_unknown_without_timestamp() -> No
 
     assert freshness.verification_freshness == ""
     assert freshness.stale_verification_commands == []
+
+
+def test_assess_memory_freshness_marks_missing_next_action_trigger() -> None:
+    state = MemoryState(active_intent=MemoryTextField(text="Prepare handoff"))
+
+    freshness = _assess_memory_freshness()(state)
+
+    assert freshness.missing_next_action is True
+    assert "missing_next_action" in freshness.active_trigger_ids
+
+
+def test_assess_memory_freshness_marks_scope_unknown_verification_stale() -> None:
+    state = MemoryState(
+        verification=[
+            MemoryVerification(
+                command="uv run pytest tests/test_memory_freshness.py",
+                scope_unknown=True,
+            )
+        ]
+    )
+
+    freshness = _assess_memory_freshness()(state)
+
+    assert freshness.verification_freshness == "stale"
+    assert freshness.stale_verification_commands == [
+        "uv run pytest tests/test_memory_freshness.py"
+    ]
+    assert "stale_verification" in freshness.active_trigger_ids
 
 
 def test_assess_memory_freshness_ignores_unrelated_file_changes_after_verification() -> None:

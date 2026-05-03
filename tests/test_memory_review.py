@@ -16,11 +16,22 @@ class _MemoryReviewLike(Protocol):
     downgrade_warning: str
     redaction: object
     suggestions: list[str]
+    active_trigger_ids: list[str]
 
 
 def _review_memory() -> Callable[[Path], _MemoryReviewLike]:
     module = import_module("vibelign.core.memory.review")
     return cast(Callable[[Path], _MemoryReviewLike], getattr(module, "review_memory"))
+
+
+def _snooze_memory_review_triggers() -> Callable[[list[str]], None]:
+    module = import_module("vibelign.core.memory.review")
+    return cast(Callable[[list[str]], None], getattr(module, "snooze_memory_review_triggers"))
+
+
+def _clear_memory_review_trigger_snoozes() -> Callable[[], None]:
+    module = import_module("vibelign.core.memory.review")
+    return cast(Callable[[], None], getattr(module, "clear_memory_review_trigger_snoozes"))
 
 
 def test_memory_review_empty_memory_suggests_decision(tmp_path: Path) -> None:
@@ -33,7 +44,7 @@ def test_memory_review_empty_memory_suggests_decision(tmp_path: Path) -> None:
 def test_memory_review_surfaces_next_action_and_stale_verification(tmp_path: Path) -> None:
     path = tmp_path / ".vibelign" / "work_memory.json"
     path.parent.mkdir()
-    path.write_text(
+    _ = path.write_text(
         json.dumps(
             {
                 "schema_version": 1,
@@ -65,15 +76,18 @@ def test_memory_review_surfaces_next_action_and_stale_verification(tmp_path: Pat
     assert review.verification == [
         "uv run python -m pytest tests/test_memory_review.py -> passed (stale: scope unknown)"
     ]
-    assert review.suggestions == [
-        "Rerun stale verification: uv run python -m pytest tests/test_memory_review.py"
-    ]
+    expected_suggestion = (
+        "Rerun stale verification: uv run python -m pytest tests/test_memory_review.py "
+        "[trigger: stale_verification; Accept / Dismiss / Snooze]"
+    )
+    assert review.suggestions == [expected_suggestion]
+    assert review.active_trigger_ids == ["stale_verification"]
 
 
 def test_memory_review_surfaces_downgrade_warning(tmp_path: Path) -> None:
     path = tmp_path / ".vibelign" / "work_memory.json"
     path.parent.mkdir()
-    path.write_text(
+    _ = path.write_text(
         json.dumps({"schema_version": 99, "future_field": True}),
         encoding="utf-8",
     )
@@ -88,7 +102,7 @@ def test_memory_review_surfaces_downgrade_warning(tmp_path: Path) -> None:
 def test_memory_review_suggests_missing_explicit_fields(tmp_path: Path) -> None:
     path = tmp_path / ".vibelign" / "work_memory.json"
     path.parent.mkdir()
-    path.write_text(
+    _ = path.write_text(
         json.dumps(
             {
                 "schema_version": 1,
@@ -102,19 +116,24 @@ def test_memory_review_suggests_missing_explicit_fields(tmp_path: Path) -> None:
 
     review = _review_memory()(path)
 
+    missing_next_action_suggestion = (
+        "Capture the next handoff action with --first-next-action. "
+        "[trigger: missing_next_action; Accept / Dismiss / Snooze]"
+    )
     assert review.has_memory is True
     assert review.suggestions == [
         'Confirm the current goal with: vib memory decide "..."',
-        "Capture the next handoff action with --first-next-action.",
+        missing_next_action_suggestion,
         "Review warnings before using this memory as handoff truth.",
     ]
+    assert "missing_next_action" in review.active_trigger_ids
 
 
 def test_memory_review_redacts_sensitive_text(tmp_path: Path) -> None:
     path = tmp_path / ".vibelign" / "work_memory.json"
     path.parent.mkdir()
     secret_text = "tok" + "en=fixtureSecretValue1234"
-    path.write_text(
+    _ = path.write_text(
         json.dumps(
             {
                 "schema_version": 1,
@@ -138,7 +157,7 @@ def test_memory_review_redacts_sensitive_text(tmp_path: Path) -> None:
 def test_memory_review_uses_freshness_for_stale_intent_and_relevant_files(tmp_path: Path) -> None:
     path = tmp_path / ".vibelign" / "work_memory.json"
     path.parent.mkdir()
-    path.write_text(
+    _ = path.write_text(
         json.dumps(
             {
                 "schema_version": 1,
@@ -159,5 +178,100 @@ def test_memory_review_uses_freshness_for_stale_intent_and_relevant_files(tmp_pa
 
     review = _review_memory()(path)
 
-    assert "Review stale intent or next action before handoff." in review.suggestions
-    assert "Review stale relevant files before handoff." in review.suggestions
+    stale_intent_suggestion = (
+        "Review stale intent or next action before handoff. "
+        "[trigger: stale_intent; Accept / Dismiss / Snooze]"
+    )
+    stale_relevant_files_suggestion = (
+        "Review stale relevant files before handoff. "
+        "[trigger: stale_relevant_files; Accept / Dismiss / Snooze]"
+    )
+    assert stale_intent_suggestion in review.suggestions
+    assert stale_relevant_files_suggestion in review.suggestions
+
+
+def test_memory_review_snoozes_trigger_for_current_session(tmp_path: Path) -> None:
+    path = tmp_path / ".vibelign" / "work_memory.json"
+    path.parent.mkdir()
+    _ = path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "active_intent": {"text": "Old goal", "stale": True},
+                "next_action": {"text": "Review freshness"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    clear_snoozes = _clear_memory_review_trigger_snoozes()
+    snooze = _snooze_memory_review_triggers()
+
+    try:
+        clear_snoozes()
+        before = _review_memory()(path)
+        snooze(["stale_intent"])
+        after = _review_memory()(path)
+    finally:
+        clear_snoozes()
+
+    assert "stale_intent" in before.active_trigger_ids
+    assert any("[trigger: stale_intent;" in item for item in before.suggestions)
+    assert "stale_intent" not in after.active_trigger_ids
+    assert not any("[trigger: stale_intent;" in item for item in after.suggestions)
+
+
+def test_memory_review_surfaces_conflict_trigger(tmp_path: Path) -> None:
+    path = tmp_path / ".vibelign" / "work_memory.json"
+    path.parent.mkdir()
+    _ = path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "active_intent": {"text": "Resolve memory conflict"},
+                "next_action": {"text": "Review conflict"},
+                "decisions": [
+                    {"text": "Use A", "last_updated": "2026-05-03T00:00:00Z"},
+                    {"text": "Use B", "last_updated": "2026-05-03T00:00:30Z"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    review = _review_memory()(path)
+
+    conflict_suggestion = (
+        "Review possible memory conflict in: decisions. "
+        "[trigger: conflict_detected; Accept / Dismiss / Snooze]"
+    )
+    assert "conflict_detected" in review.active_trigger_ids
+    assert conflict_suggestion in review.suggestions
+
+
+def test_memory_review_snoozes_missing_next_action_trigger(tmp_path: Path) -> None:
+    path = tmp_path / ".vibelign" / "work_memory.json"
+    path.parent.mkdir()
+    _ = path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "active_intent": {"text": "Prepare handoff"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    clear_snoozes = _clear_memory_review_trigger_snoozes()
+    snooze = _snooze_memory_review_triggers()
+
+    try:
+        clear_snoozes()
+        before = _review_memory()(path)
+        snooze(["missing_next_action"])
+        after = _review_memory()(path)
+    finally:
+        clear_snoozes()
+
+    assert "missing_next_action" in before.active_trigger_ids
+    assert any("[trigger: missing_next_action;" in item for item in before.suggestions)
+    assert "missing_next_action" not in after.active_trigger_ids
+    assert not any("[trigger: missing_next_action;" in item for item in after.suggestions)
