@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
-from vibelign.core.work_memory import load_work_memory
+from vibelign.core.memory.store import add_memory_decision, load_memory_state
 
 
 @dataclass
@@ -68,10 +68,16 @@ class McpTransferHandlersTest(unittest.TestCase):
                 TextContent,
             )
             content = (root / "PROJECT_CONTEXT.md").read_text(encoding="utf-8")
-            state = load_work_memory(root / ".vibelign" / "work_memory.json")
+            state = load_memory_state(root / ".vibelign" / "work_memory.json")
 
         self.assertIn("pytest transfer handlers passed", content)
-        self.assertEqual(state["verification"], ["pytest transfer handlers passed"])
+        self.assertEqual(
+            [item.command for item in state.verification],
+            ["pytest transfer handlers passed"],
+        )
+        self.assertIsNotNone(state.next_action)
+        assert state.next_action is not None
+        self.assertEqual(state.next_action.text, "run guard check")
 
     def test_handle_handoff_create_enriches_from_work_memory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -271,11 +277,37 @@ class McpTransferHandlersTest(unittest.TestCase):
                     TextContent,
                 )
             content = (root / "PROJECT_CONTEXT.md").read_text(encoding="utf-8")
-            state = load_work_memory(root / ".vibelign" / "work_memory.json")
+            state = load_memory_state(root / ".vibelign" / "work_memory.json")
 
         self.assertIn("fresh mcp verification passed", content)
         self.assertIn("old verification from work memory", content)
-        self.assertEqual(state["verification"][-1], "fresh mcp verification passed")
+        self.assertEqual(state.verification[-1].command, "fresh mcp verification passed")
+
+    def test_handle_handoff_create_preserves_typed_memory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            memory_path = root / ".vibelign" / "work_memory.json"
+            add_memory_decision(memory_path, "Keep typed MCP handoff decision")
+
+            _ = handle_handoff_create(
+                root,
+                {
+                    "session_summary": "mcp supplied summary",
+                    "first_next_action": "mcp supplied next action",
+                    "verification": ["mcp verification passed"],
+                },
+                TextContent,
+            )
+            state = load_memory_state(memory_path)
+
+        self.assertEqual(
+            [item.text for item in state.decisions],
+            ["Keep typed MCP handoff decision"],
+        )
+        self.assertEqual(state.verification[-1].command, "mcp verification passed")
+        self.assertIsNotNone(state.next_action)
+        assert state.next_action is not None
+        self.assertEqual(state.next_action.text, "mcp supplied next action")
 
     def test_handle_project_context_get_returns_existing_file_when_present(
         self,

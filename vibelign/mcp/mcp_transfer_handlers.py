@@ -104,6 +104,7 @@ def handle_handoff_create(
                 if unfinished_work
                 else working_tree["summary"],
                 "first_next_action": first_next_action,
+                "first_next_action_confirmed": True,
                 "decision_context": decision_context,
                 "latest_checkpoint": latest_cp,
                 "verification": verification,
@@ -154,11 +155,14 @@ def handle_transfer_set_decision(
     root: Path, arguments: dict[str, object], text_content: TextContentFactory,
 ) -> list[object]:
     from vibelign.core.meta_paths import MetaPaths
-    from vibelign.core.work_memory import add_decision
+    from vibelign.core.memory.store import add_memory_decision, is_memory_read_only
     text = arguments.get("text")
     if not isinstance(text, str) or not text.strip():
         return _text(text_content, "transfer_set_decision: text 인자가 필요해요.")
-    add_decision(MetaPaths(root).work_memory_path, text)
+    path = MetaPaths(root).work_memory_path
+    if is_memory_read_only(path):
+        return _text(text_content, "memory schema is newer; decision was not saved.")
+    add_memory_decision(path, text, updated_by="transfer_set_decision")
     return _text(text_content, f"decisions[] 에 추가됨: {text[:60]}")
 # === ANCHOR: MCP_TRANSFER_HANDLERS_HANDLE_TRANSFER_SET_DECISION_END ===
 
@@ -168,11 +172,14 @@ def handle_transfer_set_verification(
     root: Path, arguments: dict[str, object], text_content: TextContentFactory,
 ) -> list[object]:
     from vibelign.core.meta_paths import MetaPaths
-    from vibelign.core.work_memory import add_verification
+    from vibelign.core.memory.store import add_memory_verification, is_memory_read_only
     text = arguments.get("text")
     if not isinstance(text, str) or not text.strip():
         return _text(text_content, "transfer_set_verification: text 인자가 필요해요.")
-    add_verification(MetaPaths(root).work_memory_path, text)
+    path = MetaPaths(root).work_memory_path
+    if is_memory_read_only(path):
+        return _text(text_content, "memory schema is newer; verification was not saved.")
+    add_memory_verification(path, text, updated_by="transfer_set_verification")
     return _text(text_content, f"verification[] 에 추가됨: {text[:60]}")
 # === ANCHOR: MCP_TRANSFER_HANDLERS_HANDLE_TRANSFER_SET_VERIFICATION_END ===
 
@@ -182,14 +189,23 @@ def handle_transfer_set_relevant(
     root: Path, arguments: dict[str, object], text_content: TextContentFactory,
 ) -> list[object]:
     from vibelign.core.meta_paths import MetaPaths
-    from vibelign.core.work_memory import add_relevant_file
+    from vibelign.core.memory.store import add_memory_relevant_file, is_memory_read_only
     file_path = arguments.get("path")
     why = arguments.get("why", "Relevant to recent work.")
     if not isinstance(file_path, str) or not file_path.strip():
         return _text(text_content, "transfer_set_relevant: path 인자가 필요해요.")
     if not isinstance(why, str):
         why = "Relevant to recent work."
-    add_relevant_file(MetaPaths(root).work_memory_path, file_path, why, source="explicit")
+    path = MetaPaths(root).work_memory_path
+    if is_memory_read_only(path):
+        return _text(text_content, "memory schema is newer; relevant file was not saved.")
+    add_memory_relevant_file(
+        path,
+        file_path,
+        why,
+        source="explicit",
+        updated_by="transfer_set_relevant",
+    )
     return _text(text_content, f"relevant_files[] 에 추가됨: {file_path}")
 # === ANCHOR: MCP_TRANSFER_HANDLERS_HANDLE_TRANSFER_SET_RELEVANT_END ===
 # === ANCHOR: MCP_TRANSFER_HANDLERS_END ===

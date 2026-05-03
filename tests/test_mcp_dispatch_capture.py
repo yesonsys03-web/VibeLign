@@ -2,10 +2,10 @@ import asyncio
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import patch as mock_patch
 from vibelign.core.meta_paths import MetaPaths
-from vibelign.core.work_memory import load_work_memory
+from vibelign.core.memory.store import add_memory_decision, load_memory_state
 from vibelign.mcp import mcp_dispatch
 from vibelign.mcp.mcp_dispatch import call_tool_dispatch
 
@@ -19,6 +19,11 @@ def _run(coro):
 
 
 class TransferMCPToolsTest(unittest.TestCase):
+    def __init__(self, methodName: str = "runTest") -> None:
+        super().__init__(methodName)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(".")
+
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
@@ -28,17 +33,17 @@ class TransferMCPToolsTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def _wm(self):
-        return load_work_memory(MetaPaths(self.root).work_memory_path)
+        return load_memory_state(MetaPaths(self.root).work_memory_path)
 
     def test_set_decision_appends_to_decisions(self):
         _run(call_tool_dispatch("transfer_set_decision",
             {"text": "1-B 옵션 채택"}, root=self.root, text_content=_tc))
-        self.assertEqual(self._wm()["decisions"][-1], "1-B 옵션 채택")
+        self.assertEqual(self._wm().decisions[-1].text, "1-B 옵션 채택")
 
     def test_set_verification_appends_to_verification(self):
         _run(call_tool_dispatch("transfer_set_verification",
             {"text": "pytest -> 12 passed"}, root=self.root, text_content=_tc))
-        self.assertIn("12 passed", self._wm()["verification"][-1])
+        self.assertIn("12 passed", self._wm().verification[-1].command)
 
     def test_set_relevant_appends_to_relevant_files(self):
         _run(call_tool_dispatch("transfer_set_relevant",
@@ -47,16 +52,34 @@ class TransferMCPToolsTest(unittest.TestCase):
         # v2.0.37: transfer_set_relevant 는 source="explicit" 으로 기록되어
         # 핸드오프 Relevant files 섹션에 노출됨.
         self.assertEqual(
-            self._wm()["relevant_files"][-1],
-            {"path": "vibelign/core/work_memory.py", "why": "core", "source": "explicit"})
+            (
+                self._wm().relevant_files[-1].path,
+                self._wm().relevant_files[-1].why,
+                self._wm().relevant_files[-1].source,
+            ),
+            ("vibelign/core/work_memory.py", "core", "explicit"))
+
+    def test_set_relevant_preserves_typed_decision(self):
+        add_memory_decision(MetaPaths(self.root).work_memory_path, "Keep typed MCP decision")
+        _run(call_tool_dispatch("transfer_set_relevant",
+            {"path": "vibelign/core/work_memory.py", "why": "core"},
+            root=self.root, text_content=_tc))
+        state = self._wm()
+        self.assertEqual([item.text for item in state.decisions], ["Keep typed MCP decision"])
+        self.assertEqual(state.relevant_files[-1].path, "vibelign/core/work_memory.py")
 
     def test_set_decision_requires_text(self):
-        result = _run(call_tool_dispatch("transfer_set_decision",
-            {}, root=self.root, text_content=_tc))
-        self.assertIn("text 인자가 필요", result[0]["text"])
+        result = cast(list[dict[str, object]], _run(call_tool_dispatch("transfer_set_decision",
+            {}, root=self.root, text_content=_tc)))
+        self.assertIn("text 인자가 필요", str(result[0]["text"]))
 
 
 class DispatchAutoCaptureTest(unittest.TestCase):
+    def __init__(self, methodName: str = "runTest") -> None:
+        super().__init__(methodName)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(".")
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
@@ -66,13 +89,13 @@ class DispatchAutoCaptureTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def _wm(self):
-        return load_work_memory(MetaPaths(self.root).work_memory_path)
+        return load_memory_state(MetaPaths(self.root).work_memory_path)
 
     def test_guard_check_logs_verification(self):
         with mock_patch.dict(mcp_dispatch.DISPATCH_TABLE,
             {"guard_check": lambda r, a, t: [{"type": "text", "text": "guard: ok"}]}):
             _run(call_tool_dispatch("guard_check", {}, root=self.root, text_content=_tc))
-        self.assertTrue(any("guard" in v for v in self._wm()["verification"]))
+        self.assertTrue(any("guard" in v.command for v in self._wm().verification))
 
     def test_checkpoint_create_logs_recent_event_not_decision(self):
         with mock_patch.dict(mcp_dispatch.DISPATCH_TABLE,
@@ -81,12 +104,12 @@ class DispatchAutoCaptureTest(unittest.TestCase):
                 {"message": "v2.0.35 작업 전 안전 저장"},
                 root=self.root, text_content=_tc))
         wm = self._wm()
-        self.assertEqual(wm["decisions"], [])  # 핵심: decisions 안 건드림
+        self.assertEqual(wm.decisions, [])  # 핵심: decisions 안 건드림
         self.assertTrue(
-            any(e.get("kind") == "checkpoint" for e in wm["recent_events"]),
-            f"checkpoint event missing: {wm['recent_events']}",
+            any(e.kind == "checkpoint" for e in wm.observed_context),
+            f"checkpoint event missing: {wm.observed_context}",
         )
-        self.assertEqual(wm["relevant_files"], [])
+        self.assertEqual(wm.relevant_files, [])
 
     def test_patch_apply_with_strict_patch_logs_relevant_file_only(self):
         strict = {
@@ -102,11 +125,11 @@ class DispatchAutoCaptureTest(unittest.TestCase):
                 {"strict_patch": strict},
                 root=self.root, text_content=_tc))
         wm = self._wm()
-        self.assertEqual(wm["decisions"], [])
+        self.assertEqual(wm.decisions, [])
         self.assertTrue(
-            any(rf["path"] == "vibelign/core/work_memory.py"
-                for rf in wm["relevant_files"]),
-            f"relevant_files missing: {wm['relevant_files']}",
+            any(rf.path == "vibelign/core/work_memory.py"
+                for rf in wm.relevant_files),
+            f"relevant_files missing: {wm.relevant_files}",
         )
 
     def test_patch_apply_dry_run_skipped(self):
@@ -119,7 +142,7 @@ class DispatchAutoCaptureTest(unittest.TestCase):
             _run(call_tool_dispatch("patch_apply",
                 {"strict_patch": strict},
                 root=self.root, text_content=_tc))
-        self.assertEqual(self._wm()["relevant_files"], [])
+        self.assertEqual(self._wm().relevant_files, [])
 
     def test_patch_apply_top_level_dry_run_skipped(self):
         strict = {
@@ -130,7 +153,7 @@ class DispatchAutoCaptureTest(unittest.TestCase):
             _run(call_tool_dispatch("patch_apply",
                 {"strict_patch": strict, "dry_run": True},
                 root=self.root, text_content=_tc))
-        self.assertEqual(self._wm()["relevant_files"], [])
+        self.assertEqual(self._wm().relevant_files, [])
 
     def test_other_tools_have_no_side_effect(self):
         with mock_patch.dict(mcp_dispatch.DISPATCH_TABLE,
@@ -138,10 +161,10 @@ class DispatchAutoCaptureTest(unittest.TestCase):
             _run(call_tool_dispatch("random_tool", {},
                 root=self.root, text_content=_tc))
         wm = self._wm()
-        self.assertEqual(wm["decisions"], [])
-        self.assertEqual(wm["verification"], [])
-        self.assertEqual(wm["recent_events"], [])
-        self.assertEqual(wm["relevant_files"], [])
+        self.assertEqual(wm.decisions, [])
+        self.assertEqual(wm.verification, [])
+        self.assertEqual(wm.observed_context, [])
+        self.assertEqual(wm.relevant_files, [])
 
     def test_capture_failure_does_not_break_tool_result(self):
         """work_memory write 실패해도 도구 결과는 정상 반환."""
@@ -153,11 +176,11 @@ class DispatchAutoCaptureTest(unittest.TestCase):
 
         with mock_patch.dict(mcp_dispatch.DISPATCH_TABLE,
             {"guard_check": lambda r, a, t: [{"type": "text", "text": "g"}]}):
-            with mock_patch("vibelign.mcp.mcp_dispatch.add_verification",
+            with mock_patch("vibelign.mcp.mcp_dispatch.add_memory_verification",
                 side_effect=Exception("disk full")):
                 with mock_patch("sys.stderr.write", side_effect=_capture_write):
-                    result = _run(call_tool_dispatch("guard_check", {},
-                        root=self.root, text_content=_tc))
+                    result = cast(list[dict[str, object]], _run(call_tool_dispatch("guard_check", {},
+                        root=self.root, text_content=_tc)))
         self.assertEqual(result[0]["text"], "g")
         self.assertTrue(
             any("MCP narrative capture failed for guard_check" in item for item in stderr),

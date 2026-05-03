@@ -8,10 +8,10 @@ from typing import Protocol, cast
 from vibelign.mcp.mcp_handler_registry import DISPATCH_TABLE
 from vibelign.mcp.mcp_handler_registry import TextContentFactory
 from vibelign.core.meta_paths import MetaPaths
-from vibelign.core.work_memory import (
-    add_relevant_file,
-    add_verification,
-    record_checkpoint,
+from vibelign.core.memory.store import (
+    add_memory_observed_context,
+    add_memory_relevant_file,
+    add_memory_verification,
 )
 
 
@@ -63,13 +63,23 @@ def _auto_capture_narrative(
     if name == "guard_check":
         text = _flatten_result_text(result)
         if text:
-            add_verification(wm, f"guard_check -> {text[:200]}")
+            add_memory_verification(
+                wm,
+                f"guard_check -> {text[:200]}",
+                updated_by="mcp guard_check",
+            )
 
     elif name == "checkpoint_create":
         msg = arguments.get("message")
         if isinstance(msg, str) and msg.strip():
             # checkpoint 는 사실(state save) 이므로 recent_events 에만.
-            record_checkpoint(wm, msg)
+            add_memory_observed_context(
+                wm,
+                kind="checkpoint",
+                summary=msg,
+                context_path="checkpoint",
+                source_tool="mcp checkpoint_create",
+            )
 
     elif name == "patch_apply":
         strict = arguments.get("strict_patch")
@@ -87,7 +97,13 @@ def _auto_capture_narrative(
                     if isinstance(anchor, str) and anchor
                     else "patch_apply target"
                 )
-                add_relevant_file(wm, file_path, why)
+                add_memory_relevant_file(
+                    wm,
+                    file_path,
+                    why,
+                    source="observed",
+                    updated_by="mcp patch_apply",
+                )
 
 
 def _flatten_result_text(result: list[object]) -> str:
