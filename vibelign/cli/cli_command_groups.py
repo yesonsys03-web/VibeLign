@@ -402,9 +402,21 @@ def register_extended_commands(
             "현재 변경 상태를 보고 안전한 복구 방향을 설명해요.\n"
             "Phase 1에서는 파일을 수정하지 않습니다."
         ),
-        epilog="이렇게 쓰세요:\n  vib recover --explain    복구 옵션 설명",
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib recover --explain    복구 옵션 설명\n"
+            "  vib recover --preview    복구 옵션 미리보기\n"
+            "  vib recover --file src/app.py    파일 복구 대상 미리보기\n"
+            "  vib recover --file src/app.py --apply --checkpoint-id ckpt --sandwich-checkpoint-id safety --confirmation 'APPLY ckpt'"
+        ),
     )
     _ = p.add_argument("--explain", action="store_true", help="복구 옵션을 설명")
+    _ = p.add_argument("--preview", action="store_true", help="복구 옵션을 미리보기")
+    _ = p.add_argument("--file", default=None, help="복구 대상으로 검토할 파일")
+    _ = p.add_argument("--apply", action="store_true", help="명시 확인된 파일 복구를 실행")
+    _ = p.add_argument("--checkpoint-id", default="", help="복구할 원본 체크포인트 ID")
+    _ = p.add_argument("--sandwich-checkpoint-id", default="", help="복구 직전 안전 체크포인트 ID")
+    _ = p.add_argument("--confirmation", default="", help="명시 확인 문구: APPLY <checkpoint-id>")
     p.set_defaults(
         func=lazy_command("vibelign.commands.vib_recover_cmd", "run_vib_recover")
     )
@@ -465,6 +477,23 @@ def register_extended_commands(
 
     p = sub.add_parser("mcp", help=argparse.SUPPRESS)
     p.set_defaults(func=_run_vib_mcp)
+    mcp_sub = p.add_subparsers(dest="mcp_action")
+    grant = mcp_sub.add_parser("grant", help="MCP capability 권한을 기록합니다")
+    _ = grant.add_argument("capability", help="권한을 줄 MCP capability 이름")
+    _ = grant.add_argument("--tool", required=True, help="권한을 줄 AI tool 이름")
+    grant.set_defaults(
+        func=lazy_command("vibelign.commands.vib_mcp_cmd", "run_vib_mcp_command")
+    )
+    grants = mcp_sub.add_parser("grants", help="MCP capability 권한 목록을 봅니다")
+    grants.set_defaults(
+        func=lazy_command("vibelign.commands.vib_mcp_cmd", "run_vib_mcp_command")
+    )
+    revoke = mcp_sub.add_parser("revoke", help="MCP capability 권한을 제거합니다")
+    _ = revoke.add_argument("capability", help="권한을 제거할 MCP capability 이름")
+    _ = revoke.add_argument("--tool", required=True, help="권한을 제거할 AI tool 이름")
+    revoke.set_defaults(
+        func=lazy_command("vibelign.commands.vib_mcp_cmd", "run_vib_mcp_command")
+    )
 
     p = sub.add_parser(
         "export",
@@ -566,7 +595,7 @@ def register_extended_commands(
     memory_sub = p.add_subparsers(
         dest="memory_action",
         required=True,
-        metavar="{show,review,intent,decide,relevant}",
+        metavar="{show,review,intent,decide,next,relevant}",
     )
     p_show = memory_sub.add_parser("show", help="저장된 메모리를 보여줘요")
     p_show.set_defaults(
@@ -585,6 +614,11 @@ def register_extended_commands(
     _ = p_decide.add_argument("decision", nargs="+", help="저장할 결정 문장")
     p_decide.set_defaults(
         func=lazy_command("vibelign.commands.vib_memory_cmd", "run_vib_memory_decide")
+    )
+    p_next = memory_sub.add_parser("next", help="다음 작업을 명시적으로 저장해요")
+    _ = p_next.add_argument("next_action", nargs="+", help="저장할 다음 작업")
+    p_next.set_defaults(
+        func=lazy_command("vibelign.commands.vib_memory_cmd", "run_vib_memory_next")
     )
     p_relevant = memory_sub.add_parser("relevant", help="관련 파일을 명시적으로 저장해요")
     _ = p_relevant.add_argument("path", help="프로젝트 상대 파일 경로")

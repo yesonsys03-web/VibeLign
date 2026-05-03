@@ -3,6 +3,7 @@ import sqlite3
 import tempfile
 import unittest
 from argparse import Namespace
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 
@@ -21,59 +22,70 @@ class VibStartHooksTest(unittest.TestCase):
             previous = Path.cwd()
             try:
                 os.chdir(root)
-                with (
-                    patch(
-                        "vibelign.commands.vib_start_cmd._selected_start_tools",
-                        return_value=[],
-                    ),
-                    patch(
-                        "vibelign.commands.vib_start_cmd._setup_project",
-                        return_value={"created": [], "updated": []},
-                    ),
-                    patch("vibelign.commands.vib_start_cmd.remove_old_hook"),
-                    patch("vibelign.commands.vib_start_cmd.setup_hook_if_needed"),
-                    patch(
-                        "vibelign.commands.vib_start_cmd.detect_tool",
-                        return_value=None,
-                    ),
-                    patch(
-                        "vibelign.commands.vib_start_cmd._has_git",
-                        return_value=True,
-                    ),
-                    patch(
-                        "vibelign.commands.vib_start_cmd.install_pre_commit_secret_hook",
-                        return_value=HookInstallResult(
-                            status="existing-hook",
-                            path=root / ".git" / "hooks" / "pre-commit",
-                        ),
-                    ),
-                    patch(
-                        "vibelign.commands.vib_start_cmd.build_doctor_envelope",
-                        return_value={"data": {"project_score": 100, "status": "Safe"}},
-                    ),
-                    patch(
-                        "vibelign.commands.vib_start_cmd._print_tool_readiness_summary"
-                    ),
-                    patch(
-                        "vibelign.core.fast_tools.has_fd",
-                        return_value=True,
-                    ),
-                    patch(
-                        "vibelign.core.fast_tools.has_rg",
-                        return_value=True,
-                    ),
-                    patch("vibelign.core.auto_install.try_install_fast_tools"),
-                    patch(
-                        "vibelign.core.auto_install.ensure_pyproject_toml",
-                        return_value=False,
-                    ),
-                    patch("vibelign.commands.vib_start_cmd.clack_warn") as mocked_warn,
-                    patch("vibelign.commands.vib_start_cmd.clack_info") as mocked_info,
-                    patch("vibelign.commands.vib_start_cmd.clack_intro"),
-                    patch("vibelign.commands.vib_start_cmd.clack_step"),
-                    patch("vibelign.commands.vib_start_cmd.clack_success"),
-                    patch("vibelign.commands.vib_start_cmd.clack_outro"),
-                ):
+                with ExitStack() as stack:
+                    stack.enter_context(
+                        patch(
+                            "vibelign.commands.vib_start_cmd._selected_start_tools",
+                            return_value=[],
+                        )
+                    )
+                    stack.enter_context(
+                        patch(
+                            "vibelign.commands.vib_start_cmd._setup_project",
+                            return_value={"created": [], "updated": []},
+                        )
+                    )
+                    stack.enter_context(patch("vibelign.commands.vib_start_cmd.remove_old_hook"))
+                    stack.enter_context(patch("vibelign.commands.vib_start_cmd.setup_hook_if_needed"))
+                    stack.enter_context(
+                        patch(
+                            "vibelign.commands.vib_start_cmd.detect_tool",
+                            return_value=None,
+                        )
+                    )
+                    stack.enter_context(
+                        patch(
+                            "vibelign.commands.vib_start_cmd._has_git",
+                            return_value=True,
+                        )
+                    )
+                    stack.enter_context(
+                        patch(
+                            "vibelign.commands.vib_start_cmd.install_pre_commit_secret_hook",
+                            return_value=HookInstallResult(
+                                status="existing-hook",
+                                path=root / ".git" / "hooks" / "pre-commit",
+                            ),
+                        )
+                    )
+                    stack.enter_context(
+                        patch(
+                            "vibelign.commands.vib_start_cmd.build_doctor_envelope",
+                            return_value={"data": {"project_score": 100, "status": "Safe"}},
+                        )
+                    )
+                    stack.enter_context(
+                        patch("vibelign.commands.vib_start_cmd._print_tool_readiness_summary")
+                    )
+                    stack.enter_context(patch("vibelign.core.fast_tools.has_fd", return_value=True))
+                    stack.enter_context(patch("vibelign.core.fast_tools.has_rg", return_value=True))
+                    stack.enter_context(patch("vibelign.core.auto_install.try_install_fast_tools"))
+                    stack.enter_context(
+                        patch(
+                            "vibelign.core.auto_install.ensure_pyproject_toml",
+                            return_value=False,
+                        )
+                    )
+                    mocked_warn = stack.enter_context(
+                        patch("vibelign.commands.vib_start_cmd.clack_warn")
+                    )
+                    mocked_info = stack.enter_context(
+                        patch("vibelign.commands.vib_start_cmd.clack_info")
+                    )
+                    stack.enter_context(patch("vibelign.commands.vib_start_cmd.clack_intro"))
+                    stack.enter_context(patch("vibelign.commands.vib_start_cmd.clack_step"))
+                    stack.enter_context(patch("vibelign.commands.vib_start_cmd.clack_success"))
+                    stack.enter_context(patch("vibelign.commands.vib_start_cmd.clack_outro"))
                     run_vib_start(
                         Namespace(
                             all_tools=False,
