@@ -117,6 +117,16 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "memory_summary_read",
+        "description": "저장된 작업 메모리의 redacted summary를 read-only JSON으로 반환합니다.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "recovery_preview",
+        "description": "현재 변경 상태를 읽고 read-only recovery preview plan을 JSON으로 반환합니다.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "project_context_get",
         "description": (
             "현재 프로젝트의 요약 컨텍스트를 생성합니다. "

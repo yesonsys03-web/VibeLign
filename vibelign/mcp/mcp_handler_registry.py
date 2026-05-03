@@ -162,6 +162,18 @@ class MiscHandlersModule(Protocol):
     ) -> list[object]: ...
 
 
+class MemoryHandlersModule(Protocol):
+    def handle_memory_summary_read(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
+
+class RecoveryHandlersModule(Protocol):
+    def handle_recovery_preview(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
+
 # === ANCHOR: MCP_HANDLER_REGISTRY_DOCTORHANDLERSMODULE_START ===
 class DoctorHandlersModule(Protocol):
     # === ANCHOR: MCP_HANDLER_REGISTRY_HANDLE_DOCTOR_PLAN_START ===
@@ -255,6 +267,20 @@ def _misc_handlers() -> MiscHandlersModule:
         cast(object, importlib.import_module("vibelign.mcp.mcp_misc_handlers")),
     )
 # === ANCHOR: MCP_HANDLER_REGISTRY__MISC_HANDLERS_END ===
+
+
+def _memory_handlers() -> MemoryHandlersModule:
+    return cast(
+        MemoryHandlersModule,
+        cast(object, importlib.import_module("vibelign.mcp.mcp_memory_handlers")),
+    )
+
+
+def _recovery_handlers() -> RecoveryHandlersModule:
+    return cast(
+        RecoveryHandlersModule,
+        cast(object, importlib.import_module("vibelign.mcp.mcp_recovery_handlers")),
+    )
 
 
 # === ANCHOR: MCP_HANDLER_REGISTRY__DOCTOR_HANDLERS_START ===
@@ -351,6 +377,8 @@ DISPATCH_TABLE: dict[str, DispatchHandler] = {
     "checkpoint_restore_suggestions": _checkpoint_handlers().handle_checkpoint_restore_suggestions,
     "checkpoint_has_changes": _checkpoint_handlers().handle_checkpoint_has_changes,
     "retention_apply": _checkpoint_handlers().handle_retention_apply,
+    "memory_summary_read": _memory_handlers().handle_memory_summary_read,
+    "recovery_preview": _recovery_handlers().handle_recovery_preview,
     "handoff_create": _transfer_handlers().handle_handoff_create,
     "project_context_get": _transfer_handlers().handle_project_context_get,
     "doctor_run": _health_handlers().handle_doctor_run,

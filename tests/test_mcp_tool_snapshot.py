@@ -86,6 +86,8 @@ class McpToolSnapshotTest(unittest.TestCase):
                 "checkpoint_restore_suggestions",
                 "checkpoint_has_changes",
                 "retention_apply",
+                "memory_summary_read",
+                "recovery_preview",
                 "project_context_get",
                 "doctor_run",
                 "guard_check",
