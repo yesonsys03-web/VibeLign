@@ -29,6 +29,16 @@ def _snooze_memory_review_triggers() -> Callable[[list[str]], None]:
     return cast(Callable[[list[str]], None], getattr(module, "snooze_memory_review_triggers"))
 
 
+def _dismiss_memory_review_triggers() -> Callable[[list[str]], None]:
+    module = import_module("vibelign.core.memory.review")
+    return cast(Callable[[list[str]], None], getattr(module, "dismiss_memory_review_triggers"))
+
+
+def _get_memory_review_trigger_actions() -> Callable[[], list[object]]:
+    module = import_module("vibelign.core.memory.review")
+    return cast(Callable[[], list[object]], getattr(module, "get_memory_review_trigger_actions"))
+
+
 def _clear_memory_review_trigger_snoozes() -> Callable[[], None]:
     module = import_module("vibelign.core.memory.review")
     return cast(Callable[[], None], getattr(module, "clear_memory_review_trigger_snoozes"))
@@ -275,3 +285,68 @@ def test_memory_review_snoozes_missing_next_action_trigger(tmp_path: Path) -> No
     assert any("[trigger: missing_next_action;" in item for item in before.suggestions)
     assert "missing_next_action" not in after.active_trigger_ids
     assert not any("[trigger: missing_next_action;" in item for item in after.suggestions)
+
+
+def test_memory_review_logs_session_trigger_actions() -> None:
+    clear_actions = _clear_memory_review_trigger_snoozes()
+    snooze = _snooze_memory_review_triggers()
+    dismiss = _dismiss_memory_review_triggers()
+    get_actions = _get_memory_review_trigger_actions()
+
+    try:
+        clear_actions()
+        snooze(["stale_intent"])
+        dismiss(["missing_next_action"])
+        actions = get_actions()
+    finally:
+        clear_actions()
+
+    assert [(getattr(item, "action"), getattr(item, "trigger_id")) for item in actions] == [
+        ("snooze", "stale_intent"),
+        ("dismiss", "missing_next_action"),
+    ]
+
+
+def test_memory_review_clears_session_trigger_actions() -> None:
+    clear_actions = _clear_memory_review_trigger_snoozes()
+    snooze = _snooze_memory_review_triggers()
+    get_actions = _get_memory_review_trigger_actions()
+
+    clear_actions()
+    snooze(["stale_intent"])
+    clear_actions()
+
+    assert get_actions() == []
+
+
+def test_memory_review_surfaces_repeated_patch_decision_trigger(tmp_path: Path) -> None:
+    path = tmp_path / ".vibelign" / "work_memory.json"
+    path.parent.mkdir()
+    _ = path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "active_intent": {"text": "Review repeated patches"},
+                "next_action": {"text": "Capture decision"},
+                "relevant_files": [
+                    {
+                        "path": f"src/file_{index}.py",
+                        "why": "patch_apply target",
+                        "source": "observed",
+                        "updated_by": "mcp patch_apply",
+                    }
+                    for index in range(3)
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    review = _review_memory()(path)
+
+    suggestion = (
+        'Capture a decision after repeated patches with: vib memory decide "...". '
+        "[trigger: missing_decision_after_patches; Accept / Dismiss / Snooze]"
+    )
+    assert "missing_decision_after_patches" in review.active_trigger_ids
+    assert suggestion in review.suggestions

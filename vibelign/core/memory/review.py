@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from importlib import import_module
 from pathlib import Path
-from typing import Callable, Protocol, cast
+from typing import Callable, Literal, Protocol, cast
 
 from vibelign.core.memory.models import MemoryState
 from vibelign.core.memory.store import load_memory_state
@@ -29,12 +29,17 @@ class _MemoryFreshnessLike(Protocol):
     stale_relevant_files: list[str]
     conflicting_fields: list[str]
     missing_next_action: bool
+    missing_decision_after_patches: bool
     active_trigger_ids: list[str]
 
 
 _BuildRedactedSummary = Callable[[MemoryState], _RedactedMemorySummaryLike]
 _AssessMemoryFreshness = Callable[[MemoryState], _MemoryFreshnessLike]
 _SESSION_SUPPRESSED_TRIGGER_IDS: set[str] = set()
+_SESSION_TRIGGER_ACTIONS: list["MemoryReviewTriggerAction"] = []
+
+
+TriggerAction = Literal["dismiss", "snooze"]
 
 
 @dataclass(frozen=True)
@@ -64,6 +69,12 @@ class MemoryReview:
     active_trigger_ids: list[str] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class MemoryReviewTriggerAction:
+    action: TriggerAction
+    trigger_id: str
+
+
 def review_memory(path: Path, suppressed_trigger_ids: Iterable[str] | None = None) -> MemoryReview:
     state = load_memory_state(path)
     if not _has_memory(state):
@@ -89,6 +100,15 @@ def review_memory(path: Path, suppressed_trigger_ids: Iterable[str] | None = Non
             _trigger_suggestion(
                 "missing_next_action",
                 "Capture the next handoff action with --first-next-action.",
+            )
+        )
+    if freshness.missing_decision_after_patches and not _is_suppressed(
+        "missing_decision_after_patches", suppressed
+    ):
+        suggestions.append(
+            _trigger_suggestion(
+                "missing_decision_after_patches",
+                'Capture a decision after repeated patches with: vib memory decide "...".',
             )
         )
     if freshness.stale_verification_commands and not _is_suppressed("stale_verification", suppressed):
@@ -132,15 +152,20 @@ def review_memory(path: Path, suppressed_trigger_ids: Iterable[str] | None = Non
 
 
 def snooze_memory_review_triggers(trigger_ids: Iterable[str]) -> None:
-    _SESSION_SUPPRESSED_TRIGGER_IDS.update(_normalized_trigger_ids(trigger_ids))
+    _suppress_memory_review_triggers("snooze", trigger_ids)
 
 
 def dismiss_memory_review_triggers(trigger_ids: Iterable[str]) -> None:
-    _SESSION_SUPPRESSED_TRIGGER_IDS.update(_normalized_trigger_ids(trigger_ids))
+    _suppress_memory_review_triggers("dismiss", trigger_ids)
+
+
+def get_memory_review_trigger_actions() -> list[MemoryReviewTriggerAction]:
+    return list(_SESSION_TRIGGER_ACTIONS)
 
 
 def clear_memory_review_trigger_snoozes() -> None:
     _SESSION_SUPPRESSED_TRIGGER_IDS.clear()
+    _SESSION_TRIGGER_ACTIONS.clear()
 
 
 def _has_memory(state: MemoryState) -> bool:
@@ -158,6 +183,15 @@ def _has_memory(state: MemoryState) -> bool:
 
 def _trigger_suggestion(trigger_id: str, message: str) -> str:
     return f"{message} [trigger: {trigger_id}; Accept / Dismiss / Snooze]"
+
+
+def _suppress_memory_review_triggers(action: TriggerAction, trigger_ids: Iterable[str]) -> None:
+    normalized = _normalized_trigger_ids(trigger_ids)
+    _SESSION_SUPPRESSED_TRIGGER_IDS.update(normalized)
+    _SESSION_TRIGGER_ACTIONS.extend(
+        MemoryReviewTriggerAction(action=action, trigger_id=trigger_id)
+        for trigger_id in normalized
+    )
 
 
 def _suppressed_trigger_ids(trigger_ids: Iterable[str] | None) -> set[str]:
