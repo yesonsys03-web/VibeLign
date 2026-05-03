@@ -7,6 +7,7 @@ from vibelign.core.memory.models import (
     MemoryTextField,
     MemoryVerification,
 )
+from vibelign.core.memory.handoff_review import build_handoff_review
 from vibelign.core.memory.store import build_handoff_summary, is_memory_read_only, load_memory_state
 
 __all__ = [
@@ -16,6 +17,7 @@ __all__ = [
     "MemoryState",
     "MemoryTextField",
     "MemoryVerification",
+    "build_handoff_review",
     "build_handoff_summary",
     "is_memory_read_only",
     "load_memory_state",
