@@ -32,6 +32,11 @@ def _baseline_path() -> Callable[[Path], Path]:
     return cast(Callable[[Path], Path], getattr(module, "trigger_baseline_path"))
 
 
+def _write_snapshot() -> Callable[..., dict[str, object]]:
+    module = _module()
+    return cast(Callable[..., dict[str, object]], getattr(module, "write_trigger_baseline_snapshot"))
+
+
 def _write_audit_lines(root: Path, rows: list[object]) -> None:
     path = root / ".vibelign" / "memory_audit.jsonl"
     path.parent.mkdir(parents=True)
@@ -131,3 +136,30 @@ def test_trigger_baseline_path_targets_local_recovery_snapshot(tmp_path: Path) -
 
     assert path == tmp_path / ".vibelign" / "recovery" / "trigger_baseline.json"
     assert not path.exists()
+
+
+def test_write_trigger_baseline_snapshot_logs_tuning_recommendation(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_audit_lines(
+        root,
+        [
+            _trigger_row("2026-05-03T00:00:00Z", "stale_intent", "shown"),
+            _trigger_row("2026-05-03T00:01:00Z", "stale_intent", "dismissed"),
+            _trigger_row("2026-05-03T00:02:00Z", "missing_next_action", "shown"),
+            _trigger_row("2026-05-03T00:03:00Z", "patch_outside_intent_zone", "shown"),
+        ],
+    )
+
+    snapshot = _write_snapshot()(root, now=datetime(2026, 5, 3, 1, 0, tzinfo=timezone.utc))
+    payload = json.loads(_baseline_path()(root).read_text(encoding="utf-8"))
+    rendered = json.dumps(payload, sort_keys=True)
+
+    assert snapshot == payload
+    assert payload["schema_version"] == 1
+    assert payload["baseline_window_days"] == 7
+    assert payload["ignored_prompt_rate_7d"] == 2 / 3
+    assert payload["shown_prompt_count_7d"] == 3
+    assert payload["ignored_prompt_count_7d"] == 2
+    assert payload["tuning_recommendation"] == "trigger prompts ignored above 30%; review trigger thresholds"
+    assert "stale_intent" not in rendered
+    assert "missing_next_action" not in rendered
