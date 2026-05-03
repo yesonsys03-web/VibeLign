@@ -12,6 +12,13 @@ class _TestRedaction:
     summarized_fields: int = 0
 
 
+@dataclass(frozen=True)
+class _TestTrigger:
+    id: str | None = None
+    action: str | None = None
+    source: str | None = None
+
+
 class _AuditPathsCountLike(Protocol):
     in_zone: int
     drift: int
@@ -63,6 +70,7 @@ def test_memory_audit_event_contains_counts_not_raw_paths(tmp_path: Path) -> Non
         "summarized_fields": 3,
     }
     assert str(tmp_path) not in rendered
+    assert payload["trigger"] == {"id": None, "action": None, "source": None}
 
 
 def test_memory_audit_append_writes_jsonl(tmp_path: Path) -> None:
@@ -110,3 +118,39 @@ def test_memory_audit_normalizes_paths_total(tmp_path: Path) -> None:
     payload = _event_to_dict()(event)
 
     assert payload["paths_count"] == {"in_zone": 3, "drift": 2, "total": 5}
+
+
+def test_memory_audit_event_contains_sanitized_trigger_metadata(tmp_path: Path) -> None:
+    event = _build_event()(
+        tmp_path,
+        event="memory_review_trigger_dismissed",
+        trigger=_TestTrigger(
+            id="stale verification / raw path",
+            action="dismissed",
+            source="vib memory review && bad",
+        ),
+    )
+
+    payload = _event_to_dict()(event)
+
+    assert payload["trigger"] == {
+        "id": "staleverificationrawpath",
+        "action": "dismissed",
+        "source": "vibmemoryreviewbad",
+    }
+
+
+def test_memory_audit_event_drops_unknown_trigger_action(tmp_path: Path) -> None:
+    event = _build_event()(
+        tmp_path,
+        event="memory_review_trigger_action",
+        trigger=_TestTrigger(id="stale_intent", action="execute", source="vib-cli"),
+    )
+
+    payload = _event_to_dict()(event)
+
+    assert payload["trigger"] == {
+        "id": "stale_intent",
+        "action": None,
+        "source": "vib-cli",
+    }

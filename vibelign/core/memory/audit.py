@@ -6,11 +6,12 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 
 AuditResult = Literal["success", "blocked", "error"]
 CircuitBreakerState = Literal["active", "degraded"]
+TriggerAction = Literal["shown", "accepted", "dismissed", "snoozed", "ignored"]
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,13 @@ class AuditRedaction:
 
 
 @dataclass(frozen=True)
+class AuditTrigger:
+    id: str | None = None
+    action: TriggerAction | None = None
+    source: str | None = None
+
+
+@dataclass(frozen=True)
 class MemoryAuditEvent:
     event: str
     project_root_hash: str
@@ -36,6 +44,7 @@ class MemoryAuditEvent:
     paths_count: AuditPathsCount = field(default_factory=AuditPathsCount)
     circuit_breaker_state: CircuitBreakerState = "active"
     redaction: object = field(default_factory=AuditRedaction)
+    trigger: object = field(default_factory=AuditTrigger)
     result: AuditResult = "success"
     capability_grant_id: str | None = None
     sandwich_checkpoint_id: str | None = None
@@ -49,6 +58,7 @@ def build_memory_audit_event(
     paths_count: AuditPathsCount | None = None,
     circuit_breaker_state: CircuitBreakerState = "active",
     redaction: object | None = None,
+    trigger: object | None = None,
     result: AuditResult = "success",
     capability_grant_id: str | None = None,
     sandwich_checkpoint_id: str | None = None,
@@ -61,6 +71,7 @@ def build_memory_audit_event(
         paths_count=_normalize_paths_count(paths_count),
         circuit_breaker_state=circuit_breaker_state,
         redaction=redaction or AuditRedaction(),
+        trigger=_normalize_trigger(trigger),
         result=result,
         capability_grant_id=_safe_optional_id(capability_grant_id),
         sandwich_checkpoint_id=_safe_optional_id(sandwich_checkpoint_id),
@@ -70,7 +81,7 @@ def build_memory_audit_event(
 def append_memory_audit_event(path: Path, event: MemoryAuditEvent) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(memory_audit_event_to_dict(event), sort_keys=True) + "\n")
+        _ = handle.write(json.dumps(memory_audit_event_to_dict(event), sort_keys=True) + "\n")
 
 
 def memory_audit_event_to_dict(event: MemoryAuditEvent) -> dict[str, object]:
@@ -92,6 +103,7 @@ def memory_audit_event_to_dict(event: MemoryAuditEvent) -> dict[str, object]:
             "privacy_hits": _count_value(event.redaction, "privacy_hits"),
             "summarized_fields": _count_value(event.redaction, "summarized_fields"),
         },
+        "trigger": _trigger_to_dict(event.trigger),
         "result": event.result,
     }
 
@@ -117,6 +129,30 @@ def _normalize_paths_count(paths_count: AuditPathsCount | None) -> AuditPathsCou
 def _count_value(source: object, name: str) -> int:
     value = getattr(source, name, 0)
     return value if isinstance(value, int) and value >= 0 else 0
+
+
+def _normalize_trigger(trigger: object | None) -> AuditTrigger:
+    if trigger is None:
+        return AuditTrigger()
+    return AuditTrigger(
+        id=_safe_optional_id(getattr(trigger, "id", None)),
+        action=_safe_trigger_action(getattr(trigger, "action", None)),
+        source=_safe_optional_id(getattr(trigger, "source", None)),
+    )
+
+
+def _trigger_to_dict(trigger: object) -> dict[str, object]:
+    return {
+        "id": _safe_optional_id(getattr(trigger, "id", None)),
+        "action": _safe_trigger_action(getattr(trigger, "action", None)),
+        "source": _safe_optional_id(getattr(trigger, "source", None)),
+    }
+
+
+def _safe_trigger_action(value: object) -> TriggerAction | None:
+    if value in {"shown", "accepted", "dismissed", "snoozed", "ignored"}:
+        return cast(TriggerAction, value)
+    return None
 
 
 def _utc_now() -> str:
