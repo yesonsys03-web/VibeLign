@@ -154,3 +154,26 @@ def test_memory_audit_event_drops_unknown_trigger_action(tmp_path: Path) -> None
         "action": None,
         "source": "vib-cli",
     }
+
+
+def test_memory_audit_trigger_schema_drops_unknown_raw_fields(tmp_path: Path) -> None:
+    event = _build_event()(
+        tmp_path,
+        event="memory_review_trigger_shown",
+        trigger={
+            "id": "missing_next_action",
+            "action": "shown",
+            "source": "vib memory review",
+            "raw_path": str(tmp_path / "secret.py"),
+            "memory_text": "redacted fixture text",
+        },
+    )
+
+    payload = _event_to_dict()(event)
+    rendered = json.dumps(payload, sort_keys=True)
+
+    assert set(cast(dict[str, object], payload["trigger"]).keys()) == {"id", "action", "source"}
+    assert "raw_path" not in rendered
+    assert "memory_text" not in rendered
+    assert "redacted fixture text" not in rendered
+    assert str(tmp_path) not in rendered

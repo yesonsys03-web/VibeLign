@@ -699,19 +699,6 @@ def _looks_like_windows_absolute(value: str) -> bool:
 
 
 def _summary_from_memory_state(memory_state: MemoryState) -> WorkMemorySummary | None:
-    has_content = any(
-        [
-            memory_state.active_intent,
-            memory_state.decisions,
-            memory_state.relevant_files,
-            memory_state.verification,
-            memory_state.risks,
-            memory_state.next_action,
-            memory_state.observed_context,
-        ]
-    )
-    if not has_content:
-        return None
     summary: WorkMemorySummary = {"state_references": [".vibelign/work_memory.json"]}
     if memory_state.active_intent is not None:
         summary["active_intent"] = memory_state.active_intent.text
