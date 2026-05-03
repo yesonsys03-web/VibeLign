@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, cast
 
 from vibelign.core.memory.audit import (
+    AuditPathsCount,
     append_memory_audit_event,
     build_memory_audit_event,
     memory_audit_path,
@@ -41,6 +42,7 @@ def handle_recovery_preview(
             root,
             event="recovery_preview",
             tool="mcp",
+            paths_count=_audit_paths_count(plan),
             result="success",
         ),
     )
@@ -51,6 +53,54 @@ def handle_recovery_preview(
         "plan": _plan_to_payload(plan),
     }
     return _text(text_content, json.dumps(payload, ensure_ascii=False, sort_keys=True))
+
+
+def handle_recovery_apply(
+    root: Path,
+    arguments: dict[str, object],
+    text_content: TextContentFactory,
+) -> list[object]:
+    from vibelign.core.recovery.apply import RecoveryApplyRequest, execute_recovery_apply
+
+    result = execute_recovery_apply(
+        root,
+        RecoveryApplyRequest(
+            checkpoint_id=str(arguments.get("checkpoint_id", "")),
+            sandwich_checkpoint_id=str(arguments.get("sandwich_checkpoint_id", "")),
+            paths=_string_list(arguments.get("paths")),
+            preview_paths=_string_list(arguments.get("preview_paths")),
+            confirmation=str(arguments.get("confirmation", "")),
+            apply=arguments.get("apply") is True,
+            feature_enabled=arguments.get("feature_enabled") is True,
+        ),
+        owner_tool=str(arguments.get("tool", "mcp")) or "mcp",
+    )
+    payload: dict[str, object] = {
+        "ok": result.ok,
+        "capability": "recovery_apply",
+        "busy": result.busy,
+        "errors": result.errors,
+        "changed_files_count": result.changed_files_count,
+        "changed_files": result.changed_files,
+        "safety_checkpoint_id": result.safety_checkpoint_id,
+        "operation_id": result.operation_id,
+        "eta_seconds": result.eta_seconds,
+        "would_apply": result.would_apply,
+    }
+    return _text(text_content, json.dumps(payload, ensure_ascii=False, sort_keys=True))
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    items = cast(list[object], value)
+    return [str(item) for item in items if str(item)]
+
+
+def _audit_paths_count(plan: RecoveryPlan) -> AuditPathsCount:
+    in_zone = len(plan.intent_zone)
+    drift = len(plan.drift_candidates)
+    return AuditPathsCount(in_zone=in_zone, drift=drift, total=in_zone + drift)
 
 
 def _plan_to_payload(plan: RecoveryPlan) -> dict[str, object]:

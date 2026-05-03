@@ -122,8 +122,28 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "memory_full_read",
+        "description": "아직 활성화되지 않은 기능입니다. 명시적 권한 승인 전에는 redacted summary만 사용합니다.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "memory_write",
+        "description": "아직 활성화되지 않은 기능입니다. 의도/결정 변경은 확인된 CLI 또는 transfer_set_* 경로만 사용합니다.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "recovery_preview",
         "description": "현재 변경 상태를 읽고 read-only recovery preview plan을 JSON으로 반환합니다.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "recovery_apply",
+        "description": "아직 활성화되지 않은 기능입니다. 향후 checkpoint sandwich와 project lock이 검증된 뒤에만 적용됩니다.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "handoff_export",
+        "description": "아직 활성화되지 않은 기능입니다. 외부 handoff export는 별도 확인과 redaction gate가 필요합니다.",
         "inputSchema": {"type": "object", "properties": {}},
     },
     {

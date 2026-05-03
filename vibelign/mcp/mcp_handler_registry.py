@@ -5,6 +5,9 @@ import importlib
 from pathlib import Path
 from typing import Protocol, cast
 
+from vibelign.core.feature_flags import is_enabled
+from vibelign.core.memory.capability_grants import is_capability_granted
+
 
 # === ANCHOR: MCP_HANDLER_REGISTRY_TEXTCONTENTFACTORY_START ===
 class TextContentFactory(Protocol):
@@ -173,6 +176,21 @@ class RecoveryHandlersModule(Protocol):
         self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
     ) -> list[object]: ...
 
+    def handle_recovery_apply(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
+
+class DeniedHandlersModule(Protocol):
+    def handle_denied_capability(
+        self,
+        root: Path,
+        arguments: dict[str, object],
+        text_content: TextContentFactory,
+        *,
+        capability: str,
+    ) -> list[object]: ...
+
 
 # === ANCHOR: MCP_HANDLER_REGISTRY_DOCTORHANDLERSMODULE_START ===
 class DoctorHandlersModule(Protocol):
@@ -283,6 +301,13 @@ def _recovery_handlers() -> RecoveryHandlersModule:
     )
 
 
+def _denied_handlers() -> DeniedHandlersModule:
+    return cast(
+        DeniedHandlersModule,
+        cast(object, importlib.import_module("vibelign.mcp.mcp_denied_handlers")),
+    )
+
+
 # === ANCHOR: MCP_HANDLER_REGISTRY__DOCTOR_HANDLERS_START ===
 def _doctor_handlers() -> DoctorHandlersModule:
     return cast(
@@ -349,6 +374,42 @@ def _handle_transfer_set_relevant(
     return handle_transfer_set_relevant(root, arguments, text_content)
 
 
+def _handle_memory_full_read(
+    root: Path, arguments: dict[str, object], text_content: TextContentFactory
+) -> list[object]:
+    return _denied_handlers().handle_denied_capability(
+        root, arguments, text_content, capability="memory_full_read"
+    )
+
+
+def _handle_memory_write(
+    root: Path, arguments: dict[str, object], text_content: TextContentFactory
+) -> list[object]:
+    return _denied_handlers().handle_denied_capability(
+        root, arguments, text_content, capability="memory_write"
+    )
+
+
+def _handle_recovery_apply(
+    root: Path, arguments: dict[str, object], text_content: TextContentFactory
+) -> list[object]:
+    tool = str(arguments.get("tool", ""))
+    feature_enabled = is_enabled("RECOVERY_APPLY")
+    if tool and is_capability_granted(root, tool, "recovery_apply") and feature_enabled:
+        return _recovery_handlers().handle_recovery_apply(root, arguments, text_content)
+    return _denied_handlers().handle_denied_capability(
+        root, arguments, text_content, capability="recovery_apply"
+    )
+
+
+def _handle_handoff_export(
+    root: Path, arguments: dict[str, object], text_content: TextContentFactory
+) -> list[object]:
+    return _denied_handlers().handle_denied_capability(
+        root, arguments, text_content, capability="handoff_export"
+    )
+
+
 # === ANCHOR: MCP_HANDLER_REGISTRY__HANDLE_ANCHOR_LIST_START ===
 def _handle_anchor_list(
     root: Path, arguments: dict[str, object], text_content: TextContentFactory
@@ -378,7 +439,11 @@ DISPATCH_TABLE: dict[str, DispatchHandler] = {
     "checkpoint_has_changes": _checkpoint_handlers().handle_checkpoint_has_changes,
     "retention_apply": _checkpoint_handlers().handle_retention_apply,
     "memory_summary_read": _memory_handlers().handle_memory_summary_read,
+    "memory_full_read": _handle_memory_full_read,
+    "memory_write": _handle_memory_write,
     "recovery_preview": _recovery_handlers().handle_recovery_preview,
+    "recovery_apply": _handle_recovery_apply,
+    "handoff_export": _handle_handoff_export,
     "handoff_create": _transfer_handlers().handle_handoff_create,
     "project_context_get": _transfer_handlers().handle_project_context_get,
     "doctor_run": _health_handlers().handle_doctor_run,
