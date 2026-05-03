@@ -17,6 +17,7 @@ TRIGGER_STALE_RELEVANT_FILES = "stale_relevant_files"
 TRIGGER_CONFLICT_DETECTED = "conflict_detected"
 TRIGGER_MISSING_NEXT_ACTION = "missing_next_action"
 TRIGGER_MISSING_DECISION_AFTER_PATCHES = "missing_decision_after_patches"
+TRIGGER_PATCH_OUTSIDE_INTENT_ZONE = "patch_outside_intent_zone"
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,7 @@ class MemoryFreshness:
     conflicting_fields: list[str] = field(default_factory=list)
     missing_next_action: bool = False
     missing_decision_after_patches: bool = False
+    patch_outside_intent_zone: list[str] = field(default_factory=list)
     active_trigger_ids: list[str] = field(default_factory=list)
 
 
@@ -46,6 +48,7 @@ def assess_memory_freshness(state: MemoryState) -> MemoryFreshness:
     conflicting_fields = _conflicting_fields(state)
     missing_next_action = state.next_action is None or not state.next_action.text.strip()
     missing_decision_after_patches = _missing_decision_after_patches(state)
+    patch_outside_intent_zone = _patch_outside_intent_zone(state)
     active_trigger_ids: list[str] = []
     if stale_commands:
         active_trigger_ids.append(TRIGGER_STALE_VERIFICATION)
@@ -59,6 +62,8 @@ def assess_memory_freshness(state: MemoryState) -> MemoryFreshness:
         active_trigger_ids.append(TRIGGER_MISSING_NEXT_ACTION)
     if missing_decision_after_patches:
         active_trigger_ids.append(TRIGGER_MISSING_DECISION_AFTER_PATCHES)
+    if patch_outside_intent_zone:
+        active_trigger_ids.append(TRIGGER_PATCH_OUTSIDE_INTENT_ZONE)
     return MemoryFreshness(
         verification_freshness="stale" if stale_commands else "",
         stale_verification_commands=stale_commands,
@@ -67,6 +72,7 @@ def assess_memory_freshness(state: MemoryState) -> MemoryFreshness:
         conflicting_fields=conflicting_fields,
         missing_next_action=missing_next_action,
         missing_decision_after_patches=missing_decision_after_patches,
+        patch_outside_intent_zone=patch_outside_intent_zone,
         active_trigger_ids=active_trigger_ids,
     )
 
@@ -80,6 +86,39 @@ def _missing_decision_after_patches(state: MemoryState) -> bool:
         if item.updated_by == "mcp patch_apply" or item.why.startswith("patch_apply target")
     )
     return patch_apply_count >= _PATCH_APPLY_DECISION_THRESHOLD
+
+
+def _patch_outside_intent_zone(state: MemoryState) -> list[str]:
+    patch_items = [item for item in state.relevant_files if _is_patch_apply_file(item)]
+    patch_times = [
+        (item, parsed)
+        for item in patch_items
+        if item.path and (parsed := _parse_timestamp(item.last_updated)) is not None
+    ]
+    if not patch_times:
+        return []
+    latest_time = max(parsed for _, parsed in patch_times)
+    latest_paths = {item.path for item, parsed in patch_times if parsed == latest_time}
+    zone_paths = {
+        item.path
+        for item in state.relevant_files
+        if item.path and item.source == "explicit"
+    }
+    zone_paths.update(
+        item.path
+        for item, parsed in patch_times
+        if item.path and parsed < latest_time
+    )
+    if not zone_paths:
+        return []
+    return sorted(path for path in latest_paths if path not in zone_paths)
+
+
+def _is_patch_apply_file(item: object) -> bool:
+    return bool(
+        getattr(item, "updated_by", "") == "mcp patch_apply"
+        or getattr(item, "why", "").startswith("patch_apply target")
+    )
 
 
 def _conflicting_fields(state: MemoryState) -> list[str]:

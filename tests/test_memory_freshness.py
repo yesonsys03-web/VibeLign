@@ -18,6 +18,7 @@ class _MemoryFreshnessLike(Protocol):
     conflicting_fields: list[str]
     missing_next_action: bool
     missing_decision_after_patches: bool
+    patch_outside_intent_zone: list[str]
     active_trigger_ids: list[str]
 
 
@@ -262,6 +263,65 @@ def test_assess_memory_freshness_skips_patch_decision_trigger_when_decision_exis
 
     assert freshness.missing_decision_after_patches is False
     assert "missing_decision_after_patches" not in freshness.active_trigger_ids
+
+
+def test_assess_memory_freshness_marks_latest_patch_outside_intent_zone() -> None:
+    state = MemoryState(
+        decisions=[MemoryTextField(text="Keep app patch focused")],
+        next_action=MemoryTextField(text="Review latest patch"),
+        relevant_files=[
+            MemoryRelevantFile(
+                path="src/app.py",
+                why="owns app flow",
+                source="explicit",
+            ),
+            MemoryRelevantFile(
+                path="src/app.py",
+                why="patch_apply target",
+                source="observed",
+                last_updated="2026-05-03T00:00:00Z",
+                updated_by="mcp patch_apply",
+            ),
+            MemoryRelevantFile(
+                path="src/auth.py",
+                why="patch_apply target",
+                source="observed",
+                last_updated="2026-05-03T00:10:00Z",
+                updated_by="mcp patch_apply",
+            ),
+        ],
+    )
+
+    freshness = _assess_memory_freshness()(state)
+
+    assert freshness.patch_outside_intent_zone == ["src/auth.py"]
+    assert "patch_outside_intent_zone" in freshness.active_trigger_ids
+
+
+def test_assess_memory_freshness_keeps_latest_patch_inside_intent_zone() -> None:
+    state = MemoryState(
+        decisions=[MemoryTextField(text="Keep app patch focused")],
+        next_action=MemoryTextField(text="Review latest patch"),
+        relevant_files=[
+            MemoryRelevantFile(
+                path="src/app.py",
+                why="owns app flow",
+                source="explicit",
+            ),
+            MemoryRelevantFile(
+                path="src/app.py",
+                why="patch_apply target",
+                source="observed",
+                last_updated="2026-05-03T00:10:00Z",
+                updated_by="mcp patch_apply",
+            ),
+        ],
+    )
+
+    freshness = _assess_memory_freshness()(state)
+
+    assert freshness.patch_outside_intent_zone == []
+    assert "patch_outside_intent_zone" not in freshness.active_trigger_ids
 
 
 def test_assess_memory_freshness_marks_scope_unknown_verification_stale() -> None:
