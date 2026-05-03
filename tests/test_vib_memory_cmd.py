@@ -1,5 +1,7 @@
+import json
 from argparse import Namespace
 from pathlib import Path
+from typing import cast
 from unittest.mock import patch
 
 from vibelign.commands.vib_memory_cmd import (
@@ -103,6 +105,39 @@ def test_memory_review_prints_next_action(tmp_path: Path, capsys) -> None:
     assert "Suggestions:" in output
 
 
+def test_memory_review_audits_shown_triggers(tmp_path: Path, capsys) -> None:
+    root = _project(tmp_path)
+    memory_path = root / ".vibelign" / "work_memory.json"
+    _ = memory_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "active_intent": {"text": "Prepare handoff"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with patch("pathlib.Path.cwd", return_value=root):
+        run_vib_memory_review(Namespace())
+
+    output = capsys.readouterr().out
+    audit_path = root / ".vibelign" / "memory_audit.jsonl"
+    payload = cast(
+        dict[str, object],
+        json.loads(audit_path.read_text(encoding="utf-8").splitlines()[0]),
+    )
+    assert "VibeLign Memory Review" in output
+    assert "Capture the next handoff action" in output
+    assert payload["event"] == "memory_review_trigger_shown"
+    assert payload["trigger"] == {
+        "id": "missing_next_action",
+        "action": "shown",
+        "source": "vibmemoryreview",
+    }
+    assert memory_path.exists()
+
+
 def test_memory_review_is_read_only_for_empty_memory(tmp_path: Path, capsys) -> None:
     root = _project(tmp_path)
 
@@ -114,13 +149,14 @@ def test_memory_review_is_read_only_for_empty_memory(tmp_path: Path, capsys) -> 
     assert "No memory yet" in output
     assert "Add a decision with: vib memory decide" in output
     assert not (root / ".vibelign" / "work_memory.json").exists()
+    assert not (root / ".vibelign" / "memory_audit.jsonl").exists()
 
 
 def test_memory_write_commands_refuse_newer_schema(tmp_path: Path) -> None:
     root = _project(tmp_path)
     memory_path = root / ".vibelign" / "work_memory.json"
     original = '{"schema_version": 99, "future_field": true}\n'
-    memory_path.write_text(original, encoding="utf-8")
+    _ = memory_path.write_text(original, encoding="utf-8")
 
     with patch("pathlib.Path.cwd", return_value=root):
         run_vib_memory_decide(Namespace(decision=["Do", "not", "write"]))

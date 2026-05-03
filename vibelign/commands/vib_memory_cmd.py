@@ -31,6 +31,7 @@ class _MemoryReviewLike(Protocol):
     warnings: list[str]
     redaction: object
     suggestions: list[str]
+    active_trigger_ids: list[str]
 
 
 _ReviewMemory = Callable[[Path], _MemoryReviewLike]
@@ -71,6 +72,7 @@ def run_vib_memory_show(_: Namespace) -> None:
 def run_vib_memory_review(_: Namespace) -> None:
     path = _memory_path()
     review = _review_memory()(path)
+    _audit_shown_triggers(path, review.active_trigger_ids)
     print("VibeLign Memory Review")
     if not review.has_memory:
         print("No memory yet.")
@@ -87,10 +89,7 @@ def run_vib_memory_review(_: Namespace) -> None:
     secret_hits = int(getattr(review.redaction, "secret_hits", 0))
     privacy_hits = int(getattr(review.redaction, "privacy_hits", 0))
     summarized_fields = int(getattr(review.redaction, "summarized_fields", 0))
-    print(
-        "Redaction: "
-        f"secrets={secret_hits}, privacy={privacy_hits}, summarized={summarized_fields}"
-    )
+    print(f"Redaction: secrets={secret_hits}, privacy={privacy_hits}, summarized={summarized_fields}")
     _print_lines("Suggestions:", review.suggestions)
 
 
@@ -137,6 +136,31 @@ def run_vib_memory_relevant(args: Namespace) -> None:
 def _review_memory() -> _ReviewMemory:
     module = import_module("vibelign.core.memory.review")
     return cast(_ReviewMemory, getattr(module, "review_memory"))
+
+
+def _audit_shown_triggers(path: Path, trigger_ids: list[str]) -> None:
+    if not trigger_ids:
+        return
+    root = path.parent.parent
+    module = import_module("vibelign.core.memory.audit")
+    append_event = cast(Callable[..., None], getattr(module, "append_memory_audit_event"))
+    build_event = cast(Callable[..., object], getattr(module, "build_memory_audit_event"))
+    audit_path = cast(Callable[[Path], Path], getattr(module, "memory_audit_path"))
+    audit_trigger = cast(type, getattr(module, "AuditTrigger"))
+    for trigger_id in trigger_ids:
+        append_event(
+            audit_path(root),
+            build_event(
+                root,
+                event="memory_review_trigger_shown",
+                tool="vib-cli",
+                trigger=audit_trigger(
+                    id=trigger_id,
+                    action="shown",
+                    source="vib memory review",
+                ),
+            ),
+        )
 
 
 def _verification_lines(state) -> list[str]:
