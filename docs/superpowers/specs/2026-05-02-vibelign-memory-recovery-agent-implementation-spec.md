@@ -1,7 +1,7 @@
 # VibeLign Memory + Recovery Agent Implementation Spec
 
 Date: 2026-05-02
-Status: Implementation spec draft (rev. 3 — adds double-underscore sub-anchor convention, rules for modifying existing anchored files, audit-log + Layer-4 rows in traceability matrix, new tests included in each phase's verification command, ID generation rule, dismiss/snooze CLI surface, schema-conflict clarification, internal-only absolute path rule, Layer 4 in implementation order)
+Status: Completed implementation spec (rev. 4 — Phase 1–6 tasks closed, Phase 5 apply gates implemented, Phase 6 GUI scope finalized as read-only cards, completion trace recorded in `docs/superpowers/plans/2026-05-03-memory-recovery-agent-completion-trace.md`)
 Source design: `docs/superpowers/specs/2026-05-02-vibelign-memory-recovery-agent-design.md`
 
 > **For implementers:** build this feature in small, reversible phases. Preserve module boundaries. Do not turn existing CLI, MCP, transfer, checkpoint, or GUI files into catch-all coordinators. Every phase must leave the product usable if later phases are deferred.
@@ -363,16 +363,16 @@ vib recover --explain
 
 **Tasks:**
 
-- [ ] Define `RecoverySignalSet`, `IntentZone`, `DriftCandidate`, `RecoveryOption`, and `RecoveryPlan` dataclasses.
-- [ ] Collect current git diff and untracked file list.
-- [ ] Read latest checkpoint metadata and backup DB rows when available.
-- [ ] Read project map categories and anchor metadata when available.
-- [ ] Read latest guard/explain report summaries when available.
-- [ ] Infer intent zone using explicit memory first, recent patch targets second, project-map category third, anchor co-occurrence later, and diff-aware fallback last.
-- [ ] Label files outside the inferred zone as `drift_candidate`, never `unrelated`.
-- [ ] Recommend one of: no-op, explain-only, targeted repair, partial restore preview, or full rollback preview.
-- [ ] Render 2–3 recovery options in plain language.
-- [ ] Never modify files in this phase.
+- [x] Define `RecoverySignalSet`, `IntentZone`, `DriftCandidate`, `RecoveryOption`, and `RecoveryPlan` dataclasses.
+- [x] Collect current git diff and untracked file list.
+- [x] Read latest checkpoint metadata and backup DB rows when available.
+- [x] Read project map categories and anchor metadata when available.
+- [x] Read latest guard/explain report summaries when available.
+- [x] Infer intent zone using explicit memory first, recent patch targets second, project-map category third, anchor co-occurrence later, and diff-aware fallback last.
+- [x] Label files outside the inferred zone as `drift_candidate`, never `unrelated`.
+- [x] Recommend one of: no-op, explain-only, targeted repair, partial restore preview, or full rollback preview.
+- [x] Render 2–3 recovery options in plain language.
+- [x] Never modify files in this phase.
 
 **Verification:**
 
@@ -421,14 +421,14 @@ vib transfer --handoff
 
 **Tasks:**
 
-- [ ] Implement additive migration for `work_memory.json` to `schema_version = 1`.
-- [ ] Preserve current decisions, verification, relevant files, and recent events.
-- [ ] Add freshness metadata: `last_updated`, `updated_by`, `from_previous_intent`, and `stale`.
-- [ ] Implement explicit write APIs for `decisions[]`, `active_intent`, `relevant_files[]`, and `next_action`.
-- [ ] Implement observed-context append APIs for commits, checkpoints, reports, touched files, and verification results.
-- [ ] Implement memory compaction caps and `archived_decisions[]`.
-- [ ] Make `vib transfer --handoff` read from `MemoryState` and show stale verification warnings.
-- [ ] Keep user confirmation required before writing intent-shaping fields.
+- [x] Implement additive migration for `work_memory.json` to `schema_version = 1`.
+- [x] Preserve current decisions, verification, relevant files, and recent events.
+- [x] Add freshness metadata: `last_updated`, `updated_by`, `from_previous_intent`, and `stale`.
+- [x] Implement explicit write APIs for `decisions[]`, `active_intent`, `relevant_files[]`, and `next_action`.
+- [x] Implement observed-context append APIs for commits, checkpoints, reports, touched files, and verification results.
+- [x] Implement memory compaction caps and `archived_decisions[]`.
+- [x] Make `vib transfer --handoff` read from `MemoryState` and show stale verification warnings.
+- [x] Keep user confirmation required before writing intent-shaping fields.
 
 **Verification:**
 
@@ -474,14 +474,14 @@ Add new targeted tests for:
 
 **Tasks:**
 
-- [ ] Wrap existing secret scanner in a memory redaction interface.
-- [ ] Add privacy filter v1: local absolute paths, usernames/home fragments, internal hosts, private IPs, and oversized terminal output.
-- [ ] Implement local-only audit event writer.
-- [ ] Implement `memory_summary_read` with redacted summaries and provenance tags.
-- [ ] Implement `recovery_preview` using the Phase 1 planner.
-- [ ] Implement `checkpoint_create` as safe-write, project-root scoped.
-- [ ] Ensure all MCP tools are non-interactive and parameterized.
-- [ ] Deny `memory_full_read`, `memory_write`, `recovery_apply`, and `handoff_export` until later phases explicitly enable them.
+- [x] Wrap existing secret scanner in a memory redaction interface.
+- [x] Add privacy filter v1: local absolute paths, usernames/home fragments, internal hosts, private IPs, and oversized terminal output.
+- [x] Implement local-only audit event writer.
+- [x] Implement `memory_summary_read` with redacted summaries and provenance tags.
+- [x] Implement `recovery_preview` using the Phase 1 planner.
+- [x] Implement `checkpoint_create` as safe-write, project-root scoped.
+- [x] Ensure all MCP tools are non-interactive and parameterized.
+- [x] Deny `memory_full_read`, `memory_write`, and `handoff_export`; keep `recovery_apply` denied by default and live only behind explicit grant plus enabled feature flag.
 
 **Verification:**
 
@@ -517,18 +517,18 @@ Add new targeted tests for:
 
 **Tasks:**
 
-- [ ] Implement stale intent detection: older than 24h or unchanged across 5+ commits.
-- [ ] Implement stale verification detection when related files change after validation.
-- [ ] Implement conflict detection for same-field writes within `memory.conflict_window_seconds` default 60 seconds.
-- [ ] Implement dismiss/snooze logging per session. Surface: inline within `vib memory review` (interactive prompt offers Accept / Dismiss / Snooze choices); no separate `vib memory snooze` command. Snoozed triggers persist for the session only — they reset on next CLI invocation. The dismiss/snooze action is the only place where a trigger ID becomes user-visible.
-- [ ] Implement trigger thresholds (inlined from design §3 *Trigger Conditions*):
+- [x] Implement stale intent detection: older than 24h or unchanged across 5+ commits.
+- [x] Implement stale verification detection when related files change after validation.
+- [x] Implement conflict detection for same-field writes within `memory.conflict_window_seconds` default 60 seconds.
+- [x] Implement dismiss/snooze logging per session. Surface: inline within `vib memory review` (interactive prompt offers Accept / Dismiss / Snooze choices); no separate `vib memory snooze` command. Snoozed triggers persist for the session only — they reset on next CLI invocation. The dismiss/snooze action is the only place where a trigger ID becomes user-visible.
+- [x] Implement trigger thresholds (inlined from design §3 *Trigger Conditions*):
   - `decisions[]` empty AND `patch_apply` invoked ≥3 times in current session.
   - `active_intent` age >6 hours AND diff growth >40 lines since last update.
   - `verification[]` stale (newest result older than newest patch).
   - A patch touches a file outside both explicit `relevant_files[]` AND the inferred intent zone (§5 fallback).
   - `transfer --handoff` invoked without a confirmed `next_action`.
-- [ ] Render prompts as suggestions, never blocking modals.
-- [ ] Track ignored-prompt rate per project; if >30% over a 7-day window, log a tuning recommendation (do not auto-disable triggers — operator decides).
+- [x] Render prompts as suggestions, never blocking modals.
+- [x] Track ignored-prompt rate per project; if >30% over a 7-day window, log a tuning recommendation (do not auto-disable triggers — operator decides).
 
 **Trigger telemetry and baseline rules:**
 
@@ -574,6 +574,7 @@ In addition, Phase 1 P0 hard SLOs (§15) must show clean instrumentation runs ac
 ```bash
 vib recover --preview
 vib recover --file path/to/file.py
+vib recover --file path/to/file.py --apply --checkpoint-id ckpt --sandwich-checkpoint-id safety --confirmation 'APPLY ckpt'
 ```
 
 MCP:
@@ -590,13 +591,15 @@ MCP:
 
 **Tasks:**
 
-- [ ] Implement project-level recovery lock.
-- [ ] Implement checkpoint sandwich precondition.
-- [ ] Validate `checkpoint_id`, `sandwich_checkpoint_id`, `paths`, and `apply`.
-- [ ] Canonicalize paths after symlink resolution and constrain to project root.
-- [ ] Reject parent traversal and generated/cache/build restore targets.
-- [ ] Require re-confirmation if apply paths differ from preview paths.
-- [ ] Return restore summary, changed files count, safety checkpoint ID, and verification recommendations.
+- [x] Implement project-level recovery lock.
+- [x] Implement checkpoint sandwich precondition.
+- [x] Validate `checkpoint_id`, `sandwich_checkpoint_id`, `paths`, and `apply`.
+- [x] Canonicalize paths after symlink resolution and constrain to project root.
+- [x] Reject parent traversal and generated/cache/build restore targets.
+- [x] Require re-confirmation if apply paths differ from preview paths.
+- [x] Return restore summary, changed files count, safety checkpoint ID, and verification recommendations.
+
+**Completion note (2026-05-03):** Phase 5 apply is implemented as an explicit, gated selected-file restore path. `recovery_apply` remains denied by default, becomes live only with an explicit per-tool grant and enabled feature flag, requires typed parameters plus `APPLY <checkpoint_id>` confirmation, acquires/releases the project recovery lock, uses the existing checkpoint engine `restore_files` public API, and writes count-only audit events without raw paths.
 
 **Verification:**
 
@@ -632,10 +635,12 @@ Add new targeted tests for:
 
 **Tasks:**
 
-- [ ] Show current goal, decisions, verification freshness, and next action.
-- [ ] Show current risk summary, changed files count, safe checkpoint candidate, and recovery options.
-- [ ] Keep editable fields routed through CLI/service commands, not local GUI-only state.
-- [ ] Display redacted/summarized labels clearly.
+- [x] Show current goal, decisions, verification freshness, and next action.
+- [x] Show current risk summary, changed files count, safe checkpoint candidate, and recovery options.
+- [x] Keep editable fields routed through CLI/service commands, not local GUI-only state.
+- [x] Display redacted/summarized labels clearly.
+
+**Completion note (2026-05-03):** Phase 6 GUI scope is intentionally preview/read-only for beginners. `SessionMemoryCard` reads `vib memory show` through the Tauri CLI bridge, and `RecoveryOptionsCard` reads `vib recover --preview`. Destructive recovery apply remains available only through explicit CLI/MCP surfaces with grants, feature flag, typed parameters, confirmation, lock, sandwich checkpoint, and audit gates; the GUI card does not introduce a second apply model.
 
 **Verification:**
 
@@ -834,16 +839,16 @@ Rules for modifying existing anchored files:
 - Tool spec entries added to `mcp_tool_specs.py` must go inside the existing tool-specs anchor. Handler registration in `mcp_handler_registry.py` and `mcp_dispatch.py` must go inside the existing registry/dispatch anchors.
 - Run `vib guard --strict` after editing to confirm no anchor boundary was crossed.
 
-## 21. Open Questions
+## 21. Resolved Decisions
 
-- Should memory audit events live in JSONL or SQLite once backup DB history becomes the dominant local data store?
-- Should `vib recover --explain` read latest guard/explain reports only, or optionally run them when stale?
-- Should Phase 2 include `vib memory compact`, or defer compaction until memory growth is observed?
-- Should GUI cards ship behind an experimental flag before Phase 6?
-- Should `intent_zone` results be cached per-session or recomputed each preview? Caching cuts repeated planner cost; recomputing reflects fresh git state. Default likely "cache with 60s TTL keyed on git HEAD + uncommitted file set hash".
-- How do memory caps (decisions 50, recent_events 200, etc.) interact with the existing backup DB retention policy? Caps are advisory for `work_memory.json`; backup DB retention is engine-level. They should not contradict — confirm before Phase 2.
-- Does the Phase 5 project-level recovery lock include the safety-checkpoint creation step, or are the two operations separately serializable? Choosing "lock includes sandwich" simplifies failure modes but extends lock duration.
-- Implementer workflow: should this spec require contributors to follow VibeLign's standard `vib doctor → vib anchor → vib checkpoint → work → vib guard → vib checkpoint` cycle per CLAUDE.md, or is that left to existing repo conventions?
+- Memory audit events remain local JSONL for this phase; SQLite migration is a future backup-engine concern, not part of Memory/Recovery completion.
+- `vib recover --explain` and `vib recover --preview` are read-only and do not run guard/explain automatically.
+- Memory compaction is deferred until memory growth is observed; current caps and archive fields prevent unbounded active memory growth.
+- GUI cards ship as normal Home cards in Phase 6, not behind a separate experimental flag.
+- `intent_zone` results are recomputed per preview so recovery reflects the current working tree.
+- Memory caps apply only to `work_memory.json`; backup DB retention remains engine-level and independent.
+- Phase 5 recovery apply is serialized by the project recovery lock around selected-file restore. The sandwich checkpoint ID is a required precondition supplied to the apply call.
+- Implementers follow existing repository conventions in `AGENTS.md` / `AI_DEV_SYSTEM_SINGLE_FILE.md`; this spec does not add a separate workflow.
 
 ## 22. Implementation Order Summary
 
