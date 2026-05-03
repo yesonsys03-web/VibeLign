@@ -10,11 +10,13 @@ from vibelign.core.memory.models import MemoryState, MemoryVerification
 _STALE_INTENT_AGE = timedelta(hours=24)
 _STALE_INTENT_COMMIT_EVENTS = 5
 _CONFLICT_WINDOW = timedelta(seconds=60)
+_PATCH_APPLY_DECISION_THRESHOLD = 3
 TRIGGER_STALE_VERIFICATION = "stale_verification"
 TRIGGER_STALE_INTENT = "stale_intent"
 TRIGGER_STALE_RELEVANT_FILES = "stale_relevant_files"
 TRIGGER_CONFLICT_DETECTED = "conflict_detected"
 TRIGGER_MISSING_NEXT_ACTION = "missing_next_action"
+TRIGGER_MISSING_DECISION_AFTER_PATCHES = "missing_decision_after_patches"
 
 
 @dataclass(frozen=True)
@@ -25,6 +27,7 @@ class MemoryFreshness:
     stale_relevant_files: list[str] = field(default_factory=list)
     conflicting_fields: list[str] = field(default_factory=list)
     missing_next_action: bool = False
+    missing_decision_after_patches: bool = False
     active_trigger_ids: list[str] = field(default_factory=list)
 
 
@@ -42,6 +45,7 @@ def assess_memory_freshness(state: MemoryState) -> MemoryFreshness:
     stale_intent = _has_stale_intent(state)
     conflicting_fields = _conflicting_fields(state)
     missing_next_action = state.next_action is None or not state.next_action.text.strip()
+    missing_decision_after_patches = _missing_decision_after_patches(state)
     active_trigger_ids: list[str] = []
     if stale_commands:
         active_trigger_ids.append(TRIGGER_STALE_VERIFICATION)
@@ -53,6 +57,8 @@ def assess_memory_freshness(state: MemoryState) -> MemoryFreshness:
         active_trigger_ids.append(TRIGGER_CONFLICT_DETECTED)
     if missing_next_action:
         active_trigger_ids.append(TRIGGER_MISSING_NEXT_ACTION)
+    if missing_decision_after_patches:
+        active_trigger_ids.append(TRIGGER_MISSING_DECISION_AFTER_PATCHES)
     return MemoryFreshness(
         verification_freshness="stale" if stale_commands else "",
         stale_verification_commands=stale_commands,
@@ -60,8 +66,20 @@ def assess_memory_freshness(state: MemoryState) -> MemoryFreshness:
         stale_relevant_files=stale_relevant_files,
         conflicting_fields=conflicting_fields,
         missing_next_action=missing_next_action,
+        missing_decision_after_patches=missing_decision_after_patches,
         active_trigger_ids=active_trigger_ids,
     )
+
+
+def _missing_decision_after_patches(state: MemoryState) -> bool:
+    if state.decisions:
+        return False
+    patch_apply_count = sum(
+        1
+        for item in state.relevant_files
+        if item.updated_by == "mcp patch_apply" or item.why.startswith("patch_apply target")
+    )
+    return patch_apply_count >= _PATCH_APPLY_DECISION_THRESHOLD
 
 
 def _conflicting_fields(state: MemoryState) -> list[str]:
@@ -93,6 +111,9 @@ def _is_stale_verification(state: MemoryState, verification: MemoryVerification)
     verification_time = _parse_timestamp(verification.last_updated)
     if verification_time is None or not verification.related_files:
         return False
+    active_intent_time = _active_intent_timestamp(state)
+    if active_intent_time is not None and active_intent_time > verification_time:
+        return True
     related_paths = set(verification.related_files)
     for event in state.observed_context:
         if event.path not in related_paths:
@@ -100,7 +121,28 @@ def _is_stale_verification(state: MemoryState, verification: MemoryVerification)
         event_time = _parse_timestamp(event.timestamp)
         if event_time is not None and event_time > verification_time:
             return True
+    latest_patch_time = _latest_patch_apply_time(state)
+    if latest_patch_time is not None and latest_patch_time > verification_time:
+        return True
     return False
+
+
+def _active_intent_timestamp(state: MemoryState) -> datetime | None:
+    if state.active_intent is None:
+        return None
+    return _parse_timestamp(state.active_intent.last_updated)
+
+
+def _latest_patch_apply_time(state: MemoryState) -> datetime | None:
+    timestamps = [
+        _parse_timestamp(item.last_updated)
+        for item in state.relevant_files
+        if item.updated_by == "mcp patch_apply" or item.why.startswith("patch_apply target")
+    ]
+    parsed = [item for item in timestamps if item is not None]
+    if not parsed:
+        return None
+    return max(parsed)
 
 
 def _has_stale_intent(state: MemoryState) -> bool:

@@ -17,6 +17,7 @@ class _MemoryFreshnessLike(Protocol):
     stale_relevant_files: list[str]
     conflicting_fields: list[str]
     missing_next_action: bool
+    missing_decision_after_patches: bool
     active_trigger_ids: list[str]
 
 
@@ -222,6 +223,47 @@ def test_assess_memory_freshness_marks_missing_next_action_trigger() -> None:
     assert "missing_next_action" in freshness.active_trigger_ids
 
 
+def test_assess_memory_freshness_marks_missing_decision_after_repeated_patches() -> None:
+    state = MemoryState(
+        next_action=MemoryTextField(text="Continue handoff"),
+        relevant_files=[
+            MemoryRelevantFile(
+                path=f"src/file_{index}.py",
+                why="patch_apply target",
+                source="observed",
+                updated_by="mcp patch_apply",
+            )
+            for index in range(3)
+        ],
+    )
+
+    freshness = _assess_memory_freshness()(state)
+
+    assert freshness.missing_decision_after_patches is True
+    assert "missing_decision_after_patches" in freshness.active_trigger_ids
+
+
+def test_assess_memory_freshness_skips_patch_decision_trigger_when_decision_exists() -> None:
+    state = MemoryState(
+        decisions=[MemoryTextField(text="Keep patch path")],
+        next_action=MemoryTextField(text="Continue handoff"),
+        relevant_files=[
+            MemoryRelevantFile(
+                path=f"src/file_{index}.py",
+                why="patch_apply target",
+                source="observed",
+                updated_by="mcp patch_apply",
+            )
+            for index in range(3)
+        ],
+    )
+
+    freshness = _assess_memory_freshness()(state)
+
+    assert freshness.missing_decision_after_patches is False
+    assert "missing_decision_after_patches" not in freshness.active_trigger_ids
+
+
 def test_assess_memory_freshness_marks_scope_unknown_verification_stale() -> None:
     state = MemoryState(
         verification=[
@@ -239,6 +281,108 @@ def test_assess_memory_freshness_marks_scope_unknown_verification_stale() -> Non
         "uv run pytest tests/test_memory_freshness.py"
     ]
     assert "stale_verification" in freshness.active_trigger_ids
+
+
+def test_assess_memory_freshness_marks_verification_stale_when_newer_patch_exists() -> None:
+    state = MemoryState(
+        next_action=MemoryTextField(text="Continue handoff"),
+        verification=[
+            MemoryVerification(
+                command="uv run pytest tests/test_app.py",
+                last_updated="2026-05-03T00:00:00Z",
+                related_files=["src/app.py"],
+            )
+        ],
+        relevant_files=[
+            MemoryRelevantFile(
+                path="src/other.py",
+                why="patch_apply target",
+                source="observed",
+                last_updated="2026-05-03T00:10:00Z",
+                updated_by="mcp patch_apply",
+            )
+        ],
+    )
+
+    freshness = _assess_memory_freshness()(state)
+
+    assert freshness.verification_freshness == "stale"
+    assert freshness.stale_verification_commands == ["uv run pytest tests/test_app.py"]
+    assert "stale_verification" in freshness.active_trigger_ids
+
+
+def test_assess_memory_freshness_marks_verification_stale_after_intent_change() -> None:
+    state = MemoryState(
+        active_intent=MemoryTextField(
+            text="New goal",
+            last_updated="2026-05-03T00:10:00Z",
+        ),
+        next_action=MemoryTextField(text="Continue handoff"),
+        verification=[
+            MemoryVerification(
+                command="uv run pytest tests/test_app.py",
+                last_updated="2026-05-03T00:00:00Z",
+                related_files=["src/app.py"],
+            )
+        ],
+    )
+
+    freshness = _assess_memory_freshness()(state)
+
+    assert freshness.verification_freshness == "stale"
+    assert freshness.stale_verification_commands == ["uv run pytest tests/test_app.py"]
+    assert "stale_verification" in freshness.active_trigger_ids
+
+
+def test_assess_memory_freshness_keeps_verification_fresh_when_intent_is_older() -> None:
+    state = MemoryState(
+        active_intent=MemoryTextField(
+            text="Existing goal",
+            last_updated="2026-05-03T00:00:00Z",
+        ),
+        next_action=MemoryTextField(text="Continue handoff"),
+        verification=[
+            MemoryVerification(
+                command="uv run pytest tests/test_app.py",
+                last_updated="2026-05-03T00:10:00Z",
+                related_files=["src/app.py"],
+            )
+        ],
+    )
+
+    freshness = _assess_memory_freshness()(state)
+
+    assert freshness.verification_freshness == ""
+    assert freshness.stale_verification_commands == []
+    assert "stale_verification" not in freshness.active_trigger_ids
+
+
+def test_assess_memory_freshness_ignores_patch_before_verification() -> None:
+    state = MemoryState(
+        next_action=MemoryTextField(text="Continue handoff"),
+        verification=[
+            MemoryVerification(
+                command="uv run pytest tests/test_app.py",
+                last_updated="2026-05-03T00:10:00Z",
+                related_files=["src/app.py"],
+            )
+        ],
+        relevant_files=[
+            MemoryRelevantFile(
+                path="src/other.py",
+                why="patch_apply target",
+                source="observed",
+                last_updated="2026-05-03T00:00:00Z",
+                updated_by="mcp patch_apply",
+            )
+        ],
+    )
+
+    freshness = _assess_memory_freshness()(state)
+
+    assert freshness.verification_freshness == ""
+    assert freshness.stale_verification_commands == []
+    assert "stale_verification" not in freshness.active_trigger_ids
 
 
 def test_assess_memory_freshness_ignores_unrelated_file_changes_after_verification() -> None:
