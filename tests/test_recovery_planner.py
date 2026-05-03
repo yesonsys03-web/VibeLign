@@ -43,3 +43,35 @@ def test_valid_checkpoint_adds_preview_only_option() -> None:
     assert len(plan.options) <= 3
     assert any(option.level == 3 for option in plan.options)
     assert all(option.level < 4 for option in plan.options)
+
+
+def test_drift_accuracy_circuit_breaker_degrades_to_diff_aware_mode() -> None:
+    plan = build_recovery_plan(
+        RecoverySignalSet(
+            changed_paths=["src/ui.py", "src/auth.py"],
+            explicit_relevant_paths=["src/ui.py"],
+            drift_accuracy_window_size=20,
+            drift_accuracy_confirmed_correct=15,
+            drift_accuracy_confirmed_incorrect=5,
+        )
+    )
+
+    assert plan.circuit_breaker_state == "degraded"
+    assert plan.drift_candidates == []
+    assert "drift labeling temporarily disabled — accuracy below threshold" in plan.summary
+    assert all("drift" not in option.label.lower() for option in plan.options)
+
+
+def test_drift_accuracy_circuit_breaker_stays_active_above_threshold() -> None:
+    plan = build_recovery_plan(
+        RecoverySignalSet(
+            changed_paths=["src/ui.py", "src/auth.py"],
+            explicit_relevant_paths=["src/ui.py"],
+            drift_accuracy_window_size=20,
+            drift_accuracy_confirmed_correct=16,
+            drift_accuracy_confirmed_incorrect=4,
+        )
+    )
+
+    assert plan.circuit_breaker_state == "active"
+    assert [candidate.path for candidate in plan.drift_candidates] == ["src/auth.py"]

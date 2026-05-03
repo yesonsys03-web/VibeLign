@@ -7,6 +7,7 @@ from typing import Literal
 
 
 RecoveryMode = Literal["read_only", "apply_preview", "apply"]
+DriftCircuitBreakerState = Literal["active", "degraded"]
 IntentZoneSource = Literal[
     "explicit",
     "recent_patch_target",
@@ -73,6 +74,9 @@ class RecoverySignalSet:
     guard_has_failures: bool = False
     guard_summary: str = ""
     explain_summary: str = ""
+    drift_accuracy_window_size: int = 0
+    drift_accuracy_confirmed_correct: int = 0
+    drift_accuracy_confirmed_incorrect: int = 0
 
 
 @dataclass(frozen=True)
@@ -86,5 +90,6 @@ class RecoveryPlan:
     options: list[RecoveryOption] = field(default_factory=list)
     safe_checkpoint_candidate: SafeCheckpointCandidate | None = None
     no_files_modified: bool = True
+    circuit_breaker_state: DriftCircuitBreakerState = "active"
 
 # === ANCHOR: RECOVERY_MODELS_END ===

@@ -4,12 +4,17 @@ from __future__ import annotations
 from uuid import uuid4
 
 from .intent_zone import build_intent_zone
-from .models import DriftCandidate, RecoveryOption, RecoveryPlan, RecoverySignalSet
+from .models import DriftCandidate, DriftCircuitBreakerState, RecoveryOption, RecoveryPlan, RecoverySignalSet
+
+
+_DRIFT_ACCURACY_MIN_WINDOW = 20
+_DRIFT_ACCURACY_THRESHOLD = 0.80
 
 
 # === ANCHOR: RECOVERY_PLANNER__BUILD_RECOVERY_PLAN_START ===
 def build_recovery_plan(signals: RecoverySignalSet) -> RecoveryPlan:
     changed_paths = [*signals.changed_paths, *signals.untracked_paths]
+    circuit_breaker_state = _drift_circuit_breaker_state(signals)
     intent_zone, drift_candidates = build_intent_zone(
         explicit_relevant_paths=signals.explicit_relevant_paths,
         recent_patch_paths=signals.recent_patch_paths,
@@ -17,10 +22,12 @@ def build_recovery_plan(signals: RecoverySignalSet) -> RecoveryPlan:
         project_map_categories=signals.project_map_categories,
         anchor_intents_by_path=signals.anchor_intents_by_path,
     )
+    if circuit_breaker_state == "degraded":
+        drift_candidates = []
 
     options = _build_options(changed_paths, drift_candidates, signals)
     level = options[0].level if options else 0
-    summary = _summary_for(changed_paths, drift_candidates, signals)
+    summary = _summary_for(changed_paths, drift_candidates, signals, circuit_breaker_state)
     return RecoveryPlan(
         plan_id=_new_id("rec"),
         mode="read_only",
@@ -31,6 +38,7 @@ def build_recovery_plan(signals: RecoverySignalSet) -> RecoveryPlan:
         options=options,
         safe_checkpoint_candidate=signals.safe_checkpoint_candidate,
         no_files_modified=True,
+        circuit_breaker_state=circuit_breaker_state,
     )
 # === ANCHOR: RECOVERY_PLANNER__BUILD_RECOVERY_PLAN_END ===
 
@@ -99,15 +107,26 @@ def _summary_for(
     changed_paths: list[str],
     drift_candidates: list[DriftCandidate],
     signals: RecoverySignalSet,
+    circuit_breaker_state: DriftCircuitBreakerState,
 ) -> str:
     if not changed_paths and not signals.guard_has_failures:
         return "No changed files or known guard failures were found; no recovery action is needed."
     details = [f"{len(changed_paths)} changed/untracked file(s) detected"]
     if drift_candidates:
         details.append(f"{len(drift_candidates)} drift candidate(s) require user review")
+    if circuit_breaker_state == "degraded":
+        details.append("drift labeling temporarily disabled — accuracy below threshold")
     if signals.safe_checkpoint_candidate is None:
         details.append("no safe checkpoint candidate is available for rollback")
     return "; ".join(details) + "."
+
+
+def _drift_circuit_breaker_state(signals: RecoverySignalSet) -> DriftCircuitBreakerState:
+    total = signals.drift_accuracy_confirmed_correct + signals.drift_accuracy_confirmed_incorrect
+    if signals.drift_accuracy_window_size < _DRIFT_ACCURACY_MIN_WINDOW or total < _DRIFT_ACCURACY_MIN_WINDOW:
+        return "active"
+    accuracy = signals.drift_accuracy_confirmed_correct / total
+    return "degraded" if accuracy < _DRIFT_ACCURACY_THRESHOLD else "active"
 
 
 def _new_id(prefix: str) -> str:

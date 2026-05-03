@@ -12,6 +12,7 @@ from typing import cast
 
 _TRIGGER_WINDOW = timedelta(days=7)
 _ENGAGED_TRIGGER_ACTIONS = {"accepted", "dismissed", "snoozed"}
+_IGNORED_RATE_TUNING_THRESHOLD = 0.30
 
 
 @dataclass(frozen=True)
@@ -72,6 +73,28 @@ def summarize_trigger_ignored_rate(
         ignored=ignored,
         rate=(ignored / shown) if shown else None,
     )
+
+
+def write_trigger_baseline_snapshot(
+    root: Path,
+    *,
+    now: datetime | None = None,
+) -> dict[str, object]:
+    ignored_rate = summarize_trigger_ignored_rate(root, now=now)
+    payload: dict[str, object] = {
+        "schema_version": 1,
+        "baseline_window_days": _TRIGGER_WINDOW.days,
+        "shown_prompt_count_7d": ignored_rate.shown,
+        "engaged_prompt_count_7d": ignored_rate.engaged,
+        "ignored_prompt_count_7d": ignored_rate.ignored,
+        "ignored_prompt_rate_7d": ignored_rate.rate,
+    }
+    if ignored_rate.rate is not None and ignored_rate.rate > _IGNORED_RATE_TUNING_THRESHOLD:
+        payload["tuning_recommendation"] = "trigger prompts ignored above 30%; review trigger thresholds"
+    path = trigger_baseline_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _ = path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return payload
 
 
 @dataclass(frozen=True)
