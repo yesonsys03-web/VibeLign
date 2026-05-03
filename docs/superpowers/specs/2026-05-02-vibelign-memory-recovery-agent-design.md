@@ -726,6 +726,8 @@ Mitigation: *(spec source: §3 Security Model Layer 2, §8 Instrumentation note)
 - Default telemetry to local-only.
 - Require opt-in for aggregated product metrics.
 - Log event types and coarse counts, not raw memory, diff, logs, or full paths.
+- Keep trigger telemetry and diff-growth baselines out of `work_memory.json`; memory stores handoff truth, while telemetry stores local-only measurement data.
+- Persist trigger prompt/action events as sanitized IDs and coarse counts only. Do not store prompt copy, user-entered reasons, raw file paths, raw diffs, terminal output, usernames, or secrets.
 - Apply the privacy filter to any exported telemetry bundle.
 
 #### Summary and full memory diverge
@@ -796,11 +798,20 @@ Example:
   "tool": "claude-code",
   "timestamp": "2026-05-02T12:34:56Z",
   "sandwich_checkpoint_id": "ckpt_...",
-  "paths_count": 2,
+  "paths_count": {
+    "in_zone": 2,
+    "drift": 0,
+    "total": 2
+  },
   "redaction": {
     "secret_hits": 0,
     "privacy_hits": 1,
     "summarized_fields": 2
+  },
+  "trigger": {
+    "id": null,
+    "action": null,
+    "source": null
   },
   "result": "success"
 }
@@ -814,8 +825,9 @@ Minimum required event fields:
 - `timestamp`: ISO-8601 timestamp.
 - `capability_grant_id`: grant record used for denied-by-default capabilities, when applicable.
 - `sandwich_checkpoint_id`: required for `recovery_apply`.
-- `paths_count`: number of affected paths, never the raw paths.
+- `paths_count`: coarse affected-path counts, split into `in_zone`, `drift`, and `total`; never raw paths.
 - `redaction`: counts for secret hits, privacy hits, and summarized fields.
+- `trigger`: optional Phase 4 trigger metadata with sanitized `id`, `action`, and `source`; no prompt text or user reason.
 - `result`: `success`, `denied`, `aborted`, `failed`, or `busy`.
 
 #### Percentage Metrics (quality bars — retune if missed)
@@ -829,6 +841,8 @@ Minimum required event fields:
 Instrumentation note:
 
 These metrics require explicit event logging for memory review prompts, trigger accept/dismiss/snooze actions, recovery recommendation outcomes, drift-candidate user feedback, MCP tool calls, and patch timing. If telemetry is local-only, VibeLign can still compute per-project metrics, but project-wide product metrics require opt-in aggregation.
+
+Operationally, ignored-prompt rate and diff-growth thresholds are computed from local-only audit events plus a derived baseline snapshot under `.vibelign/recovery/`. The baseline stores coarse counters such as 7-day trigger counts and diff line totals since the last confirmed intent update. It is not committed, not exported by default, and not treated as handoff truth.
 
 ## 9. Non-Goals
 

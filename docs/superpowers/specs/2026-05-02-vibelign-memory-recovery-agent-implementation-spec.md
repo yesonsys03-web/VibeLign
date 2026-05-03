@@ -266,11 +266,18 @@ Audit events prove safety gates fired. They must not contain raw memory, raw dif
     "privacy_hits": 1,
     "summarized_fields": 2
   },
+  "trigger": {
+    "id": null,
+    "action": null,
+    "source": null
+  },
   "result": "success"
 }
 ```
 
 `paths_count` separates in-zone vs drift to enable post-hoc accuracy measurement (§14, §15) without storing raw paths. `circuit_breaker_state` is `active` (drift labeling enabled) or `degraded` (drift labeling auto-disabled per design §7 P0 mitigation); recording the state per event lets audits prove the breaker fired at the right moment.
+
+Phase 4 trigger events reuse the same local-only audit rail. `trigger.id` is a sanitized trigger identifier such as `stale_verification`, `trigger.action` is one of `shown`, `accepted`, `dismissed`, `snoozed`, or `ignored`, and `trigger.source` is the CLI/MCP surface that observed the event. Trigger audit rows must not store prompt text, memory text, raw paths, raw diffs, terminal output, or the user-entered reason for an action.
 
 ## 6. Storage and Migration
 
@@ -284,6 +291,7 @@ Recommended storage:
 ├─ memory_audit.jsonl        # local-only audit events, gitignored
 └─ recovery/
    ├─ last_preview.json      # local-only, redacted/summarized
+   ├─ trigger_baseline.json  # local-only derived trigger metrics snapshot
    └─ locks/                 # Phase 5 recovery lock files
 ```
 
@@ -294,6 +302,8 @@ Migration rules:
 - New fields are optional during migration and normalized on first write.
 - If project-local memory artifacts are created, ensure `.gitignore` covers them by default.
 - If migration finds malformed memory, preserve the raw file as a backup and start from minimal memory mode.
+- Do not store trigger telemetry or diff baselines in `work_memory.json`; memory remains handoff truth, while telemetry remains local-only measurement data.
+- `trigger_baseline.json` is a derived snapshot from local audit events. It may contain coarse counters such as `ignored_prompt_rate_7d`, `baseline_window_days`, and `diff_lines_since_intent`, but never raw file paths, raw diffs, memory text, logs, usernames, or secret-like values.
 
 Forward compatibility — VibeLign newer than the file: additive migration as above.
 
@@ -519,6 +529,13 @@ Add new targeted tests for:
   - `transfer --handoff` invoked without a confirmed `next_action`.
 - [ ] Render prompts as suggestions, never blocking modals.
 - [ ] Track ignored-prompt rate per project; if >30% over a 7-day window, log a tuning recommendation (do not auto-disable triggers — operator decides).
+
+**Trigger telemetry and baseline rules:**
+
+- Emit local-only trigger events to `.vibelign/memory_audit.jsonl`; do not mutate `work_memory.json` when a prompt is shown, accepted, dismissed, snoozed, or ignored.
+- Keep session suppression in memory only. Persisted trigger events measure UX noise; they must not suppress future prompts by themselves.
+- Build any ignored-rate or diff-growth decision from a derived `.vibelign/recovery/trigger_baseline.json` snapshot, not from committed test baselines or handoff memory.
+- The first implementation slice is schema-only: audit events can carry sanitized `trigger.id`, `trigger.action`, and `trigger.source`. Later slices may wire prompt-shown/action emission and baseline computation after tests define the event lifecycle.
 
 **Verification:**
 
