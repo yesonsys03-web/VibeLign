@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yesonsys03-web.github.io/VibeLign/schemas/recovery_plan.schema.json",
+  "title": "VibeLign Recovery Plan",
+  "type": "object",
+  "required": ["plan_id", "mode", "level", "summary"],
+  "additionalProperties": false,
+  "properties": {
+    "plan_id": {"type": "string"},
+    "mode": {"enum": ["read_only", "apply_preview", "apply"]},
+    "level": {"type": "integer", "minimum": 0},
+    "summary": {"type": "string"},
+    "intent_zone": {"type": "array", "items": {"$ref": "#/$defs/intent_zone_entry"}},
+    "drift_candidates": {"type": "array", "items": {"$ref": "#/$defs/drift_candidate"}},
+    "options": {"type": "array", "items": {"$ref": "#/$defs/recovery_option"}},
+    "safe_checkpoint_candidate": {"$ref": "#/$defs/safe_checkpoint_candidate"},
+    "no_files_modified": {"type": "boolean"},
+    "circuit_breaker_state": {"enum": ["active", "degraded"]},
+    "p0_summaries": {"type": "array", "items": {"$ref": "#/$defs/p0_summary"}}
+  },
+  "$defs": {
+    "intent_zone_entry": {
+      "type": "object",
+      "required": ["path", "source", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string"},
+        "source": {"enum": ["explicit", "recent_patch_target", "project_map_category", "anchor_co_occurrence", "diff_fallback"]},
+        "reason": {"type": "string"}
+      }
+    },
+    "drift_candidate": {
+      "type": "object",
+      "required": ["path", "why_outside_zone"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string"},
+        "why_outside_zone": {"type": "string"},
+        "suggested_action": {"type": "string"},
+        "requires_user_review": {"type": "boolean"}
+      }
+    },
+    "recovery_option": {
+      "type": "object",
+      "required": ["option_id", "level", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "option_id": {"type": "string"},
+        "level": {"type": "integer"},
+        "label": {"type": "string"},
+        "affected_paths": {"type": "array", "items": {"type": "string"}},
+        "estimated_impact": {"type": "string"},
+        "requires_sandwich": {"type": "boolean"},
+        "requires_lock": {"type": "boolean"},
+        "blocked_reason": {"type": ["string", "null"]}
+      }
+    },
+    "safe_checkpoint_candidate": {
+      "type": ["object", "null"],
+      "required": ["checkpoint_id", "created_at", "message", "metadata_complete", "preview_available", "predates_change"],
+      "additionalProperties": false,
+      "properties": {
+        "checkpoint_id": {"type": "string"},
+        "created_at": {"type": "string"},
+        "message": {"type": "string"},
+        "metadata_complete": {"type": "boolean"},
+        "preview_available": {"type": "boolean"},
+        "predates_change": {"type": "boolean"}
+      }
+    },
+    "p0_summary": {
+      "type": "object",
+      "required": ["slo_id", "window_start", "window_end", "occurrences", "sample_count", "result", "corrupt_rows_count", "warning"],
+      "additionalProperties": false,
+      "properties": {
+        "slo_id": {"type": "string"},
+        "window_start": {"type": "string"},
+        "window_end": {"type": "string"},
+        "occurrences": {"type": "integer", "minimum": 0},
+        "sample_count": {"type": "integer", "minimum": 0},
+        "result": {"enum": ["pass", "fail", "needs_review"]},
+        "corrupt_rows_count": {"type": "integer", "minimum": 0},
+        "warning": {"type": "string"}
+      }
+    }
+  }
+}

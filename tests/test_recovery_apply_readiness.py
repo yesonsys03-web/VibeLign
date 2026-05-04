@@ -23,7 +23,6 @@ def test_check_recovery_apply_readiness_reports_busy_when_lock_is_active(tmp_pat
         paths=["src/app.py"],
         preview_paths=["src/app.py"],
         confirmation="APPLY ckpt_123",
-        feature_enabled=True,
     )
 
     try:
@@ -57,7 +56,6 @@ def test_check_recovery_apply_readiness_validates_when_no_active_lock(tmp_path: 
         paths=["src/app.py"],
         preview_paths=["src/app.py"],
         confirmation="APPLY ckpt_123",
-        feature_enabled=True,
     )
 
     try:

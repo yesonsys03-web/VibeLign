@@ -71,7 +71,6 @@ def test_validate_recovery_apply_request_can_model_enabled_feature_gate_without_
         preview_paths=["src/app.py"],
         confirmation="APPLY ckpt_123",
         apply=False,
-        feature_enabled=True,
     )
 
     try:
@@ -106,7 +105,6 @@ def test_validate_recovery_apply_request_requires_preview_paths_for_apply(tmp_pa
         preview_paths=[],
         confirmation="APPLY ckpt_123",
         apply=True,
-        feature_enabled=True,
     )
 
     try:
@@ -209,7 +207,6 @@ def test_validate_recovery_apply_request_redacts_absolute_path_errors(tmp_path: 
         paths=[str(outside)],
         preview_paths=[str(outside)],
         confirmation="APPLY ckpt_123",
-        feature_enabled=True,
     )
 
     try:
