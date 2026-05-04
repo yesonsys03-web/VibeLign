@@ -1,7 +1,7 @@
 # VibeLign Memory + Recovery Agent Design
 
 Date: 2026-05-02
-Status: Completed product design (rev. 5 — Memory/Recovery direction finalized through Phase 6, implementation trace recorded in `docs/superpowers/plans/2026-05-03-memory-recovery-agent-completion-trace.md`)
+Status: Completed product design (rev. 6 — Memory/Recovery direction finalized through Phase 6; implementation baseline and remaining hardening backlog are tracked in `docs/superpowers/specs/2026-05-02-vibelign-memory-recovery-agent-implementation-spec.md` and `docs/superpowers/plans/2026-05-03-memory-recovery-agent-completion-trace.md`)
 
 ## 1. Why This Direction Comes First
 
@@ -50,6 +50,35 @@ Recovery must not look like an automatic rollback product in early versions. The
 
 Every feature in §3–§7 should be readable as an instance of this 4-step shape. If a proposed feature breaks the shape, the feature is wrong, not the rule.
 
+### Guided + Assisted Recovery Agent Contract
+
+The next product direction is **not** a fully autonomous recovery bot. It is a guided safety agent that helps the user understand, choose, and approve recovery.
+
+User-facing promise:
+
+> VibeLign explains the situation, recommends the safest next step, previews what would change, saves the current state, and only applies a limited recovery after the user approves it.
+
+Behavior contract:
+
+| Stage | Agent may do | User approval | File changes |
+|---|---|---:|---:|
+| Explain | Summarize what looks wrong in middle-school-level language. | No | No |
+| Recommend | Suggest the safest option and alternatives. | No | No |
+| Preview | Show affected files, risk, and checkpoint candidate. | No | No |
+| Prepare | Create or request a safety checkpoint before recovery. | Yes, when surfaced as part of an apply flow | Checkpoint only |
+| Apply | Restore only the user-selected files or module. | Yes, explicit confirmation required | Yes, limited scope |
+| Result | Explain what changed and what to verify next. | No | No |
+
+Hard boundaries:
+
+- No code-changing recovery runs from memory text, handoff text, or AI free-form advice.
+- No full rollback as the default recommendation when a smaller selected-file recovery is plausible.
+- No GUI destructive action unless it follows the same service-layer preview, checkpoint sandwich, confirmation, lock, path validation, and audit gates as CLI/MCP.
+- No hidden apply. The user must see what will change before anything destructive happens.
+- No beginner-facing technical dump. Recovery explanations must translate logs, JSON, and tool output into plain-language next steps while preserving exact details for local audit/debug surfaces.
+
+This contract combines the useful parts of a Guided Agent and an Assisted Apply Agent: the product should do enough to remove user anxiety, but not so much that it becomes an untrusted automatic rollback system.
+
 ## 3. Memory Agent
 
 ### Goal
@@ -95,6 +124,12 @@ Automatic capture must preserve the existing trust split:
 - `decisions[]` remain explicit only. The agent may propose an active intent, but it must not silently write a decision because `decisions[-1]` becomes project truth for handoff.
 - Explicit relevant files and watch-derived files stay separate. Explicit entries can appear as handoff-relevant files; watch-derived entries remain supporting context until confirmed.
 - Stale watch or work-memory data is a secondary signal. Git status, recent commits, explicit verification, and user-confirmed handoff fields have higher priority.
+
+Verification capture has an additional trust split:
+
+- `verification[].source` must distinguish user-confirmed verification (`explicit`) from tool-observed verification (`observed`).
+- `verification[].related_files` should be filled whenever the command or tool scope is known. If scope cannot be inferred, store `scope_unknown: true` and treat that entry as lower-confidence in handoff and recovery output.
+- Scope inference responsibility belongs to the tool that records the verification first. Patch/guard/MCP flows should pass known touched files; transfer/handoff flows may fall back to recent changed files; manual text entry may remain scope-unknown but must be labeled as such.
 
 ### Explicit User Confirmation
 
@@ -214,6 +249,13 @@ MCP permissions matrix:
 | `memory_write` | Denied | Yes | Yes for intent-shaping fields | Cannot silently write `decisions[]`, `active_intent`, or `next_action`. |
 | `recovery_apply` | Denied | Yes | Yes | Requires checkpoint sandwich and explicit typed parameters. |
 | `handoff_export` | Denied | Yes | Yes | External handoff output after secret/privacy filtering. |
+
+Capability stability:
+
+- MCP capability names published in any GA release are frozen.
+- Renames or breaking schema changes ship a one-release deprecation window where both the old and new names are accepted; the old name returns a `deprecated_in` field pointing at its successor.
+- Versioned alternates (e.g. `memory_summary_read_v2`) are the rename path, not in-place renames.
+- External tools (Claude Code, Cursor, OpenCode, Codex) may rely on capability names persisting across patch releases; deprecation must therefore be a deliberate spec change with audit trail.
 
 #### Layer 4: Untrusted-Memory Execution Boundary
 
@@ -374,6 +416,7 @@ Apply rules:
    - `sandwich_checkpoint_id`
    - `paths`
    - `apply: true`
+6.5. If `recovery_apply` returns `busy` (an inflight operation holds the project lock), the client MUST surface the `operation_id` and ETA to the user and MUST NOT auto-retry. The user decides whether to wait, cancel, or take other action. Auto-retry from clients is a P1 trust violation because two human decisions can stack the same restore.
 7. VibeLign validates project-root scope, parent traversal, generated/cache/build exclusions, safety checkpoint existence, and whether selected `paths` match the preview. If paths differ from the preview, the operation requires re-confirmation.
 8. Apply runs only after validation passes.
 9. Result includes restore summary, safety checkpoint ID, changed files, redaction notices, and recommended verification commands.
@@ -423,6 +466,7 @@ In practice, most users will not have populated `active_intent` or `relevant_fil
 1. **Explicit memory** (highest priority): `relevant_files[]` and `active_intent` from `work_memory.json`.
 2. **Recent patch targets**: files touched by the last N (default 5) `patch_apply` calls in the current session form an implicit relevant set.
 3. **Project map category**: files in the same current project-map category (`entry`, `ui`, `core`, or `other`) as recent patches expand the zone. If finer categories such as `gui/backup` are needed, that requires a future project-map schema extension.
+3.5. **`ui_label_index` co-occurrence** (Phase 3+ optimization): when recent patches touch GUI components, expand the zone to include components sharing the same `ui_label_index` group. This honors the project rule that intent inference must use real code signals (anchor / `ui_label_index` / filename / import graph) rather than translation dictionaries; it is not a Phase 1 requirement and degrades cleanly when `ui_label_index` is absent.
 4. **Anchor co-occurrence**: anchors changed together in recent git history can extend the zone. A cached `.vibelign/anchor_graph.json` would be a later optimization, not a Phase 1 requirement.
 5. **Default**: if all above are empty, the agent falls back to **diff-aware** recovery and explicitly says so to the user — "no intent context found; recommendations based on raw diff only".
 
@@ -575,7 +619,22 @@ Mitigation: *(spec source: §3 Security Model Layer 4)*
 - Keep Layer 4 mandatory: memory is data, not instruction.
 - MCP actions accept typed parameters only, such as `checkpoint_id`, `paths`, `preview_only`, and `apply`.
 - Never parse free-text commands from memory.
+- Treat file operations as execution too: memory-derived text must not flow into destructive calls such as delete, restore, overwrite, `unlink`, `rmtree`, or arbitrary `write_text` paths without passing the same typed parameter validation as recovery apply.
 - Include provenance tags in MCP memory responses: `source`, `updated_by`, and `last_updated`.
+
+#### User manual edits clobbered by recovery apply
+
+Failure mode: after the safety checkpoint is created, the user manually edits one of the same files selected for recovery, then `recovery_apply` overwrites that newer manual work.
+
+Risk: the user loses work even though the checkpoint sandwich technically allows recovery. This breaks trust because the danger is not obvious at the confirmation step.
+
+Mitigation: *(spec source: §4 Apply Safety, §7 P1 Trust and Correctness)*
+
+- Record the preview timestamp, selected paths, and sandwich checkpoint timestamp for every apply-ready option.
+- Before apply, compare current file mtimes/hashes against the preview/sandwich baseline for selected paths.
+- If any selected path changed after the sandwich checkpoint, block the default apply and show: "This file changed after the safety save. Review before restoring."
+- Require a second explicit confirmation for paths changed after the sandwich checkpoint.
+- Include post-sandwich manual-edit detection in the recovery result and audit event as counts only, never raw paths in audit.
 
 #### MCP exposes raw sensitive context
 
@@ -590,6 +649,7 @@ Mitigation: *(spec source: §3 Security Model Layers 1–3, §6 Phase 2 Security
 - Gate `memory_full_read`, `memory_write`, `recovery_apply`, and `handoff_export` per project and per tool.
 - Label redacted or summarized fields so downstream tools know details were intentionally withheld.
 - **Audit log**: every MCP memory response records redaction-gate output as counts (not content) — number of secrets redacted, fields filtered by privacy layer, fields summarized. The audit log itself is local-first and subject to the privacy filter. A random 1% sample is asynchronously re-scanned to verify the gate fired correctly. Without the audit log, P0 leakage is detectable only after external report.
+- **Audit log integrity**: every audit row carries a monotonic `sequence_number`. The P0 occurrence aggregator rejects any window containing a sequence gap or duplicate. This is not cryptographic tamper-proofing; it detects accidental truncation, naive file rewrite, and concurrent-writer races so a tampered or partial log cannot silently certify "0 occurrences".
 
 ### P1: Trust and Correctness
 
@@ -606,6 +666,7 @@ Mitigation: *(spec source: §3 Memory Hygiene — Tool-of-record)*
 - Preserve tool-of-record metadata.
 - Detect conflicting writes within a configurable short time window. Default: 60 seconds. Configurable via `vib config memory.conflict_window_seconds`.
 - Surface both versions and ask the user to merge; never silently choose one.
+- Retune the default after the first release cycle using observed same-field conflict data. If more than 10% of conflicts arrive outside the current window but within 10 minutes, widen the default or prompt the user to configure it.
 
 #### Verification looks fresh after related files changed
 
@@ -670,6 +731,7 @@ Mitigation: *(spec source: §3 Security Model Layer 3, §4 Apply Safety)*
 - Lock auto-releases on completion or hard timeout (default 60 seconds, configurable via `vib config recovery.lock_timeout_seconds`).
 - Lock acquisition happens *before* permission grant evaluation — a busy lock cannot be bypassed by re-grant.
 - `recovery_preview`, `memory_summary_read`, `checkpoint_create` are read-safe and not subject to the lock.
+- **Lock TTL vs long restore**: if `restore_files` runs longer than `recovery.lock_timeout_seconds`, the apply must abort and surface a "restore exceeded lock window" error rather than letting the lock expire mid-restore. Lock release MUST verify the holder's `lock_id` before deletion so a stale apply cannot remove a freshly acquired lock. For projects where 60 seconds is regularly insufficient, the user raises the timeout explicitly; the system never silently extends the lock mid-restore.
 
 ### P2: UX and Operations
 
@@ -714,6 +776,7 @@ Mitigation: *(spec source: §4 Apply Safety, §5 Intent Inference Fallback path 
 - Detect WSL contexts: a project at `/mnt/c/...` may be referenced by a Windows tool as `C:\...`. Resolve both forms to the same canonical project root before scope checks.
 - Treat case-sensitivity per-platform: macOS/Windows are case-insensitive by default; Linux/WSL are case-sensitive. Path equality checks must use platform-appropriate comparison.
 - Keep all MCP recovery paths explicit and project-root scoped.
+- Implementation-side platform edge-case enumeration (Windows ADS/reserved names, WSL execution-context canonicalization, APFS case/Unicode handling, audit JSONL line-ending policy, etc.) lives in the implementation spec's Windows/macOS checklist (impl-spec §3 *Completion interpretation and open hardening backlog*); design mitigations and impl checklist items must remain in sync.
 
 #### Telemetry captures sensitive context
 
@@ -830,11 +893,25 @@ Minimum required event fields:
 - `trigger`: optional Phase 4 trigger metadata with sanitized `id`, `action`, and `source`; no prompt text or user reason.
 - `result`: `success`, `denied`, `aborted`, `failed`, or `busy`.
 
+P0 occurrence aggregation:
+
+- A local aggregator must scan `memory_audit.jsonl` plus derived trigger/recovery baselines and produce a release-cycle summary for each P0 SLO.
+- The summary stores counts only: `slo_id`, `window_start`, `window_end`, `occurrences`, `sample_count`, and `result` (`pass`/`fail`).
+- Phase gates may cite "0 occurrences" only when the aggregator has run over the required window. A test passing once is not enough evidence for a release-cycle SLO.
+- If local-only telemetry is used, aggregation remains per-project unless the user opts into product telemetry.
+
+Audit retention:
+
+- `memory_audit.jsonl` is local-only but still needs lifecycle control.
+- Default retention: keep 90 days or 10 MB, whichever is smaller, then roll older rows into a count-only summary snapshot under `.vibelign/recovery/`.
+- Summary snapshots must preserve P0/P1 counters and circuit-breaker state but must not contain raw paths, raw memory, raw terminal output, or user-entered text.
+- Retention must never delete rows needed for an active release-cycle P0 aggregation window.
+
 #### Percentage Metrics (quality bars — retune if missed)
 
 - **Recovery quality**: 50% or more of recovery sessions resolve via Level 0–2 (no-op, explain-only, or targeted repair) — i.e., not full rollback. Full-rollback rate is a regression signal.
 - **Handoff speed**: median time from `vib transfer --handoff` to the next AI's first meaningful patch is under 5 minutes (measured via patch_apply timestamps in the new session).
-- **Trigger usefulness**: 70% or more of agent-suggested triggers are explicitly accepted or dismissed within the same session — *not* ignored. An ignore rate above 30% means triggers are noise and must be retuned.
+- **Trigger usefulness**: 70% or more of agent-suggested triggers are explicitly accepted or dismissed within the same session — *not* ignored. An ignore rate above 30% means triggers are noise and must be retuned. The retune recommendation only fires when the rolling 7-day window contains at least 15 trigger events; below that threshold the rate is logged but acted on by neither the agent nor the operator (small-sample noise).
 - **Intent zone accuracy**: when the user labels a recovery's drift candidates as correct/incorrect, 80%+ of "drift" flags should be confirmed correct. Below 80% triggers the §7 P0 auto-degrade circuit breaker (drift labeling disabled until retuned).
 - **MCP adoption** (Phase 2+): at least 2 external AI tools (Claude Code, Cursor, OpenCode, or Codex) call `memory_summary_read` or `recovery_preview` MCP endpoints in the wild within 30 days of release.
 

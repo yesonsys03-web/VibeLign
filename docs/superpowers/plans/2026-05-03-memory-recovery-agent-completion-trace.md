@@ -6,7 +6,29 @@ Date: 2026-05-03
 
 Phase 5 is complete as a gated selected-file recovery apply path for CLI/MCP. Phase 6 is complete as beginner-facing, read-only GUI agent cards for session memory and recovery recommendations. GUI destructive apply is intentionally out of scope for Phase 6 so the GUI does not create a second apply model; apply remains behind CLI/MCP grant, feature flag, typed-argument, confirmation, lock, sandwich checkpoint, and audit gates.
 
-The source design is finalized as `Completed product design` in `docs/superpowers/specs/2026-05-02-vibelign-memory-recovery-agent-design.md`; the implementation spec is finalized as `Completed implementation spec` in `docs/superpowers/specs/2026-05-02-vibelign-memory-recovery-agent-implementation-spec.md`.
+The source design is finalized as `Completed product design` in `docs/superpowers/specs/2026-05-02-vibelign-memory-recovery-agent-design.md`; the implementation spec is finalized as a `Completed implementation baseline` in `docs/superpowers/specs/2026-05-02-vibelign-memory-recovery-agent-implementation-spec.md`, with remaining unchecked items tracked as follow-up hardening rather than Phase 1–6 baseline blockers.
+
+Completion-state interpretation: the product baseline is implemented, recovery apply remains default-off behind env-backed feature flag plus MCP grants, and the work is **not** release-certified / operationally complete until open hardening items 1–3 and 5 land. Items 1–3 provide lock-race safety plus measurable P0 audit evidence; item 5 prevents GUI/CLI/MCP contract drift. The Windows/macOS/WSL platform cases below are mostly required new coverage, not proof of existing coverage.
+
+## Follow-up code hardening priority
+
+1. Close the recovery lock TTL race in `vibelign/core/recovery/locks.py` / `vibelign/core/recovery/apply.py`, with tests for long-running restore, expiry, and competing lock ownership.
+2. Add audit integrity plus `vibelign/core/memory/aggregator.py` so P0 SLOs are backed by monotonic audit rows and count-only release-window summaries.
+3. Add `vibelign/core/memory/retention.py` for audit log rollover while preserving active P0 aggregation windows.
+4. Remove ambiguity around `RecoveryApplyRequest.feature_enabled`; real apply gates remain env-backed `is_enabled("RECOVERY_APPLY")` plus MCP grants.
+5. Add shared `memory_state.schema.json` and `recovery_plan.schema.json` contracts for GUI/CLI/MCP drift detection.
+6. Wire the optional Recovery Level 2 `patch_suggester` seam after safety and observability hardening.
+
+Platform edge cases are part of this follow-up, not optional polish. Before each item is closed, Windows and macOS coverage must include lock TTL expiry races, drive/UNC/WSL path inputs, Windows reserved names and trailing-dot/space paths, macOS case-insensitive and Unicode-normalization collisions, symlink escapes, audit JSONL partial-line/rollover behavior, packaged GUI/MCP feature-flag behavior, and schema validation for Unicode plus normalized display paths. The full checklist lives in the implementation spec's Windows/macOS implementation edge-case section.
+
+## 2026-05-04 follow-up checklist
+
+- [x] Guided + Assisted Recovery Agent product contract documented in the source design.
+- [x] Next implementation slice documented in the implementation spec as Guided Recovery Agent with Assisted Apply.
+- [x] Existing safety gates preserved: explain, recommend, preview, checkpoint sandwich, explicit confirmation, limited apply, result explanation.
+- [x] GUI destructive apply remains prohibited unless it uses the same service-layer gates as CLI/MCP.
+- [x] Memory/handoff free text remains data only; it cannot become executable recovery instruction.
+- [x] VibeLign verification recorded for the follow-up docs update: recent change risk LOW, no protected or anchor violations.
 
 ## Requirement trace
 
