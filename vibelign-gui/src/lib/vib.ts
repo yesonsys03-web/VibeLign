@@ -167,6 +167,7 @@ export interface VibResult {
 }
 
 export interface MemorySummaryResult {
+  schemaVersion?: number;
   activeIntent: string;
   nextAction: string;
   decisions: string[];
@@ -177,6 +178,7 @@ export interface MemorySummaryResult {
 }
 
 export interface RecoveryPreviewResult {
+  schemaVersion?: string;
   summary: string;
   options: string[];
   driftCandidates: string[];
@@ -424,74 +426,133 @@ export async function doctorPlanJson(cwd: string): Promise<unknown> {
 }
 
 export async function memorySummary(cwd: string): Promise<MemorySummaryResult> {
-  const res = await runVib(["memory", "show"], cwd);
+  const res = await runVib(["memory", "show", "--json"], cwd);
   if (!res.ok) throw new Error(res.stderr || res.stdout || `exit ${res.exit_code}`);
-  return parseMemorySummary(res.stdout);
+  return parseMemorySummaryJson(res.stdout);
 }
 
 export async function recoveryPreview(cwd: string): Promise<RecoveryPreviewResult> {
-  const res = await runVib(["recover", "--preview"], cwd);
+  const res = await runVib(["recover", "--preview", "--json"], cwd);
   if (!res.ok) throw new Error(res.stderr || res.stdout || `exit ${res.exit_code}`);
-  return parseRecoveryPreview(res.stdout);
+  return parseRecoveryPreviewJson(res.stdout);
 }
 
-function parseMemorySummary(stdout: string): MemorySummaryResult {
-  const lines = stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const verificationLines = sectionLines(lines, "Verification:");
+function parseMemorySummaryJson(stdout: string): MemorySummaryResult {
+  const data = requireRecord(JSON.parse(stdout), "memory_state.schema.json");
+  requireNumber(data.schema_version, "schema_version");
+  requireOptionalRecord(data.active_intent, "active_intent");
+  requireOptionalRecord(data.next_action, "next_action");
+  const decisions = requireRecordArray(data.decisions, "decisions");
+  const relevantFiles = requireRecordArray(data.relevant_files, "relevant_files");
+  const verificationItems = requireRecordArray(data.verification, "verification");
+  if (data.active_intent !== undefined && data.active_intent !== null) {
+    requireString((data.active_intent as Record<string, unknown>).text, "active_intent.text");
+  }
+  if (data.next_action !== undefined && data.next_action !== null) {
+    requireString((data.next_action as Record<string, unknown>).text, "next_action.text");
+  }
+  decisions.forEach((item, index) => requireString(item.text, `decisions[${index}].text`));
+  relevantFiles.forEach((item, index) => {
+    requireString(item.path, `relevant_files[${index}].path`);
+    requireString(item.why, `relevant_files[${index}].why`);
+  });
+  verificationItems.forEach((item, index) => requireString(item.command, `verification[${index}].command`));
+  const typed = data as {
+    schema_version?: number;
+    active_intent?: { text?: string } | null;
+    next_action?: { text?: string } | null;
+    decisions?: Array<{ text?: string }>;
+    relevant_files?: Array<{ path?: string; why?: string; source?: string }>;
+    verification?: Array<{ command?: string; stale?: boolean }>;
+    downgrade_warning?: string;
+  };
+  const verification = (typed.verification ?? []).map((item) => item.stale ? `${item.command ?? ""} (stale)` : item.command ?? "").filter(Boolean);
   return {
-    activeIntent: valueAfter(lines, "Active intent:") || "(none)",
-    nextAction: valueAfter(lines, "Next action:") || "(none)",
-    decisions: sectionLines(lines, "Decisions:"),
-    relevantFiles: sectionLines(lines, "Relevant files:"),
-    verification: verificationLines,
-    verificationFreshness: verificationFreshness(verificationLines),
-    warning: valueAfter(lines, "Warning:"),
+    schemaVersion: typed.schema_version,
+    activeIntent: typed.active_intent?.text || "(none)",
+    nextAction: typed.next_action?.text || "(none)",
+    decisions: (typed.decisions ?? []).map((item) => item.text ?? "").filter(Boolean),
+    relevantFiles: (typed.relevant_files ?? []).map((item) => `${item.path ?? ""} — ${item.why ?? ""} (${item.source ?? ""})`).filter((item) => !item.startsWith(" —")),
+    verification,
+    verificationFreshness: verificationFreshness(verification),
+    warning: typed.downgrade_warning || undefined,
   };
 }
 
-function parseRecoveryPreview(stdout: string): RecoveryPreviewResult {
-  const lines = stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+function parseRecoveryPreviewJson(stdout: string): RecoveryPreviewResult {
+  const data = requireRecord(JSON.parse(stdout), "recovery_plan.schema.json");
+  requireString(data.plan_id, "plan_id");
+  requireString(data.mode, "mode");
+  requireNumber(data.level, "level");
+  requireString(data.summary, "summary");
+  const options = requireRecordArray(data.options, "options");
+  const driftCandidates = requireRecordArray(data.drift_candidates, "drift_candidates");
+  requireOptionalRecord(data.safe_checkpoint_candidate, "safe_checkpoint_candidate");
+  requireString(data.circuit_breaker_state, "circuit_breaker_state");
+  requireRecordArray(data.p0_summaries, "p0_summaries").forEach((item, index) => {
+    requireString(item.slo_id, `p0_summaries[${index}].slo_id`);
+    requireString(item.window_start, `p0_summaries[${index}].window_start`);
+    requireString(item.window_end, `p0_summaries[${index}].window_end`);
+    requireNumber(item.occurrences, `p0_summaries[${index}].occurrences`);
+    requireNumber(item.sample_count, `p0_summaries[${index}].sample_count`);
+    requireString(item.result, `p0_summaries[${index}].result`);
+    requireNumber(item.corrupt_rows_count, `p0_summaries[${index}].corrupt_rows_count`);
+    requireString(item.warning, `p0_summaries[${index}].warning`);
+  });
+  options.forEach((item, index) => requireString(item.label, `options[${index}].label`));
+  driftCandidates.forEach((item, index) => {
+    requireString(item.path, `drift_candidates[${index}].path`);
+    requireString(item.why_outside_zone, `drift_candidates[${index}].why_outside_zone`);
+  });
+  if (data.safe_checkpoint_candidate !== undefined && data.safe_checkpoint_candidate !== null) {
+    requireString((data.safe_checkpoint_candidate as Record<string, unknown>).checkpoint_id, "safe_checkpoint_candidate.checkpoint_id");
+  }
+  const typed = data as {
+    schema_version?: string;
+    summary?: string;
+    options?: Array<{ label?: string }>;
+    drift_candidates?: Array<{ path?: string; why_outside_zone?: string }>;
+    safe_checkpoint_candidate?: { checkpoint_id?: string } | null;
+  };
   return {
-    summary: valueAfter(lines, "Summary:") || "No recovery summary available.",
-    options: numberedLines(lines),
-    driftCandidates: sectionLines(lines, "Drift candidates (review before any restore):"),
-    safeCheckpointCandidate: safeCheckpoint(lines),
+    schemaVersion: typed.schema_version ?? "recovery_plan.schema.json",
+    summary: typed.summary || "No recovery summary available.",
+    options: (typed.options ?? []).map((item) => item.label ?? "").filter(Boolean),
+    driftCandidates: (typed.drift_candidates ?? []).map((item) => `${item.path ?? ""} — ${item.why_outside_zone ?? ""}`).filter((item) => !item.startsWith(" —")),
+    safeCheckpointCandidate: typed.safe_checkpoint_candidate?.checkpoint_id || "(none)",
     raw: stdout,
   };
 }
 
-function valueAfter(lines: string[], prefix: string): string {
-  const line = lines.find((item) => item.startsWith(prefix));
-  return line ? line.slice(prefix.length).trim() : "";
-}
-
-function sectionLines(lines: string[], heading: string): string[] {
-  const start = lines.indexOf(heading);
-  if (start < 0) return [];
-  const result: string[] = [];
-  for (const line of lines.slice(start + 1)) {
-    if (!line.startsWith("- ")) break;
-    const item = line.slice(2).trim();
-    if (item !== "(none)") result.push(item);
+function requireRecord(value: unknown, schemaName: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${schemaName}: expected JSON object`);
   }
-  return result;
+  return value as Record<string, unknown>;
 }
 
-function numberedLines(lines: string[]): string[] {
-  return lines.filter((line) => /^\d+\.\s/.test(line));
+function requireOptionalRecord(value: unknown, field: string): void {
+  if (value === undefined || value === null) return;
+  if (typeof value !== "object" || Array.isArray(value)) throw new Error(`${field}: expected object or null`);
+}
+
+function requireRecordArray(value: unknown, field: string): Array<Record<string, unknown>> {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error(`${field}: expected array`);
+  return value.map((item, index) => requireRecord(item, `${field}[${index}]`));
+}
+
+function requireString(value: unknown, field: string): void {
+  if (typeof value !== "string") throw new Error(`${field}: expected string`);
+}
+
+function requireNumber(value: unknown, field: string): void {
+  if (typeof value !== "number") throw new Error(`${field}: expected number`);
 }
 
 function verificationFreshness(lines: string[]): "fresh" | "stale" | "missing" {
   if (lines.length === 0) return "missing";
   return lines.some((line) => line.toLowerCase().includes("stale")) ? "stale" : "fresh";
-}
-
-function safeCheckpoint(lines: string[]): string {
-  const start = lines.indexOf("Safe checkpoint candidate:");
-  if (start < 0) return "";
-  const first = lines[start + 1] ?? "";
-  const second = lines[start + 2] ?? "";
-  return [first.replace(/^[- ]+/, ""), second].filter(Boolean).join(" — ");
 }
 
 /** GUI에 저장된 제공자 키 → `run_vib`용 환경변수 (레거시 Anthropic 단일 키 병합). */
