@@ -413,6 +413,7 @@ def register_extended_commands(
     _ = p.add_argument("--explain", action="store_true", help="복구 옵션을 설명")
     _ = p.add_argument("--preview", action="store_true", help="복구 옵션을 미리보기")
     _ = p.add_argument("--file", default=None, help="복구 대상으로 검토할 파일")
+    _ = p.add_argument("--json", action="store_true", help="복구 계획을 JSON으로 출력")
     _ = p.add_argument("--apply", action="store_true", help="명시 확인된 파일 복구를 실행")
     _ = p.add_argument("--checkpoint-id", default="", help="복구할 원본 체크포인트 ID")
     _ = p.add_argument("--sandwich-checkpoint-id", default="", help="복구 직전 안전 체크포인트 ID")
@@ -598,6 +599,7 @@ def register_extended_commands(
         metavar="{show,review,intent,decide,next,relevant}",
     )
     p_show = memory_sub.add_parser("show", help="저장된 메모리를 보여줘요")
+    _ = p_show.add_argument("--json", action="store_true", help="메모리 상태를 JSON으로 출력")
     p_show.set_defaults(
         func=lazy_command("vibelign.commands.vib_memory_cmd", "run_vib_memory_show")
     )
