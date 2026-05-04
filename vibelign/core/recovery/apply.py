@@ -7,6 +7,7 @@ from typing import Protocol
 
 from vibelign.core.feature_flags import is_enabled
 from vibelign.core.memory.audit import (
+    AuditResult,
     AuditPathsCount,
     append_memory_audit_event,
     build_memory_audit_event,
@@ -35,7 +36,6 @@ class RecoveryApplyRequest:
     preview_paths: list[str] = field(default_factory=list)
     confirmation: str = ""
     apply: bool = False
-    feature_enabled: bool = False
 
 
 @dataclass(frozen=True)
@@ -238,6 +238,13 @@ def execute_recovery_apply(
 ) -> RecoveryApplyResult:
     readiness = check_recovery_apply_readiness(project_root, request, now=now)
     if readiness.busy:
+        _append_recovery_apply_audit(
+            project_root,
+            readiness.validation.normalized_paths,
+            readiness.validation.summary.safety_checkpoint_id,
+            "busy",
+            owner_tool,
+        )
         return RecoveryApplyResult(
             ok=False,
             busy=True,
@@ -253,11 +260,24 @@ def execute_recovery_apply(
     if not request.apply:
         return _blocked_apply_result(readiness.validation, [*readiness.errors, "apply=True is required"])
     if not readiness.ok:
-        _append_recovery_apply_audit(project_root, readiness.validation.normalized_paths, readiness.validation.summary.safety_checkpoint_id, "blocked", owner_tool)
+        _append_recovery_apply_audit(
+            project_root,
+            readiness.validation.normalized_paths,
+            readiness.validation.summary.safety_checkpoint_id,
+            "denied",
+            owner_tool,
+        )
         return _blocked_apply_result(readiness.validation, readiness.errors)
 
     lock = acquire_recovery_lock(project_root, owner_tool=owner_tool, reason="recovery apply", now=now)
     if lock.busy:
+        _append_recovery_apply_audit(
+            project_root,
+            readiness.validation.normalized_paths,
+            readiness.validation.summary.safety_checkpoint_id,
+            "busy",
+            owner_tool,
+        )
         return RecoveryApplyResult(
             ok=False,
             busy=True,
@@ -272,10 +292,50 @@ def execute_recovery_apply(
         )
 
     restore = restore_files_func or _restore_files
+    restored_count = 0
+    restored_paths: list[str] = []
     try:
-        restored_count = restore(project_root, request.checkpoint_id.strip(), readiness.validation.normalized_paths)
+        for relative_path in readiness.validation.normalized_paths:
+            ownership_error = _lock_ownership_error(project_root, lock.state.lock_id)
+            if ownership_error is not None:
+                _append_recovery_apply_audit(
+                    project_root,
+                    restored_paths,
+                    readiness.validation.summary.safety_checkpoint_id,
+                    "aborted",
+                    owner_tool,
+                )
+                return _aborted_apply_result(
+                    readiness.validation,
+                    ownership_error,
+                    lock.state.lock_id,
+                    restored_paths,
+                )
+            restored_count += restore(project_root, request.checkpoint_id.strip(), [relative_path])
+            restored_paths.append(relative_path)
+            ownership_error = _lock_ownership_error(project_root, lock.state.lock_id)
+            if ownership_error is not None:
+                _append_recovery_apply_audit(
+                    project_root,
+                    restored_paths,
+                    readiness.validation.summary.safety_checkpoint_id,
+                    "aborted",
+                    owner_tool,
+                )
+                return _aborted_apply_result(
+                    readiness.validation,
+                    ownership_error,
+                    lock.state.lock_id,
+                    restored_paths,
+                )
     except Exception as exc:
-        _append_recovery_apply_audit(project_root, readiness.validation.normalized_paths, readiness.validation.summary.safety_checkpoint_id, "error", owner_tool)
+        _append_recovery_apply_audit(
+            project_root,
+            readiness.validation.normalized_paths,
+            readiness.validation.summary.safety_checkpoint_id,
+            "failed",
+            owner_tool,
+        )
         return _blocked_apply_result(readiness.validation, [str(exc)])
     finally:
         _ = release_recovery_lock(project_root, lock_id=lock.state.lock_id)
@@ -371,14 +431,42 @@ def _blocked_apply_result(validation: RecoveryApplyValidation, errors: list[str]
     )
 
 
+def _aborted_apply_result(
+    validation: RecoveryApplyValidation,
+    error: str,
+    operation_id: str,
+    restored_paths: list[str],
+) -> RecoveryApplyResult:
+    return RecoveryApplyResult(
+        ok=False,
+        busy=False,
+        errors=[error],
+        changed_files_count=len(restored_paths),
+        changed_files=restored_paths,
+        safety_checkpoint_id=validation.summary.safety_checkpoint_id,
+        operation_id=operation_id,
+        eta_seconds=None,
+        metadata_only=False,
+        would_apply=False,
+    )
+
+
+def _lock_ownership_error(project_root: Path, lock_id: str) -> str | None:
+    status = read_recovery_lock(project_root)
+    if not status.active:
+        return "recovery apply lock ownership was lost"
+    if status.state.lock_id != lock_id:
+        return "recovery apply lock ownership was lost"
+    return None
+
+
 def _append_recovery_apply_audit(
     project_root: Path,
     paths: list[str],
     sandwich_checkpoint_id: str,
-    result: str,
+    result: AuditResult,
     owner_tool: str,
 ) -> None:
-    audit_result = "success" if result == "success" else "blocked" if result == "blocked" else "error"
     append_memory_audit_event(
         memory_audit_path(project_root),
         build_memory_audit_event(
@@ -386,7 +474,7 @@ def _append_recovery_apply_audit(
             event="recovery_apply",
             tool=owner_tool,
             paths_count=AuditPathsCount(in_zone=len(paths), drift=0, total=len(paths)),
-            result=audit_result,
+            result=result,
             sandwich_checkpoint_id=sandwich_checkpoint_id,
         ),
     )
