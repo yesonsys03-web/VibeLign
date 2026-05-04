@@ -194,6 +194,18 @@ class McpRecoveryHandlersTest(unittest.TestCase):
         self.assertEqual(audit_payload["paths_count"], {"drift": 0, "in_zone": 1, "total": 1})
         self.assertNotIn("src/app.py", audit_text)
 
+    def test_recovery_preview_payload_includes_live_p0_summaries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = handle_recovery_preview(root, {}, TextContent)
+            payload = cast(dict[str, object], json.loads(cast(TextContent, result[0]).text))
+            plan = cast(dict[str, object], payload["plan"])
+            p0_summaries = cast(list[dict[str, object]], payload["p0_summaries"])
+
+        self.assertEqual(plan["circuit_breaker_state"], "active")
+        self.assertTrue(any(item["slo_id"] == "stale_intent" for item in p0_summaries))
+        self.assertTrue(any(item["slo_id"] == "drift_label" for item in p0_summaries))
+
     def test_recovery_apply_with_grant_but_without_feature_stays_denied(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

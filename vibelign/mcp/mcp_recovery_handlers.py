@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Protocol, cast
 
@@ -10,6 +11,8 @@ from vibelign.core.memory.audit import (
     build_memory_audit_event,
     memory_audit_path,
 )
+from vibelign.core.memory.aggregator import aggregate_p0_occurrences, p0_occurrence_summary_to_dict
+from vibelign.core.memory.retention import apply_memory_audit_retention
 from vibelign.core.recovery.models import (
     DriftCandidate,
     IntentZoneEntry,
@@ -34,8 +37,8 @@ def handle_recovery_preview(
     arguments: dict[str, object],
     text_content: TextContentFactory,
 ) -> list[object]:
-    _ = arguments
-    plan = build_recovery_plan(collect_basic_signals(root))
+    recovery_request = str(arguments.get("request", ""))
+    plan = build_recovery_plan(collect_basic_signals(root), project_root=root, recovery_request=recovery_request)
     append_memory_audit_event(
         memory_audit_path(root),
         build_memory_audit_event(
@@ -46,11 +49,20 @@ def handle_recovery_preview(
             result="success",
         ),
     )
+    _ = apply_memory_audit_retention(root, active_window_start=_release_window_start())
     payload: dict[str, object] = {
         "ok": True,
         "read_only": True,
         "provenance": "recovery_planner_preview",
         "plan": _plan_to_payload(plan),
+        "p0_summaries": [
+            p0_occurrence_summary_to_dict(summary)
+            for summary in aggregate_p0_occurrences(
+                root,
+                window_start=_release_window_start(),
+                window_end=_utc_now(),
+            )
+        ],
     }
     return _text(text_content, json.dumps(payload, ensure_ascii=False, sort_keys=True))
 
@@ -71,7 +83,6 @@ def handle_recovery_apply(
             preview_paths=_string_list(arguments.get("preview_paths")),
             confirmation=str(arguments.get("confirmation", "")),
             apply=arguments.get("apply") is True,
-            feature_enabled=arguments.get("feature_enabled") is True,
         ),
         owner_tool=str(arguments.get("tool", "mcp")) or "mcp",
     )
@@ -110,6 +121,7 @@ def _plan_to_payload(plan: RecoveryPlan) -> dict[str, object]:
         "level": plan.level,
         "summary": plan.summary,
         "no_files_modified": plan.no_files_modified,
+        "circuit_breaker_state": plan.circuit_breaker_state,
         "intent_zone": [_intent_zone_to_payload(item) for item in plan.intent_zone],
         "drift_candidates": [_drift_candidate_to_payload(item) for item in plan.drift_candidates],
         "options": [_option_to_payload(item) for item in plan.options],
@@ -154,3 +166,11 @@ def _checkpoint_to_payload(item: SafeCheckpointCandidate | None) -> dict[str, ob
         "preview_available": item.preview_available,
         "predates_change": item.predates_change,
     }
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _release_window_start() -> str:
+    return (datetime.now(timezone.utc) - timedelta(days=90)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
