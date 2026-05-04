@@ -1492,7 +1492,10 @@ def _score_all_files(
             for _caller_rel, _entry in project_map.files.items():
                 if not isinstance(_entry, dict):
                     continue
-                for _callee_rel in _entry.get("imports", []):
+                _imports = _entry.get("imports", [])
+                if not isinstance(_imports, list):
+                    continue
+                for _callee_rel in _imports:
                     if isinstance(_callee_rel, str):
                         _reverse_map.setdefault(_callee_rel, []).append(_caller_rel)
         if not _reverse_map:
@@ -1576,7 +1579,7 @@ def _score_all_files(
     return scored, metadata, anchor_meta, project_map, ui_label_idx, alias_freq
 
 
-def score_candidates(root: Path, request: str) -> list[tuple[Path, int]]:
+def score_candidates(root: Path, request: str, *, recovery_level: int = 1) -> list[tuple[Path, int]]:
     """Public API: return files ranked for `request`, descending by score.
 
     Used by the patch-accuracy benchmark runner to measure prefilter recall.
@@ -1584,11 +1587,12 @@ def score_candidates(root: Path, request: str) -> list[tuple[Path, int]]:
     AI-select / anchor-pick stages — extracted so downstream tooling can
     inspect the raw deterministic order.
     """
+    _ = recovery_level
     scored, *_ = _score_all_files(root, request)
     return [(path, score) for score, path, _rationale in scored]
 
 
-def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggestion:
+def suggest_patch(root: Path, request: str, use_ai: bool = True, *, recovery_level: int = 1) -> PatchSuggestion:
     scored, metadata, anchor_meta, project_map, _ui_label_idx, alias_freq = _score_all_files(
         root, request
     )
@@ -1648,9 +1652,12 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
     )
     should_use_ai = (
         use_ai
+        and recovery_level < 2
         and confidence != "high"
         and not ai_override_blocked_by_state_hint
     )
+    if recovery_level >= 2:
+        reasons = reasons[:4] + ["Recovery Level 2: deterministic patch target selection"]
     if should_use_ai:
         ai_result = _ai_select_file(
             request, scored, root, request_tokens, anchor_meta, project_map
@@ -1732,6 +1739,10 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True) -> PatchSuggest
                         suggestion.anchor_signature = sig
                     break
     return suggestion
+
+
+def suggest_recovery_level2_patch(root: Path, request: str) -> PatchSuggestion:
+    return suggest_patch(root, request, use_ai=False, recovery_level=2)
 
 
 def resolve_target_for_role(

@@ -62,7 +62,7 @@ def build_intent_zone(
     drift_candidates = [
         DriftCandidate(
             path=path,
-            why_outside_zone="not in explicit relevant files, recent patch targets, matching project-map category, or shared anchor intent",
+            why_outside_zone="이번 작업 의도와 연결되지 않은 파일입니다. 의도한 변경인지 확인하세요.",
         )
         for path in _unique_paths(changed_paths)
         if path not in zone_by_path

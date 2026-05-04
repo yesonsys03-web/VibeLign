@@ -1,7 +1,10 @@
 # === ANCHOR: RECOVERY_PLANNER_START ===
 from __future__ import annotations
 
+from pathlib import Path
 from uuid import uuid4
+
+from vibelign.core.patch_suggester import suggest_recovery_level2_patch
 
 from .intent_zone import build_intent_zone
 from .models import DriftCandidate, DriftCircuitBreakerState, RecoveryOption, RecoveryPlan, RecoverySignalSet
@@ -12,7 +15,12 @@ _DRIFT_ACCURACY_THRESHOLD = 0.80
 
 
 # === ANCHOR: RECOVERY_PLANNER__BUILD_RECOVERY_PLAN_START ===
-def build_recovery_plan(signals: RecoverySignalSet) -> RecoveryPlan:
+def build_recovery_plan(
+    signals: RecoverySignalSet,
+    *,
+    project_root: Path | None = None,
+    recovery_request: str = "",
+) -> RecoveryPlan:
     changed_paths = [*signals.changed_paths, *signals.untracked_paths]
     circuit_breaker_state = _drift_circuit_breaker_state(signals)
     intent_zone, drift_candidates = build_intent_zone(
@@ -25,7 +33,7 @@ def build_recovery_plan(signals: RecoverySignalSet) -> RecoveryPlan:
     if circuit_breaker_state == "degraded":
         drift_candidates = []
 
-    options = _build_options(changed_paths, drift_candidates, signals)
+    options = _build_options(changed_paths, drift_candidates, signals, project_root, recovery_request)
     level = options[0].level if options else 0
     summary = _summary_for(changed_paths, drift_candidates, signals, circuit_breaker_state)
     return RecoveryPlan(
@@ -47,18 +55,20 @@ def _build_options(
     changed_paths: list[str],
     drift_candidates: list[DriftCandidate],
     signals: RecoverySignalSet,
+    project_root: Path | None,
+    recovery_request: str,
 ) -> list[RecoveryOption]:
     if not changed_paths and not signals.guard_has_failures:
         return [
             RecoveryOption(
                 option_id=_new_id("opt"),
                 level=0,
-                label="No-op recovery — no changed files or known guard failures were found.",
+                label="복구할 내용 없음 — 변경된 파일이나 실패한 검사 결과가 없습니다.",
             )
         ]
-    label = "Explain only — review changed files and risk signals before applying any restore."
+    label = "1단계: 변경 내용 확인 — `vib explain`로 무엇이 바뀌었는지 확인하세요."
     if signals.explain_summary:
-        label = f"Explain only — review latest explain summary: {signals.explain_summary}"
+        label = f"최근 변경 설명 확인 — {signals.explain_summary}"
     options = [
         RecoveryOption(
             option_id=_new_id("opt"),
@@ -68,9 +78,12 @@ def _build_options(
         )
     ]
     if signals.guard_has_failures:
-        guard_label = "Targeted repair — keep the work and fix guard/test/build failures."
+        guard_label = "문제만 고치기 — 현재 작업은 유지하고 guard/test/build 실패를 고칩니다."
         if signals.guard_summary:
-            guard_label = f"Targeted repair — address guard summary: {signals.guard_summary}"
+            guard_label = f"검사 실패 고치기 — {signals.guard_summary}"
+        level2_target = _recovery_level2_target(project_root, recovery_request or signals.guard_summary)
+        if level2_target:
+            guard_label = f"{guard_label} 추천 수정 파일: {level2_target}."
         options.append(
             RecoveryOption(
                 option_id=_new_id("opt"),
@@ -84,9 +97,9 @@ def _build_options(
             RecoveryOption(
                 option_id=_new_id("opt"),
                 level=1,
-                label="Review drift candidates — confirm whether out-of-zone files were intentional.",
+                label="2단계: 낯선 파일 확인 — 아래 파일을 `vib explain <파일경로>` 또는 에디터로 열어 확인하세요.",
                 affected_paths=[candidate.path for candidate in drift_candidates],
-                blocked_reason="user review required before any restore",
+                blocked_reason="복원 전에 사용자 확인 필요",
             )
         )
     if signals.safe_checkpoint_candidate is not None and len(options) < 3:
@@ -94,13 +107,22 @@ def _build_options(
             RecoveryOption(
                 option_id=_new_id("opt"),
                 level=3,
-                label="Partial restore preview — inspect selected files from the latest validated checkpoint before any apply.",
+                label="3단계: 복원 미리보기 — 되돌릴 파일이 정해지면 `vib recover --file <파일경로>`를 실행하세요.",
                 affected_paths=changed_paths,
                 requires_sandwich=True,
-                blocked_reason="Phase 5 apply is not enabled; preview only",
+                blocked_reason="복원 적용 기능은 아직 꺼져 있어 미리보기만 가능합니다",
             )
         )
     return options[:3]
+
+
+def _recovery_level2_target(project_root: Path | None, recovery_request: str) -> str:
+    if project_root is None or not recovery_request.strip():
+        return ""
+    suggestion = suggest_recovery_level2_patch(project_root, recovery_request)
+    if suggestion.target_file == "[소스 파일 없음]":
+        return ""
+    return suggestion.target_file
 
 
 def _summary_for(
@@ -110,14 +132,14 @@ def _summary_for(
     circuit_breaker_state: DriftCircuitBreakerState,
 ) -> str:
     if not changed_paths and not signals.guard_has_failures:
-        return "No changed files or known guard failures were found; no recovery action is needed."
-    details = [f"{len(changed_paths)} changed/untracked file(s) detected"]
+        return "변경된 파일이나 실패한 검사 결과가 없어 복구 작업이 필요하지 않습니다."
+    details = [f"변경/새 파일 {len(changed_paths)}개 감지됨"]
     if drift_candidates:
-        details.append(f"{len(drift_candidates)} drift candidate(s) require user review")
+        details.append(f"검토가 필요한 파일 {len(drift_candidates)}개")
     if circuit_breaker_state == "degraded":
-        details.append("drift labeling temporarily disabled — accuracy below threshold")
+        details.append("파일 분류 정확도가 낮아 검토 대상 표시를 잠시 껐습니다")
     if signals.safe_checkpoint_candidate is None:
-        details.append("no safe checkpoint candidate is available for rollback")
+        details.append("되돌릴 안전 체크포인트가 없습니다")
     return "; ".join(details) + "."
 
 

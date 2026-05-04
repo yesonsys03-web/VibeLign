@@ -22,7 +22,7 @@ def test_drift_candidate_is_review_only() -> None:
     )
 
     assert [candidate.path for candidate in plan.drift_candidates] == ["src/auth.py"]
-    assert any(option.blocked_reason == "user review required before any restore" for option in plan.options)
+    assert any(option.blocked_reason == "복원 전에 사용자 확인 필요" for option in plan.options)
 
 
 def test_valid_checkpoint_adds_preview_only_option() -> None:
@@ -58,7 +58,7 @@ def test_drift_accuracy_circuit_breaker_degrades_to_diff_aware_mode() -> None:
 
     assert plan.circuit_breaker_state == "degraded"
     assert plan.drift_candidates == []
-    assert "drift labeling temporarily disabled — accuracy below threshold" in plan.summary
+    assert "파일 분류 정확도가 낮아" in plan.summary
     assert all("drift" not in option.label.lower() for option in plan.options)
 
 
@@ -75,3 +75,23 @@ def test_drift_accuracy_circuit_breaker_stays_active_above_threshold() -> None:
 
     assert plan.circuit_breaker_state == "active"
     assert [candidate.path for candidate in plan.drift_candidates] == ["src/auth.py"]
+
+
+def test_level2_recovery_option_includes_deterministic_patch_target(tmp_path) -> None:
+    root = tmp_path / "repo"
+    _ = (root / "src").mkdir(parents=True)
+    _ = (root / "src" / "auth.py").write_text("def login():\n    return False\n", encoding="utf-8")
+    _ = (root / "src" / "ui.py").write_text("def render():\n    return 'ok'\n", encoding="utf-8")
+
+    plan = build_recovery_plan(
+        RecoverySignalSet(
+            changed_paths=["src/auth.py"],
+            guard_has_failures=True,
+            guard_summary="login fails",
+        ),
+        project_root=root,
+        recovery_request="fix login failure",
+    )
+    level2_option = next(option for option in plan.options if option.level == 2)
+
+    assert "추천 수정 파일: src/auth.py" in level2_option.label

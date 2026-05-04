@@ -16,7 +16,7 @@ from pathlib import Path
 from unittest.mock import patch as mock_patch
 
 from vibelign.commands.bench_fixtures import prepare_patch_sandbox
-from vibelign.core.patch_suggester import score_candidates, suggest_patch
+from vibelign.core.patch_suggester import score_candidates, suggest_patch, suggest_recovery_level2_patch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCENARIOS_PATH = REPO_ROOT / "tests" / "benchmark" / "scenarios.json"
@@ -68,6 +68,28 @@ class ScoreCandidatesTest(unittest.TestCase):
                 f"score_candidates must be sorted descending: "
                 f"index {i}={scores[i]} < {i+1}={scores[i+1]}",
             )
+
+    def test_recovery_level2_uses_deterministic_selection_without_ai(self):
+        sc = self.scenarios[0]
+        candidates = score_candidates(self.sandbox, sc["request"], recovery_level=2)
+        top1_path, _top1_score = candidates[0]
+        top1_rel = str(top1_path.relative_to(self.sandbox)).replace("\\", "/")
+
+        with mock_patch("vibelign.core.patch_suggester._ai_select_file") as ai_mock:
+            result = suggest_patch(self.sandbox, sc["request"], use_ai=True, recovery_level=2)
+
+        ai_mock.assert_not_called()
+        self.assertEqual(result.target_file, top1_rel)
+        self.assertIn("Recovery Level 2: deterministic patch target selection", result.rationale)
+
+    def test_recovery_level2_helper_matches_explicit_level2_call(self):
+        sc = self.scenarios[0]
+
+        explicit = suggest_patch(self.sandbox, sc["request"], use_ai=False, recovery_level=2)
+        helper = suggest_recovery_level2_patch(self.sandbox, sc["request"])
+
+        self.assertEqual(helper.target_file, explicit.target_file)
+        self.assertEqual(helper.target_anchor, explicit.target_anchor)
 
 
 if __name__ == "__main__":
