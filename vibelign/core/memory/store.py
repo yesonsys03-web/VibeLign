@@ -118,6 +118,50 @@ def is_memory_read_only(path: Path) -> bool:
     return load_memory_state(path).read_only
 
 
+def ensure_memory_agent_fields(
+    path: Path,
+    *,
+    updated_by: str = "vib memory agent",
+) -> bool:
+    state = load_memory_state(path)
+    if state.read_only:
+        return False
+
+    active_intent = state.active_intent
+    next_action = state.next_action
+    changed = False
+    now = _utc_now()
+
+    if active_intent is None:
+        active_text = _agent_active_intent(state)
+        if active_text:
+            active_intent = MemoryTextField(
+                text=active_text,
+                last_updated=now,
+                updated_by=updated_by,
+                source="system",
+                proposed=True,
+            )
+            changed = True
+
+    if _agent_can_replace_next_action(next_action):
+        next_text = _agent_next_action(state)
+        if next_text and (next_action is None or next_action.text != next_text):
+            next_action = MemoryTextField(
+                text=next_text,
+                last_updated=now,
+                updated_by=updated_by,
+                source="system",
+                proposed=True,
+            )
+            changed = True
+
+    if not changed:
+        return False
+    save_memory_state(path, replace(state, active_intent=active_intent, next_action=next_action))
+    return True
+
+
 def save_memory_state(path: Path, state: MemoryState) -> None:
     if state.read_only or state.schema_version > MEMORY_SCHEMA_VERSION:
         raise ValueError("memory schema is newer than this VibeLign supports; refusing to write")
@@ -756,6 +800,53 @@ def _memory_changed_files(memory_state: MemoryState) -> list[str]:
         if entry.path and entry.path not in paths:
             paths.append(entry.path)
     return paths
+
+
+def _agent_active_intent(memory_state: MemoryState) -> str:
+    if memory_state.decisions:
+        return memory_state.decisions[-1].text
+    paths = _memory_changed_files(memory_state)
+    if paths:
+        latest = ", ".join(paths[:3])
+        return f"최근 작업 파일을 이어서 정리하는 중입니다: {latest}"
+    if memory_state.verification:
+        return "최근 검증 결과를 바탕으로 작업 상태를 이어받는 중입니다."
+    if memory_state.risks:
+        return f"최근 경고를 확인하는 중입니다: {_latest_risk_text(memory_state)}"
+    return ""
+
+
+def _agent_next_action(memory_state: MemoryState) -> str:
+    if memory_state.risks:
+        return f"다음에 할 일: {_latest_risk_text(memory_state)}"
+    for verification in reversed(memory_state.verification):
+        if verification.command and (verification.stale or verification.scope_unknown):
+            command = _dedupe_stale_labels(verification.command.partition(" -> ")[0].strip())
+            return f"최신 상태 확인이 필요합니다. 다시 실행하세요: {command}"
+    paths = _memory_changed_files(memory_state)
+    if paths:
+        latest = ", ".join(paths[:3])
+        return f"{latest} 변경 내용을 확인하고 vib guard로 안전 상태를 점검하세요."
+    if memory_state.verification:
+        return "마지막 확인 결과를 검토하고 다음 수정 범위를 정하세요."
+    return ""
+
+
+def _agent_can_replace_next_action(field: MemoryTextField | None) -> bool:
+    if field is None:
+        return True
+    return (
+        field.proposed
+        and field.source == "system"
+        and field.text == "경고 내용을 먼저 확인하고 필요한 파일만 수정하거나 복구하세요."
+    )
+
+
+def _latest_risk_text(memory_state: MemoryState) -> str:
+    for risk in reversed(memory_state.risks):
+        if risk.text:
+            return risk.text
+    return "경고 내용을 확인하고 필요한 파일만 수정하거나 복구하세요."
 
 
 def _explicit_relevant_files(memory_state: MemoryState) -> list[RelevantFileEntry]:
