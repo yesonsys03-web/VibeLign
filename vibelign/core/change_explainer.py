@@ -1,5 +1,6 @@
 # === ANCHOR: CHANGE_EXPLAINER_START ===
 from dataclasses import dataclass, asdict, field
+from datetime import datetime
 import subprocess
 import time
 from collections.abc import Sequence
@@ -18,6 +19,7 @@ class ChangeItem:
     path: str
     status: str
     kind: str
+    modified_at: str = ""
 
 
 # === ANCHOR: CHANGE_EXPLAINER_CHANGEITEM_END ===
@@ -172,6 +174,21 @@ def _run_git(root: Path, args: Sequence[str]) -> tuple[bool, str]:
 # === ANCHOR: CHANGE_EXPLAINER__RUN_GIT_END ===
 
 
+# === ANCHOR: CHANGE_EXPLAINER__FILE_MODIFIED_AT_START ===
+
+
+def _file_modified_at(root: Path, rel_path: str) -> str:
+    try:
+        return datetime.fromtimestamp((root / rel_path).stat().st_mtime).strftime(
+            "%Y-%m-%d %H:%M"
+        )
+    except OSError:
+        return ""
+
+
+# === ANCHOR: CHANGE_EXPLAINER__FILE_MODIFIED_AT_END ===
+
+
 # === ANCHOR: CHANGE_EXPLAINER_EXPLAIN_FROM_GIT_START ===
 def explain_from_git(root: Path) -> ExplainReport | None:
     ok, out = _run_git(root, ["status", "--porcelain", "--", "."])
@@ -203,7 +220,10 @@ def explain_from_git(root: Path) -> ExplainReport | None:
         }.get(status_code, "changed")
         items.append(
             ChangeItem(
-                rel, status, enrich_change_kind(project_map, rel, classify_path(rel))
+                rel,
+                status,
+                enrich_change_kind(project_map, rel, classify_path(rel)),
+                _file_modified_at(root, rel),
             )
         )
     risk = risk_from_items(items)
@@ -375,7 +395,14 @@ def explain_file_from_git(root: Path, rel_path: str) -> ExplainReport | None:
                 ],
                 risk,
                 "vib checkpoint 로 지금 상태를 저장해두면 나중에 vib undo 로 되돌릴 수 있어요.",
-                [{"path": rel_path, "status": "added", "kind": item_kind}],
+                [
+                    {
+                        "path": rel_path,
+                        "status": "added",
+                        "kind": item_kind,
+                        "modified_at": _file_modified_at(root, rel_path),
+                    }
+                ],
             )
         return ExplainReport(
             "git",
@@ -396,7 +423,14 @@ def explain_file_from_git(root: Path, rel_path: str) -> ExplainReport | None:
         why_matters,
         risk,
         "vib undo 로 되돌릴 수 있어요. 또는 vib checkpoint 로 저장해두면 언제든 그 시점으로 돌아갈 수 있어요.",
-        [{"path": rel_path, "status": "modified", "kind": item_kind}],
+        [
+            {
+                "path": rel_path,
+                "status": "modified",
+                "kind": item_kind,
+                "modified_at": _file_modified_at(root, rel_path),
+            }
+        ],
     )
 
 
@@ -447,7 +481,14 @@ def explain_file_from_mtime(
             ["무엇이 바뀌었는지 보려면 vib history 로 checkpoint 기록을 확인해보세요"],
             risk,
             "vib undo 로 되돌릴 수 있어요. 먼저 vib checkpoint 로 현재 상태를 저장해두는 걸 추천해요.",
-            [{"path": rel_path, "status": "recently_modified", "kind": item_kind}],
+            [
+                {
+                    "path": rel_path,
+                    "status": "recently_modified",
+                    "kind": item_kind,
+                    "modified_at": _file_modified_at(root, rel_path),
+                }
+            ],
         )
 
     return ExplainReport(
@@ -487,6 +528,7 @@ def explain_from_mtime(root: Path, since_minutes: int = 120) -> ExplainReport:
                         rel,
                         "recently_modified",
                         enrich_change_kind(project_map, rel, classify_path(rel)),
+                        _file_modified_at(root, rel),
                     )
                 )
         except Exception:

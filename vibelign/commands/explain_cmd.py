@@ -39,16 +39,78 @@ def _render_markdown(report: ExplainReport) -> str:
     )
     lines.extend(["", "## 파일 목록"])
     if report.files:
-        lines.extend(
-            [
-                f"- `{item['path']}` ({item['status']}, {item['kind']})"
-                for item in report.files
-            ]
-        )
+        lines.extend(_render_reference_files(report.files))
     else:
         lines.append("- 나열된 파일이 없습니다.")
     lines.extend(["", "## 롤백 힌트", report.rollback_hint])
     return "\n".join(lines) + "\n"
+
+
+def _render_reference_files(files: list[dict[str, str]]) -> list[str]:
+    lines = ["파일 종류 요약:"]
+    lines.extend(_file_kind_summary(files))
+    lines.extend(["", "파일별 보기:"])
+    for item in files:
+        path = item.get("path", "")
+        status_with_time = _file_status_with_time(item)
+        lines.append(f"- `{path}` — {_file_kind_label(item)} ({status_with_time})")
+    return lines
+
+
+def _file_status_with_time(item: dict[str, str]) -> str:
+    status = _status_label(item.get("status", ""))
+    modified_at = item.get("modified_at", "")
+    return f"{status}, {modified_at}" if modified_at else status
+
+
+def _file_kind_summary(files: list[dict[str, str]]) -> list[str]:
+    counts: dict[str, int] = {}
+    for item in files:
+        label = _file_kind_label(item)
+        counts[label] = counts.get(label, 0) + 1
+    order = ["문서", "테스트", "핵심 코드", "화면", "명령/설정", "일반 파일"]
+    return [f"- {label} {counts[label]}개 — {_kind_description(label)}" for label in order if counts.get(label, 0)]
+
+
+def _file_kind_label(item: dict[str, str]) -> str:
+    kind = item.get("kind", "")
+    path = item.get("path", "")
+    if kind == "docs":
+        return "문서"
+    if kind == "test":
+        return "테스트"
+    if kind == "logic":
+        return "핵심 코드"
+    if kind == "ui":
+        return "화면"
+    if kind in {"entry file", "service"}:
+        return "핵심 코드"
+    normalized = path.replace("\\", "/").lower()
+    name = normalized.rsplit("/", 1)[-1]
+    if normalized.startswith("vibelign/commands/") or normalized.startswith("vibelign/cli/") or name in {"pyproject.toml", "vib.spec"}:
+        return "명령/설정"
+    return "일반 파일"
+
+
+def _status_label(status: str) -> str:
+    return {
+        "modified": "수정됨",
+        "untracked": "새 파일",
+        "added": "추가됨",
+        "deleted": "삭제됨",
+        "renamed": "이름 변경",
+    }.get(status, status or "상태 알 수 없음")
+
+
+def _kind_description(label: str) -> str:
+    return {
+        "문서": "기획이나 설명 문서가 바뀌었습니다.",
+        "테스트": "기능이 맞게 동작하는지 확인하는 코드가 바뀌었습니다.",
+        "핵심 코드": "실제 기능 로직이 바뀌었습니다.",
+        "화면": "GUI 화면이나 표시 코드가 바뀌었습니다.",
+        "명령/설정": "CLI 명령, 패키징, 설정 파일이 바뀌었습니다.",
+        "일반 파일": "기타 프로젝트 파일이 바뀌었습니다.",
+    }.get(label, "프로젝트 파일이 바뀌었습니다.")
 
 
 # === ANCHOR: EXPLAIN_CMD__RENDER_MARKDOWN_END ===
