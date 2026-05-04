@@ -1,5 +1,6 @@
 import json
 from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor
 from importlib import import_module
 from pathlib import Path
 from typing import Callable, Protocol, cast
@@ -85,6 +86,49 @@ def test_memory_audit_append_writes_jsonl(tmp_path: Path) -> None:
     payload = json.loads(lines[0])
     assert payload["event"] == "recovery_preview"
     assert payload["result"] == "success"
+    assert payload["sequence_number"] == 1
+
+
+def test_memory_audit_append_assigns_monotonic_sequence_numbers(tmp_path: Path) -> None:
+    module = _audit_module()
+    audit_path = getattr(module, "memory_audit_path")(tmp_path)
+    first = _build_event()(tmp_path, event="recovery_preview", result="success")
+    second = _build_event()(tmp_path, event="recovery_apply", result="aborted")
+
+    getattr(module, "append_memory_audit_event")(audit_path, first)
+    getattr(module, "append_memory_audit_event")(audit_path, second)
+
+    payloads = [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines()]
+    assert [payload["sequence_number"] for payload in payloads] == [1, 2]
+    assert payloads[1]["result"] == "aborted"
+
+
+def test_memory_audit_accepts_operational_result_taxonomy(tmp_path: Path) -> None:
+    results = ["success", "denied", "busy", "aborted", "failed"]
+
+    payloads = [
+        _event_to_dict()(_build_event()(tmp_path, event="recovery_apply", result=result))
+        for result in results
+    ]
+
+    assert [payload["result"] for payload in payloads] == results
+
+
+def test_memory_audit_append_lock_preserves_unique_sequence_numbers(tmp_path: Path) -> None:
+    module = _audit_module()
+    audit_path = getattr(module, "memory_audit_path")(tmp_path)
+
+    def append_one(index: int) -> None:
+        event = _build_event()(tmp_path, event=f"recovery_apply_{index}", result="success")
+        getattr(module, "append_memory_audit_event")(audit_path, event)
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        _ = list(executor.map(append_one, range(20)))
+
+    payloads = [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines()]
+    sequence_numbers = sorted(payload["sequence_number"] for payload in payloads)
+    assert sequence_numbers == list(range(1, 21))
+    assert b"\r\n" not in audit_path.read_bytes()
 
 
 def test_memory_audit_sanitizes_labels_and_optional_ids(tmp_path: Path) -> None:
