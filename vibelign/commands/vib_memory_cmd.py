@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from argparse import Namespace
+import json
 from importlib import import_module
 from pathlib import Path
 from typing import Callable, Protocol, cast
@@ -9,6 +10,7 @@ from typing import Callable, Protocol, cast
 from vibelign.core.memory.store import (
     add_memory_decision,
     add_memory_relevant_file,
+    ensure_memory_agent_fields,
     is_memory_read_only,
     load_memory_state,
     set_memory_active_intent,
@@ -16,6 +18,7 @@ from vibelign.core.memory.store import (
 )
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_root import resolve_project_root
+from vibelign.core.schema_contracts import validate_memory_state_payload
 from vibelign.terminal_render import cli_print
 
 print = cli_print
@@ -52,9 +55,16 @@ def _print_lines(title: str, lines: list[str]) -> None:
         print(f"- {line}")
 
 
-def run_vib_memory_show(_: Namespace) -> None:
+def run_vib_memory_show(args: Namespace) -> None:
     path = _memory_path()
+    _ = ensure_memory_agent_fields(path)
     state = load_memory_state(path)
+    if getattr(args, "json", False):
+        _audit_memory_summary_read(path)
+        payload = _memory_state_payload(state)
+        validate_memory_state_payload(payload)
+        print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        return
     print("VibeLign Memory")
     if state.downgrade_warning:
         print(f"Warning: {state.downgrade_warning}")
@@ -177,6 +187,23 @@ def _audit_shown_triggers(path: Path, trigger_ids: list[str]) -> None:
         )
 
 
+def _audit_memory_summary_read(path: Path) -> None:
+    root = path.parent.parent
+    module = import_module("vibelign.core.memory.audit")
+    append_event = cast(Callable[..., None], getattr(module, "append_memory_audit_event"))
+    build_event = cast(Callable[..., object], getattr(module, "build_memory_audit_event"))
+    audit_path = cast(Callable[[Path], Path], getattr(module, "memory_audit_path"))
+    append_event(
+        audit_path(root),
+        build_event(
+            root,
+            event="memory_summary_read",
+            tool="vib-cli",
+            result="success",
+        ),
+    )
+
+
 def _verification_lines(state) -> list[str]:
     lines: list[str] = []
     for item in state.verification[-5:]:
@@ -185,6 +212,66 @@ def _verification_lines(state) -> list[str]:
             line = f"{line} (stale)"
         lines.append(line)
     return lines
+
+
+def _memory_state_payload(state) -> dict[str, object]:
+    return {
+        "schema_version": state.schema_version,
+        "active_intent": _text_field_payload(state.active_intent),
+        "next_action": _text_field_payload(state.next_action),
+        "decisions": [_text_field_payload(item) for item in state.decisions],
+        "relevant_files": [
+            {
+                "path": item.path,
+                "why": item.why,
+                "source": item.source,
+                "last_updated": item.last_updated,
+                "updated_by": item.updated_by,
+                "stale": item.stale,
+                "from_previous_intent": item.from_previous_intent,
+            }
+            for item in state.relevant_files
+        ],
+        "verification": [
+            {
+                "command": item.command,
+                "result": item.result,
+                "last_updated": item.last_updated,
+                "updated_by": item.updated_by,
+                "related_files": item.related_files,
+                "stale": item.stale,
+                "scope_unknown": item.scope_unknown,
+            }
+            for item in state.verification
+        ],
+        "risks": [_text_field_payload(item) for item in state.risks],
+        "observed_context": [
+            {
+                "kind": item.kind,
+                "summary": item.summary,
+                "path": item.path,
+                "timestamp": item.timestamp,
+                "source_tool": item.source_tool,
+            }
+            for item in state.observed_context
+        ],
+        "archived_decisions": [_text_field_payload(item) for item in state.archived_decisions],
+        "downgrade_warning": state.downgrade_warning,
+    }
+
+
+def _text_field_payload(field) -> dict[str, object] | None:
+    if field is None:
+        return None
+    return {
+        "text": field.text,
+        "last_updated": field.last_updated,
+        "updated_by": field.updated_by,
+        "source": field.source,
+        "stale": field.stale,
+        "proposed": field.proposed,
+        "from_previous_intent": field.from_previous_intent,
+    }
 
 
 def _dedupe_stale_labels(line: str) -> str:

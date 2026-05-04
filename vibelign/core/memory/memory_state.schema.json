@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yesonsys03-web.github.io/VibeLign/schemas/memory_state.schema.json",
+  "title": "VibeLign Memory State",
+  "type": "object",
+  "required": ["schema_version"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "active_intent": {"$ref": "#/$defs/memory_text_field"},
+    "decisions": {"type": "array", "items": {"$ref": "#/$defs/memory_text_field"}},
+    "relevant_files": {"type": "array", "items": {"$ref": "#/$defs/relevant_file"}},
+    "verification": {"type": "array", "items": {"$ref": "#/$defs/verification"}},
+    "risks": {"type": "array", "items": {"$ref": "#/$defs/memory_text_field"}},
+    "next_action": {"$ref": "#/$defs/memory_text_field"},
+    "observed_context": {"type": "array", "items": {"$ref": "#/$defs/observed_context"}},
+    "archived_decisions": {"type": "array", "items": {"$ref": "#/$defs/memory_text_field"}},
+    "downgrade_warning": {"type": "string"}
+  },
+  "$defs": {
+    "memory_text_field": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "text": {"type": "string"},
+        "last_updated": {"type": "string"},
+        "updated_by": {"type": "string"},
+        "source": {"enum": ["explicit", "observed", "legacy", "system"]},
+        "stale": {"type": "boolean"},
+        "proposed": {"type": "boolean"},
+        "from_previous_intent": {"type": "boolean"}
+      }
+    },
+    "relevant_file": {
+      "type": "object",
+      "required": ["path", "why"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string"},
+        "why": {"type": "string"},
+        "source": {"enum": ["explicit", "observed"]},
+        "last_updated": {"type": "string"},
+        "updated_by": {"type": "string"},
+        "stale": {"type": "boolean"},
+        "from_previous_intent": {"type": "boolean"}
+      }
+    },
+    "verification": {
+      "type": "object",
+      "required": ["command"],
+      "additionalProperties": false,
+      "properties": {
+        "command": {"type": "string"},
+        "result": {"type": "string"},
+        "last_updated": {"type": "string"},
+        "updated_by": {"type": "string"},
+        "related_files": {"type": "array", "items": {"type": "string"}},
+        "stale": {"type": "boolean"},
+        "scope_unknown": {"type": "boolean"}
+      }
+    },
+    "observed_context": {
+      "type": "object",
+      "required": ["kind", "summary"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"type": "string"},
+        "summary": {"type": "string"},
+        "path": {"type": "string"},
+        "timestamp": {"type": "string"},
+        "source_tool": {"type": "string"}
+      }
+    }
+  }
+}
