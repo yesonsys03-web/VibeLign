@@ -101,8 +101,12 @@ class DistributionMetadataTest(unittest.TestCase):
 
         self.assertIn('"vibelign.commands.vib_backup_db_viewer_cmd"', text)
         self.assertIn('"vibelign.commands.vib_backup_db_maintenance_cmd"', text)
+        self.assertIn('"vibelign.commands.vib_memory_cmd"', text)
+        self.assertIn('"vibelign.commands.vib_recover_cmd"', text)
         self.assertIn('"vibelign.core.checkpoint_engine.rust_engine"', text)
         self.assertIn('"vibelign.core.checkpoint_engine.rust_checkpoint_engine"', text)
+        self.assertIn('"vibelign.core.memory.store"', text)
+        self.assertIn('"vibelign.core.recovery.planner"', text)
         self.assertIn('datas.append(("vibelign/_bundled", "vibelign/_bundled"))', text)
         self.assertNotIn('"vibelign.commands.history_cmd"', text)
         self.assertNotIn('"vibelign.commands.undo_cmd"', text)

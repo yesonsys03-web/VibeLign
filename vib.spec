@@ -13,6 +13,7 @@ hidden_imports = [
     "vibelign.commands.vib_docs_build_cmd","vibelign.commands.vib_doc_sources_cmd",
     "vibelign.commands.vib_doctor_cmd","vibelign.commands.vib_explain_cmd","vibelign.commands.vib_guard_cmd",
     "vibelign.commands.vib_history_cmd","vibelign.commands.vib_init_cmd","vibelign.commands.vib_manual_cmd",
+    "vibelign.commands.vib_memory_cmd","vibelign.commands.vib_recover_cmd",
     "vibelign.commands.vib_claude_hook_cmd","vibelign.commands.vib_patch_cmd",
     "vibelign.commands.vib_plan_structure_cmd","vibelign.commands.vib_precheck_cmd",
     "vibelign.commands.vib_scan_cmd","vibelign.commands.vib_secrets_cmd",
@@ -26,9 +27,16 @@ hidden_imports = [
     "vibelign.core.context_chunk","vibelign.core.http_retry","vibelign.core.import_resolver","vibelign.core.intent_ir",
     "vibelign.core.docs_cache","vibelign.core.docs_visualizer",
     "vibelign.core.keys_store","vibelign.core.local_checkpoints","vibelign.core.meta_paths","vibelign.core.patch_contract",
+    "vibelign.core.memory","vibelign.core.memory.audit","vibelign.core.memory.freshness",
+    "vibelign.core.memory.handoff_review","vibelign.core.memory.models","vibelign.core.memory.redaction",
+    "vibelign.core.memory.review","vibelign.core.memory.store",
     "vibelign.core.patch_plan","vibelign.core.patch_suggester","vibelign.core.patch_validation",
     "vibelign.core.project_map","vibelign.core.project_root","vibelign.core.project_scan",
     "vibelign.core.protected_files",
+    "vibelign.core.recovery","vibelign.core.recovery.apply","vibelign.core.recovery.intent_zone",
+    "vibelign.core.recovery.locks","vibelign.core.recovery.models","vibelign.core.recovery.path",
+    "vibelign.core.recovery.planner","vibelign.core.recovery.render","vibelign.core.recovery.sandwich",
+    "vibelign.core.recovery.signals","vibelign.core.recovery.trigger_baseline",
     "vibelign.core.request_normalizer","vibelign.core.risk_analyzer","vibelign.core.scan_cache",
     "vibelign.core.secret_scan","vibelign.core.strict_patch","vibelign.core.structure_planner",
     "vibelign.core.structure_policy","vibelign.core.target_resolution",
@@ -66,6 +74,10 @@ hidden_imports = [
 datas = []
 if Path("vibelign/_bundled").exists():
     datas.append(("vibelign/_bundled", "vibelign/_bundled"))
+if Path("vibelign/core/memory/memory_state.schema.json").exists():
+    datas.append(("vibelign/core/memory/memory_state.schema.json", "vibelign/core/memory"))
+if Path("vibelign/core/recovery/recovery_plan.schema.json").exists():
+    datas.append(("vibelign/core/recovery/recovery_plan.schema.json", "vibelign/core/recovery"))
 
 a = Analysis(
     ["vibelign/_vib_entry.py"],
