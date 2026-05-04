@@ -57,7 +57,7 @@ _CAPABILITY_POLICIES: dict[str, CapabilityPolicy] = {
         name="recovery_apply",
         default_grant="denied",
         requires_explicit_grant=True,
-        denied_call_writes_project_state=False,
+        denied_call_writes_project_state=True,
         denied_message="recovery_apply is not enabled yet; use recovery_preview and checkpoint_create before any future apply flow.",
     ),
     "handoff_export": CapabilityPolicy(

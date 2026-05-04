@@ -7,6 +7,11 @@ from typing import Protocol, cast
 
 from vibelign.core.memory.capability_grants import is_capability_granted
 from vibelign.core.memory.capability_policy import get_capability_policy
+from vibelign.core.memory.audit import (
+    append_memory_audit_event,
+    build_memory_audit_event,
+    memory_audit_path,
+)
 
 
 class TextContentFactory(Protocol):
@@ -41,7 +46,20 @@ def handle_denied_capability(
     }
     if capability == "recovery_apply":
         payload.update(_recovery_apply_readiness_payload(root, arguments))
+        _append_denied_recovery_apply_audit(root, arguments, str(payload.get("readiness_status", "blocked")))
     return [text_content(type="text", text=json.dumps(payload, ensure_ascii=False, sort_keys=True))]
+
+
+def _append_denied_recovery_apply_audit(root: Path, arguments: dict[str, object], readiness_status: str) -> None:
+    append_memory_audit_event(
+        memory_audit_path(root),
+        build_memory_audit_event(
+            root,
+            event="recovery_apply",
+            tool=str(arguments.get("tool", "mcp")) or "mcp",
+            result="busy" if readiness_status == "busy" else "denied",
+        ),
+    )
 
 
 def _recovery_apply_readiness_payload(root: Path, arguments: dict[str, object]) -> dict[str, object]:
@@ -54,7 +72,6 @@ def _recovery_apply_readiness_payload(root: Path, arguments: dict[str, object]) 
         preview_paths=_string_list(arguments.get("preview_paths")),
         confirmation=str(arguments.get("confirmation", "")),
         apply=arguments.get("apply") is True,
-        feature_enabled=arguments.get("feature_enabled") is True,
     )
     readiness = check_recovery_apply_readiness(root, request)
     if readiness.busy:

@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from vibelign.core.memory.capability_grants import capability_grants_path
 from vibelign.core.memory.capability_policy import get_capability_policy
+from vibelign.core.memory.audit import memory_audit_path
 from vibelign.core.recovery.locks import acquire_recovery_lock, recovery_lock_path
 from vibelign.mcp.mcp_dispatch import call_tool_dispatch
 
@@ -31,7 +32,7 @@ class McpDeniedCapabilitiesTest(unittest.TestCase):
 
             self.assertEqual(policy.default_grant, "denied")
             self.assertTrue(policy.requires_explicit_grant)
-            self.assertFalse(policy.denied_call_writes_project_state)
+            self.assertEqual(policy.denied_call_writes_project_state, tool_name == "recovery_apply")
 
     def test_future_memory_and_recovery_capabilities_return_permission_denied(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -54,7 +55,7 @@ class McpDeniedCapabilitiesTest(unittest.TestCase):
                 self.assertEqual(payload["grant_status"], "not_granted")
                 self.assertIn(tool_name, str(payload["grant_command_hint"]))
 
-    def test_denied_capabilities_do_not_write_project_state(self) -> None:
+    def test_denied_recovery_apply_writes_denied_audit_without_recovery_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
 
@@ -67,7 +68,9 @@ class McpDeniedCapabilitiesTest(unittest.TestCase):
                 )
             )
 
-            self.assertFalse((root / ".vibelign" / "memory_audit.jsonl").exists())
+            audit_payload = json.loads(memory_audit_path(root).read_text(encoding="utf-8"))
+            self.assertEqual(audit_payload["event"], "recovery_apply")
+            self.assertEqual(audit_payload["result"], "denied")
             self.assertFalse((root / ".vibelign" / "recovery").exists())
 
     def test_denied_recovery_apply_reports_busy_metadata_when_lock_exists(self) -> None:
@@ -106,7 +109,9 @@ class McpDeniedCapabilitiesTest(unittest.TestCase):
             self.assertIsInstance(payload["eta_seconds"], int)
             self.assertFalse(payload["would_apply"])
             self.assertTrue(recovery_lock_path(root).exists())
-            self.assertFalse((root / ".vibelign" / "memory_audit.jsonl").exists())
+            audit_payload = json.loads(memory_audit_path(root).read_text(encoding="utf-8"))
+            self.assertEqual(audit_payload["event"], "recovery_apply")
+            self.assertEqual(audit_payload["result"], "busy")
 
     def test_denied_recovery_apply_reports_non_busy_validation_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -140,6 +145,8 @@ class McpDeniedCapabilitiesTest(unittest.TestCase):
             self.assertEqual(payload["normalized_paths"], ["src/app.py"])
             self.assertEqual(payload["safety_checkpoint_id"], "ckpt_safety")
             self.assertFalse(payload["would_apply"])
+            audit_payload = json.loads(memory_audit_path(root).read_text(encoding="utf-8"))
+            self.assertEqual(audit_payload["result"], "denied")
             self.assertFalse((root / ".vibelign" / "recovery").exists())
 
     def test_denied_recovery_apply_reports_blocked_validation_errors(self) -> None:
@@ -172,6 +179,8 @@ class McpDeniedCapabilitiesTest(unittest.TestCase):
             self.assertTrue(any("../secret.py" in str(error) for error in errors))
             self.assertEqual(payload["normalized_paths"], [])
             self.assertFalse(payload["would_apply"])
+            audit_payload = json.loads(memory_audit_path(root).read_text(encoding="utf-8"))
+            self.assertEqual(audit_payload["result"], "denied")
 
     def test_recovery_apply_ignores_free_text_memory_instructions(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -199,6 +208,8 @@ class McpDeniedCapabilitiesTest(unittest.TestCase):
             self.assertEqual(payload["normalized_paths"], [])
             self.assertFalse(payload["would_apply"])
             self.assertNotIn("ckpt_safety", json.dumps(payload, ensure_ascii=False))
+            audit_payload = json.loads(memory_audit_path(root).read_text(encoding="utf-8"))
+            self.assertEqual(audit_payload["result"], "denied")
             self.assertFalse((root / ".vibelign" / "recovery").exists())
 
     def test_matching_grant_is_reported_but_future_capability_stays_denied(self) -> None:
@@ -236,7 +247,8 @@ class McpDeniedCapabilitiesTest(unittest.TestCase):
             self.assertEqual(payload["error"], "permission_denied")
             self.assertEqual(payload["capability"], "recovery_apply")
             self.assertEqual(payload["grant_status"], "granted_but_not_enabled")
-            self.assertFalse((root / ".vibelign" / "memory_audit.jsonl").exists())
+            audit_payload = json.loads(memory_audit_path(root).read_text(encoding="utf-8"))
+            self.assertEqual(audit_payload["result"], "denied")
             self.assertFalse((root / ".vibelign" / "recovery").exists())
 
     def test_handoff_export_grant_is_reported_but_export_stays_denied(self) -> None:
