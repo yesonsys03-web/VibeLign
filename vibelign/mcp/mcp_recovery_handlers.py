@@ -22,6 +22,7 @@ from vibelign.core.recovery.models import (
 )
 from vibelign.core.recovery.planner import build_recovery_plan
 from vibelign.core.recovery.signals import collect_basic_signals
+from vibelign.commands.vib_recover_cmd import recommendation_outcome_payload
 
 
 class TextContentFactory(Protocol):
@@ -67,6 +68,24 @@ def handle_recovery_preview(
     return _text(text_content, json.dumps(payload, ensure_ascii=False, sort_keys=True))
 
 
+def handle_recovery_recommend(
+    root: Path,
+    arguments: dict[str, object],
+    text_content: TextContentFactory,
+) -> list[object]:
+    from vibelign.core.recovery.agent import AgentConfig, recommend_candidates
+    from vibelign.core.recovery.signals import collect_recovery_candidates
+
+    outcome = recommend_candidates(
+        root,
+        str(arguments.get("user_phrase") or ""),
+        collect_recovery_candidates(root),
+        provider=None,
+        cfg=AgentConfig(cache_dir=root / ".vibelign" / "cache" / "agent"),
+    )
+    return _text(text_content, json.dumps(recommendation_outcome_payload(outcome), ensure_ascii=False, sort_keys=True))
+
+
 def handle_recovery_apply(
     root: Path,
     arguments: dict[str, object],
@@ -83,6 +102,12 @@ def handle_recovery_apply(
             preview_paths=_string_list(arguments.get("preview_paths")),
             confirmation=str(arguments.get("confirmation", "")),
             apply=arguments.get("apply") is True,
+            plan_id=_optional_text(arguments.get("plan_id")),
+            candidate_id=_optional_text(arguments.get("candidate_id")),
+            option_id=_optional_text(arguments.get("option_id")),
+            recommendation_provider=_optional_text(arguments.get("recommendation_provider")),
+            memory_proposal_id=_optional_text(arguments.get("memory_proposal_id")),
+            handoff_draft_id=_optional_text(arguments.get("handoff_draft_id")),
         ),
         owner_tool=str(arguments.get("tool", "mcp")) or "mcp",
     )
@@ -108,6 +133,13 @@ def _string_list(value: object) -> list[str]:
     return [str(item) for item in items if str(item)]
 
 
+def _optional_text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text or None
+
+
 def _audit_paths_count(plan: RecoveryPlan) -> AuditPathsCount:
     in_zone = len(plan.intent_zone)
     drift = len(plan.drift_candidates)
@@ -126,6 +158,8 @@ def _plan_to_payload(plan: RecoveryPlan) -> dict[str, object]:
         "drift_candidates": [_drift_candidate_to_payload(item) for item in plan.drift_candidates],
         "options": [_option_to_payload(item) for item in plan.options],
         "safe_checkpoint_candidate": _checkpoint_to_payload(plan.safe_checkpoint_candidate),
+        "ranked_candidates": [item.__dict__ for item in plan.ranked_candidates],
+        "recommendation_provider": plan.recommendation_provider,
     }
 
 
@@ -152,6 +186,12 @@ def _option_to_payload(item: RecoveryOption) -> dict[str, object]:
         "requires_sandwich": item.requires_sandwich,
         "requires_lock": item.requires_lock,
         "blocked_reason": item.blocked_reason,
+        "action_type": item.action_type,
+        "candidate_id": item.candidate_id,
+        "recommended": item.recommended,
+        "risk_level": item.risk_level,
+        "expected_loss": list(item.expected_loss),
+        "next_call": item.next_call,
     }
 
 

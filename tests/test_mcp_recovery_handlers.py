@@ -30,6 +30,10 @@ handle_recovery_preview = cast(
     Callable[[Path, dict[str, object], type[TextContent]], list[object]],
     recovery_handlers.handle_recovery_preview,
 )
+handle_recovery_recommend = cast(
+    Callable[[Path, dict[str, object], type[TextContent]], list[object]],
+    recovery_handlers.handle_recovery_recommend,
+)
 
 
 class McpRecoveryHandlersTest(unittest.TestCase):
@@ -65,6 +69,9 @@ class McpRecoveryHandlersTest(unittest.TestCase):
         self.assertEqual(plan_payload["mode"], "read_only")
         self.assertTrue(plan_payload["no_files_modified"])
         self.assertEqual(options_payload[0]["option_id"], "opt_test")
+        self.assertEqual(options_payload[0]["action_type"], "explain")
+        self.assertFalse(options_payload[0]["recommended"])
+        self.assertEqual(options_payload[0]["risk_level"], "low")
 
     def test_recovery_preview_writes_audit_without_project_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -88,6 +95,16 @@ class McpRecoveryHandlersTest(unittest.TestCase):
 
         self.assertIn("recovery_preview", audit_text)
         self.assertFalse((root / ".vibelign" / "state.json").exists())
+
+    def test_recovery_recommend_returns_ranked_payload_without_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = handle_recovery_recommend(root, {"user_phrase": "rollback"}, TextContent)
+            payload = cast(dict[str, object], json.loads(cast(TextContent, result[0]).text))
+
+        self.assertIn(payload["recommendation_provider"], {"deterministic", "llm", "cache", "invalid"})
+        self.assertIn("ranked_candidates", payload)
+        self.assertNotIn("applied", payload)
 
     def test_recovery_preview_audit_records_path_counts_not_raw_paths(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

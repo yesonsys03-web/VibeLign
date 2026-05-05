@@ -87,9 +87,14 @@ class McpToolSnapshotTest(unittest.TestCase):
                 "checkpoint_has_changes",
                 "retention_apply",
                 "memory_summary_read",
+                "handoff_draft_create",
+                "handoff_draft_accept",
+                "handoff_draft_dismiss",
+                "handoff_draft_undo",
                 "memory_full_read",
                 "memory_write",
                 "recovery_preview",
+                "recovery_recommend",
                 "recovery_apply",
                 "handoff_export",
                 "project_context_get",
@@ -155,6 +160,13 @@ class McpToolSnapshotTest(unittest.TestCase):
             cast(list[str], by_name["handoff_create"].inputSchema.get("required", [])),
             ["session_summary", "first_next_action"],
         )
+        self.assertEqual(
+            cast(list[str], by_name["recovery_recommend"].inputSchema.get("required", [])),
+            ["project_root"],
+        )
+        self.assertEqual(by_name["handoff_draft_accept"].inputSchema["required"], ["draft", "field"])
+        self.assertEqual(by_name["handoff_draft_dismiss"].inputSchema["required"], ["draft", "field"])
+        self.assertEqual(by_name["handoff_draft_undo"].inputSchema["required"], ["proposal_hash"])
         self.assertEqual(by_name["transfer_set_decision"].inputSchema["required"], ["text"])
         self.assertEqual(by_name["transfer_set_verification"].inputSchema["required"], ["text"])
         self.assertEqual(by_name["transfer_set_relevant"].inputSchema["required"], ["path"])
