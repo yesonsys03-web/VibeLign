@@ -67,6 +67,17 @@ def _candidate_paths(root: Path) -> list[Path]:
     env_path = os.environ.get("VIBELIGN_ENGINE_PATH")
     if env_path:
         candidates.append(Path(env_path))
+    pyinstaller_root = getattr(sys, "_MEIPASS", None)
+    if isinstance(pyinstaller_root, str) and pyinstaller_root:
+        candidates.append(Path(pyinstaller_root) / "vibelign" / "_bundled" / _binary_name())
+    if sys.executable:
+        candidates.append(
+            Path(sys.executable).resolve().parent
+            / "_internal"
+            / "vibelign"
+            / "_bundled"
+            / _binary_name()
+        )
     candidates.extend(
         [
             root / "vibelign-core" / "target" / "debug" / _binary_name(),

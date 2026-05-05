@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import stat
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,6 +10,8 @@ from typing import cast
 from unittest.mock import patch
 
 from vibelign.core.checkpoint_engine.rust_engine import (
+    _binary_name,
+    _candidate_paths,
     apply_retention_with_rust,
     call_rust_engine,
     create_checkpoint_with_rust,
@@ -88,6 +91,18 @@ class CheckpointRustEngineTest(unittest.TestCase):
 
             self.assertTrue(availability.available)
             self.assertEqual(availability.binary_path, valid_engine)
+
+    def test_pyinstaller_bundled_engine_candidate_is_checked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle_root = Path(tmp) / "_internal"
+            engine = bundle_root / "vibelign" / "_bundled" / _binary_name()
+
+            with patch.dict(os.environ, {}, clear=True), patch.object(
+                sys, "_MEIPASS", str(bundle_root), create=True
+            ):
+                candidates = _candidate_paths(Path(tmp))
+
+            self.assertIn(engine, candidates)
 
     def test_call_rust_engine_parses_ok_response(self):
         with tempfile.TemporaryDirectory() as tmp:
