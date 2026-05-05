@@ -10,6 +10,22 @@
 
 ---
 
+## [2.1.10] — 2026-05-05
+
+VibeLign 2.1.10 은 **Gemini 무료 등급 429 에러 안내 개선** 핫픽스입니다.
+
+### Changed
+
+- `vib docs-enhance` 가 Gemini HTTP 429 (분당 한도 초과) 를 만나면, 이제 무료 등급 한도와 유료 전환 안내, 그리고 자동 재시도를 늘리는 환경변수(`GEMINI_HTTP_MAX_ATTEMPTS`, `GEMINI_HTTP_RETRY_CAP`) 사용법을 함께 보여줍니다.
+- 동일 메시지가 GUI 의 AI 요약 버튼 에러 영역에도 그대로 표시되며, Google AI Studio 업그레이드 URL 은 클릭 가능한 버튼으로 자동 변환됩니다 (GUI 측 코드 변경 없음).
+
+### Verified
+
+- `_format_http_error` 합성 429 입력으로 메시지 포맷 검증.
+- GUI 의 `whiteSpace: pre-wrap` + URL 링크화 기존 로직이 새 메시지를 그대로 처리.
+
+---
+
 ## [2.1.9] — 2026-05-05
 
 VibeLign 2.1.9 는 **BACKUPS 탭 즉시 로딩과 복원 미리보기 시각 개선**을 담은 GUI QoL 릴리즈입니다.
