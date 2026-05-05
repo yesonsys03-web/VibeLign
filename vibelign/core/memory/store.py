@@ -60,6 +60,9 @@ _MAX_MEMORY_DECISIONS = 50
 _MAX_MEMORY_RELEVANT_FILES = 100
 _MAX_MEMORY_OBSERVED_CONTEXT = 200
 _MAX_MEMORY_VERIFICATION_PER_SCOPE = 30
+_AUTO_ESTIMATED_HANDOFF_WARNING = (
+    "⚠️ 이 핸드오프는 자동 추정값입니다. work_memory.json 직접 확인 필수."
+)
 
 
 # === ANCHOR: MEMORY_STORE__LOAD_MEMORY_STATE_START ===
@@ -106,6 +109,8 @@ def build_handoff_summary(path: Path) -> WorkMemorySummary | None:
             "state_references": [".vibelign/work_memory.json"],
         }
     _merge_memory_state_summary(summary, memory_state)
+    if not memory_state.decisions and not memory_state.verification:
+        summary["handoff_assurance_warning"] = _AUTO_ESTIMATED_HANDOFF_WARNING
     if memory_state.downgrade_warning:
         warnings = list(summary.get("warnings", []))
         if memory_state.downgrade_warning not in warnings:

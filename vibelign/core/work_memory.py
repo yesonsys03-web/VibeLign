@@ -87,6 +87,7 @@ class WorkMemorySummary(TypedDict, total=False):
     relevant_files: list[RelevantFileEntry]
     recent_events: list[str]
     warnings: list[str]
+    handoff_assurance_warning: str
     verification: list[str]
     state_references: list[str]
 # === ANCHOR: WORK_MEMORY_WORKMEMORYSUMMARY_END ===
