@@ -3,7 +3,7 @@ mod docs_access;
 mod onboarding;
 mod vib_path;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -1281,14 +1281,19 @@ fn read_stderr_stream<R: Read + Send + 'static>(reader: R, app: &tauri::AppHandl
 
 // ─── API 키 저장소 ─────────────────────────────────────────────────────────────
 
+const DISABLED_KEYS_FIELD: &str = "__disabled_keys";
+
 /// 플랫폼별 api_keys.json 경로.
 /// macOS/Linux: ~/.config/vibelign/api_keys.json
 /// Windows:     %APPDATA%\vibelign\api_keys.json
 fn keys_file_path() -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
     {
-        let appdata = std::env::var("APPDATA").ok()?;
-        let dir = PathBuf::from(appdata).join("vibelign");
+        let config_root = std::env::var("APPDATA")
+            .map(PathBuf::from)
+            .or_else(|_| std::env::var("USERPROFILE").map(|home| PathBuf::from(home).join("AppData").join("Roaming")))
+            .ok()?;
+        let dir = config_root.join("vibelign");
         std::fs::create_dir_all(&dir).ok()?;
         return Some(dir.join("api_keys.json"));
     }
@@ -1315,6 +1320,9 @@ fn read_keys_file() -> HashMap<String, String> {
     let mut out = HashMap::new();
     if let Some(obj) = val.as_object() {
         for (k, v) in obj {
+            if k == DISABLED_KEYS_FIELD {
+                continue;
+            }
             if let Some(s) = v.as_str() {
                 if !s.is_empty() { out.insert(k.clone(), s.to_string()); }
             }
@@ -1323,9 +1331,42 @@ fn read_keys_file() -> HashMap<String, String> {
     out
 }
 
+fn read_disabled_keys_file() -> HashSet<String> {
+    let path = match keys_file_path() { Some(p) => p, None => return HashSet::new() };
+    let text = match std::fs::read_to_string(&path) { Ok(t) => t, Err(_) => return HashSet::new() };
+    let val: serde_json::Value = match serde_json::from_str(&text) { Ok(v) => v, Err(_) => return HashSet::new() };
+    val.get(DISABLED_KEYS_FIELD)
+        .and_then(|v| v.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn write_keys_file(keys: &HashMap<String, String>) -> Result<(), String> {
+    write_keys_state(keys, &read_disabled_keys_file())
+}
+
+fn write_keys_state(keys: &HashMap<String, String>, disabled: &HashSet<String>) -> Result<(), String> {
     let path = keys_file_path().ok_or("keys 파일 경로를 찾을 수 없습니다")?;
-    let val = serde_json::to_string_pretty(keys).map_err(|e| e.to_string())?;
+    let mut val = serde_json::Map::new();
+    for (key, value) in keys {
+        if !value.is_empty() {
+            val.insert(key.clone(), serde_json::Value::String(value.clone()));
+        }
+    }
+    if !disabled.is_empty() {
+        let mut disabled_keys: Vec<String> = disabled.iter().cloned().collect();
+        disabled_keys.sort();
+        val.insert(
+            DISABLED_KEYS_FIELD.to_string(),
+            serde_json::Value::Array(disabled_keys.into_iter().map(serde_json::Value::String).collect()),
+        );
+    }
+    let val = serde_json::to_string_pretty(&serde_json::Value::Object(val)).map_err(|e| e.to_string())?;
     std::fs::write(&path, val + "\n").map_err(|e| e.to_string())?;
     #[cfg(unix)]
     {
@@ -1349,7 +1390,7 @@ fn provider_to_env_key(provider: &str) -> &'static str {
 fn migrate_legacy_keys() {
     let new_path = match keys_file_path() { Some(p) => p, None => return };
     if new_path.exists() { return; }
-    let legacy = read_gui_config();
+    let mut legacy = read_gui_config();
     let pairs: &[(&str, &str)] = &[
         ("ANTHROPIC", "ANTHROPIC_API_KEY"),
         ("OPENAI",    "OPENAI_API_KEY"),
@@ -1368,7 +1409,13 @@ fn migrate_legacy_keys() {
     if let Some(s) = legacy.get("anthropic_api_key").and_then(|v| v.as_str()) {
         if !s.is_empty() { migrated.entry("ANTHROPIC_API_KEY".into()).or_insert_with(|| s.to_string()); }
     }
-    if !migrated.is_empty() { let _ = write_keys_file(&migrated); }
+    if !migrated.is_empty() && write_keys_file(&migrated).is_ok() {
+        if let Some(obj) = legacy.as_object_mut() {
+            obj.remove("provider_api_keys");
+            obj.remove("anthropic_api_key");
+            let _ = write_gui_config(&legacy);
+        }
+    }
 }
 
 fn config_path() -> Option<PathBuf> {
@@ -1448,26 +1495,6 @@ fn mark_cli_installed_for_current_version() {
     let _ = write_gui_config(&cfg);
 }
 
-/// `provider_api_keys` + 레거시 `anthropic_api_key`를 합친 맵.
-fn provider_keys_from_config(data: &serde_json::Value) -> HashMap<String, String> {
-    let mut out = HashMap::new();
-    if let Some(obj) = data.get("provider_api_keys").and_then(|v| v.as_object()) {
-        for (k, v) in obj {
-            if let Some(s) = v.as_str() {
-                if !s.is_empty() {
-                    out.insert(k.to_uppercase(), s.to_string());
-                }
-            }
-        }
-    }
-    if let Some(s) = data.get("anthropic_api_key").and_then(|v| v.as_str()) {
-        if !s.is_empty() {
-            out.entry("ANTHROPIC".into()).or_insert_with(|| s.to_string());
-        }
-    }
-    out
-}
-
 #[tauri::command]
 fn save_api_key(key: String) -> Result<(), String> {
     save_provider_api_key("ANTHROPIC".to_string(), key)
@@ -1475,15 +1502,12 @@ fn save_api_key(key: String) -> Result<(), String> {
 
 #[tauri::command]
 fn load_api_key() -> Option<String> {
-    let data = read_gui_config();
-    provider_keys_from_config(&data)
-        .get("ANTHROPIC")
-        .cloned()
-        .or_else(|| data["anthropic_api_key"].as_str().map(String::from))
+    load_provider_api_keys().get("ANTHROPIC").cloned()
 }
 
 #[tauri::command]
 fn delete_api_key() -> Result<(), String> {
+    delete_provider_api_key("ANTHROPIC".to_string())?;
     let path = config_path().ok_or("홈 디렉터리를 찾을 수 없습니다")?;
     if !path.exists() {
         return Ok(());
@@ -1513,8 +1537,10 @@ fn save_provider_api_key(provider: String, key: String) -> Result<(), String> {
         return Err(format!("알 수 없는 provider: {provider}"));
     }
     let mut keys = read_keys_file();
+    let mut disabled = read_disabled_keys_file();
     keys.insert(env_key.to_string(), key);
-    write_keys_file(&keys)
+    disabled.remove(env_key);
+    write_keys_state(&keys, &disabled)
 }
 
 #[tauri::command]
@@ -1525,8 +1551,10 @@ fn delete_provider_api_key(provider: String) -> Result<(), String> {
         return Ok(());
     }
     let mut keys = read_keys_file();
+    let mut disabled = read_disabled_keys_file();
     keys.remove(env_key);
-    write_keys_file(&keys)
+    disabled.insert(env_key.to_string());
+    write_keys_state(&keys, &disabled)
 }
 
 #[tauri::command]
@@ -1548,7 +1576,7 @@ fn load_provider_api_keys() -> HashMap<String, String> {
     out
 }
 
-// ─── 환경변수 + 키 파일 API 키 상태 ───────────────────────────────────────────
+// ─── 환경변수 API 키 상태 ─────────────────────────────────────────────────────
 
 #[tauri::command]
 fn get_env_key_status() -> HashMap<String, bool> {
@@ -1559,12 +1587,11 @@ fn get_env_key_status() -> HashMap<String, bool> {
         "GLM_API_KEY",
         "MOONSHOT_API_KEY",
     ];
-    let stored = read_keys_file();
+    let disabled = read_disabled_keys_file();
     keys.iter()
         .map(|k| {
-            let from_env = !std::env::var(k).unwrap_or_default().is_empty();
-            let from_file = stored.get(*k).map(|v| !v.is_empty()).unwrap_or(false);
-            (k.to_string(), from_env || from_file)
+            let from_env = !disabled.contains(*k) && !std::env::var(k).unwrap_or_default().is_empty();
+            (k.to_string(), from_env)
         })
         .collect()
 }
