@@ -5,10 +5,7 @@ import sys
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Protocol, TypeVar, cast
 
-try:
-    from typing import override
-except ImportError:
-    from typing_extensions import override
+from typing_extensions import override
 
 from vibelign.terminal_render import print_cli_help
 
@@ -91,6 +88,7 @@ VibeLign - AI한테 코딩 시켜도 안전하게 지켜주는 도구
   checkpoint  게임 세이브처럼 지금 상태를 저장해요
   undo        저장한 곳으로 되돌려요
   history     저장 목록을 봐요
+  recover     되돌리기 전에 안전한 복구 후보를 먼저 보여줘요
   backup-db-viewer       백업 DB 실제 사용량을 읽기 전용으로 확인해요
   backup-db-maintenance  백업 DB 파일 크기를 안전하게 점검/정리해요
 
@@ -110,6 +108,7 @@ AI 수정 요청:
 파일 & 설정:
   protect     중요한 파일을 잠가요
   transfer    AI 툴 전환 시 맥락 파일 생성
+  memory      지금 하던 일과 다음 할 일을 세션 메모리에 저장해요
   ask         파일이 뭘 하는지 설명해줘요
   config      API 키 설정
   export      AI 도구용 설정 내보내기
