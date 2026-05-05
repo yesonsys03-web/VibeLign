@@ -16,6 +16,7 @@ from vibelign.core.recovery.agent import (
     parse_time_window,
     pre_rank_candidates,
     recommend_candidates,
+    resolve_auto_llm_provider,
     store_cached_ranking,
     validate_llm_ranking,
 )
@@ -191,3 +192,57 @@ def test_recommend_candidates_deterministic_fallback(tmp_path: Path) -> None:
     assert isinstance(outcome, RecommendationOutcome)
     assert outcome.provider == "deterministic"
     assert outcome.recommendations[0].llm_confidence is None
+
+
+class _FakeProvider:
+    def model_id(self) -> str:
+        return "fake:model"
+
+    def prompt_version(self) -> str:
+        return "v1"
+
+    def call(self, packet: object) -> dict[str, object]:
+        return {
+            "interpreted_goal": "rollback safely",
+            "ranked_candidates": [
+                {
+                    "candidate_id": "c1",
+                    "rank": 1,
+                    "confidence": "high",
+                    "reason": "commit boundary with small diff",
+                    "expected_loss": [],
+                }
+            ],
+        }
+
+
+def test_recommend_candidates_uses_provider_when_available(tmp_path: Path) -> None:
+    candidates = [_candidate("c1", "git_commit", "2026-05-04T11:00:00Z", commit_hash="abc")]
+
+    outcome = recommend_candidates(tmp_path, "rollback", candidates, provider=_FakeProvider(), cfg=AgentConfig(tmp_path / "cache"))
+
+    assert outcome.provider == "llm"
+    assert outcome.interpreted_goal == "rollback safely"
+    assert outcome.recommendations[0].llm_confidence is not None
+    assert outcome.recommendations[0].llm_confidence.level == "high"
+
+
+def test_resolve_auto_llm_provider_prefers_stored_key(monkeypatch) -> None:
+    monkeypatch.setattr("vibelign.core.recovery.agent._KEYS.get_key", lambda name: "k" if name == "OPENAI_API_KEY" else None)
+
+    provider = resolve_auto_llm_provider()
+
+    assert provider is not None
+    assert provider.model_id() == "openai:gpt-4o-mini"
+
+
+def test_resolve_auto_llm_provider_includes_later_fallbacks(monkeypatch) -> None:
+    def fake_get_key(name: str) -> str | None:
+        return "k" if name in {"OPENAI_API_KEY", "GEMINI_API_KEY"} else None
+
+    monkeypatch.setattr("vibelign.core.recovery.agent._KEYS.get_key", fake_get_key)
+
+    provider = resolve_auto_llm_provider()
+
+    assert provider is not None
+    assert provider.model_id() == "openai:gpt-4o-mini+gemini:gemini-3-flash-preview"

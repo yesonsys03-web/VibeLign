@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import time
 import tomllib
@@ -16,7 +17,11 @@ from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Literal, Protocol, cast
+import urllib.error
+import urllib.request
 
+from vibelign.core import http_retry as _HTTP_RETRY
+from vibelign.core import keys_store as _KEYS
 from vibelign.core.protected_files import get_protected
 from vibelign.core.recovery.models import (
     EvidenceScore,
@@ -43,6 +48,11 @@ _PACKET_BYTE_CAP = 32 * 1024
 _SCHEMA_VERSION = "recovery_packet_v1"
 _PROMPT_VERSION = "v1"
 _CACHE_FILENAME_PREFIX = "rec_"
+_PROVIDER_PRIORITY: tuple[tuple[str, str], ...] = (
+    ("anthropic", "ANTHROPIC_API_KEY"),
+    ("openai", "OPENAI_API_KEY"),
+    ("gemini", "GEMINI_API_KEY"),
+)
 
 
 @dataclass(frozen=True)
@@ -95,6 +105,196 @@ class LLMProvider(Protocol):
 
 class LLMValidationError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class RecoveryProviderCandidate:
+    provider: str
+    api_key: str
+    model: str
+
+
+class RecoveryAutoLLMProvider:
+    candidates: tuple[RecoveryProviderCandidate, ...]
+
+    def __init__(self, candidates: tuple[RecoveryProviderCandidate, ...]) -> None:
+        self.candidates = candidates
+
+    def model_id(self) -> str:
+        return "+".join(f"{item.provider}:{item.model}" for item in self.candidates)
+
+    def prompt_version(self) -> str:
+        return _PROMPT_VERSION
+
+    def call(self, packet: RecoveryContextPacket) -> dict[str, object]:
+        prompt = build_llm_prompt(packet)
+        errors: list[str] = []
+        for candidate in self.candidates:
+            try:
+                if candidate.provider == "anthropic":
+                    return _call_anthropic(candidate.api_key, candidate.model, prompt)
+                if candidate.provider == "openai":
+                    return _call_openai(candidate.api_key, candidate.model, prompt)
+                if candidate.provider == "gemini":
+                    return _call_gemini(candidate.api_key, candidate.model, prompt)
+                raise RuntimeError(f"unsupported recovery LLM provider: {candidate.provider}")
+            except Exception as exc:
+                errors.append(f"{candidate.provider}: {_brief_error(exc)}")
+        raise RuntimeError("; ".join(errors) or "no recovery LLM provider available")
+
+
+def resolve_auto_llm_provider() -> LLMProvider | None:
+    candidates: list[RecoveryProviderCandidate] = []
+    for provider, key_name in _PROVIDER_PRIORITY:
+        api_key = _KEYS.get_key(key_name)
+        if api_key:
+            candidates.append(RecoveryProviderCandidate(provider, api_key, _model_for_provider(provider)))
+    return RecoveryAutoLLMProvider(tuple(candidates)) if candidates else None
+
+
+def build_llm_prompt(packet: RecoveryContextPacket) -> str:
+    return (
+        "You are VibeLign's recovery safety reviewer. Rank restore candidates for a user who may not know Git.\n"
+        "Return JSON only with this shape:\n"
+        '{"interpreted_goal":"short user goal",'
+        '"ranked_candidates":[{"candidate_id":"id from input","rank":1,'
+        '"confidence":"high|medium|low","reason":"plain language reason",'
+        '"expected_loss":["what could be lost"],'
+        '"recommended_action_type":"preview_file_restore",'
+        '"requires_user_confirmation":true}],'
+        '"uncertainties":["unknowns"],"should_apply":false,"should_write_memory":false}\n'
+        "Rules:\n"
+        "- Use only candidate_id values from the input.\n"
+        "- Prefer checkpoints right after commits, small diffs, fresh verification, clean protected paths, and time matches.\n"
+        "- Never recommend applying automatically; always keep should_apply false.\n"
+        "- Explain risks in Korean if the user phrase is Korean; otherwise use the user's language.\n"
+        "\n=== INPUT JSON ===\n"
+        f"{_json_dump(asdict(packet))}\n"
+    )
+
+
+def _model_for_provider(provider: str) -> str:
+    override = os.environ.get(f"VIBELIGN_RECOVERY_AI_MODEL_{provider.upper()}", "").strip()
+    if override:
+        return override
+    if provider == "anthropic":
+        return "claude-haiku-4-5"
+    if provider == "openai":
+        return "gpt-4o-mini"
+    if provider == "gemini":
+        return (_KEYS.get_key("GEMINI_MODEL") or "").strip() or "gemini-3-flash-preview"
+    raise RuntimeError(f"unsupported recovery LLM provider: {provider}")
+
+
+def _call_anthropic(api_key: str, model: str, prompt: str) -> dict[str, object]:
+    payload = json.dumps(
+        {
+            "model": model,
+            "max_tokens": 1600,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=payload,
+        headers={
+            "content-type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+        },
+    )
+    body = _load_json_response(req)
+    blocks_raw = body.get("content")
+    blocks = blocks_raw if isinstance(blocks_raw, list) else []
+    text = "".join(
+        str(cast(dict[str, object], block).get("text", ""))
+        for block in blocks
+        if isinstance(block, dict) and cast(dict[str, object], block).get("type") == "text"
+    )
+    return _extract_json_object(text)
+
+
+def _call_openai(api_key: str, model: str, prompt: str) -> dict[str, object]:
+    payload = json.dumps(
+        {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "response_format": {"type": "json_object"},
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/chat/completions",
+        data=payload,
+        headers={"content-type": "application/json", "authorization": f"Bearer {api_key}"},
+    )
+    body = _load_json_response(req)
+    choices_raw = body.get("choices")
+    choices = choices_raw if isinstance(choices_raw, list) else []
+    text = ""
+    first_choice = choices[0] if choices else None
+    if isinstance(first_choice, dict):
+        message = cast(dict[str, object], first_choice).get("message")
+        if isinstance(message, dict):
+            text = str(cast(dict[str, object], message).get("content") or "")
+    return _extract_json_object(text)
+
+
+def _call_gemini(api_key: str, model: str, prompt: str) -> dict[str, object]:
+    payload = json.dumps(
+        {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"responseMimeType": "application/json"},
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
+        data=payload,
+        headers={"content-type": "application/json"},
+    )
+    body = _load_json_response(req)
+    candidates_raw = body.get("candidates")
+    candidates = candidates_raw if isinstance(candidates_raw, list) else []
+    parts: list[object] = []
+    first_candidate = candidates[0] if candidates else None
+    if isinstance(first_candidate, dict):
+        content = cast(dict[str, object], first_candidate).get("content")
+        if isinstance(content, dict):
+            raw_parts = cast(dict[str, object], content).get("parts")
+            if isinstance(raw_parts, list):
+                parts = raw_parts
+    text = "".join(str(cast(dict[str, object], part).get("text", "")) for part in parts if isinstance(part, dict))
+    return _extract_json_object(text)
+
+
+def _load_json_response(req: urllib.request.Request) -> dict[str, object]:
+    try:
+        raw = _HTTP_RETRY.urlopen_read_with_retry(req, timeout=60.0)
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore")[:1000]
+        raise RuntimeError(f"recovery LLM HTTP {exc.code}: {detail}") from exc
+    loaded = json.loads(raw.decode("utf-8"))
+    if not isinstance(loaded, dict):
+        raise RuntimeError("recovery LLM response must be a JSON object")
+    return cast(dict[str, object], loaded)
+
+
+def _extract_json_object(text: str) -> dict[str, object]:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        stripped = stripped.strip("`").strip()
+        if stripped.lower().startswith("json"):
+            stripped = stripped[4:].strip()
+    try:
+        loaded = json.loads(stripped)
+    except json.JSONDecodeError:
+        start = stripped.find("{")
+        end = stripped.rfind("}")
+        if start == -1 or end <= start:
+            raise
+        loaded = json.loads(stripped[start : end + 1])
+    if not isinstance(loaded, dict):
+        raise RuntimeError("recovery LLM output must be a JSON object")
+    return cast(dict[str, object], loaded)
 
 
 def parse_time_window(text: str, *, now: datetime | None = None) -> TimeWindow | None:
@@ -275,7 +475,7 @@ def recommend_candidates(
     pre_ranked = pre_rank_candidates(candidates, time_window=time_window)
     protected_globs = tuple(get_protected(project_root))
     protected_clean = _protected_paths_clean(pre_ranked, protected_globs)
-    if provider is None or not is_agent_enabled(project_root):
+    if provider is None:
         return _deterministic_outcome(pre_ranked, time_window, protected_clean, None)
     packet = build_recovery_context_packet(user_phrase, pre_ranked, time_window, protected_globs)
     key = cache_key(
@@ -294,7 +494,7 @@ def recommend_candidates(
     except LLMValidationError as exc:
         return _deterministic_outcome(pre_ranked, time_window, protected_clean, f"llm validation failed: {exc}")
     except Exception as exc:
-        return _deterministic_outcome(pre_ranked, time_window, protected_clean, f"llm error: {type(exc).__name__}")
+        return _deterministic_outcome(pre_ranked, time_window, protected_clean, f"llm error: {_brief_error(exc)}")
     if not used_cache:
         store_cached_ranking(cfg, key=key, raw=raw)
     by_id = {candidate.candidate_id: candidate for candidate in pre_ranked}
@@ -345,6 +545,13 @@ def _deterministic_outcome(
         provider="deterministic",
         fallback_reason=fallback_reason,
     )
+
+
+def _brief_error(exc: Exception) -> str:
+    message = str(exc).strip().replace("\n", " ")
+    if len(message) > 220:
+        message = message[:220] + "..."
+    return f"{type(exc).__name__}: {message}" if message else type(exc).__name__
 
 
 def _candidate_in_window(candidate: RecoveryCandidate, time_window: TimeWindow | None) -> bool:
