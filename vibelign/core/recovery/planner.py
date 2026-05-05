@@ -2,12 +2,23 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from vibelign.core.patch_suggester import suggest_recovery_level2_patch
 
 from .intent_zone import build_intent_zone
-from .models import DriftCandidate, DriftCircuitBreakerState, RecoveryOption, RecoveryPlan, RecoverySignalSet
+from .models import (
+    DriftCandidate,
+    DriftCircuitBreakerState,
+    RankedCandidatePayload,
+    RecoveryOption,
+    RecoveryPlan,
+    RecoverySignalSet,
+)
+
+if TYPE_CHECKING:
+    from .agent import RecommendationOutcome
 
 
 _DRIFT_ACCURACY_MIN_WINDOW = 20
@@ -20,6 +31,7 @@ def build_recovery_plan(
     *,
     project_root: Path | None = None,
     recovery_request: str = "",
+    recommendation_outcome: "RecommendationOutcome | None" = None,
 ) -> RecoveryPlan:
     changed_paths = [*signals.changed_paths, *signals.untracked_paths]
     circuit_breaker_state = _drift_circuit_breaker_state(signals)
@@ -34,6 +46,7 @@ def build_recovery_plan(
         drift_candidates = []
 
     options = _build_options(changed_paths, drift_candidates, signals, project_root, recovery_request)
+    options = _attach_recommendation_metadata(options, recommendation_outcome)
     level = options[0].level if options else 0
     summary = _summary_for(changed_paths, drift_candidates, signals, circuit_breaker_state)
     return RecoveryPlan(
@@ -47,8 +60,42 @@ def build_recovery_plan(
         safe_checkpoint_candidate=signals.safe_checkpoint_candidate,
         no_files_modified=True,
         circuit_breaker_state=circuit_breaker_state,
+        ranked_candidates=_ranked_candidate_payloads(recommendation_outcome),
+        recommendation_provider=recommendation_outcome.provider if recommendation_outcome else None,
     )
 # === ANCHOR: RECOVERY_PLANNER__BUILD_RECOVERY_PLAN_END ===
+
+
+def _ranked_candidate_payloads(
+    recommendation_outcome: "RecommendationOutcome | None",
+) -> list[RankedCandidatePayload]:
+    if recommendation_outcome is None:
+        return []
+    payloads: list[RankedCandidatePayload] = []
+    for item in recommendation_outcome.recommendations:
+        payloads.append(
+            RankedCandidatePayload(
+                candidate_id=item.candidate.candidate_id,
+                rank=item.rank,
+                evidence_score={
+                    "score": item.evidence_score.score(),
+                    "formula_version": item.evidence_score.formula_version,
+                    "commit_boundary": item.evidence_score.commit_boundary,
+                    "verification_fresh": item.evidence_score.verification_fresh,
+                    "diff_small": item.evidence_score.diff_small,
+                    "protected_paths_clean": item.evidence_score.protected_paths_clean,
+                    "time_match_user_request": item.evidence_score.time_match_user_request,
+                },
+                llm_confidence=(
+                    {"level": item.llm_confidence.level, "reason": item.llm_confidence.reason}
+                    if item.llm_confidence
+                    else None
+                ),
+                reason=item.reason,
+                expected_loss=item.expected_loss,
+            )
+        )
+    return payloads
 
 
 def _build_options(
@@ -64,6 +111,9 @@ def _build_options(
                 option_id=_new_id("opt"),
                 level=0,
                 label="복구할 내용 없음 — 변경된 파일이나 실패한 검사 결과가 없습니다.",
+                action_type="explain",
+                risk_level="low",
+                next_call="vib recover --explain",
             )
         ]
     label = "1단계: 변경 내용 확인 — `vib explain`로 무엇이 바뀌었는지 확인하세요."
@@ -75,6 +125,9 @@ def _build_options(
             level=1,
             label=label,
             affected_paths=changed_paths,
+            action_type="explain",
+            risk_level="low",
+            next_call="vib recover --explain",
         )
     ]
     if signals.guard_has_failures:
@@ -90,6 +143,9 @@ def _build_options(
                 level=2,
                 label=guard_label,
                 affected_paths=changed_paths,
+                action_type="repair_guard_failure",
+                risk_level="medium",
+                next_call="vib recover --preview --json",
             )
         )
     if drift_candidates:
@@ -100,6 +156,9 @@ def _build_options(
                 label="2단계: 낯선 파일 확인 — 아래 파일을 `vib explain <파일경로>` 또는 에디터로 열어 확인하세요.",
                 affected_paths=[candidate.path for candidate in drift_candidates],
                 blocked_reason="복원 전에 사용자 확인 필요",
+                action_type="review_drift",
+                risk_level="medium",
+                next_call="vib explain <path>",
             )
         )
     if signals.safe_checkpoint_candidate is not None and len(options) < 3:
@@ -110,10 +169,48 @@ def _build_options(
                 label="3단계: 복원 미리보기 — 되돌릴 파일이 정해지면 `vib recover --file <파일경로>`를 실행하세요.",
                 affected_paths=changed_paths,
                 requires_sandwich=True,
+                requires_lock=True,
                 blocked_reason="복원 적용 기능은 아직 꺼져 있어 미리보기만 가능합니다",
+                action_type="preview_file_restore",
+                risk_level="high",
+                expected_loss=tuple(changed_paths),
+                next_call="vib recover --file <path>",
             )
         )
     return options[:3]
+
+
+def _attach_recommendation_metadata(
+    options: list[RecoveryOption],
+    recommendation_outcome: "RecommendationOutcome | None",
+) -> list[RecoveryOption]:
+    if recommendation_outcome is None or not recommendation_outcome.recommendations:
+        return options
+    top = recommendation_outcome.recommendations[0]
+    if not options:
+        return options
+    first = options[0]
+    options[0] = RecoveryOption(
+        option_id=first.option_id,
+        level=first.level,
+        label=first.label,
+        affected_paths=first.affected_paths,
+        estimated_impact=first.estimated_impact,
+        requires_sandwich=first.requires_sandwich,
+        requires_lock=first.requires_lock,
+        blocked_reason=first.blocked_reason,
+        action_type="preview_file_restore",
+        candidate_id=top.candidate.candidate_id,
+        recommended=True,
+        risk_level="medium" if top.expected_loss else "low",
+        expected_loss=top.expected_loss,
+        next_call=f"vib recover --recommend --phrase {recovery_request_placeholder()}",
+    )
+    return options
+
+
+def recovery_request_placeholder() -> str:
+    return "'<request>'"
 
 
 def _recovery_level2_target(project_root: Path | None, recovery_request: str) -> str:

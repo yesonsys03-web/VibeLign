@@ -37,6 +37,14 @@ def test_recovery_plan_schema_matches_recovery_model_literals() -> None:
     assert cast(list[str], schema["required"]) == ["plan_id", "mode", "level", "summary"]
 
 
+def test_recovery_plan_schema_supports_ranked_candidates() -> None:
+    schema = _schema("vibelign/core/recovery/recovery_plan.schema.json")
+    properties = cast(dict[str, object], schema["properties"])
+
+    assert "ranked_candidates" in properties
+    assert "recommendation_provider" in properties
+
+
 def test_schema_contracts_are_included_in_pyinstaller_datas() -> None:
     spec_text = (Path(__file__).resolve().parents[1] / "vib.spec").read_text(encoding="utf-8")
 
@@ -66,6 +74,8 @@ def test_real_recovery_payloads_match_recovery_schema_required_fields() -> None:
     validate_recovery_plan_payload(mcp_payload)
     assert cli_payload["circuit_breaker_state"] == "active"
     assert mcp_payload["circuit_breaker_state"] == "active"
+    assert cli_payload["ranked_candidates"] == []
+    assert mcp_payload["ranked_candidates"] == []
 
 
 def test_runtime_schema_validation_rejects_invalid_real_payloads() -> None:

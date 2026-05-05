@@ -16,7 +16,9 @@
     "safe_checkpoint_candidate": {"$ref": "#/$defs/safe_checkpoint_candidate"},
     "no_files_modified": {"type": "boolean"},
     "circuit_breaker_state": {"enum": ["active", "degraded"]},
-    "p0_summaries": {"type": "array", "items": {"$ref": "#/$defs/p0_summary"}}
+    "p0_summaries": {"type": "array", "items": {"$ref": "#/$defs/p0_summary"}},
+    "recommendation_provider": {"type": ["string", "null"], "enum": ["deterministic", "llm", "cache", "invalid", null]},
+    "ranked_candidates": {"type": "array", "items": {"$ref": "#/$defs/ranked_candidate"}}
   },
   "$defs": {
     "intent_zone_entry": {
@@ -52,7 +54,13 @@
         "estimated_impact": {"type": "string"},
         "requires_sandwich": {"type": "boolean"},
         "requires_lock": {"type": "boolean"},
-        "blocked_reason": {"type": ["string", "null"]}
+        "blocked_reason": {"type": ["string", "null"]},
+        "action_type": {"type": "string"},
+        "candidate_id": {"type": ["string", "null"]},
+        "recommended": {"type": "boolean"},
+        "risk_level": {"enum": ["low", "medium", "high"]},
+        "expected_loss": {"type": "array", "items": {"type": "string"}},
+        "next_call": {"type": "string"}
       }
     },
     "safe_checkpoint_candidate": {
@@ -66,6 +74,39 @@
         "metadata_complete": {"type": "boolean"},
         "preview_available": {"type": "boolean"},
         "predates_change": {"type": "boolean"}
+      }
+    },
+    "ranked_candidate": {
+      "type": "object",
+      "required": ["candidate_id", "rank", "evidence_score"],
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {"type": "string"},
+        "rank": {"type": "integer", "minimum": 1},
+        "reason": {"type": "string"},
+        "expected_loss": {"type": "array", "items": {"type": "string"}},
+        "evidence_score": {
+          "type": "object",
+          "required": ["score", "formula_version"],
+          "additionalProperties": false,
+          "properties": {
+            "score": {"type": "number", "minimum": 0},
+            "formula_version": {"type": "string"},
+            "commit_boundary": {"type": "boolean"},
+            "verification_fresh": {"type": "boolean"},
+            "diff_small": {"type": "boolean"},
+            "protected_paths_clean": {"type": "boolean"},
+            "time_match_user_request": {"type": "boolean"}
+          }
+        },
+        "llm_confidence": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "level": {"enum": ["high", "medium", "low"]},
+            "reason": {"type": "string"}
+          }
+        }
       }
     },
     "p0_summary": {
