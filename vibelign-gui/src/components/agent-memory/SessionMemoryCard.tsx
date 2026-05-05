@@ -1,7 +1,7 @@
 // === ANCHOR: SESSION_MEMORY_CARD_START ===
 import { useEffect, useState } from "react";
 import { CardState } from "../../lib/commands";
-import { MemorySummaryResult, memorySummary } from "../../lib/vib";
+import { acceptHandoffDraftField, createHandoffDraft, dismissHandoffDraftField, HandoffDraftPayload, HandoffDraftRecommendation, MemorySummaryResult, memorySummary } from "../../lib/vib";
 
 interface SessionMemoryCardProps {
   projectDir: string;
@@ -10,6 +10,8 @@ interface SessionMemoryCardProps {
 export default function SessionMemoryCard({ projectDir }: SessionMemoryCardProps) {
   const [state, setState] = useState<CardState>("idle");
   const [summary, setSummary] = useState<MemorySummaryResult | null>(null);
+  const [draft, setDraft] = useState<HandoffDraftPayload | null>(null);
+  const [proposalState, setProposalState] = useState<CardState>("idle");
 
   async function refresh() {
     setState("loading");
@@ -22,6 +24,41 @@ export default function SessionMemoryCard({ projectDir }: SessionMemoryCardProps
     }
   }
 
+  async function loadDraft() {
+    setProposalState("loading");
+    try {
+      const response = await createHandoffDraft(
+        projectDir,
+        friendlyValue(summary?.activeIntent, "Session Memory draft"),
+        friendlyValue(summary?.nextAction, "Review handoff proposals"),
+        summary?.relevantFiles ?? [],
+        summary?.verification ?? [],
+        summary?.risks ?? [],
+      );
+      setDraft(response.draft);
+      setProposalState("done");
+    } catch {
+      setProposalState("error");
+    }
+  }
+
+  async function actOnProposal(item: HandoffDraftRecommendation, action: "accept" | "dismiss") {
+    if (!draft) return;
+    setProposalState("loading");
+    try {
+      if (action === "accept") {
+        await acceptHandoffDraftField(projectDir, draft, item.field);
+        await refresh();
+      } else {
+        await dismissHandoffDraftField(projectDir, draft, item.field);
+      }
+      setDraft({ ...draft, recommendations: draft.recommendations.filter((proposal) => proposal.proposal_hash !== item.proposal_hash) });
+      setProposalState("done");
+    } catch {
+      setProposalState("error");
+    }
+  }
+
   useEffect(() => {
     void refresh();
   }, [projectDir]);
@@ -29,6 +66,7 @@ export default function SessionMemoryCard({ projectDir }: SessionMemoryCardProps
   const decisions = (summary?.decisions.slice(-2) ?? []).map(plainMemoryText);
   const relevantFiles = (summary?.relevantFiles.slice(-3) ?? []).map(plainRelevantFile);
   const verification = plainVerification(summary?.verification.slice(-1)[0]);
+  const proposalCount = draft?.recommendations.length ?? 0;
 
   return (
     <div className="feature-card" style={{ cursor: "default" }}>
@@ -65,12 +103,58 @@ export default function SessionMemoryCard({ projectDir }: SessionMemoryCardProps
             {relevantFiles.map((item, index) => <div key={index}>• {item}</div>)}
           </div>
         )}
+        <div style={{ marginTop: 8, border: "2px solid #1A1A1A", background: proposalCount ? "#FFFBEA" : "#F7F7F7", padding: 8, boxShadow: proposalCount ? "3px 3px 0 #1A1A1A" : "none" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 5 }}>
+            <div style={{ fontSize: 10, fontWeight: 900 }}>검토할 handoff 제안</div>
+            <div style={{ fontSize: 9, fontWeight: 900, padding: "2px 6px", border: "1.5px solid #1A1A1A", background: proposalCount ? "#FFD166" : "#fff" }}>{proposalCount}개</div>
+          </div>
+          <div style={{ fontSize: 9, color: "#666", lineHeight: 1.35, marginBottom: proposalCount ? 8 : 0 }}>
+            제안을 만들면 이 박스에 AI가 바꾸려는 메모리 필드가 표시돼요. 각 항목을 수락하면 `.vibelign/work_memory.json`에 저장되고, AI 이동에서 PROJECT_CONTEXT.md를 갱신하면 새 AI handoff에 반영돼요.
+          </div>
+          {proposalState === "error" && <div style={{ fontSize: 10, fontWeight: 800, color: "#B00020", marginTop: 6 }}>제안을 불러오지 못했어요. 메모리 상태를 새로고침한 뒤 다시 시도해 주세요.</div>}
+          {draft && proposalCount === 0 && proposalState !== "error" && <div style={{ fontSize: 10, color: "#555", marginTop: 6 }}>검토할 새 제안이 없어요. 이미 수락했거나 같은 제안을 거절했을 수 있어요.</div>}
+          {draft && proposalCount > 0 ? (
+            <div>
+            {draft.recommendations.map((item) => (
+              <div key={item.proposal_hash} style={{ fontSize: 10, color: "#333", lineHeight: 1.35, marginBottom: 8, borderTop: "1px solid #1A1A1A22", paddingTop: 6 }}>
+                <div style={{ fontWeight: 900 }}>{proposalLabel(item.field)}</div>
+                <div>{proposalPreview(item.value)}</div>
+                <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                  <button className="btn btn-sm" style={{ flex: 1, background: "#4DFF91", color: "#1A1A1A", border: "2px solid #1A1A1A", fontWeight: 900 }} disabled={proposalState === "loading"} onClick={() => void actOnProposal(item, "accept")}>수락해서 세션 메모리에 저장</button>
+                  <button className="btn btn-sm" style={{ flex: 1, background: "#fff", color: "#1A1A1A", border: "2px solid #1A1A1A", fontWeight: 900 }} disabled={proposalState === "loading"} onClick={() => void actOnProposal(item, "dismiss")}>거절</button>
+                </div>
+              </div>
+            ))}
+            </div>
+          ) : null}
+        </div>
+        <button className="btn btn-sm" style={{ width: "100%", marginTop: 8, background: "#FFD166", color: "#1A1A1A", border: "2px solid #1A1A1A" }} disabled={proposalState === "loading"} onClick={() => void loadDraft()}>
+          {proposalState === "loading" ? <span className="spinner" /> : "handoff 제안 만들기"}
+        </button>
         <button className="btn btn-sm" style={{ width: "100%", marginTop: 8, background: "#4DFF91", color: "#1A1A1A", border: "2px solid #1A1A1A" }} disabled={state === "loading"} onClick={refresh}>
           {state === "loading" ? <span className="spinner" /> : "메모리 새로고침"}
         </button>
       </div>
     </div>
   );
+}
+
+function proposalLabel(field: HandoffDraftRecommendation["field"]): string {
+  const labels: Record<HandoffDraftRecommendation["field"], string> = {
+    session_summary: "handoff 요약",
+    active_intent: "지금 하던 일",
+    next_action: "다음에 할 일",
+    relevant_files: "관련 파일",
+    verification: "확인 기록",
+    risk_notes: "위험 메모",
+  };
+  return labels[field];
+}
+
+function proposalPreview(value: unknown): string {
+  if (typeof value === "string") return easySentence(value);
+  if (Array.isArray(value)) return easySentence(value.map((item) => typeof item === "string" ? item : JSON.stringify(item)).join("; "));
+  return easySentence(JSON.stringify(value));
 }
 
 function MemoryLine({ label, value, help }: { label: string; value: string; help: string }) {

@@ -51,7 +51,7 @@ export default function TransferCard({ projectDir }: TransferCardProps) {
         <div style={{ fontSize: 16.5, color: "#555", marginBottom: 8 }}>PROJECT_CONTEXT 생성</div>
         {handoff && (
           <div style={{ fontSize: 10, color: "#555", lineHeight: 1.35, marginBottom: 6 }}>
-            현재 세션 작업과 다음 할 일을 자동으로 정리해서 새 AI가 바로 이어받게 해요.
+            세션 메모리(`.vibelign/work_memory.json`)를 읽어 PROJECT_CONTEXT.md에 반영하고, 새 AI가 두 파일을 함께 확인하게 해요.
           </div>
         )}
         <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>

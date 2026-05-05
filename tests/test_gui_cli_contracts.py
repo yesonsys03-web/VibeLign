@@ -28,12 +28,18 @@ def _json_object(raw: object) -> dict[str, object]:
 class _RecoverArgs:
     explain: bool
     preview: bool = False
+    recommend: bool = False
+    phrase: str = ""
     file: str | None = None
     json: bool = False
     apply: bool = False
     checkpoint_id: str = ""
     sandwich_checkpoint_id: str = ""
     confirmation: str = ""
+    plan_id: str | None = None
+    candidate_id: str | None = None
+    option_id: str | None = None
+    recommendation_provider: str | None = None
 
 
 class GuiCliContractsTest(unittest.TestCase):
@@ -53,8 +59,15 @@ class GuiCliContractsTest(unittest.TestCase):
         self.assertIn('"recovery-options"', order_text)
         self.assertIn("memorySummary", vib_text)
         self.assertIn("recoveryPreview", vib_text)
+        self.assertIn("recoveryRecommend", vib_text)
+        self.assertIn('"memory", "proposal-create"', vib_text)
+        self.assertIn('"--relevant-file"', vib_text)
+        self.assertIn('"--verification"', vib_text)
+        self.assertIn('"--risk-note"', vib_text)
+        self.assertNotIn('"transfer", "--handoff", "--ai"', vib_text)
         self.assertIn('["memory", "show", "--json"]', vib_text)
         self.assertIn('["recover", "--preview", "--json"]', vib_text)
+        self.assertIn('["recover", "--recommend", "--phrase", phrase]', vib_text)
         self.assertIn("verificationFreshness", vib_text)
         self.assertIn("safeCheckpointCandidate", vib_text)
         self.assertIn("requireRecord", vib_text)
@@ -63,7 +76,9 @@ class GuiCliContractsTest(unittest.TestCase):
         self.assertIn("p0_summaries", vib_text)
         self.assertIn("drift_candidates[${index}].why_outside_zone", vib_text)
         recovery_text = recovery_card.read_text(encoding="utf-8")
+        transfer_text = (root / "vibelign-gui" / "src" / "components" / "cards" / "transfer" / "TransferCard.tsx").read_text(encoding="utf-8")
         self.assertIn("driftCandidates", recovery_text)
+        self.assertIn("복구 후보 추천 보기", recovery_text)
         self.assertIn("검토가 필요한 파일", recovery_text)
         self.assertIn("미리보기 전용", recovery_text)
         self.assertNotIn("Drift candidates", recovery_text)
@@ -71,6 +86,10 @@ class GuiCliContractsTest(unittest.TestCase):
         session_text = session_card.read_text(encoding="utf-8")
         self.assertIn("지금 하던 일", session_text)
         self.assertIn("다음에 할 일", session_text)
+        self.assertIn(".vibelign/work_memory.json", session_text)
+        self.assertIn("수락해서 세션 메모리에 저장", session_text)
+        self.assertIn(".vibelign/work_memory.json", transfer_text)
+        self.assertIn("PROJECT_CONTEXT.md에 반영", transfer_text)
         self.assertNotIn("지금 하던 일 기록", session_text)
         self.assertNotIn("전문가용 작업 기록", session_text)
 
