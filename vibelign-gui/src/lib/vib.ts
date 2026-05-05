@@ -1292,7 +1292,6 @@ export async function vibTransfer(
   cwd: string,
   opts?: {
     handoff?: boolean;
-    compact?: boolean;
     full?: boolean;
     sessionSummary?: string;
     firstNextAction?: string;
@@ -1305,7 +1304,6 @@ export async function vibTransfer(
     if (opts.sessionSummary) args.push("--session-summary", opts.sessionSummary);
     if (opts.firstNextAction) args.push("--first-next-action", opts.firstNextAction);
   }
-  if (opts?.compact) args.push("--compact");
   if (opts?.full) args.push("--full");
   return runVib(args, cwd);
 }

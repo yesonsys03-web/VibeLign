@@ -184,7 +184,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
             </div>
             <div>
               <div style={{ fontWeight: 900, fontSize: 14 }}>{cmd.title}</div>
-              <div style={{ fontSize: 10, color: "#666" }}>vib {cmd.name}</div>
+              <div style={{ fontSize: 10, color: "#666" }}>{cmd.usage}</div>
             </div>
           </div>
         </div>
@@ -276,6 +276,33 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
               ))}
             </div>
           )}
+
+          {cmd.flags?.length ? (
+            <div className="card" style={{ marginTop: 12, padding: "12px 14px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#888", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>서브명령 / 옵션</div>
+              <div style={{ display: "grid", gap: 6 }}>
+                {cmd.flags.map((fd, fi) => {
+                  if (fd.type === "select") return (
+                    <div key={fi} style={{ display: "grid", gap: 4 }}>
+                      <div style={{ fontSize: 10, fontWeight: 900, color: "#555" }}>{fd.label}</div>
+                      {fd.options.map((option) => (
+                        <div key={option.v} style={{ display: "flex", gap: 6, alignItems: "baseline", fontSize: 11, lineHeight: 1.45 }}>
+                          <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 10, fontWeight: 800, color: cmd.color, minWidth: 150 }}>{option.v}</span>
+                          <span style={{ color: "#444" }}>{option.l}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                  return (
+                    <div key={fi} style={{ display: "flex", gap: 6, alignItems: "baseline", fontSize: 11, lineHeight: 1.45 }}>
+                      <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 10, fontWeight: 800, color: cmd.color, minWidth: 150 }}>{fd.label}</span>
+                      <span style={{ color: "#444" }}>{fd.type === "bool" ? "켜고 끄는 옵션" : fd.placeholder ?? "값을 입력하는 옵션"}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     );
@@ -317,7 +344,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
                 <div className="feature-card-body" style={{ padding: "6px 12px 8px" }}>
                   <div style={{ fontSize: 15, color: "#555", lineHeight: 1.5 }}>{cmd.short}</div>
                   <div style={{ marginTop: 4, fontSize: 13.5, fontFamily: "IBM Plex Mono, monospace", color: cmd.color, fontWeight: 700 }}>
-                    vib {cmd.name}
+                    {cmd.usage}
                   </div>
                 </div>
               </div>

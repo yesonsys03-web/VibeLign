@@ -237,7 +237,23 @@ const FALLBACK_TOPICS: HelpTopic[] = [
     command: "vib transfer",
     summary: "작업 맥락을 다른 AI 도구로 넘겨 이어서 쓰게 해줘요.",
     answer:
-      "vib transfer는 지금까지의 작업 맥락을 다른 AI 도구로 넘겨서 이어 작업하게 해줘요. PROJECT_CONTEXT.md를 만들고, --handoff를 쓰면 새 AI가 바로 이어받기 쉬워요.",
+      "vib transfer는 지금까지의 작업 맥락을 다른 AI 도구로 넘겨서 이어 작업하게 해줘요. GUI의 AI 이동 버튼은 기본으로 handoff를 만들고, `.vibelign/work_memory.json`의 세션 메모리를 PROJECT_CONTEXT.md에 반영해요. 새 AI에게는 두 파일을 함께 확인시키는 게 안전해요.",
+  },
+  {
+    id: "session-memory",
+    title: "세션 메모리",
+    command: "GUI: 세션 메모리 카드",
+    summary: "지금 하던 일과 다음 할 일, 검증 기록을 handoff 원본으로 저장해요.",
+    answer:
+      "세션 메모리는 `.vibelign/work_memory.json`에 지금 하던 일, 다음 할 일, 관련 파일, 검증 기록을 저장하는 원본 기록이에요. AI가 제안한 handoff 항목은 수락해야 메모리에 들어가고, AI 이동을 실행하면 이 원본이 PROJECT_CONTEXT.md에 반영돼요.",
+  },
+  {
+    id: "recovery-options",
+    title: "복구 옵션",
+    command: "GUI: 복구 옵션 카드",
+    summary: "파일을 바꾸기 전에 되돌릴 후보와 안전 체크포인트를 읽기 전용으로 보여줘요.",
+    answer:
+      "복구 옵션 카드는 바로 되돌리지 않고, 먼저 읽기 전용으로 복구 계획과 후보를 보여줘요. 문제가 생긴 시점을 적으면 관련 checkpoint 후보를 추천하고, 적용 전에 검토할 파일과 안전 체크포인트를 확인하게 도와줘요.",
   },
   {
     id: "mcp",
@@ -352,6 +368,8 @@ function topicAliasMarkers(topicId: string): string[] {
     config: ["config", "컨피그", "콘피그", "설정", "모델", "model", "지원 모델", "지원하는 모델", "api키", "api key", "키 설정"],
     export: ["export", "익스포트", "엑스포트", "내보내기", "설정내보내기"],
     transfer: ["transfer", "트랜스퍼", "트렌스퍼", "전환", "이동", "넘기기", "넘겨", "이어받기", "인수인계", "핸드오프", "핸드 오프", "세션핸드오프", "세션 핸드오프", "handoff", "session handoff", "context"],
+    "session-memory": ["세션메모리", "세션 메모리", "작업메모리", "작업 메모리", "work_memory", "workmemory", "memory", "메모리", "handoff 제안", "핸드오프 제안"],
+    "recovery-options": ["복구옵션", "복구 옵션", "복구후보", "복구 후보", "recovery", "recover", "restore", "checkpoint 후보", "안전 체크포인트", "되돌릴 후보"],
     completion: ["completion", "컴플리션", "컴플릿션", "자동완성", "자동 완성", "오토컴플릿", "탭", "tab", "autocomplete"],
     init: ["init", "이닛", "초기화", "초기설정", "reset"],
     install: ["install", "인스톨", "인설트", "설치"],
@@ -562,6 +580,18 @@ function scoreTopic(question: string, topic: HelpTopic): number {
   if (topic.id === "transfer") {
     if (includesAny(questionText, ["transfer", "전달", "이동", "넘겨", "넘기", "다른ai", "다른툴", "다른도구", "handoff", "이어받", "인수인계", "교체"])) {
       score += 0.38;
+    }
+  }
+
+  if (topic.id === "session-memory") {
+    if (includesAny(questionText, ["세션메모리", "세션 메모리", "work_memory", "작업메모리", "작업 메모리", "handoff 제안", "핸드오프 제안"])) {
+      score += 0.42;
+    }
+  }
+
+  if (topic.id === "recovery-options") {
+    if (includesAny(questionText, ["복구옵션", "복구 옵션", "복구후보", "복구 후보", "recovery", "restore", "안전 체크포인트", "되돌릴 후보"])) {
+      score += 0.42;
     }
   }
 

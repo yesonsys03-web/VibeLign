@@ -12,8 +12,6 @@ interface TransferCardProps {
 
 export default function TransferCard({ projectDir }: TransferCardProps) {
   const [st, setSt] = useState<CardState>("idle");
-  const [handoff, setHandoff] = useState(false);
-  const [compact, setCompact] = useState(false);
   const [out, setOut] = useState("");
 
   async function handleTransfer() {
@@ -21,9 +19,8 @@ export default function TransferCard({ projectDir }: TransferCardProps) {
     setOut("");
     try {
       const r = await vibTransfer(projectDir, {
-        handoff,
-        compact,
-        firstNextAction: handoff ? GUI_HANDOFF_NEXT_ACTION : undefined,
+        handoff: true,
+        firstNextAction: GUI_HANDOFF_NEXT_ACTION,
       });
       const output = [r.stderr.trim(), r.stdout.trim()].filter(Boolean).join("\n\n") || (r.ok ? "PROJECT_CONTEXT.md 생성 완료" : `exit ${r.exit_code}`);
       setOut(output);
@@ -54,26 +51,10 @@ export default function TransferCard({ projectDir }: TransferCardProps) {
       </div>
       <div className="feature-card-body" style={{ padding: "8px 14px 10px" }}>
         <div style={{ fontSize: 16.5, color: "#555", marginBottom: 8 }}>PROJECT_CONTEXT 생성</div>
-        {handoff && (
-          <div style={{ fontSize: 10, color: "#555", lineHeight: 1.35, marginBottom: 6 }}>
-            세션 메모리(`.vibelign/work_memory.json`)를 읽어 PROJECT_CONTEXT.md에 반영하고, 새 AI가 두 파일을 함께 확인하게 해요.
-          </div>
-        )}
-        {out && <GuiCliOutputBlock text={out} placeholder="" variant={st === "error" ? "error" : "default"} />}
-        <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
-          <button onClick={() => setHandoff((s) => !s)} style={{
-            flex: 1, fontSize: 9, fontWeight: 700, padding: "2px 0",
-            border: "2px solid #1A1A1A",
-            background: handoff ? "#1A1A1A" : "#fff",
-            color: handoff ? "#fff" : "#1A1A1A", cursor: "pointer",
-          }}>--handoff</button>
-          <button onClick={() => setCompact((s) => !s)} style={{
-            flex: 1, fontSize: 9, fontWeight: 700, padding: "2px 0",
-            border: "2px solid #1A1A1A",
-            background: compact ? "#1A1A1A" : "#fff",
-            color: compact ? "#fff" : "#1A1A1A", cursor: "pointer",
-          }}>--compact</button>
+        <div style={{ fontSize: 10, color: "#555", lineHeight: 1.35, marginBottom: 6 }}>
+          세션 메모리(`.vibelign/work_memory.json`)를 읽어 PROJECT_CONTEXT.md에 반영하고, 새 AI가 두 파일을 함께 확인하게 해요.
         </div>
+        {out && <GuiCliOutputBlock text={out} placeholder="" variant={st === "error" ? "error" : "default"} />}
         <button className="btn btn-sm" style={{ width: "100%", background: "#4D9FFF", color: "#fff", border: "2px solid #1A1A1A" }}
           disabled={st === "loading"} onClick={handleTransfer}>
           {st === "loading" ? <span className="spinner" /> : "TRANSFER ▶"}

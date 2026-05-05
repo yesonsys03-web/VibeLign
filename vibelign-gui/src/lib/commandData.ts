@@ -392,26 +392,31 @@ export const COMMANDS_CORE = [
         ],
       },
       {
-        step: "--handoff", title: "AI 전환 인수인계 블록",
+        step: "기본 handoff", title: "AI 전환 인수인계 블록",
         lines: [
-          { t: "code", v: "vib transfer --handoff" },
-          { t: "info", v: "파일 맨 위에 'Session Handoff' 블록 추가" },
+          { t: "info", v: "GUI의 TRANSFER 버튼은 파일 맨 위에 'Session Handoff' 블록을 기본으로 추가해요." },
           { t: "info", v: "오늘 뭘 했는지, 다음에 뭘 해야 하는지 한 줄로 담아줘요" },
-          { t: "code", v: "vib transfer --handoff --print" },
-          { t: "info", v: "내용을 파일 저장 + 화면에도 출력 (새 채팅에 복붙하기 편해요)" },
-          { t: "code", v: "vib transfer --handoff --session-summary \"현재 세션 작업\"" },
-          { t: "info", v: "자동 요약 대신 내가 쓴 현재 세션 요약을 넣어요" },
-          { t: "code", v: "vib transfer --handoff --first-next-action \"다음 할 일\"" },
-          { t: "info", v: "새 AI가 제일 먼저 해야 할 일을 직접 지정해요" },
-          { t: "code", v: "vib transfer --handoff --dry-run" },
-          { t: "info", v: "저장 없이 내용 미리 보기" },
+          { t: "info", v: "별도 옵션을 고르지 않아도 새 AI가 바로 이어받기 쉬운 형태로 저장돼요." },
+        ],
+      },
+      {
+        step: "세션 메모리", title: "work_memory.json을 함께 확인",
+        lines: [
+          { t: "info", v: "세션 메모리 카드는 `.vibelign/work_memory.json`에 지금 하던 일, 다음 할 일, 검증 기록을 저장해요." },
+          { t: "info", v: "AI 이동은 이 원본 메모리를 읽어 PROJECT_CONTEXT.md에 반영하고, 새 AI에게 두 파일을 함께 보라고 안내해요." },
+          { t: "info", v: "handoff 품질을 볼 때는 PROJECT_CONTEXT.md만 보지 말고 work_memory.json도 같이 확인하는 게 안전해요." },
+        ],
+      },
+      {
+        step: "복구 옵션", title: "되돌리기 전 읽기 전용 후보 확인",
+        lines: [
+          { t: "info", v: "복구 옵션 카드는 파일을 바꾸지 않고, 되돌릴 수 있는 후보와 안전 체크포인트를 먼저 보여줘요." },
+          { t: "info", v: "문제가 생긴 시점을 적으면 관련 복구 후보를 추천해 주고, 적용 전 검토할 파일도 같이 보여줘요." },
         ],
       },
       {
         step: "기타 옵션", title: "자주 쓰는 옵션",
         lines: [
-          { t: "code", v: "vib transfer --compact" },
-          { t: "info", v: "가벼운 버전 (토큰 절약 — 무료 플랜에 좋아요)" },
           { t: "code", v: "vib transfer --full" },
           { t: "info", v: "파일 트리를 더 깊이 포함" },
           { t: "code", v: "vib transfer --out ctx.md" },
@@ -420,16 +425,79 @@ export const COMMANDS_CORE = [
       },
     ] as GuideStep[],
     flags: [
-      { type: "bool" as const, key: "handoff", label: "--handoff" },
       { type: "bool" as const, key: "print", label: "--print" },
       { type: "bool" as const, key: "no-prompt", label: "--no-prompt" },
       { type: "text" as const, key: "session-summary", label: "--session-summary", placeholder: "현재 세션 작업" },
       { type: "text" as const, key: "first-next-action", label: "--first-next-action", placeholder: "다음 할 일" },
       { type: "bool" as const, key: "dry-run", label: "--dry-run" },
-      { type: "bool" as const, key: "compact", label: "--compact" },
       { type: "bool" as const, key: "full", label: "--full" },
       { type: "text" as const, key: "out", label: "--out", placeholder: "ctx.md" },
     ] as FlagDef[],
+  },
+  {
+    name: "session-memory", icon: "🧠", color: "#4DFF91",
+    title: "세션 메모리",
+    short: "AI가 이어받을 작업 기억",
+    desc: "지금 하던 일, 다음 할 일, 관련 파일, 검증 기록을 `.vibelign/work_memory.json`에 저장해요. AI가 제안한 handoff 항목은 수락해야 메모리에 들어가고, AI 이동을 실행하면 PROJECT_CONTEXT.md에 반영돼요.",
+    usage: "vib memory show",
+    tips: ["handoff 제안을 검토하고 필요한 항목만 수락하세요", "AI 이동 전 work_memory.json에 핵심 결정과 검증이 남아 있는지 확인하세요"],
+    guide: [
+      {
+        step: "기능", title: "handoff 원본 메모리",
+        lines: [
+          { t: "info", v: "세션 메모리는 PROJECT_CONTEXT.md의 원본 기록 역할을 해요." },
+          { t: "info", v: "accepted decisions, 다음 할 일, 관련 파일, 검증 기록을 `.vibelign/work_memory.json`에 저장해요." },
+          { t: "info", v: "새 AI에게 넘길 때는 PROJECT_CONTEXT.md와 work_memory.json을 함께 확인시키는 게 안전해요." },
+        ],
+      },
+      {
+        step: "수락", title: "AI 제안은 검토 후 기록",
+        lines: [
+          { t: "info", v: "handoff 제안 만들기를 누르면 AI가 바꾸려는 메모리 필드가 보입니다." },
+          { t: "info", v: "각 항목을 수락해야 세션 메모리에 저장되고, 거절하면 원본 메모리는 바뀌지 않아요." },
+        ],
+      },
+    ] as GuideStep[],
+    flags: [
+      { type: "select" as const, key: "_mode", label: "서브명령", options: [
+        { v: "show", l: "저장된 세션 메모리를 보기" },
+        { v: "show --json", l: "앱이나 자동화가 읽기 좋은 JSON으로 보기" },
+        { v: "review", l: "handoff 전에 빠진 메모리가 없는지 검토" },
+        { v: "intent \"현재 목표\"", l: "지금 작업 목표를 직접 저장" },
+        { v: "decide \"중요한 결정\"", l: "나중 AI가 알아야 할 결정을 저장" },
+        { v: "next \"다음 할 일\"", l: "다음 작업을 저장" },
+        { v: "relevant src/app.py \"핵심 파일\"", l: "중요한 파일과 이유를 저장" },
+        { v: "proposal-create --first-next-action \"다음 할 일\"", l: "AI가 제안한 handoff 메모리 초안 만들기" },
+        { v: "proposal-accept --field next_action --draft-json '{...}'", l: "검토한 제안을 수락해 work_memory.json에 저장" },
+        { v: "proposal-dismiss --field next_action --draft-json '{...}'", l: "제안을 거절하고 원본 메모리는 유지" },
+        { v: "proposal-undo --proposal-hash abc123", l: "최근 수락한 제안을 되돌리기" },
+      ]},
+    ] as FlagDef[],
+  },
+  {
+    name: "recovery-options", icon: "↺", color: "#FFD166",
+    title: "복구 옵션",
+    short: "되돌리기 전 후보 확인",
+    desc: "파일을 바로 바꾸지 않고, 읽기 전용으로 복구 후보와 안전 체크포인트를 먼저 보여줘요. 문제가 생긴 시점을 적으면 관련 checkpoint 후보와 검토할 파일을 추천해요.",
+    usage: "vib recover --preview",
+    tips: ["적용 전에 후보와 검토 파일을 먼저 확인하세요", "증거가 약한 AI 추천은 신중하게 보세요"],
+    guide: [
+      {
+        step: "미리보기", title: "읽기 전용 복구 계획",
+        lines: [
+          { t: "info", v: "복구 옵션은 먼저 계획만 보여주고 파일을 바꾸지 않아요." },
+          { t: "info", v: "안전 체크포인트와 검토가 필요한 파일을 함께 보여줘요." },
+        ],
+      },
+      {
+        step: "추천", title: "문제 시점 기반 후보 찾기",
+        lines: [
+          { t: "info", v: "예: 'GUI broke 30m ago'처럼 적으면 관련 복구 후보를 순위로 보여줘요." },
+          { t: "info", v: "System evidence와 AI opinion을 같이 보고, 실제 적용 전에는 내용을 검토하세요." },
+        ],
+      },
+    ] as GuideStep[],
+    flags: [] as FlagDef[],
   },
   {
     name: "patch", icon: "🔧", color: "#FFD166",
