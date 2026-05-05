@@ -10,6 +10,33 @@
 
 ---
 
+## [2.1.8] — 2026-05-05
+
+VibeLign 2.1.8 은 **GUI/CLI API 키 동기화와 복구 후보 AI 추천 안정성**을 보강한 핫픽스입니다.
+
+### Fixed
+
+- GUI와 CLI가 같은 `api_keys.json` 저장소를 기준으로 API 키 저장/삭제 상태를 일관되게 반영합니다.
+- 삭제한 키는 VibeLign 삭제 override로 기록되어 외부 환경 변수에 남아 있어도 GUI/CLI에서 삭제된 상태로 취급됩니다.
+- 새로 저장한 Gemini 키가 오래된 `GEMINI_API_KEY` 환경 변수보다 우선되도록 key precedence를 조정했습니다.
+- GUI `복구 후보 추천 보기`가 Settings에 저장된 AI 키를 `vib recover --recommend`에 전달해 Gemini 추천이 즉시 붙도록 했습니다.
+- Windows에서 `%APPDATA%`가 없는 실행 환경에서도 GUI가 CLI와 동일하게 `%USERPROFILE%\AppData\Roaming\vibelign\api_keys.json` fallback을 사용합니다.
+
+### Security
+
+- `vib config` 임시 저장 모드가 실제 API 키를 터미널에 출력하지 않도록 막았습니다.
+- GUI 마이그레이션 후 레거시 `gui_config.json`에 남은 API 키 복사본을 제거합니다.
+- Settings 화면에서 저장된 키 앞부분도 노출하지 않고 `값 숨김`으로만 표시합니다.
+
+### Verification
+
+- Focused key/recovery tests passed locally.
+- GUI production build passed locally.
+- Tauri key-command compile check passed locally.
+- Diff/working-tree secret pattern scans found no real API keys.
+
+---
+
 ## [2.1.7] — 2026-05-05
 
 VibeLign 2.1.7 은 **패키징된 GUI의 초기 저장이 Rust/SQLite 엔진을 확실히 사용하도록 고친 핫픽스**입니다.
