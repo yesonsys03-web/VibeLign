@@ -140,7 +140,11 @@ fn sha256_manifest_path(path: &Path) -> PathBuf {
 
 fn has_valid_sha256_manifest(path: &Path) -> bool {
     let expected = match std::fs::read_to_string(sha256_manifest_path(path)) {
-        Ok(content) => content.split_whitespace().next().unwrap_or("").to_ascii_lowercase(),
+        Ok(content) => content
+            .split_whitespace()
+            .next()
+            .unwrap_or("")
+            .to_ascii_lowercase(),
         Err(_) => return false,
     };
     if expected.is_empty() {
@@ -194,9 +198,36 @@ fn find_runtime_rust_engine_with_fallbacks(
     if let Some(engine) = project_root.and_then(find_project_rust_engine) {
         return Some(engine);
     }
+    if let Some(engine) = find_bundled_rust_engine() {
+        return Some(engine);
+    }
     fallback_roots
         .iter()
         .find_map(|root| find_project_rust_engine(root))
+}
+
+fn find_bundled_rust_engine() -> Option<PathBuf> {
+    let bundled_vib = find_bundled_vib()?;
+    find_bundled_rust_engine_near(&bundled_vib)
+}
+
+fn find_bundled_rust_engine_near(bundled_vib: &Path) -> Option<PathBuf> {
+    let runtime_dir = bundled_vib.parent()?;
+    let engine_name = rust_engine_binary_name();
+    let candidates = [
+        runtime_dir
+            .join("_internal")
+            .join("vibelign")
+            .join("_bundled")
+            .join(engine_name),
+        runtime_dir
+            .join("vibelign")
+            .join("_bundled")
+            .join(engine_name),
+    ];
+    candidates
+        .into_iter()
+        .find(|candidate| is_nonempty_file(candidate) && has_valid_sha256_manifest(candidate))
 }
 
 /// GUI subprocess 에 주입할 로컬 Rust engine 을 찾는다.
@@ -230,7 +261,9 @@ fn normalize_windows_unc_path(path: &Path) -> PathBuf {
 
 #[cfg(target_os = "windows")]
 fn build_windows_vib_wrapper(path: &Path) -> String {
-    let target = normalize_windows_unc_path(path).to_string_lossy().to_string();
+    let target = normalize_windows_unc_path(path)
+        .to_string_lossy()
+        .to_string();
     format!("@echo off\r\n\"{}\" %*\r\n", target)
 }
 
@@ -469,7 +502,10 @@ pub fn install_cli_to_path() -> Result<String, String> {
         // onedir 번들은 `vib` 옆의 `_internal/` 디렉터리까지 함께 있어야 실행된다.
         // 단일 바이너리 복사로는 동작하지 않으므로 번들 절대 경로로 exec 하는 얇은 쉘 래퍼를 심는다.
         let target = vib.to_string_lossy().to_string();
-        let wrapper = format!("#!/bin/sh\nexec \"{}\" \"$@\"\n", target.replace('"', "\\\""));
+        let wrapper = format!(
+            "#!/bin/sh\nexec \"{}\" \"$@\"\n",
+            target.replace('"', "\\\"")
+        );
         std::fs::write(&dest, wrapper).map_err(|e| format!("래퍼 스크립트 작성 실패: {}", e))?;
         std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755))
             .map_err(|e| e.to_string())?;
@@ -555,12 +591,14 @@ pub fn refresh_gui_wrapper(bundled_vib: &Path) -> Result<(), String> {
             return Ok(());
         }
         let target = bundled_vib.to_string_lossy().to_string();
-        let expected = format!("#!/bin/sh\nexec \"{}\" \"$@\"\n", target.replace('"', "\\\""));
+        let expected = format!(
+            "#!/bin/sh\nexec \"{}\" \"$@\"\n",
+            target.replace('"', "\\\"")
+        );
         if content == expected {
             return Ok(());
         }
-        std::fs::write(&dest, expected)
-            .map_err(|e| format!("래퍼 재작성 실패: {}", e))?;
+        std::fs::write(&dest, expected).map_err(|e| format!("래퍼 재작성 실패: {}", e))?;
     }
 
     #[cfg(target_os = "windows")]
@@ -588,8 +626,7 @@ pub fn refresh_gui_wrapper(bundled_vib: &Path) -> Result<(), String> {
         if content == expected {
             return Ok(());
         }
-        std::fs::write(&dest, expected)
-            .map_err(|e| format!("래퍼 재작성 실패: {}", e))?;
+        std::fs::write(&dest, expected).map_err(|e| format!("래퍼 재작성 실패: {}", e))?;
     }
 
     Ok(())
@@ -598,8 +635,9 @@ pub fn refresh_gui_wrapper(bundled_vib: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        find_project_rust_engine, find_runtime_rust_engine_with_fallbacks,
-        normalize_windows_unc_path, rust_engine_binary_name, sha256_manifest_path,
+        find_bundled_rust_engine_near, find_project_rust_engine,
+        find_runtime_rust_engine_with_fallbacks, normalize_windows_unc_path,
+        rust_engine_binary_name, sha256_manifest_path,
     };
     use sha2::{Digest, Sha256};
     use std::path::{Path, PathBuf};
@@ -616,7 +654,10 @@ mod tests {
         };
         std::fs::write(
             sha256_manifest_path(path),
-            format!("{digest}  {}\n", path.file_name().unwrap().to_string_lossy()),
+            format!(
+                "{digest}  {}\n",
+                path.file_name().unwrap().to_string_lossy()
+            ),
         )
         .unwrap();
     }
@@ -714,6 +755,26 @@ mod tests {
             ),
             Some(engine)
         );
+    }
+
+    #[test]
+    fn bundled_rust_engine_is_found_next_to_pyinstaller_runtime() {
+        let temp = tempfile::tempdir().unwrap();
+        let runtime = temp.path().join("vib-runtime");
+        std::fs::create_dir_all(&runtime).unwrap();
+        let bundled_vib = runtime.join(if cfg!(target_os = "windows") {
+            "vib.exe"
+        } else {
+            "vib"
+        });
+        std::fs::write(&bundled_vib, b"vib").unwrap();
+        let engine = runtime
+            .join("_internal")
+            .join("vibelign")
+            .join("_bundled")
+            .join(rust_engine_binary_name());
+        write_fake_engine(&engine, b"bundled-engine", true);
+        assert_eq!(find_bundled_rust_engine_near(&bundled_vib), Some(engine));
     }
 }
 // === ANCHOR: VIB_PATH_END ===
