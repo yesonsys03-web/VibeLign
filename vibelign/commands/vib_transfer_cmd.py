@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -91,6 +92,7 @@ class TransferArgs(Protocol):
     first_next_action: str | None
     verification: list[str] | None
     decision: list[str] | None
+    ai: bool
 
 
 _TIMESTAMP_PATTERN = re.compile(r"\s*\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)\s*$")
@@ -534,8 +536,9 @@ def _build_handoff_block(data: HandoffData) -> str:
     if state_references:
         lines.append("### State references")
         lines.append(
-            "PROJECT_CONTEXT.md 요약만으로 부족하면 아래 상태 파일도 함께 읽으세요."
+            "새 AI는 PROJECT_CONTEXT.md를 먼저 읽은 뒤, 전체 구조화 작업 기록을 이어받기 위해 아래 상태 파일도 확인하세요."
         )
+        lines.append("`.vibelign/work_memory.json` is the canonical source for accepted memory, verification, relevant files, risks, and recent events.")
         for item in state_references[:3]:
             lines.append(f"- `{item}`")
 
@@ -1283,7 +1286,8 @@ _AGENTS_HANDOFF_BLOCK = """{marker}
 
 1. `PROJECT_CONTEXT.md` 파일을 가장 먼저 읽으세요.
 2. 파일 맨 위의 `## Session Handoff` 블록을 확인하세요.
-3. `Next action` 항목에 적힌 작업부터 시작하세요.
+3. `State references`에 `.vibelign/work_memory.json`이 있으면 함께 읽어 전체 작업 기록을 확인하세요.
+4. `Next action` 항목에 적힌 작업부터 시작하세요.
 
 > 이 지시는 `vib transfer --handoff` 실행 시 자동으로 추가됩니다.
 """.format(marker=_AGENTS_HANDOFF_MARKER)
@@ -1514,12 +1518,11 @@ def _collect_handoff_data_from_cli(
 
 def run_transfer(args: object) -> None:
     """vib transfer 실행."""
-    clack_intro("VibeLign Transfer")
-
     root = resolve_project_root(Path.cwd())
     compact = _arg_bool(args, "compact")
     full = _arg_bool(args, "full")
     handoff = _arg_bool(args, "handoff")
+    ai = _arg_bool(args, "ai")
     no_prompt = _arg_bool(args, "no_prompt")
     print_mode = _arg_bool(args, "print_mode")
     dry_run = _arg_bool(args, "dry_run")
@@ -1533,6 +1536,19 @@ def run_transfer(args: object) -> None:
     except ValueError as exc:
         clack_info(f"오류: {exc}")
         return
+
+    if handoff and ai and (no_prompt or not sys.stdin.isatty()):
+        _run_ai_handoff_non_interactive(
+            root,
+            out_path,
+            session_summary=session_summary,
+            first_next_action=first_next_action,
+            verification=verification,
+            decision=decision,
+        )
+        return
+
+    clack_intro("VibeLign Transfer")
 
     # --handoff와 --compact/--full 동시 사용 불가
     if handoff and (compact or full):
@@ -1605,6 +1621,43 @@ def run_transfer(args: object) -> None:
         clack_info("     AI 툴에서 이 프로젝트 폴더를 열면 자동으로 읽혀요.")
         clack_info("     또는 새 AI 채팅에 PROJECT_CONTEXT.md 내용을 붙여넣으세요.")
     clack_outro("이제 어떤 AI 툴에서든 바로 이어서 작업할 수 있어요!")
+
+
+def _run_ai_handoff_non_interactive(
+    root: Path,
+    out_path: Path,
+    *,
+    session_summary: str | None,
+    first_next_action: str | None,
+    verification: list[str],
+    decision: list[str],
+) -> None:
+    from vibelign.core.memory.agent import build_handoff_summary_draft, handoff_draft_to_payload
+    from vibelign.core.meta_paths import MetaPaths
+
+    handoff_data = _collect_handoff_data_from_cli(
+        root,
+        no_prompt=True,
+        session_summary=session_summary,
+        first_next_action=first_next_action,
+        verification=verification,
+        decision=decision,
+    )
+    draft = build_handoff_summary_draft(
+        MetaPaths(root).work_memory_path,
+        cast(dict[str, object], cast(object, handoff_data)),
+    )
+    content = _build_context_content(root, handoff_data=handoff_data)
+    _ = out_path.write_text(content, encoding="utf-8")
+    _inject_agents_handoff_instruction(root)
+    payload: dict[str, object] = {
+        "ok": True,
+        "mode": "handoff_ai_draft",
+        "project_context_path": out_path.relative_to(root).as_posix(),
+        "deterministic_handoff_written": True,
+        "draft": handoff_draft_to_payload(draft),
+    }
+    print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
 
 
 # === ANCHOR: VIB_TRANSFER_CMD_END ===

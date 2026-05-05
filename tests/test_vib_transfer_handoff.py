@@ -1318,7 +1318,8 @@ def test_handoff_block_stays_bounded_and_avoids_raw_logs():
 
     block = _build_handoff_block(data)
 
-    assert "PROJECT_CONTEXT.md 요약만으로 부족하면 아래 상태 파일도 함께 읽으세요." in block
+    assert "전체 구조화 작업 기록을 이어받기 위해 아래 상태 파일도 확인하세요." in block
+    assert "canonical source for accepted memory, verification, relevant files, risks, and recent events" in block
     assert "`.vibelign/work_memory.json`" in block
     assert block.count("- event") <= 5
     assert block.count("- warning") <= 5
