@@ -10,6 +10,23 @@
 
 ---
 
+## [2.1.7] — 2026-05-05
+
+VibeLign 2.1.7 은 **패키징된 GUI의 초기 저장이 Rust/SQLite 엔진을 확실히 사용하도록 고친 핫픽스**입니다.
+
+### Fixed
+
+- Windows GUI에서 “초기 프로젝트 시작하기”를 눌렀을 때 번들된 `vibelign-engine.exe`를 찾지 못해 Python legacy 백업으로 fallback될 수 있던 경로를 수정했습니다.
+- PyInstaller onedir 구조의 `_internal/vibelign/_bundled/vibelign-engine(.exe)`를 Tauri GUI와 Python CLI 양쪽에서 Rust engine 후보로 인식합니다.
+
+### Verification
+
+- CLI `vib start` smoke에서 `.vibelign/vibelign.db`와 `.vibelign/rust_objects/` 생성 확인.
+- CLI `vib checkpoint --json` smoke에서 legacy checkpoint 파일 생성 없이 Rust object 저장 확인.
+- Focused Python checkpoint/start tests and Tauri `vib_path` tests passed locally.
+
+---
+
 ## [2.1.6] — 2026-05-05
 
 VibeLign 2.1.6 은 **Session Memory / Recovery 안내 노출 정리**와 **Windows handoff 안정화**를 담은 릴리즈입니다.
