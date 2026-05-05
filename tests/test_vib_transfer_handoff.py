@@ -73,6 +73,16 @@ def test_handoff_block_required_fields():
     assert "Write tests for auth flow" in block
 
 
+def test_handoff_block_promotes_auto_estimated_memory_warning():
+    block = _build_handoff_block(
+        _make_handoff_data(
+            handoff_assurance_warning="⚠️ 이 핸드오프는 자동 추정값입니다. work_memory.json 직접 확인 필수."
+        )
+    )
+
+    assert block.index("⚠️ 이 핸드오프는 자동 추정값입니다") < block.index("Generated:")
+
+
 def test_handoff_block_renders_code_change_details():
     """v2.0.37: Code change details → Working tree truth (git only) split.
     git status 기반 details 는 working_tree_details 로 들어가야 함.
@@ -565,6 +575,36 @@ def test_handoff_no_prompt_includes_work_memory_facts_when_present(tmp_path):
     assert "Verification snapshot" in content
     assert "State references" in content
     assert "Run the targeted watch and transfer tests." in content
+
+
+def test_handoff_warns_when_work_memory_lacks_decisions_and_verification(tmp_path):
+    vibelign_dir = tmp_path / ".vibelign"
+    vibelign_dir.mkdir()
+    (vibelign_dir / "work_memory.json").write_text(
+        """
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-26T00:00:00Z",
+  "recent_events": [],
+  "relevant_files": [],
+  "warnings": [],
+  "decisions": [],
+  "verification": []
+}
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    out_path = tmp_path / "PROJECT_CONTEXT.md"
+    args = _make_args(handoff=True, no_prompt=True, out=str(out_path))
+
+    with mock.patch("os.getcwd", return_value=str(tmp_path)):
+        run_transfer(args)
+
+    content = out_path.read_text(encoding="utf-8")
+    assert "⚠️ 이 핸드오프는 자동 추정값입니다. work_memory.json 직접 확인 필수." in content
+    handoff_block = content.split("## Session Handoff", 1)[1].split("# ⚡", 1)[0]
+    assert handoff_block.index("⚠️ 이 핸드오프는 자동 추정값입니다") < handoff_block.index("Generated:")
 
 
 def test_handoff_work_memory_summary_wins_over_commit_fallback(tmp_path):

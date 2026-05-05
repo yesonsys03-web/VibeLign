@@ -67,6 +67,7 @@ class HandoffData(TypedDict, total=False):
     relevant_files: list[dict[str, str]]
     recent_events: list[str]
     warnings: list[str]
+    handoff_assurance_warning: str
     verification: list[str]
     verification_to_persist: list[str]
     decision_notes: list[str]
@@ -397,6 +398,9 @@ def _build_handoff_block(data: HandoffData) -> str:
     lines.append(
         "> ⚠️ This block is session-specific and time-sensitive. Read this first."
     )
+    assurance_warning = _handoff_text(data.get("handoff_assurance_warning"), "")
+    if assurance_warning:
+        lines.append(f"> {assurance_warning}")
     lines.append("")
     lines.append(f"Generated: {_handoff_text(data.get('generated_at'), '')}")
     lines.append(
@@ -949,6 +953,9 @@ def _enrich_handoff_with_work_memory(root: Path, data: HandoffData) -> HandoffDa
         return data
     if not data.get("verification_freshness") and summary.get("verification_freshness"):
         data["verification_freshness"] = summary.get("verification_freshness")
+    assurance_warning = summary.get("handoff_assurance_warning")
+    if assurance_warning:
+        data["handoff_assurance_warning"] = str(assurance_warning)
 
     stale_warning = _get_work_memory_staleness_warning(root)
     if stale_warning:
@@ -1015,6 +1022,9 @@ def _enrich_handoff_with_work_memory(root: Path, data: HandoffData) -> HandoffDa
     warnings = summary.get("warnings")
     if warnings:
         data["warnings"] = warnings
+    assurance_warning = summary.get("handoff_assurance_warning")
+    if assurance_warning:
+        data["handoff_assurance_warning"] = str(assurance_warning)
     verification = summary.get("verification")
     if verification:
         data["verification"] = _merge_verification_lines(
