@@ -1,7 +1,7 @@
 // === ANCHOR: RECOVERY_OPTIONS_CARD_START ===
 import { useEffect, useState } from "react";
 import { CardState } from "../../lib/commands";
-import { RecoveryPreviewResult, recoveryPreview } from "../../lib/vib";
+import { RecoveryPreviewResult, RecoveryRecommendationResponse, recoveryPreview, recoveryRecommend } from "../../lib/vib";
 
 interface RecoveryOptionsCardProps {
   projectDir: string;
@@ -10,6 +10,9 @@ interface RecoveryOptionsCardProps {
 export default function RecoveryOptionsCard({ projectDir }: RecoveryOptionsCardProps) {
   const [state, setState] = useState<CardState>("idle");
   const [preview, setPreview] = useState<RecoveryPreviewResult | null>(null);
+  const [phrase, setPhrase] = useState("");
+  const [recommendation, setRecommendation] = useState<RecoveryRecommendationResponse | null>(null);
+  const [recommendState, setRecommendState] = useState<CardState>("idle");
 
   async function refresh() {
     setState("loading");
@@ -18,6 +21,16 @@ export default function RecoveryOptionsCard({ projectDir }: RecoveryOptionsCardP
       setState("done");
     } catch {
       setState("error");
+    }
+  }
+
+  async function suggest() {
+    setRecommendState("loading");
+    try {
+      setRecommendation(await recoveryRecommend(projectDir, phrase));
+      setRecommendState("done");
+    } catch {
+      setRecommendState("error");
     }
   }
 
@@ -49,6 +62,33 @@ export default function RecoveryOptionsCard({ projectDir }: RecoveryOptionsCardP
             ))}
           </div>
         )}
+        <div style={{ display: "grid", gap: 5, marginBottom: 8 }}>
+          <input
+            value={phrase}
+            onChange={(event) => setPhrase(event.target.value)}
+            placeholder="예: GUI broke 30m ago"
+            style={{ fontSize: 10, padding: "5px 7px", border: "1.5px solid #1A1A1A" }}
+          />
+          <button className="btn btn-sm" style={{ width: "100%" }} disabled={recommendState === "loading"} onClick={suggest}>
+            {recommendState === "loading" ? <span className="spinner" /> : "복구 후보 추천 보기"}
+          </button>
+        </div>
+        {recommendation && recommendation.ranked_candidates.length > 0 && (
+          <div style={{ display: "grid", gap: 5, marginBottom: 8 }}>
+            {recommendation.ranked_candidates.slice(0, 3).map((candidate) => (
+              <div key={candidate.candidate_id} style={{ fontSize: 10, lineHeight: 1.35, padding: "5px 7px", background: "#fff", border: "1.5px solid #1A1A1A" }}>
+                <div style={{ fontWeight: 900 }}>#{candidate.rank} {candidate.label}</div>
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
+                  <span style={{ padding: "1px 5px", border: "1px solid #1A1A1A", background: "#4DFF9122" }}>System: {(candidate.evidence_score.score * 100).toFixed(0)}%</span>
+                  <span style={{ padding: "1px 5px", border: "1px solid #1A1A1A", background: "#FFD16622" }}>{candidate.llm_confidence ? `AI opinion: ${candidate.llm_confidence.level}` : "AI off"}</span>
+                  {candidate.llm_confidence?.level === "high" && candidate.evidence_score.score < 0.5 && <span style={{ padding: "1px 5px", border: "1px solid #1A1A1A", background: "#FF4D4D22" }}>Evidence weak — review carefully</span>}
+                </div>
+                <div style={{ color: "#555", marginTop: 4 }}>{candidate.reason}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {recommendState === "error" && <div style={{ marginBottom: 8, fontSize: 10, color: "#FF4D4D", fontWeight: 700 }}>복구 후보 추천을 불러오지 못했어요.</div>}
         {preview?.safeCheckpointCandidate && (
           <div style={{ fontSize: 10, lineHeight: 1.35, padding: "5px 7px", background: "#4DFF9118", border: "1.5px solid #1A1A1A", marginBottom: 8 }}>
             안전 체크포인트: {preview.safeCheckpointCandidate}

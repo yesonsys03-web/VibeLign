@@ -173,8 +173,43 @@ export interface MemorySummaryResult {
   decisions: string[];
   relevantFiles: string[];
   verification: string[];
+  risks: string[];
   verificationFreshness: "fresh" | "stale" | "missing";
   warning?: string;
+}
+
+export type HandoffDraftField = "session_summary" | "active_intent" | "next_action" | "relevant_files" | "verification" | "risk_notes";
+
+export interface HandoffDraftRecommendation {
+  field: HandoffDraftField;
+  value: unknown;
+  reason: string;
+  proposal_hash: string;
+  source: string;
+}
+
+export interface HandoffDraftPayload {
+  draft_id: string;
+  context_hash: string;
+  provider: string;
+  should_write_memory: boolean;
+  recommendations: HandoffDraftRecommendation[];
+}
+
+export interface HandoffDraftResponse {
+  ok: boolean;
+  mode: string;
+  project_context_path: string;
+  deterministic_handoff_written: boolean;
+  draft: HandoffDraftPayload;
+}
+
+export interface HandoffDraftActionResult {
+  ok: boolean;
+  action: "accepted" | "dismissed" | "undone";
+  field: HandoffDraftField;
+  proposal_hash: string;
+  message?: string;
 }
 
 export interface RecoveryPreviewResult {
@@ -184,6 +219,42 @@ export interface RecoveryPreviewResult {
   driftCandidates: string[];
   safeCheckpointCandidate: string;
   raw: string;
+}
+
+export type RecommendationProvider = "deterministic" | "llm" | "cache" | "invalid";
+
+export interface EvidenceScorePayload {
+  score: number;
+  formula_version: string;
+  commit_boundary?: boolean;
+  verification_fresh?: boolean;
+  diff_small?: boolean;
+  protected_paths_clean?: boolean;
+  time_match_user_request?: boolean;
+}
+
+export interface LLMConfidencePayload {
+  level: "high" | "medium" | "low";
+  reason: string;
+}
+
+export interface RankedCandidatePayload {
+  candidate_id: string;
+  rank: number;
+  label: string;
+  source: string;
+  created_at: string;
+  evidence_score: EvidenceScorePayload;
+  llm_confidence: LLMConfidencePayload | null;
+  reason: string;
+  expected_loss: string[];
+}
+
+export interface RecoveryRecommendationResponse {
+  recommendation_provider: RecommendationProvider;
+  interpreted_goal: string;
+  fallback_reason: string | null;
+  ranked_candidates: RankedCandidatePayload[];
 }
 
 export type OnboardingState =
@@ -431,10 +502,52 @@ export async function memorySummary(cwd: string): Promise<MemorySummaryResult> {
   return parseMemorySummaryJson(res.stdout);
 }
 
+export async function createHandoffDraft(
+  cwd: string,
+  summary: string,
+  nextAction: string,
+  relevantFiles: string[] = [],
+  verification: string[] = [],
+  riskNotes: string[] = [],
+): Promise<HandoffDraftResponse> {
+  const args = ["memory", "proposal-create", "--session-summary", summary, "--first-next-action", nextAction];
+  for (const item of relevantFiles) args.push("--relevant-file", item);
+  for (const item of verification) args.push("--verification", item);
+  for (const item of riskNotes) args.push("--risk-note", item);
+  const res = await runVib(args, cwd);
+  if (!res.ok) throw new Error(res.stderr || res.stdout || `exit ${res.exit_code}`);
+  const payload = JSON.parse(res.stdout) as { ok: boolean; read_only: boolean; draft: HandoffDraftPayload };
+  return {
+    ok: payload.ok,
+    mode: "handoff_memory_draft",
+    project_context_path: "",
+    deterministic_handoff_written: false,
+    draft: payload.draft,
+  };
+}
+
+export async function acceptHandoffDraftField(cwd: string, draft: HandoffDraftPayload, field: HandoffDraftField): Promise<HandoffDraftActionResult> {
+  const res = await runVib(["memory", "proposal-accept", "--field", field, "--draft-json", JSON.stringify(draft)], cwd);
+  if (!res.ok) throw new Error(res.stderr || res.stdout || `exit ${res.exit_code}`);
+  return JSON.parse(res.stdout) as HandoffDraftActionResult;
+}
+
+export async function dismissHandoffDraftField(cwd: string, draft: HandoffDraftPayload, field: HandoffDraftField): Promise<HandoffDraftActionResult> {
+  const res = await runVib(["memory", "proposal-dismiss", "--field", field, "--draft-json", JSON.stringify(draft)], cwd);
+  if (!res.ok) throw new Error(res.stderr || res.stdout || `exit ${res.exit_code}`);
+  return JSON.parse(res.stdout) as HandoffDraftActionResult;
+}
+
 export async function recoveryPreview(cwd: string): Promise<RecoveryPreviewResult> {
   const res = await runVib(["recover", "--preview", "--json"], cwd);
   if (!res.ok) throw new Error(res.stderr || res.stdout || `exit ${res.exit_code}`);
   return parseRecoveryPreviewJson(res.stdout);
+}
+
+export async function recoveryRecommend(cwd: string, phrase: string): Promise<RecoveryRecommendationResponse> {
+  const res = await runVib(["recover", "--recommend", "--phrase", phrase], cwd);
+  if (!res.ok) throw new Error(res.stderr || res.stdout || `exit ${res.exit_code}`);
+  return parseRecoveryRecommendationJson(res.stdout);
 }
 
 function parseMemorySummaryJson(stdout: string): MemorySummaryResult {
@@ -445,6 +558,7 @@ function parseMemorySummaryJson(stdout: string): MemorySummaryResult {
   const decisions = requireRecordArray(data.decisions, "decisions");
   const relevantFiles = requireRecordArray(data.relevant_files, "relevant_files");
   const verificationItems = requireRecordArray(data.verification, "verification");
+  const risks = requireRecordArray(data.risks, "risks");
   if (data.active_intent !== undefined && data.active_intent !== null) {
     requireString((data.active_intent as Record<string, unknown>).text, "active_intent.text");
   }
@@ -457,6 +571,7 @@ function parseMemorySummaryJson(stdout: string): MemorySummaryResult {
     requireString(item.why, `relevant_files[${index}].why`);
   });
   verificationItems.forEach((item, index) => requireString(item.command, `verification[${index}].command`));
+  risks.forEach((item, index) => requireString(item.text, `risks[${index}].text`));
   const typed = data as {
     schema_version?: number;
     active_intent?: { text?: string } | null;
@@ -464,6 +579,7 @@ function parseMemorySummaryJson(stdout: string): MemorySummaryResult {
     decisions?: Array<{ text?: string }>;
     relevant_files?: Array<{ path?: string; why?: string; source?: string }>;
     verification?: Array<{ command?: string; stale?: boolean }>;
+    risks?: Array<{ text?: string }>;
     downgrade_warning?: string;
   };
   const verification = (typed.verification ?? []).map((item) => item.stale ? `${item.command ?? ""} (stale)` : item.command ?? "").filter(Boolean);
@@ -474,6 +590,7 @@ function parseMemorySummaryJson(stdout: string): MemorySummaryResult {
     decisions: (typed.decisions ?? []).map((item) => item.text ?? "").filter(Boolean),
     relevantFiles: (typed.relevant_files ?? []).map((item) => `${item.path ?? ""} — ${item.why ?? ""} (${item.source ?? ""})`).filter((item) => !item.startsWith(" —")),
     verification,
+    risks: (typed.risks ?? []).map((item) => item.text ?? "").filter(Boolean),
     verificationFreshness: verificationFreshness(verification),
     warning: typed.downgrade_warning || undefined,
   };
@@ -522,6 +639,25 @@ function parseRecoveryPreviewJson(stdout: string): RecoveryPreviewResult {
     safeCheckpointCandidate: typed.safe_checkpoint_candidate?.checkpoint_id || "(none)",
     raw: stdout,
   };
+}
+
+function parseRecoveryRecommendationJson(stdout: string): RecoveryRecommendationResponse {
+  const data = requireRecord(JSON.parse(stdout), "recovery_recommendation.schema.json");
+  requireString(data.recommendation_provider, "recommendation_provider");
+  requireString(data.interpreted_goal, "interpreted_goal");
+  if (data.fallback_reason !== null) requireString(data.fallback_reason, "fallback_reason");
+  const ranked = requireRecordArray(data.ranked_candidates, "ranked_candidates");
+  ranked.forEach((item, index) => {
+    requireString(item.candidate_id, `ranked_candidates[${index}].candidate_id`);
+    requireNumber(item.rank, `ranked_candidates[${index}].rank`);
+    requireString(item.label, `ranked_candidates[${index}].label`);
+    requireString(item.source, `ranked_candidates[${index}].source`);
+    requireString(item.created_at, `ranked_candidates[${index}].created_at`);
+    requireOptionalRecord(item.llm_confidence, `ranked_candidates[${index}].llm_confidence`);
+    requireString(item.reason, `ranked_candidates[${index}].reason`);
+    requireRecord(item.evidence_score, `ranked_candidates[${index}].evidence_score`);
+  });
+  return data as unknown as RecoveryRecommendationResponse;
 }
 
 function requireRecord(value: unknown, schemaName: string): Record<string, unknown> {
