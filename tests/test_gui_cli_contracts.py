@@ -90,6 +90,8 @@ class GuiCliContractsTest(unittest.TestCase):
         self.assertIn("수락해서 세션 메모리에 저장", session_text)
         self.assertIn(".vibelign/work_memory.json", transfer_text)
         self.assertIn("PROJECT_CONTEXT.md에 반영", transfer_text)
+        self.assertIn("GuiCliOutputBlock", transfer_text)
+        self.assertIn("r.stderr.trim()", transfer_text)
         self.assertNotIn("지금 하던 일 기록", session_text)
         self.assertNotIn("전문가용 작업 기록", session_text)
 

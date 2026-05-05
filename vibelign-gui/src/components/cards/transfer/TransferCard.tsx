@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { vibTransfer } from "../../../lib/vib";
 import { CardState } from "../../../lib/commands";
+import GuiCliOutputBlock from "../../GuiCliOutputBlock";
 
 const GUI_HANDOFF_NEXT_ACTION = "Active intent와 Verification snapshot을 확인하고, Warnings / risks를 정리한 뒤 관련 테스트를 재실행하세요.";
 
@@ -13,18 +14,22 @@ export default function TransferCard({ projectDir }: TransferCardProps) {
   const [st, setSt] = useState<CardState>("idle");
   const [handoff, setHandoff] = useState(false);
   const [compact, setCompact] = useState(false);
+  const [out, setOut] = useState("");
 
   async function handleTransfer() {
     setSt("loading");
+    setOut("");
     try {
       const r = await vibTransfer(projectDir, {
         handoff,
         compact,
         firstNextAction: handoff ? GUI_HANDOFF_NEXT_ACTION : undefined,
       });
-      if (!r.ok) throw new Error(r.stderr || `exit ${r.exit_code}`);
-      setSt("done");
-    } catch {
+      const output = [r.stderr.trim(), r.stdout.trim()].filter(Boolean).join("\n\n") || (r.ok ? "PROJECT_CONTEXT.md 생성 완료" : `exit ${r.exit_code}`);
+      setOut(output);
+      setSt(r.ok ? "done" : "error");
+    } catch (error) {
+      setOut(error instanceof Error ? error.message : String(error));
       setSt("error");
     }
   }
@@ -54,6 +59,7 @@ export default function TransferCard({ projectDir }: TransferCardProps) {
             세션 메모리(`.vibelign/work_memory.json`)를 읽어 PROJECT_CONTEXT.md에 반영하고, 새 AI가 두 파일을 함께 확인하게 해요.
           </div>
         )}
+        {out && <GuiCliOutputBlock text={out} placeholder="" variant={st === "error" ? "error" : "default"} />}
         <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
           <button onClick={() => setHandoff((s) => !s)} style={{
             flex: 1, fontSize: 9, fontWeight: 700, padding: "2px 0",
