@@ -158,15 +158,20 @@ def _fetch_gemini_models(api_key: str) -> list[str]:
 
 # === ANCHOR: CONFIG_CMD__RUN_DELETE_KEY_START ===
 def _run_delete_key() -> None:
-    from vibelign.core.keys_store import delete_key, get_key
+    from vibelign.core.keys_store import delete_key, is_key_disabled, load_keys
     all_keys = [p["key_name"] for p in _PROVIDERS] + ["GEMINI_MODEL"]
-    set_keys = [k for k in all_keys if get_key(k)]
+    stored = load_keys()
+    env_only_keys = [
+        k for k in all_keys if os.environ.get(k) and not stored.get(k) and not is_key_disabled(k)
+    ]
+    set_keys = [k for k in all_keys if stored.get(k)] + env_only_keys
     if not set_keys:
         clack_warn("삭제할 키가 없습니다.")
         return
     clack_step("삭제할 키를 선택하세요")
     for i, k in enumerate(set_keys, 1):
-        print(f"  {i}. {k}")
+        source = "환경 변수 감지" if k in env_only_keys else "GUI/CLI 저장"
+        print(f"  {i}. {k} ({source})")
     print(f"  {len(set_keys) + 1}. 전체 삭제")
     print("  0. 취소")
     print()
@@ -358,7 +363,7 @@ def run_config(_args: Namespace) -> None:
     clack_intro("VibeLign API 키 설정")
 
     # 무료 API 안내
-    from vibelign.core.keys_store import get_key, has_any_ai_key, keys_file_path
+    from vibelign.core.keys_store import get_key, has_any_ai_key, is_key_disabled, keys_file_path, load_keys
     if not has_any_ai_key():
         clack_info("AI 기능을 쓰려면 API 키가 하나 이상 필요해요.")
         clack_info("무료로 시작하려면 Google AI Studio에서 Gemini 키를 받으세요:")
@@ -368,9 +373,22 @@ def run_config(_args: Namespace) -> None:
 
     # 현재 상태 표시
     clack_step("현재 상태")
+    stored_keys = load_keys()
     for p in _PROVIDERS:
-        is_set = bool(get_key(p["key_name"]))
-        status = "✓ 설정됨" if is_set else "✗ 없음"
+        key_name = p["key_name"]
+        from_file = bool(stored_keys.get(key_name))
+        disabled = is_key_disabled(key_name)
+        from_env = bool(os.environ.get(key_name)) and not disabled
+        if from_file and from_env:
+            status = "✓ 설정됨 (GUI/CLI 저장 + 환경 변수)"
+        elif from_file:
+            status = "✓ 설정됨 (GUI/CLI 저장)"
+        elif from_env:
+            status = "✓ 외부 환경 변수에서 감지됨"
+        elif disabled:
+            status = "✗ 없음 (VibeLign에서 삭제됨)"
+        else:
+            status = "✗ 없음"
         clack_info(f"{p['key_name']:<22}: {status}")
     gemini_model = (get_key("GEMINI_MODEL") or "").strip()
     if gemini_model:
@@ -446,7 +464,7 @@ def run_config(_args: Namespace) -> None:
     print()
     clack_step("저장 방식을 선택하세요")
     print(f"  1. 영구 저장 ({keys_path} 에 저장, GUI·터미널 모두 즉시 반영)")
-    print("  2. 임시 저장 (현재 터미널 세션에서만 유효한 명령어 출력)")
+    print("  2. 취소 (임시 저장은 키 노출 위험 때문에 지원하지 않아요)")
     print()
 
     save_choice = input("선택 (1/2): ").strip()
@@ -459,23 +477,9 @@ def run_config(_args: Namespace) -> None:
         print()
         clack_info("새 터미널·GUI 재시작 없이 즉시 적용됩니다.")
     elif save_choice == "2":
-        if os.name == "nt":
-            clack_info("아래 명령어를 현재 터미널에 복사해서 실행하세요 (PowerShell):")
-            print()
-            for key_name, api_key in collected.items():
-                print(f'  $env:{key_name} = "{api_key}"')
-            print()
-            clack_info("CMD(명령 프롬프트)를 사용하는 경우:")
-            print()
-            for key_name, api_key in collected.items():
-                print(f'  set {key_name}={api_key}')
-        else:
-            clack_info("아래 명령어를 현재 터미널에 복사해서 실행하세요:")
-            print()
-            for key_name, api_key in collected.items():
-                print(f'  export {key_name}="{api_key}"')
-        print()
-        clack_warn("새 터미널을 열면 다시 입력해야 합니다")
+        clack_warn("API 키가 터미널 기록이나 화면 공유에 노출될 수 있어 임시 저장 명령 출력은 중단했어요.")
+        clack_info("키를 쓰려면 1번 영구 저장을 선택하세요. 키 파일은 사용자 설정 폴더에 저장되고 레포에는 커밋되지 않습니다.")
+        return
     else:
         clack_error("잘못된 선택입니다.")
         return
