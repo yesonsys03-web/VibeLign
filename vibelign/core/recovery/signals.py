@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -18,7 +19,7 @@ from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_map import load_project_map
 from vibelign.core.work_memory import WorkMemoryState, load_work_memory
 
-from .models import RecoverySignalSet, SafeCheckpointCandidate
+from .models import RecoveryCandidate, RecoverySignalSet, SafeCheckpointCandidate
 
 
 # === ANCHOR: RECOVERY_SIGNALS__COLLECT_BASIC_SIGNALS_START ===
@@ -56,6 +57,73 @@ def collect_basic_signals(project_root: Path) -> RecoverySignalSet:
         explain_summary=_explain_report_summary(meta),
     )
 # === ANCHOR: RECOVERY_SIGNALS__COLLECT_BASIC_SIGNALS_END ===
+
+
+def collect_recovery_candidates(
+    project_root: Path, *, git_commit_limit: int = 30
+) -> list[RecoveryCandidate]:
+    """Collect deterministic restore candidates from known read-only sources."""
+    candidates: list[RecoveryCandidate] = []
+    seen_ids: set[str] = set()
+    for entry in _iter_manual_checkpoints(project_root):
+        candidate_id = f"checkpoint:{entry['checkpoint_id']}"
+        if candidate_id in seen_ids:
+            continue
+        seen_ids.add(candidate_id)
+        candidates.append(
+            RecoveryCandidate(
+                candidate_id=candidate_id,
+                source="manual_checkpoint",
+                created_at=str(entry["created_at"]),
+                label=str(entry.get("message") or "manual checkpoint"),
+                restore_capability="file_restore",
+                preview_available=bool(entry.get("preview_available", False)),
+                changed_files_since_previous=tuple(cast(list[str], entry.get("files", []))),
+                verification_nearby={"status": "unknown", "source": "none"},
+            )
+        )
+    for entry in _iter_auto_backup_checkpoints(project_root):
+        candidate_id = f"checkpoint:{entry['checkpoint_id']}"
+        if candidate_id in seen_ids:
+            continue
+        seen_ids.add(candidate_id)
+        commit_hash = str(entry.get("commit_hash") or "") or None
+        candidates.append(
+            RecoveryCandidate(
+                candidate_id=candidate_id,
+                source="post_commit_checkpoint",
+                created_at=str(entry["created_at"]),
+                label=str(entry.get("message") or "auto backup"),
+                commit_hash=commit_hash,
+                commit_message=cast(str | None, entry.get("commit_message")),
+                restore_capability="file_restore",
+                preview_available=bool(entry.get("preview_available", False)),
+                changed_files_since_previous=tuple(cast(list[str], entry.get("files", []))),
+                verification_nearby={"status": "unknown", "source": "none"},
+            )
+        )
+    for entry in _iter_recent_git_commits(project_root, git_commit_limit):
+        commit_hash = str(entry["commit_hash"])
+        if any(candidate.commit_hash == commit_hash for candidate in candidates):
+            continue
+        candidate_id = f"git:{commit_hash}"
+        if candidate_id in seen_ids:
+            continue
+        seen_ids.add(candidate_id)
+        candidates.append(
+            RecoveryCandidate(
+                candidate_id=candidate_id,
+                source="git_commit",
+                created_at=str(entry["created_at"]),
+                label=str(entry["message"]),
+                commit_hash=commit_hash,
+                commit_message=str(entry["message"]),
+                restore_capability="preview_only",
+                preview_available=False,
+                verification_nearby={"status": "unknown", "source": "none"},
+            )
+        )
+    return candidates
 
 
 def _git_paths(project_root: Path, args: list[str]) -> list[str]:
@@ -171,6 +239,79 @@ def _latest_safe_checkpoint(project_root: Path) -> SafeCheckpointCandidate | Non
         preview_available=preview_available,
         predates_change=predates_change,
     )
+
+
+def _iter_manual_checkpoints(project_root: Path) -> list[dict[str, object]]:
+    with _checkpoint_engine_read_only_mode():
+        try:
+            rows = list_checkpoints(project_root)
+        except Exception:
+            return []
+    out: list[dict[str, object]] = []
+    for row in rows:
+        trigger = getattr(row, "trigger", None)
+        if trigger not in {None, "manual"}:
+            continue
+        out.append(
+            {
+                "checkpoint_id": row.checkpoint_id,
+                "created_at": row.created_at,
+                "message": row.message,
+                "preview_available": True,
+                "files": [item.path for item in getattr(row, "files", [])],
+            }
+        )
+    return out
+
+
+def _iter_auto_backup_checkpoints(project_root: Path) -> list[dict[str, object]]:
+    with _checkpoint_engine_read_only_mode():
+        try:
+            rows = list_checkpoints(project_root)
+        except Exception:
+            return []
+    out: list[dict[str, object]] = []
+    for row in rows:
+        if getattr(row, "trigger", None) != "post_commit":
+            continue
+        out.append(
+            {
+                "checkpoint_id": row.checkpoint_id,
+                "created_at": row.created_at,
+                "message": row.message,
+                "commit_hash": _commit_hash_from_message(row.message),
+                "commit_message": getattr(row, "git_commit_message", None),
+                "preview_available": True,
+                "files": [item.path for item in getattr(row, "files", [])],
+            }
+        )
+    return out
+
+
+def _iter_recent_git_commits(project_root: Path, limit: int) -> list[dict[str, object]]:
+    try:
+        completed = subprocess.run(
+            ["git", "log", f"-n{limit}", "--pretty=format:%H%x09%cI%x09%s"],
+            cwd=project_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return []
+    if completed.returncode != 0:
+        return []
+    out: list[dict[str, object]] = []
+    for line in completed.stdout.splitlines():
+        parts = line.split("\t", 2)
+        if len(parts) == 3:
+            out.append({"commit_hash": parts[0], "created_at": parts[1], "message": parts[2]})
+    return out
+
+
+def _commit_hash_from_message(message: str) -> str | None:
+    match = re.search(r"commit\s+([0-9a-fA-F]{4,40})", message)
+    return match.group(1) if match else None
 
 
 @contextmanager
