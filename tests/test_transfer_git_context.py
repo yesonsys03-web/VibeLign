@@ -1,5 +1,6 @@
 import subprocess
 from pathlib import Path
+from unittest import mock
 
 from vibelign.commands.transfer_git_context import (
     get_verification_freshness,
@@ -7,6 +8,10 @@ from vibelign.commands.transfer_git_context import (
     get_work_memory_staleness_warning,
     should_include_handoff_path,
 )
+
+
+def _completed(stdout: str | None) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(args=["git"], returncode=0, stdout=stdout, stderr="")
 
 
 def _git(root: Path, *args: str) -> None:
@@ -102,6 +107,18 @@ def test_working_tree_summary_keeps_readable_unicode_paths(tmp_path: Path) -> No
 
     assert "규칙수정안.md" in summary["files"]
     assert "규칙수정안.md — untracked" in summary["details"]
+
+
+def test_working_tree_summary_tolerates_missing_stdout_from_decode_failure(tmp_path: Path) -> None:
+    with mock.patch(
+        "vibelign.commands.transfer_git_context.subprocess.run",
+        return_value=_completed(None),
+    ) as mocked_run:
+        summary = get_working_tree_summary(tmp_path, max_items=20)
+
+    assert summary == {"count": 0, "files": [], "details": [], "summary": None}
+    assert mocked_run.call_args.kwargs["encoding"] == "utf-8"
+    assert mocked_run.call_args.kwargs["errors"] == "replace"
 
 
 def test_get_verification_freshness_marks_stale_when_files_change_after_verification(

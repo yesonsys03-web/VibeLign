@@ -57,24 +57,39 @@ def get_changed_files(root: Path) -> list[str]:
     return get_working_tree_summary(root, max_items=10)["files"]
 
 
+def _run_git(root: Path, args: list[str], *, timeout: int = 5) -> subprocess.CompletedProcess[str]:
+    """Run git with deterministic decoding across Windows/macOS/Linux."""
+    return subprocess.run(
+        args,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=root,
+        timeout=timeout,
+        creationflags=WINDOWS_SUBPROCESS_FLAGS,
+    )
+
+
+def _stdout_lines(result: subprocess.CompletedProcess[str]) -> list[str]:
+    return (result.stdout or "").splitlines()
+
+
 def get_working_tree_summary(root: Path, max_items: int = 20) -> WorkingTreeSummary:
     """Return one git-status-backed source of truth for handoff dirty state."""
     files: list[str] = []
     details: list[str] = []
     stats = _working_tree_numstat(root)
     try:
-        status_result = subprocess.run(
+        status_result = _run_git(
+            root,
             ["git", "-c", "core.quotePath=false", "status", "--porcelain", "-uall"],
-            capture_output=True,
-            text=True,
-            cwd=root,
             timeout=5,
-            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
     except Exception:
         return {"count": 0, "files": [], "details": [], "summary": None}
 
-    for line in status_result.stdout.splitlines():
+    for line in _stdout_lines(status_result):
         if len(line) < 4:
             continue
         code = line[:2]
@@ -106,15 +121,12 @@ def get_working_tree_change_details(root: Path) -> list[str]:
 def get_recent_commits(root: Path, n: int = 5) -> list[str]:
     """Return recent user commit messages, excluding VibeLign auto commits."""
     try:
-        result = subprocess.run(
+        result = _run_git(
+            root,
             ["git", "log", f"--max-count={n * 2}", "--pretty=format:%s", "--no-merges"],
-            capture_output=True,
-            text=True,
-            cwd=root,
             timeout=5,
-            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
-        messages = [item.strip() for item in result.stdout.splitlines() if item.strip()]
+        messages = [item.strip() for item in _stdout_lines(result) if item.strip()]
         return [message for message in messages if not message.startswith("vibelign:")][:n]
     except Exception:
         return []
@@ -123,7 +135,8 @@ def get_recent_commits(root: Path, n: int = 5) -> list[str]:
 def get_detailed_commits(root: Path, n: int = 10) -> list[DetailedCommit]:
     """Return recent commit hashes, messages, and changed files for handoff context."""
     try:
-        result = subprocess.run(
+        result = _run_git(
+            root,
             [
                 "git",
                 "-c",
@@ -134,15 +147,11 @@ def get_detailed_commits(root: Path, n: int = 10) -> list[DetailedCommit]:
                 "--no-merges",
                 "--name-only",
             ],
-            capture_output=True,
-            text=True,
-            cwd=root,
             timeout=10,
-            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
         commits: list[DetailedCommit] = []
         current: DetailedCommit | None = None
-        for line in result.stdout.splitlines():
+        for line in _stdout_lines(result):
             if "\t" in line:
                 if current and not current["message"].startswith("vibelign:"):
                     commits.append(current)
@@ -196,17 +205,14 @@ def _latest_watch_event_time(state: WorkMemoryState) -> datetime | None:
 def _working_tree_numstat(root: Path) -> dict[str, str]:
     stats: dict[str, str] = {}
     try:
-        result = subprocess.run(
+        result = _run_git(
+            root,
             ["git", "-c", "core.quotePath=false", "diff", "--numstat", "HEAD"],
-            capture_output=True,
-            text=True,
-            cwd=root,
             timeout=5,
-            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
     except Exception:
         return stats
-    for line in result.stdout.splitlines():
+    for line in _stdout_lines(result):
         parts = line.split("\t")
         if len(parts) < 3:
             continue
@@ -232,17 +238,14 @@ def _status_label(code: str) -> str:
 
 def _latest_commit_time(root: Path) -> datetime | None:
     try:
-        result = subprocess.run(
+        result = _run_git(
+            root,
             ["git", "log", "-1", "--format=%cI"],
-            capture_output=True,
-            text=True,
-            cwd=root,
             timeout=5,
-            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
     except Exception:
         return None
-    return _parse_timestamp(result.stdout.strip())
+    return _parse_timestamp((result.stdout or "").strip())
 
 
 def _parse_timestamp(value: str) -> datetime | None:
@@ -290,18 +293,15 @@ def get_verification_freshness(root: Path) -> str | None:
 def _latest_dirty_file_mtime(root: Path) -> datetime | None:
     """git status 가 잡은 dirty 파일들의 최신 mtime."""
     try:
-        result = subprocess.run(
+        result = _run_git(
+            root,
             ["git", "-c", "core.quotePath=false", "status", "--porcelain"],
-            capture_output=True,
-            text=True,
-            cwd=root,
             timeout=5,
-            creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
     except Exception:
         return None
     latest: datetime | None = None
-    for raw_line in result.stdout.splitlines():
+    for raw_line in _stdout_lines(result):
         path_part = raw_line[3:].strip().split(" -> ")[-1].strip('"')
         if not path_part or not should_include_handoff_path(path_part):
             continue
