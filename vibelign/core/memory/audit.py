@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Literal, cast
 
 
-AuditResult = Literal["success", "denied", "aborted", "failed", "busy"]
+AuditResult = Literal["success", "denied", "blocked", "aborted", "failed", "busy"]
 CircuitBreakerState = Literal["active", "degraded"]
 TriggerAction = Literal["shown", "accepted", "dismissed", "snoozed", "ignored"]
 

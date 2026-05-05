@@ -104,7 +104,7 @@ def test_memory_audit_append_assigns_monotonic_sequence_numbers(tmp_path: Path) 
 
 
 def test_memory_audit_accepts_operational_result_taxonomy(tmp_path: Path) -> None:
-    results = ["success", "denied", "busy", "aborted", "failed"]
+    results = ["success", "denied", "blocked", "busy", "aborted", "failed"]
 
     payloads = [
         _event_to_dict()(_build_event()(tmp_path, event="recovery_apply", result=result))

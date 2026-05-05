@@ -49,7 +49,7 @@ def handle_checkpoint_create(
     if summary is None:
         append_memory_audit_event(
             memory_audit_path(root),
-            build_memory_audit_event(root, event="checkpoint_create", tool="mcp", result="denied"),
+            build_memory_audit_event(root, event="checkpoint_create", tool="mcp", result="blocked"),
         )
         text = "변경사항이 없어 체크포인트를 생성하지 않았습니다."
     else:
