@@ -56,6 +56,22 @@ export function cleanBackupNote(entry: BackupEntry): string {
   return entry.note || "메모 없는 저장본";
 }
 
+export function formatRelativeTime(value?: string): string {
+  if (!value) return "시간 정보 없음";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return formatSavedAt(value);
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 0) return formatSavedAt(value);
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "방금";
+  if (minutes < 60) return `${minutes}분 전`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}시간 전`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}일 전`;
+  return formatSavedAt(value);
+}
+
 export function buildStats(entries: BackupEntry[]): BackupDashboardStats {
   const totalFiles = entries.reduce((sum, item) => sum + (item.fileCount ?? 0), 0);
   const storedBytes = entries.reduce((sum, item) => sum + item.totalSizeBytes, 0);

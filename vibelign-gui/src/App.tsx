@@ -8,7 +8,7 @@ import Home from "./pages/Home";
 import DocsViewer from "./pages/DocsViewer";
 import BackupDashboardPage from "./pages/BackupDashboard";
 import Settings from "./pages/Settings";
-import { getEnvKeyStatus, loadApiKey, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, stopWatch, openFolder } from "./lib/vib";
+import { backupList, getEnvKeyStatus, loadApiKey, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, stopWatch, openFolder } from "./lib/vib";
 import "./styles/brutalism.css";
 import "./App.css";
 
@@ -84,6 +84,11 @@ export default function App() {
       .finally(() => setEnvKeyStatusLoaded(true));
     loadRecentProjects().then(setRecentDirs).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!projectDir) return;
+    backupList(projectDir).catch(() => {});
+  }, [projectDir]);
 
   const hasGuiProviderKey = Object.values(providerKeys).some((v) => Boolean(v?.trim()));
   const hasAnyAiKey = Boolean(apiKey) || hasGuiProviderKey || Object.values(envKeyStatus).some(Boolean);

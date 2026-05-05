@@ -1228,17 +1228,25 @@ export async function backupCreate(cwd: string, note: string): Promise<unknown> 
   return checkpointCreate(cwd, note);
 }
 
+const backupListCache = new Map<string, BackupListResult>();
+
+export function getCachedBackupList(cwd: string): BackupListResult | undefined {
+  return backupListCache.get(cwd);
+}
+
 export async function backupList(cwd: string): Promise<BackupListResult> {
   const data = await checkpointList(cwd) as {
     checkpoints?: RawCheckpointEntry[];
     warning?: string | null;
   };
-  return {
+  const result: BackupListResult = {
     backups: (data.checkpoints ?? [])
       .map(normalizeBackupEntry)
       .filter((entry) => entry.id && entry.sourceKind !== "safe"),
     warning: data.warning ?? null,
   };
+  backupListCache.set(cwd, result);
+  return result;
 }
 
 export async function backupDbViewerInspect(cwd: string): Promise<BackupDbViewerInspectResult> {

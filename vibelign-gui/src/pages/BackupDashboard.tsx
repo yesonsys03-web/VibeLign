@@ -2,20 +2,21 @@
 import { useCallback, useEffect, useState } from "react";
 import BackupDashboardView from "../components/backup-dashboard/BackupDashboard";
 import type { BackupEntry } from "../lib/vib";
-import { backupCreate, backupList, backupRestore } from "../lib/vib";
+import { backupCreate, backupList, backupRestore, getCachedBackupList } from "../lib/vib";
 
 interface BackupDashboardPageProps {
   projectDir: string;
 }
 
 export default function BackupDashboardPage({ projectDir }: BackupDashboardPageProps) {
-  const [entries, setEntries] = useState<BackupEntry[]>([]);
-  const [loading, setLoading] = useState(false);
+  const cached = getCachedBackupList(projectDir);
+  const [entries, setEntries] = useState<BackupEntry[]>(cached?.backups ?? []);
+  const [loading, setLoading] = useState(!cached);
   const [saving, setSaving] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(cached?.backups[0]?.id ?? null);
   const [activeChildView, setActiveChildView] = useState<"list" | "db-viewer">("list");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
