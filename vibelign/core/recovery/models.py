@@ -77,6 +77,8 @@ class SafeCheckpointCandidate:
     metadata_complete: bool
     preview_available: bool
     predates_change: bool
+    trigger: str | None = None
+    git_commit_message: str | None = None
 
 
 @dataclass(frozen=True)

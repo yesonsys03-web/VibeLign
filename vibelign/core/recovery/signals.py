@@ -238,6 +238,8 @@ def _latest_safe_checkpoint(project_root: Path) -> SafeCheckpointCandidate | Non
         metadata_complete=metadata_complete,
         preview_available=preview_available,
         predates_change=predates_change,
+        trigger=getattr(latest, "trigger", None),
+        git_commit_message=getattr(latest, "git_commit_message", None),
     )
 
 

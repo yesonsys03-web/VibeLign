@@ -73,7 +73,9 @@
         "message": {"type": "string"},
         "metadata_complete": {"type": "boolean"},
         "preview_available": {"type": "boolean"},
-        "predates_change": {"type": "boolean"}
+        "predates_change": {"type": "boolean"},
+        "trigger": {"type": ["string", "null"]},
+        "git_commit_message": {"type": ["string", "null"]}
       }
     },
     "ranked_candidate": {

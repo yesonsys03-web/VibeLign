@@ -99,7 +99,8 @@ class McpRecoveryHandlersTest(unittest.TestCase):
     def test_recovery_recommend_returns_ranked_payload_without_apply(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            result = handle_recovery_recommend(root, {"user_phrase": "rollback"}, TextContent)
+            with mock.patch("vibelign.core.recovery.agent.resolve_auto_llm_provider", return_value=None):
+                result = handle_recovery_recommend(root, {"user_phrase": "rollback"}, TextContent)
             payload = cast(dict[str, object], json.loads(cast(TextContent, result[0]).text))
 
         self.assertIn(payload["recommendation_provider"], {"deterministic", "llm", "cache", "invalid"})

@@ -41,6 +41,8 @@ def test_run_vib_recover_explain_is_read_only(tmp_path: Path) -> None:
     _ = (root / "app.py").write_text("print('ok')\n", encoding="utf-8")
 
     with patch("pathlib.Path.cwd", return_value=root), patch(
+        "vibelign.core.recovery.agent.resolve_auto_llm_provider", return_value=None
+    ), patch(
         "vibelign.commands.vib_recover_cmd.print"
     ) as mocked_print:
         run_vib_recover(_RecoverArgs(explain=True))

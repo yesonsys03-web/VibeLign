@@ -73,14 +73,14 @@ def handle_recovery_recommend(
     arguments: dict[str, object],
     text_content: TextContentFactory,
 ) -> list[object]:
-    from vibelign.core.recovery.agent import AgentConfig, recommend_candidates
+    from vibelign.core.recovery.agent import AgentConfig, recommend_candidates, resolve_auto_llm_provider
     from vibelign.core.recovery.signals import collect_recovery_candidates
 
     outcome = recommend_candidates(
         root,
         str(arguments.get("user_phrase") or ""),
         collect_recovery_candidates(root),
-        provider=None,
+        provider=resolve_auto_llm_provider(),
         cfg=AgentConfig(cache_dir=root / ".vibelign" / "cache" / "agent"),
     )
     return _text(text_content, json.dumps(recommendation_outcome_payload(outcome), ensure_ascii=False, sort_keys=True))

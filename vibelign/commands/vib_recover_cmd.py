@@ -189,14 +189,14 @@ def cast_recovery_option(item: object):
 
 
 def _recommendation_payload(project_root: Path, phrase: str) -> dict[str, object]:
-    from vibelign.core.recovery.agent import AgentConfig, recommend_candidates
+    from vibelign.core.recovery.agent import AgentConfig, recommend_candidates, resolve_auto_llm_provider
     from vibelign.core.recovery.signals import collect_recovery_candidates
 
     outcome = recommend_candidates(
         project_root,
         phrase,
         collect_recovery_candidates(project_root),
-        provider=None,
+        provider=resolve_auto_llm_provider(),
         cfg=AgentConfig(cache_dir=project_root / ".vibelign" / "cache" / "agent"),
     )
     return recommendation_outcome_payload(outcome)
@@ -214,6 +214,7 @@ def recommendation_outcome_payload(outcome: RecommendationOutcome) -> dict[str, 
                 "label": item.candidate.label,
                 "source": item.candidate.source,
                 "created_at": item.candidate.created_at,
+                "commit_message": item.candidate.commit_message,
                 "evidence_score": {
                     "score": item.evidence_score.score(),
                     "formula_version": item.evidence_score.formula_version,
