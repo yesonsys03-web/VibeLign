@@ -38,6 +38,15 @@ def _format_http_error(provider: str, model: str, error: urllib.error.HTTPError)
     message = f"{provider} API 호출 실패: HTTP {error.code} {error.reason} (model={model})"
     if provider == "Gemini" and "API_KEY_INVALID" in detail:
         message += "\nGemini API 키가 유효하지 않아요. Settings에서 Gemini 키를 삭제한 뒤 아래 링크에서 새 키를 발급해 다시 저장해주세요.\nGoogle AI Studio API 키 발급: https://aistudio.google.com/app/apikey"
+    if provider == "Gemini" and error.code == 429:
+        message += (
+            "\n분당 요청 한도를 초과했어요 (무료 등급은 분당 20회로 제한됩니다)."
+            "\n유료 등급으로 전환하면 한도가 크게 올라가서 가장 빠른 해결책이에요: https://aistudio.google.com/app/apikey"
+            "\n무료 등급을 유지하려면 환경변수로 자동 재시도를 늘릴 수 있어요:"
+            "\n  GEMINI_HTTP_MAX_ATTEMPTS (기본 6) — 재시도 횟수를 늘려 더 오래 버팁니다"
+            "\n  GEMINI_HTTP_RETRY_CAP (기본 120) — 한 번 대기할 수 있는 최대 초"
+            "\n예: GEMINI_HTTP_MAX_ATTEMPTS=10 GEMINI_HTTP_RETRY_CAP=180 vib docs-enhance ..."
+        )
     if detail:
         message += f"\n응답 본문: {detail}"
     return message
