@@ -7,6 +7,8 @@ import json
 from argparse import Namespace
 from typing import Protocol, TypedDict
 
+has_rich: bool
+
 try:
     from rich.console import Console
     from rich.panel import Panel
@@ -14,10 +16,9 @@ try:
     from rich.text import Text
     from rich import box
 
-    HAS_RICH = True
+    has_rich = True
     console = Console()
 except ModuleNotFoundError:
-    HAS_RICH = False
     Console = None  # type: ignore[assignment]
     Panel = None  # type: ignore[assignment]
     Table = None  # type: ignore[assignment]
@@ -362,8 +363,7 @@ MANUAL: dict[str, ManualEntry] = {
             ),
             (
                 "--detailed",
-                "각 문제마다 심각도(HIGH/MEDIUM/LOW), 분류(구조/앵커/MCP 등),\n"
-                "왜 중요한지, 추천 명령, 자동 수정 가능 여부를 보여줘요.",
+                "각 문제마다 심각도(HIGH/MEDIUM/LOW), 분류(구조/앵커/MCP 등),\n왜 중요한지, 추천 명령, 자동 수정 가능 여부를 보여줘요.",
             ),
             ("--fix-hints", "각 문제를 어떻게 고치면 되는지 힌트를 줘요."),
             (
@@ -384,8 +384,7 @@ MANUAL: dict[str, ManualEntry] = {
             ),
             (
                 "--apply",
-                "자동 수정 가능한 항목을 일괄 적용해요.\n"
-                "적용 전에 자동으로 체크포인트가 만들어져서 되돌릴 수 있어요.",
+                "자동 수정 가능한 항목을 일괄 적용해요.\n적용 전에 자동으로 체크포인트가 만들어져서 되돌릴 수 있어요.",
             ),
             (
                 "--write-report",
@@ -971,6 +970,122 @@ MANUAL: dict[str, ManualEntry] = {
             "--handoff를 실행하면 AGENTS.md에 규칙이 자동으로 추가돼요:\n     '새 채팅 열면 PROJECT_CONTEXT.md 먼저 읽어라'\n     Cursor, Antigravity, OpenCode 등 AGENTS.md를 읽는 AI 툴이 자동으로 인지해요.",
         ],
     },
+    "memory": {
+        "emoji": "🧠",
+        "title": "vib memory",
+        "one_line": "지금 하던 일과 다음 할 일을 작업 메모리에 저장해요",
+        "what": (
+            "세션 메모리는 AI가 다음에 이어받을 때 보는 작업 메모장이에요.\n"
+            "지금 목표가 뭔지, 다음에 뭘 해야 하는지, 어떤 파일이 중요한지,\n"
+            "테스트를 돌렸는지 같은 걸 `.vibelign/work_memory.json`에 정리해요.\n\n"
+            "쉽게 말하면 '다음 AI한테 남기는 인수인계 메모'예요.\n"
+            "`vib transfer --handoff`를 실행하면 이 메모를 읽어서 PROJECT_CONTEXT.md에 같이 반영해줘요.\n\n"
+            "proposal-create는 AI가 메모 초안을 제안하는 기능이고,\n"
+            "proposal-accept를 해야만 진짜 메모에 저장돼요.\n"
+            "그래서 AI가 멋대로 기록하지 않고, 사람이 검토한 내용만 남게 돼요."
+        ),
+        "when": [
+            "지금 하던 일을 다음 AI가 바로 이어받게 하고 싶을 때",
+            "중요한 결정이나 다음 할 일을 잊지 않게 남기고 싶을 때",
+            "AI 이동 전에 work_memory.json 내용을 점검하고 싶을 때",
+            "AI가 제안한 handoff 메모를 검토하고 수락/거절하고 싶을 때",
+        ],
+        "examples": [
+            ("vib memory show", "현재 저장된 작업 메모리 보기"),
+            ("vib memory show --json", "앱이나 자동화가 읽기 좋은 JSON으로 보기"),
+            ("vib memory review", "handoff 전에 빠진 메모리가 없는지 검토"),
+            ('vib memory intent "현재 목표"', "지금 작업 목표를 직접 저장"),
+            ('vib memory decide "git 상태를 source of truth로 유지"', "중요한 결정을 저장"),
+            ('vib memory next "실패한 테스트 다시 실행"', "다음 할 일을 저장"),
+            ('vib memory relevant src/app.py "핵심 파일"', "중요한 파일과 이유를 저장"),
+            ('vib memory proposal-create --first-next-action "다음 할 일"', "AI handoff 메모 초안 만들기"),
+            ("vib memory proposal-accept --field next_action --draft-json '{...}'", "검토한 제안을 수락해서 저장"),
+        ],
+        "options": [
+            (
+                "show --json",
+                "세션 메모리를 JSON으로 보여줘요.\nGUI나 자동화 스크립트가 읽을 때 좋아요.",
+            ),
+            (
+                "intent 텍스트",
+                "지금 목표를 확정해서 저장해요.\n다음 AI가 '지금 뭘 하는 중이었는지' 바로 알 수 있어요.",
+            ),
+            (
+                "decide 텍스트",
+                "중요한 결정을 저장해요.\n예: 'git 상태를 기준으로 삼기' 같은 방향을 남길 때 써요.",
+            ),
+            (
+                "next 텍스트",
+                "다음 할 일을 저장해요.\n예: '실패한 테스트 다시 실행'처럼 바로 행동으로 옮길 문장을 남겨요.",
+            ),
+            (
+                "relevant 파일 이유",
+                "왜 이 파일이 중요한지 같이 저장해요.\n핵심 파일을 handoff에 노출할 때 좋아요.",
+            ),
+            (
+                "proposal-create",
+                "AI가 handoff 메모 초안을 제안해요.\n`--session-summary`, `--first-next-action`, `--relevant-file`, `--verification`, `--risk-note`를 붙여 제안 내용을 채울 수 있어요.",
+            ),
+            (
+                "proposal-accept --field --draft-json",
+                "검토한 제안 한 항목을 수락해서 진짜 work_memory.json에 저장해요.",
+            ),
+            (
+                "proposal-dismiss --field --draft-json",
+                "제안을 거절해요.\n원본 메모리는 그대로 두고, 같은 제안을 계속 반복하지 않게 도와줘요.",
+            ),
+            (
+                "proposal-undo --proposal-hash",
+                "방금 수락한 제안을 다시 되돌려요.\n잘못 저장했을 때 '수락 취소'처럼 쓸 수 있어요.",
+            ),
+        ],
+    },
+    "recover": {
+        "emoji": "↺",
+        "title": "vib recover",
+        "one_line": "되돌리기 전에 안전한 복구 후보를 먼저 보여줘요",
+        "what": (
+            "recover는 바로 파일을 바꾸기 전에 '어떻게 되돌리는 게 안전한지' 먼저 보여주는 기능이에요.\n"
+            "지금 상태를 읽어서 복구 계획, 후보 checkpoint, 검토할 파일을 먼저 보여줘요.\n\n"
+            "쉽게 말하면 '실행 전 미리 보는 복구 안내판'이에요.\n"
+            "그래서 성급하게 되돌리기 전에 어느 시점이 가장 안전한지 확인할 수 있어요.\n\n"
+            "특히 '언제부터 망가졌는지' 기억나는 경우\n"
+            "`--recommend --phrase`로 복구 후보를 추천받는 게 편해요."
+        ),
+        "when": [
+            "AI가 코드를 이상하게 바꿔서 어디로 돌아가야 할지 애매할 때",
+            "바로 undo 하기 전에 안전한 checkpoint 후보를 먼저 보고 싶을 때",
+            "문제가 생긴 시점을 대충 기억해서 복구 후보를 추천받고 싶을 때",
+        ],
+        "examples": [
+            ("vib recover --explain", "복구 옵션이 뭔지 글로 설명 보기"),
+            ("vib recover --preview", "읽기 전용 복구 계획 미리보기"),
+            ("vib recover --recommend --phrase 'GUI broke 30m ago'", "문제 시점 기준 후보 추천"),
+            ("vib recover --file src/app.py", "특정 파일 기준으로 복구 대상 미리보기"),
+        ],
+        "options": [
+            (
+                "--preview",
+                "지금 상태를 읽어서 복구 계획만 미리 보여줘요.\nPhase 1에서는 파일을 바꾸지 않아요.",
+            ),
+            (
+                "--recommend --phrase 텍스트",
+                "'GUI broke 30m ago' 같은 문장을 바탕으로\n가장 그럴듯한 복구 후보를 순서대로 추천해줘요.",
+            ),
+            (
+                "--file 경로",
+                "특정 파일을 기준으로 복구 대상을 좁혀서 볼 때 써요.",
+            ),
+            (
+                "--json",
+                "복구 계획을 JSON으로 출력해요.\nGUI나 자동화 스크립트가 읽을 때 좋아요.",
+            ),
+            (
+                "--apply",
+                "명시적으로 확인된 파일 복구를 실제로 실행해요.\n실행 전 checkpoint 정보와 confirmation 문구가 필요해요.",
+            ),
+        ],
+    },
     "completion": {
         "emoji": "⌨️",
         "title": "vib completion",
@@ -1242,7 +1357,7 @@ GROUPS = [
     ("🏁 처음 시작", ["start", "init", "install"]),
     (
         "💾 세이브 & 되돌리기",
-        ["checkpoint", "undo", "history", "backup-db-viewer", "backup-db-maintenance"],
+        ["checkpoint", "undo", "history", "recover", "backup-db-viewer", "backup-db-maintenance"],
     ),
     ("🔬 점검 & 확인", ["doctor", "guard", "explain"]),
     ("✏️ AI 수정 요청", ["patch", "anchor", "scan", "plan-structure"]),
@@ -1252,6 +1367,7 @@ GROUPS = [
         [
             "protect",
             "transfer",
+            "memory",
             "ask",
             "config",
             "secrets",
@@ -1288,7 +1404,7 @@ def _render_command(key: str) -> None:
     options = m.get("options", [])
     notes = m.get("notes", [])
 
-    if not HAS_RICH:
+    if not has_rich:
         print()
         print(f"{emoji} {title} — {one_line}".strip())
         print()
@@ -1316,6 +1432,11 @@ def _render_command(key: str) -> None:
                 print(f"- {note}")
         print()
         return
+
+    assert Text is not None
+    assert Panel is not None
+    assert Table is not None
+    assert box is not None
 
     # 헤더 패널
     header = Text()
@@ -1372,7 +1493,7 @@ def _render_command(key: str) -> None:
 
 def _render_overview() -> None:
     """전체 커맨드 목록 개요 출력."""
-    if not HAS_RICH:
+    if not has_rich:
         print()
         print("VibeLign 전체 명령어 매뉴얼")
         print("상세 보기: vib manual <커맨드명>")
@@ -1384,6 +1505,11 @@ def _render_overview() -> None:
                 print(f"- {k}: {m.get('one_line', '')}")
             print()
         return
+
+    assert Text is not None
+    assert Panel is not None
+    assert Table is not None
+    assert box is not None
 
     console.print()
     console.print(

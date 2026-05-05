@@ -3,8 +3,10 @@ import os
 import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from argparse import Namespace
 from dataclasses import dataclass
+from io import StringIO
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
@@ -43,6 +45,23 @@ class _RecoverArgs:
 
 
 class GuiCliContractsTest(unittest.TestCase):
+    def test_memory_help_surfaces_common_subcommand_flags(self):
+        from vibelign.cli.vib_cli import build_parser
+
+        parser = build_parser()
+        output_buffer = StringIO()
+        with redirect_stdout(output_buffer):
+            with self.assertRaises(SystemExit):
+                _ = parser.parse_args(["memory", "-h"])
+
+        output = output_buffer.getvalue()
+        self.assertIn("vib memory show --json", output)
+        self.assertIn("--first-next-action", output)
+        self.assertIn("--relevant-file", output)
+        self.assertIn("--verification", output)
+        self.assertIn("--risk-note", output)
+        self.assertIn("--proposal-hash", output)
+
     def test_agent_memory_cards_are_wired_into_gui_home(self):
         root = Path(__file__).resolve().parents[1]
         session_card = root / "vibelign-gui" / "src" / "components" / "agent-memory" / "SessionMemoryCard.tsx"
@@ -77,6 +96,8 @@ class GuiCliContractsTest(unittest.TestCase):
         self.assertIn("drift_candidates[${index}].why_outside_zone", vib_text)
         recovery_text = recovery_card.read_text(encoding="utf-8")
         transfer_text = (root / "vibelign-gui" / "src" / "components" / "cards" / "transfer" / "TransferCard.tsx").read_text(encoding="utf-8")
+        command_data_text = (root / "vibelign-gui" / "src" / "lib" / "commandData.ts").read_text(encoding="utf-8")
+        help_data_text = (root / "vibelign-gui" / "src" / "lib" / "helpData.ts").read_text(encoding="utf-8")
         self.assertIn("driftCandidates", recovery_text)
         self.assertIn("복구 후보 추천 보기", recovery_text)
         self.assertIn("검토가 필요한 파일", recovery_text)
@@ -92,6 +113,25 @@ class GuiCliContractsTest(unittest.TestCase):
         self.assertIn("PROJECT_CONTEXT.md에 반영", transfer_text)
         self.assertIn("GuiCliOutputBlock", transfer_text)
         self.assertIn("r.stderr.trim()", transfer_text)
+        self.assertIn("handoff: true", transfer_text)
+        self.assertNotIn("setHandoff", transfer_text)
+        self.assertNotIn("}}>--handoff</button>", transfer_text)
+        self.assertNotIn("--compact", transfer_text)
+        self.assertNotIn("--compact", command_data_text)
+        self.assertIn("세션 메모리", command_data_text)
+        self.assertIn("복구 옵션", command_data_text)
+        self.assertIn("work_memory.json", command_data_text)
+        self.assertIn('name: "session-memory"', command_data_text)
+        self.assertIn('name: "recovery-options"', command_data_text)
+        self.assertIn('usage: "vib memory show"', command_data_text)
+        self.assertIn('usage: "vib recover --preview"', command_data_text)
+        self.assertIn("{cmd.usage}", home_text)
+        self.assertIn("서브명령 / 옵션", home_text)
+        self.assertIn('proposal-create --first-next-action', command_data_text)
+        self.assertIn('proposal-accept --field next_action', command_data_text)
+        self.assertIn('proposal-undo --proposal-hash', command_data_text)
+        self.assertIn('id: "session-memory"', help_data_text)
+        self.assertIn('id: "recovery-options"', help_data_text)
         self.assertNotIn("지금 하던 일 기록", session_text)
         self.assertNotIn("전문가용 작업 기록", session_text)
 
@@ -101,14 +141,20 @@ class GuiCliContractsTest(unittest.TestCase):
 
         self.assertIn("backup-db-viewer", MAIN_DESCRIPTION)
         self.assertIn("backup-db-maintenance", MAIN_DESCRIPTION)
+        self.assertIn("memory      지금 하던 일과 다음 할 일을 세션 메모리에 저장해요", MAIN_DESCRIPTION)
+        self.assertIn("recover     되돌리기 전에 안전한 복구 후보를 먼저 보여줘요", MAIN_DESCRIPTION)
         self.assertIn("backup-db-viewer", MANUAL)
         self.assertIn("backup-db-maintenance", MANUAL)
+        self.assertIn("memory", MANUAL)
+        self.assertIn("recover", MANUAL)
 
         grouped_commands = {
             command for _title, commands in GROUPS for command in commands
         }
         self.assertIn("backup-db-viewer", grouped_commands)
         self.assertIn("backup-db-maintenance", grouped_commands)
+        self.assertIn("memory", grouped_commands)
+        self.assertIn("recover", grouped_commands)
 
     def test_doctor_json_exposes_fields_consumed_by_gui(self):
         with tempfile.TemporaryDirectory() as tmp:
