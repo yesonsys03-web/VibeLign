@@ -157,6 +157,109 @@ def run_vib_memory_relevant(args: Namespace) -> None:
     print("Memory relevant file saved.")
 
 
+def run_vib_memory_proposal_create(args: Namespace) -> None:
+    from vibelign.core.memory.agent import build_handoff_summary_draft, handoff_draft_to_payload
+
+    handoff_data: dict[str, object] = {}
+    session_summary = str(getattr(args, "session_summary", "") or "").strip()
+    first_next_action = str(getattr(args, "first_next_action", "") or "").strip()
+    if session_summary:
+        handoff_data["session_summary"] = session_summary
+    if first_next_action:
+        handoff_data["first_next_action"] = first_next_action
+    relevant_files = _proposal_relevant_files(getattr(args, "relevant_file", None))
+    verification = _proposal_string_list(getattr(args, "verification", None))
+    risk_notes = _proposal_string_list(getattr(args, "risk_note", None))
+    if relevant_files:
+        handoff_data["relevant_files"] = relevant_files
+    if verification:
+        handoff_data["verification"] = verification
+    if risk_notes:
+        handoff_data["warnings"] = risk_notes
+    draft = build_handoff_summary_draft(_memory_path(), handoff_data)
+    print(json.dumps({"ok": True, "read_only": True, "draft": handoff_draft_to_payload(draft)}, ensure_ascii=False, sort_keys=True))
+
+
+def _proposal_string_list(value: object) -> list[str]:
+    if isinstance(value, str) and value:
+        return [value]
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str) and item]
+
+
+def _proposal_relevant_files(value: object) -> list[dict[str, str]]:
+    entries: list[dict[str, str]] = []
+    for item in _proposal_string_list(value):
+        if "::" in item:
+            path, why = item.split("::", 1)
+        elif " — " in item:
+            path, why = item.split(" — ", 1)
+        else:
+            path, why = item, "Relevant to recent work."
+        path = path.strip()
+        why = why.strip()
+        if path:
+            entries.append({"path": path, "why": why or "Relevant to recent work."})
+    return entries
+
+
+def run_vib_memory_proposal_accept(args: Namespace) -> None:
+    from vibelign.core.memory.agent import accept_handoff_draft_field
+
+    draft = _draft_arg(args)
+    field = _proposal_field_arg(args)
+    if draft is None or field is None:
+        print(json.dumps({"ok": False, "error": "--draft-json and --field are required"}, sort_keys=True))
+        return
+    result = accept_handoff_draft_field(_memory_path(), draft, field, accepted_by="vib memory proposal accept")
+    print(json.dumps(result.__dict__, ensure_ascii=False, sort_keys=True))
+
+
+def run_vib_memory_proposal_dismiss(args: Namespace) -> None:
+    from vibelign.core.memory.agent import dismiss_handoff_draft_field
+
+    draft = _draft_arg(args)
+    field = _proposal_field_arg(args)
+    if draft is None or field is None:
+        print(json.dumps({"ok": False, "error": "--draft-json and --field are required"}, sort_keys=True))
+        return
+    result = dismiss_handoff_draft_field(_memory_path(), draft, field, dismissed_by="vib memory proposal dismiss")
+    print(json.dumps(result.__dict__, ensure_ascii=False, sort_keys=True))
+
+
+def run_vib_memory_proposal_undo(args: Namespace) -> None:
+    from vibelign.core.memory.agent import undo_recent_handoff_acceptance
+
+    proposal_hash = str(getattr(args, "proposal_hash", "") or "")
+    if not proposal_hash:
+        print(json.dumps({"ok": False, "error": "--proposal-hash is required"}, sort_keys=True))
+        return
+    result = undo_recent_handoff_acceptance(_memory_path(), proposal_hash, undone_by="vib memory proposal undo")
+    print(json.dumps(result.__dict__, ensure_ascii=False, sort_keys=True))
+
+
+def _draft_arg(args: Namespace):
+    from vibelign.core.memory.agent import handoff_draft_from_payload
+
+    raw = str(getattr(args, "draft_json", "") or "")
+    if not raw:
+        return None
+    try:
+        return handoff_draft_from_payload(json.loads(raw))
+    except json.JSONDecodeError:
+        return None
+
+
+def _proposal_field_arg(args: Namespace):
+    from vibelign.core.memory.agent import HandoffDraftField
+
+    field = str(getattr(args, "field", "") or "")
+    if field in {"session_summary", "active_intent", "next_action", "relevant_files", "verification", "risk_notes"}:
+        return cast(HandoffDraftField, field)
+    return None
+
+
 def _review_memory() -> _ReviewMemory:
     module = import_module("vibelign.core.memory.review")
     return cast(_ReviewMemory, getattr(module, "review_memory"))
@@ -229,6 +332,8 @@ def _memory_state_payload(state) -> dict[str, object]:
                 "updated_by": item.updated_by,
                 "stale": item.stale,
                 "from_previous_intent": item.from_previous_intent,
+                "accepted_by": item.accepted_by,
+                "accepted_at": item.accepted_at,
             }
             for item in state.relevant_files
         ],
@@ -271,6 +376,8 @@ def _text_field_payload(field) -> dict[str, object] | None:
         "stale": field.stale,
         "proposed": field.proposed,
         "from_previous_intent": field.from_previous_intent,
+        "accepted_by": field.accepted_by,
+        "accepted_at": field.accepted_at,
     }
 
 

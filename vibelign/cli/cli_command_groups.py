@@ -406,18 +406,25 @@ def register_extended_commands(
             "이렇게 쓰세요:\n"
             "  vib recover --explain    복구 옵션 설명\n"
             "  vib recover --preview    복구 옵션 미리보기\n"
+            "  vib recover --recommend --phrase 'GUI broke 30m ago'    복구 후보 추천 JSON\n"
             "  vib recover --file src/app.py    파일 복구 대상 미리보기\n"
             "  vib recover --file src/app.py --apply --checkpoint-id ckpt --sandwich-checkpoint-id safety --confirmation 'APPLY ckpt'"
         ),
     )
     _ = p.add_argument("--explain", action="store_true", help="복구 옵션을 설명")
     _ = p.add_argument("--preview", action="store_true", help="복구 옵션을 미리보기")
+    _ = p.add_argument("--recommend", action="store_true", help="복구 후보 추천을 JSON으로 출력")
+    _ = p.add_argument("--phrase", default="", help="복구 요청 문구")
     _ = p.add_argument("--file", default=None, help="복구 대상으로 검토할 파일")
     _ = p.add_argument("--json", action="store_true", help="복구 계획을 JSON으로 출력")
     _ = p.add_argument("--apply", action="store_true", help="명시 확인된 파일 복구를 실행")
     _ = p.add_argument("--checkpoint-id", default="", help="복구할 원본 체크포인트 ID")
     _ = p.add_argument("--sandwich-checkpoint-id", default="", help="복구 직전 안전 체크포인트 ID")
     _ = p.add_argument("--confirmation", default="", help="명시 확인 문구: APPLY <checkpoint-id>")
+    _ = p.add_argument("--plan-id", default=None, help="감사 로그에 연결할 recovery plan ID")
+    _ = p.add_argument("--candidate-id", default=None, help="감사 로그에 연결할 추천 candidate ID")
+    _ = p.add_argument("--option-id", default=None, help="감사 로그에 연결할 recovery option ID")
+    _ = p.add_argument("--recommendation-provider", default=None, help="감사 로그에 연결할 추천 provider")
     p.set_defaults(
         func=lazy_command("vibelign.commands.vib_recover_cmd", "run_vib_recover")
     )
@@ -590,13 +597,15 @@ def register_extended_commands(
             "  vib memory review\n"
             "  vib memory intent \"현재 목표\"\n"
             "  vib memory decide \"현재 목표\"\n"
-            "  vib memory relevant src/app.py \"핵심 파일\""
+            "  vib memory relevant src/app.py \"핵심 파일\"\n"
+            "  vib memory proposal-create --first-next-action \"다음 할 일\"\n"
+            "  vib memory proposal-accept --field next_action --draft-json '{...}'"
         ),
     )
     memory_sub = p.add_subparsers(
         dest="memory_action",
         required=True,
-        metavar="{show,review,intent,decide,next,relevant}",
+        metavar="{show,review,intent,decide,next,relevant,proposal-create,proposal-accept,proposal-dismiss,proposal-undo}",
     )
     p_show = memory_sub.add_parser("show", help="저장된 메모리를 보여줘요")
     _ = p_show.add_argument("--json", action="store_true", help="메모리 상태를 JSON으로 출력")
@@ -627,6 +636,32 @@ def register_extended_commands(
     _ = p_relevant.add_argument("why", nargs="+", help="왜 중요한지")
     p_relevant.set_defaults(
         func=lazy_command("vibelign.commands.vib_memory_cmd", "run_vib_memory_relevant")
+    )
+    p_create = memory_sub.add_parser("proposal-create", help="reviewable handoff proposal draft를 만들어요")
+    _ = p_create.add_argument("--session-summary", default="", help="제안에 사용할 handoff 요약")
+    _ = p_create.add_argument("--first-next-action", default="", help="제안에 사용할 다음 작업")
+    _ = p_create.add_argument("--relevant-file", action="append", default=None, help="제안할 관련 파일: path::why")
+    _ = p_create.add_argument("--verification", action="append", default=None, help="제안할 검증 기록")
+    _ = p_create.add_argument("--risk-note", action="append", default=None, help="제안할 위험/주의 메모")
+    p_create.set_defaults(
+        func=lazy_command("vibelign.commands.vib_memory_cmd", "run_vib_memory_proposal_create")
+    )
+    p_accept = memory_sub.add_parser("proposal-accept", help="reviewed handoff proposal 필드를 수락해요")
+    _ = p_accept.add_argument("--draft-json", required=True, help="handoff draft JSON")
+    _ = p_accept.add_argument("--field", required=True, help="수락할 필드 이름")
+    p_accept.set_defaults(
+        func=lazy_command("vibelign.commands.vib_memory_cmd", "run_vib_memory_proposal_accept")
+    )
+    p_dismiss = memory_sub.add_parser("proposal-dismiss", help="handoff proposal 필드를 거절해요")
+    _ = p_dismiss.add_argument("--draft-json", required=True, help="handoff draft JSON")
+    _ = p_dismiss.add_argument("--field", required=True, help="거절할 필드 이름")
+    p_dismiss.set_defaults(
+        func=lazy_command("vibelign.commands.vib_memory_cmd", "run_vib_memory_proposal_dismiss")
+    )
+    p_undo = memory_sub.add_parser("proposal-undo", help="최근 수락한 proposal을 되돌려요")
+    _ = p_undo.add_argument("--proposal-hash", required=True, help="되돌릴 proposal hash")
+    p_undo.set_defaults(
+        func=lazy_command("vibelign.commands.vib_memory_cmd", "run_vib_memory_proposal_undo")
     )
 
     p = sub.add_parser(
@@ -680,6 +715,7 @@ def register_extended_commands(
             "  vib transfer --handoff --session-summary \"현재 세션 작업\" --first-next-action \"다음 할 일\"\n"
             "  vib transfer --handoff --verification \"pytest 통과\"\n"
             "  vib transfer --handoff --decision \"git 상태를 source of truth로 유지\"\n"
+            "  vib transfer --handoff --ai --no-prompt   reviewable AI draft JSON 출력\n"
             "  vib transfer --handoff --dry-run   파일 저장 없이 미리 보기\n"
             "  vib transfer --out ctx.md          파일명 지정\n"
             "\n"
@@ -690,6 +726,9 @@ def register_extended_commands(
     _ = p.add_argument("--full", action="store_true", help="핵심 파일 전체 포함")
     _ = p.add_argument(
         "--handoff", action="store_true", help="AI 전환용 Session Handoff 블록 포함"
+    )
+    _ = p.add_argument(
+        "--ai", action="store_true", help="reviewable handoff draft JSON을 생성 (--handoff 전용)"
     )
     _ = p.add_argument(
         "--print",
