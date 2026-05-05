@@ -59,6 +59,44 @@ def test_execute_recovery_apply_restores_selected_files_with_lock_and_audit(tmp_
     assert audit_payload["paths_count"] == {"drift": 0, "in_zone": 1, "total": 1}
 
 
+def test_execute_recovery_apply_audit_links_recommendation_context(tmp_path: Path) -> None:
+    old_value = os.environ.get("VIBELIGN_RECOVERY_APPLY")
+    os.environ["VIBELIGN_RECOVERY_APPLY"] = "true"
+    root = tmp_path / "repo"
+    _ = (root / "src").mkdir(parents=True)
+    _ = (root / "src" / "app.py").write_text("broken\n", encoding="utf-8")
+    request = RecoveryApplyRequest(
+        checkpoint_id="ckpt_before",
+        sandwich_checkpoint_id="ckpt_safety",
+        paths=["src/app.py"],
+        preview_paths=["src/app.py"],
+        confirmation="APPLY ckpt_before",
+        apply=True,
+        plan_id="rec_plan",
+        candidate_id="cand_1",
+        option_id="opt_1",
+        recommendation_provider="deterministic",
+        memory_proposal_id="proposal_1",
+        handoff_draft_id="draft_1",
+    )
+
+    try:
+        _ = execute_recovery_apply(root, request, restore_files_func=lambda _root, _checkpoint, paths: len(paths))
+    finally:
+        if old_value is None:
+            _ = os.environ.pop("VIBELIGN_RECOVERY_APPLY", None)
+        else:
+            os.environ["VIBELIGN_RECOVERY_APPLY"] = old_value
+
+    audit_payload = cast(dict[str, object], json.loads(memory_audit_path(root).read_text(encoding="utf-8")))
+    assert audit_payload["plan_id"] == "rec_plan"
+    assert audit_payload["candidate_id"] == "cand_1"
+    assert audit_payload["option_id"] == "opt_1"
+    assert audit_payload["recommendation_provider"] == "deterministic"
+    assert audit_payload["memory_proposal_id"] == "proposal_1"
+    assert audit_payload["handoff_draft_id"] == "draft_1"
+
+
 def test_execute_recovery_apply_reports_busy_without_restoring(tmp_path: Path) -> None:
     old_value = os.environ.get("VIBELIGN_RECOVERY_APPLY")
     os.environ["VIBELIGN_RECOVERY_APPLY"] = "true"

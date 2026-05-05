@@ -14,6 +14,7 @@ from vibelign.core.memory.aggregator import aggregate_p0_occurrences, p0_occurre
 from vibelign.core.memory.retention import apply_memory_audit_retention
 from vibelign.core.project_root import resolve_project_root
 from vibelign.core.recovery.models import RecoveryPlan
+from vibelign.core.recovery.agent import RecommendationOutcome
 from vibelign.core.recovery.apply import RecoveryApplyRequest, execute_recovery_apply
 from vibelign.core.recovery.path import PathSafetyError, normalize_recovery_path
 from vibelign.core.recovery.planner import build_recovery_plan
@@ -30,22 +31,31 @@ _RECOVER_HELP = "Recovery Advisor is read-only. Run: vib recover --explain, vib 
 class RecoverArgs(Protocol):
     explain: bool
     preview: bool
+    recommend: bool
+    phrase: str
     file: str | None
     json: bool
     apply: bool
     checkpoint_id: str
     sandwich_checkpoint_id: str
     confirmation: str
+    plan_id: str | None
+    candidate_id: str | None
+    option_id: str | None
+    recommendation_provider: str | None
 
 
 # === ANCHOR: VIB_RECOVER_CMD__RUN_VIB_RECOVER_START ===
 def run_vib_recover(args: RecoverArgs) -> None:
     file_target = args.file
+    project_root = resolve_project_root(Path.cwd())
+    if getattr(args, "recommend", False):
+        print(json.dumps(_recommendation_payload(project_root, getattr(args, "phrase", "") or ""), ensure_ascii=False, sort_keys=True))
+        return
     if not (args.explain or args.preview or file_target):
         print(_RECOVER_HELP)
         return
 
-    project_root = resolve_project_root(Path.cwd())
     if args.apply:
         print(_run_file_apply(project_root, args))
         return
@@ -110,6 +120,10 @@ def _run_file_apply(project_root: Path, args: RecoverArgs) -> str:
             preview_paths=[file_target] if file_target else [],
             confirmation=args.confirmation,
             apply=True,
+            plan_id=getattr(args, "plan_id", None),
+            candidate_id=getattr(args, "candidate_id", None),
+            option_id=getattr(args, "option_id", None),
+            recommendation_provider=getattr(args, "recommendation_provider", None),
         ),
     )
     if not result.ok:
@@ -129,7 +143,7 @@ def _audit_paths_count(plan: RecoveryPlan) -> AuditPathsCount:
     return AuditPathsCount(in_zone=in_zone, drift=drift, total=in_zone + drift)
 
 
-def _plan_payload(plan) -> dict[str, object]:
+def _plan_payload(plan: RecoveryPlan) -> dict[str, object]:
     return {
         "plan_id": plan.plan_id,
         "mode": plan.mode,
@@ -137,10 +151,90 @@ def _plan_payload(plan) -> dict[str, object]:
         "summary": plan.summary,
         "intent_zone": [item.__dict__ for item in plan.intent_zone],
         "drift_candidates": [item.__dict__ for item in plan.drift_candidates],
-        "options": [item.__dict__ for item in plan.options],
+        "options": [_option_payload(item) for item in plan.options],
         "safe_checkpoint_candidate": plan.safe_checkpoint_candidate.__dict__ if plan.safe_checkpoint_candidate else None,
         "no_files_modified": plan.no_files_modified,
         "circuit_breaker_state": plan.circuit_breaker_state,
+        "ranked_candidates": [item.__dict__ for item in plan.ranked_candidates],
+        "recommendation_provider": plan.recommendation_provider,
+    }
+
+
+def _option_payload(item: object) -> dict[str, object]:
+    option = cast_recovery_option(item)
+    return {
+        "option_id": option.option_id,
+        "level": option.level,
+        "label": option.label,
+        "affected_paths": option.affected_paths,
+        "estimated_impact": option.estimated_impact,
+        "requires_sandwich": option.requires_sandwich,
+        "requires_lock": option.requires_lock,
+        "blocked_reason": option.blocked_reason,
+        "action_type": option.action_type,
+        "candidate_id": option.candidate_id,
+        "recommended": option.recommended,
+        "risk_level": option.risk_level,
+        "expected_loss": list(option.expected_loss),
+        "next_call": option.next_call,
+    }
+
+
+def cast_recovery_option(item: object):
+    from vibelign.core.recovery.models import RecoveryOption
+
+    if not isinstance(item, RecoveryOption):
+        raise TypeError("expected RecoveryOption")
+    return item
+
+
+def _recommendation_payload(project_root: Path, phrase: str) -> dict[str, object]:
+    from vibelign.core.recovery.agent import AgentConfig, recommend_candidates
+    from vibelign.core.recovery.signals import collect_recovery_candidates
+
+    outcome = recommend_candidates(
+        project_root,
+        phrase,
+        collect_recovery_candidates(project_root),
+        provider=None,
+        cfg=AgentConfig(cache_dir=project_root / ".vibelign" / "cache" / "agent"),
+    )
+    return recommendation_outcome_payload(outcome)
+
+
+def recommendation_outcome_payload(outcome: RecommendationOutcome) -> dict[str, object]:
+    return {
+        "recommendation_provider": outcome.provider,
+        "interpreted_goal": outcome.interpreted_goal,
+        "fallback_reason": outcome.fallback_reason,
+        "ranked_candidates": [
+            {
+                "candidate_id": item.candidate.candidate_id,
+                "rank": item.rank,
+                "label": item.candidate.label,
+                "source": item.candidate.source,
+                "created_at": item.candidate.created_at,
+                "evidence_score": {
+                    "score": item.evidence_score.score(),
+                    "formula_version": item.evidence_score.formula_version,
+                    "commit_boundary": item.evidence_score.commit_boundary,
+                    "verification_fresh": item.evidence_score.verification_fresh,
+                    "diff_small": item.evidence_score.diff_small,
+                    "protected_paths_clean": item.evidence_score.protected_paths_clean,
+                    "time_match_user_request": item.evidence_score.time_match_user_request,
+                },
+                "llm_confidence": (
+                    {"level": item.llm_confidence.level, "reason": item.llm_confidence.reason}
+                    if item.llm_confidence
+                    else None
+                ),
+                "reason": item.reason,
+                "expected_loss": list(item.expected_loss),
+                "action_type": item.candidate.restore_capability,
+                "next_call": "vib recover --preview --json",
+            }
+            for item in outcome.recommendations
+        ],
     }
 
 

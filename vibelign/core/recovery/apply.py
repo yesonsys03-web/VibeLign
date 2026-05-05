@@ -36,6 +36,12 @@ class RecoveryApplyRequest:
     preview_paths: list[str] = field(default_factory=list)
     confirmation: str = ""
     apply: bool = False
+    plan_id: str | None = None
+    candidate_id: str | None = None
+    option_id: str | None = None
+    recommendation_provider: str | None = None
+    memory_proposal_id: str | None = None
+    handoff_draft_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -244,6 +250,7 @@ def execute_recovery_apply(
             readiness.validation.summary.safety_checkpoint_id,
             "busy",
             owner_tool,
+            request,
         )
         return RecoveryApplyResult(
             ok=False,
@@ -266,6 +273,7 @@ def execute_recovery_apply(
             readiness.validation.summary.safety_checkpoint_id,
             "denied",
             owner_tool,
+            request,
         )
         return _blocked_apply_result(readiness.validation, readiness.errors)
 
@@ -277,6 +285,7 @@ def execute_recovery_apply(
             readiness.validation.summary.safety_checkpoint_id,
             "busy",
             owner_tool,
+            request,
         )
         return RecoveryApplyResult(
             ok=False,
@@ -304,6 +313,7 @@ def execute_recovery_apply(
                     readiness.validation.summary.safety_checkpoint_id,
                     "aborted",
                     owner_tool,
+                    request,
                 )
                 return _aborted_apply_result(
                     readiness.validation,
@@ -321,6 +331,7 @@ def execute_recovery_apply(
                     readiness.validation.summary.safety_checkpoint_id,
                     "aborted",
                     owner_tool,
+                    request,
                 )
                 return _aborted_apply_result(
                     readiness.validation,
@@ -335,12 +346,13 @@ def execute_recovery_apply(
             readiness.validation.summary.safety_checkpoint_id,
             "failed",
             owner_tool,
+            request,
         )
         return _blocked_apply_result(readiness.validation, [str(exc)])
     finally:
         _ = release_recovery_lock(project_root, lock_id=lock.state.lock_id)
 
-    _append_recovery_apply_audit(project_root, readiness.validation.normalized_paths, readiness.validation.summary.safety_checkpoint_id, "success", owner_tool)
+    _append_recovery_apply_audit(project_root, readiness.validation.normalized_paths, readiness.validation.summary.safety_checkpoint_id, "success", owner_tool, request)
     return RecoveryApplyResult(
         ok=True,
         busy=False,
@@ -466,6 +478,7 @@ def _append_recovery_apply_audit(
     sandwich_checkpoint_id: str,
     result: AuditResult,
     owner_tool: str,
+    request: RecoveryApplyRequest,
 ) -> None:
     append_memory_audit_event(
         memory_audit_path(project_root),
@@ -476,6 +489,12 @@ def _append_recovery_apply_audit(
             paths_count=AuditPathsCount(in_zone=len(paths), drift=0, total=len(paths)),
             result=result,
             sandwich_checkpoint_id=sandwich_checkpoint_id,
+            plan_id=request.plan_id,
+            candidate_id=request.candidate_id,
+            option_id=request.option_id,
+            recommendation_provider=request.recommendation_provider,
+            memory_proposal_id=request.memory_proposal_id,
+            handoff_draft_id=request.handoff_draft_id,
         ),
     )
 

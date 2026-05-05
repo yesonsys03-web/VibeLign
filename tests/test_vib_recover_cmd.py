@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
@@ -13,6 +14,8 @@ from vibelign.core.recovery.render import render_text_plan
 class _RecoverArgs:
     explain: bool
     preview: bool = False
+    recommend: bool = False
+    phrase: str = ""
     file: str | None = None
     json: bool = False
     apply: bool = False
@@ -149,6 +152,22 @@ def test_run_vib_recover_without_explain_points_to_explain_mode() -> None:
     assert "vib recover --explain" in message
     assert "vib recover --preview" in message
     assert "vib recover --file" in message
+
+
+def test_run_vib_recover_recommend_emits_json_and_is_read_only(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "tracked.txt").write_text("hello", encoding="utf-8")
+
+    with patch("pathlib.Path.cwd", return_value=root), patch(
+        "vibelign.commands.vib_recover_cmd.print"
+    ) as mocked_print:
+        run_vib_recover(_RecoverArgs(explain=False, recommend=True, phrase="rollback"))
+
+    payload = json.loads(cast(str, mocked_print.call_args.args[0]))
+    assert payload["recommendation_provider"] == "deterministic"
+    assert "ranked_candidates" in payload
+    assert (root / "tracked.txt").read_text(encoding="utf-8") == "hello"
 
 
 def test_recovery_render_explains_candidate_file_roles() -> None:
