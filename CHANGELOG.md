@@ -8,6 +8,35 @@
 
 ## [Unreleased]
 
+---
+
+## [2.1.6] — 2026-05-05
+
+VibeLign 2.1.6 은 **Session Memory / Recovery 안내 노출 정리**와 **Windows handoff 안정화**를 담은 릴리즈입니다.
+
+### Added
+
+- GUI Manual 탭에 `세션 메모리`와 `복구 옵션` 항목 카드를 추가했습니다.
+- `vib -h`, `vib memory -h`, `vib manual memory`, `vib manual recover`에서 초보자도 이해하기 쉬운 설명을 표시합니다.
+- `vib memory <TAB>`에서 `show`, `next`, `proposal-create`, `proposal-accept` 같은 하위 명령과 자주 쓰는 옵션이 자동완성됩니다.
+- 자동 추정 handoff 일 때 `PROJECT_CONTEXT.md` 상단에 `work_memory.json` 확인 경고를 표시합니다.
+
+### Changed
+
+- GUI의 AI 이동 카드에서 `--compact`와 `--handoff` 토글을 제거하고, `TRANSFER` 버튼이 항상 handoff 흐름으로 실행되게 했습니다.
+- GUI Manual 상세 화면이 실제 CLI 사용법과 서브명령/옵션을 그대로 보여주도록 개선했습니다.
+
+### Fixed
+
+- Windows에서 `vib transfer --handoff` 실행 시 CP949 디코딩과 `stdout=None` 때문에 실패하던 경로를 안정화했습니다.
+- `vib manual memory`가 `'memory' 커맨드를 찾을 수 없어요.`로 실패하던 manual registry 누락을 수정했습니다.
+- GUI transfer 실패 시 실제 CLI stdout/stderr가 보이도록 해 Windows 디버깅 가능성을 높였습니다.
+
+### Verification
+
+- `86 passed` focused Python regression suite, including Windows-sensitive transfer/handoff tests.
+- GUI production build passed with `rtk npm run build`.
+
 ### Changed
 
 - **Checkpoint engine cutover**: `vib checkpoint`, `vib history`, and `vib undo` now use the Rust/SQLite checkpoint engine by default, with visible Python fallback for environment failures.
