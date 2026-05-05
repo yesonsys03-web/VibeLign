@@ -129,7 +129,7 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
           label: p.label,
           envKey: envKeyNameForProvider(p.id),
           sources,
-          preview: sk ? `${sk.slice(0, 8)}…` : null,
+          stored: Boolean(sk),
         },
       ];
     });
@@ -205,7 +205,11 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
             const sources: string[] = [];
             if (envOk) sources.push("환경 변수");
             if (guiOk) sources.push("GUI 저장");
-            const statusText = ok ? `설정됨 (${sources.join(" · ")})` : "없음";
+            const statusText = guiOk
+              ? `설정됨 (${sources.join(" · ")})`
+              : envOk
+                ? "외부 환경 변수에서 감지됨"
+                : "없음";
             return (
               <div key={key} style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 5, fontFamily: "IBM Plex Mono, monospace", fontSize: 11 }}>
                 <span style={{ color: ok ? "#4DFF91" : "#FF4D4D", fontWeight: 700, flexShrink: 0 }}>{ok ? "●" : "○"}</span>
@@ -251,13 +255,13 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
           ))}
         </div>
 
-        {/* 로컬에 설정된 API 키(시크릿) 요약 — 전체 값은 표시하지 않음 */}
+        {/* 설정된 API 키 요약 — 전체 값은 표시하지 않음 */}
         <div className="card" style={{ marginBottom: 20, background: "#1E2216", borderColor: "#333" }}>
           <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1, color: "#7DFF6B", fontFamily: "IBM Plex Mono, monospace" }}>
-            LOCAL SECRETS (설정됨)
+            AI KEY SOURCES (감지됨)
           </div>
           <div style={{ fontSize: 10, color: "#666", marginBottom: 10, lineHeight: 1.5 }}>
-            GUI 저장소·환경 변수 기준입니다. 키 전체는 노출하지 않습니다. 레포(GitHub 등)에 커밋하지 마세요.
+            GUI 저장 키와 앱 실행 환경 변수를 구분해서 보여줘요. 환경 변수는 Settings에서 삭제할 수 없고, 터미널/시스템 환경 설정에서 지워야 합니다.
           </div>
           {configuredSecretRows.length === 0 ? (
             <div style={{ fontSize: 11, color: "#777", fontFamily: "IBM Plex Mono, monospace" }}>
@@ -284,9 +288,14 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
                   <span style={{ color: "#E8FFE0", minWidth: 120, flexShrink: 0 }}>{row.label}</span>
                   <span style={{ color: "#888", flexShrink: 0 }}>{row.envKey}</span>
                   <span style={{ color: "#7DFF6B", flexShrink: 0 }}>{row.sources.join(" · ")}</span>
-                  {row.preview && (
-                    <span style={{ color: "#AAA", marginLeft: "auto" }} title="GUI에 저장된 키 앞부분만 표시">
-                      {row.preview}
+                  {row.stored && (
+                    <span style={{ color: "#AAA", marginLeft: "auto" }} title="키 값은 화면에 표시하지 않습니다">
+                      값 숨김
+                    </span>
+                  )}
+                  {!row.stored && row.sources.includes("환경 변수") && (
+                    <span style={{ color: "#AAA", marginLeft: "auto" }} title="Settings 저장소가 아니라 앱 실행 환경에서 들어온 키입니다">
+                      외부 환경에서 감지됨
                     </span>
                   )}
                 </li>
@@ -334,13 +343,18 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
                 <div style={{ marginBottom: 8, fontSize: 12 }}>
                   상태:{" "}
                   {sk ? (
-                    <span style={{ color: "#4DFF91", fontWeight: 700 }}>저장됨 ({sk.slice(0, 8)}…)</span>
+                    <span style={{ color: "#4DFF91", fontWeight: 700 }}>저장됨 (값 숨김)</span>
                   ) : envOnly ? (
-                    <span style={{ color: "#4DFF91", fontWeight: 700 }}>설정됨 (환경 변수)</span>
+                    <span style={{ color: "#4DFF91", fontWeight: 700 }}>외부 환경 변수에서 감지됨</span>
                   ) : (
                     <span style={{ color: "#FF4D4D", fontWeight: 700 }}>미설정</span>
                   )}
                 </div>
+                {envOnly && (
+                  <div style={{ marginBottom: 8, fontSize: 10, color: "#888", lineHeight: 1.45 }}>
+                    이 키는 GUI 저장소에 없어서 여기서 삭제할 수 없어요. 터미널 환경 변수나 시스템 환경 설정의 {envKeyNameForProvider(p.id)} 값을 제거해야 합니다.
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                   <input
                     type="password"
@@ -391,7 +405,7 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
         </div>
 
         <div style={{ fontSize: 11, color: "#555", lineHeight: 1.6 }}>
-          키는 <code style={{ color: "#888" }}>~/.vibelign/gui_config.json</code>의 <code style={{ color: "#888" }}>provider_api_keys</code>에 저장됩니다 (Anthropic은 기존 <code style={{ color: "#888" }}>anthropic_api_key</code>와 동기화).<br />
+          키는 사용자 설정 폴더의 <code style={{ color: "#888" }}>api_keys.json</code>에 저장됩니다. 레포에는 커밋하지 마세요.<br />
           <code style={{ color: "#888" }}>vib patch --ai</code>, <code style={{ color: "#888" }}>vib doctor --apply</code> 실행 시 GUI에 저장된 키가 해당 환경변수로 전달됩니다.
         </div>
 
