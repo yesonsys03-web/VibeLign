@@ -64,6 +64,30 @@ POSITIONAL_COMPLETIONS: dict[str, list[str]] = {
     "export": ["claude", "opencode", "cursor", "antigravity"],
 }
 
+NESTED_COMPLETIONS: dict[str, list[str]] = {
+    "memory": [
+        "show",
+        "review",
+        "intent",
+        "decide",
+        "next",
+        "relevant",
+        "proposal-create",
+        "proposal-accept",
+        "proposal-dismiss",
+        "proposal-undo",
+        "--json",
+        "--session-summary",
+        "--first-next-action",
+        "--relevant-file",
+        "--verification",
+        "--risk-note",
+        "--draft-json",
+        "--field",
+        "--proposal-hash",
+    ],
+}
+
 
 # === ANCHOR: CLI_COMPLETION_GENERATE_COMPLETION_SCRIPT_START ===
 def generate_completion_script(parser) -> str:
@@ -80,6 +104,10 @@ def generate_completion_script(parser) -> str:
         elif cmd in POSITIONAL_COMPLETIONS:
             positional_str = " ".join(POSITIONAL_COMPLETIONS[cmd])
             all_completions = f"{positional_str} {opts_str}".strip()
+            case_lines.append(f'        {cmd}) opts="{all_completions}" ;;')
+        elif cmd in NESTED_COMPLETIONS:
+            nested_str = " ".join(NESTED_COMPLETIONS[cmd])
+            all_completions = f"{nested_str} {opts_str}".strip()
             case_lines.append(f'        {cmd}) opts="{all_completions}" ;;')
         else:
             case_lines.append(f'        {cmd}) opts="{opts_str}" ;;')
@@ -152,6 +180,8 @@ def generate_powershell_script(parser) -> str:
             all_items = topics + base_opts
         elif cmd in POSITIONAL_COMPLETIONS:
             all_items = POSITIONAL_COMPLETIONS[cmd] + base_opts
+        elif cmd in NESTED_COMPLETIONS:
+            all_items = NESTED_COMPLETIONS[cmd] + base_opts
         else:
             all_items = base_opts
         if all_items:
