@@ -15,6 +15,9 @@
     "next_action": {"$ref": "#/$defs/memory_text_field"},
     "observed_context": {"type": "array", "items": {"$ref": "#/$defs/observed_context"}},
     "archived_decisions": {"type": "array", "items": {"$ref": "#/$defs/memory_text_field"}},
+    "handoff_proposal_history": {"type": "array", "items": {"type": "object"}},
+    "handoff_dismissals": {"type": "array", "items": {"type": "object"}},
+    "recently_accepted_proposals": {"type": "array", "items": {"type": "object"}},
     "downgrade_warning": {"type": "string"}
   },
   "$defs": {
@@ -25,10 +28,12 @@
         "text": {"type": "string"},
         "last_updated": {"type": "string"},
         "updated_by": {"type": "string"},
-        "source": {"enum": ["explicit", "observed", "legacy", "system"]},
+        "source": {"enum": ["explicit", "observed", "legacy", "system", "llm_proposed"]},
         "stale": {"type": "boolean"},
         "proposed": {"type": "boolean"},
-        "from_previous_intent": {"type": "boolean"}
+        "from_previous_intent": {"type": "boolean"},
+        "accepted_by": {"type": "string"},
+        "accepted_at": {"type": "string"}
       }
     },
     "relevant_file": {
@@ -38,11 +43,13 @@
       "properties": {
         "path": {"type": "string"},
         "why": {"type": "string"},
-        "source": {"enum": ["explicit", "observed"]},
+        "source": {"enum": ["explicit", "observed", "llm_proposed"]},
         "last_updated": {"type": "string"},
         "updated_by": {"type": "string"},
         "stale": {"type": "boolean"},
-        "from_previous_intent": {"type": "boolean"}
+        "from_previous_intent": {"type": "boolean"},
+        "accepted_by": {"type": "string"},
+        "accepted_at": {"type": "string"}
       }
     },
     "verification": {

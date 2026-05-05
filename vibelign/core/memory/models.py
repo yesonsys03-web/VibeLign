@@ -7,7 +7,7 @@ from typing import Literal
 
 MEMORY_SCHEMA_VERSION = 1
 
-MemorySource = Literal["explicit", "observed", "legacy", "system"]
+MemorySource = Literal["explicit", "observed", "legacy", "system", "llm_proposed"]
 
 
 @dataclass(frozen=True)
@@ -19,17 +19,21 @@ class MemoryTextField:
     stale: bool = False
     proposed: bool = False
     from_previous_intent: bool = False
+    accepted_by: str = ""
+    accepted_at: str = ""
 
 
 @dataclass(frozen=True)
 class MemoryRelevantFile:
     path: str
     why: str
-    source: Literal["explicit", "observed"] = "observed"
+    source: Literal["explicit", "observed", "llm_proposed"] = "observed"
     last_updated: str = ""
     updated_by: str = "legacy_work_memory"
     stale: bool = False
     from_previous_intent: bool = False
+    accepted_by: str = ""
+    accepted_at: str = ""
 
 
 @dataclass(frozen=True)

@@ -6,7 +6,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from importlib import import_module
 from pathlib import Path
-from typing import Callable, Protocol, cast
+from typing import Callable, Literal, Protocol, cast
 
 from vibelign.core.memory.models import (
     MEMORY_SCHEMA_VERSION,
@@ -385,6 +385,8 @@ def _text_field_to_raw(value: MemoryTextField | None) -> dict[str, object] | Non
         "stale": value.stale,
         "proposed": value.proposed,
         "from_previous_intent": value.from_previous_intent,
+        "accepted_by": value.accepted_by,
+        "accepted_at": value.accepted_at,
     }
 
 
@@ -397,6 +399,8 @@ def _relevant_file_to_raw(value: MemoryRelevantFile) -> dict[str, object]:
         "updated_by": value.updated_by,
         "stale": value.stale,
         "from_previous_intent": value.from_previous_intent,
+        "accepted_by": value.accepted_by,
+        "accepted_at": value.accepted_at,
     }
 
 
@@ -522,6 +526,8 @@ def _memory_text_field(value: object) -> MemoryTextField | None:
         stale=raw.get("stale") is True,
         proposed=raw.get("proposed") is True,
         from_previous_intent=raw.get("from_previous_intent") is True,
+        accepted_by=_string(raw.get("accepted_by")),
+        accepted_at=_string(raw.get("accepted_at")),
     )
 
 
@@ -544,6 +550,8 @@ def _memory_source(value: object) -> MemorySource:
         return "observed"
     if source == "system":
         return "system"
+    if source == "llm_proposed":
+        return "llm_proposed"
     return "legacy"
 
 
@@ -559,6 +567,8 @@ def _active_intent_from_decisions(decisions: list[MemoryTextField]) -> MemoryTex
         stale=latest.stale,
         proposed=True,
         from_previous_intent=latest.from_previous_intent,
+        accepted_by=latest.accepted_by,
+        accepted_at=latest.accepted_at,
     )
 
 
@@ -578,14 +588,24 @@ def _memory_relevant_file_list(value: object) -> list[MemoryRelevantFile]:
             MemoryRelevantFile(
                 path=path,
                 why=_string(raw.get("why")) or "Relevant to recent work.",
-                source="explicit" if source == "explicit" else "observed",
+                source=_memory_relevant_file_source(source),
                 last_updated=_string(raw.get("last_updated")),
                 updated_by=_string(raw.get("updated_by")) or "legacy_work_memory",
                 stale=raw.get("stale") is True,
                 from_previous_intent=raw.get("from_previous_intent") is True,
+                accepted_by=_string(raw.get("accepted_by")),
+                accepted_at=_string(raw.get("accepted_at")),
             )
         )
     return files
+
+
+def _memory_relevant_file_source(value: str) -> Literal["explicit", "observed", "llm_proposed"]:
+    if value == "explicit":
+        return "explicit"
+    if value == "llm_proposed":
+        return "llm_proposed"
+    return "observed"
 
 
 def _memory_verification_list(value: object) -> list[MemoryVerification]:

@@ -53,6 +53,12 @@ class MemoryAuditEvent:
     result: AuditResult = "success"
     capability_grant_id: str | None = None
     sandwich_checkpoint_id: str | None = None
+    plan_id: str | None = None
+    candidate_id: str | None = None
+    option_id: str | None = None
+    recommendation_provider: str | None = None
+    memory_proposal_id: str | None = None
+    handoff_draft_id: str | None = None
 
 
 def build_memory_audit_event(
@@ -67,6 +73,12 @@ def build_memory_audit_event(
     result: AuditResult = "success",
     capability_grant_id: str | None = None,
     sandwich_checkpoint_id: str | None = None,
+    plan_id: str | None = None,
+    candidate_id: str | None = None,
+    option_id: str | None = None,
+    recommendation_provider: str | None = None,
+    memory_proposal_id: str | None = None,
+    handoff_draft_id: str | None = None,
     sequence_number: int = 0,
 ) -> MemoryAuditEvent:
     return MemoryAuditEvent(
@@ -82,6 +94,12 @@ def build_memory_audit_event(
         result=result,
         capability_grant_id=_safe_optional_id(capability_grant_id),
         sandwich_checkpoint_id=_safe_optional_id(sandwich_checkpoint_id),
+        plan_id=_safe_optional_id(plan_id),
+        candidate_id=_safe_optional_id(candidate_id),
+        option_id=_safe_optional_id(option_id),
+        recommendation_provider=_safe_optional_id(recommendation_provider),
+        memory_proposal_id=_safe_optional_id(memory_proposal_id),
+        handoff_draft_id=_safe_optional_id(handoff_draft_id),
     )
 
 
@@ -102,6 +120,12 @@ def memory_audit_event_to_dict(event: MemoryAuditEvent) -> dict[str, object]:
         "sequence_number": event.sequence_number,
         "capability_grant_id": event.capability_grant_id,
         "sandwich_checkpoint_id": event.sandwich_checkpoint_id,
+        "plan_id": event.plan_id,
+        "candidate_id": event.candidate_id,
+        "option_id": event.option_id,
+        "recommendation_provider": event.recommendation_provider,
+        "memory_proposal_id": event.memory_proposal_id,
+        "handoff_draft_id": event.handoff_draft_id,
         "paths_count": {
             "in_zone": event.paths_count.in_zone,
             "drift": event.paths_count.drift,
