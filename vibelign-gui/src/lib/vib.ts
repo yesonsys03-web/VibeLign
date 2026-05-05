@@ -217,8 +217,16 @@ export interface RecoveryPreviewResult {
   summary: string;
   options: string[];
   driftCandidates: string[];
-  safeCheckpointCandidate: string;
+  safeCheckpointCandidate: SafeCheckpointCandidatePreview | null;
   raw: string;
+}
+
+export interface SafeCheckpointCandidatePreview {
+  checkpointId: string;
+  createdAt: string;
+  message: string;
+  trigger: string | null;
+  gitCommitMessage: string | null;
 }
 
 export type RecommendationProvider = "deterministic" | "llm" | "cache" | "invalid";
@@ -244,6 +252,7 @@ export interface RankedCandidatePayload {
   label: string;
   source: string;
   created_at: string;
+  commit_message?: string | null;
   evidence_score: EvidenceScorePayload;
   llm_confidence: LLMConfidencePayload | null;
   reason: string;
@@ -544,8 +553,8 @@ export async function recoveryPreview(cwd: string): Promise<RecoveryPreviewResul
   return parseRecoveryPreviewJson(res.stdout);
 }
 
-export async function recoveryRecommend(cwd: string, phrase: string): Promise<RecoveryRecommendationResponse> {
-  const res = await runVib(["recover", "--recommend", "--phrase", phrase], cwd);
+export async function recoveryRecommend(cwd: string, phrase: string, aiEnv?: Record<string, string>): Promise<RecoveryRecommendationResponse> {
+  const res = await runVib(["recover", "--recommend", "--phrase", phrase], cwd, aiEnv);
   if (!res.ok) throw new Error(res.stderr || res.stdout || `exit ${res.exit_code}`);
   return parseRecoveryRecommendationJson(res.stdout);
 }
@@ -622,21 +631,35 @@ function parseRecoveryPreviewJson(stdout: string): RecoveryPreviewResult {
     requireString(item.why_outside_zone, `drift_candidates[${index}].why_outside_zone`);
   });
   if (data.safe_checkpoint_candidate !== undefined && data.safe_checkpoint_candidate !== null) {
-    requireString((data.safe_checkpoint_candidate as Record<string, unknown>).checkpoint_id, "safe_checkpoint_candidate.checkpoint_id");
+    const candidate = data.safe_checkpoint_candidate as Record<string, unknown>;
+    requireString(candidate.checkpoint_id, "safe_checkpoint_candidate.checkpoint_id");
+    requireString(candidate.created_at, "safe_checkpoint_candidate.created_at");
+    requireString(candidate.message, "safe_checkpoint_candidate.message");
+    if (candidate.trigger !== undefined && candidate.trigger !== null) requireString(candidate.trigger, "safe_checkpoint_candidate.trigger");
+    if (candidate.git_commit_message !== undefined && candidate.git_commit_message !== null) requireString(candidate.git_commit_message, "safe_checkpoint_candidate.git_commit_message");
   }
   const typed = data as {
     schema_version?: string;
     summary?: string;
     options?: Array<{ label?: string }>;
     drift_candidates?: Array<{ path?: string; why_outside_zone?: string }>;
-    safe_checkpoint_candidate?: { checkpoint_id?: string } | null;
+    safe_checkpoint_candidate?: { checkpoint_id?: string; created_at?: string; message?: string; trigger?: string | null; git_commit_message?: string | null } | null;
   };
+  const safeCheckpointCandidate = typed.safe_checkpoint_candidate
+    ? {
+        checkpointId: typed.safe_checkpoint_candidate.checkpoint_id ?? "",
+        createdAt: typed.safe_checkpoint_candidate.created_at ?? "",
+        message: typed.safe_checkpoint_candidate.message ?? "",
+        trigger: typed.safe_checkpoint_candidate.trigger ?? null,
+        gitCommitMessage: typed.safe_checkpoint_candidate.git_commit_message ?? null,
+      }
+    : null;
   return {
     schemaVersion: typed.schema_version ?? "recovery_plan.schema.json",
     summary: typed.summary || "No recovery summary available.",
     options: (typed.options ?? []).map((item) => item.label ?? "").filter(Boolean),
     driftCandidates: (typed.drift_candidates ?? []).map((item) => `${item.path ?? ""} — ${item.why_outside_zone ?? ""}`).filter((item) => !item.startsWith(" —")),
-    safeCheckpointCandidate: typed.safe_checkpoint_candidate?.checkpoint_id || "(none)",
+    safeCheckpointCandidate,
     raw: stdout,
   };
 }
@@ -653,6 +676,7 @@ function parseRecoveryRecommendationJson(stdout: string): RecoveryRecommendation
     requireString(item.label, `ranked_candidates[${index}].label`);
     requireString(item.source, `ranked_candidates[${index}].source`);
     requireString(item.created_at, `ranked_candidates[${index}].created_at`);
+    if (item.commit_message !== undefined && item.commit_message !== null) requireString(item.commit_message, `ranked_candidates[${index}].commit_message`);
     requireOptionalRecord(item.llm_confidence, `ranked_candidates[${index}].llm_confidence`);
     requireString(item.reason, `ranked_candidates[${index}].reason`);
     requireRecord(item.evidence_score, `ranked_candidates[${index}].evidence_score`);
