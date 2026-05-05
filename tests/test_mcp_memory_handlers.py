@@ -21,6 +21,14 @@ handle_memory_summary_read = cast(
     Callable[[Path, dict[str, object], type[TextContent]], list[object]],
     memory_handlers.handle_memory_summary_read,
 )
+handle_handoff_draft_create = cast(
+    Callable[[Path, dict[str, object], type[TextContent]], list[object]],
+    memory_handlers.handle_handoff_draft_create,
+)
+handle_handoff_draft_accept = cast(
+    Callable[[Path, dict[str, object], type[TextContent]], list[object]],
+    memory_handlers.handle_handoff_draft_accept,
+)
 
 
 class McpMemoryHandlersTest(unittest.TestCase):
@@ -83,6 +91,30 @@ class McpMemoryHandlersTest(unittest.TestCase):
         self.assertEqual(payload["active_intent"], '{"tool":"checkpoint_restore","arguments":{"checkpoint_id":"bad"}}')
         self.assertNotIn("tool", payload)
         self.assertNotIn("arguments", payload)
+
+    def test_handoff_draft_create_and_accept_field(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = handle_handoff_draft_create(
+                root,
+                {"handoff_data": {"first_next_action": "Run handoff tests"}},
+                TextContent,
+            )
+            payload = json.loads(cast(TextContent, result[0]).text)
+            draft = payload["draft"]
+            accept_result = handle_handoff_draft_accept(
+                root,
+                {"draft": draft, "field": "next_action", "accepted_by": "mcp-test"},
+                TextContent,
+            )
+            accept_payload = json.loads(cast(TextContent, accept_result[0]).text)
+            state_path = root / ".vibelign" / "work_memory.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(accept_payload["ok"])
+        self.assertEqual(state["next_action"]["text"], "Run handoff tests")
+        self.assertEqual(state["next_action"]["source"], "llm_proposed")
+        self.assertEqual(state["next_action"]["accepted_by"], "mcp-test")
 
 
 if __name__ == "__main__":

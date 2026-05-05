@@ -122,6 +122,38 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "handoff_draft_create",
+        "description": "handoff 입력과 작업 메모리에서 reviewable LLM-style draft를 생성합니다. 메모리에 쓰지 않습니다.",
+        "inputSchema": {"type": "object", "properties": {"handoff_data": {"type": "object"}}},
+    },
+    {
+        "name": "handoff_draft_accept",
+        "description": "handoff draft의 특정 필드를 명시 수락하여 provenance와 함께 work_memory에 반영합니다.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["draft", "field"],
+            "properties": {"draft": {"type": "object"}, "field": {"type": "string"}},
+        },
+    },
+    {
+        "name": "handoff_draft_dismiss",
+        "description": "handoff draft의 특정 필드를 dismiss 기록하여 같은 제안 반복 노출을 억제합니다.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["draft", "field"],
+            "properties": {"draft": {"type": "object"}, "field": {"type": "string"}},
+        },
+    },
+    {
+        "name": "handoff_draft_undo",
+        "description": "최근 수락한 handoff proposal을 proposal_hash 기준으로 되돌립니다.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["proposal_hash"],
+            "properties": {"proposal_hash": {"type": "string"}},
+        },
+    },
+    {
         "name": "memory_full_read",
         "description": "아직 활성화되지 않은 기능입니다. 명시적 권한 승인 전에는 redacted summary만 사용합니다.",
         "inputSchema": {"type": "object", "properties": {}},
@@ -137,9 +169,38 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "recovery_recommend",
+        "description": "복구 요청 문구를 바탕으로 read-only ranked recovery candidates를 JSON으로 반환합니다.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_root": {"type": "string", "description": "프로젝트 루트 경로"},
+                "user_phrase": {"type": "string", "description": "복구 요청 문구"},
+            },
+            "required": ["project_root"],
+        },
+    },
+    {
         "name": "recovery_apply",
         "description": "아직 활성화되지 않은 기능입니다. 향후 checkpoint sandwich와 project lock이 검증된 뒤에만 적용됩니다.",
-        "inputSchema": {"type": "object", "properties": {}},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "tool": {"type": "string"},
+                "checkpoint_id": {"type": "string"},
+                "sandwich_checkpoint_id": {"type": "string"},
+                "paths": {"type": "array", "items": {"type": "string"}},
+                "preview_paths": {"type": "array", "items": {"type": "string"}},
+                "confirmation": {"type": "string"},
+                "apply": {"type": "boolean"},
+                "plan_id": {"type": "string"},
+                "candidate_id": {"type": "string"},
+                "option_id": {"type": "string"},
+                "recommendation_provider": {"type": "string"},
+                "memory_proposal_id": {"type": "string"},
+                "handoff_draft_id": {"type": "string"},
+            },
+        },
     },
     {
         "name": "handoff_export",

@@ -170,9 +170,29 @@ class MemoryHandlersModule(Protocol):
         self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
     ) -> list[object]: ...
 
+    def handle_handoff_draft_create(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
+    def handle_handoff_draft_accept(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
+    def handle_handoff_draft_dismiss(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
+    def handle_handoff_draft_undo(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
 
 class RecoveryHandlersModule(Protocol):
     def handle_recovery_preview(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
+    def handle_recovery_recommend(
         self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
     ) -> list[object]: ...
 
@@ -439,9 +459,14 @@ DISPATCH_TABLE: dict[str, DispatchHandler] = {
     "checkpoint_has_changes": _checkpoint_handlers().handle_checkpoint_has_changes,
     "retention_apply": _checkpoint_handlers().handle_retention_apply,
     "memory_summary_read": _memory_handlers().handle_memory_summary_read,
+    "handoff_draft_create": _memory_handlers().handle_handoff_draft_create,
+    "handoff_draft_accept": _memory_handlers().handle_handoff_draft_accept,
+    "handoff_draft_dismiss": _memory_handlers().handle_handoff_draft_dismiss,
+    "handoff_draft_undo": _memory_handlers().handle_handoff_draft_undo,
     "memory_full_read": _handle_memory_full_read,
     "memory_write": _handle_memory_write,
     "recovery_preview": _recovery_handlers().handle_recovery_preview,
+    "recovery_recommend": _recovery_handlers().handle_recovery_recommend,
     "recovery_apply": _handle_recovery_apply,
     "handoff_export": _handle_handoff_export,
     "handoff_create": _transfer_handlers().handle_handoff_create,
