@@ -1,3 +1,4 @@
+// === ANCHOR: WATCH_START ===
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Read};
 use std::path::PathBuf;
@@ -333,3 +334,4 @@ mod tests {
         assert!(guard.child.is_none());
     }
 }
+// === ANCHOR: WATCH_END ===

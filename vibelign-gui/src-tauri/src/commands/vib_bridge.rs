@@ -1,3 +1,4 @@
+// === ANCHOR: VIB_BRIDGE_START ===
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -379,3 +380,4 @@ fn read_stderr_stream<R: Read + Send + 'static>(reader: R, app: &tauri::AppHandl
     }
     accumulated
 }
+// === ANCHOR: VIB_BRIDGE_END ===
