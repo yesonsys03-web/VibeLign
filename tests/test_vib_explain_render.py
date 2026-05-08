@@ -54,6 +54,32 @@ class VibExplainRenderTest(unittest.TestCase):
         self.assertIn("- `login.py` — 핵심 코드 (수정됨, 2026-05-04 15:20)", markdown)
         self.assertNotIn("(modified, logic)", markdown)
 
+    def test_render_markdown_labels_tauri_commands_as_command_settings(self):
+        markdown = _render_markdown(
+            {
+                "source": "git",
+                "risk_level": "MEDIUM",
+                "what_changed": ["Tauri command 수정"],
+                "why_it_matters": ["GUI backend command 경로가 바뀔 수 있습니다."],
+                "what_to_do_next": "vib guard 를 실행하세요.",
+                "files": [
+                    {
+                        "path": "vibelign-gui/src-tauri/src/commands/docs.rs",
+                        "status": "modified",
+                        "kind": "command",
+                        "modified_at": "2026-05-08 23:01",
+                    }
+                ],
+                "summary": "Tauri command 파일이 수정됐습니다.",
+            }
+        )
+        self.assertIn("- 명령/설정 1개", markdown)
+        self.assertIn(
+            "- `vibelign-gui/src-tauri/src/commands/docs.rs` — 명령/설정 (수정됨, 2026-05-08 23:01)",
+            markdown,
+        )
+        self.assertNotIn("화면 1개", markdown)
+
     def test_run_vib_explain_uses_rich_renderer_for_plain_text_mode(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -257,6 +257,8 @@ def _file_kind_label(item: FileSummary) -> str:
         return "핵심 코드"
     if kind == "ui":
         return "화면"
+    if kind == "command":
+        return "명령/설정"
     if kind in {"entry file", "service"}:
         return "핵심 코드"
     normalized = path.replace("\\", "/").lower()
