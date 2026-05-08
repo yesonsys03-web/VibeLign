@@ -106,4 +106,8 @@ def backup_graph_summary_request(root: Path) -> dict[str, object]:
     return {"command": "backup_graph_summary", "root": str(root)}
 
 
+def project_scan_request(root: Path) -> dict[str, object]:
+    return {"command": "project_scan", "root": str(root)}
+
+
 # === ANCHOR: CHECKPOINT_ENGINE_REQUESTS_END ===

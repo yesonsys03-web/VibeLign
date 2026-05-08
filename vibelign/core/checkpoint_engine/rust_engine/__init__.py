@@ -17,6 +17,7 @@ from vibelign.core.checkpoint_engine.requests import (
     checkpoint_restore_files_request,
     checkpoint_restore_request,
     checkpoint_restore_suggestions_request,
+    project_scan_request,
     retention_apply_request,
 )
 from vibelign.core.checkpoint_engine.responses import (
@@ -28,6 +29,7 @@ from vibelign.core.checkpoint_engine.responses import (
     parse_diff,
     parse_preview,
     parse_prune,
+    parse_project_scan,
     parse_restore,
     parse_restore_files,
     parse_retention,
@@ -204,6 +206,11 @@ def backup_graph_summary_with_rust(root: Path) -> tuple[dict[str, object] | None
     return parse_backup_graph_summary(result)
 
 
+def scan_project_with_rust(root: Path) -> tuple[dict[str, object] | None, str | None]:
+    result = _call_rust_engine_transport(root, project_scan_request(root))
+    return parse_project_scan(result)
+
+
 # === ANCHOR: CHECKPOINT_ENGINE_RUST_ENGINE_END ===
 
 __all__ = [
@@ -231,4 +238,5 @@ __all__ = [
     "inspect_backup_db_with_rust",
     "maintain_backup_db_with_rust",
     "backup_graph_summary_with_rust",
+    "scan_project_with_rust",
 ]

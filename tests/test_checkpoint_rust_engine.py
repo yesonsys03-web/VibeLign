@@ -597,6 +597,33 @@ class CheckpointRustEngineTest(unittest.TestCase):
                 {"command": "backup_db_maintenance", "root": str(root), "apply": True},
             )
 
+    def test_scan_project_with_rust_calls_project_scan_transport(self):
+        from vibelign.core.checkpoint_engine.rust_engine import scan_project_with_rust
+
+        payload = {
+            "status": "ok",
+            "result": "project_scan",
+            "files": [
+                {
+                    "path": "main.py",
+                    "category": "entry",
+                    "imports": ["services.api_client"],
+                }
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch(
+                "vibelign.core.checkpoint_engine.rust_engine.call_rust_engine",
+                return_value=RustEngineResult(ok=True, payload=payload),
+            ) as engine_call:
+                report, warning = scan_project_with_rust(root)
+
+        self.assertIsNone(warning)
+        self.assertEqual(report, payload)
+        engine_call.assert_called_once_with(root, {"command": "project_scan", "root": str(root)}, timeout_seconds=30)
+
     def test_parse_backup_db_viewer_inspect_response(self):
         from vibelign.core.checkpoint_engine.responses import (
             parse_backup_db_viewer_inspect,

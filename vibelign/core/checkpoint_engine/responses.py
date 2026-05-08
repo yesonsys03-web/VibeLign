@@ -7,10 +7,17 @@ from vibelign.core.local_checkpoints import CheckpointFileSummary, CheckpointSum
 
 
 class RustResultLike(Protocol):
-    ok: bool
-    payload: dict[str, object]
-    error_code: str | None
-    error_message: str | None
+    @property
+    def ok(self) -> bool: ...
+
+    @property
+    def payload(self) -> dict[str, object]: ...
+
+    @property
+    def error_code(self) -> str | None: ...
+
+    @property
+    def error_message(self) -> str | None: ...
 
 
 def parse_checkpoint_create(
@@ -147,6 +154,17 @@ def parse_backup_graph_summary(
         return None, format_error(result, "rust backup graph summary failed")
     if result.payload.get("result") != "backup_graph_summary":
         return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected backup_graph_summary result"
+    return dict(result.payload), None
+
+
+def parse_project_scan(result: RustResultLike) -> tuple[dict[str, object] | None, str | None]:
+    if not result.ok:
+        return None, format_error(result, "rust project scan failed")
+    if result.payload.get("result") != "project_scan":
+        return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected project_scan result"
+    files = result.payload.get("files")
+    if not isinstance(files, list):
+        return None, "RUST_ENGINE_PROTOCOL_ERROR: project_scan response missing files"
     return dict(result.payload), None
 
 
