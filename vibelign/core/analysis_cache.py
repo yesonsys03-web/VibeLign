@@ -38,14 +38,16 @@ def _project_mtime_hash(root: Path) -> str:
 
     entries: list[str] = []
     try:
-        for path in sorted(iter_source_files(root)):
-            try:
-                mtime = os.stat(path).st_mtime
-                entries.append(f"{path}:{mtime:.3f}")
-            except OSError:
-                pass
-    except Exception:
-        pass
+        source_files = sorted(iter_source_files(root))
+    except OSError:
+        source_files = []
+
+    for path in source_files:
+        try:
+            mtime = os.stat(path).st_mtime
+            entries.append(f"{path}:{mtime:.3f}")
+        except OSError:
+            continue
 
     digest = hashlib.md5("\n".join(entries).encode()).hexdigest()
     return digest

@@ -160,8 +160,8 @@ def urlopen_read_with_retry(
             body = b""
             try:
                 body = e.read()
-            except Exception:
-                pass
+            except OSError:
+                body = b""
             wait = _retry_after_from_headers(e.headers)
             if wait is None:
                 wait = _retry_delay_from_gemini_error_body(body)

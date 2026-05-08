@@ -531,8 +531,8 @@ def explain_from_mtime(root: Path, since_minutes: int = 120) -> ExplainReport:
                         _file_modified_at(root, rel),
                     )
                 )
-        except Exception:
-            pass
+        except OSError:
+            continue
 
     # calm fallback on freshly created repos
     items = sorted(items, key=lambda i: i.path)[:5]

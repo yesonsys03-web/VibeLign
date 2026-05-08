@@ -101,8 +101,13 @@ def classify_event(
                     "이 파일은 'vib protect'로 보호 설정된 파일입니다. AI가 건드리면 안 되는 파일입니다.",
                     "AI 수정을 즉시 중단하고 변경사항을 확인하세요. 되돌리려면: vib undo",
                 )
-        except Exception:
-            pass
+        except OSError as exc:
+            add(
+                "WARN",
+                f"[확인 실패] 보호 파일 여부를 확인하지 못했습니다: {name}",
+                f"파일 경로 확인 중 오류가 발생했습니다: {exc}",
+                "보호 파일이라면 변경사항을 수동으로 확인하세요.",
+            )
 
     if old_lines is not None and new_lines > old_lines and is_entry_file:
         if new_lines >= entry_high:

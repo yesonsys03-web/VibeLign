@@ -760,8 +760,9 @@ def build_codespeak(request: str, root: Path | None = None) -> CodeSpeakResult:
             suggestion = suggest_patch(root, primary_request)
             target_file = suggestion.target_file
             target_anchor = suggestion.target_anchor
-        except Exception:
-            pass
+        except (OSError, ValueError):
+            target_file = None
+            target_anchor = None
 
     if target_anchor and _ANCHOR_NAME_RE.fullmatch(target_anchor):
         # target_anchor 가 잡혔다면 한글 단어장 없이 영문 subject 를 유도한다.
