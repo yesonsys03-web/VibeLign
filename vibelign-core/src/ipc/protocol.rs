@@ -1,7 +1,7 @@
 // === ANCHOR: PROTOCOL_START ===
 use crate::backup::checkpoint::{self, CheckpointCreateMetadata};
 use crate::backup::retention;
-use crate::backup::{db_maintenance, db_viewer, diff, restore, suggestions};
+use crate::backup::{db_maintenance, db_viewer, diff, graph_summary, restore, suggestions};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -60,6 +60,9 @@ pub enum EngineRequest {
     BackupDbMaintenance {
         root: PathBuf,
         apply: bool,
+    },
+    BackupGraphSummary {
+        root: PathBuf,
     },
 }
 
@@ -126,6 +129,12 @@ pub enum EngineResponse {
         result: String,
         #[serde(flatten)]
         report: db_maintenance::DbMaintenanceReport,
+    },
+    #[serde(rename = "ok")]
+    BackupGraphSummaryOk {
+        result: String,
+        #[serde(flatten)]
+        report: graph_summary::BackupGraphSummaryReport,
     },
 }
 
@@ -486,6 +495,16 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                 },
             }
         }
+        EngineRequest::BackupGraphSummary { root } => match graph_summary::summarize(&root) {
+            Ok(report) => EngineResponse::BackupGraphSummaryOk {
+                result: "backup_graph_summary".to_string(),
+                report,
+            },
+            Err(error) => EngineResponse::Error {
+                code: "BACKUP_GRAPH_SUMMARY_FAILED".to_string(),
+                message: error,
+            },
+        },
     }
 }
 

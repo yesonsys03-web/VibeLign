@@ -6,6 +6,7 @@ pub mod db_maintenance;
 pub mod db_viewer;
 pub mod diff;
 pub mod disk;
+pub mod graph_summary;
 pub mod hasher;
 pub mod restore;
 pub mod retention;
