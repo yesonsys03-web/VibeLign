@@ -148,6 +148,12 @@ class ClassifyPathTest(unittest.TestCase):
     def test_worker_file(self):
         self.assertEqual(classify_path("backup_worker.py"), "logic")
 
+    def test_tauri_command_file_is_not_ui_because_repo_name_contains_gui(self):
+        self.assertEqual(
+            classify_path("vibelign-gui/src-tauri/src/commands/docs.rs"),
+            "command",
+        )
+
 
 if __name__ == "__main__":
-    unittest.main()
+    _ = unittest.main()

@@ -59,6 +59,7 @@ def _risk_label(level: str) -> str:
 # === ANCHOR: CHANGE_EXPLAINER_CLASSIFY_PATH_START ===
 def classify_path(rel: str) -> str:
     low = rel.lower()
+    normalized = low.replace("\\", "/")
     if any(
         low.endswith(name)
         for name in [
@@ -73,7 +74,11 @@ def classify_path(rel: str) -> str:
         ]
     ):
         return "entry file"
-    if "/ui/" in low or "window" in low or "dialog" in low or "widget" in low:
+    if "/commands/" in normalized or "/cli/" in normalized or normalized.endswith(
+        ("pyproject.toml", "vib.spec", ".mcp.json")
+    ):
+        return "command"
+    if "/ui/" in normalized or "window" in low or "dialog" in low or "widget" in low:
         return "ui"
     if "test" in low:
         return "test"
