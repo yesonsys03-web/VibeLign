@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 from vibelign.commands.vib_backup_db_viewer_cmd import run_vib_backup_db_viewer
 from vibelign.commands.vib_backup_db_maintenance_cmd import run_vib_backup_db_maintenance
+from vibelign.commands.vib_backup_graph_summary_cmd import run_vib_backup_graph_summary
 from vibelign.commands.vib_checkpoint_cmd import run_vib_checkpoint
 from vibelign.commands.vib_doctor_cmd import run_vib_doctor
 from vibelign.commands.vib_memory_cmd import run_vib_memory_show
@@ -140,11 +141,13 @@ class GuiCliContractsTest(unittest.TestCase):
         from vibelign.commands.vib_manual_cmd import GROUPS, MANUAL
 
         self.assertIn("backup-db-viewer", MAIN_DESCRIPTION)
+        self.assertIn("backup-graph-summary", MAIN_DESCRIPTION)
         self.assertIn("backup-db-maintenance", MAIN_DESCRIPTION)
         self.assertIn("backup-cleanup", MAIN_DESCRIPTION)
         self.assertIn("memory      지금 하던 일과 다음 할 일을 세션 메모리에 저장해요", MAIN_DESCRIPTION)
         self.assertIn("recover     되돌리기 전에 안전한 복구 후보를 먼저 보여줘요", MAIN_DESCRIPTION)
         self.assertIn("backup-db-viewer", MANUAL)
+        self.assertIn("backup-graph-summary", MANUAL)
         self.assertIn("backup-db-maintenance", MANUAL)
         self.assertIn("backup-cleanup", MANUAL)
         self.assertIn("memory", MANUAL)
@@ -154,6 +157,7 @@ class GuiCliContractsTest(unittest.TestCase):
             command for _title, commands in GROUPS for command in commands
         }
         self.assertIn("backup-db-viewer", grouped_commands)
+        self.assertIn("backup-graph-summary", grouped_commands)
         self.assertIn("backup-db-maintenance", grouped_commands)
         self.assertIn("backup-cleanup", grouped_commands)
         self.assertIn("memory", grouped_commands)
@@ -462,6 +466,34 @@ class GuiCliContractsTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertFalse(payload["ok"])
         self.assertIn("백업 관리 DB를 읽을 수 없어요", str(payload["error"]))
+
+    def test_backup_graph_summary_json_contract(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.dict(os.environ, {"VIBELIGN_PROJECT_ROOT": str(root)}, clear=False), patch(
+                "vibelign.commands.vib_backup_graph_summary_cmd.backup_graph_summary",
+                return_value={
+                    "result": "backup_graph_summary",
+                    "db_exists": True,
+                    "file_row_count": 2,
+                    "root": {
+                        "id": "root",
+                        "name": "백업",
+                        "path": "",
+                        "size_bytes": 15,
+                        "children": [],
+                    },
+                    "warnings": [],
+                },
+            ) as mocked_summary, patch("vibelign.commands.vib_backup_graph_summary_cmd.print") as mocked_print:
+                code = run_vib_backup_graph_summary(Namespace(root=str(root), json=True))
+                payload = _json_object(cast(object, mocked_print.call_args.args[0]))
+
+        self.assertEqual(code, 0)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["result"], "backup_graph_summary")
+        self.assertEqual(payload["file_row_count"], 2)
+        self.assertEqual(mocked_summary.call_args.args, (root.resolve(),))
 
     def test_backup_db_maintenance_json_contract_defaults_to_dry_run(self):
         with tempfile.TemporaryDirectory() as tmp:
