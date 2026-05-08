@@ -182,30 +182,30 @@ _POST_COMMIT_MARKER_V2 = "# vibelign: post-commit-record v2"
 _POST_COMMIT_END = "# vibelign: post-commit-record-end"
 _POST_COMMIT_MARKER_RE = re.compile(r"# vibelign: post-commit-record v[12]")
 
-# vib → vibelign → python -m fallback. stdin 으로 commit 메시지 전달.
+# repo-local uv → python module → global CLI fallback. stdin 으로 commit 메시지 전달.
 _POST_COMMIT_BLOCK_TEMPLATE = """\
 {marker}
 sha=$(git rev-parse HEAD 2>/dev/null)
 msg=$(git log -1 --pretty=%B 2>/dev/null)
 if [ -n "$sha" ] && [ -n "$msg" ]; then
     vibelign_post_commit_done=0
-    if [ "$vibelign_post_commit_done" -eq 0 ] && command -v vib >/dev/null 2>&1; then
-        printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 vib _internal_post_commit "$sha" >/dev/null 2>&1 && vibelign_post_commit_done=1
-    fi
-    if [ "$vibelign_post_commit_done" -eq 0 ] && command -v vibelign >/dev/null 2>&1; then
-        printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 vibelign _internal_post_commit "$sha" >/dev/null 2>&1 && vibelign_post_commit_done=1
-    fi
     if [ "$vibelign_post_commit_done" -eq 0 ] && command -v uv >/dev/null 2>&1; then
         printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 uv run python -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null 2>&1 && vibelign_post_commit_done=1
     fi
     if [ "$vibelign_post_commit_done" -eq 0 ] && command -v python >/dev/null 2>&1; then
         printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 python -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null 2>&1 && vibelign_post_commit_done=1
     fi
-    if [ "$vibelign_post_commit_done" -eq 0 ] && command -v py >/dev/null 2>&1; then
-        printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 py -3 -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null 2>&1 && vibelign_post_commit_done=1
-    fi
     if [ "$vibelign_post_commit_done" -eq 0 ] && command -v python3 >/dev/null 2>&1; then
         printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 python3 -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null 2>&1 && vibelign_post_commit_done=1
+    fi
+    if [ "$vibelign_post_commit_done" -eq 0 ] && command -v vib >/dev/null 2>&1; then
+        printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 vib _internal_post_commit "$sha" >/dev/null 2>&1 && vibelign_post_commit_done=1
+    fi
+    if [ "$vibelign_post_commit_done" -eq 0 ] && command -v vibelign >/dev/null 2>&1; then
+        printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 vibelign _internal_post_commit "$sha" >/dev/null 2>&1 && vibelign_post_commit_done=1
+    fi
+    if [ "$vibelign_post_commit_done" -eq 0 ] && command -v py >/dev/null 2>&1; then
+        printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 py -3 -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null 2>&1 && vibelign_post_commit_done=1
     fi
 fi
 {end}

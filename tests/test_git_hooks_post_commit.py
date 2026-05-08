@@ -145,9 +145,15 @@ class PostCommitHookTest(unittest.TestCase):
             _git_init(root)
             install_post_commit_record_hook(root)
             content = (root / ".git" / "hooks" / "post-commit").read_text()
+            self.assertIn("VIBELIGN_REQUIRE_RUST_CHECKPOINT=1", content)
+            self.assertIn("uv run python -m vibelign.cli.vib_cli _internal_post_commit", content)
             self.assertIn("python -m vibelign.cli.vib_cli _internal_post_commit", content)
             self.assertIn("py -3 -m vibelign.cli.vib_cli _internal_post_commit", content)
             self.assertIn("python3 -m vibelign.cli.vib_cli _internal_post_commit", content)
+            self.assertLess(
+                content.index("uv run python -m vibelign.cli.vib_cli _internal_post_commit"),
+                content.index("vib _internal_post_commit"),
+            )
 
     def test_internal_post_commit_records_once_and_runs_auto_backup(self):
         with tempfile.TemporaryDirectory() as tmp:
