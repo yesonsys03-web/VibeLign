@@ -162,6 +162,8 @@ def enrich_change_kind(
     fallback_kind: str,
     # === ANCHOR: PROJECT_MAP_ENRICH_CHANGE_KIND_END ===
 ) -> str:
+    if fallback_kind == "command":
+        return fallback_kind
     if snapshot is None:
         return fallback_kind
     return snapshot.classify_path(rel_path) or fallback_kind

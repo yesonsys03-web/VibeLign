@@ -12,10 +12,10 @@ class ChangeExplainerProjectMapTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             target = root / "worker.py"
-            target.write_text("def login():\n    return True\n", encoding="utf-8")
+            _ = target.write_text("def login():\n    return True\n", encoding="utf-8")
             meta_dir = root / ".vibelign"
             meta_dir.mkdir()
-            (meta_dir / "project_map.json").write_text(
+            _ = (meta_dir / "project_map.json").write_text(
                 json.dumps(
                     {
                         "schema_version": 1,
@@ -44,10 +44,10 @@ class ChangeExplainerProjectMapTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             target = root / "worker.py"
-            target.write_text("def login():\n    return True\n", encoding="utf-8")
+            _ = target.write_text("def login():\n    return True\n", encoding="utf-8")
             meta_dir = root / ".vibelign"
             meta_dir.mkdir()
-            (meta_dir / "project_map.json").write_text(
+            _ = (meta_dir / "project_map.json").write_text(
                 '{"schema_version": 999, "project_name": "broken"}\n',
                 encoding="utf-8",
             )
@@ -60,6 +60,44 @@ class ChangeExplainerProjectMapTest(unittest.TestCase):
 
             self.assertEqual(report.files[0]["kind"], "logic")
 
+    def test_explain_tauri_command_path_overrides_stale_project_map_ui_kind(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "vibelign-gui" / "src-tauri" / "src" / "commands" / "docs.rs"
+            target.parent.mkdir(parents=True)
+            _ = target.write_text("pub fn docs() {}\n", encoding="utf-8")
+            meta_dir = root / ".vibelign"
+            meta_dir.mkdir()
+            _ = (meta_dir / "project_map.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "project_name": root.name,
+                        "entry_files": [],
+                        "ui_modules": ["vibelign-gui/src-tauri/src/commands/docs.rs"],
+                        "core_modules": [],
+                        "service_modules": [],
+                        "large_files": [],
+                        "file_count": 1,
+                        "generated_at": "2026-01-01T00:00:00Z",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            previous = Path.cwd()
+            try:
+                os.chdir(root)
+                report = explain_file_from_mtime(
+                    root,
+                    "vibelign-gui/src-tauri/src/commands/docs.rs",
+                    since_minutes=120,
+                )
+            finally:
+                os.chdir(previous)
+
+            self.assertEqual(report.files[0]["kind"], "command")
+            self.assertEqual(report.risk_level, "LOW")
+
 
 if __name__ == "__main__":
-    unittest.main()
+    _ = unittest.main()
