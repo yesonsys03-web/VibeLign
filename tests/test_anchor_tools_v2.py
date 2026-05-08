@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from vibelign.core.anchor_tools import (
     build_symbol_anchor_name,
@@ -8,6 +9,7 @@ from vibelign.core.anchor_tools import (
     insert_js_symbol_anchors,
     insert_module_anchors,
     insert_python_symbol_anchors,
+    preview_anchor_targets,
     validate_anchor_file,
 )
 
@@ -29,6 +31,29 @@ class AnchorToolsV2Test(unittest.TestCase):
             index = collect_anchor_index(root)
             self.assertIn("sample.py", index)
             self.assertTrue(index["sample.py"])
+
+    def test_preview_anchor_targets_uses_opt_in_rust_project_scan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "sample.py"
+            path.write_text("print('hello')\n", encoding="utf-8")
+
+            with patch.dict("os.environ", {"VIBELIGN_PROJECT_SCAN_RUST": "1"}, clear=False), patch(
+                "vibelign.core.project_scan.scan_project_with_rust",
+                return_value=(
+                    {
+                        "result": "project_scan",
+                        "files": [
+                            {"path": "sample.py", "category": "other", "imports": []},
+                        ],
+                    },
+                    None,
+                ),
+            ) as rust_scan:
+                targets = preview_anchor_targets(root)
+
+        self.assertEqual(targets, [path])
+        rust_scan.assert_called_once_with(root)
 
     def test_insert_module_anchors_preserves_shebang(self):
         with tempfile.TemporaryDirectory() as tmp:
