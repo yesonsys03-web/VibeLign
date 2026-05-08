@@ -9,8 +9,9 @@
 - ✅ Phase 1 Unix/macOS daemon 골격 구현/검증 완료: `vibelign-engine --daemon --root`, Unix socket JSONL, `Shutdown`/`EngineVersion`, root isolation, PID/socket lifecycle, idle timeout, Python daemon client, daemon opt-in routing, CLI/MCP smoke coverage.
 - ✅ 선행 리팩토링 완료: Tauri command 분리, Python `rust_engine/` 패키지 분리, Rust IPC `protocol.rs`/`handler.rs` 분리, fallback policy helper 분리.
 - ✅ 안전장치 완료: daemon runtime artifacts checkpoint/project-scan 제외, `.vibelign/engine.log` rotation, unsupported transport 일관 fallback(`RUST_ENGINE_DAEMON_UNSUPPORTED`).
-- 🚧 남은 Phase 1 작업: Windows named pipe transport/lifecycle/update 검증, 공식 성능 benchmark 기록, Windows 실제 머신 smoke.
-- ⏭️ Phase 2/3 미착수: Rust `project_scan` 이전, GUI direct core bridge.
+- 🚧 남은 Phase 1 작업: Windows named pipe transport/lifecycle/update 검증, Windows 실제 머신 smoke, GUI end-to-end benchmark 기록. macOS engine-only 및 `vib history` CLI end-to-end benchmark 는 2026-05-08 debug build 기준으로 기록됨. macOS-safe router consumer matrix 는 `tests/test_checkpoint_router_consumers.py` / `tests/test_vib_history_undo_cmd.py` 로 일부 보강됨(auto_backup/action_engine/transfer/recovery/hook_setup/vib history/vib undo).
+- 🚧 Phase 2 진행: Rust `project_scan` 이전 전 Python behavior contract fixture 추가(`tests/test_project_scan.py`) 및 Rust IPC `project_scan` command + Python wrapper(`scan_project_with_rust`) 1차 구현 완료. `iter_source_files()` 는 기본적으로 Rust scan 결과를 먼저 사용하고, `VIBELIGN_PROJECT_SCAN_RUST=0` 이면 기존 Python/fd 경로만 사용함. 검증된 consumer: `anchor_tools.preview_anchor_targets()`, `scan_cache.incremental_scan()` 경유 `_build_project_map()`, `vib scan` anchor validation.
+- ⏭️ Phase 3 미착수: GUI direct core bridge.
 
 **마지막 검증 스냅샷**
 
@@ -147,6 +148,7 @@ GUI(클릭) → Tauri(Rust) → vib(Python) → vibelign-engine(Rust 1회성)
 - **lib expose 결정**: Phase 0/3 에서 `vibelign-core` 를 라이브러리로 노출할 때는 `ipc::{protocol, handler}` 를 우선 surface 로 삼고, `backup::*` 직접 노출은 Tauri direct bridge 요구가 확정될 때만 검토한다.
 - **fallback 범위**: 현재 기능별 fallback/raise 정책을 그대로 시작점으로 삼는다. `checkpoint_has_changes` 는 Phase 1 에서 Python-only 경로 유지로 시작하고, Rust 흡수 여부는 별도 명령 추가 PR 에서 결정한다.
 - **baseline**: 2026-05-08 local debug binary, `vibelign-core/target/debug/vibelign-engine`, 20회 `EngineInfo` 1-shot 측정: min 12.181ms / median 12.515ms / max 31.838ms. 출력 shape 는 기존 `{"status":"ok","result":"engine_info",...}` 유지 확인.
+- **benchmark snapshot**: 2026-05-08 macOS local debug binary, short `/tmp` project root, direct engine binary 측정. 초기 daemon poll interval 50ms 상태에서는 daemon median 이 ~54ms 로 회귀했으나, Unix accept poll 을 2ms 로 줄인 뒤 최종 수치: `EngineInfo` 1-shot min 3.727ms / median 4.070ms / max 7.601ms (50 runs), daemon min 1.701ms / median 2.555ms / max 2.679ms (50 runs). `checkpoint_list` 1-shot min 3.772ms / median 4.169ms / max 8.181ms (30 runs), daemon min 1.268ms / median 2.564ms / max 2.600ms (30 runs). `checkpoint_create` small changed-file write path 1-shot min 6.350ms / median 6.986ms / max 23.543ms (20 runs), daemon min 4.127ms / median 4.807ms / max 7.538ms (20 runs). Heavy synthetic 400-file `checkpoint_create` 는 1-shot min 40.566ms / median 48.990ms / max 163.198ms (8 runs), daemon min 36.014ms / median 43.687ms / max 133.196ms (8 runs) 로 traversal/snapshot I/O 가 지배적임을 확인. Python CLI end-to-end `vib history` 는 daemon off min 94.471ms / median 96.129ms / max 127.356ms (15 runs), warm daemon on min 84.128ms / median 86.246ms / max 96.175ms (15 runs) 로 Python startup 비용이 지배적임을 확인. GUI end-to-end benchmark 는 아직 미기록.
 
 - [x] **공식 dual-mode 명세**: V1 1-shot CLI 는 계속 공식 지원하고, V2 daemon 은 병행 경로로 추가한다.
 - [x] **프로토콜 호환성 규칙**:
@@ -177,7 +179,7 @@ GUI(클릭) → Tauri(Rust) → vib(Python) → vibelign-engine(Rust 1회성)
   - 선택 B: per-root long-lived connection/pool 유지 → 성능 이득 가능, Windows 파일 락/release 정책 필수.
   - `release` 명령 필요 여부는 이 결정에 종속된다.
 - [x] `ipc/protocol.rs` 의 기존 `EngineRequest` 명령 wire 형태는 **유지**하고, Phase -1 에서 고른 방식에 따라 **V2 envelope/필드 + 명령(`Shutdown`, `EngineVersion`) 만 추가**한다.
-- [ ] **벤치마크 baseline 측정 후 plan 에 기록 (Phase -1 deliverable)**: engine-only 1-shot `EngineInfo` baseline 은 기록됨. daemon/list/checkpoint_create 및 end-to-end `vib`/GUI benchmark 는 미완료.
+- [ ] **벤치마크 baseline 측정 후 plan 에 기록 (Phase -1 deliverable)**: engine-only 1-shot `EngineInfo` baseline, macOS debug daemon `EngineInfo`/`checkpoint_list`/small `checkpoint_create`/heavy synthetic `checkpoint_create`, Python CLI `vib history` end-to-end benchmark 는 기록됨. GUI benchmark 는 미완료.
   - `hyperfine --warmup 5 --runs 100 'vibelign-engine < req.json'` 형태로 NoOp(EngineInfo) / list / checkpoint_create(small/heavy) 분리 측정
   - engine-only 수치와 별도로 `vib history`, `vib checkpoint`, GUI `run_vib` end-to-end 시간을 측정해 Python/Tauri hop 이 가리는 비용을 분리한다.
   - 현재 1-shot baseline 수치를 plan §3 레버 1 "기대 효과" 옆에 기록 후 데몬 목표 수치 정의
@@ -211,7 +213,7 @@ GUI(클릭) → Tauri(Rust) → vib(Python) → vibelign-engine(Rust 1회성)
 - [x] PID 파일 + healthcheck + stale 자동 복구 (`.vibelign/engine.pid`, `.vibelign/engine.sock`)
 - [x] Python `rust_engine.py` 에 **데몬 클라이언트** 추가 (`call_rust_engine_daemon()`), 기존 `call_rust_engine()` 1-shot 유지
 - [x] 라우터 (`router.py`) 또는 `RustCheckpointEngine` 가 dual-mode 결정: 데몬 가용/혼잡/shadow 모드/환경 fallback 에 따라 분기
-- [ ] **전체 router 소비자** 검증: CLI(`vib *`), GUI(via vib), MCP(`mcp_checkpoint_handlers.py`), `vibelign/core/checkpoint_engine/auto_backup.py`, hook setup, recovery, action engine — CLI/MCP/checkpoint router 대표 경로는 완료, auto_backup/hook/recovery/action engine 전체 matrix 는 미완료.
+- [ ] **전체 router 소비자** 검증: CLI(`vib *`), GUI(via vib), MCP(`mcp_checkpoint_handlers.py`), `vibelign/core/checkpoint_engine/auto_backup.py`, hook setup, recovery, action engine — CLI/MCP/checkpoint router 대표 경로는 완료. 2026-05-08 macOS-safe slice 로 auto_backup/action_engine/transfer/recovery 자동 백업 signal/hook_setup 초기 checkpoint 의 daemon opt-in 경로를 `tests/test_checkpoint_router_consumers.py` 에 추가했고, `vib history`/`vib undo --checkpoint-id --json` list/restore daemon 경로를 `tests/test_vib_history_undo_cmd.py` 에 추가했다. GUI/Windows 실기 matrix 는 미완료.
 
 **검증**:
 - `vib doctor --strict` 통과 (데몬 켜짐/꺼짐 양쪽)
@@ -235,15 +237,24 @@ GUI(클릭) → Tauri(Rust) → vib(Python) → vibelign-engine(Rust 1회성)
 - **Unix 신호**: SIGTERM/SIGINT → graceful shutdown (in-flight 응답 후 종료), SIGHUP 무시. Tokio 선택 시 `tokio::signal`, blocking 선택 시 signal-hook 등 동기 처리 전략 명시
 
 ### Phase 2 (2~3일): 첫 핫 패스 이전
-- [ ] `project_scan` 을 Rust로 (walkdir + 무시 패턴 + blake3 해시)
-- [ ] Python 측은 Rust 결과를 받아서 가공만 (점진적 이전)
-- [ ] 캐시 호환성 검증 (`scan_cache.json` 포맷 유지 또는 마이그레이션)
+- [x] Python `project_scan` behavior contract fixture 추가: ignored dirs(`docs`, `tests`, `.vibelign`, `node_modules`, `target`), daemon artifacts exclusion, source file selection, category classification, Python/TS import extraction을 `tests/test_project_scan.py` 에 고정.
+- [x] Rust IPC `project_scan` 1차 구현: `vibelign-core/src/project_scan.rs`, `EngineRequest::ProjectScan`, one-shot/daemon handler bridge, Python `scan_project_with_rust()` wrapper 추가. 현재 contract fixture 범위는 path/category/imports 이며, 기존 Python call sites 는 아직 Rust path 로 전환하지 않음.
+- [x] Opt-in 라우팅 추가: `VIBELIGN_PROJECT_SCAN_RUST=1` 일 때 `iter_source_files()` 는 Rust `project_scan` 결과의 `files[].path` 를 `Path` 로 변환해 사용하고, Rust warning/실패 시 기존 Python/fd 경로로 fallback.
+- [x] Opt-in consumer 검증 추가: `tests/test_vib_scan_cmd.py` 에서 `run_vib_scan()` anchor validation 단계가 `VIBELIGN_PROJECT_SCAN_RUST=1` 상태에서 Rust `project_scan` wrapper 를 호출하는지 확인.
+- [x] Opt-in direct consumer 검증 추가: `tests/test_anchor_tools_v2.py` 에서 `anchor_tools.preview_anchor_targets()` 가 `VIBELIGN_PROJECT_SCAN_RUST=1` 상태에서 Rust `project_scan` wrapper 를 호출하는지 확인.
+- [x] Opt-in scan_cache consumer 검증 추가: `tests/test_vib_start.py` 에서 `_build_project_map()` → `scan_cache.incremental_scan()` → `iter_source_files()` 경로가 `VIBELIGN_PROJECT_SCAN_RUST=1` 상태에서 Rust `project_scan` wrapper 를 호출하고 Rust-reported file set 만 project map 에 반영하는지 확인.
+- [x] 기본 `project_scan` 라우팅 전환: `iter_source_files()` 는 기본적으로 Rust `project_scan` wrapper 를 먼저 호출하고, warning/실패 시 기존 Python/fd path 로 fallback. `VIBELIGN_PROJECT_SCAN_RUST=0` 으로 명시 opt-out 가능.
+- [x] Python 측은 Rust 결과를 받아서 가공만 (점진적 이전): `project_scan.iter_source_file_records()` 를 추가해 Rust `files[].path/category/imports` 를 typed record 로 전달하고, `scan_cache.incremental_scan()` 은 Rust metadata 가 있으면 category/imports 를 재계산하지 않고 사용함. anchor/line_count 등 Python-only cache 필드는 기존대로 보강.
+- [x] 캐시 호환성 검증: Rust-first `project_scan` 경로로 `_build_project_map()` 을 실행해도 `.vibelign/scan_cache.json` 은 schema_version 2, `entries`, `mtime`, `size`, `anchors`, `anchor_spans`, `imports`, `category`, `line_count` 포맷을 유지함 (`tests/test_vib_start.py`).
 - [ ] `project_scan` contract 를 golden fixture 로 먼저 고정한다:
-  - ignore 규칙(`.git`, `node_modules`, build 산출물, `.vibelign` 내부 daemon artifacts) parity
-  - `.vibelign` 파일 중 포함/제외 예외(`project_map.json`, `anchor_meta.json` 등) parity
-  - entry/ui/service/core 분류 결과 parity
-  - anchor index/meta 연결 정보가 기존 Python 결과와 동일한지 검증
-  - Windows 경로(`\\?\`, UNC, 한글/이모지, 대소문자 민감도) fixture 포함
+  - [x] ignore 규칙(`docs`, `tests`, `node_modules`, `target`, `.vibelign` source/daemon artifacts) parity 를 Python/Rust paired fixture 에 고정.
+  - [x] `.vibelign` 파일 중 `project_map.json`, `anchor_meta.json`, `engine.sock`, source-like `.vibelign/app.py` 제외 parity 를 Python/Rust paired fixture 에 고정.
+  - [x] entry/ui/service/core 분류 결과 parity 를 Python/Rust paired fixture 및 Rust metadata handoff tests 에 고정.
+  - [x] anchor index/meta 연결 정보 parity: Rust-first `_build_project_map()` 과 `VIBELIGN_PROJECT_SCAN_RUST=0` Python-only `_build_project_map()` 의 `anchor_index`, per-file `anchors`, `anchor_spans` 일치 검증 추가 (`tests/test_vib_start.py`).
+  - [x] 한글 경로 fixture 포함: `services/도우미.py` 가 Python/Rust 양쪽에서 source file + service category + import extraction 대상임을 고정.
+  - [x] 이모지 경로 fixture 포함: `services/emoji_😀.py` 가 Python/Rust 양쪽에서 source file + service category + import extraction 대상임을 고정.
+  - [x] Windows-gated 경로 fixture 추가: `tests/test_project_scan.py` 에 `sys.platform == "win32"` 에서만 실행되는 `\\?\` extended-length root + mixed-case `Node_Modules` exclusion test 추가. macOS 에서는 skip 으로 남김.
+  - Windows 실제 runner 필요: UNC share 경로와 Windows filesystem 대소문자 민감도 fixture 는 macOS 에서 완료 처리하지 않음.
 
 ### Phase 3 (선택, 1주~): 도메인 확장
 - 패치 엔진(strict_patch, patch_validation) 이전
