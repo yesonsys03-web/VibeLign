@@ -1406,9 +1406,9 @@ export function getCachedBackupGraphSummary(cwd: string): BackupGraphSummaryResu
   return backupGraphSummaryCache.get(cwd);
 }
 
-export async function backupList(cwd: string): Promise<BackupListResult> {
+export async function backupList(cwd: string, options?: { force?: boolean }): Promise<BackupListResult> {
   try {
-    const report = await backupDbViewerInspect(cwd);
+    const report = await backupDbViewerInspect(cwd, { force: options?.force });
     if (report.dbExists) {
       const result: BackupListResult = {
         backups: report.checkpoints

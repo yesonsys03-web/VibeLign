@@ -21,11 +21,11 @@ export default function BackupDashboardPage({ projectDir }: BackupDashboardPageP
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await backupList(projectDir);
+      const result = await backupList(projectDir, { force });
       setEntries(result.backups);
       setSelectedId((current) => {
         if (current && result.backups.some((entry) => entry.id === current)) return current;
@@ -39,7 +39,7 @@ export default function BackupDashboardPage({ projectDir }: BackupDashboardPageP
   }, [projectDir]);
 
   useEffect(() => {
-    load();
+    void load(true);
   }, [load]);
 
   async function handleSave() {
@@ -51,7 +51,7 @@ export default function BackupDashboardPage({ projectDir }: BackupDashboardPageP
       setNewNote("");
       setNotice("새 저장본을 만들었어요.");
       setSelectedId(null);
-      await load();
+      await load(true);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -66,7 +66,7 @@ export default function BackupDashboardPage({ projectDir }: BackupDashboardPageP
     try {
       await backupRestore(projectDir, id);
       setNotice("선택한 저장본으로 되돌렸어요.");
-      await load();
+      await load(true);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -89,7 +89,7 @@ export default function BackupDashboardPage({ projectDir }: BackupDashboardPageP
         {notice && <div className="alert alert-success">{notice}</div>}
       </div>
       <div className="page-content" style={{ overflowY: "auto" }}>
-        <BackupDashboardView entries={entries} loading={loading} query={query} selectedId={selectedId} restoring={restoring} projectDir={projectDir} activeChildView={activeChildView} onRefresh={load} onQueryChange={setQuery} onSelect={setSelectedId} onRestore={handleRestore} onActiveChildViewChange={setActiveChildView} />
+        <BackupDashboardView entries={entries} loading={loading} query={query} selectedId={selectedId} restoring={restoring} projectDir={projectDir} activeChildView={activeChildView} onRefresh={() => void load(true)} onQueryChange={setQuery} onSelect={setSelectedId} onRestore={handleRestore} onActiveChildViewChange={setActiveChildView} />
       </div>
     </div>
   );
