@@ -3,6 +3,7 @@ mod backup;
 mod constants;
 mod db;
 mod ipc;
+mod project_scan;
 mod security;
 
 use ipc::protocol::{handle, EngineRequest, EngineResponse};

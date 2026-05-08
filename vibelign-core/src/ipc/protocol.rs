@@ -1,5 +1,6 @@
 // === ANCHOR: PROTOCOL_START ===
 use crate::backup::{db_maintenance, db_viewer, diff, graph_summary, restore, suggestions};
+use crate::project_scan;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -60,6 +61,9 @@ pub enum EngineRequest {
         apply: bool,
     },
     BackupGraphSummary {
+        root: PathBuf,
+    },
+    ProjectScan {
         root: PathBuf,
     },
 }
@@ -134,8 +138,34 @@ pub enum EngineResponse {
         #[serde(flatten)]
         report: graph_summary::BackupGraphSummaryReport,
     },
+    #[serde(rename = "ok")]
+    ProjectScanOk {
+        result: String,
+        #[serde(flatten)]
+        report: project_scan::ProjectScanReport,
+    },
 }
 
 pub use super::handler::handle;
 
+#[cfg(test)]
+mod tests {
+    use super::{handle, EngineRequest, EngineResponse};
+
+    #[test]
+    fn engine_info_returns_ok() {
+        let response = handle(EngineRequest::EngineInfo);
+        assert!(matches!(response, EngineResponse::Ok { .. }));
+    }
+
+    #[test]
+    fn project_scan_request_parses() {
+        let request = serde_json::from_value::<EngineRequest>(serde_json::json!({
+            "command": "project_scan",
+            "root": "/tmp/demo"
+        }));
+
+        assert!(request.is_ok());
+    }
+}
 // === ANCHOR: PROTOCOL_END ===

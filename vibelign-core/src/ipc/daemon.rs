@@ -94,6 +94,9 @@ enum DaemonPayload {
     BackupGraphSummary {
         root: PathBuf,
     },
+    ProjectScan {
+        root: PathBuf,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -286,6 +289,10 @@ impl DaemonPayload {
                 validate_request_root(daemon_root, &root)?;
                 Ok(EngineRequest::BackupGraphSummary { root })
             }
+            Self::ProjectScan { root } => {
+                validate_request_root(daemon_root, &root)?;
+                Ok(EngineRequest::ProjectScan { root })
+            }
             Self::EngineVersion | Self::Shutdown => unreachable!("daemon control commands are handled before conversion"),
         }
     }
@@ -356,7 +363,7 @@ mod unix {
                     if idle_expired(last_activity, Instant::now(), idle_timeout) {
                         return Ok(());
                     }
-                    std::thread::sleep(Duration::from_millis(50));
+                    std::thread::sleep(Duration::from_millis(2));
                 }
                 Err(error) => return Err(format!("daemon socket accept failed: {error}")),
             }
@@ -515,6 +522,27 @@ mod tests {
         assert_eq!(response["request_id"], "bad-root");
         assert_eq!(response["status"], "error");
         assert_eq!(response["code"], "DAEMON_ROOT_MISMATCH");
+    }
+
+    #[test]
+    fn project_scan_envelope_uses_daemon_root_validation() {
+        let daemon_root = TempDir::new().expect("daemon root");
+        let envelope: DaemonEnvelope = serde_json::from_value(serde_json::json!({
+            "request_id": "scan-1",
+            "payload": {
+                "command": "project_scan",
+                "root": daemon_root.path()
+            }
+        }))
+        .expect("daemon envelope");
+
+        let response = serde_json::to_value(handle_envelope(daemon_root.path(), envelope)).expect("response json");
+
+        assert_eq!(response["request_id"], "scan-1");
+        assert_eq!(response["status"], "ok");
+        assert_eq!(response["result"], "handled");
+        assert_eq!(response["payload"]["status"], "ok");
+        assert_eq!(response["payload"]["result"], "project_scan");
     }
 
     #[test]

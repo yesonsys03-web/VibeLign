@@ -2,6 +2,7 @@
 use crate::backup::checkpoint::{self, CheckpointCreateMetadata};
 use crate::backup::retention;
 use crate::backup::{db_maintenance, db_viewer, diff, graph_summary, restore, suggestions};
+use crate::project_scan;
 
 use super::protocol::{EngineRequest, EngineResponse, ResponseCheckpoint, ResponseFile};
 
@@ -372,6 +373,16 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                 message: error,
             },
         },
+        EngineRequest::ProjectScan { root } => match project_scan::scan(&root) {
+            Ok(report) => EngineResponse::ProjectScanOk {
+                result: "project_scan".to_string(),
+                report,
+            },
+            Err(error) => EngineResponse::Error {
+                code: "PROJECT_SCAN_FAILED".to_string(),
+                message: error,
+            },
+        },
     }
 }
 
@@ -379,11 +390,59 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
 mod tests {
     use super::handle;
     use crate::ipc::protocol::{EngineRequest, EngineResponse};
+    use tempfile::TempDir;
 
     #[test]
     fn engine_info_returns_ok() {
         let response = handle(EngineRequest::EngineInfo);
         assert!(matches!(response, EngineResponse::Ok { .. }));
+    }
+
+    #[test]
+    fn project_scan_matches_python_contract_fixture() {
+        let root = TempDir::new().expect("temp root");
+        write_fixture(root.path(), "main.py", "from services.api_client import fetch\nprint(fetch())\n");
+        write_fixture(root.path(), "ui/views/panel.tsx", "import React from 'react';\nimport { api } from '../../services/api';\n");
+        write_fixture(root.path(), "services/api_client.py", "import requests\nfrom core.guard import check\n");
+        write_fixture(root.path(), "services/emoji_😀.py", "import pathlib\n");
+        write_fixture(root.path(), "services/도우미.py", "import os\n");
+        write_fixture(root.path(), "core/guard.py", "def check():\n    return True\n");
+        write_fixture(root.path(), "scripts/migrate.rs", "fn main() {}\n");
+        write_fixture(root.path(), "docs/guide.py", "print('ignored docs')\n");
+        write_fixture(root.path(), "tests/test_app.py", "print('ignored tests')\n");
+        write_fixture(root.path(), "node_modules/pkg/index.js", "console.log('ignored dependency')\n");
+        write_fixture(root.path(), "target/debug/build.rs", "fn main() {}\n");
+        write_fixture(root.path(), ".vibelign/project_map.json", "{}\n");
+        write_fixture(root.path(), ".vibelign/anchor_meta.json", "{}\n");
+        write_fixture(root.path(), ".vibelign/engine.sock", "ignored daemon artifact\n");
+        write_fixture(root.path(), ".vibelign/app.py", "print('ignored vibelign source')\n");
+
+        let response = handle(EngineRequest::ProjectScan { root: root.path().to_path_buf() });
+        let value = serde_json::to_value(response).expect("json response");
+
+        assert_eq!(value["status"], "ok");
+        assert_eq!(value["result"], "project_scan");
+        let files = value["files"].as_array().expect("files array");
+        let paths: Vec<&str> = files.iter().filter_map(|item| item["path"].as_str()).collect();
+        assert_eq!(paths, vec!["core/guard.py", "main.py", "scripts/migrate.rs", "services/api_client.py", "services/emoji_😀.py", "services/도우미.py", "ui/views/panel.tsx"]);
+        assert_eq!(files[0]["category"], "core");
+        assert_eq!(files[1]["category"], "entry");
+        assert_eq!(files[2]["category"], "other");
+        assert_eq!(files[3]["category"], "service");
+        assert_eq!(files[4]["category"], "service");
+        assert_eq!(files[5]["category"], "service");
+        assert_eq!(files[6]["category"], "ui");
+        assert_eq!(files[1]["imports"], serde_json::json!(["services.api_client"]));
+        assert_eq!(files[3]["imports"], serde_json::json!(["requests", "core.guard"]));
+        assert_eq!(files[4]["imports"], serde_json::json!(["pathlib"]));
+        assert_eq!(files[5]["imports"], serde_json::json!(["os"]));
+        assert_eq!(files[6]["imports"], serde_json::json!(["react", "../../services/api"]));
+    }
+
+    fn write_fixture(root: &std::path::Path, rel: &str, content: &str) {
+        let path = root.join(rel);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
+        std::fs::write(path, content).expect("write fixture");
     }
 }
 // === ANCHOR: HANDLER_END ===
