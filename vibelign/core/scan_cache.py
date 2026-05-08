@@ -84,7 +84,7 @@ def incremental_scan(
     from vibelign.core.project_scan import (
         classify_file,
         extract_imports,
-        iter_source_files,
+        iter_source_file_records,
         line_count,
         relpath_str,
     )
@@ -94,7 +94,8 @@ def incremental_scan(
     new_cache: dict[str, CacheEntry] = {}
     current_paths: set[str] = set()
 
-    for path in iter_source_files(root):
+    for record in iter_source_file_records(root):
+        path = record["path"]
         rel = relpath_str(root, path)
         current_paths.add(rel)
         entry = cache.get(rel)
@@ -110,8 +111,8 @@ def incremental_scan(
                     "size": st.st_size,
                     "anchors": extract_anchors(path),
                     "anchor_spans": extract_anchor_spans(path),
-                    "imports": extract_imports(path),
-                    "category": classify_file(path, rel),
+                    "imports": record["imports"] if record["imports"] is not None else extract_imports(path),
+                    "category": record["category"] or classify_file(path, rel),
                     "line_count": line_count(path),
                 }
             except OSError:

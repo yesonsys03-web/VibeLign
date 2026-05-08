@@ -1,7 +1,10 @@
+import json
 import tempfile
 import types
 import unittest
 from pathlib import Path
+from typing import cast
+from unittest.mock import patch
 
 from vibelign.cli import build_parser as build_basic_parser
 from vibelign.commands.export_cmd import export_tool_files
@@ -223,6 +226,161 @@ class TestPagesRoutesUiClassification(unittest.TestCase):
             (root / "routes" / "users.py").write_text("def get(): pass\n")
             pm = _build_project_map(root, force_scan=True)
             self.assertIn("routes/users.py", pm["ui_modules"])
+
+    def test_build_project_map_uses_opt_in_rust_project_scan_cache_path(self):
+        from vibelign.commands.vib_start_cmd import _build_project_map
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = (root / "main.py").write_text("print('ok')\n", encoding="utf-8")
+            _ = (root / "ignored.py").write_text("print('skip')\n", encoding="utf-8")
+
+            with patch.dict("os.environ", {"VIBELIGN_PROJECT_SCAN_RUST": "1"}, clear=False), patch(
+                "vibelign.core.project_scan.scan_project_with_rust",
+                return_value=(
+                    {
+                        "result": "project_scan",
+                        "files": [
+                            {"path": "main.py", "category": "entry", "imports": []},
+                        ],
+                    },
+                    None,
+                ),
+            ) as rust_scan:
+                pm = _build_project_map(root, force_scan=True)
+
+        files = cast(dict[str, object], pm["files"])
+        self.assertEqual(pm["file_count"], 1)
+        self.assertIn("main.py", files)
+        self.assertNotIn("ignored.py", files)
+        rust_scan.assert_called_once_with(root)
+
+    def test_build_project_map_preserves_scan_cache_schema_with_rust_project_scan(self):
+        from vibelign.commands.vib_start_cmd import _build_project_map
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = (root / "main.py").write_text(
+                "# === ANCHOR: MAIN_START ===\nprint('ok')\n# === ANCHOR: MAIN_END ===\n",
+                encoding="utf-8",
+            )
+
+            with patch.dict("os.environ", {}, clear=True), patch(
+                "vibelign.core.project_scan.scan_project_with_rust",
+                return_value=(
+                    {
+                        "result": "project_scan",
+                        "files": [
+                            {"path": "main.py", "category": "entry", "imports": []},
+                        ],
+                    },
+                    None,
+                ),
+            ) as rust_scan:
+                _ = _build_project_map(root, force_scan=True)
+
+            cache_payload = cast(
+                dict[str, object],
+                json.loads((root / ".vibelign" / "scan_cache.json").read_text(encoding="utf-8")),
+            )
+            entries = cast(dict[str, dict[str, object]], cache_payload["entries"])
+            main_entry = entries["main.py"]
+
+        self.assertEqual(cache_payload["schema_version"], 2)
+        self.assertEqual(set(entries), {"main.py"})
+        self.assertEqual(main_entry["category"], "entry")
+        self.assertEqual(main_entry["anchors"], ["MAIN"])
+        self.assertIn("mtime", main_entry)
+        self.assertIn("size", main_entry)
+        self.assertIn("anchor_spans", main_entry)
+        self.assertIn("imports", main_entry)
+        self.assertIn("line_count", main_entry)
+        rust_scan.assert_called_once_with(root)
+
+    def test_build_project_map_uses_rust_project_scan_metadata_when_available(self):
+        from vibelign.commands.vib_start_cmd import _build_project_map
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = (root / "feature.py").write_text(
+                "import python_side\nprint('ok')\n",
+                encoding="utf-8",
+            )
+
+            with patch.dict("os.environ", {}, clear=True), patch(
+                "vibelign.core.project_scan.scan_project_with_rust",
+                return_value=(
+                    {
+                        "result": "project_scan",
+                        "files": [
+                            {
+                                "path": "feature.py",
+                                "category": "service",
+                                "imports": ["rust.side"],
+                            },
+                        ],
+                    },
+                    None,
+                ),
+            ) as rust_scan:
+                pm = _build_project_map(root, force_scan=True)
+
+            cache_payload = cast(
+                dict[str, object],
+                json.loads((root / ".vibelign" / "scan_cache.json").read_text(encoding="utf-8")),
+            )
+            entries = cast(dict[str, dict[str, object]], cache_payload["entries"])
+
+        files = cast(dict[str, dict[str, object]], pm["files"])
+        feature = files["feature.py"]
+        feature_cache = entries["feature.py"]
+        self.assertEqual(feature["category"], "service")
+        self.assertEqual(feature_cache["imports"], ["rust.side"])
+        rust_scan.assert_called_once_with(root)
+
+    def test_build_project_map_anchor_fields_match_python_path_under_rust_scan(self):
+        from vibelign.commands.vib_start_cmd import _build_project_map
+
+        with tempfile.TemporaryDirectory() as rust_tmp, tempfile.TemporaryDirectory() as python_tmp:
+            rust_root = Path(rust_tmp)
+            python_root = Path(python_tmp)
+            rel = "core/service.py"
+            content = (
+                "# === ANCHOR: CORE_SERVICE_START ===\n"
+                "def run():\n"
+                "    return True\n"
+                "# === ANCHOR: CORE_SERVICE_END ===\n"
+            )
+            for root in (rust_root, python_root):
+                path = root / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                _ = path.write_text(content, encoding="utf-8")
+
+            with patch.dict("os.environ", {}, clear=True), patch(
+                "vibelign.core.project_scan.scan_project_with_rust",
+                return_value=(
+                    {
+                        "result": "project_scan",
+                        "files": [
+                            {"path": rel, "category": "core", "imports": []},
+                        ],
+                    },
+                    None,
+                ),
+            ) as rust_scan:
+                rust_map = _build_project_map(rust_root, force_scan=True)
+
+            with patch.dict("os.environ", {"VIBELIGN_PROJECT_SCAN_RUST": "0"}, clear=False), patch(
+                "vibelign.core.fast_tools.has_fd", return_value=False
+            ):
+                python_map = _build_project_map(python_root, force_scan=True)
+
+        rust_files = cast(dict[str, dict[str, object]], rust_map["files"])
+        python_files = cast(dict[str, dict[str, object]], python_map["files"])
+        self.assertEqual(rust_map["anchor_index"], python_map["anchor_index"])
+        self.assertEqual(rust_files[rel]["anchors"], python_files[rel]["anchors"])
+        self.assertEqual(rust_files[rel]["anchor_spans"], python_files[rel]["anchor_spans"])
+        rust_scan.assert_called_once_with(rust_root)
 
 
 if __name__ == "__main__":
