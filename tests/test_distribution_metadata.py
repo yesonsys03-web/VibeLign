@@ -101,6 +101,7 @@ class DistributionMetadataTest(unittest.TestCase):
 
         self.assertIn('"vibelign.commands.vib_backup_db_viewer_cmd"', text)
         self.assertIn('"vibelign.commands.vib_backup_db_maintenance_cmd"', text)
+        self.assertIn('"vibelign.commands.vib_backup_graph_summary_cmd"', text)
         self.assertIn('"vibelign.commands.vib_memory_cmd"', text)
         self.assertIn('"vibelign.commands.vib_recover_cmd"', text)
         self.assertIn('"vibelign.core.checkpoint_engine.rust_engine"', text)
