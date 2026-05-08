@@ -45,7 +45,7 @@ export default function BackupDashboard({ entries, loading, query, selectedId, r
         <>
       <SafetySummary stats={stats} loading={loading} onRefresh={onRefresh} />
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 14 }}>
-        <StorageSavings stats={stats} entries={entries} />
+        <StorageSavings stats={stats} entries={entries} projectDir={projectDir} />
         <DateGraph points={buildTimelinePoints(entries)} selectedId={selectedId} onSelect={handleTimelineSelect} />
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 14 }}>
