@@ -370,6 +370,53 @@ MANUAL: dict[str, ManualEntry] = {
             ),
         ],
     },
+    "docs-enhance": {
+        "emoji": "✨",
+        "title": "vib docs-enhance",
+        "one_line": "AI로 현재 문서의 요약 필드를 생성해요",
+        "what": (
+            "Docs Viewer artifact에 들어가는 AI 요약 필드를 다시 생성하는 명령어예요.\n"
+            "먼저 `vib docs-build <path>`로 문서 artifact를 만든 뒤 실행하면,\n"
+            "해당 문서의 요약/설명 필드를 LLM 결과로 보강해요."
+        ),
+        "when": [
+            "Docs Viewer의 AI 요약을 최신 문서 내용으로 다시 만들고 싶을 때",
+            "문서 하나만 골라 AI 보강을 실행하고 싶을 때",
+            "GUI에서 쓰는 문서 요약 데이터를 CLI로 점검할 때",
+        ],
+        "examples": [
+            ("vib docs-enhance docs/wiki/index.md", "특정 문서의 AI 요약 필드 생성"),
+            ("vib docs-enhance PROJECT_CONTEXT.md --json", "결과를 JSON으로 확인"),
+        ],
+        "options": [
+            ("path", "AI 보강할 markdown 문서 경로예요."),
+            ("--json", "결과를 JSON으로 출력해요."),
+        ],
+    },
+    "doc-sources": {
+        "emoji": "📚",
+        "title": "vib doc-sources",
+        "one_line": "추가 문서 소스를 등록/제거/조회해요",
+        "what": (
+            "Docs Viewer가 기본 문서 외에 `.omc/plans` 같은 추가 문서 폴더도 보게 만드는 명령어예요.\n"
+            "등록된 소스는 GUI Docs Viewer 사이드바에 Custom 카테고리로 표시됩니다."
+        ),
+        "when": [
+            "Docs Viewer에서 프로젝트 외부/추가 문서 폴더도 보고 싶을 때",
+            "등록된 custom 문서 소스를 확인하거나 제거할 때",
+            "GUI 문서 목록에 계획서나 스펙 폴더를 연결할 때",
+        ],
+        "examples": [
+            ("vib doc-sources list", "등록된 추가 문서 소스 목록 보기"),
+            ("vib doc-sources add .omc/plans", "추가 문서 소스 등록"),
+            ("vib doc-sources remove .omc/plans", "추가 문서 소스 제거"),
+        ],
+        "options": [
+            ("list", "등록된 추가 문서 소스를 JSON으로 보여줘요."),
+            ("add path", "프로젝트 루트 기준 상대 경로를 추가 문서 소스로 등록해요."),
+            ("remove path", "등록된 추가 문서 소스를 제거해요."),
+        ],
+    },
     "doctor": {
         "emoji": "🩺",
         "title": "vib doctor",
@@ -728,6 +775,34 @@ MANUAL: dict[str, ManualEntry] = {
             ("--json", "결과를 JSON 형식으로 출력해요. (개발자용)"),
         ],
     },
+    "bench": {
+        "emoji": "📊",
+        "title": "vib bench",
+        "one_line": "앵커 효과를 비교 실험해요",
+        "what": (
+            "앵커가 AI 코드 수정 정확도를 얼마나 높이는지 비교하는 벤치마크 명령어예요.\n"
+            "A/B 프롬프트를 만들고, 결과를 채점하거나 리포트로 정리할 수 있어요."
+        ),
+        "when": [
+            "앵커 적용 전후의 AI 수정 정확도를 비교하고 싶을 때",
+            "patch-suggester 정확도 회귀를 확인할 때",
+            "벤치마크 리포트를 만들어 개선 효과를 설명해야 할 때",
+        ],
+        "examples": [
+            ("vib bench --generate", "A/B 조건별 프롬프트 생성"),
+            ("vib bench --score", "AI 수정 결과 채점"),
+            ("vib bench --report", "마크다운 비교 리포트 생성"),
+            ("vib bench --patch", "patch-suggester 정확도 회귀 측정"),
+        ],
+        "options": [
+            ("--generate", "A/B 조건별 벤치마크 프롬프트를 생성해요."),
+            ("--score", "생성된 결과를 채점해요."),
+            ("--report", "채점 결과를 마크다운 리포트로 만들어요."),
+            ("--patch", "patch-suggester 정확도 회귀 테스트를 실행해요."),
+            ("--update-baseline", "--patch 결과를 현재 baseline으로 갱신해요."),
+            ("--json", "결과를 JSON으로 출력해요."),
+        ],
+    },
     "ask": {
         "emoji": "💬",
         "title": "vib ask",
@@ -754,6 +829,28 @@ MANUAL: dict[str, ManualEntry] = {
                 '파일에 대해 궁금한 걸 물어볼 수 있어요.\n예: vib ask login.py "이 함수는 뭐야?"',
             ),
             ("--write", "설명 결과를 VIBELIGN_ASK.md 파일로 저장해요."),
+        ],
+    },
+    "show": {
+        "emoji": "🔎",
+        "title": "vib show",
+        "one_line": "앵커 블록만 콘솔에 찍어요",
+        "what": (
+            "큰 파일 전체를 열지 않고 지정한 ANCHOR 구간만 줄번호와 함께 보여주는 명령어예요.\n"
+            "AI와 작업할 때 필요한 안전 구역만 빠르게 확인할 수 있어요."
+        ),
+        "when": [
+            "큰 파일에서 특정 앵커 내용만 확인하고 싶을 때",
+            "AI에게 수정 범위를 알려주기 전에 앵커 구간을 검토할 때",
+            "터미널에서 안전 수정 구역을 빠르게 확인할 때",
+        ],
+        "examples": [
+            ("vib show vibelign/core/anchor_tools.py EXTRACT_ANCHOR_SPANS", "특정 앵커 블록 보기"),
+            ("vib show vibelign-gui/src/pages/Onboarding.tsx ONBOARDING", "GUI 파일의 앵커 블록 보기"),
+        ],
+        "options": [
+            ("file", "확인할 파일 경로예요. 프로젝트 루트 기준으로 입력해요."),
+            ("anchor", "확인할 앵커 이름이에요. `_START`/`_END`는 빼고 입력해요."),
         ],
     },
     "config": {
@@ -1192,6 +1289,32 @@ MANUAL: dict[str, ManualEntry] = {
         ],
         "options": [],
     },
+    "manual": {
+        "emoji": "📖",
+        "title": "vib manual",
+        "one_line": "코알못을 위한 상세 사용 설명서",
+        "what": (
+            "VibeLign의 모든 명령어를 쉬운 말로 설명하는 내장 사용 설명서예요.\n"
+            "명령어별로 언제 쓰는지, 예시, 옵션을 한 화면에서 확인할 수 있어요."
+        ),
+        "when": [
+            "어떤 vib 명령어를 써야 할지 모를 때",
+            "특정 명령어의 예시와 옵션을 자세히 보고 싶을 때",
+            "전체 매뉴얼을 파일로 저장해 공유하고 싶을 때",
+        ],
+        "examples": [
+            ("vib manual", "전체 명령어 목록 보기"),
+            ("vib manual checkpoint", "checkpoint 명령 자세히 보기"),
+            ("vib manual --all", "전체 상세 설명 보기"),
+            ("vib manual --save", "VIBELIGN_MANUAL.md 파일로 저장"),
+        ],
+        "options": [
+            ("command_name", "자세히 볼 커맨드 이름이에요. 예: checkpoint, anchor, guard"),
+            ("--all", "전체 커맨드의 상세 설명을 모두 보여줘요."),
+            ("--save", "전체 매뉴얼을 VIBELIGN_MANUAL.md 파일로 저장해요."),
+            ("--json", "매뉴얼 데이터를 JSON으로 출력해요."),
+        ],
+    },
     "rules": {
         "emoji": "📋",
         "title": "VibeLign AI 개발 규칙",
@@ -1405,7 +1528,7 @@ GROUPS = [
     ),
     ("🔬 점검 & 확인", ["doctor", "guard", "explain"]),
     ("✏️ AI 수정 요청", ["patch", "anchor", "scan", "plan-structure"]),
-    ("📚 문서 보기 & 다시생성", ["docs-build", "docs-index"]),
+    ("📚 문서 보기 & 다시생성", ["docs-build", "docs-enhance", "docs-index", "doc-sources"]),
     (
         "🗂️ 파일 & 설정",
         [
@@ -1413,16 +1536,18 @@ GROUPS = [
             "transfer",
             "memory",
             "ask",
+            "show",
             "config",
             "secrets",
             "export",
             "watch",
+            "bench",
             "claude-hook",
             "completion",
         ],
     ),
     ("🤖 MCP (AI 자동 연동)", ["mcp"]),
-    ("📋 AI 개발 규칙", ["rules"]),
+    ("📋 AI 개발 규칙", ["manual", "rules"]),
 ]
 
 

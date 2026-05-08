@@ -138,6 +138,8 @@ class GuiCliContractsTest(unittest.TestCase):
         self.assertNotIn("전문가용 작업 기록", session_text)
 
     def test_top_level_help_mentions_backup_db_commands(self):
+        from vibelign.cli.cli_completion import HIDDEN_COMPLETION_COMMANDS
+        from vibelign.cli.vib_cli import build_parser
         from vibelign.cli.cli_base import MAIN_DESCRIPTION
         from vibelign.commands.vib_manual_cmd import GROUPS, MANUAL
 
@@ -163,6 +165,20 @@ class GuiCliContractsTest(unittest.TestCase):
         self.assertIn("backup-cleanup", grouped_commands)
         self.assertIn("memory", grouped_commands)
         self.assertIn("recover", grouped_commands)
+
+        parser = build_parser()
+        subparsers_action = next(
+            action for action in parser._actions if getattr(action, "choices", None)
+        )
+        parser_choices = cast(dict[str, object], getattr(subparsers_action, "choices", {}))
+        visible_commands = {
+            command
+            for command in parser_choices
+            if command not in HIDDEN_COMPLETION_COMMANDS
+            and not command.startswith("_internal_")
+        }
+        self.assertTrue(visible_commands.issubset(MANUAL.keys()))
+        self.assertTrue(visible_commands.issubset(grouped_commands))
 
     def test_doctor_json_exposes_fields_consumed_by_gui(self):
         with tempfile.TemporaryDirectory() as tmp:
