@@ -14,6 +14,7 @@ from vibelign.core.local_checkpoints import CheckpointSummary
 from vibelign.core.checkpoint_engine.requests import (
     backup_db_maintenance_request,
     backup_db_viewer_inspect_request,
+    backup_graph_summary_request,
     checkpoint_create_request,
     checkpoint_diff_request,
     checkpoint_list_request,
@@ -27,6 +28,7 @@ from vibelign.core.checkpoint_engine.requests import (
 from vibelign.core.checkpoint_engine.responses import (
     parse_backup_db_maintenance,
     parse_backup_db_viewer_inspect,
+    parse_backup_graph_summary,
     parse_checkpoint_create,
     parse_checkpoint_list,
     parse_diff,
@@ -299,6 +301,15 @@ def maintain_backup_db_with_rust(
         timeout_seconds=_BACKUP_COMMAND_TIMEOUT_SECONDS,
     )
     return parse_backup_db_maintenance(result)
+
+
+def backup_graph_summary_with_rust(root: Path) -> tuple[dict[str, object] | None, str | None]:
+    result = call_rust_engine(
+        root,
+        backup_graph_summary_request(root),
+        timeout_seconds=_BACKUP_COMMAND_TIMEOUT_SECONDS,
+    )
+    return parse_backup_graph_summary(result)
 
 
 # === ANCHOR: CHECKPOINT_ENGINE_RUST_ENGINE_END ===

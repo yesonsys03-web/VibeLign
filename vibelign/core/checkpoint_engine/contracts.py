@@ -60,5 +60,7 @@ class CheckpointEngine(Protocol):
 
     def maintain_backup_db(self, root: Path, *, apply: bool = False) -> dict[str, object]: ...
 
+    def backup_graph_summary(self, root: Path) -> dict[str, object]: ...
+
 
 # === ANCHOR: CHECKPOINT_ENGINE_CONTRACTS_END ===

@@ -92,6 +92,11 @@ def maintain_backup_db(root: Path, *, apply: bool = False) -> dict[str, object]:
     return engine.maintain_backup_db(root, apply=apply)
 
 
+def backup_graph_summary(root: Path) -> dict[str, object]:
+    engine = get_checkpoint_engine()
+    return engine.backup_graph_summary(root)
+
+
 def get_last_restore_error() -> str:
     return get_checkpoint_engine().get_last_restore_error()
 

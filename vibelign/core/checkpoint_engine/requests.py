@@ -102,4 +102,8 @@ def backup_db_maintenance_request(root: Path, *, apply: bool = False) -> dict[st
     return {"command": "backup_db_maintenance", "root": str(root), "apply": apply}
 
 
+def backup_graph_summary_request(root: Path) -> dict[str, object]:
+    return {"command": "backup_graph_summary", "root": str(root)}
+
+
 # === ANCHOR: CHECKPOINT_ENGINE_REQUESTS_END ===

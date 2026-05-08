@@ -12,6 +12,7 @@ from vibelign.core.checkpoint_engine.contracts import CheckpointSummary, Retenti
 from vibelign.core.checkpoint_engine.python_engine import PythonCheckpointEngine
 from vibelign.core.checkpoint_engine.rust_engine import (
     apply_retention_with_rust,
+    backup_graph_summary_with_rust,
     create_checkpoint_with_rust,
     diff_checkpoints_with_rust,
     inspect_backup_db_with_rust,
@@ -230,6 +231,16 @@ class RustCheckpointEngine:
         _record_engine_state(root, "rust", None)
         return result
 
+    def backup_graph_summary(self, root: Path) -> dict[str, object]:
+        result, warning = backup_graph_summary_with_rust(root)
+        if result is None:
+            if _is_environment_fallback(warning) or _is_protocol_compatibility_fallback(warning):
+                self._record_fallback(root, warning or "rust backup graph summary unavailable")
+                return self._fallback.backup_graph_summary(root)
+            raise RuntimeError(warning or "Rust backup graph summary failed.")
+        _record_engine_state(root, "rust", None)
+        return result
+
     def get_last_restore_error(self) -> str:
         return self._last_restore_error or self._fallback.get_last_restore_error()
 
@@ -283,6 +294,12 @@ def _is_environment_fallback(reason: str | None) -> bool:
     if not reason:
         return False
     return any(marker in reason for marker in _ENV_FALLBACK_MARKERS)
+
+
+def _is_protocol_compatibility_fallback(reason: str | None) -> bool:
+    if not reason:
+        return False
+    return "RUST_ENGINE_PROTOCOL_ERROR" in reason or "unknown variant" in reason
 
 
 def _record_engine_state(root: Path, engine_used: str, reason: str | None) -> None:

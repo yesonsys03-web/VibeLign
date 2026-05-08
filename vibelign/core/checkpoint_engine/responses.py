@@ -140,6 +140,16 @@ def parse_backup_db_maintenance(
     return dict(result.payload), None
 
 
+def parse_backup_graph_summary(
+    result: RustResultLike,
+) -> tuple[dict[str, object] | None, str | None]:
+    if not result.ok:
+        return None, format_error(result, "rust backup graph summary failed")
+    if result.payload.get("result") != "backup_graph_summary":
+        return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected backup_graph_summary result"
+    return dict(result.payload), None
+
+
 def summary_from_payload(
     payload: dict[str, object], fallback_message: str = ""
 ) -> CheckpointSummary | None:
