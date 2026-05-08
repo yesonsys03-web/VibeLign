@@ -909,11 +909,17 @@ export async function anchorListMeta(cwd: string): Promise<Record<string, Anchor
   return parsed.data?.meta ?? {};
 }
 
-export async function checkpointCreate(cwd: string, message: string): Promise<unknown> {
+export interface CheckpointCreateResult {
+  ok?: boolean;
+  error?: string;
+  warning?: string | null;
+}
+
+export async function checkpointCreate(cwd: string, message: string): Promise<CheckpointCreateResult> {
   const res = await runVib(["checkpoint", message, "--json"], cwd);
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
-  const data = JSON.parse(res.stdout) as { ok?: boolean; error?: string };
-  if (data.ok === false) throw new Error(data.error ?? "checkpoint 실패");
+  const data = JSON.parse(res.stdout) as CheckpointCreateResult;
+  if (data.ok === false && data.error !== "no_changes") throw new Error(data.error ?? "checkpoint 실패");
   return data;
 }
 

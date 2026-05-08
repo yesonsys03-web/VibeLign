@@ -44,9 +44,9 @@ export default function Checkpoints({ projectDir }: CheckpointsProps) {
     setCreating(true);
     setError(null);
     try {
-      await checkpointCreate(projectDir, newMsg.trim());
+      const result = await checkpointCreate(projectDir, newMsg.trim());
       setNewMsg("");
-      setSuccessMsg("체크포인트 저장됨");
+      setSuccessMsg(result.error === "no_changes" ? "변경된 파일이 없어 새 백업을 만들지 않았어요. 기존 백업은 그대로 남아 있어요." : "체크포인트 저장됨");
       setTimeout(() => setSuccessMsg(null), 2000);
       load();
     } catch (e) {

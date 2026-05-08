@@ -12,16 +12,20 @@ interface CheckpointCardProps {
 export default function CheckpointCard({ projectDir, onNavigate }: CheckpointCardProps) {
   const [cpMsg, setCpMsg] = useState("");
   const [st, setSt] = useState<CardState>("idle");
+  const [statusMsg, setStatusMsg] = useState("");
 
   async function handleCheckpoint() {
     if (!cpMsg.trim()) return;
     setSt("loading");
+    setStatusMsg("");
     try {
-      await checkpointCreate(projectDir, cpMsg.trim());
+      const result = await checkpointCreate(projectDir, cpMsg.trim());
       setCpMsg("");
+      setStatusMsg(result.error === "no_changes" ? "변경된 파일이 없어 새 백업을 만들지 않았어요." : "저장됨");
       setSt("done");
-      setTimeout(() => setSt("idle"), 2000);
+      setTimeout(() => { setSt("idle"); setStatusMsg(""); }, 3000);
     } catch {
+      setStatusMsg("저장 실패");
       setSt("error");
     }
   }
@@ -52,6 +56,11 @@ export default function CheckpointCard({ projectDir, onNavigate }: CheckpointCar
         <button className="btn btn-ghost btn-sm" style={{ fontSize: 10, border: "2px solid #1A1A1A" }}
           onClick={() => onNavigate("backups")}>목록</button>
       </div>
+      {statusMsg && (
+        <div style={{ marginTop: 6, fontSize: 10, color: st === "error" ? "#FF4D4D" : "#555", fontWeight: 700, lineHeight: 1.4 }}>
+          {statusMsg}
+        </div>
+      )}
       <div style={{ marginTop: 8, fontSize: 10, color: "#666", lineHeight: 1.5 }}>
         BACKUPS의 <b>백업 범위</b>는 복원 가능한 원본 크기의 합계이고, 실제 디스크 사용량은 <b>Backup DB Viewer</b>에서 확인합니다. DB 파일이 커졌다면 <b>backup-db-maintenance</b>로 먼저 dry-run 점검 후 정리할 수 있어요.
       </div>
