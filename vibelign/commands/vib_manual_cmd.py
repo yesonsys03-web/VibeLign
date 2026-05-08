@@ -267,6 +267,28 @@ MANUAL: dict[str, ManualEntry] = {
             ("--json", "GUI/스크립트가 읽기 좋은 JSON으로 출력해요."),
         ],
     },
+    "backup-graph-summary": {
+        "emoji": "🗺️",
+        "title": "vib backup-graph-summary",
+        "one_line": "백업 범위 그래프 데이터를 작게 요약해요",
+        "what": (
+            "백업 DB의 파일 row 전체를 터미널/GUI로 보내지 않고, 폴더별 크기 트리만 읽기 전용으로 요약해요.\n"
+            "BACKUPS 탭의 백업 범위 그래프를 대용량 백업 기록에서도 빠르게 표시하기 위한 명령입니다."
+        ),
+        "when": [
+            "BACKUPS 탭에서 백업 범위 그래프를 빠르게 표시해야 할 때",
+            "checkpoint list JSON이 너무 커서 파일 row 전체 전송을 피하고 싶을 때",
+            "백업 DB를 수정하지 않고 그래프용 요약만 확인하고 싶을 때",
+        ],
+        "examples": [
+            ("vib backup-graph-summary --json", "현재 프로젝트의 그래프 요약 확인"),
+            ("vib backup-graph-summary --root /path/to/project --json", "다른 프로젝트 루트 그래프 요약 확인"),
+        ],
+        "options": [
+            ("--root", "확인할 프로젝트 루트예요. 안 쓰면 현재 폴더를 사용해요."),
+            ("--json", "GUI/스크립트가 읽기 좋은 JSON으로 출력해요."),
+        ],
+    },
     "backup-cleanup": {
         "emoji": "🧼",
         "title": "vib backup-cleanup",
@@ -1379,7 +1401,7 @@ GROUPS = [
     ("🏁 처음 시작", ["start", "init", "install"]),
     (
         "💾 세이브 & 되돌리기",
-        ["checkpoint", "undo", "history", "recover", "backup-db-viewer", "backup-db-maintenance", "backup-cleanup"],
+        ["checkpoint", "undo", "history", "recover", "backup-db-viewer", "backup-graph-summary", "backup-db-maintenance", "backup-cleanup"],
     ),
     ("🔬 점검 & 확인", ["doctor", "guard", "explain"]),
     ("✏️ AI 수정 요청", ["patch", "anchor", "scan", "plan-structure"]),
