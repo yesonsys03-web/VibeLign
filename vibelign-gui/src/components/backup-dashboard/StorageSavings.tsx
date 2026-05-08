@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type { BackupDashboardStats } from "./model";
 import { formatBytes } from "./model";
 import type { BackupEntry, BackupGraphNode } from "../../lib/vib";
-import { backupGraphSummary } from "../../lib/vib";
+import { backupGraphSummary, getCachedBackupGraphSummary } from "../../lib/vib";
 import BackupCard from "./BackupCard";
 import StorageRadialMap from "./StorageRadialMap";
 
@@ -14,9 +14,10 @@ interface StorageSavingsProps {
 }
 
 export default function StorageSavings({ stats, entries, projectDir }: StorageSavingsProps) {
-  const [graphRoot, setGraphRoot] = useState<BackupGraphNode | null>(null);
+  const cachedGraph = getCachedBackupGraphSummary(projectDir);
+  const [graphRoot, setGraphRoot] = useState<BackupGraphNode | null>(cachedGraph?.root ?? null);
   const [graphLoading, setGraphLoading] = useState(false);
-  const [graphMessage, setGraphMessage] = useState<string | null>(null);
+  const [graphMessage, setGraphMessage] = useState<string | null>(cachedGraph?.warnings[0] ?? null);
   const hasFileDetails = entries.some((entry) => entry.files.length > 0);
   const hasGraphDetails = hasFileDetails || (graphRoot?.sizeBytes ?? 0) > 0;
 
@@ -24,6 +25,13 @@ export default function StorageSavings({ stats, entries, projectDir }: StorageSa
     if (hasFileDetails) {
       setGraphRoot(null);
       setGraphMessage(null);
+      setGraphLoading(false);
+      return;
+    }
+    const cached = getCachedBackupGraphSummary(projectDir);
+    if (cached) {
+      setGraphRoot(cached.root);
+      setGraphMessage(cached.warnings[0] ?? null);
       setGraphLoading(false);
       return;
     }

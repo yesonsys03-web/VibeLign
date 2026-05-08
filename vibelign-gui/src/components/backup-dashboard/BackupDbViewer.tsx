@@ -1,7 +1,7 @@
 // === ANCHOR: BACKUPDBVIEWER_START ===
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BackupDbMaintenanceResult, BackupDbViewerInspectResult } from "../../lib/vib";
-import { backupCleanup, backupDbMaintenance, backupDbViewerInspect } from "../../lib/vib";
+import { backupCleanup, backupDbMaintenance, backupDbViewerInspect, getCachedBackupDbViewerInspect } from "../../lib/vib";
 import BackupCard from "./BackupCard";
 import BackupDbDetailPanel from "./BackupDbDetailPanel";
 import BackupDbRowList from "./BackupDbRowList";
@@ -17,8 +17,9 @@ const DB_SIZE_WARNING_BYTES = 64 * 1024 * 1024;
 const DB_SIZE_CRITICAL_BYTES = 256 * 1024 * 1024;
 
 export default function BackupDbViewer({ projectDir }: BackupDbViewerProps) {
-  const [report, setReport] = useState<BackupDbViewerInspectResult | null>(null);
-  const [loading, setLoading] = useState(false);
+  const cachedReport = getCachedBackupDbViewerInspect(projectDir);
+  const [report, setReport] = useState<BackupDbViewerInspectResult | null>(cachedReport ?? null);
+  const [loading, setLoading] = useState(!cachedReport);
   const [maintenanceLoading, setMaintenanceLoading] = useState(false);
   const [maintenancePlan, setMaintenancePlan] = useState<BackupDbMaintenanceResult | null>(null);
   const [maintenanceMessage, setMaintenanceMessage] = useState<string | null>(null);
@@ -26,11 +27,17 @@ export default function BackupDbViewer({ projectDir }: BackupDbViewerProps) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
+    const cached = getCachedBackupDbViewerInspect(projectDir);
+    if (!force && cached) {
+      setReport(cached);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const next = await backupDbViewerInspect(projectDir);
+      const next = await backupDbViewerInspect(projectDir, { force });
       setReport(next);
       if (next.dbFile.totalBytes >= DB_SIZE_WARNING_BYTES) {
         try {
@@ -74,7 +81,7 @@ export default function BackupDbViewer({ projectDir }: BackupDbViewerProps) {
         const prefix = isCritical ? `오래된 백업 ${pruned}개를 정리하고 ` : "";
         setMaintenanceMessage(`${prefix}DB 정리를 완료했어요. 회수한 공간: ${formatBytes(result.reclaimedBytes)}`);
       }
-      await load();
+      await load(true);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -90,10 +97,10 @@ export default function BackupDbViewer({ projectDir }: BackupDbViewerProps) {
   const showCriticalMaintenance = dbTotalBytes >= DB_SIZE_CRITICAL_BYTES;
   const canRunMaintenance = showMaintenanceHint && (maintenancePlan === null || maintenancePlan.blockers.length === 0);
   const visibleWarnings = (report?.warnings ?? []).filter((warning) => !warning.includes("백업 관리 DB 파일이 64MB") && !warning.includes("백업 관리 DB 파일이 256MB"));
+  // === ANCHOR: BACKUPDBVIEWER_SHOWMAINTENANCEHINT_END ===
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
-  // === ANCHOR: BACKUPDBVIEWER_SHOWMAINTENANCEHINT_END ===
       <div className="alert alert-success" style={{ margin: 0 }}>읽기 전용입니다. 복원에 쓰이는 값은 수정하지 않습니다.</div>
       {showMaintenanceHint && (
         <div className="alert" style={{ alignItems: "center", display: "flex", gap: 10, justifyContent: "space-between", margin: 0 }}>
@@ -125,7 +132,7 @@ export default function BackupDbViewer({ projectDir }: BackupDbViewerProps) {
         actions={
           <>
             <input className="input-field" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="DB row 검색" style={{ width: 160, fontSize: 11 }} />
-            <button type="button" className="btn btn-ghost btn-sm" onClick={load} disabled={loading}>{loading ? <span className="spinner" /> : "새로고침"}</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => load(true)} disabled={loading}>{loading ? <span className="spinner" /> : "새로고침"}</button>
           </>
         }
       >

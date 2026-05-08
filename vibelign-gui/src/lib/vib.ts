@@ -920,6 +920,7 @@ export async function checkpointCreate(cwd: string, message: string): Promise<Ch
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
   const data = JSON.parse(res.stdout) as CheckpointCreateResult;
   if (data.ok === false && data.error !== "no_changes") throw new Error(data.error ?? "checkpoint 실패");
+  if (data.ok !== false) clearBackupCaches(cwd);
   return data;
 }
 
@@ -1378,13 +1379,31 @@ function normalizeBackupFileEntry(raw: RawCheckpointFileEntry): BackupFileEntry 
 }
 
 export async function backupCreate(cwd: string, note: string): Promise<unknown> {
-  return checkpointCreate(cwd, note);
+  const result = await checkpointCreate(cwd, note);
+  clearBackupCaches(cwd);
+  return result;
 }
 
 const backupListCache = new Map<string, BackupListResult>();
+const backupDbViewerInspectCache = new Map<string, BackupDbViewerInspectResult>();
+const backupGraphSummaryCache = new Map<string, BackupGraphSummaryResult>();
+
+function clearBackupCaches(cwd: string): void {
+  backupListCache.delete(cwd);
+  backupDbViewerInspectCache.delete(cwd);
+  backupGraphSummaryCache.delete(cwd);
+}
 
 export function getCachedBackupList(cwd: string): BackupListResult | undefined {
   return backupListCache.get(cwd);
+}
+
+export function getCachedBackupDbViewerInspect(cwd: string): BackupDbViewerInspectResult | undefined {
+  return backupDbViewerInspectCache.get(cwd);
+}
+
+export function getCachedBackupGraphSummary(cwd: string): BackupGraphSummaryResult | undefined {
+  return backupGraphSummaryCache.get(cwd);
 }
 
 export async function backupList(cwd: string): Promise<BackupListResult> {
@@ -1417,28 +1436,44 @@ export async function backupList(cwd: string): Promise<BackupListResult> {
   return result;
 }
 
-export async function backupDbViewerInspect(cwd: string): Promise<BackupDbViewerInspectResult> {
+export async function backupDbViewerInspect(cwd: string, options?: { force?: boolean }): Promise<BackupDbViewerInspectResult> {
+  if (!options?.force) {
+    const cached = backupDbViewerInspectCache.get(cwd);
+    if (cached) return cached;
+  }
   const res = await runVib(["backup-db-viewer", "--json"], cwd);
   const stdout = res.stdout.trim();
   if (!res.ok && stdout.startsWith("{")) {
     const parsed = JSON.parse(stdout) as RawBackupDbViewerInspectResult;
-    return parseBackupDbViewerInspectResult(parsed);
+    const result = parseBackupDbViewerInspectResult(parsed);
+    backupDbViewerInspectCache.set(cwd, result);
+    return result;
   }
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
   const parsed = JSON.parse(stdout) as RawBackupDbViewerInspectResult;
-  return parseBackupDbViewerInspectResult(parsed);
+  const result = parseBackupDbViewerInspectResult(parsed);
+  backupDbViewerInspectCache.set(cwd, result);
+  return result;
 }
 
-export async function backupGraphSummary(cwd: string): Promise<BackupGraphSummaryResult> {
+export async function backupGraphSummary(cwd: string, options?: { force?: boolean }): Promise<BackupGraphSummaryResult> {
+  if (!options?.force) {
+    const cached = backupGraphSummaryCache.get(cwd);
+    if (cached) return cached;
+  }
   const res = await runVib(["backup-graph-summary", "--json"], cwd);
   const stdout = res.stdout.trim();
   if (!res.ok && stdout.startsWith("{")) {
     const parsed = JSON.parse(stdout) as RawBackupGraphSummaryResult;
-    return parseBackupGraphSummaryResult(parsed);
+    const result = parseBackupGraphSummaryResult(parsed);
+    backupGraphSummaryCache.set(cwd, result);
+    return result;
   }
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
   const parsed = JSON.parse(stdout) as RawBackupGraphSummaryResult;
-  return parseBackupGraphSummaryResult(parsed);
+  const result = parseBackupGraphSummaryResult(parsed);
+  backupGraphSummaryCache.set(cwd, result);
+  return result;
 }
 
 export async function backupDbMaintenance(cwd: string, apply = false): Promise<BackupDbMaintenanceResult> {
@@ -1447,11 +1482,15 @@ export async function backupDbMaintenance(cwd: string, apply = false): Promise<B
   const stdout = res.stdout.trim();
   if (!res.ok && stdout.startsWith("{")) {
     const parsed = JSON.parse(stdout) as RawBackupDbMaintenanceResult;
-    return parseBackupDbMaintenanceResult(parsed);
+    const result = parseBackupDbMaintenanceResult(parsed);
+    if (apply) clearBackupCaches(cwd);
+    return result;
   }
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
   const parsed = JSON.parse(stdout) as RawBackupDbMaintenanceResult;
-  return parseBackupDbMaintenanceResult(parsed);
+  const result = parseBackupDbMaintenanceResult(parsed);
+  if (apply) clearBackupCaches(cwd);
+  return result;
 }
 
 export async function backupCleanup(cwd: string): Promise<BackupCleanupResult> {
@@ -1459,15 +1498,21 @@ export async function backupCleanup(cwd: string): Promise<BackupCleanupResult> {
   const stdout = res.stdout.trim();
   if (!res.ok && stdout.startsWith("{")) {
     const parsed = JSON.parse(stdout) as RawBackupCleanupResult;
-    return parseBackupCleanupResult(parsed);
+    const result = parseBackupCleanupResult(parsed);
+    clearBackupCaches(cwd);
+    return result;
   }
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
   const parsed = JSON.parse(stdout) as RawBackupCleanupResult;
-  return parseBackupCleanupResult(parsed);
+  const result = parseBackupCleanupResult(parsed);
+  clearBackupCaches(cwd);
+  return result;
 }
 
 export async function backupRestore(cwd: string, backupId: string): Promise<unknown> {
-  return undoCheckpoint(cwd, backupId);
+  const result = await undoCheckpoint(cwd, backupId);
+  clearBackupCaches(cwd);
+  return result;
 }
 
 export interface GuardIssue { found: string; next_step: string; path: string }
