@@ -1013,6 +1013,28 @@ export interface BackupDbViewerInspectResult {
   warnings: string[];
 }
 
+export interface BackupDbMaintenanceResult {
+  dbExists: boolean;
+  mode: string;
+  plannedAction: string;
+  vacuumRecommended: boolean;
+  checkpointRecommended: boolean;
+  reclaimedBytes: number;
+  blockers: string[];
+  warnings: string[];
+}
+
+export interface BackupCleanupResult {
+  retention: {
+    count: number;
+    plannedCount: number;
+    plannedBytes: number;
+    reclaimedBytes: number;
+    partialFailure: boolean;
+  };
+  maintenance: BackupDbMaintenanceResult;
+}
+
 export interface BackupListResult {
   backups: BackupEntry[];
   warning?: string | null;
@@ -1106,6 +1128,32 @@ interface RawBackupDbViewerInspectResult {
   warnings?: string[] | null;
 }
 
+interface RawBackupDbMaintenanceResult {
+  ok?: boolean;
+  error?: string;
+  db_exists?: boolean;
+  mode?: string | null;
+  planned_action?: string | null;
+  vacuum_recommended?: boolean | null;
+  checkpoint_recommended?: boolean | null;
+  reclaimed_bytes?: number | null;
+  blockers?: string[] | null;
+  warnings?: string[] | null;
+}
+
+interface RawBackupCleanupResult {
+  ok?: boolean;
+  error?: string;
+  retention?: {
+    count?: number | null;
+    planned_count?: number | null;
+    planned_bytes?: number | null;
+    reclaimed_bytes?: number | null;
+    partial_failure?: boolean | null;
+  } | null;
+  maintenance?: RawBackupDbMaintenanceResult | null;
+}
+
 function readNumber(value: number | null | undefined): number {
   return typeof value === "number" ? value : 0;
 }
@@ -1191,6 +1239,35 @@ function parseBackupDbViewerInspectResult(raw: RawBackupDbViewerInspectResult): 
   };
 }
 
+function parseBackupDbMaintenanceResult(raw: RawBackupDbMaintenanceResult): BackupDbMaintenanceResult {
+  if (raw.ok === false) throw new Error(raw.error ?? "Backup DB maintenance 실패");
+  return {
+    dbExists: raw.db_exists === true,
+    mode: raw.mode ?? "dry_run",
+    plannedAction: raw.planned_action ?? "noop",
+    vacuumRecommended: raw.vacuum_recommended === true,
+    checkpointRecommended: raw.checkpoint_recommended === true,
+    reclaimedBytes: readNumber(raw.reclaimed_bytes),
+    blockers: Array.isArray(raw.blockers) ? raw.blockers.filter((item): item is string => typeof item === "string") : [],
+    warnings: Array.isArray(raw.warnings) ? raw.warnings.filter((item): item is string => typeof item === "string") : [],
+  };
+}
+
+function parseBackupCleanupResult(raw: RawBackupCleanupResult): BackupCleanupResult {
+  if (raw.ok === false) throw new Error(raw.error ?? "Backup cleanup 실패");
+  const retention = raw.retention ?? {};
+  return {
+    retention: {
+      count: readNumber(retention.count),
+      plannedCount: readNumber(retention.planned_count),
+      plannedBytes: readNumber(retention.planned_bytes),
+      reclaimedBytes: readNumber(retention.reclaimed_bytes),
+      partialFailure: retention.partial_failure === true,
+    },
+    maintenance: parseBackupDbMaintenanceResult(raw.maintenance ?? {}),
+  };
+}
+
 function backupSourceKind(trigger?: string | null): BackupSourceKind {
   if (trigger === "post_commit") return "auto";
   if (trigger === "safe_restore") return "safe";
@@ -1223,6 +1300,19 @@ function normalizeBackupEntry(raw: RawCheckpointEntry): BackupEntry {
   };
 }
 
+function normalizeBackupEntryFromDbRow(row: BackupDbViewerCheckpointRow): BackupEntry {
+  return {
+    id: row.checkpointId,
+    note: row.displayName || "메모 없는 저장본",
+    createdAt: row.createdAt,
+    fileCount: row.fileCount,
+    totalSizeBytes: row.originalSizeBytes || row.totalSizeBytes,
+    files: [],
+    sourceKind: backupSourceKind(row.trigger),
+    commitNote: row.gitCommitMessage ?? undefined,
+  };
+}
+
 function normalizeBackupFileEntry(raw: RawCheckpointFileEntry): BackupFileEntry | null {
   const path = raw.relative_path ?? raw.path;
   if (!path) return null;
@@ -1238,12 +1328,28 @@ export async function backupCreate(cwd: string, note: string): Promise<unknown> 
 }
 
 const backupListCache = new Map<string, BackupListResult>();
+const backupListWithFilesCache = new Map<string, BackupListResult>();
 
 export function getCachedBackupList(cwd: string): BackupListResult | undefined {
   return backupListCache.get(cwd);
 }
 
 export async function backupList(cwd: string): Promise<BackupListResult> {
+  try {
+    const report = await backupDbViewerInspect(cwd);
+    if (report.dbExists) {
+      const result: BackupListResult = {
+        backups: report.checkpoints
+          .map(normalizeBackupEntryFromDbRow)
+          .filter((entry) => entry.id && entry.sourceKind !== "safe"),
+        warning: report.warnings[0] ?? null,
+      };
+      backupListCache.set(cwd, result);
+      return result;
+    }
+  } catch {
+    // Fall back to the older checkpoint list path so legacy projects still load.
+  }
   const data = await checkpointList(cwd) as {
     checkpoints?: RawCheckpointEntry[];
     warning?: string | null;
@@ -1258,6 +1364,23 @@ export async function backupList(cwd: string): Promise<BackupListResult> {
   return result;
 }
 
+export async function backupListWithFiles(cwd: string): Promise<BackupListResult> {
+  const cached = backupListWithFilesCache.get(cwd);
+  if (cached) return cached;
+  const data = await checkpointList(cwd) as {
+    checkpoints?: RawCheckpointEntry[];
+    warning?: string | null;
+  };
+  const result: BackupListResult = {
+    backups: (data.checkpoints ?? [])
+      .map(normalizeBackupEntry)
+      .filter((entry) => entry.id && entry.sourceKind !== "safe"),
+    warning: data.warning ?? null,
+  };
+  backupListWithFilesCache.set(cwd, result);
+  return result;
+}
+
 export async function backupDbViewerInspect(cwd: string): Promise<BackupDbViewerInspectResult> {
   const res = await runVib(["backup-db-viewer", "--json"], cwd);
   const stdout = res.stdout.trim();
@@ -1268,6 +1391,31 @@ export async function backupDbViewerInspect(cwd: string): Promise<BackupDbViewer
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
   const parsed = JSON.parse(stdout) as RawBackupDbViewerInspectResult;
   return parseBackupDbViewerInspectResult(parsed);
+}
+
+export async function backupDbMaintenance(cwd: string, apply = false): Promise<BackupDbMaintenanceResult> {
+  const args = apply ? ["backup-db-maintenance", "--apply", "--json"] : ["backup-db-maintenance", "--json"];
+  const res = await runVib(args, cwd);
+  const stdout = res.stdout.trim();
+  if (!res.ok && stdout.startsWith("{")) {
+    const parsed = JSON.parse(stdout) as RawBackupDbMaintenanceResult;
+    return parseBackupDbMaintenanceResult(parsed);
+  }
+  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  const parsed = JSON.parse(stdout) as RawBackupDbMaintenanceResult;
+  return parseBackupDbMaintenanceResult(parsed);
+}
+
+export async function backupCleanup(cwd: string): Promise<BackupCleanupResult> {
+  const res = await runVib(["backup-cleanup", "--json"], cwd);
+  const stdout = res.stdout.trim();
+  if (!res.ok && stdout.startsWith("{")) {
+    const parsed = JSON.parse(stdout) as RawBackupCleanupResult;
+    return parseBackupCleanupResult(parsed);
+  }
+  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  const parsed = JSON.parse(stdout) as RawBackupCleanupResult;
+  return parseBackupCleanupResult(parsed);
 }
 
 export async function backupRestore(cwd: string, backupId: string): Promise<unknown> {
