@@ -1,5 +1,6 @@
 import json
 import os
+import sqlite3
 import subprocess
 import tempfile
 import unittest
@@ -466,6 +467,46 @@ class GuiCliContractsTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertFalse(payload["ok"])
         self.assertIn("백업 관리 DB를 읽을 수 없어요", str(payload["error"]))
+
+    def test_backup_db_viewer_falls_back_for_older_rust_sidecar(self):
+        from vibelign.core.checkpoint_engine.rust_checkpoint_engine import RustCheckpointEngine
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta = root / ".vibelign"
+            meta.mkdir()
+            conn = sqlite3.connect(meta / "vibelign.db")
+            try:
+                conn.execute("CREATE TABLE db_meta(key TEXT PRIMARY KEY, value TEXT)")
+                conn.execute("INSERT INTO db_meta(key, value) VALUES ('schema_version', '3')")
+                conn.execute(
+                    "CREATE TABLE checkpoints("
+                    "checkpoint_id TEXT PRIMARY KEY, created_at TEXT, message TEXT, pinned INTEGER, "
+                    "total_size_bytes INTEGER, file_count INTEGER, engine_version TEXT, "
+                    "original_size_bytes INTEGER, stored_size_bytes INTEGER, trigger TEXT)"
+                )
+                conn.execute(
+                    "INSERT INTO checkpoints VALUES "
+                    "('cp_1', '2026-05-08T10:00:00+09:00', 'vibelign: checkpoint - save', 0, 10, 1, 'rust-v2', 20, 10, 'manual')"
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            with patch(
+                "vibelign.core.checkpoint_engine.rust_checkpoint_engine.inspect_backup_db_with_rust",
+                return_value=(
+                    None,
+                    "RUST_ENGINE_INVALID_JSON: unknown variant `backup_db_viewer_inspect`",
+                ),
+            ):
+                report = RustCheckpointEngine().inspect_backup_db(root)
+
+        self.assertTrue(report["db_exists"])
+        self.assertEqual(report["result"], "backup_db_viewer_inspect")
+        self.assertEqual(report["checkpoint_count"], 1)
+        self.assertEqual(report["rust_v2_count"], 1)
+        self.assertEqual(cast(list[dict[str, object]], report["checkpoints"])[0]["display_name"], "save")
 
     def test_backup_graph_summary_json_contract(self):
         with tempfile.TemporaryDirectory() as tmp:

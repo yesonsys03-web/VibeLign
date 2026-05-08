@@ -220,6 +220,9 @@ class RustCheckpointEngine:
     def inspect_backup_db(self, root: Path) -> dict[str, object]:
         result, warning = inspect_backup_db_with_rust(root)
         if result is None:
+            if _is_environment_fallback(warning) or _is_protocol_compatibility_fallback(warning):
+                self._record_fallback(root, warning or "rust backup DB viewer unavailable")
+                return self._fallback.inspect_backup_db(root)
             raise RuntimeError(warning or "Rust backup DB viewer inspect failed.")
         _record_engine_state(root, "rust", None)
         return result
