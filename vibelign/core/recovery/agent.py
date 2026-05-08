@@ -5,6 +5,7 @@ Slice A is recommend-only. This module never applies recovery operations.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -46,13 +47,81 @@ _CONFIDENCE_LEVELS = {"high", "medium", "low"}
 _DIFF_SMALL_FILE_LIMIT = 10
 _PACKET_BYTE_CAP = 32 * 1024
 _SCHEMA_VERSION = "recovery_packet_v1"
-_PROMPT_VERSION = "v1"
+_PROMPT_VERSION = "v3"
+
+
+def _without_schema_key(value: object, key_to_remove: str) -> object:
+    if isinstance(value, dict):
+        return {str(key): _without_schema_key(item, key_to_remove) for key, item in value.items() if key != key_to_remove}
+    if isinstance(value, list):
+        return [_without_schema_key(item, key_to_remove) for item in value]
+    return value
+
+
+_LLM_RESPONSE_SCHEMA: dict[str, object] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["interpreted_goal", "ranked_candidates", "uncertainties", "should_apply", "should_write_memory"],
+    "properties": {
+        "interpreted_goal": {"type": "string"},
+        "ranked_candidates": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "candidate_id",
+                    "rank",
+                    "confidence",
+                    "reason",
+                    "expected_loss",
+                    "recommended_action_type",
+                    "requires_user_confirmation",
+                ],
+                "properties": {
+                    "candidate_id": {"type": "string"},
+                    "rank": {"type": "integer", "minimum": 1},
+                    "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+                    "reason": {"type": "string"},
+                    "expected_loss": {"type": "array", "items": {"type": "string"}},
+                    "recommended_action_type": {"type": "string"},
+                    "requires_user_confirmation": {"type": "boolean"},
+                },
+            },
+        },
+        "uncertainties": {"type": "array", "items": {"type": "string"}},
+        "should_apply": {"type": "boolean"},
+        "should_write_memory": {"type": "boolean"},
+    },
+}
 _CACHE_FILENAME_PREFIX = "rec_"
 _PROVIDER_PRIORITY: tuple[tuple[str, str], ...] = (
     ("anthropic", "ANTHROPIC_API_KEY"),
     ("openai", "OPENAI_API_KEY"),
     ("gemini", "GEMINI_API_KEY"),
 )
+
+
+def _candidate_ids_from_packet(packet: RecoveryContextPacket) -> set[str]:
+    candidate_ids: set[str] = set()
+    for candidate in packet.candidates:
+        candidate_id = candidate.get("candidate_id")
+        if isinstance(candidate_id, str):
+            candidate_ids.add(candidate_id)
+    return candidate_ids
+
+
+def _response_schema_for_candidate_ids(candidate_ids: set[str]) -> dict[str, object]:
+    schema = cast(dict[str, object], copy.deepcopy(_LLM_RESPONSE_SCHEMA))
+    properties = cast(dict[str, object], schema["properties"])
+    ranked_candidates = cast(dict[str, object], properties["ranked_candidates"])
+    ranked_item = cast(dict[str, object], ranked_candidates["items"])
+    ranked_item_properties = cast(dict[str, object], ranked_item["properties"])
+    candidate_id_schema = cast(dict[str, object], ranked_item_properties["candidate_id"])
+    candidate_id_schema["enum"] = sorted(candidate_ids)
+    return schema
 
 
 @dataclass(frozen=True)
@@ -128,15 +197,16 @@ class RecoveryAutoLLMProvider:
 
     def call(self, packet: RecoveryContextPacket) -> dict[str, object]:
         prompt = build_llm_prompt(packet)
+        schema = _response_schema_for_candidate_ids(_candidate_ids_from_packet(packet))
         errors: list[str] = []
         for candidate in self.candidates:
             try:
                 if candidate.provider == "anthropic":
                     return _call_anthropic(candidate.api_key, candidate.model, prompt)
                 if candidate.provider == "openai":
-                    return _call_openai(candidate.api_key, candidate.model, prompt)
+                    return _call_openai(candidate.api_key, candidate.model, prompt, schema)
                 if candidate.provider == "gemini":
-                    return _call_gemini(candidate.api_key, candidate.model, prompt)
+                    return _call_gemini(candidate.api_key, candidate.model, prompt, schema)
                 raise RuntimeError(f"unsupported recovery LLM provider: {candidate.provider}")
             except Exception as exc:
                 errors.append(f"{candidate.provider}: {_brief_error(exc)}")
@@ -153,8 +223,10 @@ def resolve_auto_llm_provider() -> LLMProvider | None:
 
 
 def build_llm_prompt(packet: RecoveryContextPacket) -> str:
+    candidate_ids = [str(candidate.get("candidate_id")) for candidate in packet.candidates if isinstance(candidate.get("candidate_id"), str)]
     return (
         "You are VibeLign's recovery safety reviewer. Rank restore candidates for a user who may not know Git.\n"
+        f"Valid candidate_id values: {_json_dump(candidate_ids)}\n"
         "Return JSON only with this shape:\n"
         '{"interpreted_goal":"short user goal",'
         '"ranked_candidates":[{"candidate_id":"id from input","rank":1,'
@@ -164,6 +236,9 @@ def build_llm_prompt(packet: RecoveryContextPacket) -> str:
         '"requires_user_confirmation":true}],'
         '"uncertainties":["unknowns"],"should_apply":false,"should_write_memory":false}\n'
         "Rules:\n"
+        "- ranked_candidates must contain at least one item when the input candidates list is non-empty.\n"
+        "- If evidence is weak or uncertain, still rank the best available candidate with confidence low and explain the uncertainty.\n"
+        "- Do not invent sentinel IDs such as none_available, no_match, or no_candidate; choose one valid candidate_id above.\n"
         "- Use only candidate_id values from the input.\n"
         "- Prefer checkpoints right after commits, small diffs, fresh verification, clean protected paths, and time matches.\n"
         "- Never recommend applying automatically; always keep should_apply false.\n"
@@ -214,12 +289,15 @@ def _call_anthropic(api_key: str, model: str, prompt: str) -> dict[str, object]:
     return _extract_json_object(text)
 
 
-def _call_openai(api_key: str, model: str, prompt: str) -> dict[str, object]:
+def _call_openai(api_key: str, model: str, prompt: str, schema: dict[str, object]) -> dict[str, object]:
     payload = json.dumps(
         {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
-            "response_format": {"type": "json_object"},
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {"name": "recovery_ranking", "strict": True, "schema": schema},
+            },
         }
     ).encode("utf-8")
     req = urllib.request.Request(
@@ -239,11 +317,14 @@ def _call_openai(api_key: str, model: str, prompt: str) -> dict[str, object]:
     return _extract_json_object(text)
 
 
-def _call_gemini(api_key: str, model: str, prompt: str) -> dict[str, object]:
+def _call_gemini(api_key: str, model: str, prompt: str, schema: dict[str, object]) -> dict[str, object]:
     payload = json.dumps(
         {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"responseMimeType": "application/json"},
+            "generationConfig": {
+                "responseMimeType": "application/json",
+                "responseSchema": _without_schema_key(schema, "additionalProperties"),
+            },
         }
     ).encode("utf-8")
     req = urllib.request.Request(
@@ -342,7 +423,7 @@ def pre_rank_candidates(
             0 if _has_verification(candidate) else 1,
         )
 
-    return sorted(candidates, key=lambda candidate: (*bucket(candidate), _reverse_iso(candidate.created_at)))[:top_n]
+    return sorted(candidates, key=lambda candidate: (*bucket(candidate), _recency_sort_key(candidate.created_at)))[:top_n]
 
 
 def compute_evidence_score(
@@ -475,6 +556,8 @@ def recommend_candidates(
     pre_ranked = pre_rank_candidates(candidates, time_window=time_window)
     protected_globs = tuple(get_protected(project_root))
     protected_clean = _protected_paths_clean(pre_ranked, protected_globs)
+    if not pre_ranked:
+        return _deterministic_outcome(pre_ranked, time_window, protected_clean, None)
     if provider is None:
         return _deterministic_outcome(pre_ranked, time_window, protected_clean, None)
     packet = build_recovery_context_packet(user_phrase, pre_ranked, time_window, protected_globs)
@@ -488,7 +571,15 @@ def recommend_candidates(
     used_cache = cached is not None
     try:
         raw = cached.raw if cached else provider.call(packet)
-        validated = validate_llm_ranking(raw, allowed_ids={candidate.candidate_id for candidate in pre_ranked})
+        allowed_ids = [candidate.candidate_id for candidate in pre_ranked]
+        try:
+            validated = validate_llm_ranking(raw, allowed_ids=set(allowed_ids))
+        except LLMValidationError:
+            repaired = _repair_ranked_candidate_ids(raw, allowed_ids)
+            if repaired is None:
+                raise
+            validated = validate_llm_ranking(repaired, allowed_ids=set(allowed_ids))
+            raw = repaired
     except TimeoutError:
         return _deterministic_outcome(pre_ranked, time_window, protected_clean, "llm timeout")
     except LLMValidationError as exc:
@@ -554,6 +645,43 @@ def _brief_error(exc: Exception) -> str:
     return f"{type(exc).__name__}: {message}" if message else type(exc).__name__
 
 
+def _repair_ranked_candidate_ids(raw: dict[str, object], allowed_ids: list[str]) -> dict[str, object] | None:
+    ranked_raw = raw.get("ranked_candidates")
+    if not allowed_ids or not isinstance(ranked_raw, list) or not ranked_raw:
+        return None
+    repaired_ranked: list[object] = []
+    next_allowed_index = 0
+    changed = False
+    used_ids: set[str] = set()
+    for entry in ranked_raw:
+        if not isinstance(entry, dict):
+            repaired_ranked.append(entry)
+            continue
+        entry_dict = dict(cast(dict[str, object], entry))
+        candidate_id = entry_dict.get("candidate_id")
+        if isinstance(candidate_id, str) and candidate_id in allowed_ids:
+            used_ids.add(candidate_id)
+            repaired_ranked.append(entry_dict)
+            continue
+        while next_allowed_index < len(allowed_ids) and allowed_ids[next_allowed_index] in used_ids:
+            next_allowed_index += 1
+        if next_allowed_index >= len(allowed_ids):
+            return None
+        replacement_id = allowed_ids[next_allowed_index]
+        used_ids.add(replacement_id)
+        entry_dict["candidate_id"] = replacement_id
+        if entry_dict.get("confidence") not in _CONFIDENCE_LEVELS:
+            entry_dict["confidence"] = "low"
+        reason = entry_dict.get("reason")
+        if not isinstance(reason, str) or not reason:
+            entry_dict["reason"] = "AI returned an invalid candidate_id, so VibeLign mapped this to the best available candidate."
+        changed = True
+        repaired_ranked.append(entry_dict)
+    if not changed:
+        return None
+    return {**raw, "ranked_candidates": repaired_ranked}
+
+
 def _candidate_in_window(candidate: RecoveryCandidate, time_window: TimeWindow | None) -> bool:
     if time_window is None:
         return True
@@ -581,8 +709,14 @@ def _has_verification(candidate: RecoveryCandidate) -> bool:
     return bool(status) and status != "unknown"
 
 
-def _reverse_iso(value: str) -> str:
-    return "".join(chr(255 - ord(char)) for char in value)
+def _recency_sort_key(value: str) -> tuple[int, float, str]:
+    try:
+        created_at = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return (1, 0.0, value)
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    return (0, -created_at.astimezone(timezone.utc).timestamp(), "")
 
 
 def _candidate_payload(candidate: RecoveryCandidate, protected_globs: tuple[str, ...]) -> dict[str, object]:

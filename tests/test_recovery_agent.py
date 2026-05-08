@@ -9,6 +9,7 @@ from vibelign.core.recovery.agent import (
     LLMValidationError,
     RecommendationOutcome,
     build_recovery_context_packet,
+    build_llm_prompt,
     cache_key,
     compute_evidence_score,
     is_agent_enabled,
@@ -114,6 +115,15 @@ def test_pre_rank_prefers_time_commit_verification_then_recency() -> None:
     assert [item.candidate_id for item in ranked] == ["commit", "old_verified"]
 
 
+def test_pre_rank_handles_non_iso_created_at_without_crashing() -> None:
+    recent = _candidate("recent", "manual_checkpoint", "2026-05-04T11:40:00Z")
+    legacy = _candidate("legacy", "manual_checkpoint", "최근 저장됨")
+
+    ranked = pre_rank_candidates([legacy, recent], time_window=None)
+
+    assert [item.candidate_id for item in ranked] == ["recent", "legacy"]
+
+
 def test_compute_evidence_score_sets_expected_flags() -> None:
     candidate = _candidate(
         "c1",
@@ -149,6 +159,16 @@ def test_context_packet_redacts_caps_and_hashes() -> None:
     assert packet.packet_hash
     redacted_paths = packet.candidates[0]["changed_files_since_previous"] if packet.candidates else []
     assert packet.candidates == [] or (isinstance(redacted_paths, list) and "<protected>" in redacted_paths)
+
+
+def test_llm_prompt_and_schema_require_non_empty_ranking() -> None:
+    candidate = _candidate("c1", "git_commit", "2026-05-04T11:55:00Z", commit_hash="abc")
+    packet = build_recovery_context_packet("rollback", [candidate], None, ())
+
+    prompt = build_llm_prompt(packet)
+
+    assert "ranked_candidates must contain at least one item" in prompt
+    assert "still rank the best available candidate" in prompt
 
 
 def test_validate_llm_ranking_rejects_bad_candidate_and_forces_no_apply() -> None:
@@ -202,6 +222,7 @@ class _FakeProvider:
         return "v1"
 
     def call(self, packet: object) -> dict[str, object]:
+        _ = packet
         return {
             "interpreted_goal": "rollback safely",
             "ranked_candidates": [
@@ -210,6 +231,41 @@ class _FakeProvider:
                     "rank": 1,
                     "confidence": "high",
                     "reason": "commit boundary with small diff",
+                    "expected_loss": [],
+                }
+            ],
+        }
+
+
+class _EmptyRankingProvider:
+    def model_id(self) -> str:
+        return "fake:model"
+
+    def prompt_version(self) -> str:
+        return "v1"
+
+    def call(self, packet: object) -> dict[str, object]:
+        _ = packet
+        return {"interpreted_goal": "rollback safely", "ranked_candidates": []}
+
+
+class _InvalidCandidateProvider:
+    def model_id(self) -> str:
+        return "fake:model"
+
+    def prompt_version(self) -> str:
+        return "v1"
+
+    def call(self, packet: object) -> dict[str, object]:
+        _ = packet
+        return {
+            "interpreted_goal": "rollback safely",
+            "ranked_candidates": [
+                {
+                    "candidate_id": "none_available",
+                    "rank": 1,
+                    "confidence": "low",
+                    "reason": "Evidence is weak, but this is the safest available recovery point.",
                     "expected_loss": [],
                 }
             ],
@@ -225,6 +281,39 @@ def test_recommend_candidates_uses_provider_when_available(tmp_path: Path) -> No
     assert outcome.interpreted_goal == "rollback safely"
     assert outcome.recommendations[0].llm_confidence is not None
     assert outcome.recommendations[0].llm_confidence.level == "high"
+
+
+def test_recommend_candidates_falls_back_when_provider_returns_empty_ranking(tmp_path: Path) -> None:
+    candidates = [_candidate("c1", "git_commit", "2026-05-04T11:00:00Z", commit_hash="abc")]
+
+    outcome = recommend_candidates(
+        tmp_path,
+        "rollback",
+        candidates,
+        provider=_EmptyRankingProvider(),
+        cfg=AgentConfig(tmp_path / "cache"),
+    )
+
+    assert outcome.provider == "deterministic"
+    assert outcome.fallback_reason == "llm validation failed: ranked_candidates must be a non-empty list"
+    assert outcome.recommendations[0].llm_confidence is None
+
+
+def test_recommend_candidates_repairs_invalid_provider_candidate_id(tmp_path: Path) -> None:
+    candidates = [_candidate("c1", "git_commit", "2026-05-04T11:00:00Z", commit_hash="abc")]
+
+    outcome = recommend_candidates(
+        tmp_path,
+        "rollback",
+        candidates,
+        provider=_InvalidCandidateProvider(),
+        cfg=AgentConfig(tmp_path / "cache"),
+    )
+
+    assert outcome.provider == "llm"
+    assert outcome.fallback_reason is None
+    assert outcome.recommendations[0].candidate.candidate_id == "c1"
+    assert outcome.recommendations[0].llm_confidence is not None
 
 
 def test_resolve_auto_llm_provider_prefers_stored_key(monkeypatch) -> None:
