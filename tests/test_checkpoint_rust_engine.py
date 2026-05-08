@@ -51,6 +51,39 @@ def _write_hash(path: Path) -> None:
 
 
 class CheckpointRustEngineTest(unittest.TestCase):
+    def test_rust_engine_lists_legacy_python_checkpoints_when_db_is_empty(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "app.py").write_text("print('legacy')\n", encoding="utf-8")
+            legacy = local_checkpoints.create_checkpoint(root, "legacy checkpoint")
+            self.assertIsNotNone(legacy)
+
+            with patch(
+                "vibelign.core.checkpoint_engine.rust_checkpoint_engine.list_checkpoints_with_rust",
+                return_value=([], None),
+            ):
+                checkpoints = RustCheckpointEngine().list_checkpoints(root)
+
+            self.assertEqual([item.checkpoint_id for item in checkpoints], [legacy.checkpoint_id])
+
+    def test_rust_engine_restores_legacy_python_checkpoint_when_db_misses_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "app.py"
+            target.write_text("print('legacy')\n", encoding="utf-8")
+            legacy = local_checkpoints.create_checkpoint(root, "legacy checkpoint")
+            self.assertIsNotNone(legacy)
+            target.write_text("print('changed')\n", encoding="utf-8")
+
+            with patch(
+                "vibelign.core.checkpoint_engine.rust_checkpoint_engine.restore_checkpoint_with_rust",
+                return_value=(False, "CHECKPOINT_RESTORE_FAILED: checkpoint database missing"),
+            ):
+                restored = RustCheckpointEngine().restore_checkpoint(root, legacy.checkpoint_id)
+
+            self.assertTrue(restored)
+            self.assertEqual(target.read_text(encoding="utf-8"), "print('legacy')\n")
+
     def test_missing_binary_is_unavailable(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -603,6 +636,25 @@ class CheckpointRustEngineTest(unittest.TestCase):
                 state["last_fallback_reason"],
                 "RUST_ENGINE_UNAVAILABLE: rust engine binary missing",
             )
+
+    def test_rust_checkpoint_engine_required_mode_rejects_python_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = (root / "app.py").write_text("print(1)\n", encoding="utf-8")
+            engine = RustCheckpointEngine()
+
+            with patch.dict(
+                os.environ,
+                {
+                    "VIBELIGN_ENGINE_PATH": str(root / "missing"),
+                    "VIBELIGN_REQUIRE_RUST_CHECKPOINT": "1",
+                },
+                clear=False,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "RUST_ENGINE_UNAVAILABLE"):
+                    _ = engine.create_checkpoint(root, "must use rust")
+
+            self.assertFalse((root / ".vibelign" / "checkpoints").exists())
 
     def test_rust_checkpoint_engine_falls_back_on_integrity_failure(self):
         with tempfile.TemporaryDirectory() as tmp:

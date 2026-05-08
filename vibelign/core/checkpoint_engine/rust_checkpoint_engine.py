@@ -72,6 +72,8 @@ class RustCheckpointEngine:
                 _record_engine_state(root, "rust", None)
                 return None
             if _is_environment_fallback(warning):
+                if _rust_required():
+                    raise RuntimeError(warning)
                 self._record_fallback(root, warning or "rust checkpoint unavailable")
                 return self._fallback.create_checkpoint(
                     root,
@@ -99,9 +101,22 @@ class RustCheckpointEngine:
         checkpoints, warning = list_checkpoints_with_rust(root)
         if checkpoints is None:
             if _is_environment_fallback(warning):
+                if _rust_required():
+                    raise RuntimeError(warning or "rust checkpoint unavailable")
                 self._record_fallback(root, warning or "rust checkpoint unavailable")
                 return self._fallback.list_checkpoints(root)
             raise RuntimeError(warning or "Rust checkpoint list failed.")
+        fallback_checkpoints = self._fallback.list_checkpoints(root)
+        if fallback_checkpoints:
+            existing_ids = {checkpoint.checkpoint_id for checkpoint in checkpoints}
+            legacy_only = [
+                checkpoint
+                for checkpoint in fallback_checkpoints
+                if checkpoint.checkpoint_id not in existing_ids
+            ]
+            if legacy_only:
+                _record_engine_state(root, "python", "legacy Python checkpoints visible")
+                return [*checkpoints, *legacy_only]
         _record_engine_state(root, "rust", None)
         return checkpoints
 
@@ -115,7 +130,19 @@ class RustCheckpointEngine:
             _record_engine_state(root, "rust", None)
             return True
         if _is_environment_fallback(warning):
+            if _rust_required():
+                self._last_restore_error = warning or "rust checkpoint unavailable"
+                return False
             self._record_fallback(root, warning or "rust checkpoint unavailable")
+            return self._fallback.restore_checkpoint(root, checkpoint_id)
+        if any(
+            checkpoint.checkpoint_id == checkpoint_id
+            for checkpoint in self._fallback.list_checkpoints(root)
+        ):
+            self._record_fallback(
+                root,
+                f"legacy Python checkpoint restore fallback: {warning or 'rust checkpoint restore failed'}",
+            )
             return self._fallback.restore_checkpoint(root, checkpoint_id)
         self._last_restore_error = warning or "Rust checkpoint restore failed."
         return False
@@ -166,6 +193,8 @@ class RustCheckpointEngine:
         result, warning = prune_checkpoints_with_rust(root, policy.keep_latest)
         if result is None:
             if _is_environment_fallback(warning):
+                if _rust_required():
+                    raise RuntimeError(warning or "rust checkpoint unavailable")
                 self._record_fallback(root, warning or "rust checkpoint unavailable")
                 return self._fallback.prune_checkpoints(root, policy)
             raise RuntimeError(warning or "Rust checkpoint prune failed.")
@@ -176,6 +205,8 @@ class RustCheckpointEngine:
         result, warning = apply_retention_with_rust(root)
         if result is None:
             if _is_environment_fallback(warning):
+                if _rust_required():
+                    raise RuntimeError(warning or "rust checkpoint unavailable")
                 self._record_fallback(root, warning or "rust checkpoint unavailable")
                 pruned = self._fallback.prune_checkpoints(
                     root, DEFAULT_RETENTION_POLICY
@@ -226,6 +257,14 @@ class RustCheckpointEngine:
 
 def _rust_disabled() -> bool:
     return os.environ.get("VIBELIGN_DISABLE_RUST_CHECKPOINT", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
+def _rust_required() -> bool:
+    return os.environ.get("VIBELIGN_REQUIRE_RUST_CHECKPOINT", "").strip().lower() in {
         "1",
         "true",
         "yes",
