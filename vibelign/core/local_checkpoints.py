@@ -122,8 +122,8 @@ def _should_skip_dir(path: Path, meta: MetaPaths) -> bool:
             return True
         if path.resolve().is_relative_to(meta.reports_dir.resolve()):
             return True
-    except Exception:
-        pass
+    except OSError:
+        return False
     return False
 
 
@@ -143,8 +143,8 @@ def iter_snapshot_files(root: Path) -> Iterable[Path]:
                 meta.vibelign_dir.resolve()
             ) and not should_include_vibelign_file(path.name):
                 continue
-        except Exception:
-            pass
+        except OSError:
+            continue
         if _should_skip_dir(path, meta):
             continue
         yield path

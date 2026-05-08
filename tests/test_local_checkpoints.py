@@ -209,6 +209,9 @@ class LocalCheckpointsTest(unittest.TestCase):
             (vibelign_dir / "db_maintenance_backups" / "old.db").write_text("old\n", encoding="utf-8")
             (vibelign_dir / "anchor_index.json").write_text("{}\n", encoding="utf-8")
             (vibelign_dir / "state.json").write_text("{}\n", encoding="utf-8")
+            (vibelign_dir / "engine.pid").write_text("12345\n", encoding="utf-8")
+            (vibelign_dir / "engine.sock").write_text("stale socket\n", encoding="utf-8")
+            (vibelign_dir / "engine.log").write_text("daemon stderr\n", encoding="utf-8")
             (vibelign_dir / "logs" / "cli-error-20260506.jsonl").write_text("{}\n", encoding="utf-8")
             (vibelign_dir / "reports" / "bug-20260506-000000Z.md").write_text("# Bug\n", encoding="utf-8")
 
@@ -234,6 +237,9 @@ class LocalCheckpointsTest(unittest.TestCase):
             self.assertNotIn(".vibelign/reports/bug-20260506-000000Z.md", paths)
             self.assertIn(".vibelign/anchor_index.json", paths)
             self.assertNotIn(".vibelign/state.json", paths)
+            self.assertNotIn(".vibelign/engine.pid", paths)
+            self.assertNotIn(".vibelign/engine.sock", paths)
+            self.assertNotIn(".vibelign/engine.log", paths)
 
     def test_create_checkpoint_excludes_target_directory(self):
         with tempfile.TemporaryDirectory() as tmp:

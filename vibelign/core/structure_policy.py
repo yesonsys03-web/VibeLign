@@ -123,6 +123,9 @@ CHECKPOINT_IGNORED_FILES: frozenset[str] = frozenset(
         "vibelign.db",
         "vibelign.db-wal",
         "vibelign.db-shm",
+        "engine.pid",
+        "engine.sock",
+        "engine.log",
     }
 )
 

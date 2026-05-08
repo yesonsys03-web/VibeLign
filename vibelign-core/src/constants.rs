@@ -37,5 +37,8 @@ pub const CHECKPOINT_IGNORED_FILES: &[&str] = &[
     "vibelign.db",
     "vibelign.db-wal",
     "vibelign.db-shm",
+    "engine.pid",
+    "engine.sock",
+    "engine.log",
 ];
 // === ANCHOR: CONSTANTS_END ===

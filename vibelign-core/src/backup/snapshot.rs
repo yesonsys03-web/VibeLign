@@ -168,6 +168,9 @@ mod tests {
         std::fs::create_dir(root.join(".vibelign")).unwrap();
         std::fs::write(root.join(".vibelign/anchor_index.json"), "{}\n").unwrap();
         std::fs::write(root.join(".vibelign/state.json"), "{}\n").unwrap();
+        std::fs::write(root.join(".vibelign/engine.pid"), "12345\n").unwrap();
+        std::fs::write(root.join(".vibelign/engine.sock"), "stale socket placeholder\n").unwrap();
+        std::fs::write(root.join(".vibelign/engine.log"), "daemon stderr\n").unwrap();
         std::fs::create_dir_all(root.join(".vibelign/rust_objects/blake3/ab/cd")).unwrap();
         std::fs::create_dir_all(root.join(".vibelign/logs")).unwrap();
         std::fs::create_dir_all(root.join(".vibelign/reports")).unwrap();
@@ -195,6 +198,9 @@ mod tests {
         assert!(!paths.contains(&".vibelign/logs/cli-error-20260506.jsonl".to_string()));
         assert!(!paths.contains(&".vibelign/reports/bug-20260506-000000Z.md".to_string()));
         assert!(!paths.contains(&".vibelign/state.json".to_string()));
+        assert!(!paths.contains(&".vibelign/engine.pid".to_string()));
+        assert!(!paths.contains(&".vibelign/engine.sock".to_string()));
+        assert!(!paths.contains(&".vibelign/engine.log".to_string()));
     }
 
     #[test]

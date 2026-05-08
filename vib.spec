@@ -46,6 +46,8 @@ hidden_imports = [
     "vibelign.core.checkpoint_engine","vibelign.core.checkpoint_engine.contracts",
     "vibelign.core.checkpoint_engine.python_engine","vibelign.core.checkpoint_engine.router",
     "vibelign.core.checkpoint_engine.rust_checkpoint_engine","vibelign.core.checkpoint_engine.rust_engine",
+    "vibelign.core.checkpoint_engine.rust_engine.discovery",
+    "vibelign.core.checkpoint_engine.rust_engine.transport_oneshot",
     "vibelign.core.checkpoint_engine.shadow_runner",
     "vibelign.action_engine","vibelign.action_engine.action_planner",
     "vibelign.action_engine.executors.action_executor","vibelign.action_engine.executors.checkpoint_bridge",
