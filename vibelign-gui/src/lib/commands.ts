@@ -2,6 +2,7 @@
 export type CardState = "idle" | "loading" | "done" | "error";
 
 export type { GuideLine, GuideStep, FlagDef } from "./commandData";
+import type { FlagDef } from "./commandData";
 import { COMMANDS_CORE } from "./commandData";
 import { COMMANDS_EXT } from "./commandData2";
 
@@ -18,7 +19,7 @@ export function buildCmdArgs(
   cmdFlagValues: Record<string, Record<string, string | boolean>>
 ): string[] | null {
   const cmd = COMMANDS.find((c) => c.name === name);
-  const flags = (cmd as any)?.flags as import("./commandData").FlagDef[] | undefined;
+  const flags: FlagDef[] | undefined = cmd && "flags" in cmd ? cmd.flags : undefined;
   if (!flags?.length) return [name];
 
   const fvals = cmdFlagValues[name] ?? {};
@@ -48,7 +49,7 @@ export function buildCmdArgs(
   }
 
   for (const fd of flags) {
-    if ((fd as any).required) {
+    if ("required" in fd && fd.required) {
       const val = fvals[fd.key] ?? "";
       if (!val) return null;
     }

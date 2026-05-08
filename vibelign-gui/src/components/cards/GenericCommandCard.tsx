@@ -137,7 +137,7 @@ export default function GenericCommandCard({
             );
             if (fd.type === "text") return (
               <div key={fi} style={{ display: "flex", gap: 4, marginBottom: 4 }}>
-                <input value={String(val)} onChange={(e) => setFlagValues((m) => ({ ...m, [fd.key]: e.target.value }))} placeholder={(fd as any).placeholder} style={{
+                <input value={String(val)} onChange={(e) => setFlagValues((m) => ({ ...m, [fd.key]: e.target.value }))} placeholder={fd.placeholder} style={{
                   flex: 1, fontSize: 10, padding: "3px 6px",
                   border: "2px solid #1A1A1A", boxSizing: "border-box" as const,
                   fontFamily: "IBM Plex Mono, monospace", background: "#fff", minWidth: 0,

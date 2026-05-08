@@ -174,6 +174,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
   // ── 메뉴얼 커맨드 상세 뷰 ────────────────────────────────────────────────────
   if (view === "manual_detail" && selectedCmd) {
     const cmd = selectedCmd;
+    const guide = "guide" in cmd && Array.isArray(cmd.guide) ? cmd.guide : null;
     return (
       <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
         <div className="page-header" style={{ padding: "12px 20px" }}>
@@ -215,9 +216,9 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
           </div>
 
           {/* 가이드 or 팁 */}
-          {"guide" in cmd && Array.isArray((cmd as any).guide) ? (
+          {guide ? (
             <div>
-              {((cmd as any).guide as GuideStep[]).map((gs, gi) => (
+              {guide.map((gs: GuideStep, gi: number) => (
                 <div key={gi} className="card" style={{ marginBottom: 8, padding: "12px 14px" }}>
                   {/* 스텝 헤더 */}
                   <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: gs.subtitle ? 2 : 8 }}>

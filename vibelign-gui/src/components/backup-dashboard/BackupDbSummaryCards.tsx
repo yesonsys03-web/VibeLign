@@ -9,10 +9,11 @@ interface BackupDbSummaryCardsProps {
 
 export default function BackupDbSummaryCards({ report }: BackupDbSummaryCardsProps) {
   const retention = report.retentionPolicy;
+  const backupCountText = String(report.checkpointCount) + "개";
   const cards = [
     { label: "DB 상태", value: report.schemaVersion ? `schema ${report.schemaVersion}` : "schema 정보 없음", detail: report.dbPath || "DB 경로 없음" },
     { label: "DB 파일", value: formatBytes(report.dbFile.totalBytes), detail: `DB ${formatBytes(report.dbFile.databaseBytes)} · WAL ${formatBytes(report.dbFile.walBytes)} · SHM ${formatBytes(report.dbFile.shmBytes)}` },
-    { label: "전체 백업", value: `${report.checkpointCount}개`, detail: `Rust v2 ${report.rustV2Count}개 · legacy ${report.legacyCount}개` },
+    { label: "전체 백업", value: backupCountText, detail: `Rust v2 ${report.rustV2Count}개 · legacy ${report.legacyCount}개` },
     { label: "Object store", value: `${report.casObjectCount}개`, detail: `${report.casRefCount}개 참조` },
     { label: "저장 효율", value: `${storageEfficiencyPercent(report)}% 절약`, detail: `${formatBytes(report.totalOriginalSizeBytes)} → ${formatBytes(report.totalStoredSizeBytes)}` },
     { label: "자동 백업", value: report.autoBackupOnCommit ? "켜짐" : "꺼짐", detail: report.autoBackupOnCommit ? "코드 저장 뒤 자동 보관" : "수동 백업 중심" },
