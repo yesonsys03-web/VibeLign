@@ -468,6 +468,14 @@ def build_recovery_context_packet(
         _ = payload_candidates.pop()
         raw = {**raw, "candidates": payload_candidates, "truncated": True}
         serialized = _json_dump(raw)
+    if truncated and not payload_candidates and candidates:
+        payload_candidates = [_compact_candidate_payload(candidate, protected_globs) for candidate in candidates]
+        raw = {**raw, "candidates": payload_candidates, "truncated": True}
+        serialized = _json_dump(raw)
+        while len(serialized.encode("utf-8")) > byte_cap and payload_candidates:
+            _ = payload_candidates.pop()
+            raw = {**raw, "candidates": payload_candidates, "truncated": True}
+            serialized = _json_dump(raw)
     encoded = serialized.encode("utf-8")
     return RecoveryContextPacket(
         user_phrase=str(raw["user_phrase"]),
@@ -725,6 +733,24 @@ def _candidate_payload(candidate: RecoveryCandidate, protected_globs: tuple[str,
         _redact_path(path, protected_globs) for path in candidate.changed_files_since_previous
     ]
     return payload
+
+
+def _compact_candidate_payload(candidate: RecoveryCandidate, protected_globs: tuple[str, ...]) -> dict[str, object]:
+    changed_files = [_redact_path(path, protected_globs) for path in candidate.changed_files_since_previous[:10]]
+    return {
+        "candidate_id": candidate.candidate_id,
+        "source": candidate.source,
+        "created_at": candidate.created_at,
+        "label": candidate.label,
+        "commit_hash": candidate.commit_hash,
+        "commit_message": candidate.commit_message,
+        "restore_capability": candidate.restore_capability,
+        "preview_available": candidate.preview_available,
+        "changed_file_count": len(candidate.changed_files_since_previous),
+        "changed_files_since_previous": changed_files,
+        "changed_files_truncated": len(candidate.changed_files_since_previous) > len(changed_files),
+        "verification_nearby": candidate.verification_nearby,
+    }
 
 
 def _redact_path(path: str, protected_globs: tuple[str, ...]) -> str:

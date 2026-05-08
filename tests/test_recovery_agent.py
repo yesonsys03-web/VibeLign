@@ -161,6 +161,24 @@ def test_context_packet_redacts_caps_and_hashes() -> None:
     assert packet.candidates == [] or (isinstance(redacted_paths, list) and "<protected>" in redacted_paths)
 
 
+def test_context_packet_keeps_compact_candidates_when_file_lists_are_huge() -> None:
+    candidate = RecoveryCandidate(
+        candidate_id="c1",
+        source="post_commit_checkpoint",
+        created_at="2026-05-04T10:00:00Z",
+        label="large backup",
+        changed_files_since_previous=tuple(f"src/file_{index}.py" for index in range(200)),
+    )
+
+    packet = build_recovery_context_packet("rollback", [candidate], None, (), byte_cap=1200)
+
+    assert packet.truncated is True
+    assert packet.byte_size <= packet.byte_cap
+    assert packet.candidates[0]["candidate_id"] == "c1"
+    assert packet.candidates[0]["changed_file_count"] == 200
+    assert packet.candidates[0]["changed_files_truncated"] is True
+
+
 def test_llm_prompt_and_schema_require_non_empty_ranking() -> None:
     candidate = _candidate("c1", "git_commit", "2026-05-04T11:55:00Z", commit_hash="abc")
     packet = build_recovery_context_packet("rollback", [candidate], None, ())
