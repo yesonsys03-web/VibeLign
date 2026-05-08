@@ -410,6 +410,9 @@ const GUI_VIB_PLAIN_ENV: Record<string, string> = {
   // vib 프로세스의 출력 인코딩을 UTF-8로 강제합니다.
   PYTHONUTF8: "1",
   PYTHONIOENCODING: "utf-8",
+  // GUI 백업 화면은 Rust/SQLite DB를 기준으로 목록과 복구를 보여준다.
+  // Rust engine이 없으면 Python fallback으로 조용히 저장하지 말고 에러를 노출한다.
+  VIBELIGN_REQUIRE_RUST_CHECKPOINT: "1",
 };
 
 /** vib CLI 실행. */
