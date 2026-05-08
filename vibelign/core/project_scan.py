@@ -1,13 +1,23 @@
 # === ANCHOR: PROJECT_SCAN_START ===
 import re
+import os
 from collections.abc import Generator
 from pathlib import Path
+from typing import TypedDict, cast
+
+from vibelign.core.checkpoint_engine.rust_engine import scan_project_with_rust
 
 from vibelign.core.structure_policy import (
     has_ignored_part,
     is_core_entry_file,
     is_source_file,
 )
+
+
+class SourceFileRecord(TypedDict):
+    path: Path
+    category: str | None
+    imports: list[str] | None
 
 
 def iter_project_files(root: Path) -> Generator[Path, None, None]:
@@ -23,6 +33,21 @@ def iter_project_files(root: Path) -> Generator[Path, None, None]:
 
 
 def iter_source_files(root: Path) -> Generator[Path, None, None]:
+    for record in iter_source_file_records(root):
+        yield record["path"]
+
+
+def iter_source_file_records(root: Path) -> Generator[SourceFileRecord, None, None]:
+    if _rust_project_scan_enabled():
+        rust_records = _source_file_records_from_rust_project_scan(root)
+        if rust_records is not None:
+            yield from rust_records
+            return
+    for path in _python_source_files(root):
+        yield {"path": path, "category": None, "imports": None}
+
+
+def _python_source_files(root: Path) -> Generator[Path, None, None]:
     from vibelign.core.fast_tools import has_fd, find_source_files_fd
 
     if has_fd():
@@ -33,6 +58,42 @@ def iter_source_files(root: Path) -> Generator[Path, None, None]:
     for path in iter_project_files(root):
         if is_source_file(path):
             yield path
+
+
+def _rust_project_scan_enabled() -> bool:
+    return os.environ.get("VIBELIGN_PROJECT_SCAN_RUST", "1").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+    }
+
+
+def _source_file_records_from_rust_project_scan(root: Path) -> list[SourceFileRecord] | None:
+    report, warning = scan_project_with_rust(root)
+    if warning or report is None:
+        return None
+    files = report.get("files")
+    if not isinstance(files, list):
+        return None
+    records: list[SourceFileRecord] = []
+    for item in cast(list[object], files):
+        if not isinstance(item, dict):
+            continue
+        raw_item = cast(dict[object, object], item)
+        path = raw_item.get("path")
+        if isinstance(path, str) and path:
+            category = raw_item.get("category")
+            raw_imports = raw_item.get("imports")
+            import_items = cast(list[object], raw_imports) if isinstance(raw_imports, list) else None
+            imports = [value for value in import_items if isinstance(value, str)] if import_items is not None else None
+            records.append(
+                {
+                    "path": root / path,
+                    "category": category if isinstance(category, str) else None,
+                    "imports": imports,
+                }
+            )
+    return records
 
 
 def safe_read_text(path: Path) -> str:
