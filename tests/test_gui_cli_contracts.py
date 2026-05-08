@@ -588,6 +588,15 @@ class GuiCliContractsTest(unittest.TestCase):
         self.assertIn("lint-backup-copy.mjs", lint_script)
         self.assertTrue((root / "vibelign-gui" / "scripts" / "lint-backup-copy.mjs").exists())
 
+    def test_backup_db_viewer_reports_reclaimed_bytes_before_noop_message(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "vibelign-gui" / "src" / "components" / "backup-dashboard" / "BackupDbViewer.tsx").read_text(encoding="utf-8")
+
+        reclaimed_branch = source.index("result.reclaimedBytes > 0")
+        noop_branch = source.index('result.plannedAction === "noop"')
+
+        self.assertLess(reclaimed_branch, noop_branch)
+
 
 if __name__ == "__main__":
     _ = unittest.main()

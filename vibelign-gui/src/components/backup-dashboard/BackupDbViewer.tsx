@@ -73,13 +73,15 @@ export default function BackupDbViewer({ projectDir }: BackupDbViewerProps) {
       const result = cleanupResult?.maintenance ?? await backupDbMaintenance(projectDir, true);
       if (result.blockers.length > 0) {
         setMaintenanceMessage(`정리를 건너뛰었어요: ${result.blockers.join(", ")}`);
+      } else if (result.reclaimedBytes > 0) {
+        const pruned = cleanupResult?.retention.count ?? 0;
+        const prefix = isCritical ? `오래된 백업 ${pruned}개를 정리하고 ` : "";
+        setMaintenanceMessage(`${prefix}DB 정리를 완료했어요. 회수한 공간: ${formatBytes(result.reclaimedBytes)}`);
       } else if (result.plannedAction === "noop") {
         const pruned = cleanupResult?.retention.count ?? 0;
         setMaintenanceMessage(isCritical ? `오래된 백업 ${pruned}개를 정리했고, DB 파일은 이미 추가 압축할 내용이 없어요.` : "이미 정리할 내용이 없어요.");
       } else {
-        const pruned = cleanupResult?.retention.count ?? 0;
-        const prefix = isCritical ? `오래된 백업 ${pruned}개를 정리하고 ` : "";
-        setMaintenanceMessage(`${prefix}DB 정리를 완료했어요. 회수한 공간: ${formatBytes(result.reclaimedBytes)}`);
+        setMaintenanceMessage("DB 정리를 완료했어요. 회수한 공간: 0 B");
       }
       await load(true);
     } catch (err) {
