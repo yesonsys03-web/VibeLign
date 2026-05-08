@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { CardState } from "../../lib/commands";
 import { buildGuiAiEnv, RecoveryPreviewResult, RecoveryRecommendationResponse, recoveryPreview, recoveryRecommend } from "../../lib/vib";
+import { formatSavedAt } from "../backup-dashboard/model";
 
 interface RecoveryOptionsCardProps {
   projectDir: string;
@@ -186,7 +187,7 @@ function friendlyRecoveryTitle(message: string, trigger?: string | null, gitComm
 function plainRecoveryTime(value: string): string {
   const normalized = value.trim();
   if (!normalized) return "";
-  return normalized.replace("T", " ").replace(/\.\d+Z?$/, "").replace(/Z$/, "");
+  return formatSavedAt(normalized);
 }
 
 function plainRecoveryFile(value: string): string {
