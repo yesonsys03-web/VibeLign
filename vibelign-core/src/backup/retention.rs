@@ -1,3 +1,4 @@
+// === ANCHOR: RETENTION_START ===
 use crate::backup::cas;
 use crate::db::schema;
 use chrono::{DateTime, Datelike, Duration, Utc};
@@ -550,3 +551,4 @@ mod tests {
         .unwrap();
     }
 }
+// === ANCHOR: RETENTION_END ===

@@ -201,12 +201,16 @@ class LocalCheckpointsTest(unittest.TestCase):
             (root / "app.py").write_text("print('v1')\n", encoding="utf-8")
             vibelign_dir = root / ".vibelign"
             vibelign_dir.mkdir()
+            (vibelign_dir / "logs").mkdir()
+            (vibelign_dir / "reports").mkdir()
             (vibelign_dir / "vibelign.db").write_text("db\n", encoding="utf-8")
             (vibelign_dir / "vibelign.db-wal").write_text("wal\n", encoding="utf-8")
             (vibelign_dir / "db_maintenance_backups").mkdir()
             (vibelign_dir / "db_maintenance_backups" / "old.db").write_text("old\n", encoding="utf-8")
             (vibelign_dir / "anchor_index.json").write_text("{}\n", encoding="utf-8")
             (vibelign_dir / "state.json").write_text("{}\n", encoding="utf-8")
+            (vibelign_dir / "logs" / "cli-error-20260506.jsonl").write_text("{}\n", encoding="utf-8")
+            (vibelign_dir / "reports" / "bug-20260506-000000Z.md").write_text("# Bug\n", encoding="utf-8")
 
             summary = create_checkpoint(root, "with internal state")
             self.assertIsNotNone(summary)
@@ -226,6 +230,8 @@ class LocalCheckpointsTest(unittest.TestCase):
             self.assertNotIn(".vibelign/vibelign.db", paths)
             self.assertNotIn(".vibelign/vibelign.db-wal", paths)
             self.assertNotIn(".vibelign/db_maintenance_backups/old.db", paths)
+            self.assertNotIn(".vibelign/logs/cli-error-20260506.jsonl", paths)
+            self.assertNotIn(".vibelign/reports/bug-20260506-000000Z.md", paths)
             self.assertIn(".vibelign/anchor_index.json", paths)
             self.assertNotIn(".vibelign/state.json", paths)
 

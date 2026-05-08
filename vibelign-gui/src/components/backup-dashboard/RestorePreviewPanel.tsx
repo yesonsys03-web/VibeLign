@@ -1,3 +1,4 @@
+// === ANCHOR: RESTOREPREVIEWPANEL_START ===
 import type { CSSProperties } from "react";
 import type { BackupEntry } from "../../lib/vib";
 import BackupCard from "./BackupCard";
@@ -55,3 +56,4 @@ export default function RestorePreviewPanel({ entry, restoring, onRestore }: Res
     </BackupCard>
   );
 }
+// === ANCHOR: RESTOREPREVIEWPANEL_END ===

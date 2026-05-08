@@ -1,5 +1,5 @@
 // === ANCHOR: APP_START ===
-import { useState, useEffect, Component, ReactNode } from "react";
+import { useState, useEffect, Component, ReactNode, ErrorInfo } from "react";
 import CustomTitleBar from "./components/CustomTitleBar";
 import UpdateBanner from "./components/UpdateBanner";
 import Onboarding from "./pages/Onboarding";
@@ -9,6 +9,7 @@ import DocsViewer from "./pages/DocsViewer";
 import BackupDashboardPage from "./pages/BackupDashboard";
 import Settings from "./pages/Settings";
 import { backupList, getEnvKeyStatus, loadApiKey, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, stopWatch, openFolder } from "./lib/vib";
+import { installGuiErrorReporter, reportReactError, setErrorReporterProjectDir } from "./lib/errorReporter";
 import "./styles/brutalism.css";
 import "./App.css";
 
@@ -23,6 +24,9 @@ class ErrorBoundary extends Component<
   }
   static getDerivedStateFromError(error: Error) {
     return { error };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    reportReactError(error, info.componentStack ?? undefined);
   }
   render() {
     if (this.state.error) {
@@ -77,6 +81,7 @@ export default function App() {
   }
 
   useEffect(() => {
+    installGuiErrorReporter();
     refreshAiKeys();
     getEnvKeyStatus()
       .then(setEnvKeyStatus)
@@ -84,6 +89,10 @@ export default function App() {
       .finally(() => setEnvKeyStatusLoaded(true));
     loadRecentProjects().then(setRecentDirs).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    setErrorReporterProjectDir(projectDir);
+  }, [projectDir]);
 
   useEffect(() => {
     if (!projectDir) return;

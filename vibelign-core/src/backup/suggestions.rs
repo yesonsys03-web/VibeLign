@@ -1,3 +1,4 @@
+// === ANCHOR: SUGGESTIONS_START ===
 use crate::backup::diff::{checkpoint_engine_version, checkpoint_parent_id, open_db};
 use crate::backup::restore::preview::{preview_full, PreviewFile};
 use serde::Serialize;
@@ -110,3 +111,4 @@ mod tests {
         assert_eq!(result.suggestions[0].reason_code, "missing_now");
     }
 }
+// === ANCHOR: SUGGESTIONS_END ===

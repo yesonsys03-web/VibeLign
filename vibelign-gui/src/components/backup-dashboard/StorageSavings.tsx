@@ -1,3 +1,4 @@
+// === ANCHOR: STORAGESAVINGS_START ===
 import type { BackupDashboardStats } from "./model";
 import { formatBytes } from "./model";
 import type { BackupEntry } from "../../lib/vib";
@@ -26,3 +27,4 @@ export default function StorageSavings({ stats, entries }: StorageSavingsProps) 
     </BackupCard>
   );
 }
+// === ANCHOR: STORAGESAVINGS_END ===

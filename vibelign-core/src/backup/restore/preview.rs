@@ -1,3 +1,4 @@
+// === ANCHOR: PREVIEW_START ===
 use crate::backup::diff::StoredFile;
 use crate::backup::restore::{checkpoint_context, target_path};
 use crate::backup::snapshot::collect;
@@ -180,3 +181,4 @@ mod tests {
         assert_eq!(preview.selected_files[0].relative_path, "a.txt");
     }
 }
+// === ANCHOR: PREVIEW_END ===

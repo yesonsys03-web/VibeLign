@@ -1,3 +1,4 @@
+// === ANCHOR: DATEGRAPH_START ===
 import { useRef, useState, type PointerEvent } from "react";
 import BackupCard from "./BackupCard";
 import type { TimelinePoint } from "./model";
@@ -27,25 +28,33 @@ export default function DateGraph({ points, selectedId, onSelect }: DateGraphPro
   const activePoint = points.find((point) => point.id === selectedId) ?? points.find((point) => point.id === activeId) ?? points[points.length - 1];
   const tickEvery = points.length > 18 ? 6 : points.length > 10 ? 4 : points.length > 5 ? 2 : 1;
 
+  // === ANCHOR: DATEGRAPH_HANDLESELECT_START ===
   function handleSelect(id: string) {
     setActiveId(id);
     onSelect(id);
   }
+  // === ANCHOR: DATEGRAPH_HANDLESELECT_END ===
 
+  // === ANCHOR: DATEGRAPH_HANDLEPOINTERDOWN_START ===
   function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
     if (!scrollRef.current) return;
     dragRef.current = { pointerX: event.clientX, scrollLeft: scrollRef.current.scrollLeft };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
+  // === ANCHOR: DATEGRAPH_HANDLEPOINTERDOWN_END ===
 
+  // === ANCHOR: DATEGRAPH_HANDLEPOINTERMOVE_START ===
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
     if (!scrollRef.current || !dragRef.current) return;
     scrollRef.current.scrollLeft = dragRef.current.scrollLeft - (event.clientX - dragRef.current.pointerX);
   }
+  // === ANCHOR: DATEGRAPH_HANDLEPOINTERMOVE_END ===
 
+  // === ANCHOR: DATEGRAPH_HANDLEPOINTEREND_START ===
   function handlePointerEnd() {
     dragRef.current = null;
   }
+  // === ANCHOR: DATEGRAPH_HANDLEPOINTEREND_END ===
 
   return (
     <BackupCard
@@ -99,12 +108,15 @@ export default function DateGraph({ points, selectedId, onSelect }: DateGraphPro
   );
 }
 
+// === ANCHOR: DATEGRAPH_TIMELINEMARK_START ===
 function TimelineMark({ point, index, active, onSelect }: { point: TimelinePoint; index: number; active: boolean; onSelect: () => void }) {
   const color = active ? "#FFD84D" : point.sourceKind === "auto" ? "#FFFFFF" : "#FFD84D";
   const laneOffset = index % 2 === 0 ? 0 : 28;
+  // === ANCHOR: DATEGRAPH_HANDLEPOINTERDOWN_START ===
   function handlePointerDown(event: PointerEvent<HTMLButtonElement>) {
     event.stopPropagation();
   }
+  // === ANCHOR: DATEGRAPH_HANDLEPOINTERDOWN_END ===
 
   return (
     <button
@@ -131,9 +143,11 @@ function TimelineMark({ point, index, active, onSelect }: { point: TimelinePoint
       <span style={{ width: active ? 18 : 13, height: active ? 18 : 13, background: color, border: "2px solid #1A1A1A", boxShadow: active ? "3px 3px 0 #1A1A1A" : "2px 2px 0 rgba(26, 26, 26, 0.75)", borderRadius: 999 }} />
       <span style={{ fontSize: 10, fontWeight: 900, color: "#1A1A1A", background: active ? "#FFD84D" : "#FEFBF0", border: "1px solid #1A1A1A", padding: "1px 4px", whiteSpace: "nowrap" }}>{point.timeLabel}</span>
     </button>
+// === ANCHOR: DATEGRAPH_TIMELINEMARK_END ===
   );
 }
 
+// === ANCHOR: DATEGRAPH_TIMELINETICK_START ===
 function TimelineTick({ point, index, tickEvery }: { point: TimelinePoint; index: number; tickEvery: number }) {
   if (index % tickEvery !== 0) return null;
   return (
@@ -143,6 +157,7 @@ function TimelineTick({ point, index, tickEvery }: { point: TimelinePoint; index
     </div>
   );
 }
+// === ANCHOR: DATEGRAPH_TIMELINETICK_END ===
 
 const trackPanelStyle = {
   position: "absolute" as const,
@@ -185,3 +200,4 @@ const summaryStyle = {
   padding: "7px 9px",
   fontSize: 11,
 };
+// === ANCHOR: DATEGRAPH_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: BACKUPCARD_START ===
 import { useState, type CSSProperties, type ReactNode } from "react";
 
 interface BackupCardProps {
@@ -37,3 +38,4 @@ export default function BackupCard({ icon, title, subtitle, children, headerStyl
     </section>
   );
 }
+// === ANCHOR: BACKUPCARD_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: FILES_START ===
 use crate::backup::disk;
 use crate::backup::restore::{
     backup_source, checkpoint_context, copy_backup_file, copy_backup_object, target_path,
@@ -143,3 +144,4 @@ mod tests {
         assert!(error.contains("missing") || error.contains("escaped"));
     }
 }
+// === ANCHOR: FILES_END ===

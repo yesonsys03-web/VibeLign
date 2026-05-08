@@ -1,3 +1,4 @@
+// === ANCHOR: DB_MAINTENANCE_START ===
 use crate::security::path_guard::resolve_under;
 use chrono::{SecondsFormat, Utc};
 use rusqlite::{Connection, OpenFlags};
@@ -429,3 +430,4 @@ mod tests {
         assert!(error.contains("symlink"));
     }
 }
+// === ANCHOR: DB_MAINTENANCE_END ===

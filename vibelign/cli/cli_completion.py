@@ -2,6 +2,15 @@
 import argparse
 
 
+HIDDEN_COMPLETION_COMMANDS = {
+    "pre-check",
+    "mcp",
+    "log-gui-error",
+    "_internal_record_commit",
+    "_internal_post_commit",
+}
+
+
 # === ANCHOR: CLI_COMPLETION_REGISTER_COMPLETION_COMMAND_START ===
 def register_completion_command(sub, parser) -> None:
     from vibelign.terminal_render import cli_print
@@ -37,7 +46,14 @@ def parse_commands(parser):
     commands = []
     cmd_opts = {}
     if subparsers_action:
+        suppressed = {
+            choice.dest
+            for choice in getattr(subparsers_action, "_choices_actions", [])
+            if getattr(choice, "help", None) == argparse.SUPPRESS
+        }
         for cmd_name, cmd_parser in subparsers_action.choices.items():
+            if cmd_name in suppressed or cmd_name in HIDDEN_COMPLETION_COMMANDS:
+                continue
             commands.append(cmd_name)
             opts = []
             for act in cmd_parser._actions:
@@ -54,7 +70,9 @@ def manual_topics() -> str:
     try:
         from vibelign.commands.vib_manual_cmd import MANUAL
 
-        return " ".join(MANUAL.keys())
+        return " ".join(
+            topic for topic in MANUAL.keys() if topic not in HIDDEN_COMPLETION_COMMANDS
+        )
     except Exception:
         return ""
 # === ANCHOR: CLI_COMPLETION_MANUAL_TOPICS_END ===

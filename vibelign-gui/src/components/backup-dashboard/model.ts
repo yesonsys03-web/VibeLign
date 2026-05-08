@@ -1,3 +1,4 @@
+// === ANCHOR: MODEL_START ===
 import type { BackupEntry } from "../../lib/vib";
 
 export interface BackupDashboardStats {
@@ -24,6 +25,7 @@ export interface RestoreSuggestion {
   detail: string;
 }
 
+// === ANCHOR: MODEL_FORMATBYTES_START ===
 export function formatBytes(bytes: number): string {
   if (bytes <= 0) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
@@ -35,7 +37,9 @@ export function formatBytes(bytes: number): string {
   }
   return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
+// === ANCHOR: MODEL_FORMATBYTES_END ===
 
+// === ANCHOR: MODEL_FORMATSAVEDAT_START ===
 export function formatSavedAt(value?: string): string {
   if (!value) return "시간 정보 없음";
   try {
@@ -51,11 +55,15 @@ export function formatSavedAt(value?: string): string {
     return value.slice(0, 16);
   }
 }
+// === ANCHOR: MODEL_FORMATSAVEDAT_END ===
 
+// === ANCHOR: MODEL_CLEANBACKUPNOTE_START ===
 export function cleanBackupNote(entry: BackupEntry): string {
   return entry.note || "메모 없는 저장본";
 }
+// === ANCHOR: MODEL_CLEANBACKUPNOTE_END ===
 
+// === ANCHOR: MODEL_FORMATRELATIVETIME_START ===
 export function formatRelativeTime(value?: string): string {
   if (!value) return "시간 정보 없음";
   const date = new Date(value);
@@ -71,7 +79,9 @@ export function formatRelativeTime(value?: string): string {
   if (days < 7) return `${days}일 전`;
   return formatSavedAt(value);
 }
+// === ANCHOR: MODEL_FORMATRELATIVETIME_END ===
 
+// === ANCHOR: MODEL_BUILDSTATS_START ===
 export function buildStats(entries: BackupEntry[]): BackupDashboardStats {
   const totalFiles = entries.reduce((sum, item) => sum + (item.fileCount ?? 0), 0);
   const storedBytes = entries.reduce((sum, item) => sum + item.totalSizeBytes, 0);
@@ -84,7 +94,9 @@ export function buildStats(entries: BackupEntry[]): BackupDashboardStats {
     lastSavedLabel: entries[0] ? formatSavedAt(entries[0].createdAt) : "아직 없음",
   };
 }
+// === ANCHOR: MODEL_BUILDSTATS_END ===
 
+// === ANCHOR: MODEL_BUILDTIMELINEPOINTS_START ===
 export function buildTimelinePoints(entries: BackupEntry[]): TimelinePoint[] {
   const visible = entries
     .slice(0, 50)
@@ -99,30 +111,40 @@ export function buildTimelinePoints(entries: BackupEntry[]): TimelinePoint[] {
     position: timelinePosition(index, visible.length),
   }));
 }
+// === ANCHOR: MODEL_BUILDTIMELINEPOINTS_END ===
 
+// === ANCHOR: MODEL_FORMATDAYLABEL_START ===
 function formatDayLabel(value?: string): string {
   if (!value) return "날짜 없음";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value.slice(0, 10) || "날짜 없음";
   return date.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" });
 }
+// === ANCHOR: MODEL_FORMATDAYLABEL_END ===
 
+// === ANCHOR: MODEL_PARSEBACKUPTIME_START ===
 function parseBackupTime(value?: string): number | null {
   if (!value) return null;
   const time = new Date(value).getTime();
   return Number.isNaN(time) ? null : time;
 }
+// === ANCHOR: MODEL_PARSEBACKUPTIME_END ===
 
+// === ANCHOR: MODEL_FORMATTIMELABEL_START ===
 function formatTimeLabel(time: number | null, fallback?: string): string {
   if (time === null) return fallback?.slice(11, 16) || "시간 없음";
   return new Date(time).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
 }
+// === ANCHOR: MODEL_FORMATTIMELABEL_END ===
 
+// === ANCHOR: MODEL_TIMELINEPOSITION_START ===
 function timelinePosition(index: number, total: number): number {
   if (total <= 1) return 8;
   return 4 + (index / (total - 1)) * 92;
 }
+// === ANCHOR: MODEL_TIMELINEPOSITION_END ===
 
+// === ANCHOR: MODEL_BUILDRESTORESUGGESTIONS_START ===
 export function buildRestoreSuggestions(entries: BackupEntry[]): RestoreSuggestion[] {
   return entries.slice(0, 3).map((entry, index) => ({
     id: entry.id,
@@ -130,7 +152,9 @@ export function buildRestoreSuggestions(entries: BackupEntry[]): RestoreSuggesti
     detail: `${formatSavedAt(entry.createdAt)} · ${entry.fileCount ?? 0}개 파일`,
   }));
 }
+// === ANCHOR: MODEL_BUILDRESTORESUGGESTIONS_END ===
 
+// === ANCHOR: MODEL_FILTERBACKUPS_START ===
 export function filterBackups(entries: BackupEntry[], query: string): BackupEntry[] {
   const needle = query.trim().toLocaleLowerCase("ko-KR");
   if (!needle) return entries;
@@ -139,3 +163,5 @@ export function filterBackups(entries: BackupEntry[], query: string): BackupEntr
     return haystack.includes(needle);
   });
 }
+// === ANCHOR: MODEL_FILTERBACKUPS_END ===
+// === ANCHOR: MODEL_END ===

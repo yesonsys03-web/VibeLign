@@ -1,6 +1,6 @@
 {
   "pinned_intents_version": "2026-04-12",
-  "generated_at": "2026-04-20",
+  "generated_at": "2026-05-06",
   "notes": "Updated via `vib bench --patch --update-baseline`. See docs/superpowers/specs/2026-04-12-patch-accuracy-c5-bench-runner-design.md.",
   "scenarios": {
     "change_error_msg": {
@@ -70,8 +70,8 @@
         "recall_at_3": false
       },
       "ai": {
-        "files_ok": true,
-        "anchor_ok": true,
+        "files_ok": false,
+        "anchor_ok": false,
         "recall_at_3": false
       }
     },
@@ -82,8 +82,8 @@
         "recall_at_3": true
       },
       "ai": {
-        "files_ok": true,
-        "anchor_ok": true,
+        "files_ok": false,
+        "anchor_ok": false,
         "recall_at_3": true
       }
     },
@@ -251,8 +251,8 @@
       "recall_at_3": "19/20"
     },
     "ai": {
-      "files_ok": "18/20",
-      "anchor_ok": "17/19",
+      "files_ok": "16/20",
+      "anchor_ok": "15/19",
       "recall_at_3": "19/20"
     }
   }

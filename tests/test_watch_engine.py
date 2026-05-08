@@ -53,6 +53,23 @@ class WatchEngineEligibilityTest(unittest.TestCase):
             self.assertFalse(is_watchable_path(cache))
             self.assertFalse(is_watchable_path(image))
 
+    def test_error_logs_and_reports_are_skipped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            logs_dir = root / ".vibelign" / "logs"
+            reports_dir = root / ".vibelign" / "reports"
+            logs_dir.mkdir(parents=True)
+            reports_dir.mkdir(parents=True)
+            log_file = logs_dir / "cli-error-20260506.jsonl"
+            report_file = reports_dir / "bug-20260506-000000Z.md"
+            log_file.write_text("{}\n", encoding="utf-8")
+            report_file.write_text("# Bug\n", encoding="utf-8")
+
+            self.assertFalse(is_watchable_path(log_file))
+            self.assertFalse(is_watchable_path(report_file))
+            self.assertFalse(is_work_memory_recordable_rel_path(".vibelign/logs/cli-error-20260506.jsonl"))
+            self.assertFalse(is_work_memory_recordable_rel_path(".vibelign/reports/bug-20260506-000000Z.md"))
+
     def test_python_egg_info_artifacts_are_skipped(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

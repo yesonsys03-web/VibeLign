@@ -3,6 +3,7 @@ import argparse
 import importlib
 import sys
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import cast
 
 
@@ -39,10 +40,31 @@ def run_cli(build_parser: Callable[[], argparse.ArgumentParser]) -> None:
 
     args = parser.parse_args()
     func = cast(Callable[[object], object], args.func)
-    result = func(args)
+    try:
+        result = func(args)
+    except Exception:
+        _record_unhandled_cli_error()
+        raise
     if isinstance(result, int):
         raise SystemExit(result)
 # === ANCHOR: CLI_RUNTIME_RUN_CLI_END ===
+
+
+def _record_unhandled_cli_error() -> None:
+    try:
+        from vibelign.core.error_log import record_cli_error
+        from vibelign.core.project_root import resolve_project_root
+
+        exc_type, exc_value, tb = sys.exc_info()
+        if exc_type is None or exc_value is None:
+            return
+        record_cli_error(
+            resolve_project_root(Path.cwd()),
+            (exc_type, exc_value, tb),
+            list(sys.argv),
+        )
+    except Exception as exc:
+        _ = exc
 
 
 # === ANCHOR: CLI_RUNTIME_RUN_CLI_WITH_ARGS_START ===

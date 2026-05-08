@@ -1,3 +1,4 @@
+// === ANCHOR: FILEHISTORYTABLE_START ===
 import { useEffect, useRef } from "react";
 import type { BackupEntry } from "../../lib/vib";
 import BackupCard from "./BackupCard";
@@ -49,3 +50,4 @@ export default function FileHistoryTable({ entries, query, selectedId, onQueryCh
     </BackupCard>
   );
 }
+// === ANCHOR: FILEHISTORYTABLE_END ===

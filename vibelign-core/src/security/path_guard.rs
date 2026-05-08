@@ -1,3 +1,4 @@
+// === ANCHOR: PATH_GUARD_START ===
 use std::path::{Component, Path, PathBuf};
 
 #[allow(dead_code)]
@@ -64,3 +65,4 @@ mod tests {
         assert!(resolve_under(base, "\\\\server\\share\\file.txt").is_none());
     }
 }
+// === ANCHOR: PATH_GUARD_END ===

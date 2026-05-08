@@ -1,3 +1,4 @@
+// === ANCHOR: BACKUPDASHBOARD_START ===
 import type { BackupEntry } from "../../lib/vib";
 import BackupFlow from "./BackupFlow";
 import CleanupInsight from "./CleanupInsight";
@@ -28,10 +29,12 @@ interface BackupDashboardProps {
 export default function BackupDashboard({ entries, loading, query, selectedId, restoring, projectDir, activeChildView, onRefresh, onQueryChange, onSelect, onRestore, onActiveChildViewChange }: BackupDashboardProps) {
   const stats = buildStats(entries);
   const selected = entries.find((entry) => entry.id === selectedId) ?? null;
+  // === ANCHOR: BACKUPDASHBOARD_HANDLETIMELINESELECT_START ===
   function handleTimelineSelect(id: string) {
     onQueryChange("");
     onSelect(id);
   }
+  // === ANCHOR: BACKUPDASHBOARD_HANDLETIMELINESELECT_END ===
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <div className="nav-tabs" aria-label="Backup child views">
@@ -59,3 +62,4 @@ export default function BackupDashboard({ entries, loading, query, selectedId, r
     </div>
   );
 }
+// === ANCHOR: BACKUPDASHBOARD_END ===

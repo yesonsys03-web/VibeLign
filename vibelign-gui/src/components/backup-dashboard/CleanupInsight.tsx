@@ -1,3 +1,4 @@
+// === ANCHOR: CLEANUPINSIGHT_START ===
 import type { BackupDashboardStats } from "./model";
 import BackupCard from "./BackupCard";
 import { formatBytes } from "./model";
@@ -23,3 +24,4 @@ export default function CleanupInsight({ stats }: CleanupInsightProps) {
     </BackupCard>
   );
 }
+// === ANCHOR: CLEANUPINSIGHT_END ===

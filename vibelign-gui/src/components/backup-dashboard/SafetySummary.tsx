@@ -1,3 +1,4 @@
+// === ANCHOR: SAFETYSUMMARY_START ===
 import type { BackupDashboardStats } from "./model";
 import BackupCard from "./BackupCard";
 
@@ -30,3 +31,4 @@ export default function SafetySummary({ stats, loading, onRefresh }: SafetySumma
     </BackupCard>
   );
 }
+// === ANCHOR: SAFETYSUMMARY_END ===

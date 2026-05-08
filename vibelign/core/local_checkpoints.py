@@ -118,6 +118,8 @@ def _should_skip_dir(path: Path, meta: MetaPaths) -> bool:
     try:
         if path.resolve().is_relative_to(meta.checkpoints_dir.resolve()):
             return True
+        if path.resolve().is_relative_to(meta.logs_dir.resolve()):
+            return True
         if path.resolve().is_relative_to(meta.reports_dir.resolve()):
             return True
     except Exception:

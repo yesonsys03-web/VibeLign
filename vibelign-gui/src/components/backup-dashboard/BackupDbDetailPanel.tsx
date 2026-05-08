@@ -1,3 +1,4 @@
+// === ANCHOR: BACKUPDBDETAILPANEL_START ===
 import type { BackupDbViewerCheckpointRow, BackupDbViewerInspectResult } from "../../lib/vib";
 import BackupCard from "./BackupCard";
 import { formatBytes, formatSavedAt } from "./model";
@@ -43,3 +44,4 @@ export default function BackupDbDetailPanel({ report, row }: BackupDbDetailPanel
     </BackupCard>
   );
 }
+// === ANCHOR: BACKUPDBDETAILPANEL_END ===

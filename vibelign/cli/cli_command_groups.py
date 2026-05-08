@@ -503,6 +503,15 @@ def register_extended_commands(
         func=lazy_command("vibelign.commands.vib_mcp_cmd", "run_vib_mcp_command")
     )
 
+    p = sub.add_parser("log-gui-error", help=argparse.SUPPRESS)
+    _ = p.add_argument("--batch", action="store_true", help=argparse.SUPPRESS)
+    _ = p.add_argument("--root", default="", help=argparse.SUPPRESS)
+    p.set_defaults(
+        func=lazy_command(
+            "vibelign.commands.vib_log_gui_error_cmd", "run_vib_log_gui_error"
+        )
+    )
+
     p = sub.add_parser(
         "export",
         help="AI 도구용 설정 내보내기",

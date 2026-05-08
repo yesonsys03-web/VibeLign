@@ -1,3 +1,4 @@
+// === ANCHOR: PROTOCOL_START ===
 use crate::backup::checkpoint::{self, CheckpointCreateMetadata};
 use crate::backup::retention;
 use crate::backup::{db_maintenance, db_viewer, diff, restore, suggestions};
@@ -498,3 +499,4 @@ mod tests {
         assert!(matches!(response, EngineResponse::Ok { .. }));
     }
 }
+// === ANCHOR: PROTOCOL_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: STORAGERADIALMAP_START ===
 import { useMemo, useState } from "react";
 import type { BackupEntry } from "../../lib/vib";
 import { formatBytes } from "./model";
@@ -167,6 +168,7 @@ export default function StorageRadialMap({ entries }: StorageRadialMapProps) {
   );
 }
 
+// === ANCHOR: STORAGERADIALMAP_BUILDFILETREE_START ===
 function buildFileTree(entries: BackupEntry[]): FileTreeNode {
   const root = createNode("root", "백업", "");
   for (const entry of entries) {
@@ -191,17 +193,23 @@ function buildFileTree(entries: BackupEntry[]): FileTreeNode {
   }
   return root;
 }
+// === ANCHOR: STORAGERADIALMAP_BUILDFILETREE_END ===
 
+// === ANCHOR: STORAGERADIALMAP_CREATENODE_START ===
 function createNode(id: string, name: string, path: string): FileTreeNode {
   return { id, name, path, sizeBytes: 0, children: new Map() };
 }
+// === ANCHOR: STORAGERADIALMAP_CREATENODE_END ===
 
+// === ANCHOR: STORAGERADIALMAP_BUILDFILESEGMENTS_START ===
 function buildFileSegments(root: FileTreeNode): ArcSegment[] {
   const segments: ArcSegment[] = [];
   appendChildSegments(segments, root, -116, 224, 0, root.sizeBytes, 0);
   return segments;
 }
+// === ANCHOR: STORAGERADIALMAP_BUILDFILESEGMENTS_END ===
 
+// === ANCHOR: STORAGERADIALMAP_APPENDCHILDSEGMENTS_START ===
 function appendChildSegments(
   segments: ArcSegment[],
   parent: FileTreeNode,
@@ -215,6 +223,7 @@ function appendChildSegments(
   const children = sortedChildren(parent);
   let cursor = start;
   children.forEach((child, index) => {
+    // === ANCHOR: STORAGERADIALMAP_SWEEP_START ===
     const sweep = ((end - start) * child.sizeBytes) / parentSize;
     const childStart = cursor;
     const childEnd = cursor + sweep;
@@ -240,14 +249,19 @@ function appendChildSegments(
         hasChildren: child.children.size > 0,
       });
     }
+    // === ANCHOR: STORAGERADIALMAP_SWEEP_END ===
     appendChildSegments(segments, child, childStart, childEnd, depth + 1, child.sizeBytes, colorOffset + index + 1);
+// === ANCHOR: STORAGERADIALMAP_APPENDCHILDSEGMENTS_END ===
   });
 }
 
+// === ANCHOR: STORAGERADIALMAP_SORTEDCHILDREN_START ===
 function sortedChildren(node: FileTreeNode): FileTreeNode[] {
   return Array.from(node.children.values()).sort((left, right) => right.sizeBytes - left.sizeBytes || left.name.localeCompare(right.name));
 }
+// === ANCHOR: STORAGERADIALMAP_SORTEDCHILDREN_END ===
 
+// === ANCHOR: STORAGERADIALMAP_FINDNODEBYPATH_START ===
 function findNodeByPath(root: FileTreeNode, path: string): FileTreeNode | undefined {
   if (path === "") return root;
   let current = root;
@@ -258,13 +272,17 @@ function findNodeByPath(root: FileTreeNode, path: string): FileTreeNode | undefi
   }
   return current;
 }
+// === ANCHOR: STORAGERADIALMAP_FINDNODEBYPATH_END ===
 
+// === ANCHOR: STORAGERADIALMAP_GETPARENTPATH_START ===
 function getParentPath(path: string): string {
   const parts = path.split("/").filter(Boolean);
   parts.pop();
   return parts.join("/");
 }
+// === ANCHOR: STORAGERADIALMAP_GETPARENTPATH_END ===
 
+// === ANCHOR: STORAGERADIALMAP_BREADCRUMBPARTS_START ===
 function breadcrumbParts(node: FileTreeNode): Array<{ name: string; path: string }> {
   const parts = node.path.split("/").filter(Boolean);
   return [
@@ -272,11 +290,15 @@ function breadcrumbParts(node: FileTreeNode): Array<{ name: string; path: string
     ...parts.map((part, index) => ({ name: part, path: parts.slice(0, index + 1).join("/") })),
   ];
 }
+// === ANCHOR: STORAGERADIALMAP_BREADCRUMBPARTS_END ===
 
+// === ANCHOR: STORAGERADIALMAP_COLORFORINDEX_START ===
 function colorForIndex(index: number): string {
   return TRACK_COLORS[index % TRACK_COLORS.length] ?? TRACK_COLORS[0];
 }
+// === ANCHOR: STORAGERADIALMAP_COLORFORINDEX_END ===
 
+// === ANCHOR: STORAGERADIALMAP_DESCRIBEARC_START ===
 function describeArc(cx: number, cy: number, inner: number, outer: number, startAngle: number, endAngle: number): string {
   const safeEnd = Math.max(startAngle + MIN_SEGMENT_SWEEP, endAngle);
   const outerStart = polarToCartesian(cx, cy, outer, safeEnd);
@@ -293,13 +315,18 @@ function describeArc(cx: number, cy: number, inner: number, outer: number, start
     "Z",
   ].join(" ");
 }
+// === ANCHOR: STORAGERADIALMAP_DESCRIBEARC_END ===
 
+// === ANCHOR: STORAGERADIALMAP_POLARTOCARTESIAN_START ===
 function polarToCartesian(cx: number, cy: number, radius: number, angleInDegrees: number) {
+  // === ANCHOR: STORAGERADIALMAP_ANGLEINRADIANS_START ===
   const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180;
   return {
     x: cx + radius * Math.cos(angleInRadians),
     y: cy + radius * Math.sin(angleInRadians),
   };
+// === ANCHOR: STORAGERADIALMAP_POLARTOCARTESIAN_END ===
+  // === ANCHOR: STORAGERADIALMAP_ANGLEINRADIANS_END ===
 }
 
 const mapShellStyle = {
@@ -374,3 +401,4 @@ const upButtonStyle = {
   fontWeight: 900,
   cursor: "pointer",
 };
+// === ANCHOR: STORAGERADIALMAP_END ===

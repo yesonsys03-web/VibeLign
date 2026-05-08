@@ -40,6 +40,21 @@ class VibCliCompletionTest(unittest.TestCase):
         self.assertIn("'--draft-json'", script)
         self.assertIn("'--proposal-hash'", script)
 
+    def test_completion_hides_internal_commands(self) -> None:
+        parser = build_parser()
+        shell_script = generate_completion_script(parser)
+        powershell_script = generate_powershell_script(parser)
+
+        for command in [
+            "pre-check",
+            "mcp",
+            "log-gui-error",
+            "_internal_record_commit",
+            "_internal_post_commit",
+        ]:
+            self.assertNotIn(command, shell_script)
+            self.assertNotIn(command, powershell_script)
+
 
 if __name__ == "__main__":
     _ = unittest.main()

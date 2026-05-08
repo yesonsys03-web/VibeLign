@@ -1,3 +1,4 @@
+# === ANCHOR: MCP_RECOVERY_HANDLERS_START ===
 from __future__ import annotations
 
 import json
@@ -25,18 +26,26 @@ from vibelign.core.recovery.signals import collect_basic_signals
 from vibelign.commands.vib_recover_cmd import recommendation_outcome_payload
 
 
+# === ANCHOR: MCP_RECOVERY_HANDLERS_TEXTCONTENTFACTORY_START ===
 class TextContentFactory(Protocol):
+    # === ANCHOR: MCP_RECOVERY_HANDLERS___CALL___START ===
+# === ANCHOR: MCP_RECOVERY_HANDLERS_TEXTCONTENTFACTORY_END ===
     def __call__(self, *, type: str, text: str) -> object: ...
+    # === ANCHOR: MCP_RECOVERY_HANDLERS___CALL___END ===
 
 
+# === ANCHOR: MCP_RECOVERY_HANDLERS__TEXT_START ===
 def _text(factory: TextContentFactory, text: str) -> list[object]:
     return [factory(type="text", text=text)]
+# === ANCHOR: MCP_RECOVERY_HANDLERS__TEXT_END ===
 
 
+# === ANCHOR: MCP_RECOVERY_HANDLERS_HANDLE_RECOVERY_PREVIEW_START ===
 def handle_recovery_preview(
     root: Path,
     arguments: dict[str, object],
     text_content: TextContentFactory,
+# === ANCHOR: MCP_RECOVERY_HANDLERS_HANDLE_RECOVERY_PREVIEW_END ===
 ) -> list[object]:
     recovery_request = str(arguments.get("request", ""))
     plan = build_recovery_plan(collect_basic_signals(root), project_root=root, recovery_request=recovery_request)
@@ -68,10 +77,12 @@ def handle_recovery_preview(
     return _text(text_content, json.dumps(payload, ensure_ascii=False, sort_keys=True))
 
 
+# === ANCHOR: MCP_RECOVERY_HANDLERS_HANDLE_RECOVERY_RECOMMEND_START ===
 def handle_recovery_recommend(
     root: Path,
     arguments: dict[str, object],
     text_content: TextContentFactory,
+# === ANCHOR: MCP_RECOVERY_HANDLERS_HANDLE_RECOVERY_RECOMMEND_END ===
 ) -> list[object]:
     from vibelign.core.recovery.agent import AgentConfig, recommend_candidates, resolve_auto_llm_provider
     from vibelign.core.recovery.signals import collect_recovery_candidates
@@ -86,10 +97,12 @@ def handle_recovery_recommend(
     return _text(text_content, json.dumps(recommendation_outcome_payload(outcome), ensure_ascii=False, sort_keys=True))
 
 
+# === ANCHOR: MCP_RECOVERY_HANDLERS_HANDLE_RECOVERY_APPLY_START ===
 def handle_recovery_apply(
     root: Path,
     arguments: dict[str, object],
     text_content: TextContentFactory,
+# === ANCHOR: MCP_RECOVERY_HANDLERS_HANDLE_RECOVERY_APPLY_END ===
 ) -> list[object]:
     from vibelign.core.recovery.apply import RecoveryApplyRequest, execute_recovery_apply
 
@@ -126,26 +139,33 @@ def handle_recovery_apply(
     return _text(text_content, json.dumps(payload, ensure_ascii=False, sort_keys=True))
 
 
+# === ANCHOR: MCP_RECOVERY_HANDLERS__STRING_LIST_START ===
 def _string_list(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
     items = cast(list[object], value)
     return [str(item) for item in items if str(item)]
+# === ANCHOR: MCP_RECOVERY_HANDLERS__STRING_LIST_END ===
 
 
+# === ANCHOR: MCP_RECOVERY_HANDLERS__OPTIONAL_TEXT_START ===
 def _optional_text(value: object) -> str | None:
     if not isinstance(value, str):
         return None
     text = value.strip()
     return text or None
+# === ANCHOR: MCP_RECOVERY_HANDLERS__OPTIONAL_TEXT_END ===
 
 
+# === ANCHOR: MCP_RECOVERY_HANDLERS__AUDIT_PATHS_COUNT_START ===
 def _audit_paths_count(plan: RecoveryPlan) -> AuditPathsCount:
     in_zone = len(plan.intent_zone)
     drift = len(plan.drift_candidates)
     return AuditPathsCount(in_zone=in_zone, drift=drift, total=in_zone + drift)
+# === ANCHOR: MCP_RECOVERY_HANDLERS__AUDIT_PATHS_COUNT_END ===
 
 
+# === ANCHOR: MCP_RECOVERY_HANDLERS__PLAN_TO_PAYLOAD_START ===
 def _plan_to_payload(plan: RecoveryPlan) -> dict[str, object]:
     return {
         "plan_id": plan.plan_id,
@@ -161,12 +181,16 @@ def _plan_to_payload(plan: RecoveryPlan) -> dict[str, object]:
         "ranked_candidates": [item.__dict__ for item in plan.ranked_candidates],
         "recommendation_provider": plan.recommendation_provider,
     }
+# === ANCHOR: MCP_RECOVERY_HANDLERS__PLAN_TO_PAYLOAD_END ===
 
 
+# === ANCHOR: MCP_RECOVERY_HANDLERS__INTENT_ZONE_TO_PAYLOAD_START ===
 def _intent_zone_to_payload(item: IntentZoneEntry) -> dict[str, object]:
     return {"path": item.path, "source": item.source, "reason": item.reason}
+# === ANCHOR: MCP_RECOVERY_HANDLERS__INTENT_ZONE_TO_PAYLOAD_END ===
 
 
+# === ANCHOR: MCP_RECOVERY_HANDLERS__DRIFT_CANDIDATE_TO_PAYLOAD_START ===
 def _drift_candidate_to_payload(item: DriftCandidate) -> dict[str, object]:
     return {
         "path": item.path,
@@ -174,8 +198,10 @@ def _drift_candidate_to_payload(item: DriftCandidate) -> dict[str, object]:
         "suggested_action": item.suggested_action,
         "requires_user_review": item.requires_user_review,
     }
+# === ANCHOR: MCP_RECOVERY_HANDLERS__DRIFT_CANDIDATE_TO_PAYLOAD_END ===
 
 
+# === ANCHOR: MCP_RECOVERY_HANDLERS__OPTION_TO_PAYLOAD_START ===
 def _option_to_payload(item: RecoveryOption) -> dict[str, object]:
     return {
         "option_id": item.option_id,
@@ -193,8 +219,10 @@ def _option_to_payload(item: RecoveryOption) -> dict[str, object]:
         "expected_loss": list(item.expected_loss),
         "next_call": item.next_call,
     }
+# === ANCHOR: MCP_RECOVERY_HANDLERS__OPTION_TO_PAYLOAD_END ===
 
 
+# === ANCHOR: MCP_RECOVERY_HANDLERS__CHECKPOINT_TO_PAYLOAD_START ===
 def _checkpoint_to_payload(item: SafeCheckpointCandidate | None) -> dict[str, object] | None:
     if item is None:
         return None
@@ -206,11 +234,17 @@ def _checkpoint_to_payload(item: SafeCheckpointCandidate | None) -> dict[str, ob
         "preview_available": item.preview_available,
         "predates_change": item.predates_change,
     }
+# === ANCHOR: MCP_RECOVERY_HANDLERS__CHECKPOINT_TO_PAYLOAD_END ===
 
 
+# === ANCHOR: MCP_RECOVERY_HANDLERS__UTC_NOW_START ===
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+# === ANCHOR: MCP_RECOVERY_HANDLERS__UTC_NOW_END ===
 
 
+# === ANCHOR: MCP_RECOVERY_HANDLERS__RELEASE_WINDOW_START_START ===
 def _release_window_start() -> str:
     return (datetime.now(timezone.utc) - timedelta(days=90)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+# === ANCHOR: MCP_RECOVERY_HANDLERS__RELEASE_WINDOW_START_END ===
+# === ANCHOR: MCP_RECOVERY_HANDLERS_END ===

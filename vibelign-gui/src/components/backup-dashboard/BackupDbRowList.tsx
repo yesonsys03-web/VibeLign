@@ -1,3 +1,4 @@
+// === ANCHOR: BACKUPDBROWLIST_START ===
 import type { BackupDbViewerCheckpointRow } from "../../lib/vib";
 import { formatBytes, formatSavedAt } from "./model";
 
@@ -43,3 +44,4 @@ export default function BackupDbRowList({ rows, selectedId, onSelect }: BackupDb
     </div>
   );
 }
+// === ANCHOR: BACKUPDBROWLIST_END ===

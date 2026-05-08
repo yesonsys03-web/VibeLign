@@ -1,7 +1,10 @@
 import argparse
 import importlib
+import tempfile
 import unittest
 from collections.abc import Callable
+from pathlib import Path
+from unittest.mock import patch
 from typing import cast
 
 
@@ -29,6 +32,31 @@ class VibCliRuntimeTest(unittest.TestCase):
         _ = run_cli_with_args(build_parser, ["alpha"])
 
         self.assertEqual(called, ["alpha"])
+
+    def test_run_cli_records_unhandled_exception(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir()
+
+            def run_boom(_: object) -> None:
+                raise RuntimeError("boom")
+
+            def build_parser() -> argparse.ArgumentParser:
+                parser = argparse.ArgumentParser()
+                sub = parser.add_subparsers(dest="command", required=True)
+                parser_boom = sub.add_parser("boom")
+                parser_boom.set_defaults(func=run_boom)
+                return parser
+
+            with (
+                patch("sys.argv", ["vib", "boom"]),
+                patch("pathlib.Path.cwd", return_value=root),
+            ):
+                with self.assertRaises(RuntimeError):
+                    cli_runtime.run_cli(build_parser)
+
+            files = list((root / ".vibelign" / "logs").glob("cli-error-*.jsonl"))
+            self.assertEqual(1, len(files))
 
 
 if __name__ == "__main__":

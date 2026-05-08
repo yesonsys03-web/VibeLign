@@ -1,3 +1,4 @@
+# === ANCHOR: MCP_MEMORY_HANDLERS_START ===
 from __future__ import annotations
 
 import json
@@ -15,18 +16,26 @@ from vibelign.core.memory.store import load_memory_state
 from vibelign.core.meta_paths import MetaPaths
 
 
+# === ANCHOR: MCP_MEMORY_HANDLERS_TEXTCONTENTFACTORY_START ===
 class TextContentFactory(Protocol):
+    # === ANCHOR: MCP_MEMORY_HANDLERS___CALL___START ===
+# === ANCHOR: MCP_MEMORY_HANDLERS_TEXTCONTENTFACTORY_END ===
     def __call__(self, *, type: str, text: str) -> object: ...
+    # === ANCHOR: MCP_MEMORY_HANDLERS___CALL___END ===
 
 
+# === ANCHOR: MCP_MEMORY_HANDLERS__TEXT_START ===
 def _text(factory: TextContentFactory, text: str) -> list[object]:
     return [factory(type="text", text=text)]
+# === ANCHOR: MCP_MEMORY_HANDLERS__TEXT_END ===
 
 
+# === ANCHOR: MCP_MEMORY_HANDLERS_HANDLE_MEMORY_SUMMARY_READ_START ===
 def handle_memory_summary_read(
     root: Path,
     arguments: dict[str, object],
     text_content: TextContentFactory,
+# === ANCHOR: MCP_MEMORY_HANDLERS_HANDLE_MEMORY_SUMMARY_READ_END ===
 ) -> list[object]:
     _ = arguments
     state = load_memory_state(MetaPaths(root).work_memory_path)
@@ -63,10 +72,12 @@ def handle_memory_summary_read(
     return _text(text_content, json.dumps(payload, ensure_ascii=False, sort_keys=True))
 
 
+# === ANCHOR: MCP_MEMORY_HANDLERS_HANDLE_HANDOFF_DRAFT_CREATE_START ===
 def handle_handoff_draft_create(
     root: Path,
     arguments: dict[str, object],
     text_content: TextContentFactory,
+# === ANCHOR: MCP_MEMORY_HANDLERS_HANDLE_HANDOFF_DRAFT_CREATE_END ===
 ) -> list[object]:
     from vibelign.core.memory.agent import build_handoff_summary_draft, handoff_draft_to_payload
 
@@ -83,10 +94,12 @@ def handle_handoff_draft_create(
     return _text(text_content, json.dumps(payload, ensure_ascii=False, sort_keys=True))
 
 
+# === ANCHOR: MCP_MEMORY_HANDLERS_HANDLE_HANDOFF_DRAFT_ACCEPT_START ===
 def handle_handoff_draft_accept(
     root: Path,
     arguments: dict[str, object],
     text_content: TextContentFactory,
+# === ANCHOR: MCP_MEMORY_HANDLERS_HANDLE_HANDOFF_DRAFT_ACCEPT_END ===
 ) -> list[object]:
     from vibelign.core.memory.agent import HandoffDraftField, HandoffSummaryDraft, accept_handoff_draft_field
 
@@ -104,10 +117,12 @@ def handle_handoff_draft_accept(
     return _text(text_content, json.dumps(result.__dict__, ensure_ascii=False, sort_keys=True))
 
 
+# === ANCHOR: MCP_MEMORY_HANDLERS_HANDLE_HANDOFF_DRAFT_DISMISS_START ===
 def handle_handoff_draft_dismiss(
     root: Path,
     arguments: dict[str, object],
     text_content: TextContentFactory,
+# === ANCHOR: MCP_MEMORY_HANDLERS_HANDLE_HANDOFF_DRAFT_DISMISS_END ===
 ) -> list[object]:
     from vibelign.core.memory.agent import HandoffDraftField, HandoffSummaryDraft, dismiss_handoff_draft_field
 
@@ -125,10 +140,12 @@ def handle_handoff_draft_dismiss(
     return _text(text_content, json.dumps(result.__dict__, ensure_ascii=False, sort_keys=True))
 
 
+# === ANCHOR: MCP_MEMORY_HANDLERS_HANDLE_HANDOFF_DRAFT_UNDO_START ===
 def handle_handoff_draft_undo(
     root: Path,
     arguments: dict[str, object],
     text_content: TextContentFactory,
+# === ANCHOR: MCP_MEMORY_HANDLERS_HANDLE_HANDOFF_DRAFT_UNDO_END ===
 ) -> list[object]:
     from vibelign.core.memory.agent import undo_recent_handoff_acceptance
 
@@ -144,20 +161,27 @@ def handle_handoff_draft_undo(
     return _text(text_content, json.dumps(result.__dict__, ensure_ascii=False, sort_keys=True))
 
 
+# === ANCHOR: MCP_MEMORY_HANDLERS__DRAFT_FROM_ARGUMENTS_START ===
 def _draft_from_arguments(arguments: dict[str, object]) -> object | None:
     from vibelign.core.memory.agent import handoff_draft_from_payload
 
     return handoff_draft_from_payload(arguments.get("draft"))
+# === ANCHOR: MCP_MEMORY_HANDLERS__DRAFT_FROM_ARGUMENTS_END ===
 
 
+# === ANCHOR: MCP_MEMORY_HANDLERS__DRAFT_FIELD_START ===
 def _draft_field(value: object) -> object | None:
     if value in {"session_summary", "active_intent", "next_action", "relevant_files", "verification", "risk_notes"}:
         return value
     return None
+# === ANCHOR: MCP_MEMORY_HANDLERS__DRAFT_FIELD_END ===
 
 
+# === ANCHOR: MCP_MEMORY_HANDLERS__AUDIT_HANDOFF_ACTION_START ===
 def _audit_handoff_action(root: Path, event: str, ok: bool) -> None:
     append_memory_audit_event(
         memory_audit_path(root),
         build_memory_audit_event(root, event=event, tool="mcp", result="success" if ok else "denied"),
     )
+# === ANCHOR: MCP_MEMORY_HANDLERS__AUDIT_HANDOFF_ACTION_END ===
+# === ANCHOR: MCP_MEMORY_HANDLERS_END ===

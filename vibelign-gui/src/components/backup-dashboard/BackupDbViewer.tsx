@@ -1,3 +1,4 @@
+// === ANCHOR: BACKUPDBVIEWER_START ===
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BackupDbViewerInspectResult } from "../../lib/vib";
 import { backupDbViewerInspect } from "../../lib/vib";
@@ -41,10 +42,12 @@ export default function BackupDbViewer({ projectDir }: BackupDbViewerProps) {
 
   const rows = useMemo(() => filterBackupDbRows(report?.checkpoints ?? [], query), [report, query]);
   const selected = report?.checkpoints.find((row) => row.checkpointId === selectedId) ?? null;
+  // === ANCHOR: BACKUPDBVIEWER_SHOWMAINTENANCEHINT_START ===
   const showMaintenanceHint = (report?.dbFile.totalBytes ?? 0) >= 64 * 1024 * 1024;
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
+  // === ANCHOR: BACKUPDBVIEWER_SHOWMAINTENANCEHINT_END ===
       <div className="alert alert-success" style={{ margin: 0 }}>읽기 전용입니다. 복원에 쓰이는 값은 수정하지 않습니다.</div>
       {showMaintenanceHint && (
         <div className="alert" style={{ margin: 0 }}>
@@ -74,3 +77,4 @@ export default function BackupDbViewer({ projectDir }: BackupDbViewerProps) {
     </div>
   );
 }
+// === ANCHOR: BACKUPDBVIEWER_END ===

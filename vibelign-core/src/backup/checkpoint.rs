@@ -1,3 +1,4 @@
+// === ANCHOR: CHECKPOINT_START ===
 use crate::backup::cas;
 use crate::backup::snapshot::{collect, SnapshotFile};
 use crate::db::schema;
@@ -774,3 +775,4 @@ mod tests {
         assert!(app.metadata().unwrap().permissions().readonly());
     }
 }
+// === ANCHOR: CHECKPOINT_END ===

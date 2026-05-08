@@ -1,3 +1,4 @@
+// === ANCHOR: BACKUPFLOW_START ===
 import type { BackupEntry } from "../../lib/vib";
 import BackupCard from "./BackupCard";
 import { cleanBackupNote, formatSavedAt } from "./model";
@@ -29,3 +30,4 @@ export default function BackupFlow({ entries }: BackupFlowProps) {
     </BackupCard>
   );
 }
+// === ANCHOR: BACKUPFLOW_END ===

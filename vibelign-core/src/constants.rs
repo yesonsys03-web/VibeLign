@@ -1,3 +1,4 @@
+// === ANCHOR: CONSTANTS_START ===
 pub const IGNORED_DIRS: &[&str] = &[
     ".git",
     ".venv",
@@ -37,3 +38,4 @@ pub const CHECKPOINT_IGNORED_FILES: &[&str] = &[
     "vibelign.db-wal",
     "vibelign.db-shm",
 ];
+// === ANCHOR: CONSTANTS_END ===

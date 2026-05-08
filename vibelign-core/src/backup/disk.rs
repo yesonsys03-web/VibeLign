@@ -1,3 +1,4 @@
+// === ANCHOR: DISK_START ===
 use std::path::Path;
 
 pub const MIN_FREE_BYTES: u64 = 1024 * 1024 * 1024;
@@ -24,3 +25,4 @@ mod tests {
         assert!(!has_enough_space(MIN_FREE_BYTES - 1, MIN_FREE_BYTES));
     }
 }
+// === ANCHOR: DISK_END ===

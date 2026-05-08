@@ -1,3 +1,4 @@
+// === ANCHOR: DIFF_START ===
 use crate::db::schema;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
@@ -272,3 +273,4 @@ mod tests {
         assert_eq!(diff.deleted[0].relative_path, "App.tsx");
     }
 }
+// === ANCHOR: DIFF_END ===

@@ -44,6 +44,10 @@ class MetaPaths:
         return self.vibelign_dir / "reports"
 
     @property
+    def logs_dir(self) -> Path:
+        return self.vibelign_dir / "logs"
+
+    @property
     def watch_state_path(self) -> Path:
         return self.vibelign_dir / "watch_state.json"
 

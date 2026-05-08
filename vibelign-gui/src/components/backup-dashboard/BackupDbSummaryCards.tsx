@@ -1,3 +1,4 @@
+// === ANCHOR: BACKUPDBSUMMARYCARDS_START ===
 import type { BackupDbViewerInspectResult } from "../../lib/vib";
 import { compressionSummaryLabel, storageEfficiencyPercent } from "./backupDbModel";
 import { formatBytes } from "./model";
@@ -30,3 +31,4 @@ export default function BackupDbSummaryCards({ report }: BackupDbSummaryCardsPro
     </div>
   );
 }
+// === ANCHOR: BACKUPDBSUMMARYCARDS_END ===

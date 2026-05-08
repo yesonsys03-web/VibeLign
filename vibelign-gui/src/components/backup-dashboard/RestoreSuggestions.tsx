@@ -1,3 +1,4 @@
+// === ANCHOR: RESTORESUGGESTIONS_START ===
 import BackupCard from "./BackupCard";
 import type { RestoreSuggestion } from "./model";
 
@@ -28,3 +29,4 @@ export default function RestoreSuggestions({ suggestions, onSelect }: RestoreSug
     </BackupCard>
   );
 }
+// === ANCHOR: RESTORESUGGESTIONS_END ===

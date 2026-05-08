@@ -1,3 +1,4 @@
+// === ANCHOR: MOD_START ===
 pub mod files;
 pub mod full;
 pub mod preview;
@@ -164,3 +165,4 @@ pub fn checkpoint_context(
     let files = load_checkpoint_files(&conn, checkpoint_id)?;
     Ok((conn, is_v2, files))
 }
+// === ANCHOR: MOD_END ===

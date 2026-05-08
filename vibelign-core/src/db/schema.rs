@@ -1,3 +1,4 @@
+// === ANCHOR: SCHEMA_START ===
 use rusqlite::{params, Connection, Result};
 use std::collections::HashSet;
 use unicode_normalization::UnicodeNormalization;
@@ -322,3 +323,4 @@ mod tests {
         assert_eq!(relative_path, "é.txt");
     }
 }
+// === ANCHOR: SCHEMA_END ===

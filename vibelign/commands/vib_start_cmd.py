@@ -41,6 +41,8 @@ GITIGNORE_LINE = ".vibelign/checkpoints/"
 GITIGNORE_RUST_CHECKPOINTS_LINE = ".vibelign/rust_checkpoints/"
 GITIGNORE_RUST_OBJECTS_LINE = ".vibelign/rust_objects/"
 GITIGNORE_SCAN_CACHE_LINE = ".vibelign/scan_cache.json"
+GITIGNORE_LOGS_LINE = ".vibelign/logs/"
+GITIGNORE_REPORTS_LINE = ".vibelign/reports/"
 LARGE_FILE_LINE_THRESHOLD = 300
 START_TOOL_CHOICES = ("claude", "opencode", "cursor", "antigravity", "codex")
 TOOL_DISPLAY_NAMES = {
@@ -228,6 +230,8 @@ def _ensure_gitignore_entry(root: Path) -> None:
             GITIGNORE_RUST_CHECKPOINTS_LINE,
             GITIGNORE_RUST_OBJECTS_LINE,
             GITIGNORE_SCAN_CACHE_LINE,
+            GITIGNORE_LOGS_LINE,
+            GITIGNORE_REPORTS_LINE,
         ]
         if line
         not in (

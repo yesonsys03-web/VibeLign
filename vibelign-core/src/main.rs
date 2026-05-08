@@ -1,3 +1,4 @@
+// === ANCHOR: MAIN_START ===
 mod backup;
 mod constants;
 mod db;
@@ -38,3 +39,4 @@ fn print_response(response: EngineResponse) {
         ),
     }
 }
+// === ANCHOR: MAIN_END ===

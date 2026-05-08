@@ -1,5 +1,7 @@
+// === ANCHOR: BACKUPDBMODEL_START ===
 import type { BackupDbViewerCheckpointRow, BackupDbViewerInspectResult } from "../../lib/vib";
 
+// === ANCHOR: BACKUPDBMODEL_FILTERBACKUPDBROWS_START ===
 export function filterBackupDbRows(rows: BackupDbViewerCheckpointRow[], query: string): BackupDbViewerCheckpointRow[] {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return rows;
@@ -11,16 +13,22 @@ export function filterBackupDbRows(rows: BackupDbViewerCheckpointRow[], query: s
     row.gitCommitMessage ?? "",
   ].some((value) => value.toLowerCase().includes(normalized)));
 }
+// === ANCHOR: BACKUPDBMODEL_FILTERBACKUPDBROWS_END ===
 
+// === ANCHOR: BACKUPDBMODEL_STORAGEEFFICIENCYPERCENT_START ===
 export function storageEfficiencyPercent(report: BackupDbViewerInspectResult): number {
   if (report.totalOriginalSizeBytes <= 0) return 0;
   const saved = report.totalOriginalSizeBytes - report.totalStoredSizeBytes;
   return Math.max(0, Math.round((saved / report.totalOriginalSizeBytes) * 100));
 }
+// === ANCHOR: BACKUPDBMODEL_STORAGEEFFICIENCYPERCENT_END ===
 
+// === ANCHOR: BACKUPDBMODEL_COMPRESSIONSUMMARYLABEL_START ===
 export function compressionSummaryLabel(report: BackupDbViewerInspectResult): string {
   if (report.objectStore.compressionSummary.length === 0) return "정보 없음";
   return report.objectStore.compressionSummary
     .map((item) => `${item.compression} ${item.objectCount}개`)
     .join(" · ");
 }
+// === ANCHOR: BACKUPDBMODEL_COMPRESSIONSUMMARYLABEL_END ===
+// === ANCHOR: BACKUPDBMODEL_END ===

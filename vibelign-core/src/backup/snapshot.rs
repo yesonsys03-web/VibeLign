@@ -1,3 +1,4 @@
+// === ANCHOR: SNAPSHOT_START ===
 use crate::constants::{CHECKPOINT_IGNORED_FILES, IGNORED_DIRS};
 use std::collections::VecDeque;
 use std::fs;
@@ -69,6 +70,8 @@ pub fn collect(root: &Path) -> std::io::Result<Vec<SnapshotFile>> {
         if relative_text.starts_with(".vibelign/rust_checkpoints/")
             || relative_text.starts_with(".vibelign/rust_objects/")
             || relative_text.starts_with(".vibelign/checkpoints/")
+            || relative_text.starts_with(".vibelign/logs/")
+            || relative_text.starts_with(".vibelign/reports/")
         {
             continue;
         }
@@ -166,9 +169,17 @@ mod tests {
         std::fs::write(root.join(".vibelign/anchor_index.json"), "{}\n").unwrap();
         std::fs::write(root.join(".vibelign/state.json"), "{}\n").unwrap();
         std::fs::create_dir_all(root.join(".vibelign/rust_objects/blake3/ab/cd")).unwrap();
+        std::fs::create_dir_all(root.join(".vibelign/logs")).unwrap();
+        std::fs::create_dir_all(root.join(".vibelign/reports")).unwrap();
         std::fs::write(
             root.join(".vibelign/rust_objects/blake3/ab/cd/object"),
             "stored\n",
+        )
+        .unwrap();
+        std::fs::write(root.join(".vibelign/logs/cli-error-20260506.jsonl"), "{}\n").unwrap();
+        std::fs::write(
+            root.join(".vibelign/reports/bug-20260506-000000Z.md"),
+            "# Bug\n",
         )
         .unwrap();
 
@@ -181,6 +192,8 @@ mod tests {
         assert!(paths.contains(&"app.py".to_string()));
         assert!(paths.contains(&".vibelign/anchor_index.json".to_string()));
         assert!(!paths.contains(&".vibelign/rust_objects/blake3/ab/cd/object".to_string()));
+        assert!(!paths.contains(&".vibelign/logs/cli-error-20260506.jsonl".to_string()));
+        assert!(!paths.contains(&".vibelign/reports/bug-20260506-000000Z.md".to_string()));
         assert!(!paths.contains(&".vibelign/state.json".to_string()));
     }
 
@@ -299,3 +312,4 @@ mod tests {
         assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
     }
 }
+// === ANCHOR: SNAPSHOT_END ===
