@@ -20,7 +20,7 @@ export default function BackupDbRowList({ rows, selectedId, onSelect }: BackupDb
         <button
           key={row.checkpointId}
           type="button"
-          className="btn btn-ghost btn-sm"
+          className="btn btn-ghost btn-sm backup-row-button"
           onClick={() => onSelect(row.checkpointId)}
           style={{
             display: "grid",

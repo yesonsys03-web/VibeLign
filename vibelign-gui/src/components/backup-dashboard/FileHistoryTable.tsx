@@ -39,7 +39,7 @@ export default function FileHistoryTable({ entries, query, selectedId, onQueryCh
     >
       <div style={{ display: "grid", gap: 6, maxHeight: HISTORY_LIST_MAX_HEIGHT, overflowY: "auto", overscrollBehavior: "contain", paddingRight: visible.length > 6 ? 4 : 0 }}>
         {visible.map((entry) => (
-          <button key={entry.id} ref={selectedId === entry.id ? selectedButtonRef : null} className="btn btn-ghost btn-sm" onClick={() => onSelect(entry.id)} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "center", textAlign: "left", background: selectedId === entry.id ? "#FFF1B8" : "#fff" }}>
+          <button key={entry.id} ref={selectedId === entry.id ? selectedButtonRef : null} className="btn btn-ghost btn-sm backup-row-button" onClick={() => onSelect(entry.id)} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "center", textAlign: "left", background: selectedId === entry.id ? "#FFF1B8" : "#fff" }}>
             <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cleanBackupNote(entry)}</strong>
             <span>{formatSavedAt(entry.createdAt)}</span>
             <span>{formatBytes(entry.totalSizeBytes)}</span>

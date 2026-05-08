@@ -108,6 +108,11 @@ html, body {
 
 .btn-sm { padding: 5px 12px; font-size: 11px; box-shadow: var(--shadow-sm); }
 .btn-sm:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #1A1A1A; }
+.backup-row-button:hover,
+.backup-row-button:active {
+  transform: none;
+  box-shadow: var(--shadow-sm);
+}
 
 /* ─── 카드 ─────────────────────────────────────────────────────────────────── */
 .card {
