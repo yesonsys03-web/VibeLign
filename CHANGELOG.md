@@ -10,6 +10,36 @@
 
 ---
 
+## [2.1.11] — 2026-05-08
+
+VibeLign 2.1.11 은 **Rust project_scan 기본 라우팅, GUI Explain 분류 보정, CLI help/manual 정합성 개선**을 포함한 릴리즈입니다.
+
+### Added
+
+- Rust 엔진에 `project_scan` IPC를 추가하고 Python CLI가 기본적으로 Rust scan 결과를 사용하도록 연결했습니다.
+- `iter_source_file_records()`를 추가해 Rust scan의 `category/imports` metadata를 `scan_cache`가 재사용할 수 있게 했습니다.
+- `vib -h`와 `vib manual`에 최근 추가된 `backup-*`, `show`, `doc-sources`, `docs-enhance`, `bench`, `manual` 안내를 빠짐없이 노출합니다.
+
+### Changed
+
+- `scan_cache.incremental_scan()`이 Rust scan metadata를 우선 사용하되, 실패 시 기존 Python/fd fallback을 유지합니다.
+- GUI Tauri command 모듈에 anchor 경계를 추가해 VibeLign Explain/CodeMap에서 backend command 파일을 더 명확하게 식별합니다.
+
+### Fixed
+
+- GUI Explain Report에서 `vibelign-gui/src-tauri/src/commands/*.rs`가 `화면`으로 잘못 표시되던 문제를 `명령/설정`으로 보정했습니다.
+- stale `.vibelign/project_map.json`이 명확한 command 경로를 `ui`로 덮어쓰지 못하도록 우선순위를 조정했습니다.
+- `.mcp.json`, `pyproject.toml`, `vib.spec`, `/commands/`, `/cli/` 경로가 Explain에서 명령/설정 파일로 분류됩니다.
+
+### Verified
+
+- Rust project_scan consumer/fallback focused tests 통과.
+- Explain/GUI contract focused tests 통과.
+- CLI help/manual coverage tests 통과.
+- `GIT_MASTER=1 git diff --check` 통과.
+
+---
+
 ## [2.1.10] — 2026-05-05
 
 VibeLign 2.1.10 은 **Gemini 무료 등급 429 에러 안내 개선** 핫픽스입니다.
