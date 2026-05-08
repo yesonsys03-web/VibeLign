@@ -55,6 +55,26 @@ class VibCliSurfaceTest(unittest.TestCase):
             }.issubset(commands)
         )
 
+    def test_vib_help_surface_mentions_visible_recent_commands(self):
+        parser = build_parser()
+        help_text = parser.format_help()
+
+        for command in [
+            "backup-db-viewer",
+            "backup-graph-summary",
+            "backup-db-maintenance",
+            "backup-cleanup",
+            "doc-sources",
+            "show",
+        ]:
+            self.assertIn(command, help_text)
+
+        usage_block = help_text.split("\n\n", maxsplit=1)[0]
+        self.assertIn("backup-db-viewer", usage_block)
+        self.assertIn("backup-graph-summary", usage_block)
+        self.assertIn("backup-db-maintenance", usage_block)
+        self.assertIn("backup-cleanup", usage_block)
+
     def test_vib_init_points_to_project_init_flow(self):
         parser = build_parser()
         subparsers_action = cast(

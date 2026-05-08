@@ -100,7 +100,7 @@ VibeLign - AI한테 코딩 시켜도 안전하게 지켜주는 도구
   explain     뭐가 바뀌었는지 쉽게 알려줘요
 
 AI 수정 요청:
- patch       말로 요청하면 안전한 수정 계획을 만들어요
+  patch       말로 요청하면 안전한 수정 계획을 만들어요
   anchor      AI가 건드려도 되는 안전 구역을 표시해요
   scan        앵커 스캔 + 코드맵 갱신을 한 번에 해요
   plan-structure  코딩 전에 구조 계획을 만들어요
@@ -112,6 +112,7 @@ AI 수정 요청:
   transfer    AI 툴 전환 시 맥락 파일 생성
   memory      지금 하던 일과 다음 할 일을 세션 메모리에 저장해요
   ask         파일이 뭘 하는지 설명해줘요
+  show        앵커 블록만 콘솔에 찍어요
   config      API 키 설정
   export      AI 도구용 설정 내보내기
   watch       실시간 감시
@@ -121,6 +122,7 @@ AI 수정 요청:
   docs-build    markdown 문서의 visual cache를 다시 만들어요
   docs-enhance  AI 로 현재 문서의 요약 필드를 생성해요
   docs-index    docs viewer가 쓰는 문서 목록/계약 정보를 보여줘요
+  doc-sources   추가 문서 소스를 등록/제거/조회해요
 
 도움말:
   manual      코알못을 위한 상세 사용 설명서
