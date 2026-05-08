@@ -1,9 +1,11 @@
 import hashlib
 import json
 import os
+import socket
 import stat
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from typing import cast
@@ -13,10 +15,12 @@ from vibelign.core.checkpoint_engine.rust_engine import (
     _binary_name,
     _candidate_paths,
     apply_retention_with_rust,
+    call_rust_engine_daemon,
     call_rust_engine,
     create_checkpoint_with_rust,
     diff_checkpoints_with_rust,
     find_rust_engine,
+    healthcheck_rust_engine_daemon,
     inspect_backup_db_with_rust,
     list_checkpoints_with_rust,
     preview_restore_with_rust,
@@ -24,7 +28,11 @@ from vibelign.core.checkpoint_engine.rust_engine import (
     restore_checkpoint_with_rust,
     restore_files_with_rust,
     restore_suggestions_with_rust,
+    RustEngineResult,
+    shutdown_rust_engine_daemon,
 )
+from vibelign.core.checkpoint_engine.rust_engine import daemon_client as daemon_client_module
+from vibelign.core.checkpoint_engine.rust_engine.discovery import RustEngineAvailability
 from vibelign.core.checkpoint_engine.auto_backup import (
     create_post_commit_backup,
     set_auto_backup_enabled,
@@ -48,6 +56,42 @@ def _write_hash(path: Path) -> None:
     _ = path.with_suffix(path.suffix + ".sha256").write_text(
         f"{digest}  {path.name}\n", encoding="utf-8"
     )
+
+
+def _serve_one_daemon_response(root: Path, response_for_request):
+    meta_dir = root / ".vibelign"
+    meta_dir.mkdir(parents=True, exist_ok=True)
+    sock_path = meta_dir / "engine.sock"
+    ready = threading.Event()
+    captured: dict[str, object] = {}
+
+    def run_server() -> None:
+        if sock_path.exists():
+            sock_path.unlink()
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
+            server.bind(str(sock_path))
+            server.listen(1)
+            ready.set()
+            connection, _ = server.accept()
+            with connection:
+                data = b""
+                while b"\n" not in data:
+                    chunk = connection.recv(4096)
+                    if not chunk:
+                        break
+                    data += chunk
+                request = json.loads(data.split(b"\n", 1)[0].decode("utf-8"))
+                captured["request"] = request
+                response = response_for_request(request)
+                connection.sendall(json.dumps(response).encode("utf-8") + b"\n")
+        if sock_path.exists():
+            sock_path.unlink()
+
+    thread = threading.Thread(target=run_server, daemon=True)
+    thread.start()
+    if not ready.wait(timeout=2):
+        raise RuntimeError("daemon test server did not start")
+    return thread, captured
 
 
 class CheckpointRustEngineTest(unittest.TestCase):
@@ -149,6 +193,381 @@ class CheckpointRustEngineTest(unittest.TestCase):
 
             self.assertTrue(result.ok)
             self.assertEqual(result.payload["result"], "engine_info")
+
+    @unittest.skipUnless(hasattr(socket, "AF_UNIX"), "Unix socket daemon transport required")
+    def test_call_rust_engine_daemon_unwraps_ok_payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            thread, captured = _serve_one_daemon_response(
+                root,
+                lambda request: {
+                    "request_id": request["request_id"],
+                    "status": "ok",
+                    "result": "handled",
+                    "payload": {"status": "ok", "result": "engine_info"},
+                },
+            )
+
+            result = call_rust_engine_daemon(root, {"command": "engine_info"})
+            thread.join(timeout=2)
+
+            self.assertTrue(result.ok)
+            self.assertEqual(result.payload["result"], "engine_info")
+            self.assertEqual(cast(dict[str, object], captured["request"])["payload"], {"command": "engine_info"})
+
+    @unittest.skipUnless(hasattr(socket, "AF_UNIX"), "Unix socket daemon transport required")
+    def test_call_rust_engine_daemon_reports_daemon_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            thread, _ = _serve_one_daemon_response(
+                root,
+                lambda request: {
+                    "request_id": request["request_id"],
+                    "status": "error",
+                    "code": "DAEMON_ROOT_MISMATCH",
+                    "message": "bad root",
+                },
+            )
+
+            result = call_rust_engine_daemon(root, {"command": "checkpoint_list", "root": str(root)})
+            thread.join(timeout=2)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error_code, "DAEMON_ROOT_MISMATCH")
+            self.assertEqual(result.error_message, "bad root")
+
+    @unittest.skipUnless(hasattr(socket, "AF_UNIX"), "Unix socket daemon transport required")
+    def test_call_rust_engine_daemon_rejects_request_id_mismatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            thread, _ = _serve_one_daemon_response(
+                root,
+                lambda _request: {
+                    "request_id": "wrong-request",
+                    "status": "ok",
+                    "result": "handled",
+                    "payload": {"status": "ok", "result": "engine_info"},
+                },
+            )
+
+            result = call_rust_engine_daemon(root, {"command": "engine_info"})
+            thread.join(timeout=2)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error_code, "RUST_ENGINE_DAEMON_REQUEST_MISMATCH")
+
+    @unittest.skipUnless(hasattr(socket, "AF_UNIX"), "Unix socket daemon transport required")
+    def test_shutdown_rust_engine_daemon_accepts_control_response_without_payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            thread, captured = _serve_one_daemon_response(
+                root,
+                lambda request: {
+                    "request_id": request["request_id"],
+                    "status": "ok",
+                    "result": "shutdown",
+                    "payload": None,
+                },
+            )
+
+            result = shutdown_rust_engine_daemon(root)
+            thread.join(timeout=2)
+
+            self.assertTrue(result.ok)
+            self.assertEqual(result.payload["result"], "shutdown")
+            self.assertEqual(cast(dict[str, object], captured["request"])["payload"], {"command": "shutdown"})
+
+    @unittest.skipUnless(hasattr(socket, "AF_UNIX"), "Unix socket daemon transport required")
+    def test_healthcheck_reports_running_daemon(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            thread, _ = _serve_one_daemon_response(
+                root,
+                lambda request: {
+                    "request_id": request["request_id"],
+                    "status": "ok",
+                    "result": "handled",
+                    "payload": {"status": "ok", "result": "engine_info"},
+                },
+            )
+
+            result = healthcheck_rust_engine_daemon(root)
+            thread.join(timeout=2)
+
+            self.assertTrue(result.ok)
+
+    def test_is_rust_engine_daemon_running_wraps_healthcheck(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+            daemon_client_module,
+            "healthcheck_rust_engine_daemon",
+            return_value=RustEngineResult(
+                ok=True,
+                payload={"status": "ok", "result": "engine_info"},
+            ),
+        ):
+            self.assertTrue(daemon_client_module.is_rust_engine_daemon_running(Path(tmp)))
+
+    def test_daemon_log_rotation_keeps_three_backups(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            log_path = root / ".vibelign" / "engine.log"
+            log_path.parent.mkdir()
+            log_path.write_bytes(b"current")
+            log_path.with_name("engine.log.1").write_bytes(b"one")
+            log_path.with_name("engine.log.2").write_bytes(b"two")
+            log_path.with_name("engine.log.3").write_bytes(b"three")
+
+            daemon_client_module._rotate_daemon_log(log_path, max_bytes=1, backups=3)
+
+            self.assertFalse(log_path.exists())
+            self.assertEqual(log_path.with_name("engine.log.1").read_bytes(), b"current")
+            self.assertEqual(log_path.with_name("engine.log.2").read_bytes(), b"one")
+            self.assertEqual(log_path.with_name("engine.log.3").read_bytes(), b"two")
+
+    def test_call_rust_engine_daemon_missing_socket_is_unavailable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = call_rust_engine_daemon(Path(tmp), {"command": "engine_info"})
+
+            self.assertFalse(result.ok)
+            self.assertIn(
+                result.error_code,
+                {"RUST_ENGINE_DAEMON_UNAVAILABLE", "RUST_ENGINE_DAEMON_UNSUPPORTED"},
+            )
+
+    def test_daemon_client_reports_unsupported_transport_consistently(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+            daemon_client_module,
+            "_daemon_transport_supported",
+            return_value=False,
+        ), patch.object(daemon_client_module.socket, "socket") as socket_factory, patch.object(
+            daemon_client_module.subprocess, "Popen"
+        ) as popen:
+            root = Path(tmp)
+            results = [
+                call_rust_engine_daemon(root, {"command": "engine_info"}, start_if_missing=True),
+                healthcheck_rust_engine_daemon(root),
+                shutdown_rust_engine_daemon(root),
+                daemon_client_module.start_rust_engine_daemon(root),
+            ]
+
+        self.assertTrue(all(not result.ok for result in results))
+        self.assertEqual(
+            {result.error_code for result in results},
+            {"RUST_ENGINE_DAEMON_UNSUPPORTED"},
+        )
+        self.assertTrue(
+            all("Windows named pipe" in (result.error_message or "") for result in results)
+        )
+        socket_factory.assert_not_called()
+        popen.assert_not_called()
+
+    def test_call_rust_engine_daemon_does_not_spawn_by_default(self):
+        unavailable = RustEngineResult(
+            ok=False,
+            payload={},
+            error_code="RUST_ENGINE_DAEMON_UNAVAILABLE",
+            error_message="missing socket",
+        )
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+            daemon_client_module, "_send_daemon_request", return_value=unavailable
+        ) as send, patch.object(
+            daemon_client_module, "start_rust_engine_daemon"
+        ) as start:
+            result = call_rust_engine_daemon(Path(tmp), {"command": "engine_info"})
+
+        self.assertEqual(result.error_code, "RUST_ENGINE_DAEMON_UNAVAILABLE")
+        self.assertEqual(send.call_count, 2)
+        start.assert_not_called()
+
+    def test_call_rust_engine_daemon_retries_dropped_connection_once(self):
+        unavailable = RustEngineResult(
+            ok=False,
+            payload={},
+            error_code="RUST_ENGINE_DAEMON_UNAVAILABLE",
+            error_message="dropped connection",
+        )
+        ok = RustEngineResult(
+            ok=True,
+            payload={"status": "ok", "result": "engine_info"},
+        )
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+            daemon_client_module,
+            "_send_daemon_request",
+            side_effect=[unavailable, ok],
+        ) as send, patch.object(
+            daemon_client_module, "start_rust_engine_daemon"
+        ) as start:
+            result = call_rust_engine_daemon(Path(tmp), {"command": "engine_info"})
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.payload["result"], "engine_info")
+        self.assertEqual(send.call_count, 2)
+        start.assert_not_called()
+
+    def test_call_rust_engine_daemon_start_if_missing_retries_once(self):
+        unavailable = RustEngineResult(
+            ok=False,
+            payload={},
+            error_code="RUST_ENGINE_DAEMON_UNAVAILABLE",
+            error_message="missing socket",
+        )
+        started = RustEngineResult(
+            ok=True,
+            payload={"status": "ok", "result": "daemon_started"},
+        )
+        ok = RustEngineResult(
+            ok=True,
+            payload={"status": "ok", "result": "engine_info"},
+        )
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+            daemon_client_module,
+            "_send_daemon_request",
+            side_effect=[unavailable, unavailable, ok],
+        ) as send, patch.object(
+            daemon_client_module, "start_rust_engine_daemon", return_value=started
+        ) as start:
+            result = call_rust_engine_daemon(
+                Path(tmp), {"command": "engine_info"}, start_if_missing=True
+            )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.payload["result"], "engine_info")
+        self.assertEqual(send.call_count, 3)
+        start.assert_called_once()
+
+    def test_start_rust_engine_daemon_reports_missing_binary(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+            daemon_client_module,
+            "find_rust_engine",
+            return_value=RustEngineAvailability(
+                False, None, "rust engine binary missing", "RUST_ENGINE_UNAVAILABLE"
+            ),
+        ):
+            result = daemon_client_module.start_rust_engine_daemon(Path(tmp))
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, "RUST_ENGINE_UNAVAILABLE")
+
+    def test_start_rust_engine_daemon_skips_spawn_when_healthcheck_succeeds(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+            daemon_client_module, "is_rust_engine_daemon_running", return_value=True
+        ) as healthcheck, patch.object(
+            daemon_client_module.subprocess, "Popen"
+        ) as popen:
+            result = daemon_client_module.start_rust_engine_daemon(Path(tmp))
+
+        self.assertTrue(result.ok)
+        healthcheck.assert_called_once()
+        popen.assert_not_called()
+
+    def test_start_rust_engine_daemon_accepts_other_process_winning_race(self):
+        class ExitedProcess:
+            def poll(self) -> int:
+                return 1
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta_dir = root / ".vibelign"
+            meta_dir.mkdir()
+            (meta_dir / "engine.sock").write_text("ready\n", encoding="utf-8")
+            (meta_dir / "engine.pid").write_text("12345\n", encoding="utf-8")
+            binary = root / "vibelign-engine"
+            with patch.object(
+                daemon_client_module,
+                "find_rust_engine",
+                return_value=RustEngineAvailability(True, binary),
+            ), patch.object(
+                daemon_client_module.subprocess, "Popen", return_value=ExitedProcess()
+            ):
+                result = daemon_client_module.start_rust_engine_daemon(root)
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.payload["result"], "daemon_started")
+
+    def test_rust_wrappers_default_to_oneshot_transport(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.dict(os.environ, {"VIBELIGN_ENGINE_DAEMON": ""}, clear=False), patch(
+                "vibelign.core.checkpoint_engine.rust_engine.call_rust_engine_daemon"
+            ) as daemon_call, patch(
+                "vibelign.core.checkpoint_engine.rust_engine.call_rust_engine",
+                return_value=RustEngineResult(
+                    ok=True,
+                    payload={"status": "ok", "result": "listed", "checkpoints": []},
+                ),
+            ) as oneshot_call:
+                checkpoints, warning = list_checkpoints_with_rust(root)
+
+            self.assertEqual(checkpoints, [])
+            self.assertIsNone(warning)
+            daemon_call.assert_not_called()
+            oneshot_call.assert_called_once()
+
+    def test_rust_wrappers_use_daemon_when_opted_in(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.dict(os.environ, {"VIBELIGN_ENGINE_DAEMON": "1"}, clear=False), patch(
+                "vibelign.core.checkpoint_engine.rust_engine.call_rust_engine_daemon",
+                return_value=RustEngineResult(
+                    ok=True,
+                    payload={"status": "ok", "result": "listed", "checkpoints": []},
+                ),
+            ) as daemon_call, patch(
+                "vibelign.core.checkpoint_engine.rust_engine.call_rust_engine"
+            ) as oneshot_call:
+                checkpoints, warning = list_checkpoints_with_rust(root)
+
+            self.assertEqual(checkpoints, [])
+            self.assertIsNone(warning)
+            daemon_call.assert_called_once()
+            self.assertTrue(daemon_call.call_args.kwargs["start_if_missing"])
+            oneshot_call.assert_not_called()
+
+    def test_rust_wrappers_fallback_to_oneshot_when_daemon_unavailable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.dict(os.environ, {"VIBELIGN_ENGINE_DAEMON": "1"}, clear=False), patch(
+                "vibelign.core.checkpoint_engine.rust_engine.call_rust_engine_daemon",
+                return_value=RustEngineResult(
+                    ok=False,
+                    payload={},
+                    error_code="RUST_ENGINE_DAEMON_UNAVAILABLE",
+                    error_message="missing socket",
+                ),
+            ) as daemon_call, patch(
+                "vibelign.core.checkpoint_engine.rust_engine.call_rust_engine",
+                return_value=RustEngineResult(
+                    ok=True,
+                    payload={"status": "ok", "result": "listed", "checkpoints": []},
+                ),
+            ) as oneshot_call:
+                checkpoints, warning = list_checkpoints_with_rust(root)
+
+            self.assertEqual(checkpoints, [])
+            self.assertIsNone(warning)
+            daemon_call.assert_called_once()
+            oneshot_call.assert_called_once()
+
+    def test_rust_wrappers_do_not_hide_daemon_request_mismatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.dict(os.environ, {"VIBELIGN_ENGINE_DAEMON": "1"}, clear=False), patch(
+                "vibelign.core.checkpoint_engine.rust_engine.call_rust_engine_daemon",
+                return_value=RustEngineResult(
+                    ok=False,
+                    payload={},
+                    error_code="RUST_ENGINE_DAEMON_REQUEST_MISMATCH",
+                    error_message="wrong request_id",
+                ),
+            ) as daemon_call, patch(
+                "vibelign.core.checkpoint_engine.rust_engine.call_rust_engine"
+            ) as oneshot_call:
+                checkpoints, warning = list_checkpoints_with_rust(root)
+
+            self.assertIsNone(checkpoints)
+            self.assertIn("RUST_ENGINE_DAEMON_REQUEST_MISMATCH", warning or "")
+            daemon_call.assert_called_once()
+            oneshot_call.assert_not_called()
 
     def test_backup_db_viewer_request_shape(self):
         from vibelign.core.checkpoint_engine.requests import (
@@ -655,6 +1074,27 @@ class CheckpointRustEngineTest(unittest.TestCase):
                     _ = engine.create_checkpoint(root, "must use rust")
 
             self.assertFalse((root / ".vibelign" / "checkpoints").exists())
+
+    def test_rust_checkpoint_engine_disable_flag_wins_over_daemon_opt_in(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = (root / "app.py").write_text("print(1)\n", encoding="utf-8")
+            engine = RustCheckpointEngine()
+
+            with patch.dict(
+                os.environ,
+                {
+                    "VIBELIGN_DISABLE_RUST_CHECKPOINT": "1",
+                    "VIBELIGN_ENGINE_DAEMON": "1",
+                },
+                clear=False,
+            ), patch(
+                "vibelign.core.checkpoint_engine.rust_checkpoint_engine.create_checkpoint_with_rust"
+            ) as create_with_rust:
+                summary = engine.create_checkpoint(root, "python only")
+
+            self.assertIsNotNone(summary)
+            create_with_rust.assert_not_called()
 
     def test_rust_checkpoint_engine_falls_back_on_integrity_failure(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -341,8 +341,8 @@ def install_completion_powershell(parser, clack_info, clack_success, clack_warn)
             try:
                 if path.exists() and path.is_file():
                     return path.resolve().parent
-            except Exception:
-                pass
+            except OSError:
+                continue
 
         return Path.cwd().resolve()
     # === ANCHOR: CLI_COMPLETION_RESOLVE_VIB_DIR_END ===
@@ -384,8 +384,8 @@ def install_completion_powershell(parser, clack_info, clack_success, clack_warn)
                 text=True,
                 creationflags=WINDOWS_SUBPROCESS_FLAGS,
             )
-    except Exception:
-        pass
+    except OSError as exc:
+        clack_warn(f"PATH 자동 등록을 건너뜁니다: {exc}")
 
     profile_text = (
         profile.read_text(encoding="utf-8", errors="ignore") if profile.exists() else ""

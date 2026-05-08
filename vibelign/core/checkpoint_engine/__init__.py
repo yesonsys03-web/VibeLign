@@ -2,10 +2,10 @@
 """Checkpoint engine façade exports.
 
 Module map: contracts.py defines Protocols; python_engine.py keeps the legacy
-adapter; rust_engine.py is a thin compatibility wrapper over requests.py and
-responses.py; rust_checkpoint_engine.py adapts Rust to the Protocol; router.py
-selects the default engine; shadow_runner.py is opt-in parity tooling;
-auto_backup.py handles post-commit backups.
+adapter; rust_engine/ is the Rust discovery/transport compatibility package;
+rust_checkpoint_engine.py adapts Rust to the Protocol; router.py selects the
+default engine; shadow_runner.py is opt-in parity tooling; auto_backup.py
+handles post-commit backups.
 """
 
 from vibelign.core.checkpoint_engine.contracts import (

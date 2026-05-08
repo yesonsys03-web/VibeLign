@@ -157,6 +157,7 @@ def run_vib_checkpoint(args: object) -> None:
     # PROJECT_CONTEXT.md 자동 갱신
     context_updated = False
     handoff_warning = False
+    context_update_error: str | None = None
     try:
         build_context_content = cast(
             TransferBuilder,
@@ -175,8 +176,8 @@ def run_vib_checkpoint(args: object) -> None:
             handoff_warning = True
         _ = ctx_path.write_text(build_context_content(root), encoding="utf-8")
         context_updated = True
-    except Exception:
-        pass
+    except (ImportError, AttributeError, OSError) as exc:
+        context_update_error = str(exc)
 
     if as_json:
         print(
@@ -188,6 +189,7 @@ def run_vib_checkpoint(args: object) -> None:
                     "file_count": summary.file_count,
                     "pruned_count": summary.pruned_count,
                     "context_updated": context_updated,
+                    "context_update_error": context_update_error,
                     "handoff_warning": handoff_warning,
                 },
                 ensure_ascii=False,
@@ -197,6 +199,8 @@ def run_vib_checkpoint(args: object) -> None:
 
     display_msg = user_msg if user_msg else "(메시지 없음)"
     _print_warning(warning, as_json)
+    if context_update_error:
+        _print_warning(f"PROJECT_CONTEXT.md 자동 갱신을 건너뜁니다: {context_update_error}", as_json)
     print(f"✓ 체크포인트 저장 완료!")
     print(f"  메시지: {display_msg}")
     print(f"  파일 수: {summary.file_count}개")

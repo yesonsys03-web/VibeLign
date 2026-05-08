@@ -1,12 +1,15 @@
 import importlib
 import json
+import os
 import tempfile
 import unittest
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
+from unittest.mock import patch
 
+from vibelign.core.checkpoint_engine.rust_engine import RustEngineResult
 from vibelign.core.local_checkpoints import list_checkpoints
 
 
@@ -111,6 +114,22 @@ class McpCheckpointHandlersTest(unittest.TestCase):
             self.assertEqual(len(result), 1)
             self.assertIn("# 체크포인트 목록", result[0].text)
             self.assertIn("save", result[0].text)
+
+    def test_handle_checkpoint_list_uses_daemon_when_opted_in(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.dict(os.environ, {"VIBELIGN_ENGINE_DAEMON": "1"}, clear=False), patch(
+                "vibelign.core.checkpoint_engine.rust_engine.call_rust_engine_daemon",
+                return_value=RustEngineResult(
+                    ok=True,
+                    payload={"status": "ok", "result": "listed", "checkpoints": []},
+                ),
+            ) as daemon_call:
+                result = handle_checkpoint_list(root, TextContent)
+
+            self.assertEqual(result[0].text, "저장된 체크포인트가 없습니다.")
+            daemon_call.assert_called_once()
+            self.assertTrue(daemon_call.call_args.kwargs["start_if_missing"])
 
     def test_handle_checkpoint_restore_requires_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
