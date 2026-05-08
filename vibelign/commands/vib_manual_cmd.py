@@ -267,6 +267,28 @@ MANUAL: dict[str, ManualEntry] = {
             ("--json", "GUI/스크립트가 읽기 좋은 JSON으로 출력해요."),
         ],
     },
+    "backup-cleanup": {
+        "emoji": "🧼",
+        "title": "vib backup-cleanup",
+        "one_line": "오래된 백업과 백업 관리 DB 파일을 한 번에 정리해요",
+        "what": (
+            "보관 정책에 따라 오래된 백업을 먼저 정리하고, 이어서 백업 관리 DB의 WAL/빈 페이지를 정리해요.\n"
+            "GUI의 'DB 정리 실행' 버튼과 같은 흐름이라 터미널 명령을 잘 몰라도 안전하게 사용할 수 있어요."
+        ),
+        "when": [
+            "Backup DB Viewer에서 DB 파일이 너무 커졌다는 경고가 나올 때",
+            "오래된 자동 백업과 DB 파일 정리를 한 번에 처리하고 싶을 때",
+            "비전문가도 안전하게 백업 정리를 실행해야 할 때",
+        ],
+        "examples": [
+            ("vib backup-cleanup --json", "오래된 백업 정리 + DB 최적화 실행"),
+            ("vib backup-cleanup --root /path/to/project --json", "다른 프로젝트 루트 정리"),
+        ],
+        "options": [
+            ("--root", "정리할 프로젝트 루트예요. 안 쓰면 현재 폴더를 사용해요."),
+            ("--json", "GUI/스크립트가 읽기 좋은 JSON으로 출력해요."),
+        ],
+    },
     "docs-build": {
         "emoji": "🧱",
         "title": "vib docs-build",
@@ -1357,7 +1379,7 @@ GROUPS = [
     ("🏁 처음 시작", ["start", "init", "install"]),
     (
         "💾 세이브 & 되돌리기",
-        ["checkpoint", "undo", "history", "recover", "backup-db-viewer", "backup-db-maintenance"],
+        ["checkpoint", "undo", "history", "recover", "backup-db-viewer", "backup-db-maintenance", "backup-cleanup"],
     ),
     ("🔬 점검 & 확인", ["doctor", "guard", "explain"]),
     ("✏️ AI 수정 요청", ["patch", "anchor", "scan", "plan-structure"]),

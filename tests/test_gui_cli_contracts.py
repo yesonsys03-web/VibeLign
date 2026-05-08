@@ -141,10 +141,12 @@ class GuiCliContractsTest(unittest.TestCase):
 
         self.assertIn("backup-db-viewer", MAIN_DESCRIPTION)
         self.assertIn("backup-db-maintenance", MAIN_DESCRIPTION)
+        self.assertIn("backup-cleanup", MAIN_DESCRIPTION)
         self.assertIn("memory      지금 하던 일과 다음 할 일을 세션 메모리에 저장해요", MAIN_DESCRIPTION)
         self.assertIn("recover     되돌리기 전에 안전한 복구 후보를 먼저 보여줘요", MAIN_DESCRIPTION)
         self.assertIn("backup-db-viewer", MANUAL)
         self.assertIn("backup-db-maintenance", MANUAL)
+        self.assertIn("backup-cleanup", MANUAL)
         self.assertIn("memory", MANUAL)
         self.assertIn("recover", MANUAL)
 
@@ -153,6 +155,7 @@ class GuiCliContractsTest(unittest.TestCase):
         }
         self.assertIn("backup-db-viewer", grouped_commands)
         self.assertIn("backup-db-maintenance", grouped_commands)
+        self.assertIn("backup-cleanup", grouped_commands)
         self.assertIn("memory", grouped_commands)
         self.assertIn("recover", grouped_commands)
 

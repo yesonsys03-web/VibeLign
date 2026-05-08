@@ -91,6 +91,7 @@ VibeLign - AI한테 코딩 시켜도 안전하게 지켜주는 도구
   recover     되돌리기 전에 안전한 복구 후보를 먼저 보여줘요
   backup-db-viewer       백업 DB 실제 사용량을 읽기 전용으로 확인해요
   backup-db-maintenance  백업 DB 파일 크기를 안전하게 점검/정리해요
+  backup-cleanup         오래된 백업과 백업 DB 파일을 한 번에 정리해요
 
 점검 & 확인:
   doctor      프로젝트 건강 상태를 확인해요
