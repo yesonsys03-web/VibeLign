@@ -1,3 +1,4 @@
+// === ANCHOR: PLATFORM_START ===
 use std::path::PathBuf;
 
 #[tauri::command]
@@ -119,3 +120,4 @@ pub(crate) fn hide_console(cmd: &mut std::process::Command) {
 
 #[cfg(not(target_os = "windows"))]
 pub(crate) fn hide_console(_cmd: &mut std::process::Command) {}
+// === ANCHOR: PLATFORM_END ===

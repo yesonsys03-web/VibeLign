@@ -1,3 +1,4 @@
+// === ANCHOR: PROJECT_SUMMARY_START ===
 use serde::Serialize;
 
 use super::platform::hide_console;
@@ -122,3 +123,4 @@ pub(crate) fn read_project_summary(dir: String) -> ProjectSummary {
 
     ProjectSummary { project_name, checkpoints, git_commits }
 }
+// === ANCHOR: PROJECT_SUMMARY_END ===

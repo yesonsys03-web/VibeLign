@@ -1,3 +1,4 @@
+// === ANCHOR: SETTINGS_START ===
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
@@ -320,3 +321,4 @@ pub(crate) fn get_env_key_status() -> HashMap<String, bool> {
 pub(crate) fn setup_cli_path() -> Result<String, String> {
     vib_path::install_cli_to_path()
 }
+// === ANCHOR: SETTINGS_END ===
