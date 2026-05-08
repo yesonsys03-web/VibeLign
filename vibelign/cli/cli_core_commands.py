@@ -172,6 +172,28 @@ def register_core_commands(
     )
 
     p = sub.add_parser(
+        "backup-cleanup",
+        help="오래된 백업과 백업 DB 파일을 한 번에 정리해요",
+        description=(
+            "보관 정책에 따라 오래된 백업을 먼저 정리하고, 이어서 백업 관리 DB의 WAL/빈 페이지를 정리해요.\n"
+            "GUI의 'DB 정리 실행' 버튼과 같은 안전한 정리 흐름입니다."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib backup-cleanup --json\n"
+            "  vib backup-cleanup --root /path/to/project --json"
+        ),
+    )
+    _ = p.add_argument("--root", default=".", help="정리할 프로젝트 루트")
+    _ = p.add_argument("--json", action="store_true", help="결과를 JSON으로 반환")
+    p.set_defaults(
+        func=lazy_command(
+            "vibelign.commands.vib_backup_cleanup_cmd",
+            "run_vib_backup_cleanup",
+        )
+    )
+
+    p = sub.add_parser(
         "undo",
         help="저장한 곳으로 되돌려요",
         description=(
