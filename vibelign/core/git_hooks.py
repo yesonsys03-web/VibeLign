@@ -188,16 +188,24 @@ _POST_COMMIT_BLOCK_TEMPLATE = """\
 sha=$(git rev-parse HEAD 2>/dev/null)
 msg=$(git log -1 --pretty=%B 2>/dev/null)
 if [ -n "$sha" ] && [ -n "$msg" ]; then
-    if command -v vib >/dev/null 2>&1; then
-        printf "%s" "$msg" | vib _internal_post_commit "$sha" >/dev/null 2>&1 || true
-    elif command -v vibelign >/dev/null 2>&1; then
-        printf "%s" "$msg" | vibelign _internal_post_commit "$sha" >/dev/null 2>&1 || true
-    elif command -v python >/dev/null 2>&1; then
-        printf "%s" "$msg" | python -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null 2>&1 || true
-    elif command -v py >/dev/null 2>&1; then
-        printf "%s" "$msg" | py -3 -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null 2>&1 || true
-    elif command -v python3 >/dev/null 2>&1; then
-        printf "%s" "$msg" | python3 -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null 2>&1 || true
+    vibelign_post_commit_done=0
+    if [ "$vibelign_post_commit_done" -eq 0 ] && command -v vib >/dev/null 2>&1; then
+        printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 vib _internal_post_commit "$sha" >/dev/null 2>&1 && vibelign_post_commit_done=1
+    fi
+    if [ "$vibelign_post_commit_done" -eq 0 ] && command -v vibelign >/dev/null 2>&1; then
+        printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 vibelign _internal_post_commit "$sha" >/dev/null 2>&1 && vibelign_post_commit_done=1
+    fi
+    if [ "$vibelign_post_commit_done" -eq 0 ] && command -v uv >/dev/null 2>&1; then
+        printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 uv run python -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null 2>&1 && vibelign_post_commit_done=1
+    fi
+    if [ "$vibelign_post_commit_done" -eq 0 ] && command -v python >/dev/null 2>&1; then
+        printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 python -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null 2>&1 && vibelign_post_commit_done=1
+    fi
+    if [ "$vibelign_post_commit_done" -eq 0 ] && command -v py >/dev/null 2>&1; then
+        printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 py -3 -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null 2>&1 && vibelign_post_commit_done=1
+    fi
+    if [ "$vibelign_post_commit_done" -eq 0 ] && command -v python3 >/dev/null 2>&1; then
+        printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 python3 -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null 2>&1 && vibelign_post_commit_done=1
     fi
 fi
 {end}
@@ -246,7 +254,7 @@ def install_post_commit_record_hook(root: Path) -> HookInstallResult:
         original_mode = hook_path.stat().st_mode
         existing = _read_hook_text(hook_path)
         stripped, had_block = _strip_post_commit_block(existing)
-        if had_block and _POST_COMMIT_MARKER_V2 in existing:
+        if had_block and block in existing:
             return HookInstallResult(status="already-installed", path=hook_path)
         status = "updated" if had_block else "installed"
         existing = stripped
