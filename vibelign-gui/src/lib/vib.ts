@@ -1035,6 +1035,21 @@ export interface BackupCleanupResult {
   maintenance: BackupDbMaintenanceResult;
 }
 
+export interface BackupGraphNode {
+  id: string;
+  name: string;
+  path: string;
+  sizeBytes: number;
+  children: BackupGraphNode[];
+}
+
+export interface BackupGraphSummaryResult {
+  dbExists: boolean;
+  fileRowCount: number;
+  root: BackupGraphNode;
+  warnings: string[];
+}
+
 export interface BackupListResult {
   backups: BackupEntry[];
   warning?: string | null;
@@ -1154,6 +1169,23 @@ interface RawBackupCleanupResult {
   maintenance?: RawBackupDbMaintenanceResult | null;
 }
 
+interface RawBackupGraphNode {
+  id?: string | null;
+  name?: string | null;
+  path?: string | null;
+  size_bytes?: number | null;
+  children?: RawBackupGraphNode[] | null;
+}
+
+interface RawBackupGraphSummaryResult {
+  ok?: boolean;
+  error?: string;
+  db_exists?: boolean;
+  file_row_count?: number | null;
+  root?: RawBackupGraphNode | null;
+  warnings?: string[] | null;
+}
+
 function readNumber(value: number | null | undefined): number {
   return typeof value === "number" ? value : 0;
 }
@@ -1268,6 +1300,28 @@ function parseBackupCleanupResult(raw: RawBackupCleanupResult): BackupCleanupRes
   };
 }
 
+function normalizeBackupGraphNode(raw?: RawBackupGraphNode | null): BackupGraphNode {
+  const rawChildren = Array.isArray(raw?.children) ? raw.children : [];
+  const path = typeof raw?.path === "string" ? raw.path.replaceAll("\\", "/") : "";
+  return {
+    id: raw?.id || path || "root",
+    name: raw?.name || (path ? path.split("/").filter(Boolean).at(-1) ?? path : "백업"),
+    path,
+    sizeBytes: readNumber(raw?.size_bytes),
+    children: rawChildren.map(normalizeBackupGraphNode),
+  };
+}
+
+function parseBackupGraphSummaryResult(raw: RawBackupGraphSummaryResult): BackupGraphSummaryResult {
+  if (raw.ok === false) throw new Error(raw.error ?? "Backup graph summary 실패");
+  return {
+    dbExists: raw.db_exists === true,
+    fileRowCount: readNumber(raw.file_row_count),
+    root: normalizeBackupGraphNode(raw.root),
+    warnings: Array.isArray(raw.warnings) ? raw.warnings.filter((item): item is string => typeof item === "string") : [],
+  };
+}
+
 function backupSourceKind(trigger?: string | null): BackupSourceKind {
   if (trigger === "post_commit") return "auto";
   if (trigger === "safe_restore") return "safe";
@@ -1328,7 +1382,6 @@ export async function backupCreate(cwd: string, note: string): Promise<unknown> 
 }
 
 const backupListCache = new Map<string, BackupListResult>();
-const backupListWithFilesCache = new Map<string, BackupListResult>();
 
 export function getCachedBackupList(cwd: string): BackupListResult | undefined {
   return backupListCache.get(cwd);
@@ -1364,23 +1417,6 @@ export async function backupList(cwd: string): Promise<BackupListResult> {
   return result;
 }
 
-export async function backupListWithFiles(cwd: string): Promise<BackupListResult> {
-  const cached = backupListWithFilesCache.get(cwd);
-  if (cached) return cached;
-  const data = await checkpointList(cwd) as {
-    checkpoints?: RawCheckpointEntry[];
-    warning?: string | null;
-  };
-  const result: BackupListResult = {
-    backups: (data.checkpoints ?? [])
-      .map(normalizeBackupEntry)
-      .filter((entry) => entry.id && entry.sourceKind !== "safe"),
-    warning: data.warning ?? null,
-  };
-  backupListWithFilesCache.set(cwd, result);
-  return result;
-}
-
 export async function backupDbViewerInspect(cwd: string): Promise<BackupDbViewerInspectResult> {
   const res = await runVib(["backup-db-viewer", "--json"], cwd);
   const stdout = res.stdout.trim();
@@ -1391,6 +1427,18 @@ export async function backupDbViewerInspect(cwd: string): Promise<BackupDbViewer
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
   const parsed = JSON.parse(stdout) as RawBackupDbViewerInspectResult;
   return parseBackupDbViewerInspectResult(parsed);
+}
+
+export async function backupGraphSummary(cwd: string): Promise<BackupGraphSummaryResult> {
+  const res = await runVib(["backup-graph-summary", "--json"], cwd);
+  const stdout = res.stdout.trim();
+  if (!res.ok && stdout.startsWith("{")) {
+    const parsed = JSON.parse(stdout) as RawBackupGraphSummaryResult;
+    return parseBackupGraphSummaryResult(parsed);
+  }
+  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+  const parsed = JSON.parse(stdout) as RawBackupGraphSummaryResult;
+  return parseBackupGraphSummaryResult(parsed);
 }
 
 export async function backupDbMaintenance(cwd: string, apply = false): Promise<BackupDbMaintenanceResult> {

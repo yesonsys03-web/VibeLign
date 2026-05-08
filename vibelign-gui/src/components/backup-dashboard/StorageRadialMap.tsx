@@ -1,10 +1,11 @@
 // === ANCHOR: STORAGERADIALMAP_START ===
 import { useMemo, useState } from "react";
-import type { BackupEntry } from "../../lib/vib";
+import type { BackupEntry, BackupGraphNode } from "../../lib/vib";
 import { formatBytes } from "./model";
 
 interface StorageRadialMapProps {
   entries: BackupEntry[];
+  root?: BackupGraphNode | null;
 }
 
 interface FileTreeNode {
@@ -34,10 +35,10 @@ const GAP_DEGREES = 0.8;
 const MIN_SEGMENT_SWEEP = 0.35;
 const MAX_DEPTH = 5;
 
-export default function StorageRadialMap({ entries }: StorageRadialMapProps) {
+export default function StorageRadialMap({ entries, root }: StorageRadialMapProps) {
   const [activePath, setActivePath] = useState("");
   const [selectedPath, setSelectedPath] = useState("");
-  const tree = useMemo(() => buildFileTree(entries), [entries]);
+  const tree = useMemo(() => root ? graphNodeToFileTree(root) : buildFileTree(entries), [entries, root]);
   const activeNode = findNodeByPath(tree, activePath) ?? tree;
   const parentPath = getParentPath(activeNode.path);
   const topNodes = sortedChildren(activeNode).slice(0, 6);
@@ -194,6 +195,16 @@ function buildFileTree(entries: BackupEntry[]): FileTreeNode {
   return root;
 }
 // === ANCHOR: STORAGERADIALMAP_BUILDFILETREE_END ===
+
+function graphNodeToFileTree(node: BackupGraphNode): FileTreeNode {
+  const treeNode = createNode(node.id || node.path || "root", node.name || "백업", node.path || "");
+  treeNode.sizeBytes = Math.max(0, node.sizeBytes);
+  for (const child of node.children) {
+    const next = graphNodeToFileTree(child);
+    treeNode.children.set(next.name, next);
+  }
+  return treeNode;
+}
 
 // === ANCHOR: STORAGERADIALMAP_CREATENODE_START ===
 function createNode(id: string, name: string, path: string): FileTreeNode {
