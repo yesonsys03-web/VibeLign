@@ -1,3 +1,4 @@
+// === ANCHOR: DOCS_START ===
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -506,3 +507,4 @@ pub(crate) async fn enhance_doc_with_ai(
     }
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
+// === ANCHOR: DOCS_END ===

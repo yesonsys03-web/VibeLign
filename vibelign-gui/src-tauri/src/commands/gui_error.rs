@@ -1,3 +1,4 @@
+// === ANCHOR: GUI_ERROR_START ===
 use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::path::PathBuf;
@@ -270,3 +271,4 @@ mod error_reporter_tests {
         assert!(runtime.queue.is_empty());
     }
 }
+// === ANCHOR: GUI_ERROR_END ===
