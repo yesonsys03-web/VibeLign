@@ -148,6 +148,28 @@ def register_core_commands(
     )
 
     p = sub.add_parser(
+        "backup-graph-summary",
+        help="백업 범위 그래프 데이터를 작게 요약해요",
+        description=(
+            "Rust 백업 관리 DB에서 파일 row 전체를 출력하지 않고 폴더별 그래프 요약만 읽어요.\n"
+            "GUI BACKUPS 탭의 백업 범위 그래프를 빠르게 표시하기 위한 읽기 전용 명령입니다."
+        ),
+        epilog=(
+            "이렇게 쓰세요:\n"
+            "  vib backup-graph-summary --json\n"
+            "  vib backup-graph-summary --root /path/to/project --json"
+        ),
+    )
+    _ = p.add_argument("--root", default=".", help="확인할 프로젝트 루트")
+    _ = p.add_argument("--json", action="store_true", help="결과를 JSON으로 반환")
+    p.set_defaults(
+        func=lazy_command(
+            "vibelign.commands.vib_backup_graph_summary_cmd",
+            "run_vib_backup_graph_summary",
+        )
+    )
+
+    p = sub.add_parser(
         "backup-db-maintenance",
         help="백업 관리 DB 파일 크기를 안전하게 점검/정리해요",
         description=(
