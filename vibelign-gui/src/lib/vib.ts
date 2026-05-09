@@ -924,19 +924,44 @@ export async function checkpointCreate(cwd: string, message: string): Promise<Ch
   return data;
 }
 
-export async function checkpointList(cwd: string): Promise<unknown> {
-  const res = await runVib(["checkpoint", "list", "--json"], cwd);
-  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
-  return JSON.parse(res.stdout);
+interface EngineDirectResult {
+  ok: boolean;
+  response_json: string;
+  error: string | null;
 }
 
+async function callEngineDirect<T>(request: Record<string, unknown>): Promise<T> {
+  const res = await invoke<EngineDirectResult>("run_engine_request_direct", {
+    requestJson: JSON.stringify(request),
+  });
+  if (!res.ok) throw new Error(res.error ?? "engine direct call failed");
+  return JSON.parse(res.response_json) as T;
+}
+
+/**
+ * Phase 3 PoC: bypass the Python `vib` sidecar by calling
+ * `vibelign-core::ipc::handler::handle()` in-process via Tauri direct command.
+ * Engine response shape is `{status, result: "listed", checkpoints: [...]}` —
+ * the consumer only reads `.checkpoints`, which is identical between the
+ * direct response and the legacy Python-wrapped response, so the migration
+ * is shape-compatible.
+ */
+export async function checkpointList(cwd: string): Promise<unknown> {
+  return callEngineDirect<unknown>({ command: "checkpoint_list", root: cwd });
+}
+
+/**
+ * Phase 3 PoC consumer #2 — `vib undo --checkpoint-id … --force --json`
+ * 의 CLI 프롬프트는 engine 에 없으므로 direct 호출이 곧 force 의미와 동치.
+ * 응답 shape `{status, result: "restored", checkpoint_id}` 는 호출자가
+ * `Promise<unknown>` 으로만 소비하므로 wrapper 변환 불필요.
+ */
 export async function undoCheckpoint(cwd: string, checkpointId: string): Promise<unknown> {
-  const res = await runVib(
-    ["undo", "--checkpoint-id", checkpointId, "--force", "--json"],
-    cwd
-  );
-  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
-  return JSON.parse(res.stdout);
+  return callEngineDirect<unknown>({
+    command: "checkpoint_restore",
+    root: cwd,
+    checkpoint_id: checkpointId,
+  });
 }
 
 export type BackupSourceKind = "manual" | "auto" | "safe" | "unknown";
@@ -1436,75 +1461,94 @@ export async function backupList(cwd: string, options?: { force?: boolean }): Pr
   return result;
 }
 
+/**
+ * Phase 3 PoC consumer #3 — read-only `backup_db_viewer_inspect`.
+ * Python wrapper 가 `{ok:true, ...report}` 로 감싸지만 TS parser 는 `raw.ok === false`
+ * (explicit false) 만 실패로 보므로, engine raw `{status:"ok", ...}` 가 ok 필드 없이도
+ * 그대로 통과한다. cache 정책은 변경 없음.
+ */
 export async function backupDbViewerInspect(cwd: string, options?: { force?: boolean }): Promise<BackupDbViewerInspectResult> {
   if (!options?.force) {
     const cached = backupDbViewerInspectCache.get(cwd);
     if (cached) return cached;
   }
-  const res = await runVib(["backup-db-viewer", "--json"], cwd);
-  const stdout = res.stdout.trim();
-  if (!res.ok && stdout.startsWith("{")) {
-    const parsed = JSON.parse(stdout) as RawBackupDbViewerInspectResult;
-    const result = parseBackupDbViewerInspectResult(parsed);
-    backupDbViewerInspectCache.set(cwd, result);
-    return result;
-  }
-  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
-  const parsed = JSON.parse(stdout) as RawBackupDbViewerInspectResult;
+  const parsed = await callEngineDirect<RawBackupDbViewerInspectResult>({
+    command: "backup_db_viewer_inspect",
+    root: cwd,
+  });
   const result = parseBackupDbViewerInspectResult(parsed);
   backupDbViewerInspectCache.set(cwd, result);
   return result;
 }
 
+/**
+ * Phase 3 PoC consumer #4 — read-only `backup_graph_summary`. 동일 shape parity 패턴.
+ */
 export async function backupGraphSummary(cwd: string, options?: { force?: boolean }): Promise<BackupGraphSummaryResult> {
   if (!options?.force) {
     const cached = backupGraphSummaryCache.get(cwd);
     if (cached) return cached;
   }
-  const res = await runVib(["backup-graph-summary", "--json"], cwd);
-  const stdout = res.stdout.trim();
-  if (!res.ok && stdout.startsWith("{")) {
-    const parsed = JSON.parse(stdout) as RawBackupGraphSummaryResult;
-    const result = parseBackupGraphSummaryResult(parsed);
-    backupGraphSummaryCache.set(cwd, result);
-    return result;
-  }
-  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
-  const parsed = JSON.parse(stdout) as RawBackupGraphSummaryResult;
+  const parsed = await callEngineDirect<RawBackupGraphSummaryResult>({
+    command: "backup_graph_summary",
+    root: cwd,
+  });
   const result = parseBackupGraphSummaryResult(parsed);
   backupGraphSummaryCache.set(cwd, result);
   return result;
 }
 
+/**
+ * Phase 3 PoC consumer #5 — `backup_db_maintenance` (write path with apply param).
+ * Python wrapper 가 `{ok:true, ...report}` 로만 감쌈 — TS parser 가 `raw.ok === false`
+ * 만 실패로 보므로 engine raw `{status:"ok", ...}` 그대로 통과.
+ */
 export async function backupDbMaintenance(cwd: string, apply = false): Promise<BackupDbMaintenanceResult> {
-  const args = apply ? ["backup-db-maintenance", "--apply", "--json"] : ["backup-db-maintenance", "--json"];
-  const res = await runVib(args, cwd);
-  const stdout = res.stdout.trim();
-  if (!res.ok && stdout.startsWith("{")) {
-    const parsed = JSON.parse(stdout) as RawBackupDbMaintenanceResult;
-    const result = parseBackupDbMaintenanceResult(parsed);
-    if (apply) clearBackupCaches(cwd);
-    return result;
-  }
-  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
-  const parsed = JSON.parse(stdout) as RawBackupDbMaintenanceResult;
+  const parsed = await callEngineDirect<RawBackupDbMaintenanceResult>({
+    command: "backup_db_maintenance",
+    root: cwd,
+    apply,
+  });
   const result = parseBackupDbMaintenanceResult(parsed);
   if (apply) clearBackupCaches(cwd);
   return result;
 }
 
+/**
+ * Phase 3 PoC consumer #6 — `backup_cleanup` 는 Python 측에서
+ * `apply_retention` + `maintain_backup_db(apply=True)` 두 엔진 호출을 묶어서
+ * `{ok, retention, maintenance}` 로 합치는 컴포지트. direct path 에서는 두 호출을
+ * 순차 실행 후 같은 shape 로 wrap. 필드 이름 매핑(`pruned_count → count` 등)은
+ * Python `parse_retention` 이 하던 일을 TS 에서 동일하게 재현.
+ */
 export async function backupCleanup(cwd: string): Promise<BackupCleanupResult> {
-  const res = await runVib(["backup-cleanup", "--json"], cwd);
-  const stdout = res.stdout.trim();
-  if (!res.ok && stdout.startsWith("{")) {
-    const parsed = JSON.parse(stdout) as RawBackupCleanupResult;
-    const result = parseBackupCleanupResult(parsed);
-    clearBackupCaches(cwd);
-    return result;
+  interface RetentionRaw {
+    pruned_count?: number;
+    planned_count?: number;
+    planned_bytes?: number;
+    reclaimed_bytes?: number;
+    partial_failure?: boolean;
   }
-  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
-  const parsed = JSON.parse(stdout) as RawBackupCleanupResult;
-  const result = parseBackupCleanupResult(parsed);
+  const retentionRaw = await callEngineDirect<RetentionRaw>({
+    command: "retention_apply",
+    root: cwd,
+  });
+  const maintenanceRaw = await callEngineDirect<RawBackupDbMaintenanceResult>({
+    command: "backup_db_maintenance",
+    root: cwd,
+    apply: true,
+  });
+  const wrapped: RawBackupCleanupResult = {
+    retention: {
+      count: retentionRaw.pruned_count,
+      planned_count: retentionRaw.planned_count,
+      planned_bytes: retentionRaw.planned_bytes,
+      reclaimed_bytes: retentionRaw.reclaimed_bytes,
+      partial_failure: retentionRaw.partial_failure,
+    },
+    maintenance: maintenanceRaw,
+  };
+  const result = parseBackupCleanupResult(wrapped);
   clearBackupCaches(cwd);
   return result;
 }

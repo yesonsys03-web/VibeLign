@@ -380,4 +380,56 @@ fn read_stderr_stream<R: Read + Send + 'static>(reader: R, app: &tauri::AppHandl
     }
     accumulated
 }
+#[derive(Serialize, serde::Deserialize)]
+pub struct EngineDirectResult {
+    pub ok: bool,
+    pub response_json: String,
+    pub error: Option<String>,
+}
+
+/// Phase 3 PoC: in-process direct call to `vibelign-core::ipc::handler::handle`.
+///
+/// Front-end builds the EngineRequest as JSON (same shape it would send via the
+/// daemon transport's `payload`) and gets the EngineResponse JSON back. This
+/// bypasses the Python `vib` sidecar (~70~80ms) and the Rust binary spawn
+/// (~3~5ms via daemon, ~150ms cold), so a single read like `checkpoint list`
+/// drops from ~80~90ms to engine-only ~2~5ms wall on macOS debug build.
+///
+/// JSON-in/JSON-out keeps this to a single Tauri command instead of one per
+/// EngineRequest variant, mirroring the wire protocol the daemon already speaks.
+#[tauri::command]
+pub(crate) async fn run_engine_request_direct(request_json: String) -> EngineDirectResult {
+    tauri::async_runtime::spawn_blocking(move || {
+        let request = match serde_json::from_str::<vibelign_core::ipc::protocol::EngineRequest>(&request_json) {
+            Ok(parsed) => parsed,
+            Err(error) => {
+                return EngineDirectResult {
+                    ok: false,
+                    response_json: String::new(),
+                    error: Some(format!("INVALID_ENGINE_REQUEST_JSON: {error}")),
+                };
+            }
+        };
+        let response = vibelign_core::ipc::handler::handle(request);
+        match serde_json::to_string(&response) {
+            Ok(serialized) => EngineDirectResult {
+                ok: true,
+                response_json: serialized,
+                error: None,
+            },
+            Err(error) => EngineDirectResult {
+                ok: false,
+                response_json: String::new(),
+                error: Some(format!("ENGINE_RESPONSE_SERIALIZE_FAILED: {error}")),
+            },
+        }
+    })
+    .await
+    .unwrap_or(EngineDirectResult {
+        ok: false,
+        response_json: String::new(),
+        error: Some("spawn_blocking 실패".to_string()),
+    })
+}
+
 // === ANCHOR: VIB_BRIDGE_END ===

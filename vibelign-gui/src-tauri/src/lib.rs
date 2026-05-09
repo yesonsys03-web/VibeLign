@@ -106,6 +106,7 @@ pub fn run() {
             onboarding::get_onboarding_logs,
             commands::vib_bridge::run_vib,
             commands::vib_bridge::run_vib_with_progress,
+            commands::vib_bridge::run_engine_request_direct,
             commands::settings::save_api_key,
             commands::settings::load_api_key,
             commands::settings::delete_api_key,
