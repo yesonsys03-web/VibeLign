@@ -1,0 +1,11 @@
+{
+  "path_hint": "05_allow_marker.py",
+  "findings": [
+    {
+      "path": "05_allow_marker.py",
+      "rule_id": "openai-api-key",
+      "line_number": 3,
+      "snippet": "...AAAA"
+    }
+  ]
+}

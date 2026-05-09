@@ -1,0 +1,7 @@
+diff --git a/secrets.py b/secrets.py
+--- a/secrets.py
++++ b/secrets.py
+@@ -1,1 +1,3 @@
+ # secrets
++REAL_KEY = "AKIAIOSFODNN7EXAMPLE"  # vibelign: allow-secret
++OTHER = "sk-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"

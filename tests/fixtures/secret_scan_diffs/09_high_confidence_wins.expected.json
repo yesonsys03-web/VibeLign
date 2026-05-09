@@ -1,0 +1,11 @@
+{
+  "path_hint": "09_high_confidence_wins.py",
+  "findings": [
+    {
+      "path": "09_high_confidence_wins.py",
+      "rule_id": "aws-access-key",
+      "line_number": 2,
+      "snippet": "...MPLE"
+    }
+  ]
+}

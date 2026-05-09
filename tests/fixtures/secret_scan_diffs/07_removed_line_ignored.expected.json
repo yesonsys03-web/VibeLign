@@ -1,0 +1,11 @@
+{
+  "path_hint": "07_removed_line_ignored.py",
+  "findings": [
+    {
+      "path": "07_removed_line_ignored.py",
+      "rule_id": "aws-access-key",
+      "line_number": 2,
+      "snippet": "...QQQQ"
+    }
+  ]
+}

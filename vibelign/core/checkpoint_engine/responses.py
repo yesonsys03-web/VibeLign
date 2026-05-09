@@ -168,6 +168,19 @@ def parse_project_scan(result: RustResultLike) -> tuple[dict[str, object] | None
     return dict(result.payload), None
 
 
+def parse_secret_scan_diff(
+    result: RustResultLike,
+) -> tuple[list[dict[str, object]] | None, str | None]:
+    if not result.ok:
+        return None, format_error(result, "rust secret scan diff failed")
+    if result.payload.get("result") != "secret_scan_diff":
+        return None, "RUST_ENGINE_PROTOCOL_ERROR: unexpected secret_scan_diff result"
+    findings = result.payload.get("findings")
+    if not isinstance(findings, list):
+        return None, "RUST_ENGINE_PROTOCOL_ERROR: secret_scan_diff response missing findings"
+    return [dict(item) for item in findings if isinstance(item, dict)], None
+
+
 def summary_from_payload(
     payload: dict[str, object], fallback_message: str = ""
 ) -> CheckpointSummary | None:

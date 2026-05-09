@@ -1,0 +1,6 @@
+diff --git a/cfg.py b/cfg.py
+--- a/cfg.py
++++ b/cfg.py
+@@ -1,1 +1,2 @@
+ # cfg
++API_KEY = "AKIAIOSFODNN7EXAMPLE"

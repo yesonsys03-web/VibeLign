@@ -3,6 +3,7 @@ use crate::backup::checkpoint::{self, CheckpointCreateMetadata};
 use crate::backup::retention;
 use crate::backup::{db_maintenance, db_viewer, diff, graph_summary, restore, suggestions};
 use crate::project_scan;
+use crate::secret_scan;
 
 use super::protocol::{EngineRequest, EngineResponse, ResponseCheckpoint, ResponseFile};
 
@@ -383,6 +384,14 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                 message: error,
             },
         },
+        EngineRequest::SecretScanDiff { diff_text, path_hint } => {
+            let findings = secret_scan::scan_unified_diff(&diff_text, &path_hint);
+            EngineResponse::SecretScanDiffOk {
+                result: "secret_scan_diff".to_string(),
+                path_hint,
+                findings,
+            }
+        }
     }
 }
 
@@ -437,6 +446,29 @@ mod tests {
         assert_eq!(files[4]["imports"], serde_json::json!(["pathlib"]));
         assert_eq!(files[5]["imports"], serde_json::json!(["os"]));
         assert_eq!(files[6]["imports"], serde_json::json!(["react", "../../services/api"]));
+    }
+
+    #[test]
+    fn secret_scan_diff_handler_returns_findings_for_aws_fixture() {
+        let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let fixtures = manifest.parent().expect("workspace root").join("tests/fixtures/secret_scan_diffs");
+        let diff_text = std::fs::read_to_string(fixtures.join("02_high_confidence_aws.diff"))
+            .expect("aws fixture exists");
+
+        let response = handle(EngineRequest::SecretScanDiff {
+            diff_text,
+            path_hint: "config/.env".to_string(),
+        });
+        let value = serde_json::to_value(response).expect("json response");
+
+        assert_eq!(value["status"], "ok");
+        assert_eq!(value["result"], "secret_scan_diff");
+        assert_eq!(value["path_hint"], "config/.env");
+        let findings = value["findings"].as_array().expect("findings array");
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0]["rule_id"], "aws-access-key");
+        assert_eq!(findings[0]["line_number"], 2);
+        assert_eq!(findings[0]["path"], "config/.env");
     }
 
     fn write_fixture(root: &std::path::Path, rel: &str, content: &str) {

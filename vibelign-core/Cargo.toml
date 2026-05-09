@@ -3,6 +3,11 @@ name = "vibelign-core"
 version = "2.1.11"
 edition = "2021"
 
+[lib]
+name = "vibelign_core"
+path = "src/lib.rs"
+crate-type = ["rlib"]
+
 [[bin]]
 name = "vibelign-engine"
 path = "src/main.rs"
@@ -11,6 +16,7 @@ path = "src/main.rs"
 blake3 = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 fs2 = "0.4"
+regex = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

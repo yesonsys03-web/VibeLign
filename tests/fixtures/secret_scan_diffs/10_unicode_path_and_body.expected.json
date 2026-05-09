@@ -1,0 +1,11 @@
+{
+  "path_hint": "services/도우미_😀.py",
+  "findings": [
+    {
+      "path": "services/도우미_😀.py",
+      "rule_id": "aws-access-key",
+      "line_number": 2,
+      "snippet": "...MPLE"
+    }
+  ]
+}

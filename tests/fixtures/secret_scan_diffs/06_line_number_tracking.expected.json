@@ -1,0 +1,17 @@
+{
+  "path_hint": "06_line_number_tracking.py",
+  "findings": [
+    {
+      "path": "06_line_number_tracking.py",
+      "rule_id": "aws-access-key",
+      "line_number": 11,
+      "snippet": "...MPLE"
+    },
+    {
+      "path": "06_line_number_tracking.py",
+      "rule_id": "github-token",
+      "line_number": 51,
+      "snippet": "...AAAA"
+    }
+  ]
+}

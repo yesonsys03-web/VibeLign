@@ -110,4 +110,8 @@ def project_scan_request(root: Path) -> dict[str, object]:
     return {"command": "project_scan", "root": str(root)}
 
 
+def secret_scan_diff_request(diff_text: str, path_hint: str) -> dict[str, object]:
+    return {"command": "secret_scan_diff", "diff_text": diff_text, "path_hint": path_hint}
+
+
 # === ANCHOR: CHECKPOINT_ENGINE_REQUESTS_END ===

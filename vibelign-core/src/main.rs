@@ -1,14 +1,9 @@
 // === ANCHOR: MAIN_START ===
-mod backup;
-mod constants;
-mod db;
-mod ipc;
-mod project_scan;
-mod security;
-
-use ipc::protocol::{handle, EngineRequest, EngineResponse};
 use std::io::{self, Read};
 use std::path::PathBuf;
+
+use vibelign_core::ipc;
+use vibelign_core::ipc::protocol::{handle, EngineRequest, EngineResponse};
 
 fn main() {
     if let Some(root) = daemon_root_arg(std::env::args().skip(1).collect()) {

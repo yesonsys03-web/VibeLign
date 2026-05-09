@@ -1,0 +1,29 @@
+{
+  "path_hint": "03_high_confidence_combo.py",
+  "findings": [
+    {
+      "path": "03_high_confidence_combo.py",
+      "rule_id": "anthropic-api-key",
+      "line_number": 2,
+      "snippet": "...AAAA"
+    },
+    {
+      "path": "03_high_confidence_combo.py",
+      "rule_id": "openai-api-key",
+      "line_number": 3,
+      "snippet": "...AAAA"
+    },
+    {
+      "path": "03_high_confidence_combo.py",
+      "rule_id": "github-token",
+      "line_number": 4,
+      "snippet": "...AAAA"
+    },
+    {
+      "path": "03_high_confidence_combo.py",
+      "rule_id": "slack-token",
+      "line_number": 5,
+      "snippet": "...ijkl"
+    }
+  ]
+}

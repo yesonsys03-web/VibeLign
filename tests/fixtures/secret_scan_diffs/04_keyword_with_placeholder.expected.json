@@ -1,0 +1,11 @@
+{
+  "path_hint": "04_keyword_with_placeholder.py",
+  "findings": [
+    {
+      "path": "04_keyword_with_placeholder.py",
+      "rule_id": "generic-secret",
+      "line_number": 3,
+      "snippet": "...5pqr"
+    }
+  ]
+}

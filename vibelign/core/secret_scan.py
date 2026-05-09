@@ -1,6 +1,7 @@
 # === ANCHOR: SECRET_SCAN_START ===
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -179,6 +180,55 @@ def _extract_added_line(line: str) -> str | None:
 # === ANCHOR: SECRET_SCAN__EXTRACT_ADDED_LINE_END ===
 
 
+def _rust_secret_scan_enabled() -> bool:
+    return os.environ.get("VIBELIGN_SECRET_SCAN_RUST", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
+def _findings_from_rust_payload(items: list[dict[str, object]], path_hint: str) -> list[SecretFinding] | None:
+    findings: list[SecretFinding] = []
+    for item in items:
+        rule_id = item.get("rule_id")
+        snippet = item.get("snippet")
+        if not isinstance(rule_id, str) or not isinstance(snippet, str):
+            return None
+        raw_path = item.get("path")
+        path_value = raw_path if isinstance(raw_path, str) and raw_path else path_hint
+        line_value = item.get("line_number")
+        line_number: int | None
+        if isinstance(line_value, bool):
+            return None
+        if isinstance(line_value, int):
+            line_number = line_value
+        elif line_value is None:
+            line_number = None
+        else:
+            return None
+        findings.append(
+            SecretFinding(path=path_value, rule_id=rule_id, line_number=line_number, snippet=snippet)
+        )
+    return findings
+
+
+def _scan_unified_diff_routed(
+    root: Path, diff_text: str, path_hint: str
+) -> list[SecretFinding]:
+    if not _rust_secret_scan_enabled():
+        return scan_unified_diff_for_secrets(diff_text, path_hint)
+    from vibelign.core.checkpoint_engine.rust_engine import scan_secrets_diff_with_rust
+
+    payload, warning = scan_secrets_diff_with_rust(root, diff_text, path_hint)
+    if warning or payload is None:
+        return scan_unified_diff_for_secrets(diff_text, path_hint)
+    findings = _findings_from_rust_payload(payload, path_hint)
+    if findings is None:
+        return scan_unified_diff_for_secrets(diff_text, path_hint)
+    return findings
+
+
 # === ANCHOR: SECRET_SCAN_SCAN_UNIFIED_DIFF_FOR_SECRETS_START ===
 def scan_unified_diff_for_secrets(
     diff_text: str, path_hint: str
@@ -250,6 +300,8 @@ def scan_staged_secrets(root: Path) -> SecretScanResult:
     staged_paths = [item for item in names_output.split("\0") if item]
 
     for path in staged_paths:
+        if _is_secret_scan_fixture_path(path):
+            continue
         if _looks_like_secret_file(path):
             findings.append(
                 SecretFinding(
@@ -263,7 +315,7 @@ def scan_staged_secrets(root: Path) -> SecretScanResult:
         diff_text = _run_git(root, ["diff", "--cached", "--unified=0", "--", path])
         if diff_text.startswith("Binary files") or "GIT binary patch" in diff_text:
             continue
-        findings.extend(scan_unified_diff_for_secrets(diff_text, path))
+        findings.extend(_scan_unified_diff_routed(root, diff_text, path))
 
     return SecretScanResult(findings=findings)
 # === ANCHOR: SECRET_SCAN_SCAN_STAGED_SECRETS_END ===
@@ -276,9 +328,24 @@ _HISTORY_AUDIT_SKIP_PATHS: tuple[str, ...] = (
     "tests/test_secret_scan.py",
 )
 
+# 자체 secret_scan 골든 fixture 디렉토리 — 스캐너 검증 목적으로 의도된 example
+# secret 들이 모여 있어 staged/history 스캔에서 모두 제외해야 한다. 이미 단일 파일
+# (`tests/test_secret_scan.py`) 도 동일한 사유로 _HISTORY_AUDIT_SKIP_PATHS 에 들어
+# 있고, prefix 단위로 묶을 fixture 디렉토리는 여기에 추가한다.
+_SECRET_SCAN_FIXTURE_PREFIXES: tuple[str, ...] = (
+    "tests/fixtures/secret_scan_diffs/",
+)
+
+
+def _is_secret_scan_fixture_path(path: str) -> bool:
+    normalized = path.replace("\\", "/")
+    return any(normalized.startswith(prefix) for prefix in _SECRET_SCAN_FIXTURE_PREFIXES)
+
 
 def _is_history_audit_skipped(path: str) -> bool:
-    return path in _HISTORY_AUDIT_SKIP_PATHS
+    if path in _HISTORY_AUDIT_SKIP_PATHS:
+        return True
+    return _is_secret_scan_fixture_path(path)
 
 
 # === ANCHOR: SECRET_SCAN_PARSE_GIT_LOG_CHUNKS_START ===
@@ -392,7 +459,7 @@ def scan_all_history(
                 diff_text.startswith("Binary files") or "GIT binary patch" in diff_text
             ):
                 findings.extend(
-                    scan_unified_diff_for_secrets(diff_text, display_path)
+                    _scan_unified_diff_routed(root, diff_text, display_path)
                 )
 
             if commit_sha != last_reported:

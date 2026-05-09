@@ -1,6 +1,7 @@
 // === ANCHOR: PROTOCOL_START ===
 use crate::backup::{db_maintenance, db_viewer, diff, graph_summary, restore, suggestions};
 use crate::project_scan;
+use crate::secret_scan;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -65,6 +66,10 @@ pub enum EngineRequest {
     },
     ProjectScan {
         root: PathBuf,
+    },
+    SecretScanDiff {
+        diff_text: String,
+        path_hint: String,
     },
 }
 
@@ -144,6 +149,12 @@ pub enum EngineResponse {
         #[serde(flatten)]
         report: project_scan::ProjectScanReport,
     },
+    #[serde(rename = "ok")]
+    SecretScanDiffOk {
+        result: String,
+        path_hint: String,
+        findings: Vec<secret_scan::SecretFinding>,
+    },
 }
 
 pub use super::handler::handle;
@@ -163,6 +174,17 @@ mod tests {
         let request = serde_json::from_value::<EngineRequest>(serde_json::json!({
             "command": "project_scan",
             "root": "/tmp/demo"
+        }));
+
+        assert!(request.is_ok());
+    }
+
+    #[test]
+    fn secret_scan_diff_request_parses() {
+        let request = serde_json::from_value::<EngineRequest>(serde_json::json!({
+            "command": "secret_scan_diff",
+            "diff_text": "diff --git a/x b/x\n",
+            "path_hint": "x"
         }));
 
         assert!(request.is_ok());
