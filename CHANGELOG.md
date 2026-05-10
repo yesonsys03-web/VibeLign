@@ -10,6 +10,17 @@
 
 ---
 
+## [2.2.1] — 2026-05-10
+
+릴리즈 파이프라인 수정 패치 릴리즈입니다. 코드 동작은 v2.2.0 과 동일합니다.
+
+### Fixed
+
+- **GitHub Actions release job 가드**: build job의 마지막 `Post Cache Rust build artifacts` 단계가 실패하면 자산이 다 만들어졌는데도 release job이 `needs:build` fail로 skip 되어 release에 자산 0개로 publish 되던 회귀 — release job 조건에 `always()` 추가로 cache 단계 실패와 무관하게 자산 업로드 진행.
+- **Dead config 정리**: `vibelign-gui/src-tauri/tauri.updater.conf.json` 삭제. 워크플로우가 빌드 시점에 `tauri.updater.generated.conf.json` 을 만들어 `--config` 로 머지하므로 이 파일은 어디에도 참조되지 않는 dead config 였음.
+
+---
+
 ## [2.2.0] — 2026-05-10
 
 VibeLign 2.2.0 은 **GUI direct bridge (Phase 0+3 PoC) · 통합 에러 로그 뷰 · 자동 백업 가시성 · 다수의 silent 회귀 fix** 를 묶은 마이너 릴리즈입니다. macOS / Windows 모두 자동 혜택을 받는 cross-platform 변경입니다.
