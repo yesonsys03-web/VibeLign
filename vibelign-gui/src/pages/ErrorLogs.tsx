@@ -41,6 +41,52 @@ function buildGithubIssueUrl(entry: ErrorLogEntry): string {
   return `${GITHUB_NEW_ISSUE_URL}?${params.toString()}`;
 }
 
+function buildBulkGithubIssueUrl(entries: ErrorLogEntry[]): string {
+  const cliCount = entries.filter((entry) => entry.kind === "cli").length;
+  const guiCount = entries.length - cliCount;
+  const summary = [
+    cliCount > 0 ? `CLI ${cliCount}` : null,
+    guiCount > 0 ? `GUI ${guiCount}` : null,
+  ]
+    .filter(Boolean)
+    .join(" + ");
+  const title = `[Bulk] ${entries.length}개 에러 보고 (${summary})`.slice(0, 240);
+
+  const bodyParts = [
+    `## 요약`,
+    `- 총 ${entries.length}개의 에러를 한 이슈로 묶어서 보고합니다.`,
+    `- 같은 root cause 가 의심되거나 관련된 항목들을 모은 형태입니다.`,
+    "",
+    "## 사용자 추가 정보",
+    "- 어떤 동작 중 발생했는지:",
+    "- 재현 방법 (있다면):",
+    "- 다른 의견:",
+    "",
+    "---",
+  ];
+  entries.forEach((entry, index) => {
+    bodyParts.push("");
+    bodyParts.push(`## ${index + 1}. ${entry.kind.toUpperCase()} — ${entry.error_class ?? "(no class)"}`);
+    bodyParts.push(`- 발생 시각: ${entry.ts}`);
+    if (entry.context) bodyParts.push(`- 컨텍스트: \`${entry.context}\``);
+    bodyParts.push("");
+    bodyParts.push("```json");
+    bodyParts.push(entry.raw_json);
+    bodyParts.push("```");
+  });
+
+  let body = bodyParts.join("\n");
+  if (body.length > GITHUB_BODY_MAX) {
+    body = body.slice(0, GITHUB_BODY_MAX) + "\n\n_(URL 길이 한계로 일부 잘림 — 나머지 항목은 따로 보고해 주세요)_";
+  }
+  const params = new URLSearchParams({ title, body });
+  return `${GITHUB_NEW_ISSUE_URL}?${params.toString()}`;
+}
+
+function entryKey(entry: ErrorLogEntry, index: number): string {
+  return `${entry.ts}-${index}`;
+}
+
 interface ErrorLogsPageProps {
   projectDir: string;
 }
@@ -72,6 +118,7 @@ export default function ErrorLogs({ projectDir }: ErrorLogsPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<KindFilter>("all");
   const [selected, setSelected] = useState<ErrorLogEntry | null>(null);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,12 +126,22 @@ export default function ErrorLogs({ projectDir }: ErrorLogsPageProps) {
     try {
       const next = await readErrorLogs(projectDir, 500);
       setEntries(next);
+      setChecked(new Set());
     } catch (exc) {
       setError(String(exc));
     } finally {
       setLoading(false);
     }
   }, [projectDir]);
+
+  const toggleChecked = useCallback((key: string) => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   const handleClear = useCallback(async () => {
     if (entries.length === 0) return;
@@ -115,6 +172,49 @@ export default function ErrorLogs({ projectDir }: ErrorLogsPageProps) {
   }, [load]);
 
   const visible = filter === "all" ? entries : entries.filter((entry) => entry.kind === filter);
+  const visibleKeys = visible.map((entry, index) => entryKey(entry, index));
+  const allVisibleSelected = visibleKeys.length > 0 && visibleKeys.every((key) => checked.has(key));
+  const checkedEntries = visible
+    .map((entry, index) => ({ entry, key: entryKey(entry, index) }))
+    .filter(({ key }) => checked.has(key))
+    .map(({ entry }) => entry);
+
+  const toggleAllVisible = useCallback(() => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      const allSelected = visibleKeys.every((key) => next.has(key));
+      if (allSelected) {
+        visibleKeys.forEach((key) => next.delete(key));
+      } else {
+        visibleKeys.forEach((key) => next.add(key));
+      }
+      return next;
+    });
+  }, [visibleKeys]);
+
+  const handleBulkSeparate = useCallback(async () => {
+    if (checkedEntries.length === 0) return;
+    if (
+      checkedEntries.length > 5 &&
+      !window.confirm(
+        `${checkedEntries.length}개의 GitHub 이슈 탭을 순차적으로 엽니다.\n` +
+          `각 탭에서 검토 후 직접 Submit 해야 합니다.\n\n` +
+          `진행할까요?`
+      )
+    ) {
+      return;
+    }
+    // 브라우저가 다중 탭 오픈을 차단하는 경우가 있어 짧은 간격으로 순차 호출.
+    for (const entry of checkedEntries) {
+      await openUrl(buildGithubIssueUrl(entry)).catch(() => {});
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    }
+  }, [checkedEntries]);
+
+  const handleBulkSingle = useCallback(() => {
+    if (checkedEntries.length === 0) return;
+    void openUrl(buildBulkGithubIssueUrl(checkedEntries)).catch(() => {});
+  }, [checkedEntries]);
 
   return (
     <div style={{ padding: "16px 16px 0", height: "100%", overflow: "auto" }}>
@@ -163,11 +263,60 @@ export default function ErrorLogs({ projectDir }: ErrorLogsPageProps) {
         </div>
       )}
 
+      {checkedEntries.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "6px 10px",
+            marginBottom: 6,
+            border: "2px solid #1A1A1A",
+            background: "#FFF8DC",
+            fontSize: 12,
+          }}
+        >
+          <strong>{checkedEntries.length}개 선택됨.</strong>
+          <span style={{ color: "#555" }}>
+            관련 있는 항목이면 한 이슈로, 서로 다른 버그면 각각 보고하세요.
+          </span>
+          <div style={{ flex: 1 }} />
+          <button
+            className="btn btn-sm"
+            onClick={handleBulkSingle}
+            style={{ background: "#24292f", color: "#fff", border: "2px solid #1A1A1A" }}
+            title="선택한 항목들을 하나의 GitHub 이슈로 묶어서 보고합니다."
+          >
+            🐛 한 이슈로 묶기
+          </button>
+          <button
+            className="btn btn-sm"
+            onClick={handleBulkSeparate}
+            style={{ background: "#24292f", color: "#fff", border: "2px solid #1A1A1A" }}
+            title="선택한 항목마다 별도 GitHub 이슈 탭을 엽니다."
+          >
+            🐛 각각 보고 ({checkedEntries.length} tabs)
+          </button>
+          <button className="btn btn-sm btn-ghost" onClick={() => setChecked(new Set())} style={{ fontSize: 11 }}>
+            선택 해제
+          </button>
+        </div>
+      )}
+
       {visible.length > 0 && (
         <div style={{ border: "1px solid #1A1A1A", maxHeight: "70vh", overflow: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead style={{ position: "sticky", top: 0, background: "#1A1A1A", color: "#FEFBF0" }}>
               <tr>
+                <th style={{ textAlign: "left", padding: "6px 4px", width: 28 }}>
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleAllVisible}
+                    title={allVisibleSelected ? "전체 선택 해제" : "보이는 항목 전체 선택"}
+                    style={{ cursor: "pointer" }}
+                  />
+                </th>
                 <th style={{ textAlign: "left", padding: "6px 8px", width: 160 }}>시간</th>
                 <th style={{ textAlign: "left", padding: "6px 8px", width: 60 }}>종류</th>
                 <th style={{ textAlign: "left", padding: "6px 8px", width: 180 }}>분류</th>
@@ -175,16 +324,30 @@ export default function ErrorLogs({ projectDir }: ErrorLogsPageProps) {
               </tr>
             </thead>
             <tbody>
-              {visible.map((entry, index) => (
+              {visible.map((entry, index) => {
+                const key = entryKey(entry, index);
+                const isChecked = checked.has(key);
+                return (
                 <tr
-                  key={`${entry.ts}-${index}`}
+                  key={key}
                   onClick={() => setSelected(entry)}
                   style={{
                     cursor: "pointer",
-                    background: index % 2 === 0 ? "#FEFBF0" : "#F5F0E0",
+                    background: isChecked ? "#FFF1B8" : (index % 2 === 0 ? "#FEFBF0" : "#F5F0E0"),
                     borderBottom: "1px solid #E0DACE",
                   }}
                 >
+                  <td
+                    onClick={(event) => event.stopPropagation()}
+                    style={{ padding: "6px 4px", textAlign: "center" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => toggleChecked(key)}
+                      style={{ cursor: "pointer" }}
+                    />
+                  </td>
                   <td style={{ padding: "6px 8px", fontFamily: "monospace" }}>{formatTimestamp(entry.ts)}</td>
                   <td style={{ padding: "6px 8px" }}>
                     <span
@@ -206,7 +369,8 @@ export default function ErrorLogs({ projectDir }: ErrorLogsPageProps) {
                     {entry.message || <span style={{ color: "#999" }}>(빈 메시지)</span>}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
