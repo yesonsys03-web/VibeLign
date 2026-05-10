@@ -1,6 +1,45 @@
 // === ANCHOR: ERROR_LOGS_PAGE_START ===
 import { useState, useEffect, useCallback } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { clearErrorLogs, readErrorLogs, type ErrorLogEntry } from "../lib/vib";
+
+const GITHUB_NEW_ISSUE_URL = "https://github.com/yesonsys03-web/VibeLign/issues/new";
+// GitHub 의 GET 요청 URL 길이 한계 (~8KB) 안에 들도록 본문 안전 한도.
+const GITHUB_BODY_MAX = 6000;
+
+function buildGithubIssueUrl(entry: ErrorLogEntry): string {
+  const messageHead = entry.message.slice(0, 80).replace(/\s+/g, " ");
+  const titleParts = [`[${entry.kind.toUpperCase()}]`];
+  if (entry.error_class) titleParts.push(entry.error_class);
+  if (messageHead) titleParts.push(messageHead);
+  const title = titleParts.join(" ").slice(0, 240);
+
+  const bodyLines = [
+    "## 환경",
+    `- 발생 시각: ${entry.ts}`,
+    `- 종류: ${entry.kind.toUpperCase()}`,
+  ];
+  if (entry.error_class) bodyLines.push(`- 에러 클래스: \`${entry.error_class}\``);
+  if (entry.context) bodyLines.push(`- 컨텍스트: \`${entry.context}\``);
+  bodyLines.push("");
+  bodyLines.push("## 에러 내용 (자동 redacted: 시크릿/경로 마스킹 적용)");
+  bodyLines.push("```json");
+  bodyLines.push(entry.raw_json);
+  bodyLines.push("```");
+  bodyLines.push("");
+  bodyLines.push("## 추가 정보");
+  bodyLines.push("- 어떤 동작 중 발생했는지:");
+  bodyLines.push("- 재현 방법 (있다면):");
+  bodyLines.push("- 다른 의견:");
+
+  let body = bodyLines.join("\n");
+  if (body.length > GITHUB_BODY_MAX) {
+    body = body.slice(0, GITHUB_BODY_MAX) + "\n\n_(URL 길이 한계로 일부 잘림)_";
+  }
+
+  const params = new URLSearchParams({ title, body });
+  return `${GITHUB_NEW_ISSUE_URL}?${params.toString()}`;
+}
 
 interface ErrorLogsPageProps {
   projectDir: string;
@@ -204,6 +243,14 @@ export default function ErrorLogs({ projectDir }: ErrorLogsPageProps) {
               <strong style={{ fontSize: 14 }}>에러 상세</strong>
               <span style={{ fontSize: 11, color: "#666" }}>{formatTimestamp(selected.ts)}</span>
               <div style={{ flex: 1 }} />
+              <button
+                className="btn btn-sm"
+                onClick={() => { openUrl(buildGithubIssueUrl(selected)).catch(() => {}); }}
+                title="GitHub 에 새 이슈로 보고합니다. 본문은 미리 채워져 있고, 사용자가 검토 후 직접 제출합니다."
+                style={{ background: "#24292f", color: "#fff", border: "2px solid #1A1A1A" }}
+              >
+                🐛 GitHub 이슈로 보고
+              </button>
               <button className="btn btn-sm" onClick={() => setSelected(null)}>
                 닫기
               </button>
