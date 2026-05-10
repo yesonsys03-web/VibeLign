@@ -48,6 +48,11 @@ function SortableCardWrapper({ id, children }: { id: string; children: ReactNode
         zIndex: isDragging ? 10 : undefined,
         position: "relative",
         height: "100%",
+        // grid track 1fr 가 콘텐츠 min-content 에 의해 늘어나지 않도록 명시.
+        // Why: dnd-kit transform + 카드별 다른 콘텐츠 폭 (예: 셀렉트 박스 vs
+        // 짧은 입력) 이 합쳐지면 좌/우 컬럼이 불균형하게 보이는 회귀가 있음.
+        width: "100%",
+        minWidth: 0,
       }}
       {...attributes}
     >
