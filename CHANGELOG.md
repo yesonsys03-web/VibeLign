@@ -10,6 +10,50 @@
 
 ---
 
+## [2.2.0] — 2026-05-10
+
+VibeLign 2.2.0 은 **GUI direct bridge (Phase 0+3 PoC) · 통합 에러 로그 뷰 · 자동 백업 가시성 · 다수의 silent 회귀 fix** 를 묶은 마이너 릴리즈입니다. macOS / Windows 모두 자동 혜택을 받는 cross-platform 변경입니다.
+
+### Added
+
+- **vibelign-core 라이브러리 노출 (Phase 0)**: `[lib] crate-type=["rlib"]` + `pub mod ipc` surface 만 노출. 기존 `vibelign-engine` 1-shot 바이너리는 그대로 유지하면서 라이브러리 소비자가 직접 `ipc::handler::handle()` 호출 가능.
+- **Tauri ↔ vibelign-core direct bridge (Phase 3 PoC)**: 신규 Tauri command `run_engine_request_direct(request_json)` 가 in-process `handle()` 호출. JSON-in/JSON-out 단일 dispatch 로 모든 EngineRequest variant 처리. GUI 의 `checkpointList`/`undoCheckpoint`/`backupDbViewerInspect`/`backupGraphSummary`/`backupDbMaintenance`/`backupCleanup` 6개 consumer 가 Python `vib` 서브프로세스 없이 엔진 직접 호출. trivial 명령 wall time ~80ms → <5ms.
+- **Rust secret_scan pure-function 이전 (Phase 2)**: `vibelign-core/src/secret_scan.rs::scan_unified_diff()` 가 Python `scan_unified_diff_for_secrets` 와 1:1 parity. 환경변수 `VIBELIGN_SECRET_SCAN_RUST=1` 옵트인 시 사용. 골든 fixture 10개 (HC rule 양성 / placeholder skip / allow-marker / multi-`@@` / removed-line / `\ No newline` / HC-wins-keyword / 한글+이모지) 로 parity 보장.
+- **GUI 통합 에러 로그 뷰**: 새 "에러로그" 탭 (`pages/ErrorLogs.tsx`). `.vibelign/logs/{cli,gui}-error-*.jsonl` 통합 표시. 종류 필터 (전체/CLI/GUI), 행 클릭 시 raw JSON 상세 모달, **🐛 GitHub 이슈로 보고** 버튼 (단일/다중 선택 — 한 이슈로 묶기 또는 각각 별도 탭), **🗑 정리** 버튼으로 수정 완료된 에러 즉시 클리어.
+- **자동 백업 실패 가시화**: post-commit hook (`internal_post_commit_cmd.py`) 이 더 이상 silent skip 하지 않음. 실패 시 stderr 출력 + 통합 에러 로그 (`record_cli_error`) 기록. 사용자가 `vib history` 가 stale 임을 즉시 인지.
+
+### Changed
+
+- **post-commit hook 마커 v2 → v3**: 쉘 템플릿이 `>/dev/null 2>&1` → `>/dev/null` 로 변경되어 stderr 가 git terminal 에 보임. 기존 v1/v2 설치는 다음 `vib start` 시 자동 v3 으로 갱신.
+- **3-writer DB concurrency 입증**: WAL + busy_timeout=5000ms 가 (a) Tauri direct in-process write, (b) Python vib subprocess 1-shot, (c) Rust daemon 동시 접근에서 contention 흡수함을 확인 (500 ops 0 errors).
+- **백업 카드 라벨**: `cleanBackupNote` 가 git commit 본문 전체 대신 첫 줄 + 80자로 truncate. RestorePreviewPanel 은 hover tooltip 으로 풀 메시지 보존.
+- **plan §3 lever 2 ROI 표 측정 기반 갱신**: scan_cache (json 1ms 로드), watch_state (4ms 로드), anchor_tools (<0.2ms/file), strict_patch (cross-cutting 의존) 모두 실측 결과 incremental Rust 포팅 무가치 확정.
+
+### Fixed
+
+- **`vib memory show` FileNotFoundError**: `save_memory_state` 의 tmp path 가 두 프로세스 동시 호출 시 race 로 사라지는 문제 — pid + uuid 로 unique 화. (이전 에러 로그 누적 10건의 주범).
+- **`vib doctor | head` BrokenPipeError**: CLI main 에 `signal.SIGPIPE = SIG_DFL` 등록 (Unix 표준 도구 동작). Windows 는 SIGPIPE 미존재로 no-op.
+- **RUST_ENGINE_INTEGRITY_FAILED: integrity manifest missing**: `target/{debug,release}` dev 빌드 경로에서 `.sha256` 매니페스트 누락 시 자동 재생성. Windows NTFS case-preserving 대비 case-insensitive 매칭. 번들/설치본 경로는 기존대로 명시 실패 (빌드/배포 누락 신호 보존).
+- **GUI unhandledrejection (`listeners[eventId].handlerId`)**: CodemapCard 의 `listen()` cleanup 패턴이 React StrictMode + Vite HMR 의 double cleanup 시 race — Onboarding.tsx 의 idempotent 패턴 (`let unlisten; ...; unlisten?.()`) 으로 통일.
+- **홈 카드 그리드 1fr 1fr 불균형**: SortableCardWrapper 에 `width:100%` + `minWidth:0` 추가. dnd-kit transform + 카드별 다른 콘텐츠 폭이 합쳐지면 좌/우 컬럼이 불균형하게 보이던 회귀 수정.
+
+### Verified
+
+- `cargo test --manifest-path "vibelign-core/Cargo.toml"` → 90 passed (이전 74 대비 +16: secret_scan parity 10 + handler/protocol 2 + module unit 4).
+- `pytest` 영향 받는 15 suite → 188 passed, 1 skipped.
+- `cargo build --manifest-path "vibelign-gui/src-tauri/Cargo.toml"` → 0 errors.
+- `npx tsc --noEmit` (vibelign-gui) → No errors.
+- `cargo run --release --example concurrency_smoke` → 500 ops PASS, 0 contention errors.
+- 실 엔진 e2e 스모크: 6 GUI consumer 모두 raw response 의 모든 parser 필드 정상 라운드트립. secret_scan ASCII / 한글+이모지 path 양쪽 동일 finding.
+
+### Migration
+
+- 기존 사용자: 자동 적용. post-commit hook 은 `vib start` 또는 hook reinstall 시 v3 으로 자동 갱신됨.
+- 옵션 `VIBELIGN_SECRET_SCAN_RUST=1`: 명시 ON 시에만 Rust secret scan. 기본 Python.
+- 환경변수 `VIBELIGN_PROJECT_SCAN_RUST=0`: Python/fd fallback 강제. 기본 Rust.
+
+---
+
 ## [2.1.11] — 2026-05-08
 
 VibeLign 2.1.11 은 **Rust project_scan 기본 라우팅, GUI Explain 분류 보정, CLI help/manual 정합성 개선**을 포함한 릴리즈입니다.
