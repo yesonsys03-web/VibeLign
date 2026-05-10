@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { DocsTrustState } from "../../pages/DocsViewer";
 import type { DocsVisualArtifact, DocsVisualSection } from "../../lib/vib";
+import type { DocsTrustState } from "./canvasArtifactTrust";
 import MermaidDiagram from "./MermaidDiagram";
 import AiEnhanceButton from "./AiEnhanceButton";
 
