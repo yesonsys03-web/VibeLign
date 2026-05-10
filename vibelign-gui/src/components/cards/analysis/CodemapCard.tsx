@@ -47,7 +47,14 @@ export default function CodemapCard({ projectDir, watchOn, setWatchOn, mapMode, 
   }, []);
 
   useEffect(() => {
-    const unlisten = listen<string>("watch_log", (e) => {
+    // Idempotent cleanup — React StrictMode (dev) 와 Vite HMR 이 같은 effect 의
+    // cleanup 을 2회 실행할 수 있어, Promise.then 안에서 직접 호출하면 두 번째
+    // 호출이 Tauri 내부의 이미 제거된 listener 를 다시 제거하려다
+    // `listeners[eventId]` undefined 로 unhandledrejection 을 유발한다.
+    // resolved 된 unlisten 함수를 변수에 저장하고 호출 후 비워 두 번째 cleanup
+    // 은 no-op 이 되도록 한다.
+    let unlisten: (() => void) | undefined;
+    listen<string>("watch_log", (e) => {
       setWatchLogs((prev) => {
         const next = [...prev, e.payload].slice(-200);
         return next;
@@ -58,17 +65,18 @@ export default function CodemapCard({ projectDir, watchOn, setWatchOn, mapMode, 
       setTimeout(() => {
         if (watchLogRef.current) watchLogRef.current.scrollTop = watchLogRef.current.scrollHeight;
       }, 0);
-    });
-    return () => { unlisten.then((f) => f()); };
+    }).then((fn) => { unlisten = fn; });
+    return () => { unlisten?.(); unlisten = undefined; };
   }, []);
 
   useEffect(() => {
-    const unlisten = listen<string>("watch_error", (e) => {
+    let unlisten: (() => void) | undefined;
+    listen<string>("watch_error", (e) => {
       setWatchError((prev) => (prev ? `${prev}\n${e.payload}` : e.payload));
       void stopWatch().catch(() => {});
       setWatchOn(false);
-    });
-    return () => { unlisten.then((f) => f()); };
+    }).then((fn) => { unlisten = fn; });
+    return () => { unlisten?.(); unlisten = undefined; };
   }, [setWatchOn]);
 
   async function handleScan() {
