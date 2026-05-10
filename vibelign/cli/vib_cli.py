@@ -1,6 +1,7 @@
 # === ANCHOR: VIB_CLI_START ===
 import argparse
 import importlib
+import sys
 from collections.abc import Callable
 from typing import Any, cast
 
@@ -91,7 +92,29 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _install_sigpipe_default_handler() -> None:
+    """Unix 표준: 파이프 수신측이 닫히면 SIGPIPE 로 조용히 종료한다.
+
+    `vib doctor | head -5` 처럼 출력이 잘릴 때 Python 의 기본 동작은
+    print 가 BrokenPipeError 를 raise → cli runtime 이 캐치해서 통합 에러 로그에
+    traceback 을 기록한다. 이는 실제 사용자 에러가 아니므로 표준 Unix 도구처럼
+    SIGPIPE 의 기본 핸들러(프로세스 정상 종료)로 되돌려 노이즈를 줄인다.
+    Windows 에는 SIGPIPE 자체가 없으므로 no-op.
+    """
+    if sys.platform == "win32":
+        return
+    try:
+        import signal
+
+        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+    except (AttributeError, OSError, ValueError):
+        # 일부 환경(임베디드 stdin/stdout 재정의 등)에서는 signal 등록이
+        # 실패할 수 있다. 그럴 땐 기존 BrokenPipeError 경로로 폴백.
+        pass
+
+
 def main() -> None:
+    _install_sigpipe_default_handler()
     run_cli = cast(
         Callable[[Callable[[], argparse.ArgumentParser]], None],
         importlib.import_module("vibelign.cli.cli_runtime").run_cli,

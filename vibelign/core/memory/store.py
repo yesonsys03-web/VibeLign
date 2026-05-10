@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import uuid
 from dataclasses import replace
 from datetime import datetime, timezone
 from importlib import import_module
@@ -173,12 +175,23 @@ def save_memory_state(path: Path, state: MemoryState) -> None:
     compacted = compact_memory_state(state)
     payload = _memory_state_to_raw(compacted)
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(".tmp")
-    _ = tmp_path.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    _ = tmp_path.replace(path)
+    # Why unique tmp: 두 프로세스가 동시 save_memory_state 를 호출하면 양쪽 모두
+    # `<name>.tmp` 를 같은 이름으로 쓰고, 한쪽이 rename 한 직후 다른 쪽이 rename
+    # 하려 할 때 tmp 가 이미 사라져 FileNotFoundError. pid + uuid 로 unique 화.
+    tmp_path = path.with_name(f"{path.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")
+    try:
+        _ = tmp_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        _ = tmp_path.replace(path)
+    except Exception:
+        # rename 전에 실패하면 dangling tmp 가 남으므로 best-effort 정리.
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
 
 
 def add_memory_decision(path: Path, message: str, *, updated_by: str = "vib memory decide") -> None:

@@ -57,14 +57,39 @@ def _sha256(path: Path) -> str:
 def _verify_integrity(binary_path: Path) -> str | None:
     manifest_path = binary_path.with_suffix(binary_path.suffix + ".sha256")
     if not manifest_path.exists():
-        return "integrity manifest missing"
-    expected = manifest_path.read_text(encoding="utf-8").split()[0].strip().lower()
+        # Dev 빌드 경로(`vibelign-core/target/{debug,release}`)에서는 cargo build
+        # 직후 매니페스트가 빠질 수 있다. 사용자가 어찌할 수 없는 환경 결함이고
+        # tamper 탐지 목적도 약하므로(쓰기 가능한 위치) 자동 생성으로 회복한다.
+        # 그 외 위치(번들/설치본)에서 매니페스트가 없으면 기존대로 실패 — 빌드/
+        # 배포 단계 누락 신호.
+        if _is_dev_build_path(binary_path) and _try_write_manifest(binary_path, manifest_path):
+            expected = manifest_path.read_text(encoding="utf-8").split()[0].strip().lower()
+        else:
+            return "integrity manifest missing"
+    else:
+        expected = manifest_path.read_text(encoding="utf-8").split()[0].strip().lower()
     if not expected:
         return "integrity manifest empty"
     actual = _sha256(binary_path).lower()
     if actual != expected:
         return "integrity check failed"
     return None
+
+
+def _is_dev_build_path(binary_path: Path) -> bool:
+    parts = binary_path.parts
+    if len(parts) < 4:
+        return False
+    return parts[-3:-1] in (("target", "debug"), ("target", "release")) and "vibelign-core" in parts
+
+
+def _try_write_manifest(binary_path: Path, manifest_path: Path) -> bool:
+    try:
+        digest = _sha256(binary_path)
+        manifest_path.write_text(f"{digest}  {binary_path.name}\n", encoding="utf-8")
+        return True
+    except OSError:
+        return False
 
 
 def find_rust_engine(root: Path) -> RustEngineAvailability:
