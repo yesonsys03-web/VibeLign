@@ -39,7 +39,7 @@ export default function RestorePreviewPanel({ entry, restoring, onRestore }: Res
     >
       {entry ? (
         <>
-          <strong>{cleanBackupNote(entry)}</strong>
+          <strong title={entry.note || undefined} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cleanBackupNote(entry)}</strong>
           <div style={chipRow}>
             <span style={chipTime} title={formatSavedAt(entry.createdAt)}>🕐 {formatRelativeTime(entry.createdAt)}</span>
             <span style={chipFiles}>📄 {entry.fileCount ?? 0}개 파일</span>

@@ -58,8 +58,21 @@ export function formatSavedAt(value?: string): string {
 // === ANCHOR: MODEL_FORMATSAVEDAT_END ===
 
 // === ANCHOR: MODEL_CLEANBACKUPNOTE_START ===
+const BACKUP_NOTE_MAX_CHARS = 80;
+
+/**
+ * 백업 카드 / 미리보기 패널에 표시할 한 줄 요약을 만든다.
+ * 원본 note 는 git commit body 전체일 수 있어 (수십~수백 줄), 그대로 노출하면
+ * 가독성이 망가진다. 첫 줄만 사용하고 80자 이상이면 말줄임 처리.
+ *
+ * 전체 본문은 상세 화면에서 별도로 보여주기로 한다 (entry.note 그대로 사용).
+ */
 export function cleanBackupNote(entry: BackupEntry): string {
-  return entry.note || "메모 없는 저장본";
+  if (!entry.note) return "메모 없는 저장본";
+  const firstLine = entry.note.split(/\r?\n/)[0]?.trim() ?? "";
+  if (!firstLine) return "메모 없는 저장본";
+  if (firstLine.length <= BACKUP_NOTE_MAX_CHARS) return firstLine;
+  return firstLine.slice(0, BACKUP_NOTE_MAX_CHARS - 1).trimEnd() + "…";
 }
 // === ANCHOR: MODEL_CLEANBACKUPNOTE_END ===
 
