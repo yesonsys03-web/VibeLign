@@ -27,6 +27,15 @@ pub const DOCS_READ_EXTENSIONS: &[&str] = &[
     ".md", ".markdown", ".txt", ".json", ".csv", ".pdf", ".docx", ".doc",
 ];
 
+const CANVAS_ALLOWED_HIDDEN_PREFIXES: &[&str] = &[".omc/plans"];
+const CANVAS_EXCLUDED_PREFIXES: &[&str] = &["promo"];
+const CANVAS_EXCLUDED_FILES: &[&str] = &[
+    ".mcp.json",
+    ".omc/project-memory.json",
+    ".omc/last-tool-error.json",
+    ".omc/subagent-tracking.json",
+];
+
 /// In-memory set of extra source roots loaded from `docs_index.json`.
 /// Roots are normalized relative POSIX paths, e.g. `".omc/plans"`.
 pub struct ExtraSourceAllowlist {
@@ -151,6 +160,23 @@ pub fn is_allowed_doc_path(relative_path: &str, extras: &ExtraSourceAllowlist) -
         if DOCS_READ_IGNORED_DIRS.contains(&segment) {
             return false;
         }
+    }
+    true
+}
+
+pub fn is_canvas_eligible_path(relative_path: &str) -> bool {
+    let normalized = relative_path.trim().replace('\\', "/").trim_matches('/').to_string();
+    if normalized.is_empty() || normalized.split('/').any(|segment| segment == ".." || segment.is_empty()) {
+        return false;
+    }
+    if CANVAS_EXCLUDED_FILES.contains(&normalized.as_str()) {
+        return false;
+    }
+    if CANVAS_EXCLUDED_PREFIXES.iter().any(|prefix| normalized == *prefix || normalized.starts_with(&format!("{prefix}/"))) {
+        return false;
+    }
+    if normalized.starts_with(".omc/") {
+        return CANVAS_ALLOWED_HIDDEN_PREFIXES.iter().any(|prefix| normalized == *prefix || normalized.starts_with(&format!("{prefix}/")));
     }
     true
 }
@@ -402,6 +428,15 @@ mod tests {
         let allowlist = ExtraSourceAllowlist::load(dir.path());
         // Backslash should be normalized to forward slash
         assert!(allowlist.roots().contains(".OMC/plans"));
+    }
+
+    #[test]
+    fn test_canvas_eligibility_exclusions_and_carveouts() {
+        assert!(!is_canvas_eligible_path(".omc/state/session.json"));
+        assert!(!is_canvas_eligible_path(".mcp.json"));
+        assert!(!is_canvas_eligible_path("promo/vibelign-promo-100s/README.md"));
+        assert!(is_canvas_eligible_path(".omc/plans/plan.md"));
+        assert!(is_canvas_eligible_path("docs/superpowers/plans/plan.md"));
     }
 }
 // === ANCHOR: DOCS_ACCESS_END ===

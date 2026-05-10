@@ -65,9 +65,17 @@ pub(crate) struct DocsVisualContract {
 // contract 는 vib 바이너리에 baked-in 된 정적 값이라 프로세스 수명 내에서 바뀌지 않는다.
 // 매 문서 클릭마다 vib subprocess 를 스폰하던 병목을 없애기 위해 첫 호출 결과를 메모리에 캐시한다.
 static DOCS_VISUAL_CONTRACT_CACHE: Mutex<Option<DocsVisualContract>> = Mutex::new(None);
+static DOCS_HTML_CONTRACT_CACHE: Mutex<Option<DocsVisualContract>> = Mutex::new(None);
 
 #[derive(Serialize)]
 pub(crate) struct DocsVisualReadResult {
+    path: String,
+    artifact: serde_json::Value,
+    contract: DocsVisualContract,
+}
+
+#[derive(Serialize)]
+pub(crate) struct DocsHtmlReadResult {
     path: String,
     artifact: serde_json::Value,
     contract: DocsVisualContract,
@@ -195,6 +203,8 @@ fn run_vib_docs_index(root: &Path, extra_args: &[&str]) -> Option<Result<String,
     }
     if visual_contract {
         command.arg("--visual-contract");
+    } else if extra_args.iter().any(|arg| *arg == "--print-html-contract") {
+        command.arg("--html-contract");
     } else {
         command.arg(root.as_os_str());
     }
@@ -298,33 +308,71 @@ fn read_docs_visual_contract(root: &str) -> Result<DocsVisualContract, String> {
     Ok(contract)
 }
 
-#[tauri::command]
-pub(crate) fn read_docs_visual(root: String, path: PathBuf) -> Result<Option<DocsVisualReadResult>, String> {
-    let (resolved_path, relative_path) = resolve_doc_path(&root, path)?;
-    let root_path = PathBuf::from(&root)
-        .canonicalize()
-        .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?;
-    let relative = resolved_path
-        .strip_prefix(&root_path)
-        .map_err(|_| "프로젝트 루트 밖 파일은 읽을 수 없어요".to_string())?;
-    // Route extra source docs to `_extra/<rel>.json` to avoid hidden-dir nesting.
-    let extras = docs_access::ExtraSourceAllowlist::load(&root_path);
-    let is_extra = extras.roots().iter().any(|prefix| {
-        relative_path == *prefix
-            || relative_path.starts_with(&format!("{prefix}/"))
-    });
-    let artifact_path = if is_extra {
+fn read_docs_html_contract(root: &str) -> Result<DocsVisualContract, String> {
+    if let Ok(guard) = DOCS_HTML_CONTRACT_CACHE.lock() {
+        if let Some(cached) = guard.as_ref() {
+            return Ok(cached.clone());
+        }
+    }
+
+    let raw = run_docs_cache_helper(root, &["--print-html-contract"])?;
+    let payload: serde_json::Value = serde_json::from_str(raw.trim())
+        .map_err(|e| format!("docs HTML contract를 해석할 수 없어요: {e}"))?;
+    let contract_value = payload
+        .get("contract")
+        .ok_or_else(|| "docs HTML contract 항목이 없어요".to_string())?
+        .clone();
+    let contract: DocsVisualContract = serde_json::from_value(contract_value)
+        .map_err(|e| format!("docs HTML contract 형식이 올바르지 않아요: {e}"))?;
+
+    if let Ok(mut guard) = DOCS_HTML_CONTRACT_CACHE.lock() {
+        *guard = Some(contract.clone());
+    }
+    Ok(contract)
+}
+
+fn docs_artifact_path(root_path: &Path, relative_path: &str, dir_name: &str) -> PathBuf {
+    let is_extra = read_docs_index_cache_file(root_path)
+        .and_then(|entries| {
+            entries
+                .into_iter()
+                .find(|entry| entry.path == relative_path)
+                .map(|entry| entry.source_root.is_some())
+        })
+        .unwrap_or_else(|| {
+            let extras = docs_access::ExtraSourceAllowlist::load(root_path);
+            extras.roots().iter().any(|prefix| {
+                relative_path == *prefix
+                    || relative_path.starts_with(&format!("{prefix}/"))
+            })
+        });
+    if is_extra {
         root_path
             .join(".vibelign")
-            .join("docs_visual")
+            .join(dir_name)
             .join("_extra")
-            .join(format!("{}.json", normalize_relative_doc_path(relative)))
+            .join(format!("{}.json", relative_path))
     } else {
         root_path
             .join(".vibelign")
-            .join("docs_visual")
-            .join(format!("{}.json", normalize_relative_doc_path(relative)))
-    };
+            .join(dir_name)
+            .join(format!("{}.json", relative_path))
+    }
+}
+
+#[tauri::command]
+pub(crate) fn read_docs_visual(root: String, path: PathBuf) -> Result<Option<DocsVisualReadResult>, String> {
+    let (_resolved_path, relative_path) = resolve_doc_path(&root, path)?;
+    if !docs_access::is_canvas_eligible_path(&relative_path) {
+        return Err(format!("Canvas visualization is unsupported for excluded docs path: {relative_path}"));
+    }
+    let root_path = strip_unc_prefix(
+        PathBuf::from(&root)
+            .canonicalize()
+            .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?,
+    );
+    // Route extra source docs to `_extra/<rel>.json` to avoid hidden-dir nesting.
+    let artifact_path = docs_artifact_path(&root_path, &relative_path, "docs_visual");
 
     if !artifact_path.exists() {
         return Ok(None);
@@ -337,6 +385,36 @@ pub(crate) fn read_docs_visual(root: String, path: PathBuf) -> Result<Option<Doc
     let contract = read_docs_visual_contract(&root)?;
 
     Ok(Some(DocsVisualReadResult {
+        path: relative_path,
+        artifact,
+        contract,
+    }))
+}
+
+#[tauri::command]
+pub(crate) fn read_docs_html(root: String, path: PathBuf) -> Result<Option<DocsHtmlReadResult>, String> {
+    let (_resolved_path, relative_path) = resolve_doc_path(&root, path)?;
+    if !docs_access::is_canvas_eligible_path(&relative_path) {
+        return Err(format!("Raw HTML Canvas is unsupported for excluded docs path: {relative_path}"));
+    }
+    let root_path = strip_unc_prefix(
+        PathBuf::from(&root)
+            .canonicalize()
+            .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?,
+    );
+    let artifact_path = docs_artifact_path(&root_path, &relative_path, "docs_html");
+
+    if !artifact_path.exists() {
+        return Ok(None);
+    }
+
+    let artifact_text = std::fs::read_to_string(&artifact_path)
+        .map_err(|e| format!("docs HTML artifact를 읽을 수 없어요: {e}"))?;
+    let artifact: serde_json::Value = serde_json::from_str(&artifact_text)
+        .map_err(|e| format!("docs HTML artifact JSON이 손상되었어요: {e}"))?;
+    let contract = read_docs_html_contract(&root)?;
+
+    Ok(Some(DocsHtmlReadResult {
         path: relative_path,
         artifact,
         contract,

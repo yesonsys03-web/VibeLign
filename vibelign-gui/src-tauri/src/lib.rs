@@ -127,6 +127,7 @@ pub fn run() {
             commands::docs::list_docs_index,
             commands::docs::rebuild_docs_index,
             commands::docs::read_docs_visual,
+            commands::docs::read_docs_html,
             commands::docs::list_extra_doc_sources,
             commands::docs::add_extra_doc_source,
             commands::docs::remove_extra_doc_source,
