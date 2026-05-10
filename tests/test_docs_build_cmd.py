@@ -35,9 +35,14 @@ _ensure_stub_package("vibelign.core", ROOT / "vibelign" / "core")
 _ensure_stub_package("vibelign.commands", ROOT / "vibelign" / "commands")
 _load_module("vibelign.core.meta_paths", ROOT / "vibelign" / "core" / "meta_paths.py")
 _load_module("vibelign.core.doc_sources", ROOT / "vibelign" / "core" / "doc_sources.py")
+_load_module("vibelign.core.docs_access", ROOT / "vibelign" / "core" / "docs_access.py")
 _load_module("vibelign.core.docs_cache", ROOT / "vibelign" / "core" / "docs_cache.py")
 _load_module(
     "vibelign.core.docs_visualizer", ROOT / "vibelign" / "core" / "docs_visualizer.py"
+)
+_load_module(
+    "vibelign.core.docs_html_visualizer",
+    ROOT / "vibelign" / "core" / "docs_html_visualizer.py",
 )
 _load_module(
     "vibelign.core.docs_index_cache",
@@ -69,6 +74,91 @@ class DocsBuildCmdTest(unittest.TestCase):
             payload = json.loads(artifact_path.read_text(encoding="utf-8"))
             self.assertEqual(payload["title"], "Session Handoff")
             self.assertEqual(payload["source_path"], str(target.resolve()))
+
+            html_path = root / ".vibelign" / "docs_html" / "PROJECT_CONTEXT.md.json"
+            self.assertTrue(html_path.exists())
+            html_payload = json.loads(html_path.read_text(encoding="utf-8"))
+            self.assertEqual(html_payload["mode"], "raw_html")
+            self.assertIn("Content-Security-Policy", html_payload["html"])
+            self.assertEqual(html_payload["source_hash"], payload["source_hash"])
+
+    def test_raw_html_artifact_preserves_verbatim_html_inside_sandbox_document(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir()
+            target = root / "PROJECT_CONTEXT.md"
+            target.write_text(
+                "# Raw\n\n<script>window.parent.hacked = true</script>\n\n<img src=\"https://example.com/x.png\">\n",
+                encoding="utf-8",
+            )
+
+            docs_build_cmd.build_docs_visual_cache(root, "PROJECT_CONTEXT.md")
+
+            payload = json.loads(
+                (root / ".vibelign" / "docs_html" / "PROJECT_CONTEXT.md.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertIn("<script>window.parent.hacked = true</script>", payload["html"])
+            self.assertIn("<img src=\"https://example.com/x.png\">", payload["html"])
+            self.assertIn("default-src 'none'", payload["html"])
+            self.assertEqual(payload["generator_version"], "raw-html-v1")
+
+    def test_raw_html_artifact_renders_readable_markdown_structure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir()
+            target = root / "PROJECT_CONTEXT.md"
+            target.write_text(
+                "# Raw\n\n## Goals\n\n- Keep `Source` readable\n- Render lists\n\n| Mode | Purpose |\n| --- | --- |\n| Raw HTML | Preview |\n",
+                encoding="utf-8",
+            )
+
+            docs_build_cmd.build_docs_visual_cache(root, "PROJECT_CONTEXT.md")
+
+            payload = json.loads(
+                (root / ".vibelign" / "docs_html" / "PROJECT_CONTEXT.md.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertIn("<ul><li>Keep <code>Source</code> readable</li><li>Render lists</li></ul>", payload["html"])
+            self.assertIn("<table><tr><td>Mode</td><td>Purpose</td></tr><tr><td>Raw HTML</td><td>Preview</td></tr></table>", payload["html"])
+            self.assertIn("font-family: Georgia", payload["html"])
+
+    def test_build_single_file_accepts_windows_style_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir()
+            (root / "docs" / "plans").mkdir(parents=True)
+            target = root / "docs" / "plans" / "canvas.md"
+            target.write_text("# Canvas\n\nWindows path input.\n", encoding="utf-8")
+
+            result = docs_build_cmd.build_docs_visual_cache(root, "docs\\plans\\canvas.md")
+
+            artifact_path = root / ".vibelign" / "docs_visual" / "docs" / "plans" / "canvas.md.json"
+            self.assertEqual(result["written"], ["docs/plans/canvas.md"])
+            self.assertTrue(artifact_path.exists())
+
+    def test_full_build_retries_transient_directory_replace_lock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            (root / ".vibelign" / "docs_visual").mkdir(parents=True)
+            (root / "PROJECT_CONTEXT.md").write_text("# Context\n\nAlpha\n", encoding="utf-8")
+            original_replace = Path.replace
+            calls = {"count": 0}
+
+            def flaky_replace(path, target):
+                if Path(path) == root / ".vibelign" / "docs_visual" and calls["count"] == 0:
+                    calls["count"] += 1
+                    raise OSError("locked")
+                return original_replace(path, target)
+
+            with patch("pathlib.Path.replace", autospec=True, side_effect=flaky_replace):
+                result = docs_build_cmd.build_docs_visual_cache(root)
+
+            self.assertEqual(result["count"], 1)
+            self.assertEqual(calls["count"], 1)
+            self.assertTrue((root / ".vibelign" / "docs_visual" / "PROJECT_CONTEXT.md.json").exists())
 
     def test_full_build_writes_multiple_docs(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -728,6 +818,65 @@ class Phase3CacheParityTest(unittest.TestCase):
             self.assertTrue(artifact.exists(), f"Built-in artifact should be at {artifact}")
             wrong_path = root / ".vibelign" / "docs_visual" / "_extra" / "PROJECT_CONTEXT.md.json"
             self.assertFalse(wrong_path.exists(), "Built-in artifact should NOT be under _extra/")
+
+    def test_selected_document_generation_uses_atomic_write(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir()
+            (root / "PROJECT_CONTEXT.md").write_text("# Context\n\nBody.\n", encoding="utf-8")
+            calls = {"atomic": 0, "replace": 0}
+
+            def fake_atomic(target, content):
+                calls["atomic"] += 1
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content, encoding="utf-8")
+
+            with patch.object(docs_build_cmd, "_atomic_write_text", side_effect=fake_atomic), patch.object(docs_build_cmd, "_replace_docs_visual_dir") as replace_mock:
+                result = docs_build_cmd.build_docs_visual_cache(root, "PROJECT_CONTEXT.md")
+                calls["replace"] = replace_mock.call_count
+
+            self.assertEqual(result["written"], ["PROJECT_CONTEXT.md"])
+            self.assertEqual(result["html_written"], ["PROJECT_CONTEXT.md"])
+            self.assertEqual(calls, {"atomic": 2, "replace": 0})
+
+    def test_canvas_refuses_excluded_paths(self):
+        docs_access = sys.modules["vibelign.core.docs_access"]
+        self.assertFalse(docs_access.is_canvas_eligible_path(".omc/state/session.json"))
+        self.assertFalse(docs_access.is_canvas_eligible_path(".mcp.json"))
+        self.assertFalse(docs_access.is_canvas_eligible_path("promo/vibelign-promo-100s/README.md"))
+        self.assertTrue(docs_access.is_canvas_eligible_path(".omc/plans/plan.md"))
+        self.assertTrue(docs_access.is_canvas_eligible_path("docs/superpowers/plans/plan.md"))
+
+    def test_selected_canvas_build_refuses_excluded_path(self):
+        doc_sources = self._get_doc_sources()
+        meta_paths = self._get_meta_paths()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".vibelign").mkdir()
+            (root / "promo").mkdir()
+            (root / "promo" / "README.md").write_text("# Promo\n", encoding="utf-8")
+            meta = meta_paths.MetaPaths(root)
+            doc_sources.add(meta, "promo")
+
+            with self.assertRaises(ValueError) as ctx:
+                docs_build_cmd.build_docs_visual_cache(root, "promo/README.md")
+
+            self.assertIn("unsupported", str(ctx.exception))
+
+    def test_opening_docs_viewer_does_not_trigger_bulk_build(self):
+        docs_viewer = (ROOT / "vibelign-gui" / "src" / "pages" / "DocsViewer.tsx").read_text(encoding="utf-8")
+        canvas_hook = (ROOT / "vibelign-gui" / "src" / "components" / "docs" / "useCanvasArtifactState.ts").read_text(encoding="utf-8")
+
+        self.assertNotIn("docs-build", docs_viewer)
+        self.assertIn('runVib(["docs-build", "--", selectedPath], projectDir)', canvas_hook)
+        self.assertNotIn('runVib(["docs-build"], projectDir)', canvas_hook)
+
+    def test_generation_epoch_discards_stale_result(self):
+        canvas_hook = (ROOT / "vibelign-gui" / "src" / "components" / "docs" / "useCanvasArtifactState.ts").read_text(encoding="utf-8")
+
+        self.assertIn("epochRef.current += 1", canvas_hook)
+        self.assertIn("capturedEpoch !== epochRef.current", canvas_hook)
+        self.assertIn("return;", canvas_hook)
 
 
 class OrderingFixTest(unittest.TestCase):

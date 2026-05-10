@@ -81,6 +81,15 @@ class MetaPaths:
         return base / Path(f"{rel.as_posix()}.json")
 
     @property
+    def docs_html_dir(self) -> Path:
+        return self.vibelign_dir / "docs_html"
+
+    def docs_html_path(self, source_relative_path: str, *, is_extra: bool = False) -> Path:
+        rel = Path(source_relative_path.replace("\\", "/"))
+        base = self.docs_html_dir / "_extra" if is_extra else self.docs_html_dir
+        return base / Path(f"{rel.as_posix()}.json")
+
+    @property
     def docs_index_path(self) -> Path:
         return self.vibelign_dir / "docs_index.json"
 
@@ -94,6 +103,7 @@ class MetaPaths:
         self.plans_dir.mkdir(parents=True, exist_ok=True)
         self.reports_dir.mkdir(parents=True, exist_ok=True)
         self.docs_visual_dir.mkdir(parents=True, exist_ok=True)
+        self.docs_html_dir.mkdir(parents=True, exist_ok=True)
 
     def ensure_vibelign_dir(self) -> None:
         self.vibelign_dir.mkdir(parents=True, exist_ok=True)
