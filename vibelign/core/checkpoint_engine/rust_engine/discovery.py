@@ -77,7 +77,12 @@ def _verify_integrity(binary_path: Path) -> str | None:
 
 
 def _is_dev_build_path(binary_path: Path) -> bool:
-    parts = binary_path.parts
+    # Why case-fold: Windows NTFS 는 case-preserving 이라 사용자가 cloned 디렉토리
+    # 이름을 다른 케이스로 가지고 있을 수 있다 (e.g. `Vibelign-core/Target/Debug`).
+    # 표준 Cargo 빌드는 항상 소문자지만, 다른 cross-platform 매칭 로직 (예:
+    # `project_scan.rs::is_ignored`) 도 lowercase 비교를 쓰므로 일관성 차원에서
+    # case-insensitive 로 통일.
+    parts = tuple(part.lower() for part in binary_path.parts)
     if len(parts) < 4:
         return False
     return parts[-3:-1] in (("target", "debug"), ("target", "release")) and "vibelign-core" in parts
