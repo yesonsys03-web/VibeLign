@@ -1,12 +1,16 @@
 // === ANCHOR: DOCSVIEWER_START ===
 import { useEffect, useMemo, useRef, useState } from "react";
+import CanvasGenerateButton from "../components/docs/CanvasGenerateButton";
+import CanvasViewPane from "../components/docs/CanvasViewPane";
 import DocumentPane from "../components/docs/DocumentPane";
 import DocsSidebar from "../components/docs/DocsSidebar";
+import RawHtmlCanvasPane from "../components/docs/RawHtmlCanvasPane";
 import VisualSummaryPane from "../components/docs/VisualSummaryPane";
-import { extractSections, loadDoc, reloadDocsIndex } from "../lib/docs";
-import { addExtraDocSource, listExtraDocSources, pickFolder, readDocsVisual, removeExtraDocSource, runVib, type DocsIndexEntry, type DocsVisualReadResult, type ReadFileResult } from "../lib/vib";
+import useCanvasArtifactState from "../components/docs/useCanvasArtifactState";
+import { extractSections, loadDoc, loadDocsIndex, reloadDocsIndex } from "../lib/docs";
+import { addExtraDocSource, listExtraDocSources, pickFolder, removeExtraDocSource, type DocsIndexEntry, type ReadFileResult } from "../lib/vib";
 
-export type DocsTrustState = "source-only" | "enhanced-synced" | "enhanced-stale" | "enhanced-failed";
+type DocsViewMode = "source" | "easy" | "canvas" | "raw-html" | "split";
 
 interface DocsViewerProps {
   projectDir: string;
@@ -21,10 +25,6 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
   const [indexLoading, setIndexLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [indexError, setIndexError] = useState<string | null>(null);
-  const [visual, setVisual] = useState<DocsVisualReadResult | null>(null);
-  const [trustState, setTrustState] = useState<DocsTrustState>("source-only");
-  const [trustReason, setTrustReason] = useState<string>("artifact 없음 — 원문 문서만 표시합니다.");
-  const [isRebuilding, setIsRebuilding] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRebuildingIndex, setIsRebuildingIndex] = useState(false);
   const [rebuildMessage, setRebuildMessage] = useState<string | null>(null);
@@ -36,6 +36,14 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
   const markdownPaneRef = useRef<HTMLDivElement | null>(null);
   const layoutRef = useRef<HTMLDivElement | null>(null);
   const [layoutWidth, setLayoutWidth] = useState(0);
+  const [viewMode, setViewMode] = useState<DocsViewMode>("source");
+  const rawHtmlCanvasEnabled = useMemo(() => {
+    try {
+      return window.localStorage.getItem("vibelign.docs.rawHtmlCanvas") !== "0";
+    } catch {
+      return true;
+    }
+  }, []);
 
   useEffect(() => {
     // === ANCHOR: DOCSVIEWER_UPDATEWIDTH_START ===
@@ -54,28 +62,54 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
     setIndexLoading(true);
     setIndexError(null);
 
-    listExtraDocSources(projectDir)
-      .then((res) => {
-        if (cancelled) return;
-        setDocsIndex(res.entries);
-        setExtraSources(res.sources);
-        setSelectedPath((current) => {
-          if (current && res.entries.some((entry) => entry.path === current)) {
-            return current;
-          }
-          return res.entries.find((entry) => entry.path === "PROJECT_CONTEXT.md")?.path ?? res.entries[0]?.path ?? null;
-        });
-        setIndexLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setDocsIndex([]);
-          setExtraSources([]);
-          setSelectedPath(null);
-          setIndexError(err instanceof Error ? err.message : typeof err === "string" ? err : "문서 인덱스를 읽을 수 없어요");
-          setIndexLoading(false);
+    const applyEntries = (entries: DocsIndexEntry[]) => {
+      setDocsIndex(entries);
+      setSelectedPath((current) => {
+        if (current && entries.some((entry) => entry.path === current)) {
+          return current;
         }
+        return entries.find((entry) => entry.path === "PROJECT_CONTEXT.md")?.path ?? entries[0]?.path ?? null;
       });
+    };
+
+    const loadIndex = async () => {
+      try {
+        const entries = await loadDocsIndex(projectDir);
+        if (cancelled) return;
+        applyEntries(entries);
+        setIndexLoading(false);
+
+        try {
+          const res = await listExtraDocSources(projectDir);
+          if (cancelled) return;
+          applyEntries(res.entries);
+          setExtraSources(res.sources);
+        } catch (err: unknown) {
+          if (!cancelled) {
+            setRebuildMessage(err instanceof Error ? err.message : typeof err === "string" ? err : "추가 문서 소스를 읽을 수 없어요");
+          }
+        }
+      } catch (primaryErr: unknown) {
+        try {
+          const res = await listExtraDocSources(projectDir);
+          if (cancelled) return;
+          applyEntries(res.entries);
+          setExtraSources(res.sources);
+          setIndexLoading(false);
+        } catch (fallbackErr: unknown) {
+          if (!cancelled) {
+            setDocsIndex([]);
+            setExtraSources([]);
+            setSelectedPath(null);
+            const err = fallbackErr instanceof Error ? fallbackErr : primaryErr;
+            setIndexError(err instanceof Error ? err.message : typeof err === "string" ? err : "문서 인덱스를 읽을 수 없어요");
+            setIndexLoading(false);
+          }
+        }
+      }
+    };
+
+    void loadIndex();
 
     return () => {
       cancelled = true;
@@ -86,10 +120,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
     let cancelled = false;
     if (!selectedPath) {
       setDoc(null);
-      setVisual(null);
       setError(null);
-      setTrustState("source-only");
-      setTrustReason("문서를 선택하면 trust 상태를 계산합니다.");
       setIsLoading(false);
       return () => {
         cancelled = true;
@@ -97,6 +128,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
     }
 
     setIsLoading(true);
+    setDoc(null);
     setError(null);
 
     loadDoc(projectDir, selectedPath)
@@ -125,81 +157,22 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
     [docsIndex, selectedPath],
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    if (!projectDir || !selectedPath || !doc) {
-      setVisual(null);
-      setTrustState("source-only");
-      setTrustReason("artifact 없음 — 원문 문서만 표시합니다.");
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setVisual(null);
-    setTrustState("source-only");
-    setTrustReason("artifact를 확인 중입니다...");
-    setRebuildMessage(null);
-
-    readDocsVisual(projectDir, selectedPath)
-      .then((result) => {
-        if (cancelled) return;
-        if (!result) {
-          setVisual(null);
-          setTrustState("source-only");
-          setTrustReason("artifact가 아직 없어 원문 문서만 표시합니다.");
-          return;
-        }
-
-        setVisual(result);
-
-        if (result.artifact.schema_version !== result.contract.schema_version) {
-          setTrustState("enhanced-stale");
-          setTrustReason(`schema_version 불일치: artifact ${result.artifact.schema_version} / contract ${result.contract.schema_version}`);
-          return;
-        }
-
-        if (result.artifact.generator_version !== result.contract.generator_version) {
-          setTrustState("enhanced-stale");
-          setTrustReason(`generator_version 불일치: artifact ${result.artifact.generator_version} / contract ${result.contract.generator_version}`);
-          return;
-        }
-
-        if (result.artifact.source_hash !== doc.source_hash) {
-          setTrustState("enhanced-stale");
-          setTrustReason("authoritative document hash와 artifact hash가 달라 stale 상태입니다.");
-          return;
-        }
-
-        setTrustState("enhanced-synced");
-        setTrustReason("open-time validation 통과 — 현재 enhancement는 최신 문서와 동기화되었습니다.");
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setVisual(null);
-        setTrustState("enhanced-failed");
-        setTrustReason(err instanceof Error ? err.message : "artifact를 읽거나 검증하지 못했습니다.");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [projectDir, selectedPath, doc, refreshTick]);
+  const canvas = useCanvasArtifactState({ projectDir, selectedPath, doc });
 
   const trustTone = useMemo(() => {
-    if (trustState === "enhanced-synced") return { className: "alert-success", label: "ENHANCED SYNCED" };
-    if (trustState === "enhanced-stale") return { className: "alert-warn", label: "ENHANCED STALE" };
-    if (trustState === "enhanced-failed") return { className: "alert-error", label: "ENHANCED FAILED" };
+    if (canvas.trustState === "enhanced-synced") return { className: "alert-success", label: "CANVAS READY" };
+    if (canvas.trustState === "enhanced-stale") return { className: "alert-warn", label: canvas.status === "unsupported" ? "CANVAS UNSUPPORTED" : "CANVAS STALE" };
+    if (canvas.trustState === "enhanced-failed") return { className: "alert-error", label: "CANVAS FAILED" };
     return { className: "", label: "SOURCE ONLY" };
-  }, [trustState]);
+  }, [canvas.status, canvas.trustState]);
 
   const enhancementPartiallyDisabled = useMemo(
-    () => visual?.artifact.warnings?.some((warning) => warning.startsWith("enhancement_partial_disabled:")) ?? false,
-    [visual],
+    () => canvas.visual?.artifact.warnings?.some((warning) => warning.startsWith("enhancement_partial_disabled:")) ?? false,
+    [canvas.visual],
   );
   const isMinimalLayout = layoutWidth > 0 && layoutWidth < 900;
+  const splitGridColumns = layoutWidth >= 1100 ? "minmax(0, 1fr) minmax(360px, 0.9fr)" : "minmax(0, 1fr)";
   const showSidebar = !isMinimalLayout;
-  const showVisualPane = Boolean(visual && trustState !== "enhanced-failed");
 
   // === ANCHOR: DOCSVIEWER_HANDLEREFRESHCURRENT_START ===
   async function handleRefreshCurrent() {
@@ -213,26 +186,6 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
     }
   }
   // === ANCHOR: DOCSVIEWER_HANDLEREFRESHCURRENT_END ===
-
-  // === ANCHOR: DOCSVIEWER_HANDLEREBUILDARTIFACT_START ===
-  async function handleRebuildArtifact() {
-    if (!selectedPath || !projectDir) return;
-    setIsRebuilding(true);
-    setRebuildMessage(null);
-    try {
-      const result = await runVib(["docs-build", selectedPath], projectDir);
-      if (!result.ok) {
-        throw new Error(result.stderr || result.stdout || `exit ${result.exit_code}`);
-      }
-      setRebuildMessage("docs visual artifact를 다시 생성했고 최신 문서/artifact를 다시 읽었습니다.");
-      setRefreshTick((value) => value + 1);
-    } catch (err: unknown) {
-      setRebuildMessage(err instanceof Error ? err.message : "artifact 재생성에 실패했습니다.");
-    } finally {
-      setIsRebuilding(false);
-    }
-  }
-  // === ANCHOR: DOCSVIEWER_HANDLEREBUILDARTIFACT_END ===
 
   // === ANCHOR: DOCSVIEWER_HANDLEREBUILDINDEX_START ===
   async function handleRebuildIndex() {
@@ -265,8 +218,11 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
   function relativizeInsideProject(root: string, abs: string): string | null {
     const n = (s: string) => s.replaceAll("\\", "/").replace(/\/+$/, "");
     const r = n(root), a = n(abs);
-    if (a === r) return null;
-    if (a.startsWith(r + "/")) return a.slice(r.length + 1);
+    const windowsLike = /^[A-Za-z]:\//.test(r) || /^[A-Za-z]:\//.test(a) || r.startsWith("//") || a.startsWith("//");
+    const compareRoot = windowsLike ? r.toLowerCase() : r;
+    const compareAbs = windowsLike ? a.toLowerCase() : a;
+    if (compareAbs === compareRoot) return null;
+    if (compareAbs.startsWith(compareRoot + "/")) return a.slice(r.length + 1);
     return null;
   }
   // === ANCHOR: DOCSVIEWER_RELATIVIZE_END ===
@@ -360,17 +316,14 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
       <div className="page-header" style={{ padding: "12px 20px" }}>
         <span className="page-title">DOCS VIEWER</span>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <button className="btn btn-ghost btn-sm" onClick={() => void handleRebuildIndex()} disabled={isRebuildingIndex || isRebuilding || isRefreshing} title="문서 인덱스를 다시 스캔해 사이드바 목록을 갱신해요">
+          <button className="btn btn-ghost btn-sm" onClick={() => void handleRebuildIndex()} disabled={isRebuildingIndex || canvas.isGenerating || isRefreshing} title="문서 인덱스를 다시 스캔해 사이드바 목록을 갱신해요">
             {isRebuildingIndex ? "인덱스 갱신 중..." : "↻ 인덱스"}
           </button>
           <button className="btn btn-ghost btn-sm" onClick={() => { setShowAddSourcePanel((v) => !v); setRebuildMessage(null); }} disabled={isAddingSource || isRebuildingIndex} title="추가 문서 소스 폴더를 등록해요 (숨김 폴더 포함)">
             {isAddingSource ? "추가 중..." : showAddSourcePanel ? "× 취소" : "+ 소스 추가"}
           </button>
-          <button className="btn btn-ghost btn-sm" onClick={() => void handleRefreshCurrent()} disabled={isRefreshing || isRebuilding || !selectedPath}>
+          <button className="btn btn-ghost btn-sm" onClick={() => void handleRefreshCurrent()} disabled={isRefreshing || canvas.isGenerating || !selectedPath}>
             {isRefreshing ? "새로고침 중..." : "Refresh"}
-          </button>
-          <button className="btn btn-ghost btn-sm" onClick={() => void handleRebuildArtifact()} disabled={isRebuilding || isRefreshing || !selectedPath}>
-            {isRebuilding ? "재생성 중..." : "Rebuild"}
           </button>
           <span style={{ fontSize: 11, color: "#666", fontWeight: 700 }}>PHASE 10</span>
         </div>
@@ -488,20 +441,44 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
           {error ? (
             <div className="alert alert-error">문서 로딩 실패: {error}</div>
           ) : null}
+          <div className="card docs-view-tabs" style={{ padding: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {(["source", "easy", "canvas"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className={`btn btn-ghost btn-sm docs-view-tab ${viewMode === mode ? "active" : ""}`.trim()}
+                onClick={() => setViewMode(mode)}
+              >
+                {mode === "source" ? "Source" : mode === "easy" ? "Easy" : "Canvas"}
+              </button>
+            ))}
+            {rawHtmlCanvasEnabled ? (
+              <button
+                type="button"
+                className={`btn btn-ghost btn-sm docs-view-tab ${viewMode === "raw-html" ? "active" : ""}`.trim()}
+                onClick={() => setViewMode("raw-html")}
+              >
+                Raw HTML
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className={`btn btn-ghost btn-sm docs-view-tab ${viewMode === "split" ? "active" : ""}`.trim()}
+              onClick={() => setViewMode("split")}
+            >
+              Split
+            </button>
+          </div>
           <div className={`alert ${trustTone.className}`.trim()} style={trustTone.className ? undefined : { background: "#E8E4D8", color: "#1A1A1A" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
               <span>{trustTone.label}</span>
-              <span style={{ fontSize: 11 }}>{trustState}</span>
+              <span style={{ fontSize: 11 }}>{canvas.status}</span>
             </div>
-            <div style={{ marginTop: 6, fontWeight: 600, lineHeight: 1.5 }}>{trustReason}</div>
-            {trustState !== "enhanced-synced" ? (
-              <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <button className="btn btn-ghost btn-sm" onClick={() => void handleRebuildArtifact()} disabled={isRebuilding || !selectedPath}>
-                  {isRebuilding ? "재생성 중..." : "artifact 다시 만들기"}
-                </button>
-                <span style={{ fontSize: 11, opacity: 0.8 }}>fancy layer가 실패해도 원문 문서는 계속 읽을 수 있습니다.</span>
-              </div>
-            ) : null}
+            <div style={{ marginTop: 6, fontWeight: 600, lineHeight: 1.5 }}>{canvas.reason}</div>
+            <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <CanvasGenerateButton status={canvas.status} onGenerate={() => void canvas.generate()} onCancel={canvas.cancel} disabled={!selectedPath || !doc || isRefreshing} />
+              <span style={{ fontSize: 11, opacity: 0.8 }}>fancy layer가 실패해도 원문 문서는 계속 읽을 수 있습니다.</span>
+            </div>
           </div>
           {rebuildMessage ? <div className="alert alert-warn">{rebuildMessage}</div> : null}
           {isLoading ? (
@@ -521,31 +498,41 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
                 </div>
                 <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>{selectedDoc.title}</div>
                 <div style={{ fontSize: 12, color: "#555" }}>{selectedDoc.category} · {selectedDoc.path}</div>
-                {visual ? (
+                {canvas.visual ? (
                   <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, fontSize: 11 }}>
-                    <div><strong>sections</strong><div>{visual?.artifact.sections.length}</div></div>
-                    <div><strong>actions</strong><div>{visual?.artifact.action_items.length}</div></div>
-                    <div><strong>diagrams</strong><div>{visual?.artifact.diagram_blocks.length}</div></div>
+                    <div><strong>sections</strong><div>{canvas.visual.artifact.sections.length}</div></div>
+                    <div><strong>actions</strong><div>{canvas.visual.artifact.action_items.length}</div></div>
+                    <div><strong>diagrams</strong><div>{canvas.visual.artifact.diagram_blocks.length}</div></div>
                   </div>
                 ) : null}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: showVisualPane && !isMinimalLayout ? "minmax(0, 1.2fr) minmax(320px, 0.8fr)" : "minmax(0, 1fr)", gap: 12, alignItems: "start" }}>
-                <div style={{ minHeight: 0 }}>
+              {viewMode === "source" ? (
+                <DocumentPane path={doc.path} content={doc.content} containerRef={markdownPaneRef} />
+              ) : null}
+              {viewMode === "easy" ? (
+                canvas.visual ? (
+                  <VisualSummaryPane
+                    artifact={canvas.visual.artifact}
+                    trustState={canvas.trustState}
+                    onPhaseSelect={handlePhaseSelect}
+                    projectRoot={projectDir}
+                    relativePath={selectedPath ?? ""}
+                    onArtifactRefresh={() => void canvas.refreshArtifact()}
+                  />
+                ) : <div className="card">Easy View는 Canvas artifact 생성 후 표시됩니다.</div>
+              ) : null}
+              {viewMode === "canvas" ? (
+                <CanvasViewPane artifact={canvas.visual?.artifact ?? null} status={canvas.status} reason={canvas.reason} />
+              ) : null}
+              {viewMode === "raw-html" ? (
+                <RawHtmlCanvasPane html={canvas.html} status={canvas.htmlStatus} reason={canvas.htmlReason} />
+              ) : null}
+              {viewMode === "split" ? (
+                <div style={{ display: "grid", gridTemplateColumns: splitGridColumns, gap: 12, alignItems: "start" }}>
                   <DocumentPane path={doc.path} content={doc.content} containerRef={markdownPaneRef} />
+                  <CanvasViewPane artifact={canvas.visual?.artifact ?? null} status={canvas.status} reason={canvas.reason} layout="split" />
                 </div>
-                {showVisualPane && visual ? (
-                  <div style={{ minWidth: 0 }}>
-                    <VisualSummaryPane
-                      artifact={visual.artifact}
-                      trustState={trustState}
-                      onPhaseSelect={handlePhaseSelect}
-                      projectRoot={projectDir}
-                      relativePath={selectedPath ?? ""}
-                      onArtifactRefresh={() => setRefreshTick((t) => t + 1)}
-                    />
-                  </div>
-                ) : null}
-              </div>
+              ) : null}
               {enhancementPartiallyDisabled ? (
                 <div className="alert alert-warn">문서가 길어서 일부 enhancement만 축약했습니다. 그래도 summary pane과 원문 문서는 계속 표시됩니다.</div>
               ) : null}

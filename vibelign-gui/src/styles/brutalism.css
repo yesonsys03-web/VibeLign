@@ -108,6 +108,19 @@ html, body {
 
 .btn-sm { padding: 5px 12px; font-size: 11px; box-shadow: var(--shadow-sm); }
 .btn-sm:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #1A1A1A; }
+.docs-view-tabs {
+  background: var(--bg);
+}
+.docs-view-tab.active {
+  background: var(--black);
+  color: var(--white);
+  box-shadow: 4px 4px 0px var(--primary);
+  transform: translate(-1px, -1px);
+}
+.docs-view-tab.active:hover {
+  background: var(--black);
+  box-shadow: 3px 3px 0px var(--primary);
+}
 .backup-row-button:hover,
 .backup-row-button:active {
   transform: none;
