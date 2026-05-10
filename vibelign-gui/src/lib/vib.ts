@@ -964,6 +964,16 @@ export async function readErrorLogs(cwd: string, limit = 200): Promise<ErrorLogE
   return invoke<ErrorLogEntry[]>("read_error_logs", { root: cwd, limit });
 }
 
+export interface ClearErrorLogsResult {
+  removed: number;
+  kept: number;
+}
+
+/** 에러 로그 파일 (`{cli,gui}-error-*.jsonl`) 만 삭제. lock/다른 로그 보존. */
+export async function clearErrorLogs(cwd: string): Promise<ClearErrorLogsResult> {
+  return invoke<ClearErrorLogsResult>("clear_error_logs", { root: cwd });
+}
+
 /**
  * Phase 3 PoC consumer #2 — `vib undo --checkpoint-id … --force --json`
  * 의 CLI 프롬프트는 engine 에 없으므로 direct 호출이 곧 force 의미와 동치.

@@ -108,6 +108,7 @@ pub fn run() {
             commands::vib_bridge::run_vib_with_progress,
             commands::vib_bridge::run_engine_request_direct,
             commands::error_logs::read_error_logs,
+            commands::error_logs::clear_error_logs,
             commands::settings::save_api_key,
             commands::settings::load_api_key,
             commands::settings::delete_api_key,

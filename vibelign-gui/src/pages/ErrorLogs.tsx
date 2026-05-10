@@ -1,6 +1,6 @@
 // === ANCHOR: ERROR_LOGS_PAGE_START ===
 import { useState, useEffect, useCallback } from "react";
-import { readErrorLogs, type ErrorLogEntry } from "../lib/vib";
+import { clearErrorLogs, readErrorLogs, type ErrorLogEntry } from "../lib/vib";
 
 interface ErrorLogsPageProps {
   projectDir: string;
@@ -47,6 +47,30 @@ export default function ErrorLogs({ projectDir }: ErrorLogsPageProps) {
     }
   }, [projectDir]);
 
+  const handleClear = useCallback(async () => {
+    if (entries.length === 0) return;
+    const confirmed = window.confirm(
+      `현재 ${entries.length}건의 에러 로그를 모두 정리합니다.\n` +
+        `수정 완료된 에러를 정리해두면 새로 발생하는 에러가 눈에 띄어요.\n\n` +
+        `정말 정리할까요?`
+    );
+    if (!confirmed) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await clearErrorLogs(projectDir);
+      if (result.kept > 0) {
+        setError(`${result.removed}건 정리. ${result.kept}건은 권한 문제로 남았어요.`);
+      }
+      setEntries([]);
+      setSelected(null);
+    } catch (exc) {
+      setError(String(exc));
+    } finally {
+      setLoading(false);
+    }
+  }, [entries.length, projectDir]);
+
   useEffect(() => {
     load();
   }, [load]);
@@ -61,6 +85,15 @@ export default function ErrorLogs({ projectDir }: ErrorLogsPageProps) {
           .vibelign/logs/{`{cli,gui}`}-error-&lt;date&gt;.jsonl 통합
         </span>
         <div style={{ flex: 1 }} />
+        <button
+          className="btn btn-sm btn-ghost"
+          onClick={handleClear}
+          disabled={loading || entries.length === 0}
+          title="수정 완료된 에러를 정리해 새로 발생하는 항목이 눈에 띄게 합니다."
+          style={{ fontSize: 11 }}
+        >
+          🗑 정리
+        </button>
         <button className="btn btn-sm" onClick={load} disabled={loading}>
           {loading ? "불러오는 중…" : "새로 고침"}
         </button>

@@ -79,6 +79,52 @@ fn collect_entries(root: &std::path::Path, limit: usize) -> Vec<ErrorLogEntry> {
     entries
 }
 
+#[derive(Serialize)]
+pub(crate) struct ClearErrorLogsResult {
+    pub(crate) removed: usize,
+    pub(crate) kept: usize,
+}
+
+/// `.vibelign/logs/{cli,gui}-error-*.jsonl` 만 삭제. `.lock` 파일이나 다른
+/// 디렉토리는 건드리지 않는다. 수정 완료된 에러를 정리해 새로 발생하는 항목이
+/// 눈에 띄게 하는 게 목적.
+#[tauri::command]
+pub(crate) async fn clear_error_logs(root: String) -> ClearErrorLogsResult {
+    let root_path = PathBuf::from(&root);
+    let canonical = match root_path.canonicalize() {
+        Ok(path) => strip_unc_prefix(path),
+        Err(_) => root_path,
+    };
+    tauri::async_runtime::spawn_blocking(move || sweep_error_logs(&canonical))
+        .await
+        .unwrap_or(ClearErrorLogsResult { removed: 0, kept: 0 })
+}
+
+fn sweep_error_logs(root: &std::path::Path) -> ClearErrorLogsResult {
+    let logs_dir = root.join(".vibelign").join("logs");
+    let Ok(read_dir) = std::fs::read_dir(&logs_dir) else {
+        return ClearErrorLogsResult { removed: 0, kept: 0 };
+    };
+    let mut removed = 0_usize;
+    let mut kept = 0_usize;
+    for dir_entry in read_dir.flatten() {
+        let path = dir_entry.path();
+        let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        let is_target = (file_name.starts_with("cli-error-") || file_name.starts_with("gui-error-"))
+            && file_name.ends_with(".jsonl");
+        if !is_target {
+            continue;
+        }
+        match std::fs::remove_file(&path) {
+            Ok(()) => removed += 1,
+            Err(_) => kept += 1,
+        }
+    }
+    ClearErrorLogsResult { removed, kept }
+}
+
 fn parse_line(line: &str, kind: &str) -> Option<ErrorLogEntry> {
     let value: serde_json::Value = serde_json::from_str(line).ok()?;
     let ts = value.get("ts").and_then(|v| v.as_str()).unwrap_or("").to_string();
