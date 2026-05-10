@@ -27,7 +27,7 @@
 VibeLign(`vibelign`)은 바이브 코딩 작업을 더 안전하게 해주는 AI 코딩 안전 **CLI + 데스크톱 GUI** 예요.
 프로젝트 구조 보호, 체크포인트 저장, 되돌리기, 앵커 관리, 커밋 전 비밀정보 차단을 도와줘요.
 
-> **🆕 v2.0**: macOS / Windows 데스크톱 앱, 문서별 AI 요약, 앵커 intent 재생성. [CHANGELOG](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md) · [마이그레이션 가이드](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md) 참고.
+> **🆕 v2.2**: GUI ↔ Rust core 다이렉트 브리지(in-process, Python subprocess 없이 ~80ms → <5ms), 통합 에러 로그 뷰 + GitHub 이슈 자동 보고, 자동 백업 실패 가시화. [CHANGELOG](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md) 참고. v1 → v2 사용자: [마이그레이션 가이드](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md).
 
 문서: `https://yesonsys03-web.github.io/VibeLign/`  
 저장소: `https://github.com/yesonsys03-web/VibeLign`  
@@ -319,7 +319,15 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
-**다음 버전** — Rust/SQLite 체크포인트 엔진:
+**v2.2.0** — GUI 다이렉트 브리지 + 통합 에러 로그 + 자동 백업 가시성:
+
+- 🌉 **Tauri ↔ vibelign-core 다이렉트 브리지** — GUI 가 Python `vib` 서브프로세스 없이 in-process Rust 엔진을 직접 호출. 6개 GUI consumer 의 trivial 명령 wall time 이 ~80ms → <5ms 로 단축.
+- 🐛 **GUI 통합 에러 로그 뷰** — CLI/GUI 에러를 한 탭에 통합, GitHub 이슈로 단일/다중 보고, 수정 완료된 에러를 즉시 정리하는 버튼.
+- 🛟 **자동 백업 실패 가시화** — post-commit hook 이 더 이상 silent skip 하지 않음. 통합 에러 로그에 자동 기록 + git terminal 에 stderr 노출.
+- 🔐 **Rust secret_scan parity** — `VIBELIGN_SECRET_SCAN_RUST=1` 옵트인 시 Rust 구현 사용 (10개 골든 fixture 로 Python 과 1:1 parity 보장).
+- 🛠️ 다수의 silent regression fix — `vib memory show` race, `vib doctor | head` BrokenPipeError, integrity manifest 자동 재생성, GUI listener cleanup, 홈 카드 그리드 1fr 1fr 불균형 수정.
+
+**Rust/SQLite 체크포인트 엔진** (v2.1 시리즈):
 
 - `vib checkpoint`, `vib history`, `vib undo`가 Rust/SQLite 체크포인트 엔진을 기본으로 사용합니다. 번들 엔진을 실행할 수 없으면 Python fallback이 사용자에게 표시됩니다.
 - 기존 JSON 체크포인트(`.vibelign/checkpoints/`)는 디스크에 보존하지만 새 SQLite 기반 이력에 자동 import/병합하지 않습니다. 오래된 스냅샷이 필요하면 업그레이드 전에 `.vibelign/checkpoints/`를 백업해두세요.
