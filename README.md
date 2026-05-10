@@ -27,7 +27,7 @@
 VibeLign (`vibelign`) is an AI coding safety **CLI + Desktop GUI** for vibe coding workflows.
 It helps developers and non-developers protect project structure, save checkpoints, undo bad AI edits, manage anchors, and block secret leaks before commit.
 
-> **🆕 v2.0**: Desktop app for macOS / Windows, per-document AI summarization, anchor intent regeneration. See [CHANGELOG](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md) and [migration notes](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md).
+> **🆕 v2.2**: GUI ↔ Rust core direct bridge (in-process, Python subprocess 없이 ~80ms → <5ms), 통합 에러 로그 뷰 + GitHub 이슈 자동 보고, 자동 백업 실패 가시화. See [CHANGELOG](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md). v1 → v2 사용자: [migration notes](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md).
 
 Documentation: `https://yesonsys03-web.github.io/VibeLign/`  
 Repository: `https://github.com/yesonsys03-web/VibeLign`  
@@ -319,7 +319,15 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
-**Upcoming** — Rust/SQLite Checkpoint Engine:
+**v2.2.0** — GUI direct bridge + 통합 에러 로그 + 자동 백업 가시성:
+
+- 🌉 **Tauri ↔ vibelign-core direct bridge** — GUI 가 Python `vib` subprocess 없이 in-process Rust 엔진 직접 호출. 6개 GUI consumer 의 trivial 명령 wall time ~80ms → <5ms.
+- 🐛 **GUI 통합 에러 로그 뷰** — CLI/GUI 에러를 한 탭에 통합, GitHub 이슈로 단일/다중 보고, 수정 완료된 에러 즉시 정리 버튼.
+- 🛟 **자동 백업 실패 가시화** — post-commit hook 이 더 이상 silent skip 안 함, 통합 에러 로그에 자동 기록 + git terminal 에 stderr 노출.
+- 🔐 **Rust secret_scan parity** — `VIBELIGN_SECRET_SCAN_RUST=1` 옵트인 시 Rust 구현 사용 (10개 골든 fixture 로 Python 과 1:1 parity 보장).
+- 🛠️ Multiple silent regression fixes — `vib memory show` race, `vib doctor | head` BrokenPipeError, integrity manifest auto-regen, GUI listener cleanup, 홈 카드 그리드 1fr 1fr 불균형 수정.
+
+**Rust/SQLite Checkpoint Engine** (v2.1 series):
 
 - `vib checkpoint`, `vib history`, and `vib undo` use the Rust/SQLite checkpoint engine by default, with visible Python fallback if the bundled engine cannot run.
 - Existing JSON checkpoints in `.vibelign/checkpoints/` are preserved on disk but are not automatically imported or merged into the new SQLite-backed history. Back up `.vibelign/checkpoints/` before upgrading if you still need old snapshots.
