@@ -11,6 +11,7 @@ import unittest
 from argparse import Namespace
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -91,6 +92,52 @@ class DocSourcesCmdTest(unittest.TestCase):
             self.assertEqual(result["sources"], [])
             self.assertIsInstance(result["entries"], list)
             self.assertIsInstance(result["warnings"], list)
+        finally:
+            self._restore_root(old)
+            import shutil; shutil.rmtree(root, ignore_errors=True)
+
+    def test_list_uses_valid_docs_index_cache_without_rebuild(self):
+        """list should be cache-first so DocsViewer startup does not force rebuild every open."""
+        root = self._make_project()
+        meta_paths = sys.modules["vibelign.core.meta_paths"]
+        docs_cache = sys.modules["vibelign.core.docs_cache"]
+        docs_index_cache = sys.modules["vibelign.core.docs_index_cache"]
+        doc_sources = sys.modules["vibelign.core.doc_sources"]
+        meta = meta_paths.MetaPaths(root)
+        entries = [docs_cache.DocsIndexEntry("Context", "PROJECT_CONTEXT.md", "Cached", 1)]
+        docs_index_cache.write_docs_index_cache(
+            meta,
+            entries,
+            extra_source_roots=[],
+            sources_fingerprint=doc_sources.fingerprint([]),
+        )
+        old = self._with_root(root)
+        try:
+            with patch.object(
+                doc_sources_cmd._DOCS_BUILD,
+                "rebuild_docs_index_cache_with_warnings",
+                side_effect=AssertionError("rebuild should not run on cache hit"),
+            ):
+                result = _capture_stdout(lambda: doc_sources_cmd.run_vib_doc_sources_list(Namespace()))
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["entries"][0]["title"], "Cached")
+        finally:
+            self._restore_root(old)
+            import shutil; shutil.rmtree(root, ignore_errors=True)
+
+    def test_list_rebuilds_when_docs_index_cache_missing(self):
+        """list should still rebuild if the cache is missing or stale."""
+        root = self._make_project()
+        old = self._with_root(root)
+        try:
+            with patch.object(
+                doc_sources_cmd._DOCS_BUILD,
+                "rebuild_docs_index_cache_with_warnings",
+                wraps=docs_build_cmd.rebuild_docs_index_cache_with_warnings,
+            ) as rebuild:
+                result = _capture_stdout(lambda: doc_sources_cmd.run_vib_doc_sources_list(Namespace()))
+            self.assertTrue(result["ok"])
+            self.assertGreaterEqual(rebuild.call_count, 1)
         finally:
             self._restore_root(old)
             import shutil; shutil.rmtree(root, ignore_errors=True)
