@@ -46,6 +46,7 @@ export interface DocsVisualSection {
   title: string;
   level: number;
   summary: string;
+  body_preview?: string[];
 }
 
 export interface DocsVisualHeuristicFields {
@@ -107,8 +108,30 @@ export interface DocsVisualReadResult {
   contract: DocsVisualContract;
 }
 
+export interface DocsHtmlArtifact {
+  source_path: string;
+  source_hash: string;
+  generated_at: string;
+  generator_version: string;
+  schema_version: number;
+  title: string;
+  html: string;
+  csp: string;
+  mode: "raw_html";
+}
+
+export interface DocsHtmlReadResult {
+  path: string;
+  artifact: DocsHtmlArtifact;
+  contract: DocsVisualContract;
+}
+
+function normalizeBridgePath(path: string): string {
+  return path.replaceAll("\\", "/");
+}
+
 export async function readFile(root: string, path: string): Promise<ReadFileResult> {
-  return invoke<ReadFileResult>("read_file", { root, path });
+  return invoke<ReadFileResult>("read_file", { root, path: normalizeBridgePath(path) });
 }
 
 export async function listDocsIndex(root: string): Promise<DocsIndexEntry[]> {
@@ -120,7 +143,11 @@ export async function rebuildDocsIndex(root: string): Promise<DocsIndexEntry[]> 
 }
 
 export async function readDocsVisual(root: string, path: string): Promise<DocsVisualReadResult | null> {
-  return invoke<DocsVisualReadResult | null>("read_docs_visual", { root, path });
+  return invoke<DocsVisualReadResult | null>("read_docs_visual", { root, path: normalizeBridgePath(path) });
+}
+
+export async function readDocsHtml(root: string, path: string): Promise<DocsHtmlReadResult | null> {
+  return invoke<DocsHtmlReadResult | null>("read_docs_html", { root, path: normalizeBridgePath(path) });
 }
 
 export async function listExtraDocSources(root: string): Promise<DocSourcesResponse> {
@@ -153,7 +180,7 @@ export async function enhanceDocWithAi(
 ): Promise<EnhanceDocResult> {
   const raw = await invoke<string>("enhance_doc_with_ai", {
     root,
-    path,
+    path: normalizeBridgePath(path),
     models: models ?? null,
   });
   return JSON.parse(raw) as EnhanceDocResult;
