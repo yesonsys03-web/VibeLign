@@ -319,6 +319,14 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.2** — DocsViewer HTML Canvas + Windows 안정화:
+
+- 🧭 **Document Control Map Canvas** — 원문 순서 Outline, Flow, Decisions, Actions, Risks, Glossary 를 시각적으로 재구성하고 bullet 중심 섹션 preview 누락을 `body_preview` 로 보강.
+- 🧾 **Raw HTML artifact mode** — 선택 문서를 sandboxed iframe 의 읽기 쉬운 article-style HTML 로 렌더링.
+- 🪟 **Split tab UX** — 창 폭과 상관없이 Split 탭을 항상 표시하고, 좁은 창에서는 내부 레이아웃만 1열로 반응.
+- ✨ **Active tab highlight** — Source/Easy/Canvas/Raw HTML/Split 중 현재 탭을 검은 배경 + 오렌지 그림자로 강조.
+- 🛠️ **Windows path fix** — `C:\Repo` vs `c:\repo\...` 같은 대소문자 차이에도 추가 문서 소스 폴더 선택이 정상 동작.
+
 **v2.2.0** — GUI direct bridge + 통합 에러 로그 + 자동 백업 가시성:
 
 - 🌉 **Tauri ↔ vibelign-core direct bridge** — GUI 가 Python `vib` subprocess 없이 in-process Rust 엔진 직접 호출. 6개 GUI consumer 의 trivial 명령 wall time ~80ms → <5ms.

@@ -10,6 +10,38 @@
 
 ---
 
+## [2.2.2] — 2026-05-10
+
+DocsViewer 의 HTML 문서 보기 경험과 Windows 경로 안정성을 보강한 패치 릴리즈입니다.
+
+### Added
+
+- **DocsViewer Raw HTML artifact mode**: 선택한 문서를 sandboxed iframe 안의 읽기 쉬운 article-style HTML 로 렌더링합니다. scripts, same-origin, forms 권한은 열지 않아 원문 HTML 을 안전하게 확인합니다.
+- **DocsViewer Split mode**: Source 와 Canvas 를 함께 보는 split 탭을 제공하며, 좁은 창에서도 탭 버튼은 항상 표시되고 내부 레이아웃만 1열로 반응합니다.
+- **Canvas body preview**: `VisualSection.body_preview` 를 추가해 bullet/checklist/ordered/table row 일부를 원문 순서대로 보존하고, 기존 `heuristic-v2` cache 를 `heuristic-v3` 로 stale 처리합니다.
+
+### Changed
+
+- **Canvas visual renderer**: Canvas 를 문서 원문을 그대로 반복하는 화면이 아니라 `Document Control Map` 으로 재구성했습니다. Outline Source Order → Flow → Decisions → Actions → Risks → Glossary 순서로 보여줍니다.
+- **DocsViewer tab affordance**: Source/Easy/Canvas/Raw HTML/Split 중 현재 선택된 탭을 검은 배경과 오렌지 그림자로 강조해 현재 위치를 즉시 알 수 있게 했습니다.
+- **Iframe height behavior**: Canvas/Raw HTML/Split 의 고정 세로 제한을 제거하고 artifact 내용량에 따른 높이 추정으로 내부 iframe 스크롤을 줄였습니다.
+- **Raw HTML readability**: heading/list/table/code block 스타일을 문서 읽기용으로 정리했습니다.
+
+### Fixed
+
+- **Windows extra doc source picker**: `C:\Repo` 와 `c:\repo\...` 처럼 드라이브/경로 대소문자가 다른 Windows 경로를 프로젝트 밖으로 오판하지 않도록, Windows식 absolute/UNC path 에서만 case-insensitive prefix 비교를 적용했습니다.
+- **Split tab visibility regression**: UI 폭이 작아져도 Split 탭 버튼이 사라지지 않도록 수정했습니다.
+- **Canvas source omission**: bullet 중심 섹션에서 summary 가 비어 Canvas 에 원문 preview 가 빠지던 문제를 backend artifact contract 로 해결했습니다.
+
+### Verified
+
+- `rtk npm run test -- --reporter verbose` (vibelign-gui) → 9 passed.
+- `rtk npm run build` (vibelign-gui) → passed.
+- `python3 -m unittest tests.test_doc_sources_cmd tests.test_docs_build_cmd tests.test_docs_visualizer` → 67 passed.
+- `cargo test docs` (vibelign-gui/src-tauri) → 28 passed.
+
+---
+
 ## [2.2.1] — 2026-05-10
 
 릴리즈 파이프라인 수정 패치 릴리즈입니다. 코드 동작은 v2.2.0 과 동일합니다.
