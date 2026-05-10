@@ -7,6 +7,7 @@ import Doctor from "./pages/Doctor";
 import Home from "./pages/Home";
 import DocsViewer from "./pages/DocsViewer";
 import BackupDashboardPage from "./pages/BackupDashboard";
+import ErrorLogs from "./pages/ErrorLogs";
 import Settings from "./pages/Settings";
 import { backupList, getEnvKeyStatus, loadApiKey, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, stopWatch, openFolder } from "./lib/vib";
 import { installGuiErrorReporter, reportReactError, setErrorReporterProjectDir } from "./lib/errorReporter";
@@ -54,7 +55,7 @@ class ErrorBoundary extends Component<
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
-type Page = "home" | "manual" | "docs" | "doctor" | "backups" | "settings";
+type Page = "home" | "manual" | "docs" | "doctor" | "backups" | "logs" | "settings";
 
 export default function App() {
   const [projectDir, setProjectDir] = useState<string | null>(null);
@@ -162,6 +163,9 @@ export default function App() {
               <button className={`nav-tab ${page === "backups" ? "active" : ""}`} onClick={() => setPage("backups")}>
                 BACKUPS
               </button>
+              <button className={`nav-tab ${page === "logs" ? "active" : ""}`} onClick={() => setPage("logs")}>
+                에러로그
+              </button>
               <div style={{ flex: 1 }} />
               <button
                 className="nav-tab"
@@ -188,6 +192,7 @@ export default function App() {
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
                 {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} />}
                 {page === "backups" && <BackupDashboardPage projectDir={projectDir} />}
+                {page === "logs" && <ErrorLogs projectDir={projectDir} />}
                 {page === "settings" && (
                   <>
                     <div style={{ padding: "8px 12px 0", borderBottom: "2px solid #1A1A1A" }}>

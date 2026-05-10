@@ -950,6 +950,20 @@ export async function checkpointList(cwd: string): Promise<unknown> {
   return callEngineDirect<unknown>({ command: "checkpoint_list", root: cwd });
 }
 
+export interface ErrorLogEntry {
+  ts: string;
+  kind: "cli" | "gui";
+  error_class: string | null;
+  message: string;
+  context: string | null;
+  raw_json: string;
+}
+
+/** `.vibelign/logs/{cli,gui}-error-*.jsonl` 통합 에러 로그를 ts 내림차순으로 반환. */
+export async function readErrorLogs(cwd: string, limit = 200): Promise<ErrorLogEntry[]> {
+  return invoke<ErrorLogEntry[]>("read_error_logs", { root: cwd, limit });
+}
+
 /**
  * Phase 3 PoC consumer #2 — `vib undo --checkpoint-id … --force --json`
  * 의 CLI 프롬프트는 engine 에 없으므로 direct 호출이 곧 force 의미와 동치.

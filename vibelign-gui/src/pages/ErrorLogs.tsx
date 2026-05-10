@@ -1,0 +1,205 @@
+// === ANCHOR: ERROR_LOGS_PAGE_START ===
+import { useState, useEffect, useCallback } from "react";
+import { readErrorLogs, type ErrorLogEntry } from "../lib/vib";
+
+interface ErrorLogsPageProps {
+  projectDir: string;
+}
+
+type KindFilter = "all" | "cli" | "gui";
+
+const KIND_LABEL: Record<"cli" | "gui", string> = {
+  cli: "CLI",
+  gui: "GUI",
+};
+
+function formatTimestamp(ts: string): string {
+  if (!ts) return "-";
+  const date = new Date(ts);
+  if (Number.isNaN(date.getTime())) return ts;
+  return date.toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+export default function ErrorLogs({ projectDir }: ErrorLogsPageProps) {
+  const [entries, setEntries] = useState<ErrorLogEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<KindFilter>("all");
+  const [selected, setSelected] = useState<ErrorLogEntry | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await readErrorLogs(projectDir, 500);
+      setEntries(next);
+    } catch (exc) {
+      setError(String(exc));
+    } finally {
+      setLoading(false);
+    }
+  }, [projectDir]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const visible = filter === "all" ? entries : entries.filter((entry) => entry.kind === filter);
+
+  return (
+    <div style={{ padding: "16px 16px 0", height: "100%", overflow: "auto" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <h2 style={{ margin: 0, fontSize: 18 }}>에러 로그</h2>
+        <span style={{ fontSize: 12, color: "#777" }}>
+          .vibelign/logs/{`{cli,gui}`}-error-&lt;date&gt;.jsonl 통합
+        </span>
+        <div style={{ flex: 1 }} />
+        <button className="btn btn-sm" onClick={load} disabled={loading}>
+          {loading ? "불러오는 중…" : "새로 고침"}
+        </button>
+      </div>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        {(["all", "cli", "gui"] as const).map((value) => (
+          <button
+            key={value}
+            className={`btn btn-sm ${filter === value ? "" : "btn-ghost"}`}
+            onClick={() => setFilter(value)}
+            style={{ fontSize: 11 }}
+          >
+            {value === "all" ? `전체 (${entries.length})` : `${KIND_LABEL[value]} (${entries.filter((e) => e.kind === value).length})`}
+          </button>
+        ))}
+      </div>
+
+      {error && (
+        <div style={{ background: "#FEE", border: "1px solid #C33", padding: 8, marginBottom: 8, fontSize: 12 }}>
+          {error}
+        </div>
+      )}
+
+      {!loading && visible.length === 0 && (
+        <div style={{ padding: 24, textAlign: "center", color: "#777", fontSize: 13 }}>
+          기록된 에러가 없어요.
+        </div>
+      )}
+
+      {visible.length > 0 && (
+        <div style={{ border: "1px solid #1A1A1A", maxHeight: "70vh", overflow: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead style={{ position: "sticky", top: 0, background: "#1A1A1A", color: "#FEFBF0" }}>
+              <tr>
+                <th style={{ textAlign: "left", padding: "6px 8px", width: 160 }}>시간</th>
+                <th style={{ textAlign: "left", padding: "6px 8px", width: 60 }}>종류</th>
+                <th style={{ textAlign: "left", padding: "6px 8px", width: 180 }}>분류</th>
+                <th style={{ textAlign: "left", padding: "6px 8px" }}>메시지</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((entry, index) => (
+                <tr
+                  key={`${entry.ts}-${index}`}
+                  onClick={() => setSelected(entry)}
+                  style={{
+                    cursor: "pointer",
+                    background: index % 2 === 0 ? "#FEFBF0" : "#F5F0E0",
+                    borderBottom: "1px solid #E0DACE",
+                  }}
+                >
+                  <td style={{ padding: "6px 8px", fontFamily: "monospace" }}>{formatTimestamp(entry.ts)}</td>
+                  <td style={{ padding: "6px 8px" }}>
+                    <span
+                      style={{
+                        background: entry.kind === "cli" ? "#4D9FFF" : "#F5621E",
+                        color: "#fff",
+                        padding: "1px 6px",
+                        fontSize: 10,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {KIND_LABEL[entry.kind]}
+                    </span>
+                  </td>
+                  <td style={{ padding: "6px 8px", fontFamily: "monospace", color: "#555" }}>
+                    {entry.error_class ?? entry.context ?? "-"}
+                  </td>
+                  <td style={{ padding: "6px 8px", maxWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {entry.message || <span style={{ color: "#999" }}>(빈 메시지)</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {selected && (
+        <div
+          onClick={() => setSelected(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#FEFBF0",
+              border: "3px solid #1A1A1A",
+              boxShadow: "8px 8px 0 #1A1A1A",
+              width: "92%",
+              maxWidth: 720,
+              maxHeight: "82vh",
+              display: "flex",
+              flexDirection: "column",
+              padding: 16,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <strong style={{ fontSize: 14 }}>에러 상세</strong>
+              <span style={{ fontSize: 11, color: "#666" }}>{formatTimestamp(selected.ts)}</span>
+              <div style={{ flex: 1 }} />
+              <button className="btn btn-sm" onClick={() => setSelected(null)}>
+                닫기
+              </button>
+            </div>
+            <pre
+              style={{
+                background: "#fff",
+                border: "1px solid #1A1A1A",
+                padding: 12,
+                overflow: "auto",
+                fontSize: 11,
+                lineHeight: 1.45,
+                margin: 0,
+                flex: 1,
+              }}
+            >
+              {(() => {
+                try {
+                  const parsed = JSON.parse(selected.raw_json);
+                  return JSON.stringify(parsed, null, 2);
+                } catch {
+                  return selected.raw_json;
+                }
+              })()}
+            </pre>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+// === ANCHOR: ERROR_LOGS_PAGE_END ===
