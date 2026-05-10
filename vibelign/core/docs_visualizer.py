@@ -24,6 +24,7 @@ class VisualSection:
     title: str
     level: int
     summary: str = ""
+    body_preview: list[str] = field(default_factory=list)
 # === ANCHOR: DOCS_VISUALIZER_VISUALSECTION_END ===
 
 
@@ -66,7 +67,7 @@ class HeuristicEnhancedFields:
     edge_cases: list[str] = field(default_factory=list)
     components: list[str] = field(default_factory=list)
     provenance: str = "heuristic"
-    generator: str = "heuristic-v2"
+    generator: str = "heuristic-v3"
     generated_at: str = ""
 # === ANCHOR: DOCS_VISUALIZER_HEURISTICFIELDS_END ===
 
@@ -247,7 +248,7 @@ MAX_VISUAL_GLOSSARY = 16
 MAX_VISUAL_ACTION_ITEMS = 16
 MAX_VISUAL_DIAGRAMS = 8
 HUGE_DOC_LINE_THRESHOLD = 1200
-TOP_HEADING_CAP = 8
+TOP_HEADING_CAP = 40
 STEP_CAP = 8
 COMPONENT_CAP = 6
 TItem = TypeVar("TItem")
@@ -451,6 +452,40 @@ def _section_summary(section_lines: list[str]) -> str:
 # === ANCHOR: DOCS_VISUALIZER__SECTION_SUMMARY_END ===
 
 
+def _section_body_preview(section_lines: list[str], limit: int = 5) -> list[str]:
+    preview: list[str] = []
+    in_code = False
+    for raw in section_lines:
+        stripped = raw.strip()
+        if stripped.startswith("```"):
+            in_code = not in_code
+            continue
+        if in_code or not stripped or HEADING_RE.match(raw) or TABLE_SEPARATOR_RE.match(stripped):
+            continue
+
+        checklist = CHECKLIST_RE.match(raw)
+        if checklist:
+            marker = "x" if checklist.group("checked").lower() == "x" else " "
+            text = f"[{marker}] {_strip_inline_markdown(checklist.group('text'))}"
+        else:
+            ordered_num, ordered_text, _indent = _ordered_step_parts(raw)
+            bullet = BULLET_RE.match(raw)
+            if ordered_num is not None and ordered_text:
+                text = f"{ordered_num}. {_strip_inline_markdown(ordered_text)}"
+            elif bullet:
+                text = _strip_inline_markdown(bullet.group("text"))
+            elif stripped.startswith("|"):
+                text = " | ".join(_split_table_row(stripped))
+            else:
+                text = _strip_inline_markdown(stripped)
+
+        if text and text not in preview:
+            preview.append(text)
+        if len(preview) >= limit:
+            break
+    return preview
+
+
 # === ANCHOR: DOCS_VISUALIZER__EXTRACT_SECTIONS_START ===
 def _extract_sections(lines: list[str]) -> list[VisualSection]:
     ranges = _extract_heading_ranges(lines)
@@ -467,6 +502,7 @@ def _extract_sections(lines: list[str]) -> list[VisualSection]:
                 title=title,
                 level=level,
                 summary=_section_summary(lines[start + 1 : end]),
+                body_preview=_section_body_preview(lines[start + 1 : end]),
             )
         )
     return sections

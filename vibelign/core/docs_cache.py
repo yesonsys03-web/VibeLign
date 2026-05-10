@@ -19,7 +19,9 @@ from . import meta_paths as _META_PATHS
 
 
 DOCS_VISUAL_SCHEMA_VERSION = 2
-DOCS_VISUAL_GENERATOR_VERSION = "heuristic-v2"
+DOCS_VISUAL_GENERATOR_VERSION = "heuristic-v3"
+DOCS_HTML_SCHEMA_VERSION = 1
+DOCS_HTML_GENERATOR_VERSION = "raw-html-v1"
 TEXT_DOC_EXTENSIONS: frozenset[str] = frozenset({".md", ".markdown", ".txt", ".csv"})
 
 
@@ -370,6 +372,28 @@ def docs_visual_contract() -> dict[str, object]:
 # === ANCHOR: DOCS_CACHE_DOCS_VISUAL_CONTRACT_END ===
 
 
+def docs_visual_artifact_trust_state(
+    artifact: dict[str, object] | None,
+    *,
+    source_hash: str,
+    source_path: str | None = None,
+) -> str:
+    if not artifact:
+        return "not_generated"
+    required = docs_visual_contract()["minimum_required_fields"]
+    if not isinstance(required, list) or any(field not in artifact for field in required):
+        return "unsupported"
+    if artifact.get("schema_version") != DOCS_VISUAL_SCHEMA_VERSION:
+        return "stale"
+    if artifact.get("generator_version") != DOCS_VISUAL_GENERATOR_VERSION:
+        return "stale"
+    if artifact.get("source_hash") != source_hash:
+        return "stale"
+    if source_path is not None and artifact.get("source_path") != source_path:
+        return "stale"
+    return "trusted"
+
+
 # === ANCHOR: DOCS_CACHE_DOCS_VISUAL_SCHEMA_EXAMPLE_START ===
 def docs_visual_schema_example() -> dict[str, object]:
     return {
@@ -381,7 +405,7 @@ def docs_visual_schema_example() -> dict[str, object]:
         "title": "VibeLign Wiki",
         "summary": "Stable visual artifact contract example.",
         "sections": [
-            {"id": "intro", "title": "Intro", "level": 1, "summary": "Top section."}
+            {"id": "intro", "title": "Intro", "level": 1, "summary": "Top section.", "body_preview": ["First source-order preview item."]}
         ],
         "glossary": [],
         "action_items": [],
@@ -413,6 +437,47 @@ def docs_visual_schema_example() -> dict[str, object]:
 # === ANCHOR: DOCS_CACHE_DOCS_VISUAL_SCHEMA_EXAMPLE_END ===
 
 
+def docs_html_contract() -> dict[str, object]:
+    return {
+        "owner_module": "vibelign.core.docs_cache",
+        "owner_function": "compute_source_hash",
+        "schema_version": DOCS_HTML_SCHEMA_VERSION,
+        "generator_version": DOCS_HTML_GENERATOR_VERSION,
+        "minimum_required_fields": [
+            "source_path",
+            "source_hash",
+            "generated_at",
+            "generator_version",
+            "schema_version",
+            "html",
+        ],
+        "invalid_when": [
+            "schema_version_mismatch",
+            "generator_version_mismatch",
+            "missing_required_fields",
+            "corrupt_json",
+        ],
+        "sandbox_policy": {
+            "iframe_sandbox": "",
+            "csp": "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-src 'none'",
+        },
+    }
+
+
+def docs_html_schema_example() -> dict[str, object]:
+    return {
+        "schema_version": DOCS_HTML_SCHEMA_VERSION,
+        "generator_version": DOCS_HTML_GENERATOR_VERSION,
+        "generated_at": "2026-05-10T00:00:00Z",
+        "source_path": "docs/wiki/index.md",
+        "source_hash": "<sha256-of-normalized-source>",
+        "title": "VibeLign Wiki",
+        "html": "<!doctype html><html><head><meta charset=\"utf-8\"></head><body><main>...</main></body></html>",
+        "csp": "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-src 'none'",
+        "mode": "raw_html",
+    }
+
+
 # === ANCHOR: DOCS_CACHE__PARSE_ARGS_START ===
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -423,6 +488,11 @@ def _parse_args() -> argparse.Namespace:
         "--print-visual-contract",
         action="store_true",
         help="Print the docs visual artifact contract and example schema",
+    )
+    parser.add_argument(
+        "--print-html-contract",
+        action="store_true",
+        help="Print the docs raw HTML artifact contract and example schema",
     )
     return parser.parse_args()
 # === ANCHOR: DOCS_CACHE__PARSE_ARGS_END ===
@@ -437,6 +507,18 @@ def main() -> int:
                 {
                     "contract": docs_visual_contract(),
                     "example_artifact": docs_visual_schema_example(),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+    if args.print_html_contract:
+        print(
+            json.dumps(
+                {
+                    "contract": docs_html_contract(),
+                    "example_artifact": docs_html_schema_example(),
                 },
                 ensure_ascii=False,
                 indent=2,

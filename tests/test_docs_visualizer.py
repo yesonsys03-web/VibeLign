@@ -28,7 +28,7 @@ def _load_module(name: str, path: Path):
 
 _ensure_stub_package("vibelign", ROOT / "vibelign")
 _ensure_stub_package("vibelign.core", ROOT / "vibelign" / "core")
-_load_module("vibelign.core.docs_cache", ROOT / "vibelign" / "core" / "docs_cache.py")
+docs_cache = _load_module("vibelign.core.docs_cache", ROOT / "vibelign" / "core" / "docs_cache.py")
 docs_visualizer = _load_module(
     "vibelign.core.docs_visualizer", ROOT / "vibelign" / "core" / "docs_visualizer.py"
 )
@@ -89,6 +89,52 @@ Short overview.
             self.assertEqual(diagram.generator, "heading-mindmap-v1")
             self.assertEqual(diagram.confidence, "medium")
             self.assertIn("mindmap", diagram.source)
+
+    def test_heading_mindmap_keeps_late_document_sections(self):
+        headings = "\n\n".join(
+            f"## Phase {index}\n\nDetails {index}." for index in range(1, 18)
+        )
+        content = f"# Long Plan\n\n{headings}\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "plan.md"
+            target.write_text(content, encoding="utf-8")
+
+            artifact = docs_visualizer.visualize_markdown_file(target)
+
+            self.assertEqual(len(artifact.diagram_blocks), 1)
+            diagram = artifact.diagram_blocks[0]
+            self.assertEqual(diagram.generator, "heading-mindmap-v1")
+            self.assertIn("Phase 17", diagram.source)
+            self.assertFalse(
+                any("heading_mindmap capped at 8" in warning for warning in diagram.warnings)
+            )
+
+    def test_sections_keep_bullet_body_preview_in_source_order(self):
+        content = """# Canvas Spec
+
+## Goals
+
+- Add Source mode
+- Keep Canvas selected-document only
+
+## Non-Goals
+
+- Do not bulk generate
+- Do not expose Tauri APIs
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "spec.md"
+            target.write_text(content, encoding="utf-8")
+
+            artifact = docs_visualizer.visualize_markdown_file(target)
+
+            goals = next(section for section in artifact.sections if section.title == "Goals")
+            non_goals = next(section for section in artifact.sections if section.title == "Non-Goals")
+            self.assertEqual(
+                goals.body_preview,
+                ["Add Source mode", "Keep Canvas selected-document only"],
+            )
+            self.assertEqual(non_goals.body_preview[0], "Do not bulk generate")
 
     def test_ordered_steps_generate_step_flow(self):
         content = """# Install Guide
@@ -354,3 +400,20 @@ flowchart TD
                 docs_visualizer.visualize_markdown_file(target)
 
             self.assertIn("UTF-8", str(ctx.exception))
+
+    def test_canvas_artifact_trust_invalidates_on_schema_bump(self):
+        artifact = {
+            "source_path": "/tmp/doc.md",
+            "source_hash": "abc123",
+            "generated_at": "2026-05-10T00:00:00Z",
+            "generator_version": docs_cache.DOCS_VISUAL_GENERATOR_VERSION,
+            "schema_version": docs_cache.DOCS_VISUAL_SCHEMA_VERSION + 1,
+        }
+
+        state = docs_cache.docs_visual_artifact_trust_state(
+            artifact,
+            source_hash="abc123",
+            source_path="/tmp/doc.md",
+        )
+
+        self.assertEqual(state, "stale")
