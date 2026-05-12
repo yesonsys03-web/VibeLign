@@ -319,6 +319,11 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.4** — 데스크톱 릴리즈 호환성 수정:
+
+- 🛠️ **Backup bridge 호환성** — domain-module bridge 리팩토링 이후에도 기존 GUI 화면이 build 되도록 legacy `backupCreate` export 를 복구했습니다.
+- ✅ **릴리즈 빌드 재시도** — 실패한 v2.2.3 데스크톱 GUI 릴리즈 시도를 v2.2.4 가 대체하며, 동일한 bridge 모듈화 작업을 포함합니다.
+
 **v2.2.3** — GUI bridge 모듈화 + 개발 로그 정리:
 
 - 🧩 **GUI vib bridge 모듈화** — 거대한 `src/lib/vib.ts` command bridge 를 domain module 로 나누면서 기존 `src/lib/vib` import 경로는 유지했습니다.

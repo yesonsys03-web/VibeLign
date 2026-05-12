@@ -319,6 +319,11 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.4** — Desktop release compatibility fix:
+
+- 🛠️ **Backup bridge compatibility** — restored the legacy `backupCreate` export so existing GUI screens continue to build after the domain-module bridge refactor.
+- ✅ **Release build retry** — v2.2.4 supersedes the failed v2.2.3 desktop GUI release attempt while keeping the same bridge modularization work.
+
 **v2.2.3** — GUI bridge modularization + cleaner dev logs:
 
 - 🧩 **Modular GUI vib bridge** — split the large `src/lib/vib.ts` command bridge into focused domain modules while preserving the existing `src/lib/vib` import path.

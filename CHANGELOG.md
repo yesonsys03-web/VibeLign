@@ -10,6 +10,22 @@
 
 ---
 
+## [2.2.4] — 2026-05-12
+
+v2.2.3 GUI release build 에서 드러난 legacy `backupCreate` import 호환성 누락을 복구한 패치 릴리즈입니다. PyPI v2.2.3 는 정상 publish 되었지만 Desktop GUI release 는 v2.2.4 로 재시도합니다.
+
+### Fixed
+
+- **GUI backup bridge compatibility**: 기존 `src/lib/vib` public API 의 `backupCreate` export 를 복구해, 아직 `backupCreate` 를 import 하는 GUI 화면도 domain module refactor 이후 정상 build 됩니다.
+
+### Verified
+
+- `npm run build` (vibelign-gui) → passed.
+- Bridge contract check → `command string diff: missing=[] extra=[]`, `backupCreate export restored`.
+- Branch GUI CI after fix → macOS + Windows passed.
+
+---
+
 ## [2.2.3] — 2026-05-12
 
 GUI bridge 구조를 domain module 로 분리하고, 개발 실행 로그의 Rust warning 을 정리한 패치 릴리즈입니다. 사용자-facing 동작은 유지하면서 이후 GUI 기능 확장 시 회귀 위험을 낮췄습니다.
