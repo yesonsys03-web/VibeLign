@@ -1,4 +1,4 @@
-import { runVib, runVibWithProgress } from "./core";
+import { callEngineDirect, runVib, runVibWithProgress } from "./core";
 import type {
   AnchorAutoIntentRun,
   AnchorAutoIntentResult,
@@ -52,35 +52,27 @@ export async function anchorSetIntent(
   intent: string,
   extras?: AnchorSetIntentExtras,
 ): Promise<{ anchor_name: string; entry: AnchorMetaEntry }> {
-  const args = ["anchor", "--set-intent", anchorName, "--intent", intent, "--json"];
-  const aliases = extras?.aliases?.filter((a) => a.trim()).join(",");
-  if (aliases) { args.push("--aliases", aliases); }
-  if (extras?.description?.trim()) { args.push("--description", extras.description); }
-  if (extras?.warning?.trim()) { args.push("--warning", extras.warning); }
-  const connects = extras?.connects?.filter((c) => c.trim()).join(",");
-  if (connects) { args.push("--connects", connects); }
-  const res = await runVib(args, cwd);
-  const stdout = res.stdout.trim();
-  if (!stdout) throw new Error(res.stderr || `exit ${res.exit_code}`);
-  const parsed = JSON.parse(stdout) as {
-    ok?: boolean;
-    error?: string;
-    data?: { anchor_name: string; entry: AnchorMetaEntry };
-  };
-  if (parsed.ok === false) throw new Error(parsed.error ?? "set-intent 실패");
-  if (!parsed.data) throw new Error("set-intent 응답에 data가 없습니다");
-  return parsed.data;
+  const aliases = extras?.aliases?.map((a) => a.trim()).filter(Boolean);
+  const connects = extras?.connects?.map((c) => c.trim()).filter(Boolean);
+  const warning = extras?.warning?.trim();
+  const description = extras?.description?.trim();
+  const parsed = await callEngineDirect<{ anchor_name: string; entry: AnchorMetaEntry }>({
+    command: "anchor_set_intent",
+    root: cwd,
+    anchor_name: anchorName,
+    intent,
+    connects: connects && connects.length > 0 ? connects : null,
+    aliases: aliases && aliases.length > 0 ? aliases : null,
+    warning: warning ? warning : null,
+    description: description ? description : null,
+  });
+  return parsed;
 }
 
 export async function anchorListMeta(cwd: string): Promise<Record<string, AnchorMetaEntry>> {
-  const res = await runVib(["anchor", "--list-intent", "--json"], cwd);
-  const stdout = res.stdout.trim();
-  if (!stdout) throw new Error(res.stderr || `exit ${res.exit_code}`);
-  const parsed = JSON.parse(stdout) as {
-    ok?: boolean;
-    error?: string;
-    data?: { meta?: Record<string, AnchorMetaEntry> };
-  };
-  if (parsed.ok === false) throw new Error(parsed.error ?? "list-intent 실패");
-  return parsed.data?.meta ?? {};
+  const parsed = await callEngineDirect<{ meta?: Record<string, AnchorMetaEntry> }>({
+    command: "anchor_list_meta",
+    root: cwd,
+  });
+  return parsed.meta ?? {};
 }

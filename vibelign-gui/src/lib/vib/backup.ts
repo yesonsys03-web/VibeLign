@@ -13,26 +13,21 @@ import type {
   CheckpointCreateResult,
 } from "./types";
 
-const autoBackupOnCommitCache = new Map<string, boolean>();
-
 export async function getAutoBackupOnCommit(cwd: string): Promise<boolean> {
-  const cached = autoBackupOnCommitCache.get(cwd);
-  if (cached !== undefined) return cached;
-  const res = await runVib(["config", "auto-backup", "status", "--json"], cwd);
-  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
-  const parsed = JSON.parse(res.stdout) as { ok?: boolean; data?: { auto_backup_on_commit?: boolean } };
-  const value = Boolean(parsed.data?.auto_backup_on_commit);
-  autoBackupOnCommitCache.set(cwd, value);
-  return value;
+  const parsed = await callEngineDirect<{ enabled?: boolean }>({
+    command: "auto_backup_status",
+    root: cwd,
+  });
+  return Boolean(parsed.enabled);
 }
 
 export async function setAutoBackupOnCommit(cwd: string, enabled: boolean): Promise<boolean> {
-  const res = await runVib(["config", "auto-backup", enabled ? "on" : "off", "--json"], cwd);
-  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
-  const parsed = JSON.parse(res.stdout) as { ok?: boolean; data?: { auto_backup_on_commit?: boolean } };
-  const value = Boolean(parsed.data?.auto_backup_on_commit);
-  autoBackupOnCommitCache.set(cwd, value);
-  return value;
+  const parsed = await callEngineDirect<{ enabled?: boolean }>({
+    command: "auto_backup_set",
+    root: cwd,
+    enabled,
+  });
+  return Boolean(parsed.enabled);
 }
 
 export async function checkpointCreate(cwd: string, message: string): Promise<CheckpointCreateResult> {

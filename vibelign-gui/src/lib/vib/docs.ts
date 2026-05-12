@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import { normalizeBridgePath, runVib } from "./core";
+import { callEngineDirect, normalizeBridgePath, runVib } from "./core";
 import type {
   DocSourcesResponse,
   DocsHtmlReadResult,
@@ -55,30 +55,21 @@ export async function enhanceDocWithAi(
   return JSON.parse(raw) as EnhanceDocResult;
 }
 
-// ai-enhance 설정은 Settings 토글로만 바뀌고 같은 세션 동안 반복 조회되므로
-// 프로젝트별 메모리 캐시로 중복 `vib config` subprocess 호출을 제거한다.
-// Why: Doctor 페이지 mount 마다 `vib config --ai-enhance status` 가 PyInstaller
-//      콜드스타트를 맞아 지연을 만들었다.
-const aiEnhancementCache = new Map<string, boolean>();
-
 export async function getAiEnhancement(cwd: string): Promise<boolean> {
-  const cached = aiEnhancementCache.get(cwd);
-  if (cached !== undefined) return cached;
-  const res = await runVib(["config", "--ai-enhance", "status", "--json"], cwd);
-  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
-  const parsed = JSON.parse(res.stdout) as { ok?: boolean; data?: { ai_enhancement?: boolean } };
-  const value = Boolean(parsed.data?.ai_enhancement);
-  aiEnhancementCache.set(cwd, value);
-  return value;
+  const parsed = await callEngineDirect<{ enabled?: boolean }>({
+    command: "ai_enhancement_status",
+    root: cwd,
+  });
+  return Boolean(parsed.enabled);
 }
 
 export async function setAiEnhancement(cwd: string, enabled: boolean): Promise<boolean> {
-  const res = await runVib(["config", "--ai-enhance", enabled ? "enable" : "disable", "--json"], cwd);
-  if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
-  const parsed = JSON.parse(res.stdout) as { ok?: boolean; data?: { ai_enhancement?: boolean } };
-  const value = Boolean(parsed.data?.ai_enhancement);
-  aiEnhancementCache.set(cwd, value);
-  return value;
+  const parsed = await callEngineDirect<{ enabled?: boolean }>({
+    command: "ai_enhancement_set",
+    root: cwd,
+    enabled,
+  });
+  return Boolean(parsed.enabled);
 }
 
 export async function getManualJson(): Promise<Record<string, unknown>> {
