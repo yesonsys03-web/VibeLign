@@ -319,6 +319,13 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.6** — GUI memorySummary acceleration + tokenizer Rust groundwork:
+
+- 🚀 **Phase 3 PoC consumer #13** — `SessionMemoryCard` mount now uses in-process Rust (`callEngineDirect({command:"memory_summary_read"})`) instead of a Python sidecar call, removing ~80 ms of mount-time latency. Audit logging parity is fully preserved.
+- 📦 **tokenizer Rust leaf port** — `vibelign-core/src/tokenizer.rs` ports the 6 Korean tokenizer leaf functions from `patch_suggester.py` as a dormant library, backed by `tests/fixtures/tokenizer_goldens/` (102 case × 6 function = 612 byte-equal parity records).
+- ⚡ **`_normalize_korean_token` pre-sort** — moves the per-call `sorted()` to a module-level constant. Direct 1M-iter benchmark shows 27% speedup; recover preview wall is unchanged (caller-side set processing dominates).
+- ✅ **Cross-platform pre-flight** — Windows GNU cross-compile passes for both vibelign-core and vibelign-gui/src-tauri.
+
 **v2.2.5** — Desktop release lockfile fix:
 
 - 📦 **npm lockfile repair** — regenerated the GUI package lock so `npm ci` installs the real `json5@2.2.3` dependency instead of a nonexistent `json5-2.2.4.tgz` tarball.

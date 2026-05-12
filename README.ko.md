@@ -319,6 +319,13 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.6** — GUI 메모리 요약 가속 + tokenizer Rust 토대:
+
+- 🚀 **Phase 3 PoC consumer #13** — `SessionMemoryCard` 마운트가 Python sidecar 호출 대신 in-process Rust (`callEngineDirect({command:"memory_summary_read"})`) 로 전환되어 마운트 시 ~80 ms 지연이 사라졌습니다. audit 로그 parity 는 완전히 보존됩니다.
+- 📦 **tokenizer Rust leaf port** — `vibelign-core/src/tokenizer.rs` 가 `patch_suggester.py` 의 6 한국어 토큰 leaf 함수를 dormant library 로 포팅했습니다. `tests/fixtures/tokenizer_goldens/` (102 case × 6 함수 = 612 byte-equal parity record) 로 검증합니다.
+- ⚡ **`_normalize_korean_token` pre-sort** — 매 호출 `sorted()` 를 module-level 상수로 옮겼습니다. direct 1M iter 27% 가속, recover preview wall 은 noise (caller-side set 처리가 wall dominate).
+- ✅ **크로스플랫폼 pre-flight** — Windows GNU cross-compile 이 vibelign-core 와 vibelign-gui/src-tauri 양쪽에서 통과합니다.
+
 **v2.2.5** — 데스크톱 릴리즈 lockfile 수정:
 
 - 📦 **npm lockfile 복구** — GUI package lock 을 정상 재생성해 `npm ci` 가 존재하지 않는 `json5-2.2.4.tgz` 대신 실제 `json5@2.2.3` dependency 를 설치하도록 했습니다.

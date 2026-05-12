@@ -10,6 +10,37 @@
 
 ---
 
+## [2.2.6] — 2026-05-13
+
+GUI 의 메모리 요약 카드를 Python sidecar 호출에서 in-process Rust 직결로 전환하여 마운트 지연을 제거하고, 향후 score_path 최적화 트랙의 토대로 한국어 토큰 분해 Rust 모듈 (`vibelign-core/src/tokenizer.rs`) 과 102 case × 6 함수 = 612 record 의 parity fixtures 를 dormant library 로 추가했습니다. `_normalize_korean_token` 의 hot loop 에서 매 호출마다 재실행되던 sort 도 module-level pre-sort 로 정리했습니다.
+
+### Added
+
+- **GUI memorySummary direct bridge** (Phase 3 PoC consumer #13): `SessionMemoryCard` mount 시 `runVib(["memory","show","--json"])` 호출이 in-process `callEngineDirect({command:"memory_summary_read"})` 로 전환. Python sidecar ~80ms 호출 제거. audit logging parity 완전 유지 (`project_root_hash` SHA256[:16] / 마이크로초 timestamp / sequence number / `.create_new(true)` 파일 락).
+- **`vibelign-core/src/tokenizer.rs`**: `vibelign.core.patch_suggester` 의 6 leaf 토큰 함수 (`_decompose_korean_compound` / `_split_identifier_parts` / `_normalize_korean_token` / `_expand_token` / `tokenize` / `_intent_tokens`) 와 const table 113 entries 를 Rust 로 1:1 포팅. 현재 dormant library — score_path multi-session 트랙 진입 시 ipc 노출 예정.
+- **`tests/fixtures/tokenizer_goldens/`**: 102 case × 6 함수 = 612 expected record JSON fixtures + `_regenerate.py` (Python source-of-truth 재캡처 스크립트, `uv run python ...` 으로 호출). cargo test 의 byte-equal parity assertion 으로 Rust 포팅 정확성 검증 + Python alias drift 자동 감지.
+- **`vibelign-core/examples/bench_tokenizer.rs`**: isolated 1M iter bench. 향후 score_path Rust port 시 floor 측정 reference.
+
+### Changed
+
+- **`_normalize_korean_token` pre-sort**: `sorted(_KOREAN_PARTICLE_SUFFIXES, key=len, reverse=True)` 가 매 호출 (recover preview 시 609k 회) 마다 재실행되던 것을 module-level `_KOREAN_PARTICLE_SUFFIXES_SORTED` tuple 한 번에 고정. direct 1M iter 27% 가속 (1.97μs → 1.44μs / call), wall noise (caller-side set 처리가 wall dominate). 결정성/순서는 byte-equal 유지.
+
+### Verified
+
+- `cargo test --lib` (vibelign-core) → **140 passed** (이전 134 + 신규 tokenizer parity 6 tests / 612 assertion).
+- `cargo check` (vibelign-gui/src-tauri) → 0 errors, 0 warnings.
+- `npx tsc --noEmit` (vibelign-gui) → No errors found.
+- `pytest tests/test_patch_*.py tests/test_recovery_planner.py` → 30 passed, 20 subtests passed.
+- `cargo run --release --example bench_tokenizer` → 1M iter floor (intent_tokens 3,021 ns / expand_token 1,036 ns / decompose 5 ns per call).
+- **Windows GNU cross-compile pre-flight** (`cargo check --target x86_64-pc-windows-gnu`, mingw-w64 mac local): vibelign-core 0 errors / vibelign-gui/src-tauri 0 errors + 5 cfg(unix) dead_code warnings (의도됨). 어제/오늘 신규 코드 (memory_audit / memory_state / sha2 / tokenizer / bench / pre-sort) 모두 Windows 호환 확인.
+
+### Notes
+
+- 사용자 체감 가속은 **memorySummary direct bridge** 에서. 나머지 변경 (tokenizer Rust 모듈 / fixtures / bench / pre-sort) 은 dormant library + tooling 으로 다음 트랙 (score_path 통째 Rust port) 의 토대.
+- patch_suggester tokenizer 트랙 의 측정/디자인 + 단계 1/2 진척, 단계 3 retraction lessons (cProfile/pyinstrument cumtime over-attribution / cache hit ratio 가 wall 단축으로 직결되지 않음) 의 자세한 기록은 `docs/superpowers/plans/2026-05-13-patch-suggester-tokenizer-rust-port-plan.md` §9 참조.
+
+---
+
 ## [2.2.5] — 2026-05-12
 
 v2.2.4 GUI release build 에서 발견된 npm lockfile dependency metadata 오염을 복구한 패치 릴리즈입니다. Desktop GUI release 는 v2.2.5 로 재시도합니다.
