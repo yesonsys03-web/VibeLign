@@ -101,6 +101,15 @@ pub enum EngineRequest {
         #[serde(default)]
         description: Option<String>,
     },
+    MemorySummaryRead {
+        root: PathBuf,
+        #[serde(default = "default_memory_tool")]
+        tool: String,
+    },
+}
+
+fn default_memory_tool() -> String {
+    "vib-gui".to_string()
 }
 
 #[derive(Debug, Serialize)]
@@ -200,6 +209,11 @@ pub enum EngineResponse {
         result: String,
         anchor_name: String,
         entry: serde_json::Map<String, serde_json::Value>,
+    },
+    #[serde(rename = "ok")]
+    MemorySummaryReadOk {
+        result: String,
+        payload: serde_json::Value,
     },
 }
 

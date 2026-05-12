@@ -4,6 +4,8 @@ use crate::backup::checkpoint::{self, CheckpointCreateMetadata};
 use crate::backup::retention;
 use crate::backup::{db_maintenance, db_viewer, diff, graph_summary, restore, suggestions};
 use crate::config;
+use crate::memory_audit::{self, MemoryAuditEventBuilder};
+use crate::memory_state;
 use crate::project_scan;
 use crate::secret_scan;
 
@@ -465,6 +467,35 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                 message: error,
             },
         },
+        EngineRequest::MemorySummaryRead { root, tool } => {
+            let payload = match memory_state::load_payload(&root) {
+                Ok(value) => value,
+                Err(error) => {
+                    return EngineResponse::Error {
+                        code: "MEMORY_SUMMARY_READ_FAILED".to_string(),
+                        message: error,
+                    };
+                }
+            };
+            let event = memory_audit::build_event(
+                &root,
+                MemoryAuditEventBuilder {
+                    event: "memory_summary_read",
+                    tool: tool.as_str(),
+                    result: "success",
+                },
+            );
+            if let Err(error) = memory_audit::append_event(&memory_audit::memory_audit_path(&root), event) {
+                return EngineResponse::Error {
+                    code: "MEMORY_AUDIT_APPEND_FAILED".to_string(),
+                    message: error,
+                };
+            }
+            EngineResponse::MemorySummaryReadOk {
+                result: "memory_summary_read".to_string(),
+                payload,
+            }
+        }
     }
 }
 

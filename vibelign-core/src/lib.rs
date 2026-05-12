@@ -18,6 +18,8 @@ mod config;
 mod constants;
 mod db;
 pub mod ipc;
+mod memory_audit;
+mod memory_state;
 mod project_scan;
 mod secret_scan;
 mod security;
