@@ -1,4 +1,4 @@
-import { runVib } from "./core";
+import { callEngineDirect, runVib } from "./core";
 import { requireNumber, requireOptionalRecord, requireRecord, requireRecordArray, requireString } from "./normalizers";
 import type {
   HandoffDraftActionResult,
@@ -10,9 +10,12 @@ import type {
 } from "./types";
 
 export async function memorySummary(cwd: string): Promise<MemorySummaryResult> {
-  const res = await runVib(["memory", "show", "--json"], cwd);
-  if (!res.ok) throw new Error(res.stderr || res.stdout || `exit ${res.exit_code}`);
-  return parseMemorySummaryJson(res.stdout);
+  const parsed = await callEngineDirect<{ payload?: unknown }>({
+    command: "memory_summary_read",
+    root: cwd,
+    tool: "vib-gui",
+  });
+  return parseMemorySummaryPayload(parsed.payload);
 }
 
 export async function createHandoffDraft(
@@ -51,8 +54,8 @@ export async function dismissHandoffDraftField(cwd: string, draft: HandoffDraftP
   return JSON.parse(res.stdout) as HandoffDraftActionResult;
 }
 
-function parseMemorySummaryJson(stdout: string): MemorySummaryResult {
-  const data = requireRecord(JSON.parse(stdout), "memory_state.schema.json");
+function parseMemorySummaryPayload(raw: unknown): MemorySummaryResult {
+  const data = requireRecord(raw, "memory_state.schema.json");
   requireNumber(data.schema_version, "schema_version");
   requireOptionalRecord(data.active_intent, "active_intent");
   requireOptionalRecord(data.next_action, "next_action");
