@@ -319,6 +319,11 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.5** — 데스크톱 릴리즈 lockfile 수정:
+
+- 📦 **npm lockfile 복구** — GUI package lock 을 정상 재생성해 `npm ci` 가 존재하지 않는 `json5-2.2.4.tgz` 대신 실제 `json5@2.2.3` dependency 를 설치하도록 했습니다.
+- ✅ **릴리즈 빌드 재시도** — 실패한 v2.2.4 데스크톱 GUI 릴리즈 시도를 v2.2.5 가 대체합니다.
+
 **v2.2.4** — 데스크톱 릴리즈 호환성 수정:
 
 - 🛠️ **Backup bridge 호환성** — domain-module bridge 리팩토링 이후에도 기존 GUI 화면이 build 되도록 legacy `backupCreate` export 를 복구했습니다.

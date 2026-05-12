@@ -10,6 +10,24 @@
 
 ---
 
+## [2.2.5] — 2026-05-12
+
+v2.2.4 GUI release build 에서 발견된 npm lockfile dependency metadata 오염을 복구한 패치 릴리즈입니다. Desktop GUI release 는 v2.2.5 로 재시도합니다.
+
+### Fixed
+
+- **GUI package-lock dependency metadata**: release version bump 가 dependency `json5@2.2.3` tarball URL 까지 바꾸지 않도록 lockfile 을 정상 재생성했습니다. `npm ci` 가 `json5-2.2.4.tgz` 를 찾다가 404 로 실패하던 문제를 해결합니다.
+
+### Verified
+
+- `npm ci` (vibelign-gui) → passed.
+- `npm run build` (vibelign-gui) → passed.
+- `npm run test` (vibelign-gui) → 2 files / 9 tests passed.
+- `python3 -m build --sdist --wheel` → passed.
+- Bridge contract check → `command string diff: missing=[] extra=[]`.
+
+---
+
 ## [2.2.4] — 2026-05-12
 
 v2.2.3 GUI release build 에서 드러난 legacy `backupCreate` import 호환성 누락을 복구한 패치 릴리즈입니다. PyPI v2.2.3 는 정상 publish 되었지만 Desktop GUI release 는 v2.2.4 로 재시도합니다.

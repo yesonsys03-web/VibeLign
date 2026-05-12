@@ -319,6 +319,11 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.5** — Desktop release lockfile fix:
+
+- 📦 **npm lockfile repair** — regenerated the GUI package lock so `npm ci` installs the real `json5@2.2.3` dependency instead of a nonexistent `json5-2.2.4.tgz` tarball.
+- ✅ **Release build retry** — v2.2.5 supersedes the failed v2.2.4 desktop GUI release attempt.
+
 **v2.2.4** — Desktop release compatibility fix:
 
 - 🛠️ **Backup bridge compatibility** — restored the legacy `backupCreate` export so existing GUI screens continue to build after the domain-module bridge refactor.
