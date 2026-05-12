@@ -1,0 +1,13 @@
+export * from "./types";
+export { runVib, runVibWithProgress, vibStart } from "./core";
+export { addExtraDocSource, enhanceDocWithAi, getAiEnhancement, getManualJson, listDocsIndex, listExtraDocSources, readDocsHtml, readDocsVisual, readFile, rebuildDocsIndex, removeExtraDocSource, setAiEnhancement } from "./docs";
+export { buildGuiAiEnv, deleteApiKey, deleteProviderApiKey, getEnvKeyStatus, loadApiKey, loadProviderApiKeys, saveApiKey, saveProviderApiKey } from "./apiKeys";
+export { checkGitInstalled, checkXcodeClt, getVibPath, loadRecentProjects, openFolder, pickFile, pickFolder, readProjectSummary, saveRecentProjects } from "./system";
+export { clearErrorLogs, readErrorLogs } from "./errorLogs";
+export { addClaudeToUserPath, getOnboardingLogs, getOnboardingSnapshot, listenOnboardingProgress, retryOnboardingVerification, startNativeInstall, startOnboardingLoginProbe, startWslInstall, uninstallClaudeCode } from "./onboarding";
+export { getWatchErrors, getWatchLogs, startWatch, stopWatch, watchStatus } from "./watch";
+export { anchorAutoIntent, anchorAutoIntentJson, anchorListMeta, anchorSetIntent } from "./anchor";
+export { acceptHandoffDraftField, createHandoffDraft, dismissHandoffDraftField, memorySummary, vibTransfer } from "./memory";
+export { recoveryPreview, recoveryRecommend } from "./recovery";
+export { doctorApply, doctorJson, doctorPlanJson, vibGuard, vibScan } from "./guard";
+export { backupCleanup, backupDbMaintenance, backupDbViewerInspect, backupGraphSummary, backupList, backupRestore, checkpointCreate, checkpointList, getAutoBackupOnCommit, getCachedBackupDbViewerInspect, getCachedBackupGraphSummary, getCachedBackupList, setAutoBackupOnCommit, undoCheckpoint } from "./backup";
