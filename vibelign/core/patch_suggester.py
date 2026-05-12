@@ -116,6 +116,12 @@ _KOREAN_PARTICLE_SUFFIXES = (
     "의",
 )
 
+# `_normalize_korean_token` 의 hot loop (609k calls / preview) 가 매번 같은 sort 를
+# 재실행하던 것을 module-level pre-sort 로 한 번에 고정. 결정성/순서는 동일.
+_KOREAN_PARTICLE_SUFFIXES_SORTED = tuple(
+    sorted(_KOREAN_PARTICLE_SUFFIXES, key=len, reverse=True)
+)
+
 _TOKEN_ALIASES = {
     "홈": ["home"],
     "홈화면": ["home", "screen", "page"],
@@ -219,7 +225,7 @@ def _split_identifier_parts(text: str) -> list[str]:
 
 def _normalize_korean_token(token: str) -> list[str]:
     values = [token]
-    for suffix in sorted(_KOREAN_PARTICLE_SUFFIXES, key=len, reverse=True):
+    for suffix in _KOREAN_PARTICLE_SUFFIXES_SORTED:
         if len(token) > len(suffix) + 1 and token.endswith(suffix):
             trimmed = token[: -len(suffix)]
             values.append(trimmed)
