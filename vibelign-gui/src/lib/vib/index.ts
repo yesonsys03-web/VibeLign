@@ -10,4 +10,4 @@ export { anchorAutoIntent, anchorAutoIntentJson, anchorListMeta, anchorSetIntent
 export { acceptHandoffDraftField, createHandoffDraft, dismissHandoffDraftField, memorySummary, vibTransfer } from "./memory";
 export { recoveryPreview, recoveryRecommend } from "./recovery";
 export { doctorApply, doctorJson, doctorPlanJson, vibGuard, vibScan } from "./guard";
-export { backupCleanup, backupDbMaintenance, backupDbViewerInspect, backupGraphSummary, backupList, backupRestore, checkpointCreate, checkpointList, getAutoBackupOnCommit, getCachedBackupDbViewerInspect, getCachedBackupGraphSummary, getCachedBackupList, setAutoBackupOnCommit, undoCheckpoint } from "./backup";
+export { backupCleanup, backupCreate, backupDbMaintenance, backupDbViewerInspect, backupGraphSummary, backupList, backupRestore, checkpointCreate, checkpointList, getAutoBackupOnCommit, getCachedBackupDbViewerInspect, getCachedBackupGraphSummary, getCachedBackupList, setAutoBackupOnCommit, undoCheckpoint } from "./backup";

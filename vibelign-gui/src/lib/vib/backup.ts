@@ -44,6 +44,10 @@ export async function checkpointCreate(cwd: string, message: string): Promise<Ch
   return data;
 }
 
+export async function backupCreate(cwd: string, note: string): Promise<CheckpointCreateResult> {
+  return checkpointCreate(cwd, note);
+}
+
 export async function checkpointList(cwd: string): Promise<unknown> {
   return callEngineDirect<unknown>({ command: "checkpoint_list", root: cwd });
 }
