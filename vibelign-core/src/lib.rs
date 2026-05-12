@@ -12,7 +12,9 @@
 //!
 //! Other modules stay private to enforce the IPC contract as the only seam.
 
+mod anchor_meta;
 mod backup;
+mod config;
 mod constants;
 mod db;
 pub mod ipc;

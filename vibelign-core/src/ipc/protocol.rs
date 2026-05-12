@@ -71,6 +71,36 @@ pub enum EngineRequest {
         diff_text: String,
         path_hint: String,
     },
+    AiEnhancementStatus {
+        root: PathBuf,
+    },
+    AutoBackupStatus {
+        root: PathBuf,
+    },
+    AnchorListMeta {
+        root: PathBuf,
+    },
+    AiEnhancementSet {
+        root: PathBuf,
+        enabled: bool,
+    },
+    AutoBackupSet {
+        root: PathBuf,
+        enabled: bool,
+    },
+    AnchorSetIntent {
+        root: PathBuf,
+        anchor_name: String,
+        intent: String,
+        #[serde(default)]
+        connects: Option<Vec<String>>,
+        #[serde(default)]
+        warning: Option<String>,
+        #[serde(default)]
+        aliases: Option<Vec<String>>,
+        #[serde(default)]
+        description: Option<String>,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -154,6 +184,22 @@ pub enum EngineResponse {
         result: String,
         path_hint: String,
         findings: Vec<secret_scan::SecretFinding>,
+    },
+    #[serde(rename = "ok")]
+    BoolStatusOk {
+        result: String,
+        enabled: bool,
+    },
+    #[serde(rename = "ok")]
+    AnchorListMetaOk {
+        result: String,
+        meta: serde_json::Map<String, serde_json::Value>,
+    },
+    #[serde(rename = "ok")]
+    AnchorSetIntentOk {
+        result: String,
+        anchor_name: String,
+        entry: serde_json::Map<String, serde_json::Value>,
     },
 }
 

@@ -1,7 +1,9 @@
 // === ANCHOR: HANDLER_START ===
+use crate::anchor_meta;
 use crate::backup::checkpoint::{self, CheckpointCreateMetadata};
 use crate::backup::retention;
 use crate::backup::{db_maintenance, db_viewer, diff, graph_summary, restore, suggestions};
+use crate::config;
 use crate::project_scan;
 use crate::secret_scan;
 
@@ -392,6 +394,77 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                 findings,
             }
         }
+        EngineRequest::AiEnhancementStatus { root } => match config::ai_enhancement_status(&root) {
+            Ok(enabled) => EngineResponse::BoolStatusOk {
+                result: "ai_enhancement_status".to_string(),
+                enabled,
+            },
+            Err(error) => EngineResponse::Error {
+                code: "AI_ENHANCEMENT_STATUS_FAILED".to_string(),
+                message: error,
+            },
+        },
+        EngineRequest::AutoBackupStatus { root } => match config::auto_backup_status(&root) {
+            Ok(enabled) => EngineResponse::BoolStatusOk {
+                result: "auto_backup_status".to_string(),
+                enabled,
+            },
+            Err(error) => EngineResponse::Error {
+                code: "AUTO_BACKUP_STATUS_FAILED".to_string(),
+                message: error,
+            },
+        },
+        EngineRequest::AnchorListMeta { root } => EngineResponse::AnchorListMetaOk {
+            result: "anchor_list_meta".to_string(),
+            meta: anchor_meta::list_anchor_meta(&root),
+        },
+        EngineRequest::AiEnhancementSet { root, enabled } => match config::set_ai_enhancement(&root, enabled) {
+            Ok(stored) => EngineResponse::BoolStatusOk {
+                result: "ai_enhancement_set".to_string(),
+                enabled: stored,
+            },
+            Err(error) => EngineResponse::Error {
+                code: "AI_ENHANCEMENT_SET_FAILED".to_string(),
+                message: error,
+            },
+        },
+        EngineRequest::AutoBackupSet { root, enabled } => match config::set_auto_backup(&root, enabled) {
+            Ok(stored) => EngineResponse::BoolStatusOk {
+                result: "auto_backup_set".to_string(),
+                enabled: stored,
+            },
+            Err(error) => EngineResponse::Error {
+                code: "AUTO_BACKUP_SET_FAILED".to_string(),
+                message: error,
+            },
+        },
+        EngineRequest::AnchorSetIntent {
+            root,
+            anchor_name,
+            intent,
+            connects,
+            warning,
+            aliases,
+            description,
+        } => match anchor_meta::set_anchor_intent(
+            &root,
+            &anchor_name,
+            &intent,
+            connects.as_deref(),
+            warning.as_deref(),
+            aliases.as_deref(),
+            description.as_deref(),
+        ) {
+            Ok(entry) => EngineResponse::AnchorSetIntentOk {
+                result: "anchor_set_intent".to_string(),
+                anchor_name,
+                entry,
+            },
+            Err(error) => EngineResponse::Error {
+                code: "ANCHOR_SET_INTENT_FAILED".to_string(),
+                message: error,
+            },
+        },
     }
 }
 
