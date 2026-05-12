@@ -120,6 +120,58 @@ fn smoke_anchor_meta(root: &Path) {
     );
 }
 
+fn smoke_memory_summary(root: &Path) {
+    println!("\n== memory_summary_read ==");
+
+    // Empty project → defaults.
+    let defaults = dispatch(json!({"command": "memory_summary_read", "root": root, "tool": "vib-gui"}));
+    assert_eq_msg(defaults["status"].as_str(), Some("ok"), "status=ok (default state)");
+    assert_eq_msg(defaults["result"].as_str(), Some("memory_summary_read"), "result label");
+    let payload = defaults["payload"].as_object().expect("payload object");
+    assert_eq_msg(payload["active_intent"].is_null(), true, "active_intent null when no file");
+    assert_eq_msg(payload["decisions"].as_array().map(|a| a.is_empty()), Some(true), "empty decisions array");
+
+    // Populated work_memory.json → passthrough with normalization.
+    let dir = root.join(".vibelign");
+    std::fs::write(
+        dir.join("work_memory.json"),
+        json!({
+            "schema_version": 1,
+            "active_intent": {"text": "smoke test intent"},
+            "decisions": [{"text": "use Rust direct bridge"}],
+            "relevant_files": [{"path": "src/main.rs", "why": "entry", "source": "system"}],
+        })
+        .to_string(),
+    )
+    .expect("write work_memory.json");
+    let populated = dispatch(json!({"command": "memory_summary_read", "root": root, "tool": "vib-gui"}));
+    let payload = populated["payload"].as_object().expect("payload");
+    assert_eq_msg(
+        payload["active_intent"].get("text").and_then(Value::as_str),
+        Some("smoke test intent"),
+        "active_intent.text passthrough",
+    );
+    assert_eq_msg(payload["decisions"].as_array().map(|a| a.len()), Some(1), "decisions length=1");
+
+    // Audit log verification: two reads → two entries with sequence 1 and 2.
+    let audit_path = dir.join("memory_audit.jsonl");
+    let audit_content = std::fs::read_to_string(&audit_path).expect("audit file written");
+    let lines: Vec<&str> = audit_content.lines().collect();
+    assert_eq_msg(lines.len(), 2, "two audit entries for two reads");
+    let first: Value = serde_json::from_str(lines[0]).expect("audit line 1 json");
+    let second: Value = serde_json::from_str(lines[1]).expect("audit line 2 json");
+    assert_eq_msg(first["event"].as_str(), Some("memory_summary_read"), "event label");
+    assert_eq_msg(first["tool"].as_str(), Some("vib-gui"), "tool tagged as vib-gui");
+    assert_eq_msg(first["result"].as_str(), Some("success"), "result success");
+    assert_eq_msg(first["sequence_number"].as_u64(), Some(1), "first seq=1");
+    assert_eq_msg(second["sequence_number"].as_u64(), Some(2), "second seq=2");
+    assert_eq_msg(
+        first["project_root_hash"].as_str().map(|h| h.len()),
+        Some(16),
+        "project_root_hash is 16 hex chars",
+    );
+}
+
 fn smoke_error_paths(root: &Path) {
     println!("\n== error paths ==");
     // anchor_set_intent with empty anchor_name -- engine accepts (Python parity),
@@ -153,6 +205,7 @@ fn main() {
     smoke_ai_enhancement(&root);
     smoke_auto_backup(&root);
     smoke_anchor_meta(&root);
+    smoke_memory_summary(&root);
     smoke_error_paths(&root);
 
     println!("\n== ALL SMOKE PASSED ==");
