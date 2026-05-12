@@ -10,6 +10,29 @@
 
 ---
 
+## [2.2.3] — 2026-05-12
+
+GUI bridge 구조를 domain module 로 분리하고, 개발 실행 로그의 Rust warning 을 정리한 패치 릴리즈입니다. 사용자-facing 동작은 유지하면서 이후 GUI 기능 확장 시 회귀 위험을 낮췄습니다.
+
+### Changed
+
+- **GUI vib bridge modularization**: `vibelign-gui/src/lib/vib.ts` 의 1,700+줄 command bridge 를 `core`, `docs`, `backup`, `onboarding`, `settings/API key`, `memory/recovery`, `guard/watch`, `errorLogs` domain module 로 분리했습니다.
+- **Root import compatibility 유지**: 기존 GUI import 경로 `src/lib/vib` 는 compatibility barrel 로 유지되어 command card, docs, backup, onboarding, settings flow 의 import 변경 없이 동작합니다.
+
+### Fixed
+
+- **Rust dev warning cleanup**: Tauri dev 실행 시 보이던 `PathBuf` unused import warning 과 CAS prune wrapper dead-code warning 을 정리했습니다.
+
+### Verified
+
+- `npm run build` (vibelign-gui) → passed.
+- `npm run test` (vibelign-gui) → 2 files / 9 tests passed.
+- `cargo check --no-default-features` (vibelign-gui/src-tauri) → passed, Rust warnings cleared.
+- Export/import snapshot → `exports=134`, `needed=99`, `missing=[]`.
+- Tauri command string diff → `missing=[]`, `extra=[]`.
+
+---
+
 ## [2.2.2] — 2026-05-10
 
 DocsViewer 의 HTML 문서 보기 경험과 Windows 경로 안정성을 보강한 패치 릴리즈입니다.

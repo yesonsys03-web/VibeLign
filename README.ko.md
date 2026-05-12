@@ -319,6 +319,12 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.3** — GUI bridge 모듈화 + 개발 로그 정리:
+
+- 🧩 **GUI vib bridge 모듈화** — 거대한 `src/lib/vib.ts` command bridge 를 domain module 로 나누면서 기존 `src/lib/vib` import 경로는 유지했습니다.
+- 🛡️ **계약 보존 리팩토링** — Tauri command string, payload shape, Windows onboarding/env 동작, backup cache singleton 동작을 유지했습니다.
+- 🧹 **Tauri dev 로그 정리** — `npm run tauri dev` 때 보이던 Rust warning 2개를 제거했습니다.
+
 **v2.2.2** — DocsViewer HTML Canvas + Windows 안정화:
 
 - 🧭 **Document Control Map Canvas** — 원문 순서 Outline, Flow, Decisions, Actions, Risks, Glossary 를 시각적으로 재구성하고 bullet 중심 섹션 preview 누락을 `body_preview` 로 보강.
