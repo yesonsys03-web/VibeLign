@@ -23,4 +23,6 @@ mod memory_state;
 mod project_scan;
 mod secret_scan;
 mod security;
+#[allow(dead_code)] // 단계 3 (ipc 노출) 시 제거
+mod tokenizer;
 // === ANCHOR: LIB_END ===
