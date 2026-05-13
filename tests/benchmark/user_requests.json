@@ -62,5 +62,22 @@
     ],
     "correct_anchor": null,
     "notes": "두 리스트 컴포넌트 모두에 pagination(이전/다음) 추가. FileHistoryTable=BACKUPS 탭 '파일 기록' 리스트, BackupDbRowList=백업 DB rows. 각각 ANCHOR: FILEHISTORYTABLE / BACKUPDBROWLIST. multi-file 요청."
+  },
+  {
+    "id": "user-007-patch-card-remove-flags",
+    "request": "패치카드의 —preview --write-report 버튼 삭제해줘.",
+    "project_root": "/Users/topsphinx/Documents/coding/VibeLign",
+    "correct_files": [
+      "vibelign-gui/src/lib/commandData.ts"
+    ],
+    "correct_anchor": "COMMAND_DATA",
+    "baseline_actual_answer": {
+      "file": "vibelign-core/src/backup/restore/preview.rs",
+      "anchor": "PREVIEW",
+      "codespeak": "ui.backup.preview_report_button.remove",
+      "confidence": "low",
+      "trap_reasoning_from_vib_output": "요청 키워드 '--preview' 가 anchor 이름 'PREVIEW' 와 매칭되어 backup/restore/preview.rs 선택. backup 도메인의 미리보기 로직과 GUI Patch 카드의 옵션 버튼 의미적 무관함을 인식 못함."
+    },
+    "notes": "user-004 (Explain 카드 옵션 제거) 와 동일 패턴. commandData.ts 의 patch 명령 entry L536 (`preview`) + L538 (`write-report`) bool 옵션 제거. L526/L528 의 guide 코드 예시는 CLI 플래그 자체 문서이므로 보존 가능. vib patch 실측: 완전히 다른 도메인 (`vibelign-core/src/backup/restore/preview.rs`) 지목 — keyword 함정의 두 번째 명백한 증거. 무비판 실행 시 백업 복구 미리보기 로직 일부가 잘못 삭제되어 vib 의 recover/preview 기능 회귀 가능."
   }
 ]
