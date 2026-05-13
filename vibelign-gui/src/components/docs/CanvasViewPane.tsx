@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DocsVisualArtifact } from "../../lib/vib";
 import type { CanvasStatus } from "./canvasArtifactTrust";
 
@@ -222,7 +222,12 @@ function buildCanvasHtml(artifact: DocsVisualArtifact, status: CanvasStatus, rea
 
 export default function CanvasViewPane({ artifact, status, reason, layout = "default" }: CanvasViewPaneProps) {
   const html = useMemo(() => artifact ? buildCanvasHtml(artifact, status, reason) : "", [artifact, reason, status]);
-  const frameHeight = useMemo(() => artifact ? estimateCanvasFrameHeight(artifact, layout) : CANVAS_BASE_HEIGHT, [artifact, layout]);
+  const estimatedHeight = useMemo(() => artifact ? estimateCanvasFrameHeight(artifact, layout) : CANVAS_BASE_HEIGHT, [artifact, layout]);
+  const [measuredHeight, setMeasuredHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    setMeasuredHeight(null);
+  }, [html]);
 
   if (status === "generating") {
     return <div className="card" style={{ padding: 18 }}><span className="spinner" /> Canvas artifact 생성 중...</div>;
@@ -231,15 +236,35 @@ export default function CanvasViewPane({ artifact, status, reason, layout = "def
     return <div className="card" style={{ padding: 18, lineHeight: 1.7 }}>{reason}</div>;
   }
 
+  const frameHeight = measuredHeight ?? estimatedHeight;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <iframe
         title={`${artifact.title} HTML Canvas`}
         srcDoc={html}
-        sandbox=""
+        // RawHtmlCanvasPane 와 같은 패턴: contentDocument 접근 가능하도록 same-origin
+        // 만 허용 (scripts/forms 는 disabled 유지). Canvas artifact 는 vibelign 내부
+        // 생성 HTML 이라 trusted.
+        sandbox="allow-same-origin"
         loading="lazy"
         referrerPolicy="no-referrer"
-        style={{ width: "100%", height: frameHeight, border: "2px solid #1A1A1A", boxShadow: "4px 4px 0 #1A1A1A", background: "#fff" }}
+        onLoad={(event) => {
+          try {
+            const doc = event.currentTarget.contentDocument;
+            if (!doc) return;
+            const docHeight = Math.max(
+              doc.documentElement?.scrollHeight ?? 0,
+              doc.body?.scrollHeight ?? 0,
+            );
+            if (docHeight > 0) {
+              setMeasuredHeight((prev) => (prev === docHeight + 24 ? prev : docHeight + 24));
+            }
+          } catch {
+            // contentDocument 접근 불가 시 estimate fallback 유지.
+          }
+        }}
+        style={{ width: "100%", height: frameHeight, minHeight: "calc(100vh - 200px)", border: "2px solid #1A1A1A", boxShadow: "4px 4px 0 #1A1A1A", background: "#fff" }}
       />
     </div>
   );
