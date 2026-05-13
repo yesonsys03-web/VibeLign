@@ -319,6 +319,13 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.10** — MCP host-LLM pivot PoC + BACKUPS 페이지네이션 + Explain 카드 옵션 정리:
+
+- 🧠 **신규 MCP 도구** — `anchor_read_content` (앵커 경계 안 텍스트 read, path traversal 방지, `_START`/`_END` 접미사 자동 정규화) + `project_map_get` (프로젝트 카테고리/파일/앵커 인덱스 일괄 반환). host LLM(Claude Code/Cursor)이 사용자 자연어 요청 → 정확한 `file:anchor` 매핑을 직접 수행. 사용자 실 요청 6건에서 baseline `vib patch` 0/6 vs host LLM 6/6 측정.
+- 📋 **BACKUPS 파일 기록 + DB Viewer rows 페이지네이션** — 페이지당 10개, "← 이전 / X / Y 페이지 · M–N / TOTAL / 다음 →" 푸터. 리스트가 누적되어도 예전 항목 다시 볼 수 있음. 검색어 변경 시 1페이지 리셋, 선택 항목이 다른 페이지에 있으면 자동 점프.
+- 🧹 **Explain 카드 `--write-report` / `--json` 옵션 제거** — GUI 카드 flags 에서만 제거 (CLI 의 동일 플래그는 그대로 지원, 다른 명령은 영향 없음).
+- 📚 도그푸딩 증거: `vib patch "gui 익스플레인 카드에서 --write-report --json 옵션은 제거해줘"` → `vib_docs_build_cmd.py` 라는 완전 엉뚱한 파일을 짚음 (JSON 키워드 함정). 신규 MCP 도구로 작업하는 host LLM 은 정답 `commandData.ts` 즉시 짚음. PR #5 description 부록 참조.
+
 **v2.2.9** — v2.2.8 scroll-to-top 버튼이 안 보이던 패치:
 
 - 🔧 **scroll-to-top 이 실제 scroll container 인식** — v2.2.8 의 listener 가 `window.scrollY` 만 보아 mac/Windows 양쪽에서 버튼이 안 보이던 issue. brutalism 레이아웃이 `.page-content` (inner flex child) 에서 scroll 하므로, v2.2.9 가 document 의 capture-phase scroll listener + `.page-content.scrollTop` 직접 읽음. 클릭도 inner container 의 scrollTo 호출.

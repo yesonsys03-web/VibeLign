@@ -8,19 +8,44 @@
 
 ## [Unreleased]
 
+---
+
+## [2.2.10] — 2026-05-13
+
+VibeLign 정체성 pivot 시작점 — **host LLM(Claude Code/Cursor)이 MCP 도구로 직접 file:anchor 매핑**할 수 있는 PoC 인프라 mainlined. 부수로 BACKUPS 페이지네이션 + Explain 카드 옵션 정리.
+
 ### Added
-- MCP `anchor_read_content` 도구 — host LLM이 패치 작성 전 앵커 내부 텍스트를 정확한 경계로 read. 경로 traversal 방지 + minLength 스키마 가드 포함.
-- MCP `project_map_get` 도구 — 프로젝트의 카테고리/파일/앵커 인덱스를 한 번에 반환. 사용자 자연어 요청을 정확한 파일에 매핑하기 위한 host LLM 전역 컨텍스트 도구.
 
-### Tests
-- `tests/benchmark/test_patch_suggester_baseline.py` — patch_suggester 의 file/anchor 정확도 baseline 수치 락 (14/20 file, 0/19 anchor). MCP host-LLM pivot 평가 기준선.
+- **MCP `anchor_read_content` 도구** (`vibelign/mcp/mcp_anchor_handlers.py`): host LLM 이 패치 전 앵커 내부 텍스트를 정확한 경계로 read. path traversal 방지(`fp.relative_to(root)`), `minLength: 1` 스키마 가드, `_START`/`_END` 접미사 자동 정규화 포함.
+- **MCP `project_map_get` 도구** (`vibelign/mcp/mcp_misc_handlers.py`): 프로젝트 카테고리/파일/앵커 인덱스를 raw JSON 으로 반환. host LLM 이 자연어 요청을 정확한 파일에 매핑하기 위한 전역 컨텍스트 도구. non-dict shape 거부 + OSError 메시지 경로 누출 방지.
+- **BACKUPS 탭 + DB Viewer rows pagination** (`FileHistoryTable.tsx`, `BackupDbRowList.tsx`): 페이지당 10개, "이전 / X / Y 페이지 · M–N / TOTAL / 다음" 푸터. 리스트가 누적되면 예전 항목 접근이 어려웠던 문제 해결. FileHistoryTable 은 검색어 변경 시 1페이지 리셋, 선택 항목이 다른 페이지에 있으면 자동 점프.
+- **Baseline 회귀 락** (`tests/benchmark/test_patch_suggester_baseline.py`): rule-based `patch_suggester` 의 file/anchor 매칭 수치(14/20 file, 0/19 anchor) 락. sentinel-driven 검증으로 silent regression 방지.
+- **수동 평가 runbook** (`docs/superpowers/specs/2026-05-13-mcp-host-llm-pivot-eval-runbook.md`): host LLM 정확도 측정 절차 + 의사결정 트리 (성공/부분/실패별 다음 단계 명시).
+- **User requests dataset** (`tests/benchmark/user_requests.json`): 사용자 실 자연어 수정 요청 6 entries (ambiguous case 의 plausible set 확장 포함).
+- **PoC plan + decision artifacts** (`docs/superpowers/plans/2026-05-13-mcp-host-llm-pivot-plan.md`).
 
-### Docs
-- `docs/superpowers/plans/2026-05-13-mcp-host-llm-pivot-plan.md` — PoC 구현 계획.
-- `docs/superpowers/specs/2026-05-13-mcp-host-llm-pivot-eval-runbook.md` — 수동 평가 runbook.
+### Removed
+
+- **Explain 카드의 `--write-report` / `--json` 옵션** (`vibelign-gui/src/lib/commandData.ts`): GUI 카드 flags 배열에서 두 bool 옵션 제거. CLI 의 동일 플래그는 그대로 지원 (다른 명령 - doctor, guard, patch - 도 영향 없음).
+
+### Measured
+
+- `vib patch` baseline vs host-LLM-driven flow 자연 분포 측정: **6 사용자 실 요청 중 baseline 0/6 (0%), fresh blind subagent 6/6 (100%)**. sample_project 인공 시나리오(baseline 14/20) 보다 자연 분포에서 gap 이 훨씬 큼이 입증됨.
+- `vib patch "gui 익스플레인 카드에서 --write-report --json 옵션은 제거해줘"` → `vibelign/commands/vib_docs_build_cmd.py` (오답, JSON 키워드 함정 명시) vs host LLM 은 정답 `commandData.ts` 즉시 짚음. dogfooding 증거 (PR #5 description 부록 참조).
+
+### Verified
+
+- `cargo test --lib` (vibelign-core) — 회귀 없음.
+- `cargo check` (vibelign-gui/src-tauri) — 0 errors.
+- `npx tsc --noEmit` (vibelign-gui) — No errors found.
+- `npm run build` (vibelign-gui) — Vite bundle 정상 생성.
+- `pytest tests/test_mcp_*` — 41 passed (anchor handlers + read content + misc + project_map_get + dispatch + tool snapshot + baseline lock).
+- macOS/Windows GitHub Actions CI — 모두 SUCCESS (PR #4 / #5 / #7).
 
 ### Notes
-- Gemini 경로(`vib patch --ai`, `vibelign/core/ai_codespeak.py`) 는 PoC 단계에서 변경 없음. 평가 결과에 따라 full migration 시 deprecation 검토.
+
+- Gemini 경로 (`vib patch --ai`, `vibelign/core/ai_codespeak.py`) 는 본 릴리즈에서 변경 없음. 평가 결과(0% vs 100% gap)가 일관됨에 따라 다음 마일스톤에서 deprecation 검토.
+- 신규 MCP 도구는 Claude Code/Cursor 가 vibelign-mcp 등록 시 자동 노출. CLI/GUI 동작은 변경 없음.
 
 ---
 

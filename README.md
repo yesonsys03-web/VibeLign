@@ -319,6 +319,13 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.10** — MCP host-LLM pivot PoC + BACKUPS pagination + Explain card cleanup:
+
+- 🧠 **New MCP tools** — `anchor_read_content` (read inside an anchor boundary, path-traversal blocked, `_START`/`_END` suffix auto-normalized) and `project_map_get` (full project category/file/anchor index in one call). Lets host LLMs (Claude Code / Cursor) map natural-language requests to the right `file:anchor` directly. Measured 6/6 = 100% on real user requests vs baseline `vib patch` 0/6.
+- 📋 **BACKUPS file history + DB Viewer rows pagination** — `← prev / X / Y page · M–N / TOTAL / next →` footer in both lists. Earlier entries are reachable again once the list grows beyond a single page. Search reset to page 1, selected entry auto-jumps to its page.
+- 🧹 **Explain card `--write-report` / `--json` options removed** — flags removed from the GUI Explain card (CLI still supports them; other commands unaffected).
+- 📚 Dogfooding evidence: `vib patch "GUI Explain card에서 --write-report --json 제거"` lands on the wrong file (`vib_docs_build_cmd.py`, JSON keyword trap) while a host LLM with the new tools targets `commandData.ts` instantly — see PR #5 description.
+
 **v2.2.9** — Patch fix for the v2.2.8 scroll-to-top button:
 
 - 🔧 **Scroll-to-top now detects the real scroll container** — v2.2.8 listened to `window.scrollY`, but the brutalism layout puts scrolling on `.page-content` (inner flex child), so the button never appeared on macOS or Windows. v2.2.9 adds a capture-phase document scroll listener and reads `.page-content.scrollTop` directly. Clicks also scroll the inner container instead of `window`.
