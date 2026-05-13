@@ -2,7 +2,6 @@
 from pathlib import Path
 import re
 import json
-import os
 import importlib
 from dataclasses import dataclass, asdict
 from typing import Any, Iterable, Optional, Union
@@ -297,35 +296,6 @@ def _meaningful_overlap(
     return list(dict.fromkeys(matches))
 
 
-def _rust_score_path_enabled() -> bool:
-    """score_path 트랙 probe (Session 1) opt-in. `VIBELIGN_RUST_SCORE_PATH=1`."""
-    return os.environ.get("VIBELIGN_RUST_SCORE_PATH", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-    }
-
-
-def _meaningful_overlap_with_rust(
-    request_tokens: list[str], candidate_tokens: list[str]
-) -> list[str] | None:
-    """Probe: route `_meaningful_overlap` to Rust IPC. None on failure → caller falls back."""
-    from vibelign.core.checkpoint_engine.rust_engine import _call_rust_engine_transport
-
-    request = {
-        "command": "meaningful_overlap",
-        "request_tokens": request_tokens,
-        "candidate_tokens": candidate_tokens,
-    }
-    result = _call_rust_engine_transport(Path.cwd(), request, timeout_seconds=5)
-    if not result.ok or result.payload is None:
-        return None
-    matches = result.payload.get("matches")
-    if not isinstance(matches, list):
-        return None
-    return matches
-
-
 def _intent_tokens(text: str) -> set[str]:
     tokens: set[str] = set()
     for raw in re.findall(r"[a-zA-Z0-9_]+|[가-힣]+", text.lower()):
@@ -564,15 +534,7 @@ def score_path(
         score -= 5
         rationale.append("docs/test 경로라 우선순위 낮음")
 
-    if _rust_score_path_enabled():
-        rust_matches = _meaningful_overlap_with_rust(list(request_tokens), list(path_tokens))
-        path_matches = (
-            rust_matches
-            if rust_matches is not None
-            else _meaningful_overlap(request_tokens, path_tokens)
-        )
-    else:
-        path_matches = _meaningful_overlap(request_tokens, path_tokens)
+    path_matches = _meaningful_overlap(request_tokens, path_tokens)
     for token in path_matches:
         if token:
             score += 3
