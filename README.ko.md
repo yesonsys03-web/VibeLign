@@ -319,6 +319,12 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.7** — 복구 후보 추천 지연 ~46% 단축:
+
+- 🚀 **Recovery 패널 가속** — "복구 후보 추천 보기" (Gemini AI 추천) 첫 호출 wall 이 ~25s → ~13.6s 로 단축. LLM prompt 의 commit_message 본문이 prompt 28KB 의 49% 를 차지하던 것을 subject 첫 줄 (200자 cap) 만 보내도록 변경. 추천 quality 는 보존 (LLM 결정은 source/created_at/evidence_score/commit_boundary 같은 metadata 에 의존, verbose commit body 는 unused).
+- 📦 **`score_path.rs` dormant library** — `meaningful_overlap` Rust port + 5 parity tests + ipc variant 가 dormant library 로 추가. score_path 전체 트랙은 skip-rate 측정 결과 leaf-port batch ROI ~0 으로 §9 retraction 됐지만 artifact 는 보존 (미래 사용 + Python alias drift 자동 감지).
+- ✅ 측정-주도 lessons (stub-patch wall diff > cProfile cumtime, skip-rate trap, apples-to-apples harness) 이 본 릴리즈의 prerequisite — `docs/superpowers/plans/2026-05-13-*-plan.md` §9 참조.
+
 **v2.2.6** — GUI 메모리 요약 가속 + tokenizer Rust 토대:
 
 - 🚀 **Phase 3 PoC consumer #13** — `SessionMemoryCard` 마운트가 Python sidecar 호출 대신 in-process Rust (`callEngineDirect({command:"memory_summary_read"})`) 로 전환되어 마운트 시 ~80 ms 지연이 사라졌습니다. audit 로그 parity 는 완전히 보존됩니다.

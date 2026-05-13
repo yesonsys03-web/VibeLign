@@ -10,6 +10,33 @@
 
 ---
 
+## [2.2.7] — 2026-05-13
+
+GUI 의 "복구 후보 추천 보기" (Recovery 패널) 첫 호출 wall 25s → 13.6s (~46% 가속). `_compact_candidate_payload` 의 `commit_message` 가 LLM prompt 의 49% (28KB 중 13.8KB) 를 차지하던 것을 subject + 200자 cap 으로 축소. 추가로 score_path Rust port 트랙의 Session 1 probe artifacts (`score_path.rs::meaningful_overlap` + 5 parity tests + ipc variant) 가 dormant library 로 보존됨 — 트랙 자체는 §9 retraction 으로 종료.
+
+### Performance
+
+- **Recovery 후보 추천 wall ~46% 단축**: `vib recover --recommend --phrase ...` 의 첫 호출 (cache miss) wall **25s → 13.6s** 측정 확인. 원인은 LLM prompt 크기 (28KB) 의 49% 가 commit_message 본문이었던 것 — `_compact_candidate_payload` 가 commit 의 subject 첫 줄 + 200자 cap 으로 보내도록 변경. prompt 28,203 → 15,381 chars (-46%), Gemini Flash 응답 시간이 input 크기에 ~linear 라 wall 도 동일 비율로 감소. quality 영향 없음 (LLM 추천 결정은 source/created_at/evidence_score/commit_boundary 등 metadata 필드에 의존, commit body 의 verbose handoff/plan 세부는 unused).
+
+### Added
+
+- **`vibelign-core/src/score_path.rs::meaningful_overlap`** (dormant library): Python `_meaningful_overlap` 의 1:1 port + 5 parity unit tests. score_path 트랙 §9 retraction 후 dormant 로 보존 — 미래 score_path 통째 port 시도 시 재사용 가능 + Python 측 코드 변경 시 cargo test 가 drift 감지.
+- **`EngineRequest::MeaningfulOverlap` ipc variant** + handler dispatch: GUI/외부 consumer 가 호출 가능. 현재 default-off 의 routing 은 없음 (Python wire 는 retraction 시 revert 됨).
+
+### Verified
+
+- `cargo test --lib` (vibelign-core) → **145 passed** (이전 140 + 신규 score_path parity 5 tests).
+- `cargo check` (vibelign-gui/src-tauri) → 0 errors, 0 warnings.
+- `pytest test_recovery_agent + test_recovery_planner + test_memory_recovery_schemas` → 32 passed, 0 회귀.
+- Wall warm 측정 (cache invalidate 후 fresh phrase): `vib recover --recommend` 25.18s → **13.60s**.
+- prompt 크기 capture: 28,203 chars → **15,381 chars (-46%)**, commit_message 합 13,800 → 1,204 (-91%).
+
+### Notes
+
+- 두 retraction lessons (tokenizer 트랙 §9 + score_path 트랙 §9) 의 측정-주도 룰이 본 가속의 prerequisite — cProfile/pyinstrument cumtime 신뢰 X, stub-patch wall diff + apples-to-apples harness + skip-rate measurement 가 진짜 leverage 식별. 자세한 기록은 `docs/superpowers/plans/2026-05-13-patch-suggester-tokenizer-rust-port-plan.md` §9 + `docs/superpowers/plans/2026-05-13-score-path-rust-port-plan.md` §9 참조.
+
+---
+
 ## [2.2.6] — 2026-05-13
 
 GUI 의 메모리 요약 카드를 Python sidecar 호출에서 in-process Rust 직결로 전환하여 마운트 지연을 제거하고, 향후 score_path 최적화 트랙의 토대로 한국어 토큰 분해 Rust 모듈 (`vibelign-core/src/tokenizer.rs`) 과 102 case × 6 함수 = 612 record 의 parity fixtures 를 dormant library 로 추가했습니다. `_normalize_korean_token` 의 hot loop 에서 매 호출마다 재실행되던 sort 도 module-level pre-sort 로 정리했습니다.

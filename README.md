@@ -319,6 +319,12 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.7** — Recovery recommendation latency cut by ~46%:
+
+- 🚀 **Faster Recovery panel** — first-call wall for "복구 후보 추천 보기" (Gemini AI recommendation) drops from ~25s to ~13.6s. The LLM prompt was bloated with full commit body text (49% of a 28 KB prompt); now only the subject line (200-char cap) is sent. Recommendation quality is preserved since the LLM uses metadata (source, created_at, evidence_score, commit_boundary), not the verbose commit body.
+- 📦 **`score_path.rs` dormant library** — `meaningful_overlap` Rust port + 5 parity tests + ipc variant land as a dormant library. The score_path-wide track was retracted (§9) after skip-rate measurements showed leaf-port batch ROI is ~0, but the artifact is preserved for future use and Python alias drift detection.
+- ✅ Measurement-driven lessons (stub-patch wall diff > cProfile cumtime, skip-rate trap, apples-to-apples harness) drove this release — see `docs/superpowers/plans/2026-05-13-*-plan.md` §9 sections.
+
 **v2.2.6** — GUI memorySummary acceleration + tokenizer Rust groundwork:
 
 - 🚀 **Phase 3 PoC consumer #13** — `SessionMemoryCard` mount now uses in-process Rust (`callEngineDirect({command:"memory_summary_read"})`) instead of a Python sidecar call, removing ~80 ms of mount-time latency. Audit logging parity is fully preserved.
