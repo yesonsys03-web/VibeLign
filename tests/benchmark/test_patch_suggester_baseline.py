@@ -24,9 +24,7 @@ def _normalize(p: str) -> str:
 
 def _file_matches(actual: str, correct_files: list[str]) -> bool:
     a = _normalize(actual)
-    return any(
-        a.endswith(_normalize(c)) or _normalize(c).endswith(a) for c in correct_files
-    )
+    return any(a.endswith(_normalize(c)) for c in correct_files)
 
 
 def _anchor_matches(actual: str, correct_anchor: str | None) -> bool:
@@ -62,18 +60,13 @@ def results() -> list[dict[str, object]]:
 # Pinned after first run on 2026-05-13 against sample_project (20 scenarios).
 BASELINE_FILE_PASSING: int = 14
 BASELINE_ANCHOR_PASSING: int = 0
+ANCHOR_SENTINEL = "[먼저 앵커를 추가하세요]"
 
 
 def test_file_accuracy_baseline(results: list[dict[str, object]]) -> None:
     """Lock current file-level matching count. Update value if intentional change."""
     passing = sum(1 for r in results if r["file_ok"])
     failed = [r["id"] for r in results if not r["file_ok"]]
-    if BASELINE_FILE_PASSING is None:
-        pytest.fail(
-            f"BASELINE_FILE_PASSING is unset. Observed passing={passing} "
-            f"out of {len(results)} scenarios. Failed: {failed}. "
-            f"Update BASELINE_FILE_PASSING to {passing} and re-run."
-        )
     assert passing == BASELINE_FILE_PASSING, (
         f"file accuracy regression — passing={passing}, "
         f"baseline={BASELINE_FILE_PASSING}.\n"
@@ -86,14 +79,24 @@ def test_anchor_accuracy_baseline(results: list[dict[str, object]]) -> None:
     anchor_scenarios = [r for r in results if r["correct_anchor"] is not None]
     passing = sum(1 for r in anchor_scenarios if r["anchor_ok"])
     failed = [r["id"] for r in anchor_scenarios if not r["anchor_ok"]]
-    if BASELINE_ANCHOR_PASSING is None:
-        pytest.fail(
-            f"BASELINE_ANCHOR_PASSING is unset. Observed passing={passing} "
-            f"out of {len(anchor_scenarios)} anchor-pinned scenarios. "
-            f"Failed: {failed}. Update BASELINE_ANCHOR_PASSING to {passing} and re-run."
-        )
     assert passing == BASELINE_ANCHOR_PASSING, (
         f"anchor accuracy regression — passing={passing}, "
         f"baseline={BASELINE_ANCHOR_PASSING}.\n"
         f"failed: {failed}"
+    )
+
+
+def test_anchor_baseline_is_sentinel_driven(results: list[dict[str, object]]) -> None:
+    """The anchor baseline of 0 must be caused by the no-anchors-in-sample sentinel,
+    not by wrong-but-real anchor names. If sample_project gains anchors later or the
+    sentinel string changes, this test fails loudly so the baseline can be recalibrated."""
+    anchor_scenarios = [r for r in results if r["correct_anchor"] is not None]
+    non_sentinel = [
+        {"id": r["id"], "got_anchor": r["got_anchor"]}
+        for r in anchor_scenarios
+        if r["got_anchor"] != ANCHOR_SENTINEL
+    ]
+    assert non_sentinel == [], (
+        f"Expected all anchor failures to be sentinel returns ({ANCHOR_SENTINEL!r}), "
+        f"but got non-sentinel answers: {non_sentinel}"
     )
