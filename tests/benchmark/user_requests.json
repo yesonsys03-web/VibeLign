@@ -1,0 +1,31 @@
+[
+  {
+    "id": "user-001-backup-external",
+    "request": "백업 저장 경로가 지금은 프로젝트 폴더 내에 있는데, 이걸 외부에 저장해도 문제 없게 수정해줘.",
+    "project_root": "/Users/topsphinx/Documents/coding/VibeLign",
+    "uncertain": true,
+    "correct_files": [
+      "vibelign/core/meta_paths.py",
+      "vibelign-core/src/security/path_guard.rs",
+      "vibelign-core/src/backup/disk.rs"
+    ],
+    "correct_anchor": null,
+    "notes": "Ground truth uncertain (사용자 본인도 모르겠다고 표명). 가장 작은 패치는 meta_paths.py(checkpoints_dir 정의), 보안 게이트 path_guard.rs, 실제 저장 disk.rs 중 어느 하나가 진짜 진입점인지는 구현 시점에 결정. eval에서는 이 셋 중 하나라도 짚으면 '합리적 답'으로 인정."
+  },
+  {
+    "id": "user-002-onboarding-version",
+    "request": "프로그램 시작 화면에서 바이브라인 버전 정보 표시해줘.",
+    "project_root": "/Users/topsphinx/Documents/coding/VibeLign",
+    "correct_files": ["vibelign-gui/src/pages/Onboarding.tsx"],
+    "correct_anchor": "ONBOARDING",
+    "notes": "Home.tsx에는 이미 v{pkg.version} 표시 있음(L460). 사용자는 첫 진입 화면 Onboarding 의도. Onboarding.tsx에 현재 version 표시 0건."
+  },
+  {
+    "id": "user-003-onboarding-path-label",
+    "request": "시작화면 프로젝트 폴더 경로 옆에 \"바이브라인 시작은 이곳\"이라고 표시해줘.",
+    "project_root": "/Users/topsphinx/Documents/coding/VibeLign",
+    "correct_files": ["vibelign-gui/src/pages/Onboarding.tsx"],
+    "correct_anchor": "ONBOARDING",
+    "notes": "Onboarding.tsx L1099-1106의 'placeholder=\"프로젝트 폴더 경로...\"' input 옆에 라벨 추가."
+  }
+]
