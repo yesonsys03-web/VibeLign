@@ -319,6 +319,10 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.9** — v2.2.8 scroll-to-top 버튼이 안 보이던 패치:
+
+- 🔧 **scroll-to-top 이 실제 scroll container 인식** — v2.2.8 의 listener 가 `window.scrollY` 만 보아 mac/Windows 양쪽에서 버튼이 안 보이던 issue. brutalism 레이아웃이 `.page-content` (inner flex child) 에서 scroll 하므로, v2.2.9 가 document 의 capture-phase scroll listener + `.page-content.scrollTop` 직접 읽음. 클릭도 inner container 의 scrollTo 호출.
+
 **v2.2.8** — GUI UX 수정 두 건 + scroll-to-top 버튼:
 
 - 🔧 **복구 후보 추천 — 후보별 AI 설명 표시** — LLM 의 candidate-specific `reason` 필드가 rule-based 근거 아래 별도로 표시되도록 변경. 3 후보가 동일한 "근거" 문구를 보이던 issue 해결. rule-based 5 항목 문구도 친화화 (예: "커밋 직후 저장" → "코드 저장 직후 만든 백업").

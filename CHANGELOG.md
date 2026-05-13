@@ -10,6 +10,20 @@
 
 ---
 
+## [2.2.9] — 2026-05-13
+
+v2.2.8 의 scroll-to-top floating 버튼이 mac/Windows 양쪽에서 안 보이던 issue 의 패치 릴리즈.
+
+### Fixed
+
+- **scroll-to-top 버튼 — 실제 scroll container 인식** (`ScrollToTopButton.tsx`): `brutalism.css` 의 `.app-layout { height: 100vh; overflow: hidden }` + `.page-content { flex: 1; overflow-y: auto }` 구조라 실제 scroll container 는 `window` 가 아닌 `.page-content`. v2.2.8 의 listener 가 `window.addEventListener("scroll")` + `window.scrollY` 만 사용 → inner container 의 scroll 못 잡아 버튼 visibility toggle 미발동. 수정: `document.addEventListener("scroll", ..., { capture: true })` 추가 (scroll event 는 bubble 안 하지만 capture phase 에서 받음). `getActiveScrollContainer()` helper 로 `.page-content` element 찾고, `container?.scrollTop ?? window.scrollY` 로 visibility 판정, click 시 container scrollTo 우선.
+
+### Verified
+
+- `npx tsc --noEmit` (vibelign-gui) → No errors found.
+
+---
+
 ## [2.2.8] — 2026-05-13
 
 GUI 의 두 UX issue 수정 — "복구 후보 추천 보기" 의 후보별 차이 정보 누락 + "CANVAS / RAW HTML" 화면의 iframe 잘림. 추가로 모든 페이지에 scroll-to-top floating 버튼.

@@ -319,6 +319,10 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.9** — Patch fix for the v2.2.8 scroll-to-top button:
+
+- 🔧 **Scroll-to-top now detects the real scroll container** — v2.2.8 listened to `window.scrollY`, but the brutalism layout puts scrolling on `.page-content` (inner flex child), so the button never appeared on macOS or Windows. v2.2.9 adds a capture-phase document scroll listener and reads `.page-content.scrollTop` directly. Clicks also scroll the inner container instead of `window`.
+
 **v2.2.8** — Two GUI UX fixes + scroll-to-top button:
 
 - 🔧 **Recovery panel — per-candidate AI explanation visible** — the LLM's candidate-specific `reason` field now renders below the rule-based safety details, so the three recommendations no longer share an identical "근거" line. Rule-based bullets were also softened (e.g. "커밋 직후 저장" → "코드 저장 직후 만든 백업").
