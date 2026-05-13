@@ -49,3 +49,8 @@ exclude = [
     "tests/benchmark",
     "vibelign-gui/src-tauri/target",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
