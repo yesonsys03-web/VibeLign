@@ -7,6 +7,7 @@ use crate::config;
 use crate::memory_audit::{self, MemoryAuditEventBuilder};
 use crate::memory_state;
 use crate::project_scan;
+use crate::score_path;
 use crate::secret_scan;
 
 use super::protocol::{EngineRequest, EngineResponse, ResponseCheckpoint, ResponseFile};
@@ -496,6 +497,13 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
                 payload,
             }
         }
+        EngineRequest::MeaningfulOverlap {
+            request_tokens,
+            candidate_tokens,
+        } => EngineResponse::MeaningfulOverlapOk {
+            result: "meaningful_overlap".to_string(),
+            matches: score_path::meaningful_overlap(&request_tokens, &candidate_tokens),
+        },
     }
 }
 

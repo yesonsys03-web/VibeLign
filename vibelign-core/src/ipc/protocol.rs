@@ -106,6 +106,10 @@ pub enum EngineRequest {
         #[serde(default = "default_memory_tool")]
         tool: String,
     },
+    MeaningfulOverlap {
+        request_tokens: Vec<String>,
+        candidate_tokens: Vec<String>,
+    },
 }
 
 fn default_memory_tool() -> String {
@@ -214,6 +218,11 @@ pub enum EngineResponse {
     MemorySummaryReadOk {
         result: String,
         payload: serde_json::Value,
+    },
+    #[serde(rename = "ok")]
+    MeaningfulOverlapOk {
+        result: String,
+        matches: Vec<String>,
     },
 }
 

@@ -21,6 +21,7 @@ pub mod ipc;
 mod memory_audit;
 mod memory_state;
 mod project_scan;
+mod score_path;
 mod secret_scan;
 mod security;
 #[allow(dead_code)] // 단계 3 (ipc 노출) 시 제거
