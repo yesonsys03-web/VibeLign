@@ -10,6 +10,36 @@
 
 ---
 
+## [2.2.11] — 2026-05-13
+
+v2.2.10 측정 데이터(`vib patch` baseline 0/7 on 사용자 실 자연어 요청) 후속으로, GUI 의 Patch 카드를 노출에서 제거. CLI `vib patch` 는 변경 없음.
+
+### Removed
+
+- **GUI Patch 카드 노출** (`vibelign-gui/src/hooks/useCardOrder.ts`): `DEFAULT_CARD_ORDER` 에서 `"patch"` 토큰 제거. 신규/기존 사용자 모두 Home 카드 목록에서 더 이상 보이지 않음. 기존 사용자의 saved card-order 는 `useCardOrder.ts:26` 의 filter 가 자동 정리.
+
+### Why
+
+v2.2.10 데이터셋 7 entries 전부에서 `vib patch` 가 무관한 파일을 지목 (keyword trap):
+- user-004: `--json` 키워드 → `vib_docs_build_cmd.py` (오답)
+- user-007: `--preview` 키워드 → `vibelign-core/src/backup/restore/preview.rs` (오답, 무비판 실행 시 vib 의 `recover --preview` 기능 회귀 가능)
+
+GUI 사용자가 이 카드의 부정확한 출력을 무비판적으로 따를 위험이 가장 큼. CLI 는 사용자가 직접 검토 후 적용하는 흐름이라 risk 가 다름.
+
+### Notes
+
+- CLI `vib patch` 명령: 변경 없음. 다음 마일스톤에서 별도 deprecation 검토.
+- `PatchCard.tsx` import + `Home.tsx:115` 의 `case "patch":` 는 dead code 로 보존 — trivial re-enable 옵션 유지.
+- `commandData.ts` 의 patch 명령 정의 + `Manual` / `Help` 페이지의 patch 문서는 보존됨.
+
+### Verified
+
+- `npm run build` (vibelign-gui) — 통과.
+- `npm test` — pre-existing DocsViewer 2 fail 동일, patch-hide 무관.
+- macOS/Windows GitHub Actions CI — 모두 SUCCESS (PR #8).
+
+---
+
 ## [2.2.10] — 2026-05-13
 
 VibeLign 정체성 pivot 시작점 — **host LLM(Claude Code/Cursor)이 MCP 도구로 직접 file:anchor 매핑**할 수 있는 PoC 인프라 mainlined. 부수로 BACKUPS 페이지네이션 + Explain 카드 옵션 정리.

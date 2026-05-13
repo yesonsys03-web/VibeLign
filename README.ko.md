@@ -319,6 +319,10 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.11** — GUI Patch 카드 노출 제거 (정확도 기반 deprecation):
+
+- 🚫 **Patch 카드 기본 노출에서 제거** — v2.2.10 측정에서 `vib patch` 자연 분포 정확도가 사용자 실 요청 7건 중 0건이었음 (키워드 함정: `--json` → 무관한 Python docs 명령 파일, `--preview` → 무관한 backup-restore 파일). 사용자가 출력을 무비판적으로 따를 경우 무관 파일이 잘못 수정될 위험이 가장 큰 surface 였음. 신규/기존 사용자 모두 Home 카드 목록에서 더 이상 보이지 않음. CLI `vib patch` 는 그대로 유지. 자연어 패치는 Claude Code / Cursor 에서 직접 (vibelign-mcp 는 `vib start` 시 자동 등록).
+
 **v2.2.10** — MCP host-LLM pivot PoC + BACKUPS 페이지네이션 + Explain 카드 옵션 정리:
 
 - 🧠 **신규 MCP 도구** — `anchor_read_content` (앵커 경계 안 텍스트 read, path traversal 방지, `_START`/`_END` 접미사 자동 정규화) + `project_map_get` (프로젝트 카테고리/파일/앵커 인덱스 일괄 반환). host LLM(Claude Code/Cursor)이 사용자 자연어 요청 → 정확한 `file:anchor` 매핑을 직접 수행. 사용자 실 요청 6건에서 baseline `vib patch` 0/6 vs host LLM 6/6 측정.

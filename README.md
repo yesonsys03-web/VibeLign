@@ -319,6 +319,10 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.11** — Patch card hidden from GUI (accuracy-driven deprecation):
+
+- 🚫 **GUI Patch card removed from default order** — `vib patch`'s natural-distribution accuracy was measured at 0/7 across real user requests (keyword traps: `--json` → wrong Python doc command, `--preview` → unrelated backup-restore file). Users blindly following the output risked corrupting unrelated files. The card no longer appears in the Home grid for new or existing users. CLI `vib patch` itself is unchanged for now. Use Claude Code / Cursor with vibelign-mcp (auto-registered by `vib start`) for natural-language patching instead.
+
 **v2.2.10** — MCP host-LLM pivot PoC + BACKUPS pagination + Explain card cleanup:
 
 - 🧠 **New MCP tools** — `anchor_read_content` (read inside an anchor boundary, path-traversal blocked, `_START`/`_END` suffix auto-normalized) and `project_map_get` (full project category/file/anchor index in one call). Lets host LLMs (Claude Code / Cursor) map natural-language requests to the right `file:anchor` directly. Measured 6/6 = 100% on real user requests vs baseline `vib patch` 0/6.
