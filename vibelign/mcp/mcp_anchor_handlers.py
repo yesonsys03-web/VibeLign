@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol, cast
@@ -214,7 +215,7 @@ def handle_anchor_read_content(
         err = {"ok": False, "error": "anchor_name is required", "data": None}
         return _text(text_content, json.dumps(err, ensure_ascii=False))
     file_rel = file_raw.strip()
-    anchor_name = anchor_raw.strip()
+    anchor_name = re.sub(r"_(START|END)$", "", anchor_raw.strip())
     fp = (root / file_rel).resolve()
     root_resolved = root.resolve()
     try:

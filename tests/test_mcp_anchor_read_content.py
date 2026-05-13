@@ -87,6 +87,30 @@ def test_read_content_rejects_blank_strings(tmp_path: Path) -> None:
     assert json.loads(r2[0]["text"])["ok"] is False
 
 
+def test_read_content_strips_start_end_suffix(tmp_path: Path) -> None:
+    """If the caller passes 'FOO_START' or 'FOO_END' (the literal marker name),
+    the handler should normalize to 'FOO' rather than returning anchor-not-found."""
+    _write_sample(tmp_path)
+    # passing _START suffix
+    r1 = handle_anchor_read_content(
+        tmp_path,
+        {"file": "sample.py", "anchor_name": "FOO_START"},
+        _factory,
+    )
+    payload = json.loads(r1[0]["text"])
+    assert payload["ok"] is True
+    assert "def foo()" in payload["data"]["content"]
+    # passing _END suffix
+    r2 = handle_anchor_read_content(
+        tmp_path,
+        {"file": "sample.py", "anchor_name": "FOO_END"},
+        _factory,
+    )
+    payload = json.loads(r2[0]["text"])
+    assert payload["ok"] is True
+    assert "def foo()" in payload["data"]["content"]
+
+
 def test_read_content_rejects_path_outside_root(tmp_path: Path) -> None:
     """Path traversal must be blocked even if the resolved file exists."""
     _write_sample(tmp_path)
