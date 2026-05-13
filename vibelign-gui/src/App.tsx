@@ -1,6 +1,7 @@
 // === ANCHOR: APP_START ===
 import { useState, useEffect, Component, ReactNode, ErrorInfo } from "react";
 import CustomTitleBar from "./components/CustomTitleBar";
+import ScrollToTopButton from "./components/ScrollToTopButton";
 import UpdateBanner from "./components/UpdateBanner";
 import Onboarding from "./pages/Onboarding";
 import Doctor from "./pages/Doctor";
@@ -212,6 +213,7 @@ export default function App() {
           </>
         )}
       </ErrorBoundary>
+      <ScrollToTopButton />
     </div>
   );
 }
