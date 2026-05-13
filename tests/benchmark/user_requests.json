@@ -6,11 +6,13 @@
     "uncertain": true,
     "correct_files": [
       "vibelign/core/meta_paths.py",
+      "vibelign/core/checkpoint_engine/python_engine.py",
+      "vibelign/core/config_loader.py",
       "vibelign-core/src/security/path_guard.rs",
       "vibelign-core/src/backup/disk.rs"
     ],
     "correct_anchor": null,
-    "notes": "Ground truth uncertain (사용자 본인도 모르겠다고 표명). 가장 작은 패치는 meta_paths.py(checkpoints_dir 정의), 보안 게이트 path_guard.rs, 실제 저장 disk.rs 중 어느 하나가 진짜 진입점인지는 구현 시점에 결정. eval에서는 이 셋 중 하나라도 짚으면 '합리적 답'으로 인정."
+    "notes": "Ground truth uncertain (사용자 본인도 모르겠다고 표명). 최소 5가지 plausible 진입점이 존재: (a) meta_paths.py의 checkpoints_dir 정의 변경, (b) python_engine.py 의 `.vibelign/vibelign.db` 하드코딩 경로 외부화, (c) config_loader.py 에 새 config 키 추가, (d) Rust 보안 게이트 path_guard.rs 의 containment 정책 완화, (e) Rust 백업 엔진 disk.rs 의 저장 경로 결정. 모두 정당. eval에서는 이 다섯 중 하나라도 짚으면 '합리적 답'으로 인정. 사용자 의도가 'snapshot dir' vs 'DB file' 둘 중 무엇인지에 따라 답이 달라짐."
   },
   {
     "id": "user-002-onboarding-version",
@@ -27,5 +29,27 @@
     "correct_files": ["vibelign-gui/src/pages/Onboarding.tsx"],
     "correct_anchor": "ONBOARDING",
     "notes": "Onboarding.tsx L1099-1106의 'placeholder=\"프로젝트 폴더 경로...\"' input 옆에 라벨 추가."
+  },
+  {
+    "id": "user-004-explain-card-remove-flags",
+    "request": "gui 익스플레인 카드에서 --write-report --json 옵션은 제거해줘.",
+    "project_root": "/Users/topsphinx/Documents/coding/VibeLign",
+    "correct_files": [
+      "vibelign-gui/src/lib/commandData.ts",
+      "vibelign-gui/src/components/cards/ai/ExplainCard.tsx"
+    ],
+    "correct_anchor": "COMMAND_DATA",
+    "notes": "commandData.ts L210-211에 'write-report'/'json' bool 옵션 정의됨. ExplainCard.tsx는 COMMANDS.find(c => c.name === 'explain') 결과를 렌더링. 가장 작은 패치는 commandData.ts에서 두 옵션 제거. ExplainCard.tsx는 데이터 변경만으로 자동 반영되므로 primary가 아니지만, 카드 자체에서 필터링하는 변형도 plausible."
+  },
+  {
+    "id": "user-005-manual-tab-stuck-active",
+    "request": "메뉴얼 카드에서 특정 메뉴얼 카드 진입하고 목록 버튼으로 홈까지 빠져나와도 메뉴얼 탭이 활성화되어 있어서 다시메뉴얼 눌러로 메뉴얼로 진입하지 않는 버그 수정해줘.",
+    "project_root": "/Users/topsphinx/Documents/coding/VibeLign",
+    "correct_files": [
+      "vibelign-gui/src/pages/Home.tsx",
+      "vibelign-gui/src/App.tsx"
+    ],
+    "correct_anchor": "HOME",
+    "notes": "Home.tsx가 내부 view 상태(manual_list/manual_detail/home) 보유(L127, L147). App.tsx가 별도 page 상태('home'|'manual'|...) 보유 (L58). 사용자가 manual_detail→manual_list→내부 home으로 가도 App.tsx의 page='manual' 그대로 유지 → 탭은 active. 다시 manual 탭 클릭해도 setPage('manual') no-op (이미 manual)이라 Home의 initialView가 재적용 안 됨. Primary fix는 Home.tsx에서 내부 'home view'로 갈 때 onNavigate('home') 호출하여 App 상태 동기화, 또는 App.tsx의 nav 클릭 핸들러가 force re-mount하도록 변경. 두 파일 모두 plausible."
   }
 ]
