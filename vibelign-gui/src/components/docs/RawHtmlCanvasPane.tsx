@@ -71,7 +71,10 @@ export default function RawHtmlCanvasPane({ html, status, reason }: RawHtmlCanva
             // sandbox 또는 cross-origin 으로 contentDocument 접근 불가 — estimate fallback 유지.
           }
         }}
-        style={{ width: "100%", height: frameHeight, border: "2px solid #1A1A1A", boxShadow: "4px 4px 0 #1A1A1A", background: "#fff" }}
+        // height = 측정값(우선) → estimate(fallback). minHeight 로 viewport-fit
+        // 보장: content 가 짧으면 app window 만큼 차지, 길면 page natural scroll
+        // (왼쪽 사이드처럼). 둘 다 만족.
+        style={{ width: "100%", height: frameHeight, minHeight: "calc(100vh - 200px)", border: "2px solid #1A1A1A", boxShadow: "4px 4px 0 #1A1A1A", background: "#fff" }}
       />
     </div>
   );
