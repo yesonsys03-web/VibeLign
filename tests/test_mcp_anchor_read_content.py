@@ -68,3 +68,42 @@ def test_read_content_requires_args(tmp_path: Path) -> None:
     assert json.loads(r1[0]["text"])["ok"] is False
     r2 = handle_anchor_read_content(tmp_path, {"file": "x.py"}, _factory)
     assert json.loads(r2[0]["text"])["ok"] is False
+
+
+def test_read_content_rejects_blank_strings(tmp_path: Path) -> None:
+    # blank file arg
+    r1 = handle_anchor_read_content(
+        tmp_path,
+        {"file": "   ", "anchor_name": "FOO"},
+        _factory,
+    )
+    assert json.loads(r1[0]["text"])["ok"] is False
+    # blank anchor_name arg
+    r2 = handle_anchor_read_content(
+        tmp_path,
+        {"file": "x.py", "anchor_name": "   "},
+        _factory,
+    )
+    assert json.loads(r2[0]["text"])["ok"] is False
+
+
+def test_read_content_rejects_path_outside_root(tmp_path: Path) -> None:
+    """Path traversal must be blocked even if the resolved file exists."""
+    _write_sample(tmp_path)
+    # Create a sibling file outside the root
+    outside_dir = tmp_path.parent / "outside"
+    outside_dir.mkdir(exist_ok=True)
+    outside_file = outside_dir / "secret.py"
+    outside_file.write_text(
+        "# === ANCHOR: SECRET_START ===\nSECRET = 42\n# === ANCHOR: SECRET_END ===\n",
+        encoding="utf-8",
+    )
+    result = handle_anchor_read_content(
+        tmp_path,
+        {"file": "../outside/secret.py", "anchor_name": "SECRET"},
+        _factory,
+    )
+    payload = json.loads(result[0]["text"])
+    assert payload["ok"] is False
+    # The error should indicate the boundary violation, not leak the contents
+    assert "SECRET = 42" not in (payload.get("error") or "")

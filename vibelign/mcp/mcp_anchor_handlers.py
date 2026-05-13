@@ -216,6 +216,16 @@ def handle_anchor_read_content(
     file_rel = file_raw.strip()
     anchor_name = anchor_raw.strip()
     fp = (root / file_rel).resolve()
+    root_resolved = root.resolve()
+    try:
+        fp.relative_to(root_resolved)
+    except ValueError:
+        err = {
+            "ok": False,
+            "error": f"file path escapes project root: {file_rel}",
+            "data": None,
+        }
+        return _text(text_content, json.dumps(err, ensure_ascii=False))
     if not fp.is_file():
         err = {
             "ok": False,
