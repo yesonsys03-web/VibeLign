@@ -390,7 +390,6 @@ def _handle_anchor_read_content(
 def _handle_project_map_get(
     root: Path, arguments: dict[str, object], text_content: TextContentFactory
 ) -> list[object]:
-    _ = arguments
     return _misc_handlers().handle_project_map_get(root, arguments, text_content)
 
 

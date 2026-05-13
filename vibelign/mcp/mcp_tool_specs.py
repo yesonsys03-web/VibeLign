@@ -498,10 +498,12 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
             "properties": {
                 "file": {
                     "type": "string",
+                    "minLength": 1,
                     "description": "프로젝트 루트 기준 상대 경로",
                 },
                 "anchor_name": {
                     "type": "string",
+                    "minLength": 1,
                     "description": "ANCHOR: <NAME>_START / _END 의 NAME",
                 },
             },

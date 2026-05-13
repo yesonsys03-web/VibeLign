@@ -174,5 +174,23 @@ class McpToolSnapshotTest(unittest.TestCase):
         self.assertEqual(by_name["transfer_set_relevant"].inputSchema["required"], ["path"])
 
 
+    def test_anchor_read_content_schema_requires_non_empty_strings(self) -> None:
+        from vibelign.mcp.mcp_tool_specs import TOOL_SPECS
+
+        matches = [s for s in TOOL_SPECS if s["name"] == "anchor_read_content"]
+        self.assertEqual(len(matches), 1)
+        spec = matches[0]
+        schema = spec["inputSchema"]
+        props = cast(dict[str, object], schema["properties"])
+        file_prop = cast(dict[str, object], props["file"])
+        anchor_prop = cast(dict[str, object], props["anchor_name"])
+        self.assertEqual(
+            file_prop.get("minLength"), 1, "file must enforce minLength=1 to match handler"
+        )
+        self.assertEqual(
+            anchor_prop.get("minLength"), 1, "anchor_name must enforce minLength=1 to match handler"
+        )
+
+
 if __name__ == "__main__":
     _ = unittest.main()
