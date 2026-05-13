@@ -10,6 +10,33 @@
 
 ---
 
+## [2.2.8] — 2026-05-13
+
+GUI 의 두 UX issue 수정 — "복구 후보 추천 보기" 의 후보별 차이 정보 누락 + "CANVAS / RAW HTML" 화면의 iframe 잘림. 추가로 모든 페이지에 scroll-to-top floating 버튼.
+
+### Added
+
+- **scroll-to-top floating 버튼** (`ScrollToTopButton.tsx`): `window.scrollY > 300` 시 우하단에 표시되는 buttons (브루탈리즘 스타일, ↑ glyph). 클릭 시 `window.scrollTo({ top: 0, behavior: "smooth" })`. App root level 에 한 번 render 되어 모든 page (Home / Doctor / DocsViewer / BackupDashboard / ErrorLogs / Settings / Onboarding) 공통 사용.
+
+### Fixed
+
+- **GUI 복구 후보 추천 — AI candidate-specific reason 추가 표시 + 문구 친화화** (`RecoveryOptionsCard.tsx`): 3 후보가 모두 동일한 "근거" 문구를 보이던 issue. 진짜 차이를 표현하는 LLM `candidate.reason` 필드가 GUI 에 표시 안 됨이 원인. `<div>AI 설명: {candidate.reason}</div>` 추가로 candidate-specific 설명 표시 (한국어 phrase 시 LLM 이 한국어 reason 반환). rule-based 5 항목 문구도 기술용어 제거 ("커밋 직후 저장" → "코드 저장 직후 만든 백업" / "최근 검증 기록 없음" → "확인 안 한 시점" 등).
+- **GUI CANVAS / RAW HTML 화면 — content-aware iframe 높이 + viewport-fit** (`CanvasViewPane.tsx`, `RawHtmlCanvasPane.tsx`): 두 view mode 의 iframe 이 markup 휴리스틱 추정에 의존하던 fixed-height 사용 → 추정 부족 시 content 잘리고 iframe 내부 스크롤바 생성. `sandbox="allow-same-origin"` 추가 (scripts/forms 여전히 disabled) + `onLoad` 핸들러로 `contentDocument.documentElement.scrollHeight + body.scrollHeight max + 24px margin` 측정 → height state 갱신. `minHeight: calc(100vh - 200px)` 추가로 short content 도 app window viewport 만큼 차지. 결과: content 가 짧으면 viewport-fit, 길면 page natural scroll (왼쪽 사이드처럼). iframe 안 별도 스크롤바 없음.
+
+### Verified
+
+- `cargo test --lib` (vibelign-core) → 145 passed.
+- `cargo check` (vibelign-gui/src-tauri) → 0 errors, 0 warnings.
+- `npx tsc --noEmit` (vibelign-gui) → No errors found.
+- `pytest test_recovery_*` → 32 passed, 0 회귀 (recovery 변경 없음, agent.py 의 prompt 축소는 v2.2.7 의 변경).
+
+### Notes
+
+- 본 릴리즈는 모두 user-facing UX fix — 측정/lessons 적용보다 직접 보고된 issue 의 정직한 수정.
+- CanvasViewPane 와 RawHtmlCanvasPane 가 같은 iframe + fixed-height anti-pattern 이었음 — 두 component 모두 동일 fix 적용.
+
+---
+
 ## [2.2.7] — 2026-05-13
 
 GUI 의 "복구 후보 추천 보기" (Recovery 패널) 첫 호출 wall 25s → 13.6s (~46% 가속). `_compact_candidate_payload` 의 `commit_message` 가 LLM prompt 의 49% (28KB 중 13.8KB) 를 차지하던 것을 subject + 200자 cap 으로 축소. 추가로 score_path Rust port 트랙의 Session 1 probe artifacts (`score_path.rs::meaningful_overlap` + 5 parity tests + ipc variant) 가 dormant library 로 보존됨 — 트랙 자체는 §9 retraction 으로 종료.

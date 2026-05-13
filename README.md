@@ -319,6 +319,12 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.8** — Two GUI UX fixes + scroll-to-top button:
+
+- 🔧 **Recovery panel — per-candidate AI explanation visible** — the LLM's candidate-specific `reason` field now renders below the rule-based safety details, so the three recommendations no longer share an identical "근거" line. Rule-based bullets were also softened (e.g. "커밋 직후 저장" → "코드 저장 직후 만든 백업").
+- 🔧 **CANVAS / RAW HTML viewer — content-aware iframe height** — both `CanvasViewPane` and `RawHtmlCanvasPane` switched from a heuristic-only fixed height to `onLoad` content measurement (sandbox keeps scripts/forms disabled, only `allow-same-origin` added). A `minHeight: calc(100vh - 200px)` ensures the iframe also fills the app viewport for short documents. No more internal scrollbars; long content scrolls with the page like the left sidebar.
+- ⬆️ **Scroll-to-top floating button** — a bottom-right floating button (visible after scrolling past 300px) smooth-scrolls to top on click. Available on every page.
+
 **v2.2.7** — Recovery recommendation latency cut by ~46%:
 
 - 🚀 **Faster Recovery panel** — first-call wall for "복구 후보 추천 보기" (Gemini AI recommendation) drops from ~25s to ~13.6s. The LLM prompt was bloated with full commit body text (49% of a 28 KB prompt); now only the subject line (200-char cap) is sent. Recommendation quality is preserved since the LLM uses metadata (source, created_at, evidence_score, commit_boundary), not the verbose commit body.

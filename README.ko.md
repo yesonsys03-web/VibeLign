@@ -319,6 +319,12 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.8** — GUI UX 수정 두 건 + scroll-to-top 버튼:
+
+- 🔧 **복구 후보 추천 — 후보별 AI 설명 표시** — LLM 의 candidate-specific `reason` 필드가 rule-based 근거 아래 별도로 표시되도록 변경. 3 후보가 동일한 "근거" 문구를 보이던 issue 해결. rule-based 5 항목 문구도 친화화 (예: "커밋 직후 저장" → "코드 저장 직후 만든 백업").
+- 🔧 **CANVAS / RAW HTML 화면 — iframe 세로가 content/앱 UI 와 맞춰짐** — `CanvasViewPane` 와 `RawHtmlCanvasPane` 둘 다 휴리스틱 추정 fixed-height 에서 `onLoad` content 측정 + `minHeight: calc(100vh - 200px)` 로 변경 (sandbox 는 scripts/forms 여전히 disabled, `allow-same-origin` 만 추가). 짧은 문서는 앱 viewport 만큼 차지, 긴 문서는 왼쪽 사이드처럼 page natural scroll. iframe 안 별도 스크롤바 없음.
+- ⬆️ **scroll-to-top floating 버튼** — 페이지 스크롤이 300px 넘으면 우하단에 ↑ 버튼 표시, 클릭 시 부드럽게 최상단으로 이동. 모든 페이지 공통.
+
 **v2.2.7** — 복구 후보 추천 지연 ~46% 단축:
 
 - 🚀 **Recovery 패널 가속** — "복구 후보 추천 보기" (Gemini AI 추천) 첫 호출 wall 이 ~25s → ~13.6s 로 단축. LLM prompt 의 commit_message 본문이 prompt 28KB 의 49% 를 차지하던 것을 subject 첫 줄 (200자 cap) 만 보내도록 변경. 추천 quality 는 보존 (LLM 결정은 source/created_at/evidence_score/commit_boundary 같은 metadata 에 의존, verbose commit body 는 unused).
