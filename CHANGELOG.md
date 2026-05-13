@@ -8,6 +8,20 @@
 
 ## [Unreleased]
 
+### Added
+- MCP `anchor_read_content` 도구 — host LLM이 패치 작성 전 앵커 내부 텍스트를 정확한 경계로 read. 경로 traversal 방지 + minLength 스키마 가드 포함.
+- MCP `project_map_get` 도구 — 프로젝트의 카테고리/파일/앵커 인덱스를 한 번에 반환. 사용자 자연어 요청을 정확한 파일에 매핑하기 위한 host LLM 전역 컨텍스트 도구.
+
+### Tests
+- `tests/benchmark/test_patch_suggester_baseline.py` — patch_suggester 의 file/anchor 정확도 baseline 수치 락 (14/20 file, 0/19 anchor). MCP host-LLM pivot 평가 기준선.
+
+### Docs
+- `docs/superpowers/plans/2026-05-13-mcp-host-llm-pivot-plan.md` — PoC 구현 계획.
+- `docs/superpowers/specs/2026-05-13-mcp-host-llm-pivot-eval-runbook.md` — 수동 평가 runbook.
+
+### Notes
+- Gemini 경로(`vib patch --ai`, `vibelign/core/ai_codespeak.py`) 는 PoC 단계에서 변경 없음. 평가 결과에 따라 full migration 시 deprecation 검토.
+
 ---
 
 ## [2.2.9] — 2026-05-13

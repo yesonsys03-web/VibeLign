@@ -142,6 +142,10 @@ class AnchorHandlersModule(Protocol):
         self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
     ) -> list[object]: ...
 
+    def handle_anchor_read_content(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
 
 # === ANCHOR: MCP_HANDLER_REGISTRY_MISCHANDLERSMODULE_START ===
 class MiscHandlersModule(Protocol):
@@ -162,6 +166,10 @@ class MiscHandlersModule(Protocol):
     def handle_config_get(
         self, root: Path, text_content: TextContentFactory
     # === ANCHOR: MCP_HANDLER_REGISTRY_HANDLE_CONFIG_GET_END ===
+    ) -> list[object]: ...
+
+    def handle_project_map_get(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
     ) -> list[object]: ...
 
 
@@ -373,6 +381,18 @@ def _handle_anchor_get_meta(
     return _anchor_handlers().handle_anchor_get_meta(root, arguments, text_content)
 
 
+def _handle_anchor_read_content(
+    root: Path, arguments: dict[str, object], text_content: TextContentFactory
+) -> list[object]:
+    return _anchor_handlers().handle_anchor_read_content(root, arguments, text_content)
+
+
+def _handle_project_map_get(
+    root: Path, arguments: dict[str, object], text_content: TextContentFactory
+) -> list[object]:
+    return _misc_handlers().handle_project_map_get(root, arguments, text_content)
+
+
 def _handle_transfer_set_decision(
     root: Path, arguments: dict[str, object], text_content: TextContentFactory
 ) -> list[object]:
@@ -480,12 +500,14 @@ DISPATCH_TABLE: dict[str, DispatchHandler] = {
     "anchor_auto_intent": _handle_anchor_auto_intent,
     "anchor_set_intent": _handle_anchor_set_intent,
     "anchor_get_meta": _handle_anchor_get_meta,
+    "anchor_read_content": _handle_anchor_read_content,
     "transfer_set_decision": _handle_transfer_set_decision,
     "transfer_set_verification": _handle_transfer_set_verification,
     "transfer_set_relevant": _handle_transfer_set_relevant,
     "explain_get": _misc_handlers().handle_explain_get,
     "anchor_list": _handle_anchor_list,
     "config_get": _handle_config_get,
+    "project_map_get": _handle_project_map_get,
     "doctor_plan": _doctor_handlers().handle_doctor_plan,
     "doctor_patch": _doctor_handlers().handle_doctor_patch,
     "doctor_apply": _doctor_handlers().handle_doctor_apply,

@@ -57,4 +57,39 @@ def handle_config_get(root: Path, text_content: TextContentFactory) -> list[obje
         )
     return _text(text_content, meta.config_path.read_text(encoding="utf-8"))
 # === ANCHOR: MCP_MISC_HANDLERS_HANDLE_CONFIG_GET_END ===
+
+
+# === ANCHOR: MCP_MISC_HANDLERS_HANDLE_PROJECT_MAP_GET_START ===
+def handle_project_map_get(
+    root: Path,
+    arguments: dict[str, object],
+    text_content: TextContentFactory,
+) -> list[object]:
+    map_path = MetaPaths(root).project_map_path
+    if not map_path.is_file():
+        payload = {
+            "ok": False,
+            "error": "project_map.json not found — run `vib doctor` to generate it",
+            "data": None,
+        }
+        return _text(text_content, json.dumps(payload, ensure_ascii=False))
+    try:
+        data = json.loads(map_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        payload = {
+            "ok": False,
+            "error": f"project_map.json could not be read ({type(exc).__name__})",
+            "data": None,
+        }
+        return _text(text_content, json.dumps(payload, ensure_ascii=False))
+    if not isinstance(data, dict):
+        payload = {
+            "ok": False,
+            "error": "project_map.json has unexpected shape (expected JSON object)",
+            "data": None,
+        }
+        return _text(text_content, json.dumps(payload, ensure_ascii=False))
+    payload = {"ok": True, "error": None, "data": data}
+    return _text(text_content, json.dumps(payload, indent=2, ensure_ascii=False))
+# === ANCHOR: MCP_MISC_HANDLERS_HANDLE_PROJECT_MAP_GET_END ===
 # === ANCHOR: MCP_MISC_HANDLERS_END ===
