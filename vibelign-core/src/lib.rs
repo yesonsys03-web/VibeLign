@@ -12,11 +12,18 @@
 //!
 //! Other modules stay private to enforce the IPC contract as the only seam.
 
+mod anchor_meta;
 mod backup;
+mod config;
 mod constants;
 mod db;
 pub mod ipc;
+mod memory_audit;
+mod memory_state;
 mod project_scan;
+mod score_path;
 mod secret_scan;
 mod security;
+#[allow(dead_code)] // 단계 3 (ipc 노출) 시 제거
+mod tokenizer;
 // === ANCHOR: LIB_END ===

@@ -1,7 +1,7 @@
 // === ANCHOR: PROJECT_SCAN_START ===
 use serde::Serialize;
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, Serialize)]
 pub struct ProjectScanReport {

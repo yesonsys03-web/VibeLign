@@ -4,6 +4,7 @@ import argparse, json, sys
 from dataclasses import asdict
 from pathlib import Path
 from ..core import doc_sources as _DOC_SOURCES
+from ..core import docs_index_cache as _DOCS_INDEX_CACHE
 from ..core import meta_paths as _META_PATHS
 from . import vib_docs_build_cmd as _DOCS_BUILD
 
@@ -26,9 +27,14 @@ def _emit_err(exc: Exception) -> None:
 def run_vib_doc_sources_list(args: argparse.Namespace) -> None:
     root = _resolve_root()
     try:
-        sources = _DOC_SOURCES.load(_META_PATHS.MetaPaths(root)).sources
-        # Also return current index for UI consumption
-        entries, warnings = _DOCS_BUILD.rebuild_docs_index_cache_with_warnings(root)
+        meta = _META_PATHS.MetaPaths(root)
+        sources = _DOC_SOURCES.load(meta).sources
+        cached_entries = _DOCS_INDEX_CACHE.read_docs_index_cache(meta)
+        if cached_entries is None:
+            entries, warnings = _DOCS_BUILD.rebuild_docs_index_cache_with_warnings(root)
+        else:
+            entries = cached_entries
+            warnings = []
         _emit_ok(sources, entries, warnings)
     except Exception as exc:
         _emit_err(exc)

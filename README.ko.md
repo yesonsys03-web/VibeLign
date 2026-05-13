@@ -319,6 +319,53 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.9** — v2.2.8 scroll-to-top 버튼이 안 보이던 패치:
+
+- 🔧 **scroll-to-top 이 실제 scroll container 인식** — v2.2.8 의 listener 가 `window.scrollY` 만 보아 mac/Windows 양쪽에서 버튼이 안 보이던 issue. brutalism 레이아웃이 `.page-content` (inner flex child) 에서 scroll 하므로, v2.2.9 가 document 의 capture-phase scroll listener + `.page-content.scrollTop` 직접 읽음. 클릭도 inner container 의 scrollTo 호출.
+
+**v2.2.8** — GUI UX 수정 두 건 + scroll-to-top 버튼:
+
+- 🔧 **복구 후보 추천 — 후보별 AI 설명 표시** — LLM 의 candidate-specific `reason` 필드가 rule-based 근거 아래 별도로 표시되도록 변경. 3 후보가 동일한 "근거" 문구를 보이던 issue 해결. rule-based 5 항목 문구도 친화화 (예: "커밋 직후 저장" → "코드 저장 직후 만든 백업").
+- 🔧 **CANVAS / RAW HTML 화면 — iframe 세로가 content/앱 UI 와 맞춰짐** — `CanvasViewPane` 와 `RawHtmlCanvasPane` 둘 다 휴리스틱 추정 fixed-height 에서 `onLoad` content 측정 + `minHeight: calc(100vh - 200px)` 로 변경 (sandbox 는 scripts/forms 여전히 disabled, `allow-same-origin` 만 추가). 짧은 문서는 앱 viewport 만큼 차지, 긴 문서는 왼쪽 사이드처럼 page natural scroll. iframe 안 별도 스크롤바 없음.
+- ⬆️ **scroll-to-top floating 버튼** — 페이지 스크롤이 300px 넘으면 우하단에 ↑ 버튼 표시, 클릭 시 부드럽게 최상단으로 이동. 모든 페이지 공통.
+
+**v2.2.7** — 복구 후보 추천 지연 ~46% 단축:
+
+- 🚀 **Recovery 패널 가속** — "복구 후보 추천 보기" (Gemini AI 추천) 첫 호출 wall 이 ~25s → ~13.6s 로 단축. LLM prompt 의 commit_message 본문이 prompt 28KB 의 49% 를 차지하던 것을 subject 첫 줄 (200자 cap) 만 보내도록 변경. 추천 quality 는 보존 (LLM 결정은 source/created_at/evidence_score/commit_boundary 같은 metadata 에 의존, verbose commit body 는 unused).
+- 📦 **`score_path.rs` dormant library** — `meaningful_overlap` Rust port + 5 parity tests + ipc variant 가 dormant library 로 추가. score_path 전체 트랙은 skip-rate 측정 결과 leaf-port batch ROI ~0 으로 §9 retraction 됐지만 artifact 는 보존 (미래 사용 + Python alias drift 자동 감지).
+- ✅ 측정-주도 lessons (stub-patch wall diff > cProfile cumtime, skip-rate trap, apples-to-apples harness) 이 본 릴리즈의 prerequisite — `docs/superpowers/plans/2026-05-13-*-plan.md` §9 참조.
+
+**v2.2.6** — GUI 메모리 요약 가속 + tokenizer Rust 토대:
+
+- 🚀 **Phase 3 PoC consumer #13** — `SessionMemoryCard` 마운트가 Python sidecar 호출 대신 in-process Rust (`callEngineDirect({command:"memory_summary_read"})`) 로 전환되어 마운트 시 ~80 ms 지연이 사라졌습니다. audit 로그 parity 는 완전히 보존됩니다.
+- 📦 **tokenizer Rust leaf port** — `vibelign-core/src/tokenizer.rs` 가 `patch_suggester.py` 의 6 한국어 토큰 leaf 함수를 dormant library 로 포팅했습니다. `tests/fixtures/tokenizer_goldens/` (102 case × 6 함수 = 612 byte-equal parity record) 로 검증합니다.
+- ⚡ **`_normalize_korean_token` pre-sort** — 매 호출 `sorted()` 를 module-level 상수로 옮겼습니다. direct 1M iter 27% 가속, recover preview wall 은 noise (caller-side set 처리가 wall dominate).
+- ✅ **크로스플랫폼 pre-flight** — Windows GNU cross-compile 이 vibelign-core 와 vibelign-gui/src-tauri 양쪽에서 통과합니다.
+
+**v2.2.5** — 데스크톱 릴리즈 lockfile 수정:
+
+- 📦 **npm lockfile 복구** — GUI package lock 을 정상 재생성해 `npm ci` 가 존재하지 않는 `json5-2.2.4.tgz` 대신 실제 `json5@2.2.3` dependency 를 설치하도록 했습니다.
+- ✅ **릴리즈 빌드 재시도** — 실패한 v2.2.4 데스크톱 GUI 릴리즈 시도를 v2.2.5 가 대체합니다.
+
+**v2.2.4** — 데스크톱 릴리즈 호환성 수정:
+
+- 🛠️ **Backup bridge 호환성** — domain-module bridge 리팩토링 이후에도 기존 GUI 화면이 build 되도록 legacy `backupCreate` export 를 복구했습니다.
+- ✅ **릴리즈 빌드 재시도** — 실패한 v2.2.3 데스크톱 GUI 릴리즈 시도를 v2.2.4 가 대체하며, 동일한 bridge 모듈화 작업을 포함합니다.
+
+**v2.2.3** — GUI bridge 모듈화 + 개발 로그 정리:
+
+- 🧩 **GUI vib bridge 모듈화** — 거대한 `src/lib/vib.ts` command bridge 를 domain module 로 나누면서 기존 `src/lib/vib` import 경로는 유지했습니다.
+- 🛡️ **계약 보존 리팩토링** — Tauri command string, payload shape, Windows onboarding/env 동작, backup cache singleton 동작을 유지했습니다.
+- 🧹 **Tauri dev 로그 정리** — `npm run tauri dev` 때 보이던 Rust warning 2개를 제거했습니다.
+
+**v2.2.2** — DocsViewer HTML Canvas + Windows 안정화:
+
+- 🧭 **Document Control Map Canvas** — 원문 순서 Outline, Flow, Decisions, Actions, Risks, Glossary 를 시각적으로 재구성하고 bullet 중심 섹션 preview 누락을 `body_preview` 로 보강.
+- 🧾 **Raw HTML artifact mode** — 선택 문서를 sandboxed iframe 의 읽기 쉬운 article-style HTML 로 렌더링.
+- 🪟 **Split 탭 UX** — 창 폭과 상관없이 Split 탭을 항상 표시하고, 좁은 창에서는 내부 레이아웃만 1열로 반응.
+- ✨ **선택 탭 하이라이트** — Source/Easy/Canvas/Raw HTML/Split 중 현재 탭을 검은 배경 + 오렌지 그림자로 강조.
+- 🛠️ **Windows 경로 수정** — `C:\Repo` vs `c:\repo\...` 같은 대소문자 차이에도 추가 문서 소스 폴더 선택이 정상 동작.
+
 **v2.2.0** — GUI 다이렉트 브리지 + 통합 에러 로그 + 자동 백업 가시성:
 
 - 🌉 **Tauri ↔ vibelign-core 다이렉트 브리지** — GUI 가 Python `vib` 서브프로세스 없이 in-process Rust 엔진을 직접 호출. 6개 GUI consumer 의 trivial 명령 wall time 이 ~80ms → <5ms 로 단축.

@@ -743,7 +743,10 @@ def _compact_candidate_payload(candidate: RecoveryCandidate, protected_globs: tu
         "created_at": candidate.created_at,
         "label": candidate.label,
         "commit_hash": candidate.commit_hash,
-        "commit_message": candidate.commit_message,
+        # LLM 추천에는 commit subject (첫 줄) 만으로 의도 파악 충분. body 까지 보내면
+        # prompt 가 20 candidates × 수 KB 까지 부풀어 Gemini Flash 응답 20+s.
+        # 2026-05-13 측정: full body 13.8KB / 28KB prompt (49%) → subject 만 ~2KB.
+        "commit_message": (candidate.commit_message or "").split("\n", 1)[0][:200],
         "restore_capability": candidate.restore_capability,
         "preview_available": candidate.preview_available,
         "changed_file_count": len(candidate.changed_files_since_previous),

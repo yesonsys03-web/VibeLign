@@ -296,7 +296,8 @@ def register_core_commands(
             "이렇게 쓰세요:\n"
             "  vib docs-index\n"
             "  vib docs-index /path/to/project\n"
-            "  vib docs-index --visual-contract"
+            "  vib docs-index --visual-contract\n"
+            "  vib docs-index --html-contract"
         ),
     )
     _ = p.add_argument("path", nargs="?", help="인덱스를 만들 프로젝트 루트 (생략 시 현재 위치)")
@@ -304,6 +305,11 @@ def register_core_commands(
         "--visual-contract",
         action="store_true",
         help="docs visual artifact contract와 예시 스키마를 JSON으로 출력",
+    )
+    _ = p.add_argument(
+        "--html-contract",
+        action="store_true",
+        help="docs raw HTML artifact contract와 예시 스키마를 JSON으로 출력",
     )
     p.set_defaults(
         func=lazy_command("vibelign.commands.vib_docs_build_cmd", "run_vib_docs_index")

@@ -24,6 +24,194 @@
 
 ---
 
+## [2.2.9] — 2026-05-13
+
+v2.2.8 의 scroll-to-top floating 버튼이 mac/Windows 양쪽에서 안 보이던 issue 의 패치 릴리즈.
+
+### Fixed
+
+- **scroll-to-top 버튼 — 실제 scroll container 인식** (`ScrollToTopButton.tsx`): `brutalism.css` 의 `.app-layout { height: 100vh; overflow: hidden }` + `.page-content { flex: 1; overflow-y: auto }` 구조라 실제 scroll container 는 `window` 가 아닌 `.page-content`. v2.2.8 의 listener 가 `window.addEventListener("scroll")` + `window.scrollY` 만 사용 → inner container 의 scroll 못 잡아 버튼 visibility toggle 미발동. 수정: `document.addEventListener("scroll", ..., { capture: true })` 추가 (scroll event 는 bubble 안 하지만 capture phase 에서 받음). `getActiveScrollContainer()` helper 로 `.page-content` element 찾고, `container?.scrollTop ?? window.scrollY` 로 visibility 판정, click 시 container scrollTo 우선.
+
+### Verified
+
+- `npx tsc --noEmit` (vibelign-gui) → No errors found.
+
+---
+
+## [2.2.8] — 2026-05-13
+
+GUI 의 두 UX issue 수정 — "복구 후보 추천 보기" 의 후보별 차이 정보 누락 + "CANVAS / RAW HTML" 화면의 iframe 잘림. 추가로 모든 페이지에 scroll-to-top floating 버튼.
+
+### Added
+
+- **scroll-to-top floating 버튼** (`ScrollToTopButton.tsx`): `window.scrollY > 300` 시 우하단에 표시되는 buttons (브루탈리즘 스타일, ↑ glyph). 클릭 시 `window.scrollTo({ top: 0, behavior: "smooth" })`. App root level 에 한 번 render 되어 모든 page (Home / Doctor / DocsViewer / BackupDashboard / ErrorLogs / Settings / Onboarding) 공통 사용.
+
+### Fixed
+
+- **GUI 복구 후보 추천 — AI candidate-specific reason 추가 표시 + 문구 친화화** (`RecoveryOptionsCard.tsx`): 3 후보가 모두 동일한 "근거" 문구를 보이던 issue. 진짜 차이를 표현하는 LLM `candidate.reason` 필드가 GUI 에 표시 안 됨이 원인. `<div>AI 설명: {candidate.reason}</div>` 추가로 candidate-specific 설명 표시 (한국어 phrase 시 LLM 이 한국어 reason 반환). rule-based 5 항목 문구도 기술용어 제거 ("커밋 직후 저장" → "코드 저장 직후 만든 백업" / "최근 검증 기록 없음" → "확인 안 한 시점" 등).
+- **GUI CANVAS / RAW HTML 화면 — content-aware iframe 높이 + viewport-fit** (`CanvasViewPane.tsx`, `RawHtmlCanvasPane.tsx`): 두 view mode 의 iframe 이 markup 휴리스틱 추정에 의존하던 fixed-height 사용 → 추정 부족 시 content 잘리고 iframe 내부 스크롤바 생성. `sandbox="allow-same-origin"` 추가 (scripts/forms 여전히 disabled) + `onLoad` 핸들러로 `contentDocument.documentElement.scrollHeight + body.scrollHeight max + 24px margin` 측정 → height state 갱신. `minHeight: calc(100vh - 200px)` 추가로 short content 도 app window viewport 만큼 차지. 결과: content 가 짧으면 viewport-fit, 길면 page natural scroll (왼쪽 사이드처럼). iframe 안 별도 스크롤바 없음.
+
+### Verified
+
+- `cargo test --lib` (vibelign-core) → 145 passed.
+- `cargo check` (vibelign-gui/src-tauri) → 0 errors, 0 warnings.
+- `npx tsc --noEmit` (vibelign-gui) → No errors found.
+- `pytest test_recovery_*` → 32 passed, 0 회귀 (recovery 변경 없음, agent.py 의 prompt 축소는 v2.2.7 의 변경).
+
+### Notes
+
+- 본 릴리즈는 모두 user-facing UX fix — 측정/lessons 적용보다 직접 보고된 issue 의 정직한 수정.
+- CanvasViewPane 와 RawHtmlCanvasPane 가 같은 iframe + fixed-height anti-pattern 이었음 — 두 component 모두 동일 fix 적용.
+
+---
+
+## [2.2.7] — 2026-05-13
+
+GUI 의 "복구 후보 추천 보기" (Recovery 패널) 첫 호출 wall 25s → 13.6s (~46% 가속). `_compact_candidate_payload` 의 `commit_message` 가 LLM prompt 의 49% (28KB 중 13.8KB) 를 차지하던 것을 subject + 200자 cap 으로 축소. 추가로 score_path Rust port 트랙의 Session 1 probe artifacts (`score_path.rs::meaningful_overlap` + 5 parity tests + ipc variant) 가 dormant library 로 보존됨 — 트랙 자체는 §9 retraction 으로 종료.
+
+### Performance
+
+- **Recovery 후보 추천 wall ~46% 단축**: `vib recover --recommend --phrase ...` 의 첫 호출 (cache miss) wall **25s → 13.6s** 측정 확인. 원인은 LLM prompt 크기 (28KB) 의 49% 가 commit_message 본문이었던 것 — `_compact_candidate_payload` 가 commit 의 subject 첫 줄 + 200자 cap 으로 보내도록 변경. prompt 28,203 → 15,381 chars (-46%), Gemini Flash 응답 시간이 input 크기에 ~linear 라 wall 도 동일 비율로 감소. quality 영향 없음 (LLM 추천 결정은 source/created_at/evidence_score/commit_boundary 등 metadata 필드에 의존, commit body 의 verbose handoff/plan 세부는 unused).
+
+### Added
+
+- **`vibelign-core/src/score_path.rs::meaningful_overlap`** (dormant library): Python `_meaningful_overlap` 의 1:1 port + 5 parity unit tests. score_path 트랙 §9 retraction 후 dormant 로 보존 — 미래 score_path 통째 port 시도 시 재사용 가능 + Python 측 코드 변경 시 cargo test 가 drift 감지.
+- **`EngineRequest::MeaningfulOverlap` ipc variant** + handler dispatch: GUI/외부 consumer 가 호출 가능. 현재 default-off 의 routing 은 없음 (Python wire 는 retraction 시 revert 됨).
+
+### Verified
+
+- `cargo test --lib` (vibelign-core) → **145 passed** (이전 140 + 신규 score_path parity 5 tests).
+- `cargo check` (vibelign-gui/src-tauri) → 0 errors, 0 warnings.
+- `pytest test_recovery_agent + test_recovery_planner + test_memory_recovery_schemas` → 32 passed, 0 회귀.
+- Wall warm 측정 (cache invalidate 후 fresh phrase): `vib recover --recommend` 25.18s → **13.60s**.
+- prompt 크기 capture: 28,203 chars → **15,381 chars (-46%)**, commit_message 합 13,800 → 1,204 (-91%).
+
+### Notes
+
+- 두 retraction lessons (tokenizer 트랙 §9 + score_path 트랙 §9) 의 측정-주도 룰이 본 가속의 prerequisite — cProfile/pyinstrument cumtime 신뢰 X, stub-patch wall diff + apples-to-apples harness + skip-rate measurement 가 진짜 leverage 식별. 자세한 기록은 `docs/superpowers/plans/2026-05-13-patch-suggester-tokenizer-rust-port-plan.md` §9 + `docs/superpowers/plans/2026-05-13-score-path-rust-port-plan.md` §9 참조.
+
+---
+
+## [2.2.6] — 2026-05-13
+
+GUI 의 메모리 요약 카드를 Python sidecar 호출에서 in-process Rust 직결로 전환하여 마운트 지연을 제거하고, 향후 score_path 최적화 트랙의 토대로 한국어 토큰 분해 Rust 모듈 (`vibelign-core/src/tokenizer.rs`) 과 102 case × 6 함수 = 612 record 의 parity fixtures 를 dormant library 로 추가했습니다. `_normalize_korean_token` 의 hot loop 에서 매 호출마다 재실행되던 sort 도 module-level pre-sort 로 정리했습니다.
+
+### Added
+
+- **GUI memorySummary direct bridge** (Phase 3 PoC consumer #13): `SessionMemoryCard` mount 시 `runVib(["memory","show","--json"])` 호출이 in-process `callEngineDirect({command:"memory_summary_read"})` 로 전환. Python sidecar ~80ms 호출 제거. audit logging parity 완전 유지 (`project_root_hash` SHA256[:16] / 마이크로초 timestamp / sequence number / `.create_new(true)` 파일 락).
+- **`vibelign-core/src/tokenizer.rs`**: `vibelign.core.patch_suggester` 의 6 leaf 토큰 함수 (`_decompose_korean_compound` / `_split_identifier_parts` / `_normalize_korean_token` / `_expand_token` / `tokenize` / `_intent_tokens`) 와 const table 113 entries 를 Rust 로 1:1 포팅. 현재 dormant library — score_path multi-session 트랙 진입 시 ipc 노출 예정.
+- **`tests/fixtures/tokenizer_goldens/`**: 102 case × 6 함수 = 612 expected record JSON fixtures + `_regenerate.py` (Python source-of-truth 재캡처 스크립트, `uv run python ...` 으로 호출). cargo test 의 byte-equal parity assertion 으로 Rust 포팅 정확성 검증 + Python alias drift 자동 감지.
+- **`vibelign-core/examples/bench_tokenizer.rs`**: isolated 1M iter bench. 향후 score_path Rust port 시 floor 측정 reference.
+
+### Changed
+
+- **`_normalize_korean_token` pre-sort**: `sorted(_KOREAN_PARTICLE_SUFFIXES, key=len, reverse=True)` 가 매 호출 (recover preview 시 609k 회) 마다 재실행되던 것을 module-level `_KOREAN_PARTICLE_SUFFIXES_SORTED` tuple 한 번에 고정. direct 1M iter 27% 가속 (1.97μs → 1.44μs / call), wall noise (caller-side set 처리가 wall dominate). 결정성/순서는 byte-equal 유지.
+
+### Verified
+
+- `cargo test --lib` (vibelign-core) → **140 passed** (이전 134 + 신규 tokenizer parity 6 tests / 612 assertion).
+- `cargo check` (vibelign-gui/src-tauri) → 0 errors, 0 warnings.
+- `npx tsc --noEmit` (vibelign-gui) → No errors found.
+- `pytest tests/test_patch_*.py tests/test_recovery_planner.py` → 30 passed, 20 subtests passed.
+- `cargo run --release --example bench_tokenizer` → 1M iter floor (intent_tokens 3,021 ns / expand_token 1,036 ns / decompose 5 ns per call).
+- **Windows GNU cross-compile pre-flight** (`cargo check --target x86_64-pc-windows-gnu`, mingw-w64 mac local): vibelign-core 0 errors / vibelign-gui/src-tauri 0 errors + 5 cfg(unix) dead_code warnings (의도됨). 어제/오늘 신규 코드 (memory_audit / memory_state / sha2 / tokenizer / bench / pre-sort) 모두 Windows 호환 확인.
+
+### Notes
+
+- 사용자 체감 가속은 **memorySummary direct bridge** 에서. 나머지 변경 (tokenizer Rust 모듈 / fixtures / bench / pre-sort) 은 dormant library + tooling 으로 다음 트랙 (score_path 통째 Rust port) 의 토대.
+- patch_suggester tokenizer 트랙 의 측정/디자인 + 단계 1/2 진척, 단계 3 retraction lessons (cProfile/pyinstrument cumtime over-attribution / cache hit ratio 가 wall 단축으로 직결되지 않음) 의 자세한 기록은 `docs/superpowers/plans/2026-05-13-patch-suggester-tokenizer-rust-port-plan.md` §9 참조.
+
+---
+
+## [2.2.5] — 2026-05-12
+
+v2.2.4 GUI release build 에서 발견된 npm lockfile dependency metadata 오염을 복구한 패치 릴리즈입니다. Desktop GUI release 는 v2.2.5 로 재시도합니다.
+
+### Fixed
+
+- **GUI package-lock dependency metadata**: release version bump 가 dependency `json5@2.2.3` tarball URL 까지 바꾸지 않도록 lockfile 을 정상 재생성했습니다. `npm ci` 가 `json5-2.2.4.tgz` 를 찾다가 404 로 실패하던 문제를 해결합니다.
+
+### Verified
+
+- `npm ci` (vibelign-gui) → passed.
+- `npm run build` (vibelign-gui) → passed.
+- `npm run test` (vibelign-gui) → 2 files / 9 tests passed.
+- `python3 -m build --sdist --wheel` → passed.
+- Bridge contract check → `command string diff: missing=[] extra=[]`.
+
+---
+
+## [2.2.4] — 2026-05-12
+
+v2.2.3 GUI release build 에서 드러난 legacy `backupCreate` import 호환성 누락을 복구한 패치 릴리즈입니다. PyPI v2.2.3 는 정상 publish 되었지만 Desktop GUI release 는 v2.2.4 로 재시도합니다.
+
+### Fixed
+
+- **GUI backup bridge compatibility**: 기존 `src/lib/vib` public API 의 `backupCreate` export 를 복구해, 아직 `backupCreate` 를 import 하는 GUI 화면도 domain module refactor 이후 정상 build 됩니다.
+
+### Verified
+
+- `npm run build` (vibelign-gui) → passed.
+- Bridge contract check → `command string diff: missing=[] extra=[]`, `backupCreate export restored`.
+- Branch GUI CI after fix → macOS + Windows passed.
+
+---
+
+## [2.2.3] — 2026-05-12
+
+GUI bridge 구조를 domain module 로 분리하고, 개발 실행 로그의 Rust warning 을 정리한 패치 릴리즈입니다. 사용자-facing 동작은 유지하면서 이후 GUI 기능 확장 시 회귀 위험을 낮췄습니다.
+
+### Changed
+
+- **GUI vib bridge modularization**: `vibelign-gui/src/lib/vib.ts` 의 1,700+줄 command bridge 를 `core`, `docs`, `backup`, `onboarding`, `settings/API key`, `memory/recovery`, `guard/watch`, `errorLogs` domain module 로 분리했습니다.
+- **Root import compatibility 유지**: 기존 GUI import 경로 `src/lib/vib` 는 compatibility barrel 로 유지되어 command card, docs, backup, onboarding, settings flow 의 import 변경 없이 동작합니다.
+
+### Fixed
+
+- **Rust dev warning cleanup**: Tauri dev 실행 시 보이던 `PathBuf` unused import warning 과 CAS prune wrapper dead-code warning 을 정리했습니다.
+
+### Verified
+
+- `npm run build` (vibelign-gui) → passed.
+- `npm run test` (vibelign-gui) → 2 files / 9 tests passed.
+- `cargo check --no-default-features` (vibelign-gui/src-tauri) → passed, Rust warnings cleared.
+- Export/import snapshot → `exports=134`, `needed=99`, `missing=[]`.
+- Tauri command string diff → `missing=[]`, `extra=[]`.
+
+---
+
+## [2.2.2] — 2026-05-10
+
+DocsViewer 의 HTML 문서 보기 경험과 Windows 경로 안정성을 보강한 패치 릴리즈입니다.
+
+### Added
+
+- **DocsViewer Raw HTML artifact mode**: 선택한 문서를 sandboxed iframe 안의 읽기 쉬운 article-style HTML 로 렌더링합니다. scripts, same-origin, forms 권한은 열지 않아 원문 HTML 을 안전하게 확인합니다.
+- **DocsViewer Split mode**: Source 와 Canvas 를 함께 보는 split 탭을 제공하며, 좁은 창에서도 탭 버튼은 항상 표시되고 내부 레이아웃만 1열로 반응합니다.
+- **Canvas body preview**: `VisualSection.body_preview` 를 추가해 bullet/checklist/ordered/table row 일부를 원문 순서대로 보존하고, 기존 `heuristic-v2` cache 를 `heuristic-v3` 로 stale 처리합니다.
+
+### Changed
+
+- **Canvas visual renderer**: Canvas 를 문서 원문을 그대로 반복하는 화면이 아니라 `Document Control Map` 으로 재구성했습니다. Outline Source Order → Flow → Decisions → Actions → Risks → Glossary 순서로 보여줍니다.
+- **DocsViewer tab affordance**: Source/Easy/Canvas/Raw HTML/Split 중 현재 선택된 탭을 검은 배경과 오렌지 그림자로 강조해 현재 위치를 즉시 알 수 있게 했습니다.
+- **Iframe height behavior**: Canvas/Raw HTML/Split 의 고정 세로 제한을 제거하고 artifact 내용량에 따른 높이 추정으로 내부 iframe 스크롤을 줄였습니다.
+- **Raw HTML readability**: heading/list/table/code block 스타일을 문서 읽기용으로 정리했습니다.
+
+### Fixed
+
+- **Windows extra doc source picker**: `C:\Repo` 와 `c:\repo\...` 처럼 드라이브/경로 대소문자가 다른 Windows 경로를 프로젝트 밖으로 오판하지 않도록, Windows식 absolute/UNC path 에서만 case-insensitive prefix 비교를 적용했습니다.
+- **Split tab visibility regression**: UI 폭이 작아져도 Split 탭 버튼이 사라지지 않도록 수정했습니다.
+- **Canvas source omission**: bullet 중심 섹션에서 summary 가 비어 Canvas 에 원문 preview 가 빠지던 문제를 backend artifact contract 로 해결했습니다.
+
+### Verified
+
+- `rtk npm run test -- --reporter verbose` (vibelign-gui) → 9 passed.
+- `rtk npm run build` (vibelign-gui) → passed.
+- `python3 -m unittest tests.test_doc_sources_cmd tests.test_docs_build_cmd tests.test_docs_visualizer` → 67 passed.
+- `cargo test docs` (vibelign-gui/src-tauri) → 28 passed.
+
+---
+
 ## [2.2.1] — 2026-05-10
 
 릴리즈 파이프라인 수정 패치 릴리즈입니다. 코드 동작은 v2.2.0 과 동일합니다.

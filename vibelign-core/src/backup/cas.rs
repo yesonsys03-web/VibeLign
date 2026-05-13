@@ -181,6 +181,7 @@ pub fn decrement_ref(conn: &Connection, hash: &str) -> Result<(), String> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn prune_unreferenced(root: &Path, conn: &Connection) -> Result<usize, String> {
     Ok(prune_unreferenced_detailed(root, conn)?.count)
 }

@@ -93,6 +93,11 @@ export default function RecoveryOptionsCard({ projectDir, apiKey, providerKeys }
                   {candidate.evidence_score.score < 0.5 && <span style={{ padding: "1px 5px", border: "1px solid #1A1A1A", background: "#FF4D4D22" }}>복원 전 미리보기 필수</span>}
                 </div>
                 <div style={{ color: "#555", marginTop: 4 }}>{recoveryCandidateEvidenceDetails(candidate)}</div>
+                {candidate.reason && (
+                  <div style={{ color: "#1A1A1A", marginTop: 4, lineHeight: 1.4 }}>
+                    <span style={{ fontWeight: 700 }}>AI 설명:</span> {candidate.reason}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -152,11 +157,11 @@ function recoveryCandidateEvidenceLabel(score: number): string {
 function recoveryCandidateEvidenceDetails(candidate: RecoveryRecommendationResponse["ranked_candidates"][number]): string {
   const score = candidate.evidence_score;
   const reasons = [
-    score.commit_boundary ? "커밋 직후 저장" : "커밋 경계 아님",
-    score.verification_fresh ? "검증 기록 있음" : "최근 검증 기록 없음",
-    score.diff_small ? "변경 범위 작음" : "변경 범위 확인 필요",
-    score.protected_paths_clean ? "보호 파일 문제 없음" : "보호 파일 확인 필요",
-    score.time_match_user_request ? "요청한 시간대와 맞음" : "시간 단서 없음",
+    score.commit_boundary ? "코드 저장 직후 만든 백업" : "코드 저장 사이의 임시 백업",
+    score.verification_fresh ? "사용자가 확인한 시점" : "확인 안 한 시점",
+    score.diff_small ? "변경 적음" : "변경 많아 살펴볼 것",
+    score.protected_paths_clean ? "중요 파일 안 건드림" : "중요 파일 영향 가능",
+    score.time_match_user_request ? "요청한 시간과 맞음" : "요청 시간 단서 없음",
   ];
   return `근거: ${reasons.join(" · ")}`;
 }

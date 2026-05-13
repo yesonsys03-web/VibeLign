@@ -14,7 +14,9 @@ from pathlib import Path
 from typing import Any
 
 from ..core import doc_sources as _DOC_SOURCES
+from ..core import docs_access as _DOCS_ACCESS
 from ..core import docs_cache as _DOCS_CACHE
+from ..core import docs_html_visualizer as _DOCS_HTML_VISUALIZER
 from ..core import docs_index_cache as _DOCS_INDEX_CACHE
 from ..core import docs_visualizer as _DOCS_VISUALIZER
 from ..core import meta_paths as _META_PATHS
@@ -96,6 +98,37 @@ def _atomic_write_text(target: Path, content: str) -> None:
 # === ANCHOR: VIB_DOCS_BUILD_CMD__ATOMIC_WRITE_TEXT_END ===
 
 
+def _replace_docs_visual_dir(target: Path, replacement: Path) -> None:
+    last_error: OSError | None = None
+    backup: Path | None = None
+    for attempt in range(2):
+        try:
+            if target.exists():
+                backup = target.with_name(
+                    f"{target.name}.old-{os.getpid()}-{int(time.time() * 1000)}"
+                )
+                target.replace(backup)
+            replacement.replace(target)
+            if backup is not None:
+                shutil.rmtree(backup, ignore_errors=True)
+            return
+        except OSError as exc:
+            last_error = exc
+            if backup is not None and backup.exists() and not target.exists():
+                try:
+                    backup.replace(target)
+                except OSError:
+                    pass
+            if attempt == 0:
+                time.sleep(0.05)
+                continue
+            break
+    raise OSError(
+        "docs visual cache directory를 교체할 수 없어요. "
+        "다른 앱이 cache 파일을 열고 있다면 닫고 다시 시도하세요."
+    ) from last_error
+
+
 # === ANCHOR: VIB_DOCS_BUILD_CMD__ENTRY_MAP_START ===
 def _entry_map(root: Path) -> dict[str, Any]:
     entries = rebuild_docs_index_cache(root)
@@ -113,6 +146,14 @@ def _artifact_json_for_path(root: Path, relative_path: str) -> tuple[str, str]:
 # === ANCHOR: VIB_DOCS_BUILD_CMD__ARTIFACT_JSON_FOR_PATH_END ===
 
 
+def _html_artifact_json_for_path(root: Path, relative_path: str) -> tuple[str, str]:
+    source_path = (root / relative_path).resolve()
+    artifact = _DOCS_HTML_VISUALIZER.build_docs_html_artifact(source_path)
+    return relative_path, json.dumps(
+        artifact.to_dict(), ensure_ascii=False, indent=2
+    ) + "\n"
+
+
 # === ANCHOR: VIB_DOCS_BUILD_CMD_RENDER_DOCS_VISUAL_ARTIFACTS_START ===
 def render_docs_visual_artifacts(
     root: Path, relative_paths: Iterable[str]
@@ -120,6 +161,13 @@ def render_docs_visual_artifacts(
 ) -> list[tuple[str, str]]:
     resolved_root = root.resolve()
     return [_artifact_json_for_path(resolved_root, path) for path in relative_paths]
+
+
+def render_docs_html_artifacts(
+    root: Path, relative_paths: Iterable[str]
+) -> list[tuple[str, str]]:
+    resolved_root = root.resolve()
+    return [_html_artifact_json_for_path(resolved_root, path) for path in relative_paths]
 
 
 # === ANCHOR: VIB_DOCS_BUILD_CMD_BUILD_DOCS_VISUAL_CACHE_START ===
@@ -138,16 +186,25 @@ def build_docs_visual_cache(
         normalized = source_relative_path.replace("\\", "/")
         if normalized not in entries:
             raise ValueError(f"docs index에 없는 문서예요: {normalized}")
+        if not _DOCS_ACCESS.is_canvas_eligible_path(normalized):
+            raise ValueError(_DOCS_ACCESS.canvas_ineligible_reason(normalized))
         targets = [normalized]
     else:
-        targets = sorted(entries.keys())
+        targets = sorted(
+            path for path in entries.keys()
+            if _DOCS_ACCESS.is_canvas_eligible_path(path)
+        )
 
     rendered = render_docs_visual_artifacts(root, targets)
+    html_rendered = render_docs_html_artifacts(root, targets)
 
     meta.ensure_vibelign_dirs()
     if source_relative_path is None:
         tmp_dir = Path(
             tempfile.mkdtemp(prefix="docs_visual_", dir=str(meta.vibelign_dir))
+        )
+        tmp_html_dir = Path(
+            tempfile.mkdtemp(prefix="docs_html_", dir=str(meta.vibelign_dir))
         )
         try:
             for relative_path, content in rendered:
@@ -158,21 +215,32 @@ def build_docs_visual_cache(
                     target = tmp_dir / f"{relative_path}.json"
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(content, encoding="utf-8")
-            if meta.docs_visual_dir.exists():
-                shutil.rmtree(meta.docs_visual_dir)
-            tmp_dir.replace(meta.docs_visual_dir)
+            for relative_path, content in html_rendered:
+                is_extra = entries[relative_path].source_root is not None
+                if is_extra:
+                    target = tmp_html_dir / "_extra" / f"{relative_path}.json"
+                else:
+                    target = tmp_html_dir / f"{relative_path}.json"
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content, encoding="utf-8")
+            _replace_docs_visual_dir(meta.docs_visual_dir, tmp_dir)
+            _replace_docs_visual_dir(meta.docs_html_dir, tmp_html_dir)
         except Exception:
             shutil.rmtree(tmp_dir, ignore_errors=True)
+            shutil.rmtree(tmp_html_dir, ignore_errors=True)
             raise
     else:
         relative_path, content = rendered[0]
+        html_relative_path, html_content = html_rendered[0]
         is_extra = entries[normalized].source_root is not None
         _atomic_write_text(meta.docs_visual_path(relative_path, is_extra=is_extra), content)
+        _atomic_write_text(meta.docs_html_path(html_relative_path, is_extra=is_extra), html_content)
 
     return {
         "ok": True,
         "count": len(rendered),
         "written": [relative_path for relative_path, _ in rendered],
+        "html_written": [relative_path for relative_path, _ in html_rendered],
         "root": str(root),
     }
 
@@ -280,6 +348,13 @@ def run_vib_docs_index(args: argparse.Namespace) -> None:
         payload = {
             "contract": _DOCS_CACHE.docs_visual_contract(),
             "example_artifact": _DOCS_CACHE.docs_visual_schema_example(),
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+    if getattr(args, "html_contract", False):
+        payload = {
+            "contract": _DOCS_CACHE.docs_html_contract(),
+            "example_artifact": _DOCS_CACHE.docs_html_schema_example(),
         }
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return

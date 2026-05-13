@@ -319,6 +319,53 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.9** — Patch fix for the v2.2.8 scroll-to-top button:
+
+- 🔧 **Scroll-to-top now detects the real scroll container** — v2.2.8 listened to `window.scrollY`, but the brutalism layout puts scrolling on `.page-content` (inner flex child), so the button never appeared on macOS or Windows. v2.2.9 adds a capture-phase document scroll listener and reads `.page-content.scrollTop` directly. Clicks also scroll the inner container instead of `window`.
+
+**v2.2.8** — Two GUI UX fixes + scroll-to-top button:
+
+- 🔧 **Recovery panel — per-candidate AI explanation visible** — the LLM's candidate-specific `reason` field now renders below the rule-based safety details, so the three recommendations no longer share an identical "근거" line. Rule-based bullets were also softened (e.g. "커밋 직후 저장" → "코드 저장 직후 만든 백업").
+- 🔧 **CANVAS / RAW HTML viewer — content-aware iframe height** — both `CanvasViewPane` and `RawHtmlCanvasPane` switched from a heuristic-only fixed height to `onLoad` content measurement (sandbox keeps scripts/forms disabled, only `allow-same-origin` added). A `minHeight: calc(100vh - 200px)` ensures the iframe also fills the app viewport for short documents. No more internal scrollbars; long content scrolls with the page like the left sidebar.
+- ⬆️ **Scroll-to-top floating button** — a bottom-right floating button (visible after scrolling past 300px) smooth-scrolls to top on click. Available on every page.
+
+**v2.2.7** — Recovery recommendation latency cut by ~46%:
+
+- 🚀 **Faster Recovery panel** — first-call wall for "복구 후보 추천 보기" (Gemini AI recommendation) drops from ~25s to ~13.6s. The LLM prompt was bloated with full commit body text (49% of a 28 KB prompt); now only the subject line (200-char cap) is sent. Recommendation quality is preserved since the LLM uses metadata (source, created_at, evidence_score, commit_boundary), not the verbose commit body.
+- 📦 **`score_path.rs` dormant library** — `meaningful_overlap` Rust port + 5 parity tests + ipc variant land as a dormant library. The score_path-wide track was retracted (§9) after skip-rate measurements showed leaf-port batch ROI is ~0, but the artifact is preserved for future use and Python alias drift detection.
+- ✅ Measurement-driven lessons (stub-patch wall diff > cProfile cumtime, skip-rate trap, apples-to-apples harness) drove this release — see `docs/superpowers/plans/2026-05-13-*-plan.md` §9 sections.
+
+**v2.2.6** — GUI memorySummary acceleration + tokenizer Rust groundwork:
+
+- 🚀 **Phase 3 PoC consumer #13** — `SessionMemoryCard` mount now uses in-process Rust (`callEngineDirect({command:"memory_summary_read"})`) instead of a Python sidecar call, removing ~80 ms of mount-time latency. Audit logging parity is fully preserved.
+- 📦 **tokenizer Rust leaf port** — `vibelign-core/src/tokenizer.rs` ports the 6 Korean tokenizer leaf functions from `patch_suggester.py` as a dormant library, backed by `tests/fixtures/tokenizer_goldens/` (102 case × 6 function = 612 byte-equal parity records).
+- ⚡ **`_normalize_korean_token` pre-sort** — moves the per-call `sorted()` to a module-level constant. Direct 1M-iter benchmark shows 27% speedup; recover preview wall is unchanged (caller-side set processing dominates).
+- ✅ **Cross-platform pre-flight** — Windows GNU cross-compile passes for both vibelign-core and vibelign-gui/src-tauri.
+
+**v2.2.5** — Desktop release lockfile fix:
+
+- 📦 **npm lockfile repair** — regenerated the GUI package lock so `npm ci` installs the real `json5@2.2.3` dependency instead of a nonexistent `json5-2.2.4.tgz` tarball.
+- ✅ **Release build retry** — v2.2.5 supersedes the failed v2.2.4 desktop GUI release attempt.
+
+**v2.2.4** — Desktop release compatibility fix:
+
+- 🛠️ **Backup bridge compatibility** — restored the legacy `backupCreate` export so existing GUI screens continue to build after the domain-module bridge refactor.
+- ✅ **Release build retry** — v2.2.4 supersedes the failed v2.2.3 desktop GUI release attempt while keeping the same bridge modularization work.
+
+**v2.2.3** — GUI bridge modularization + cleaner dev logs:
+
+- 🧩 **Modular GUI vib bridge** — split the large `src/lib/vib.ts` command bridge into focused domain modules while preserving the existing `src/lib/vib` import path.
+- 🛡️ **Contract-preserving refactor** — kept Tauri command strings, payload shapes, Windows onboarding/env behavior, and backup cache singleton behavior stable.
+- 🧹 **Cleaner Tauri dev output** — removed the Rust warnings shown during `npm run tauri dev`.
+
+**v2.2.2** — DocsViewer HTML Canvas + Windows 안정화:
+
+- 🧭 **Document Control Map Canvas** — 원문 순서 Outline, Flow, Decisions, Actions, Risks, Glossary 를 시각적으로 재구성하고 bullet 중심 섹션 preview 누락을 `body_preview` 로 보강.
+- 🧾 **Raw HTML artifact mode** — 선택 문서를 sandboxed iframe 의 읽기 쉬운 article-style HTML 로 렌더링.
+- 🪟 **Split tab UX** — 창 폭과 상관없이 Split 탭을 항상 표시하고, 좁은 창에서는 내부 레이아웃만 1열로 반응.
+- ✨ **Active tab highlight** — Source/Easy/Canvas/Raw HTML/Split 중 현재 탭을 검은 배경 + 오렌지 그림자로 강조.
+- 🛠️ **Windows path fix** — `C:\Repo` vs `c:\repo\...` 같은 대소문자 차이에도 추가 문서 소스 폴더 선택이 정상 동작.
+
 **v2.2.0** — GUI direct bridge + 통합 에러 로그 + 자동 백업 가시성:
 
 - 🌉 **Tauri ↔ vibelign-core direct bridge** — GUI 가 Python `vib` subprocess 없이 in-process Rust 엔진 직접 호출. 6개 GUI consumer 의 trivial 명령 wall time ~80ms → <5ms.
