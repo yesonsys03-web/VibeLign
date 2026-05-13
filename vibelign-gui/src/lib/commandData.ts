@@ -660,8 +660,6 @@ export const COMMANDS_CORE = [
       { type: "text" as const, key: "_file", label: "파일", placeholder: "main.py" },
       { type: "bool" as const, key: "ai", label: "--ai" },
       { type: "text" as const, key: "since-minutes", label: "분", placeholder: "120", numeric: true },
-      { type: "bool" as const, key: "write-report", label: "--write-report" },
-      { type: "bool" as const, key: "json", label: "--json" },
     ] as FlagDef[],
   },
 ];
