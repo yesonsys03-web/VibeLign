@@ -488,6 +488,29 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         },
     },
     {
+        "name": "anchor_read_content",
+        "description": (
+            "지정된 파일의 앵커 내부 텍스트를 정확한 경계로 읽습니다. "
+            "host LLM이 패치 작성 전에 정확한 컨텍스트만 빠르게 확인할 때 사용."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "file": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "프로젝트 루트 기준 상대 경로",
+                },
+                "anchor_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "ANCHOR: <NAME>_START / _END 의 NAME",
+                },
+            },
+            "required": ["file", "anchor_name"],
+        },
+    },
+    {
         "name": "explain_get",
         "description": "최근 변경된 파일과 변경 내용을 분석하여 반환합니다. 작업 후 무엇이 바뀌었는지 확인할 때 사용하세요.",
         "inputSchema": {
@@ -504,6 +527,17 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "name": "config_get",
         "description": "VibeLign 현재 설정을 반환합니다.",
         "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "project_map_get",
+        "description": (
+            "프로젝트의 카테고리/파일/앵커 인덱스를 한 번에 반환합니다. "
+            "host LLM이 사용자 자연어 요청을 정확한 파일에 매핑하기 위한 전역 컨텍스트."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
     },
     {
         "name": "doctor_plan",
