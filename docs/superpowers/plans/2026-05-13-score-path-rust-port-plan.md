@@ -182,3 +182,67 @@ EngineResponse::ScorePathBatchOk {
 부모 plan (`2026-05-07-rust-engine-utilization-plan.md`) 에 reference 한 줄 추가 권장:
 
 > 🆕 **2026-05-13 신규 multi-session 트랙 진입**: score_path Rust port — tokenizer leaf port 트랙 §9 retraction lesson 의 후속. stub diff 2.43s wall (apples-to-apples), ROI bound 0~2.43s (probe pending). 4~6 multi-session 분해. 상세: `2026-05-13-score-path-rust-port-plan.md`.
+
+---
+
+## 9. Retraction / Skip-rate Lessons (2026-05-13, Session 1.5 진입 후)
+
+### Skip-rate discriminator (advisor 권고)
+
+Session 1 probe 후 Session 1.5 batch wire 디자인 시도. score_path body 의 `_meaningful_overlap` 호출 4군데 (line 537/726/770/780) 모두 conditional iteration 안 (anchor / alias / desc loops). pre-pass batch 가 단순 refactor 가 아니라 score_path 본체 port (Session 5) 와 동일 → framing 자체 무너짐.
+
+또 advisor 권고 한 가지 더: **Python 의 빠른 conditional skip path 가 Rust batch 의 net win 잡아먹을 수 있음**. 측정:
+
+```
+total _meaningful_overlap 호출: 144,551
+empty results: 140,175 → skip rate 97.0%
+non-empty (Python 실제 작업): 4,376 (3.0%)
+```
+
+→ Python 은 144k 호출 중 4k 만 진짜 작업, 나머지 140k 는 `set(candidate_tokens)` + iteration 후 즉시 `if not matched: continue` 로 빠른 path. Rust batch 가 144k 모두 계산 = ~0.5-1s, Python 의 4k 작업 (~수십 ms) 보다 비쌈. **net win 마이너스 또는 noise**.
+
+### 추가 sub-slice 측정 (옵션 C 의 결과)
+
+`_score_anchor_names` stub `(0, [])` × 3 (uv harness):
+
+| Mode | Wall (mean) |
+|---|---|
+| baseline | 4.268s |
+| `_score_anchor_names` stub | 4.255s |
+| diff | ~13ms (noise) |
+
+→ `_score_anchor_names` 도 wall hot 아님 (호출 횟수 656 회, 작음). 160 LOC port 의 ROI 도 noise.
+
+### 종합 진단
+
+- `_meaningful_overlap` 자체 가속 ROI = ~수십 ms (skip 97% 의 hot path 가 짧음)
+- `_score_anchor_names` ROI = ~13ms
+- score_path 의 wall ~2.4s 는 **다양한 분기 cumulative** (KEYWORD_HINTS dict iteration / `_FRONTEND_EXTS` set 체크 / `_BACKEND_*` hint sets / conditional branches / `path_tokens` 호출 / anchor scoring 등) — 어느 sub-slice 도 dominant 아님
+- score_path 통째 Rust port (4~6 session) 의 잠재 win 도 conditional skip 빠른 path 가 Rust 의 cost 와 비슷하거나 작음 — net win ~수십 ms 수준
+- **결론: 4~6 multi-session 비용 vs ~수십 ms ROI = 명백히 정당화 안 됨**
+
+### Measurement lessons (tokenizer §9 보강)
+
+1. **stub-patch wall diff 는 위 추정** — 진짜 ROI 는 conditional flow 가 share. real Rust impl 은 conditional skip 도 모두 계산 (또는 skip 정보 IPC 로 전달 — 추가 복잡성).
+2. **Skip rate 가 sufficient discriminator** — 90% 이상이면 leaf-port batch 가치 작음. 측정 30초.
+3. **3 stub-patch 비교 (single helper / score_path 통째 / 부모 caller) 가 wall share 결정** — 호출 횟수 (cProfile ncalls) 와 wall share 가 직접 비례하지 않음.
+
+### 트랙 status update
+
+- ✅ **Session 1 probe artifacts 보존** (Rust 측):
+  - `vibelign-core/src/score_path.rs::meaningful_overlap` (1:1 port + 5 parity tests, commit `740c22c`)
+  - `EngineRequest::MeaningfulOverlap` / `EngineResponse::MeaningfulOverlapOk` ipc variants (commit `740c22c`)
+  - `ipc::handler` dispatch arm (commit `740c22c`)
+  - `cargo test --lib` 140 → 145 passed. Python alias drift parity 가치 + 미래 score_path port 시도 시 dormant library.
+- 🔁 **Python wire revert** (commit `af2036f`) — `_rust_score_path_enabled()` flag + `_meaningful_overlap_with_rust()` wrapper + score_path body line 537 conditional. tokenizer §9 의 lru_cache revert + tokenizer.rs 보존 패턴 그대로.
+- 🛑 **§6 Session 1.5 ~ Session 6 retract** — 4~6 multi-session 비용 vs ~수십 ms ROI 가 정당화 안 됨.
+- 🆕 **새 트랙 후보 (별 plan)**: 만약 진짜로 recover preview 가속이 필요하면, score_path 전체 통째 Rust port 가 multi-session 큰 작업 — net win bound 도 작아서 다른 트랙 (예: recovery preview 자체의 cache, 또는 Python skip path 의 추가 최적화) 가 ROI 더 좋을 수도. 별 plan 검토 필요.
+
+### Rust artifact 보존 정당화
+
+- `vibelign-core/src/score_path.rs`: 정확한 1:1 port + 5 parity tests. Python `_meaningful_overlap` 의 dict.fromkeys 순서 보장이 Rust HashSet 으로 byte-equal — alias drift / refactor 시 자동 검증. `#[allow(dead_code)]` 추가 시 ipc 노출 후 제거 가능 — 현재 ipc 통해 호출 가능하므로 dead_code warning 없음.
+- ipc variant `MeaningfulOverlap`: 외부 consumer (예: GUI 의 path scoring widget, 또는 미래 score_path 통째 port 시도) 가 호출 가능. 영구 노출 유지.
+
+---
+
+## 끝 — 본 plan 의 트랙은 §9 retraction 으로 종료. artifacts (commit `740c22c`) 보존.
