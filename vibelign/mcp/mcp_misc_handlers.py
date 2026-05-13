@@ -78,7 +78,14 @@ def handle_project_map_get(
     except (OSError, json.JSONDecodeError) as exc:
         payload = {
             "ok": False,
-            "error": f"project_map.json read failed: {exc}",
+            "error": f"project_map.json could not be read ({type(exc).__name__})",
+            "data": None,
+        }
+        return _text(text_content, json.dumps(payload, ensure_ascii=False))
+    if not isinstance(data, dict):
+        payload = {
+            "ok": False,
+            "error": "project_map.json has unexpected shape (expected JSON object)",
             "data": None,
         }
         return _text(text_content, json.dumps(payload, ensure_ascii=False))
