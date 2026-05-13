@@ -51,5 +51,16 @@
     ],
     "correct_anchor": "HOME",
     "notes": "Home.tsx가 내부 view 상태(manual_list/manual_detail/home) 보유(L127, L147). App.tsx가 별도 page 상태('home'|'manual'|...) 보유 (L58). 사용자가 manual_detail→manual_list→내부 home으로 가도 App.tsx의 page='manual' 그대로 유지 → 탭은 active. 다시 manual 탭 클릭해도 setPage('manual') no-op (이미 manual)이라 Home의 initialView가 재적용 안 됨. Primary fix는 Home.tsx에서 내부 'home view'로 갈 때 onNavigate('home') 호출하여 App 상태 동기화, 또는 App.tsx의 nav 클릭 핸들러가 force re-mount하도록 변경. 두 파일 모두 plausible."
+  },
+  {
+    "id": "user-006-backups-pagination",
+    "request": "BACKUPS 탭의 파일 기록에 이전 다음 네비게이터 추가해줘. 리스트가 많이 쌓이면 예전 거를 볼 수가 없어. 이거 수정해줘. 백업 DB rows 도 마찬가지.",
+    "project_root": "/Users/topsphinx/Documents/coding/VibeLign",
+    "correct_files": [
+      "vibelign-gui/src/components/backup-dashboard/FileHistoryTable.tsx",
+      "vibelign-gui/src/components/backup-dashboard/BackupDbRowList.tsx"
+    ],
+    "correct_anchor": null,
+    "notes": "두 리스트 컴포넌트 모두에 pagination(이전/다음) 추가. FileHistoryTable=BACKUPS 탭 '파일 기록' 리스트, BackupDbRowList=백업 DB rows. 각각 ANCHOR: FILEHISTORYTABLE / BACKUPDBROWLIST. multi-file 요청."
   }
 ]
