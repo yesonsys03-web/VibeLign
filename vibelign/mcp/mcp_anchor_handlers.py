@@ -195,4 +195,52 @@ def handle_anchor_get_meta(
         payload = {"ok": True, "error": None, "data": {"meta": data}}
     return _text(text_content, json.dumps(payload, indent=2, ensure_ascii=False))
 # === ANCHOR: MCP_ANCHOR_HANDLERS_HANDLE_ANCHOR_GET_META_END ===
+
+
+# === ANCHOR: MCP_ANCHOR_HANDLERS_HANDLE_ANCHOR_READ_CONTENT_START ===
+def handle_anchor_read_content(
+    root: Path,
+    arguments: dict[str, object],
+    text_content: TextContentFactory,
+) -> list[object]:
+    from vibelign.core.anchor_tools import extract_anchor_blocks
+
+    file_raw = arguments.get("file")
+    anchor_raw = arguments.get("anchor_name")
+    if not isinstance(file_raw, str) or not file_raw.strip():
+        err = {"ok": False, "error": "file is required", "data": None}
+        return _text(text_content, json.dumps(err, ensure_ascii=False))
+    if not isinstance(anchor_raw, str) or not anchor_raw.strip():
+        err = {"ok": False, "error": "anchor_name is required", "data": None}
+        return _text(text_content, json.dumps(err, ensure_ascii=False))
+    file_rel = file_raw.strip()
+    anchor_name = anchor_raw.strip()
+    fp = (root / file_rel).resolve()
+    if not fp.is_file():
+        err = {
+            "ok": False,
+            "error": f"file not found: {file_rel}",
+            "data": None,
+        }
+        return _text(text_content, json.dumps(err, ensure_ascii=False))
+    blocks = extract_anchor_blocks(fp)
+    body = blocks.get(anchor_name)
+    if body is None:
+        err = {
+            "ok": False,
+            "error": f"anchor not found: {anchor_name}",
+            "data": None,
+        }
+        return _text(text_content, json.dumps(err, ensure_ascii=False))
+    payload = {
+        "ok": True,
+        "error": None,
+        "data": {
+            "file": file_rel,
+            "anchor_name": anchor_name,
+            "content": body,
+        },
+    }
+    return _text(text_content, json.dumps(payload, indent=2, ensure_ascii=False))
+# === ANCHOR: MCP_ANCHOR_HANDLERS_HANDLE_ANCHOR_READ_CONTENT_END ===
 # === ANCHOR: MCP_ANCHOR_HANDLERS_END ===
