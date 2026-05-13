@@ -9,6 +9,12 @@ Baseline = `patch_suggester.suggest_patch(request, use_ai=False)` (Task 4 `tests
 - `BASELINE_FILE_PASSING = 14/20` (sample_project 인공 시나리오)
 - `BASELINE_ANCHOR_PASSING = 0/19` — **단, 이 값은 sample_project에 앵커가 0개이기 때문에 측정 불가 영역**. 실제 사용자 프로젝트(앵커 다수)에서 별도 측정 필요.
 
+## 현재 상태 (2026-05-13)
+
+- **sample_project (file-level)** 측정 가능 — 즉시 실행 가능
+- **사용자 프로젝트 (anchor-level)** 측정 보류 — `tests/benchmark/user_requests.json` 미수집. 사용자가 본인 프로젝트에서 자연어 수정 요청 3~10개 + 정답 file/anchor 메모를 제공해야 anchor-level 평가가 가능. 그 전까지 anchor 측정은 sample_project 한정 (anchor 0개로 의미 없음).
+- 의미 있는 평가 진행 = sample_project file-level 1차 → user_requests.json 수집 후 anchor 2차.
+
 ## 한계 (먼저 알아둘 것)
 
 sample_project는 anchor marker가 0개이므로 `correct_anchor` 매핑 평가는 사실상 불가능하다. 이 한계는 의도적 — host LLM이 신규 도구로 file 매핑을 어떻게 하는지가 1차 측정, anchor 매핑은 사용자 실 프로젝트가 필요.
