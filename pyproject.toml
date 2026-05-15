@@ -35,8 +35,8 @@ vib = "vibelign.cli.vib_cli:main"
 vibelign-mcp = "vibelign.mcp.mcp_server:main"
 
 [tool.setuptools.packages.find]
-include = ["vibelign*"]
-exclude = ["vibelign-gui*", "build*", "dist*", "promo*"]
+include = ["vibelign", "vibelign.*"]
+exclude = ["build*", "dist*", "promo*"]
 
 [tool.setuptools.package-data]
 vibelign = ["_bundled/vibelign-engine", "_bundled/vibelign-engine.exe", "_bundled/vibelign-engine.sha256", "_bundled/vibelign-engine.exe.sha256", "core/memory/*.schema.json", "core/recovery/*.schema.json"]
