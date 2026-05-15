@@ -131,7 +131,10 @@ class CheckpointRustEngineTest(unittest.TestCase):
     def test_missing_binary_is_unavailable(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            with patch.dict(os.environ, {"VIBELIGN_ENGINE_PATH": str(root / "missing")}, clear=False):
+            with patch(
+                "vibelign.core.checkpoint_engine.rust_engine.discovery._candidate_paths",
+                return_value=[root / "missing"],
+            ):
                 availability = find_rust_engine(root)
 
             self.assertFalse(availability.available)
