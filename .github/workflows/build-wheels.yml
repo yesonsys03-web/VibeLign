@@ -1,0 +1,63 @@
+name: Build platform wheels
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*.*.*-rc*"
+      - "v*.*.*-cibw*"
+
+jobs:
+  build_wheels:
+    name: ${{ matrix.os }} / ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,    arch: x86_64,  cibw_archs: x86_64,  cibw_plat: manylinux_2_28_x86_64 }
+          - { os: ubuntu-24.04-arm, arch: aarch64, cibw_archs: aarch64, cibw_plat: manylinux_2_28_aarch64 }
+          - { os: macos-14,         arch: arm64,   cibw_archs: arm64 }
+          - { os: windows-latest,   arch: x86_64,  cibw_archs: AMD64 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (non-Linux)
+        if: runner.os != 'Linux'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build wheel via cibuildwheel
+        uses: pypa/cibuildwheel@v2.21.3
+        env:
+          CIBW_BUILD: "cp310-*"
+          CIBW_ARCHS: ${{ matrix.cibw_archs }}
+          CIBW_SKIP: "*-musllinux* pp*"
+          CIBW_BEFORE_ALL_LINUX: |
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+            source "$HOME/.cargo/env"
+            cargo build --release --manifest-path vibelign-core/Cargo.toml --bin vibelign-engine
+            python scripts/install_bundled_engine.py
+          CIBW_BEFORE_ALL_MACOS: |
+            cargo build --release --manifest-path vibelign-core/Cargo.toml --bin vibelign-engine
+            python scripts/install_bundled_engine.py
+          CIBW_BEFORE_ALL_WINDOWS: |
+            cargo build --release --manifest-path vibelign-core/Cargo.toml --bin vibelign-engine
+            python scripts/install_bundled_engine.py
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            auditwheel repair --plat ${{ matrix.cibw_plat }} -w {dest_dir} {wheel}
+          CIBW_TEST_COMMAND: >
+            python -c "from pathlib import Path; from vibelign.core.checkpoint_engine.rust_engine.discovery import find_rust_engine; r = find_rust_engine(Path.cwd()); assert r.available, f'engine missing: {r.reason} (code={r.code})'; print('engine ok:', r.binary_path)"
+
+      - name: Inspect wheel contents
+        shell: bash
+        run: |
+          for whl in wheelhouse/*.whl; do
+            echo "::group::$whl"
+            python -m zipfile -l "$whl" | grep -E '_bundled|RECORD' || true
+            echo "::endgroup::"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.os }}-${{ matrix.arch }}
+          path: wheelhouse/*.whl

@@ -53,3 +53,9 @@ api_keys.json
 *.api_keys
 .vibelign/rust_checkpoints/
 .vibelign/rust_objects/
+
+# CI-built Rust engine binary (populated by scripts/install_bundled_engine.py at build time)
+vibelign/_bundled/vibelign-engine
+vibelign/_bundled/vibelign-engine.exe
+vibelign/_bundled/vibelign-engine.sha256
+vibelign/_bundled/vibelign-engine.exe.sha256
