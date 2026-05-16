@@ -6,6 +6,7 @@ on:
     tags:
       - "v*.*.*-rc*"
       - "v*.*.*-cibw*"
+      - "cibw-test-*"
 
 jobs:
   build_wheels:
