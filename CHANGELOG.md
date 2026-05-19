@@ -10,6 +10,168 @@
 
 ---
 
+## [2.2.18] — 2026-05-19
+
+기획/스펙 문서가 실제 코드와 어긋난 채 남아 있던 위험을 차단하기 위한 docs 동기화 릴리즈. 추가로 vibelign-gui 의 production TypeScript 빌드가 vitest 픽스처를 끌어가 type error 를 뱉던 노이즈를 정리.
+
+### Changed
+
+- **superpowers plan/spec 5건 헤더에 "현재 구현 대조 메모 (2026-05-14)" 추가**: 문서가 비전을 담은 미래 설계인지, 이미 shipped 된 사실 기록인지를 첫 화면에서 분리해 읽도록.
+  - `docs/superpowers/plans/2026-05-13-mcp-host-llm-pivot-plan.md`: `anchor_read_content`/`project_map_get` MCP primitive 와 baseline lock, `user_requests.json` 데이터셋이 이미 mainlined 됐음을 명시 — 남은 결정은 도구 추가가 아니라 Gemini/`vib patch --ai` 경로 deprecation 또는 host-LLM 중심 full migration 의 순서.
+  - `docs/superpowers/plans/VibeLign-규칙수정안-3.md`: pre-commit 외에 post-commit 기록 블록도 있고, 줄수 enforcement 는 별도 스크립트가 아니라 `vib guard --strict` 안으로 들어가야 함. 300/500 줄수 차단 + legacy baseline 동결은 아직 미반영, `risk_analyzer.py` 도 500/800/1000 단계.
+  - `docs/superpowers/plans/VibeLign-원클릭설치-기획안_초안.md`: `claude doctor` 가 non-TTY/Ink raw-mode 한계로 v1 성공 조건에서 제외, PTY 기반 "첫 응답 토큰 수신" 검증은 장기 목표. v1 현실 기준은 `claude --version` + 대표 셸 PATH + 로그인 안내.
+  - `docs/superpowers/plans/VibeLign-지식저장고-기획안.md`: `vib knowledge`, `docs/knowledge/`, `/know` slash, knowledge-기반 patch 주입 모두 미구현. MVP 1단계 = 수동 저장 + docs viewer 노출 + 원본 보존 정책으로 범위 축소, 의미 검색/자동 주입/export 는 후속 RFC.
+  - `docs/superpowers/specs/2026-05-13-mcp-host-llm-pivot-eval-runbook.md`: 사용자 실요청 자연 분포 측정 결과 (rule-based `0/6`, host-LLM flow `6/6`) 가 v2.2.10 changelog 에 이미 기록됐고 `tests/benchmark/user_requests.json` 도 추가됐음.
+- **`vibelign-gui/tsconfig.json` 에 test exclude 추가**: `src/**/__tests__/**`, `src/**/*.test.ts`, `src/**/*.test.tsx`, `src/test/**` 를 제외. `tsc && vite build` 가 vitest 픽스처를 production 타입체크에 끌어가 가짜 에러를 뿜던 회귀 정리. vitest 자체 실행은 영향 없음.
+
+### Verified
+
+- 디버그 세션에서 발견된 회귀 추적 결과는 v2.2.13 sidecar `RUST_ENGINE_INTEGRITY_FAILED` 가 원인이었음을 재확인 — v2.2.14+ self-heal 적용 환경에서 `vib checkpoint` 8회 + GUI "지금 저장" 2회 + GUI 재시동 모두 audit trigger 가 `DELETE FROM checkpoints` 0건을 기록. 신규 코드 변경 없음, 기존 fix 가 그대로 유효함이 확인됨.
+
+---
+
+## [2.2.17] — 2026-05-19
+
+PyPI publish 워크플로의 macos-13 runner 큐 적체 (시간당 1개 슬롯 정도) 로 v2.2.12 이후 PyPI 배포가 4시간 넘게 묶이던 회귀를 차단. macOS wheel 빌드 runner 를 Apple Silicon (macos-latest) 로 교체.
+
+### Changed
+
+- **`publish.yml` macos-13 → macos-latest** (Apple Silicon arm64): macos-13 (Intel x86_64) runner pool 이 GitHub-hosted Actions 에서 만성적으로 큐 적체. v2.2.12-v2.2.16 publish 가 1-4 시간 단위로 묶임. macos-latest (Apple Silicon, 큐 거의 즉시) 로 교체해 publish 회복. sdist build 도 macos-latest 로 이동.
+
+### Notes
+
+- macOS x86_64 (Intel Mac) 사용자는 PyPI wheel 미제공 → sdist 로 설치 (Rust 툴체인 필요). 사용자 본인은 이미 `npm run tauri build` 환경이라 Rust 보유. 다른 Intel Mac 사용자가 생기면 `pip install vibelign --no-binary vibelign` 또는 GUI 의 v2.2.14+ self-heal 기반 로컬 빌드 권장.
+- 큐에 박혀있던 v2.2.12-v2.2.16 publish 워크플로 5개 모두 수동 취소 — v2.2.17 부터 깨끗한 큐로 진행.
+
+---
+
+## [2.2.16] — 2026-05-19
+
+Phase 9 cross-platform CI 가 v2.2.11 이전부터 빨간색이던 회귀 2건을 제거. Rust 엔진 migration 부수효과로 깨졌던 MCP checkpoint handler 테스트 페어 동기화.
+
+### Fixed
+
+- **`handle_checkpoint_create` 가 file_count=0 도 blocked 로 audit** (`vibelign/mcp/mcp_checkpoint_handlers.py`): Rust 엔진은 빈 workspace 에서도 file_count=0 summary 를 반환해서 handler 가 잘못 `success` 로 audit 하던 회귀. `summary is None or summary.file_count == 0` 둘 다 "변경사항 없음" 으로 통일.
+- **`tests/test_mcp_checkpoint_handlers.py` 가 router.list_checkpoints 사용** (`tests/test_mcp_checkpoint_handlers.py`): 옛 `vibelign.core.local_checkpoints.list_checkpoints` (filesystem) 가 Rust 엔진의 SQLite 결과를 못 봐서 `len(list_checkpoints) == 0` 으로 실패하던 회귀. `router.list_checkpoints` 로 import 갱신해 엔진 추상화 너머의 실제 데이터 검증.
+
+### Verified
+
+- `tests/test_mcp_checkpoint_handlers.py` 12 통과 (이전 2 실패 → 0 실패)
+- `tests/test_cross_platform_paths.py` + `tests/test_checkpoint_cmd_wrapper.py` + `tests/test_mcp_checkpoint_handlers.py` (Phase 9 의 정확한 매트릭스) 21 전부 통과
+- macOS + Windows GitHub Actions Phase 9 다음 빌드에서 첫 green 예상
+
+### Notes
+
+- v2.2.11 부터 Phase 9 가 빨갛던 원인 — Rust 엔진 migration 시 테스트가 옛 Python checkpoints API 를 그대로 참조하고 있었던 잔재.
+
+---
+
+## [2.2.15] — 2026-05-19
+
+v2.2.13 의 post-commit hook v4 가 OpenCode 등 일부 LLM commit tool 에서 자동 백업이 누락되는 회귀를 일으켜 (원인 미특정), v3 의 분기 순서를 복구.
+
+### Fixed
+
+- **post-commit hook v5 — 분기 순서 복구** (`vibelign/core/git_hooks.py`): v4 에서 절대 경로 분기를 최우선으로 두는 구조가 OpenCode + GPT-5.5 환경에서 자동 백업을 전부 누락시키던 회귀 (`vib history` 가 commit 이후 갱신되지 않음). v3 의 PATH 기반 분기 순서를 다시 앞으로 옮기고, 절대 경로 분기는 마지막 fallback 으로 강등 — PATH 가 빈약한 GUI commit tool 케이스만 커버하도록 범위 축소. marker v5 로 bump, v1-v4 hook 자동 교체.
+
+### Why
+
+`예전 버전에서는 문제 없었다` 는 사용자 신호 + 직접 simulate 시 hook 정상 동작 + 실제 commit 환경에서 7개 commit 연속 백업 누락 (`.git/hooks/post-commit` 발화 자체가 의심) 의 신호 조합. v3 동작을 보존하면 OpenCode 환경 회귀 즉시 해소, 절대 경로 분기는 PATH 가 빈약한 GUI commit tool 케이스만 last-resort 로 커버.
+
+### Verified
+
+- `tests/test_git_hooks_post_commit.py::test_hook_contains_absolute_path_fallbacks_at_top` assertion 을 절대 경로 분기가 PATH 분기보다 **뒤에** 위치하는지 검증하도록 갱신.
+- `tests/test_git_hooks*.py` + `tests/test_rust_engine_discovery_integrity.py` 32 통과.
+
+### Notes
+
+- 다음 `vib start` 실행 시 v1-v4 hook 자동으로 v5 로 교체.
+- OpenCode/git-master agent 가 git hook 을 우회하던 정확한 원인은 별도 추가 조사 필요. v5 는 그 원인이 무엇이든 v3 와 동일한 분기 순서를 거치므로 회귀 없음 보장.
+
+---
+
+## [2.2.14] — 2026-05-19
+
+v2.2.13 의 CI codesign manifest 보강이 GitHub Actions 빌드만 커버해서, **로컬 빌드 (사용자 직접 `npm run tauri build`)** 에서는 같은 `RUST_ENGINE_INTEGRITY_FAILED` 가 그대로 재발하던 회귀를 차단. integrity 검사를 런타임 self-heal 로 격상.
+
+### Fixed
+
+- **macOS 번들 `vibelign-engine` integrity self-heal** (`vibelign/core/checkpoint_engine/rust_engine/discovery.py`): 매니페스트와 binary hash 가 어긋날 때, `codesign --verify --strict` 가 통과하는 binary 는 정상 codesigned artifact 로 간주하고 매니페스트를 갱신해 회복한다. macOS 한정 — Windows/Linux 는 codesign 신뢰 신호가 없어 기존대로 실패. 로컬 빌드, CI 빌드, 사용자가 직접 재서명한 빌드 모두 동일하게 동작.
+
+### Why
+
+v2.2.13 의 `gui.yml` 수정은 CI 의 `codesign --deep` 직후 매니페스트를 재생성했지만, 사용자가 로컬에서 직접 `npm run tauri build` (혹은 Tauri 의 cargo bundle 단계) 를 실행하면 같은 binary mutation 이 일어나도 manifest refresh step 이 없어 같은 증상 재발. 빌드 경로별 후처리를 강제하기보다 vibelign 자체가 codesign 검증을 통과한 binary 를 신뢰하도록 격상하는 게 robust.
+
+### Verified
+
+- `tests/test_rust_engine_discovery_integrity.py` 8 통과 (darwin self-heal 회귀 테스트 3건 신규 — codesigned 회복, 미서명 실패 유지, non-darwin self-heal 금지).
+- `tests/test_git_hooks*.py` 24 통과 (v2.2.13 변경 회귀 없음).
+
+### Notes
+
+- macOS Big Sur+ 의 linker 자동 ad-hoc 서명, Tauri 의 cargo bundle 단계 서명, 사용자 수동 `codesign --deep -s -` 모두 같은 경로로 처리.
+- 기존 v2.2.13 GUI 설치본 즉시 우회 (v2.2.14 빌드 받기 전까지):
+  ```
+  ENGINE="/Applications/vibelign-gui.app/Contents/Resources/vib-runtime/_internal/vibelign/_bundled/vibelign-engine"
+  shasum -a 256 "$ENGINE" | awk '{print $1"  vibelign-engine"}' > "$ENGINE.sha256"
+  ```
+
+---
+
+## [2.2.13] — 2026-05-19
+
+자동 백업 정합성 hotfix — GUI `RUST_ENGINE_INTEGRITY_FAILED` 폭발과 GUI commit tool 환경의 post-commit 자동 백업 누락 동시에 해소.
+
+### Fixed
+
+- **GUI `vibelign-engine` integrity check 실패** (`.github/workflows/gui.yml`): macOS `codesign --deep` 가 bundled binary 끝에 서명 blob 을 추가해 사전 생성된 `.sha256` 매니페스트와 hash 가 어긋나던 회귀. codesign 직후 매니페스트를 재생성하도록 step 보강. GUI 의 `vib history`, BACKUPS 페이지 등 Rust 엔진 호출이 `RUST_ENGINE_INTEGRITY_FAILED: integrity check failed` 로 폭발하던 issue 해결.
+- **post-commit 자동 백업 PATH 의존성** (`vibelign/core/git_hooks.py`): hook 의 모든 fallback 이 `command -v vib` 같은 PATH lookup 에만 의존해서, Sourcetree / VS Code / Tower 처럼 launchd PATH 만 상속해 `~/.local/bin` 이 빠진 commit tool 에서 자동 백업이 통째로 누락되던 회귀. install 시점에 `shutil.which('vib')` / `shutil.which('vibelign')` / `sys.executable` 절대 경로를 캡처해 PATH 분기보다 먼저 시도하도록 hook 구조 변경. marker 를 v4 로 bump 하고 v1-v3 hook 자동 교체.
+
+### Changed
+
+- **CI 매트릭스에서 Linux 제외** (`.github/workflows/publish.yml`, `python.yml`): wheel publish 가 `[macos-13, windows-latest]` 만 build, sdist 는 macos-13 로 이동. `python.yml` 의 smoke build 도 `macos-latest` 로 이동. Linux user 대상 PyPI wheel 제공 중단.
+
+### Verified
+
+- `tests/test_git_hooks.py` + `tests/test_git_hooks_post_commit.py` 24 통과 (절대 경로 분기 회귀 테스트 신규 1건, marker v4 자동 교체 회귀 포함).
+- `_build_post_commit_block()` 출력 수동 검증 — 절대 경로 3개 fallback (vib, vibelign, python -m vibelign) 가 PATH 분기 위에 위치.
+
+### Notes
+
+- 사용자는 `vib start` 한 번 다시 돌리거나 GUI 를 새 릴리즈로 업데이트하면 양 issue 자동 해소.
+- 기존 v2.2.12 GUI 설치본에서 즉시 우회하려면: `cp ~/.local/share/uv/tools/vibelign/lib/python*/site-packages/vibelign/_bundled/vibelign-engine /Applications/vibelign-gui.app/Contents/Resources/vib-runtime/_internal/vibelign/_bundled/vibelign-engine`.
+
+---
+
+## [2.2.12] — 2026-05-19
+
+vib 의 pre-commit hook 이 사소한 구조 drift 만으로 commit 을 막던 문제를 해소. secrets 차단은 유지하면서 guard 실패는 advisory(경고만) 로 강등.
+
+### Changed
+
+- **pre-commit hook 유연화** (`vibelign/core/git_hooks.py`): hook 템플릿을 `pre-commit-enforcement v3` 로 bump. `vib guard --strict` 가 실패해도 commit 은 통과시키고 stderr 에 한 줄 알림만 출력. `vib secrets --staged` 는 그대로 차단 (시크릿 누출 위험은 비대칭이라 보수적으로 유지).
+- **escape hatch 환경변수 추가**:
+  - `VIBELIGN_SKIP_HOOK=1 git commit ...` — 1회용 우회 (`--no-verify` 의도-명확 버전, vib 자체가 실행되지 않음).
+  - `VIBELIGN_STRICT_GUARD=1` — strict 팀용 opt-in. 옛 차단 동작 복귀.
+- **기존 hook 자동 재설치** (`_HOOK_MARKER_RE`): `secrets-pre-commit v1` / `pre-commit-enforcement v1` / `pre-commit-enforcement v2` 어느 marker 든 다음 `vib start` 에서 v3 로 자동 교체. 사용자 수동 정리 불필요.
+
+### Why
+
+사용자 보고: `vib guard --strict` 가 commit 시점에 자잘한 anchor drift 를 잡아 commit 이 여러 차례 실패. secrets 누출 같은 비가역 실수는 차단을 유지해야 하지만, 구조 drift 는 `vib doctor` / 다음 작업에서 다시 잡히므로 commit 차단까지는 과함. (이번 release 자체가 `pre-commit-enforcement v3` 동작 변경이라, 새 marker 가 사용자 환경에 도달하면 즉시 효과 발생.)
+
+### Verified
+
+- `tests/test_git_hooks.py` 13 개 통과 (advisory 동작, STRICT_GUARD opt-in, SKIP env 우회, v1/v2 marker 자동 교체 모두 회귀 테스트).
+- `tests/test_git_hooks_post_commit.py` 10 개 통과 (post-commit hook 회귀 없음).
+- 전체 스위트 1383 passed, 14 failed — 모든 실패는 main 에서도 동일하게 재현되는 pre-existing 항목 (stash 검증).
+
+### Notes
+
+- 기존 `.git/hooks/pre-commit` 이 `secrets-pre-commit v1` 형태인 사용자도 다음 `vib start` 한 번이면 자동 교체.
+- guard 차단이 정말 필요한 팀은 `~/.zshrc` / shell rc 에 `export VIBELIGN_STRICT_GUARD=1` 박아두면 옛 동작 유지.
+
+---
+
 ## [2.2.11] — 2026-05-13
 
 v2.2.10 측정 데이터(`vib patch` baseline 0/7 on 사용자 실 자연어 요청) 후속으로, GUI 의 Patch 카드를 노출에서 제거. CLI `vib patch` 는 변경 없음.

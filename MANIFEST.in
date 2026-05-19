@@ -1,0 +1,11 @@
+include LICENSE
+include README.md
+include README.ko.md
+include pyproject.toml
+include setup.py
+recursive-include vibelign *.py *.json
+recursive-include vibelign/_bundled .gitkeep
+recursive-include vibelign-core Cargo.toml Cargo.lock
+recursive-include vibelign-core/src *.rs
+recursive-exclude vibelign-core/target *
+recursive-exclude vibelign-gui *

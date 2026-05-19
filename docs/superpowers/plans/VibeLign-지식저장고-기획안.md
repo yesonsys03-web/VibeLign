@@ -3,6 +3,8 @@
 *작성일: 2026-04-13*
 *목적: 완료된 기획과 의사결정을 삭제 대신 "지식"으로 변환·축적하여, 프로젝트의 집단 기억과 AI 에이전트 컨텍스트로 활용*
 
+> **현재 상태 메모 (2026-05-14):** 이 문서는 제품 비전/기획안이며, 현재 코드베이스에는 `vib knowledge`, `docs/knowledge/`, `/know` slash command, knowledge 기반 patch 주입 구현이 확인되지 않았다. 구현 착수 전에는 아래 전체 비전을 한 번에 만들지 말고, **MVP 1단계 = 수동 저장 구조(`docs/knowledge/`) + docs viewer 노출 + 원본 보존 정책 확정** 으로 범위를 잘라야 한다. 의미 검색, patch 자동 주입, export/import 생태계는 별도 후속 RFC 로 분리한다.
+
 ---
 
 ## 1. 배경과 문제의식
@@ -230,4 +232,4 @@ docs/
 
 ---
 
-*이 문서는 2026-04-13 Claude Dispatch 세션에서 작성. VibeLign-LSP-논의.md, VibeLign-줄수-구현가이드.md, VibeLign-원클릭설치-기획안.md와 함께 참고.*
+*이 문서는 2026-04-13 Claude Dispatch 세션에서 작성. 관련 논의는 `VibeLign-LSP-논의.md`, `VibeLign-규칙수정안-3.md`, `VibeLign-원클릭설치-기획안_초안.md` 를 함께 참고한다. 과거 참조명(`VibeLign-줄수-구현가이드.md`, `VibeLign-원클릭설치-기획안.md`)은 현재 파일명과 다를 수 있다.*

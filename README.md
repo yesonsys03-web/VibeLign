@@ -319,6 +319,40 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.18** — Plan docs sync + GUI tsconfig test exclude:
+
+- 📝 **Plan/spec docs reconciled with shipped code (2026-05-14)** — Five superpowers plan/spec docs (`mcp-host-llm-pivot-plan`, `규칙수정안-3`, `원클릭설치-기획안_초안`, `지식저장고-기획안`, `mcp-host-llm-pivot-eval-runbook`) got "현재 구현 대조 메모" headers so readers don't mistake aspirational designs for shipped features. Real implementation status (e.g. MCP primitives mainlined, `vib knowledge` not yet built, `claude doctor` excluded from v1 success criteria) now sits at the top of each doc.
+- 🧹 **`vibelign-gui/tsconfig.json` excludes test files** — Vitest fixtures (`src/**/__tests__/**`, `*.test.{ts,tsx}`, `src/test/**`) were dragged into `tsc && vite build` and produced spurious type errors. Added an `exclude` list so production builds stay quiet without changing test behavior.
+
+**v2.2.17** — PyPI publish unblocked (macos-13 → macos-latest):
+
+- ⚡ **macOS wheel runner switched to Apple Silicon** — `macos-13` (Intel x86_64) runner pool was queue-jammed for hours, blocking PyPI publish since v2.2.12. `macos-latest` (Apple Silicon arm64) runs in seconds. Trade-off: Intel Mac users now install via sdist (requires Rust toolchain locally), not PyPI binary wheel.
+
+**v2.2.16** — Phase 9 CI greens up (MCP checkpoint handler tests):
+
+- 🟢 **`test_handle_checkpoint_create_*` 2 failures fixed** — Rust-engine migration leftovers. `handle_checkpoint_create` now treats `file_count == 0` the same as `summary is None` (both audited as "blocked"). The list-checkpoints test now uses `router.list_checkpoints` so it can see Rust engine's SQLite store. Phase 9 cross-platform CI back to green after staying red since v2.2.11.
+
+**v2.2.15** — Post-commit hook v5: restore v3 branch order:
+
+- 🔁 **Auto-backup fallback order reverted to v3** — v4's "absolute-path first" structure broke auto-backup for some LLM commit tools (OpenCode + GPT-5.5 reproduced). v5 puts PATH branches back at the top (matching the v3 behavior that worked) and demotes absolute-path branches to the last fallback for the GUI-commit-tool-without-PATH case only. Marker bumped to v5; v1-v4 hooks auto-upgrade on next `vib start`.
+
+**v2.2.14** — Runtime self-heal for `RUST_ENGINE_INTEGRITY_FAILED`:
+
+- 🛟 **Bundled engine integrity now self-heals on macOS** — v2.2.13 only fixed the CI codesign step, so locally-built GUI apps (`npm run tauri build` on Intel/ARM Mac) kept tripping the integrity check. The runtime check now refreshes the `.sha256` manifest when `codesign --verify --strict` confirms the binary is properly signed. Tamper detection preserved on Windows/Linux (no codesign signal there).
+
+**v2.2.13** — Auto-backup integrity hotfix (GUI + GUI commit tools):
+
+- 🩹 **`RUST_ENGINE_INTEGRITY_FAILED` on macOS GUI fixed** — `codesign --deep` was adding a signature blob to the bundled `vibelign-engine` binary AFTER the `.sha256` manifest was generated, so every Rust engine call from the GUI (history, backups page) blew up with an integrity check failure. CI now refreshes the manifest right after signing.
+- 🔌 **Post-commit auto-backup no longer requires `vib` on PATH** — Sourcetree / VS Code / Tower commits inherit the launchd PATH and usually miss `~/.local/bin`, so every `command -v vib` fallback was silently failing → no backup. The hook now captures absolute paths to `vib` / `vibelign` / `python -m vibelign.cli.vib_cli` at install time and tries them first. Marker bumped to v4; old v1-v3 hooks auto-upgrade on next `vib start`.
+- 🐧 **Linux builds dropped from CI** — wheel publish + Python smoke build moved off Ubuntu; targets are macOS + Windows only.
+
+**v2.2.12** — Flexible pre-commit hook (guard advisory + skip env):
+
+- 🟢 **`vib guard --strict` no longer blocks commits** — guard failures now print a one-line advisory to stderr and let the commit through; `vib secrets --staged` still blocks (secrets leakage is irreversible, drift is not). Guard issues are still caught by `vib doctor` and the next session.
+- 🚪 **`VIBELIGN_SKIP_HOOK=1 git commit ...`** — one-shot bypass (clearer-intent alternative to `--no-verify`; vib itself doesn't run).
+- 🔒 **`VIBELIGN_STRICT_GUARD=1`** — opt-in to keep guard blocking, for strict-mode teams.
+- ♻️ **Auto-upgrade** — any prior `secrets-pre-commit v1` / `pre-commit-enforcement v1`/`v2` hook is replaced with the new v3 template on the next `vib start`. No manual cleanup.
+
 **v2.2.11** — Patch card hidden from GUI (accuracy-driven deprecation):
 
 - 🚫 **GUI Patch card removed from default order** — `vib patch`'s natural-distribution accuracy was measured at 0/7 across real user requests (keyword traps: `--json` → wrong Python doc command, `--preview` → unrelated backup-restore file). Users blindly following the output risked corrupting unrelated files. The card no longer appears in the Home grid for new or existing users. CLI `vib patch` itself is unchanged for now. Use Claude Code / Cursor with vibelign-mcp (auto-registered by `vib start`) for natural-language patching instead.

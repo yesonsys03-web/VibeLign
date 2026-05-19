@@ -45,6 +45,10 @@ vibelign-gui/.vite/
 .omc/
 .sisyphus/
 
+# Native engine artifacts are generated during wheel builds.
+vibelign/_bundled/vibelign-engine*
+!vibelign/_bundled/.gitkeep
+
 # Editor backup files
 *~
 

@@ -319,6 +319,40 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.18** — 기획 문서 코드 동기화 + GUI tsconfig 테스트 제외:
+
+- 📝 **superpowers plan/spec 문서 5개에 "현재 구현 대조 메모 (2026-05-14)" 추가** — `mcp-host-llm-pivot-plan`, `규칙수정안-3`, `원클릭설치-기획안_초안`, `지식저장고-기획안`, `mcp-host-llm-pivot-eval-runbook` 의 헤더에 "지금 코드와 실제 격차" 를 명시. MCP primitive 2개 mainlined 사실, `vib knowledge` 미구현 사실, `claude doctor` v1 성공 기준 제외 사실 등이 문서 상단에서 바로 보임. 미래 비전과 v1 현실을 분리해 읽도록.
+- 🧹 **`vibelign-gui/tsconfig.json` 에서 테스트 파일 제외** — `src/**/__tests__/**`, `*.test.{ts,tsx}`, `src/test/**` 가 `tsc && vite build` 에 끌려 들어가 가짜 type error 를 뿜던 노이즈 정리. `exclude` 항목 추가로 production 빌드만 깨끗해지고 vitest 실행에는 영향 없음.
+
+**v2.2.17** — PyPI publish 큐 적체 해소 (macos-13 → macos-latest):
+
+- ⚡ **macOS wheel runner 를 Apple Silicon 으로 교체** — `macos-13` (Intel x86_64) runner pool 이 GitHub Actions 에서 만성 큐 적체. v2.2.12 부터 PyPI publish 가 시간 단위로 묶였음. `macos-latest` (Apple Silicon arm64) 는 초 단위로 잡힘. 트레이드오프: Intel Mac 사용자는 PyPI binary wheel 대신 sdist 로 설치 (Rust 툴체인 필요).
+
+**v2.2.16** — Phase 9 CI 그린업 (MCP checkpoint handler 테스트):
+
+- 🟢 **`test_handle_checkpoint_create_*` 2건 실패 fix** — Rust 엔진 migration 잔재. `handle_checkpoint_create` 가 `file_count == 0` 도 `summary is None` 과 동일하게 "blocked" 로 audit. list-checkpoints 테스트가 `router.list_checkpoints` 사용해서 Rust 엔진 SQLite 결과를 보도록. v2.2.11 부터 빨갛던 Phase 9 cross-platform CI green.
+
+**v2.2.15** — post-commit hook v5: v3 분기 순서 복원:
+
+- 🔁 **자동 백업 fallback 순서 v3 으로 되돌림** — v4 의 "절대경로 먼저" 구조가 OpenCode + GPT-5.5 같은 일부 LLM commit tool 에서 자동 백업을 전부 누락시킴 (사용자 신고로 재현). v5 는 v3 와 동일하게 PATH 분기를 앞에 두고, 절대경로 분기는 마지막 fallback 으로 강등 — PATH 가 빈약한 GUI commit tool 케이스만 커버. marker v5 로 bump, v1-v4 hook 다음 `vib start` 에서 자동 교체.
+
+**v2.2.14** — `RUST_ENGINE_INTEGRITY_FAILED` runtime self-heal:
+
+- 🛟 **번들 엔진 integrity 가 macOS 에서 자동 회복** — v2.2.13 은 CI codesign step 만 보강해서, 사용자가 로컬에서 `npm run tauri build` (Intel/ARM Mac) 로 직접 빌드한 GUI 에선 integrity check 가 그대로 폭발. 런타임에서 `codesign --verify --strict` 가 통과하는 binary 면 `.sha256` manifest 를 자동 갱신해 회복한다. Windows/Linux 는 codesign 신뢰 신호가 없어 tamper 검사 그대로 유지.
+
+**v2.2.13** — 자동 백업 정합성 hotfix (GUI + GUI commit tool):
+
+- 🩹 **macOS GUI 의 `RUST_ENGINE_INTEGRITY_FAILED` 해소** — `codesign --deep` 가 bundled `vibelign-engine` binary 에 서명 blob 을 추가한 후 `.sha256` manifest 가 재생성되지 않아 모든 Rust 엔진 호출 (history, BACKUPS) 이 integrity check 로 폭발하던 회귀. CI 에서 codesign 직후 manifest 를 재생성하도록 step 보강.
+- 🔌 **post-commit 자동 백업이 `vib` PATH 에 의존하지 않음** — Sourcetree / VS Code / Tower 의 commit 은 launchd PATH 만 상속해 `~/.local/bin` 이 빠지는 경우가 흔함. 모든 `command -v vib` fallback 이 false → 자동 백업 누락이던 회귀. install 시점에 `vib` / `vibelign` / `python -m vibelign.cli.vib_cli` 절대 경로를 캡처해 PATH 분기보다 먼저 시도. marker v4 로 bump, v1-v3 hook 다음 `vib start` 에서 자동 교체.
+- 🐧 **CI 에서 Linux 빌드 제외** — wheel publish + Python smoke build 가 Ubuntu 에서 빠짐. 타겟은 macOS + Windows.
+
+**v2.2.12** — pre-commit hook 유연화 (guard advisory + skip env):
+
+- 🟢 **`vib guard --strict` 가 commit 을 막지 않음** — guard 실패는 stderr 에 한 줄 알림만 출력하고 commit 통과. `vib secrets --staged` 는 그대로 차단 (시크릿 누출은 비가역, 구조 drift 는 가역이라 비대칭). guard 가 잡던 drift 는 `vib doctor` / 다음 작업에서 계속 잡힘.
+- 🚪 **`VIBELIGN_SKIP_HOOK=1 git commit ...`** — 1회용 우회 (`--no-verify` 의도-명확 버전, vib 자체가 실행되지 않음).
+- 🔒 **`VIBELIGN_STRICT_GUARD=1`** — strict 팀용 opt-in. 옛 차단 동작 복귀.
+- ♻️ **기존 hook 자동 재설치** — `secrets-pre-commit v1` / `pre-commit-enforcement v1`/`v2` 어느 marker 든 다음 `vib start` 에서 v3 로 자동 교체. 수동 정리 불필요.
+
 **v2.2.11** — GUI Patch 카드 노출 제거 (정확도 기반 deprecation):
 
 - 🚫 **Patch 카드 기본 노출에서 제거** — v2.2.10 측정에서 `vib patch` 자연 분포 정확도가 사용자 실 요청 7건 중 0건이었음 (키워드 함정: `--json` → 무관한 Python docs 명령 파일, `--preview` → 무관한 backup-restore 파일). 사용자가 출력을 무비판적으로 따를 경우 무관 파일이 잘못 수정될 위험이 가장 큰 surface 였음. 신규/기존 사용자 모두 Home 카드 목록에서 더 이상 보이지 않음. CLI `vib patch` 는 그대로 유지. 자연어 패치는 Claude Code / Cursor 에서 직접 (vibelign-mcp 는 `vib start` 시 자동 등록).

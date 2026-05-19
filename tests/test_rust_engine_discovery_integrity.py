@@ -58,6 +58,76 @@ def test_existing_manifest_mismatch_still_fails(tmp_path: Path) -> None:
     assert _verify_integrity(binary_path) == "integrity check failed"
 
 
+def test_darwin_mismatch_with_valid_codesign_self_heals(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """macOS codesign --deep / linker auto-sign 으로 binary 가 사후 수정되어 manifest
+    와 어긋날 때, codesign --verify 통과하면 manifest 를 갱신해 회복한다."""
+    binary_path = tmp_path / "site-packages" / "vibelign" / "_bundled" / "vibelign-engine"
+    binary_path.parent.mkdir(parents=True, exist_ok=True)
+    binary_path.write_bytes(b"signed-binary-bytes")
+    manifest = binary_path.with_suffix(binary_path.suffix + ".sha256")
+    manifest.write_text("0" * 64 + "  vibelign-engine\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "vibelign.core.checkpoint_engine.rust_engine.discovery.sys.platform", "darwin"
+    )
+
+    from vibelign.core.checkpoint_engine.rust_engine import discovery
+
+    monkeypatch.setattr(
+        discovery,
+        "_has_valid_macos_codesign",
+        lambda _path: True,
+    )
+
+    assert _verify_integrity(binary_path) is None
+    refreshed = manifest.read_text(encoding="utf-8").split()[0]
+    assert len(refreshed) == 64
+    assert refreshed != "0" * 64, "manifest 가 실제 hash 로 재생성돼야 한다"
+
+
+def test_darwin_mismatch_without_codesign_still_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """codesign 서명이 없는 binary 의 hash 불일치는 여전히 tamper / corruption
+    신호로 보고 실패시켜야 한다."""
+    binary_path = tmp_path / "site-packages" / "vibelign" / "_bundled" / "vibelign-engine"
+    binary_path.parent.mkdir(parents=True, exist_ok=True)
+    binary_path.write_bytes(b"unsigned bytes")
+    manifest = binary_path.with_suffix(binary_path.suffix + ".sha256")
+    manifest.write_text("0" * 64 + "  vibelign-engine\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "vibelign.core.checkpoint_engine.rust_engine.discovery.sys.platform", "darwin"
+    )
+
+    from vibelign.core.checkpoint_engine.rust_engine import discovery
+
+    monkeypatch.setattr(
+        discovery,
+        "_has_valid_macos_codesign",
+        lambda _path: False,
+    )
+
+    assert _verify_integrity(binary_path) == "integrity check failed"
+
+
+def test_non_darwin_mismatch_never_self_heals(tmp_path: Path, monkeypatch) -> None:
+    """Linux / Windows 에서는 codesign 신뢰 신호가 없으므로 self-heal 금지."""
+    binary_path = tmp_path / "site-packages" / "vibelign" / "_bundled" / "vibelign-engine"
+    binary_path.parent.mkdir(parents=True, exist_ok=True)
+    binary_path.write_bytes(b"linux bytes")
+    manifest = binary_path.with_suffix(binary_path.suffix + ".sha256")
+    manifest.write_text("0" * 64 + "  vibelign-engine\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "vibelign.core.checkpoint_engine.rust_engine.discovery.sys.platform", "linux"
+    )
+
+    assert _verify_integrity(binary_path) == "integrity check failed"
+
+
 def test_dev_path_case_insensitive_match(tmp_path: Path) -> None:
     """Windows NTFS 의 case-preserving 특성에 robust 하도록 케이스 다른 경로도
     dev 빌드로 인식되어 auto-regen 되어야 한다."""

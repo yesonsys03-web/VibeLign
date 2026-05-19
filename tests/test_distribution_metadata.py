@@ -90,11 +90,51 @@ class DistributionMetadataTest(unittest.TestCase):
     def test_rust_sidecar_is_declared_as_package_data(self):
         text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
+        self.assertIn('include = ["vibelign", "vibelign.*"]', text)
         self.assertIn("[tool.setuptools.package-data]", text)
         self.assertIn('"_bundled/vibelign-engine"', text)
         self.assertIn('"_bundled/vibelign-engine.exe"', text)
         self.assertIn('"_bundled/vibelign-engine.sha256"', text)
         self.assertIn('"_bundled/vibelign-engine.exe.sha256"', text)
+
+    def test_python_build_compiles_and_bundles_rust_sidecar(self):
+        text = (ROOT / "setup.py").read_text(encoding="utf-8")
+
+        self.assertIn("cargo", text)
+        self.assertIn('"build"', text)
+        self.assertIn('"--release"', text)
+        self.assertIn('"--bin"', text)
+        self.assertIn('"vibelign-engine"', text)
+        self.assertIn("BinaryDistribution", text)
+        self.assertIn("has_ext_modules", text)
+        self.assertIn("bdist_wheel", text)
+        self.assertIn('return "py3", "none", platform_tag', text)
+        self.assertIn("_bundled", text)
+        self.assertIn(".sha256", text)
+
+    def test_source_distribution_includes_rust_engine_sources(self):
+        text = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
+
+        self.assertIn("include setup.py", text)
+        self.assertIn("recursive-include vibelign-core Cargo.toml Cargo.lock", text)
+        self.assertIn("recursive-include vibelign-core/src *.rs", text)
+        self.assertIn("recursive-exclude vibelign-core/target *", text)
+
+    def test_generated_rust_sidecar_is_not_expected_in_git(self):
+        text = (ROOT / ".gitignore").read_text(encoding="utf-8")
+
+        self.assertIn("vibelign/_bundled/vibelign-engine*", text)
+        self.assertIn("!vibelign/_bundled/.gitkeep", text)
+
+    def test_publish_workflow_builds_platform_wheels(self):
+        text = (ROOT / ".github" / "workflows" / "publish.yml").read_text(encoding="utf-8")
+
+        self.assertIn("os: [ubuntu-latest, macos-13, windows-latest]", text)
+        self.assertIn("dtolnay/rust-toolchain@stable", text)
+        self.assertIn("python -m build --wheel", text)
+        self.assertIn("python -m build --sdist", text)
+        self.assertIn("pattern: python-package-distributions-*", text)
+        self.assertIn("merge-multiple: true", text)
 
     def test_pyinstaller_spec_bundles_rust_sidecar_and_checkpoint_engine(self):
         text = (ROOT / "vib.spec").read_text(encoding="utf-8")

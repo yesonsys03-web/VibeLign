@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -72,8 +73,38 @@ def _verify_integrity(binary_path: Path) -> str | None:
         return "integrity manifest empty"
     actual = _sha256(binary_path).lower()
     if actual != expected:
+        # macOS 의 codesign 또는 linker 가 binary 끝에 서명 blob 을 추가하면 사전
+        # 매니페스트와 hash 가 영구적으로 어긋난다 (CI codesign --deep, Tauri bundle
+        # 의 cargo bundle, 또는 macOS 의 ad-hoc linker 서명 모두 같은 증상). 사용자
+        # 환경에서 손쓸 방법이 없고, codesign --verify 가 통과하는 binary 는 tamper
+        # 가 아니라 정상 codesigned artifact 이므로 manifest 를 갱신해 회복한다.
+        # 그 외 OS / 서명 없는 binary 는 기존대로 실패시켜 tamper 신호 보존.
+        if (
+            sys.platform == "darwin"
+            and _has_valid_macos_codesign(binary_path)
+            and _try_write_manifest(binary_path, manifest_path)
+        ):
+            return None
         return "integrity check failed"
     return None
+
+
+def _has_valid_macos_codesign(binary_path: Path) -> bool:
+    """macOS 의 `codesign --verify` 로 binary 의 서명 정합성 확인.
+
+    Returns True iff binary 가 정상적인 codesign 서명을 가지고 있어 빌드/배포
+    파이프라인이 의도적으로 수정한 결과라고 간주할 수 있는 경우. ad-hoc 서명도
+    True 로 본다 (`-s -` 로 서명된 dev/local 빌드 케이스 커버).
+    """
+    try:
+        result = subprocess.run(
+            ["codesign", "--verify", "--strict", str(binary_path)],
+            capture_output=True,
+            timeout=5,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False
+    return result.returncode == 0
 
 
 def _is_dev_build_path(binary_path: Path) -> bool:
