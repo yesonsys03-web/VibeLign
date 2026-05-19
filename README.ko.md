@@ -319,6 +319,10 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.15** — post-commit hook v5: v3 분기 순서 복원:
+
+- 🔁 **자동 백업 fallback 순서 v3 으로 되돌림** — v4 의 "절대경로 먼저" 구조가 OpenCode + GPT-5.5 같은 일부 LLM commit tool 에서 자동 백업을 전부 누락시킴 (사용자 신고로 재현). v5 는 v3 와 동일하게 PATH 분기를 앞에 두고, 절대경로 분기는 마지막 fallback 으로 강등 — PATH 가 빈약한 GUI commit tool 케이스만 커버. marker v5 로 bump, v1-v4 hook 다음 `vib start` 에서 자동 교체.
+
 **v2.2.14** — `RUST_ENGINE_INTEGRITY_FAILED` runtime self-heal:
 
 - 🛟 **번들 엔진 integrity 가 macOS 에서 자동 회복** — v2.2.13 은 CI codesign step 만 보강해서, 사용자가 로컬에서 `npm run tauri build` (Intel/ARM Mac) 로 직접 빌드한 GUI 에선 integrity check 가 그대로 폭발. 런타임에서 `codesign --verify --strict` 가 통과하는 binary 면 `.sha256` manifest 를 자동 갱신해 회복한다. Windows/Linux 는 codesign 신뢰 신호가 없어 tamper 검사 그대로 유지.

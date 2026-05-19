@@ -199,22 +199,20 @@ def uninstall_pre_commit_secret_hook(root: Path) -> HookInstallResult:
 
 
 # === ANCHOR: GIT_HOOKS_POST_COMMIT_RECORD_START ===
-_POST_COMMIT_MARKER_V4 = "# vibelign: post-commit-record v4"
+_POST_COMMIT_MARKER_V5 = "# vibelign: post-commit-record v5"
 _POST_COMMIT_END = "# vibelign: post-commit-record-end"
-_POST_COMMIT_MARKER_RE = re.compile(r"# vibelign: post-commit-record v[1234]")
+_POST_COMMIT_MARKER_RE = re.compile(r"# vibelign: post-commit-record v[12345]")
 
-# v4 (2026-05-19): install 시점에 shutil.which('vib') / shutil.which('vibelign') /
-# sys.executable 절대 경로를 캡처해 hook 에 박는다. GUI tool (Sourcetree, VS Code 등)
-# 에서 commit 할 때 PATH 가 빈약해 `command -v vib` 가 false 가 되던 케이스에서
-# 자동 백업이 누락되던 회귀를 막는다. PATH 기반 fallback (uv/python/python3/vib/vibelign/py)
-# 은 그대로 두어 사용자가 vib 를 PATH 옮기거나 재설치한 경우에도 동작.
+# v5 (2026-05-19): v4 가 OpenCode 같은 일부 LLM commit tool 에서 자동 백업이 누락되는
+# 회귀를 일으켜 (원인 미특정), v3 의 동작을 보존하기 위해 PATH 분기를 다시 앞으로
+# 옮긴다. 절대 경로 분기는 마지막 fallback 으로 강등 — PATH 가 빈약한 GUI commit
+# tool 케이스만 커버. v3 에서 정상 동작하던 환경은 PATH 분기에서 곧장 success.
 _POST_COMMIT_BLOCK_TEMPLATE = """\
 {marker}
 sha=$(git rev-parse HEAD 2>/dev/null)
 msg=$(git log -1 --pretty=%B 2>/dev/null)
 if [ -n "$sha" ] && [ -n "$msg" ]; then
     vibelign_post_commit_done=0
-{absolute_branches}\
     if [ "$vibelign_post_commit_done" -eq 0 ] && command -v uv >/dev/null 2>&1; then
         printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 uv run python -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null && vibelign_post_commit_done=1
     fi
@@ -233,6 +231,7 @@ if [ -n "$sha" ] && [ -n "$msg" ]; then
     if [ "$vibelign_post_commit_done" -eq 0 ] && command -v py >/dev/null 2>&1; then
         printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 py -3 -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null && vibelign_post_commit_done=1
     fi
+{absolute_branches}\
 fi
 {end}
 """
@@ -270,7 +269,7 @@ def _collect_absolute_branches() -> str:
 
 def _build_post_commit_block() -> str:
     return _POST_COMMIT_BLOCK_TEMPLATE.format(
-        marker=_POST_COMMIT_MARKER_V4,
+        marker=_POST_COMMIT_MARKER_V5,
         end=_POST_COMMIT_END,
         absolute_branches=_collect_absolute_branches(),
     )

@@ -319,6 +319,10 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.15** — Post-commit hook v5: restore v3 branch order:
+
+- 🔁 **Auto-backup fallback order reverted to v3** — v4's "absolute-path first" structure broke auto-backup for some LLM commit tools (OpenCode + GPT-5.5 reproduced). v5 puts PATH branches back at the top (matching the v3 behavior that worked) and demotes absolute-path branches to the last fallback for the GUI-commit-tool-without-PATH case only. Marker bumped to v5; v1-v4 hooks auto-upgrade on next `vib start`.
+
 **v2.2.14** — Runtime self-heal for `RUST_ENGINE_INTEGRITY_FAILED`:
 
 - 🛟 **Bundled engine integrity now self-heals on macOS** — v2.2.13 only fixed the CI codesign step, so locally-built GUI apps (`npm run tauri build` on Intel/ARM Mac) kept tripping the integrity check. The runtime check now refreshes the `.sha256` manifest when `codesign --verify --strict` confirms the binary is properly signed. Tamper detection preserved on Windows/Linux (no codesign signal there).

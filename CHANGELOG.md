@@ -10,6 +10,30 @@
 
 ---
 
+## [2.2.15] — 2026-05-19
+
+v2.2.13 의 post-commit hook v4 가 OpenCode 등 일부 LLM commit tool 에서 자동 백업이 누락되는 회귀를 일으켜 (원인 미특정), v3 의 분기 순서를 복구.
+
+### Fixed
+
+- **post-commit hook v5 — 분기 순서 복구** (`vibelign/core/git_hooks.py`): v4 에서 절대 경로 분기를 최우선으로 두는 구조가 OpenCode + GPT-5.5 환경에서 자동 백업을 전부 누락시키던 회귀 (`vib history` 가 commit 이후 갱신되지 않음). v3 의 PATH 기반 분기 순서를 다시 앞으로 옮기고, 절대 경로 분기는 마지막 fallback 으로 강등 — PATH 가 빈약한 GUI commit tool 케이스만 커버하도록 범위 축소. marker v5 로 bump, v1-v4 hook 자동 교체.
+
+### Why
+
+`예전 버전에서는 문제 없었다` 는 사용자 신호 + 직접 simulate 시 hook 정상 동작 + 실제 commit 환경에서 7개 commit 연속 백업 누락 (`.git/hooks/post-commit` 발화 자체가 의심) 의 신호 조합. v3 동작을 보존하면 OpenCode 환경 회귀 즉시 해소, 절대 경로 분기는 PATH 가 빈약한 GUI commit tool 케이스만 last-resort 로 커버.
+
+### Verified
+
+- `tests/test_git_hooks_post_commit.py::test_hook_contains_absolute_path_fallbacks_at_top` assertion 을 절대 경로 분기가 PATH 분기보다 **뒤에** 위치하는지 검증하도록 갱신.
+- `tests/test_git_hooks*.py` + `tests/test_rust_engine_discovery_integrity.py` 32 통과.
+
+### Notes
+
+- 다음 `vib start` 실행 시 v1-v4 hook 자동으로 v5 로 교체.
+- OpenCode/git-master agent 가 git hook 을 우회하던 정확한 원인은 별도 추가 조사 필요. v5 는 그 원인이 무엇이든 v3 와 동일한 분기 순서를 거치므로 회귀 없음 보장.
+
+---
+
 ## [2.2.14] — 2026-05-19
 
 v2.2.13 의 CI codesign manifest 보강이 GitHub Actions 빌드만 커버해서, **로컬 빌드 (사용자 직접 `npm run tauri build`)** 에서는 같은 `RUST_ENGINE_INTEGRITY_FAILED` 가 그대로 재발하던 회귀를 차단. integrity 검사를 런타임 self-heal 로 격상.
