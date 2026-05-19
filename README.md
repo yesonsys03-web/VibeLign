@@ -319,6 +319,13 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.12** — Flexible pre-commit hook (guard advisory + skip env):
+
+- 🟢 **`vib guard --strict` no longer blocks commits** — guard failures now print a one-line advisory to stderr and let the commit through; `vib secrets --staged` still blocks (secrets leakage is irreversible, drift is not). Guard issues are still caught by `vib doctor` and the next session.
+- 🚪 **`VIBELIGN_SKIP_HOOK=1 git commit ...`** — one-shot bypass (clearer-intent alternative to `--no-verify`; vib itself doesn't run).
+- 🔒 **`VIBELIGN_STRICT_GUARD=1`** — opt-in to keep guard blocking, for strict-mode teams.
+- ♻️ **Auto-upgrade** — any prior `secrets-pre-commit v1` / `pre-commit-enforcement v1`/`v2` hook is replaced with the new v3 template on the next `vib start`. No manual cleanup.
+
 **v2.2.11** — Patch card hidden from GUI (accuracy-driven deprecation):
 
 - 🚫 **GUI Patch card removed from default order** — `vib patch`'s natural-distribution accuracy was measured at 0/7 across real user requests (keyword traps: `--json` → wrong Python doc command, `--preview` → unrelated backup-restore file). Users blindly following the output risked corrupting unrelated files. The card no longer appears in the Home grid for new or existing users. CLI `vib patch` itself is unchanged for now. Use Claude Code / Cursor with vibelign-mcp (auto-registered by `vib start`) for natural-language patching instead.

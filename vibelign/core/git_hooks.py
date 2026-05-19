@@ -11,7 +11,36 @@ from pathlib import Path
 
 from vibelign.core.structure_policy import WINDOWS_SUBPROCESS_FLAGS
 
-_HOOK_MARKER = "# vibelign: pre-commit-enforcement v2"
+_HOOK_MARKER = "# vibelign: pre-commit-enforcement v3"
+# v1/v2 그리고 v2 이전의 secrets-pre-commit v1 까지 인식해야 기존 설치본을 자동 교체할 수 있다.
+_HOOK_MARKER_RE = re.compile(
+    r"# vibelign: (?:pre-commit-enforcement v[123]|secrets-pre-commit v1)"
+)
+_GUARD_ADVISORY_MSG = (
+    "VibeLign: vib guard --strict reported issues (exit $guard_status). "
+    "Commit allowed; rerun 'vib guard --strict' to fix, "
+    "or set VIBELIGN_STRICT_GUARD=1 to block commits on guard failures."
+)
+
+
+def _secret_then_guard(secret_cmd: str, guard_cmd: str, indent: str) -> list[str]:
+    """secrets 는 차단, guard 는 기본 advisory (VIBELIGN_STRICT_GUARD=1 일 때만 차단)."""
+    return [
+        f"{indent}{secret_cmd}",
+        f"{indent}status=$?",
+        f'{indent}if [ "$status" -ne 0 ]; then',
+        f"{indent}  exit $status",
+        f"{indent}fi",
+        f"{indent}{guard_cmd}",
+        f"{indent}guard_status=$?",
+        f'{indent}if [ "$guard_status" -ne 0 ]; then',
+        f'{indent}  if [ -n "$VIBELIGN_STRICT_GUARD" ]; then',
+        f"{indent}    exit $guard_status",
+        f"{indent}  fi",
+        f'{indent}  printf "%s\\n" "{_GUARD_ADVISORY_MSG}" >&2',
+        f"{indent}fi",
+        f"{indent}exit 0",
+    ]
 
 
 @dataclass(frozen=True)
@@ -62,47 +91,39 @@ def get_hooks_dir(root: Path) -> Path | None:
 def _hook_script(
     preferred_secret_command: str | None, preferred_guard_command: str | None
 ) -> str:
-    commands: list[str] = []
+    lines: list[str] = [
+        "#!/bin/sh",
+        _HOOK_MARKER,
+        'if [ -n "$VIBELIGN_SKIP_HOOK" ]; then',
+        "  exit 0",
+        "fi",
+    ]
     if preferred_secret_command and preferred_guard_command:
-        commands.extend(
-            [
-                preferred_secret_command,
-                "status=$?",
-                'if [ "$status" -ne 0 ]; then',
-                "  exit $status",
-                "fi",
-                preferred_guard_command,
-                "exit $?",
-            ]
+        lines.extend(
+            _secret_then_guard(
+                preferred_secret_command, preferred_guard_command, indent=""
+            )
         )
-    return "\n".join(
+    lines.append("if command -v vib >/dev/null 2>&1; then")
+    lines.extend(
+        _secret_then_guard("vib secrets --staged", "vib guard --strict", indent="  ")
+    )
+    lines.append("fi")
+    lines.append("if command -v vibelign >/dev/null 2>&1; then")
+    lines.extend(
+        _secret_then_guard(
+            "vibelign secrets --staged", "vibelign guard --strict", indent="  "
+        )
+    )
+    lines.append("fi")
+    lines.extend(
         [
-            "#!/bin/sh",
-            _HOOK_MARKER,
-            *commands,
-            "if command -v vib >/dev/null 2>&1; then",
-            "  vib secrets --staged",
-            "  status=$?",
-            '  if [ "$status" -ne 0 ]; then',
-            "    exit $status",
-            "  fi",
-            "  vib guard --strict",
-            "  exit $?",
-            "fi",
-            "if command -v vibelign >/dev/null 2>&1; then",
-            "  vibelign secrets --staged",
-            "  status=$?",
-            '  if [ "$status" -ne 0 ]; then',
-            "    exit $status",
-            "  fi",
-            "  vibelign guard --strict",
-            "  exit $?",
-            "fi",
-            'printf "%s\n" "VibeLign pre-commit enforcement could not find `vib` or `vibelign`. Run `vib start` again after fixing PATH." >&2',
+            'printf "%s\\n" "VibeLign pre-commit enforcement could not find `vib` or `vibelign`. Run `vib start` again after fixing PATH." >&2',
             "exit 1",
             "",
         ]
     )
+    return "\n".join(lines)
 
 
 # === ANCHOR: GIT_HOOKS__HOOK_SCRIPT_END ===
@@ -132,7 +153,7 @@ def install_pre_commit_secret_hook(root: Path) -> HookInstallResult:
     hook_path = hooks_dir / "pre-commit"
     if hook_path.exists():
         existing = hook_path.read_text(encoding="utf-8", errors="ignore")
-        if _HOOK_MARKER not in existing:
+        if not _HOOK_MARKER_RE.search(existing):
             return HookInstallResult(status="existing-hook", path=hook_path)
         status = "updated"
     else:
@@ -167,7 +188,7 @@ def uninstall_pre_commit_secret_hook(root: Path) -> HookInstallResult:
         return HookInstallResult(status="missing", path=hook_path)
 
     content = hook_path.read_text(encoding="utf-8", errors="ignore")
-    if _HOOK_MARKER not in content:
+    if not _HOOK_MARKER_RE.search(content):
         return HookInstallResult(status="foreign-hook", path=hook_path)
 
     hook_path.unlink()

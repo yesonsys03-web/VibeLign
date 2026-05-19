@@ -319,6 +319,13 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.12** — pre-commit hook 유연화 (guard advisory + skip env):
+
+- 🟢 **`vib guard --strict` 가 commit 을 막지 않음** — guard 실패는 stderr 에 한 줄 알림만 출력하고 commit 통과. `vib secrets --staged` 는 그대로 차단 (시크릿 누출은 비가역, 구조 drift 는 가역이라 비대칭). guard 가 잡던 drift 는 `vib doctor` / 다음 작업에서 계속 잡힘.
+- 🚪 **`VIBELIGN_SKIP_HOOK=1 git commit ...`** — 1회용 우회 (`--no-verify` 의도-명확 버전, vib 자체가 실행되지 않음).
+- 🔒 **`VIBELIGN_STRICT_GUARD=1`** — strict 팀용 opt-in. 옛 차단 동작 복귀.
+- ♻️ **기존 hook 자동 재설치** — `secrets-pre-commit v1` / `pre-commit-enforcement v1`/`v2` 어느 marker 든 다음 `vib start` 에서 v3 로 자동 교체. 수동 정리 불필요.
+
 **v2.2.11** — GUI Patch 카드 노출 제거 (정확도 기반 deprecation):
 
 - 🚫 **Patch 카드 기본 노출에서 제거** — v2.2.10 측정에서 `vib patch` 자연 분포 정확도가 사용자 실 요청 7건 중 0건이었음 (키워드 함정: `--json` → 무관한 Python docs 명령 파일, `--preview` → 무관한 backup-restore 파일). 사용자가 출력을 무비판적으로 따를 경우 무관 파일이 잘못 수정될 위험이 가장 큰 surface 였음. 신규/기존 사용자 모두 Home 카드 목록에서 더 이상 보이지 않음. CLI `vib patch` 는 그대로 유지. 자연어 패치는 Claude Code / Cursor 에서 직접 (vibelign-mcp 는 `vib start` 시 자동 등록).

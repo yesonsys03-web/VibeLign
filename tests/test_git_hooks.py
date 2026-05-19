@@ -12,7 +12,9 @@ from vibelign.core.git_hooks import (
 )
 
 
-_HOOK_MARKER = "# vibelign: pre-commit-enforcement v2"
+_HOOK_MARKER = "# vibelign: pre-commit-enforcement v3"
+_LEGACY_V2_MARKER = "# vibelign: pre-commit-enforcement v2"
+_LEGACY_SECRETS_V1_MARKER = "# vibelign: secrets-pre-commit v1"
 
 
 class GitHooksTest(unittest.TestCase):
@@ -73,6 +75,41 @@ class GitHooksTest(unittest.TestCase):
             self.assertEqual(result.status, "existing-hook")
             self.assertNotIn(_HOOK_MARKER, hook_path.read_text(encoding="utf-8"))
 
+    def test_install_upgrades_legacy_v2_marker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            hooks_dir = root / ".git" / "hooks"
+            hooks_dir.mkdir(parents=True)
+            hook_path = hooks_dir / "pre-commit"
+            _ = hook_path.write_text(
+                f"#!/bin/sh\n{_LEGACY_V2_MARKER}\nvib secrets --staged\nexit $?\n",
+                encoding="utf-8",
+            )
+            with patch("vibelign.core.git_hooks.get_hooks_dir", return_value=hooks_dir):
+                result = install_pre_commit_secret_hook(root)
+            self.assertEqual(result.status, "updated")
+            new_text = hook_path.read_text(encoding="utf-8")
+            self.assertIn(_HOOK_MARKER, new_text)
+            self.assertNotIn(_LEGACY_V2_MARKER, new_text)
+            self.assertIn("VIBELIGN_SKIP_HOOK", new_text)
+
+    def test_install_upgrades_legacy_secrets_v1_marker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            hooks_dir = root / ".git" / "hooks"
+            hooks_dir.mkdir(parents=True)
+            hook_path = hooks_dir / "pre-commit"
+            _ = hook_path.write_text(
+                f"#!/bin/sh\n{_LEGACY_SECRETS_V1_MARKER}\nvib secrets --staged\n",
+                encoding="utf-8",
+            )
+            with patch("vibelign.core.git_hooks.get_hooks_dir", return_value=hooks_dir):
+                result = install_pre_commit_secret_hook(root)
+            self.assertEqual(result.status, "updated")
+            new_text = hook_path.read_text(encoding="utf-8")
+            self.assertIn(_HOOK_MARKER, new_text)
+            self.assertNotIn(_LEGACY_SECRETS_V1_MARKER, new_text)
+
     def test_uninstall_removes_only_vibelign_hook(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -122,7 +159,7 @@ class GitHooksTest(unittest.TestCase):
             self.assertIn("secrets --staged", calls)
             self.assertNotIn("guard --strict", calls)
 
-    def test_hook_returns_guard_failure_after_secret_passes(self):
+    def test_hook_guard_failure_is_advisory_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             hooks_dir = root / ".git" / "hooks"
@@ -149,10 +186,68 @@ class GitHooksTest(unittest.TestCase):
             proc = subprocess.run(
                 [str(hook_path)], cwd=root, env=env, capture_output=True, text=True
             )
-            self.assertEqual(proc.returncode, 7)
+            self.assertEqual(proc.returncode, 0)
             calls = log_path.read_text(encoding="utf-8")
             self.assertIn("secrets --staged", calls)
             self.assertIn("guard --strict", calls)
+            self.assertIn("guard --strict reported issues", proc.stderr)
+
+    def test_hook_guard_failure_blocks_when_strict_guard_env_set(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            hooks_dir = root / ".git" / "hooks"
+            bin_dir = root / "bin"
+            hooks_dir.mkdir(parents=True)
+            bin_dir.mkdir(parents=True)
+            log_path = root / "calls.log"
+            self._write_fake_command(
+                bin_dir / "vib",
+                "#!/bin/sh\n"
+                f'printf "%s\\n" "$*" >> "{log_path}"\n'
+                'if [ "$1" = "guard" ]; then\n'
+                "  exit 7\n"
+                "fi\n"
+                "exit 0\n",
+            )
+            with patch("vibelign.core.git_hooks.get_hooks_dir", return_value=hooks_dir):
+                with patch("vibelign.core.git_hooks.shutil.which", return_value=None):
+                    with patch("vibelign.core.git_hooks.sys.executable", None):
+                        _ = install_pre_commit_secret_hook(root)
+            hook_path = hooks_dir / "pre-commit"
+            env = os.environ.copy()
+            env["PATH"] = str(bin_dir)
+            env["VIBELIGN_STRICT_GUARD"] = "1"
+            proc = subprocess.run(
+                [str(hook_path)], cwd=root, env=env, capture_output=True, text=True
+            )
+            self.assertEqual(proc.returncode, 7)
+
+    def test_hook_skip_env_bypasses_everything(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            hooks_dir = root / ".git" / "hooks"
+            bin_dir = root / "bin"
+            hooks_dir.mkdir(parents=True)
+            bin_dir.mkdir(parents=True)
+            log_path = root / "calls.log"
+            self._write_fake_command(
+                bin_dir / "vib",
+                "#!/bin/sh\n"
+                f'printf "%s\\n" "$*" >> "{log_path}"\nexit 9\n',
+            )
+            with patch("vibelign.core.git_hooks.get_hooks_dir", return_value=hooks_dir):
+                with patch("vibelign.core.git_hooks.shutil.which", return_value=None):
+                    with patch("vibelign.core.git_hooks.sys.executable", None):
+                        _ = install_pre_commit_secret_hook(root)
+            hook_path = hooks_dir / "pre-commit"
+            env = os.environ.copy()
+            env["PATH"] = str(bin_dir)
+            env["VIBELIGN_SKIP_HOOK"] = "1"
+            proc = subprocess.run(
+                [str(hook_path)], cwd=root, env=env, capture_output=True, text=True
+            )
+            self.assertEqual(proc.returncode, 0)
+            self.assertFalse(log_path.exists())
 
     def test_hook_uses_vibelign_fallback_for_guard(self):
         with tempfile.TemporaryDirectory() as tmp:

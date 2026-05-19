@@ -10,6 +10,35 @@
 
 ---
 
+## [2.2.12] — 2026-05-19
+
+vib 의 pre-commit hook 이 사소한 구조 drift 만으로 commit 을 막던 문제를 해소. secrets 차단은 유지하면서 guard 실패는 advisory(경고만) 로 강등.
+
+### Changed
+
+- **pre-commit hook 유연화** (`vibelign/core/git_hooks.py`): hook 템플릿을 `pre-commit-enforcement v3` 로 bump. `vib guard --strict` 가 실패해도 commit 은 통과시키고 stderr 에 한 줄 알림만 출력. `vib secrets --staged` 는 그대로 차단 (시크릿 누출 위험은 비대칭이라 보수적으로 유지).
+- **escape hatch 환경변수 추가**:
+  - `VIBELIGN_SKIP_HOOK=1 git commit ...` — 1회용 우회 (`--no-verify` 의도-명확 버전, vib 자체가 실행되지 않음).
+  - `VIBELIGN_STRICT_GUARD=1` — strict 팀용 opt-in. 옛 차단 동작 복귀.
+- **기존 hook 자동 재설치** (`_HOOK_MARKER_RE`): `secrets-pre-commit v1` / `pre-commit-enforcement v1` / `pre-commit-enforcement v2` 어느 marker 든 다음 `vib start` 에서 v3 로 자동 교체. 사용자 수동 정리 불필요.
+
+### Why
+
+사용자 보고: `vib guard --strict` 가 commit 시점에 자잘한 anchor drift 를 잡아 commit 이 여러 차례 실패. secrets 누출 같은 비가역 실수는 차단을 유지해야 하지만, 구조 drift 는 `vib doctor` / 다음 작업에서 다시 잡히므로 commit 차단까지는 과함. (이번 release 자체가 `pre-commit-enforcement v3` 동작 변경이라, 새 marker 가 사용자 환경에 도달하면 즉시 효과 발생.)
+
+### Verified
+
+- `tests/test_git_hooks.py` 13 개 통과 (advisory 동작, STRICT_GUARD opt-in, SKIP env 우회, v1/v2 marker 자동 교체 모두 회귀 테스트).
+- `tests/test_git_hooks_post_commit.py` 10 개 통과 (post-commit hook 회귀 없음).
+- 전체 스위트 1383 passed, 14 failed — 모든 실패는 main 에서도 동일하게 재현되는 pre-existing 항목 (stash 검증).
+
+### Notes
+
+- 기존 `.git/hooks/pre-commit` 이 `secrets-pre-commit v1` 형태인 사용자도 다음 `vib start` 한 번이면 자동 교체.
+- guard 차단이 정말 필요한 팀은 `~/.zshrc` / shell rc 에 `export VIBELIGN_STRICT_GUARD=1` 박아두면 옛 동작 유지.
+
+---
+
 ## [2.2.11] — 2026-05-13
 
 v2.2.10 측정 데이터(`vib patch` baseline 0/7 on 사용자 실 자연어 요청) 후속으로, GUI 의 Patch 카드를 노출에서 제거. CLI `vib patch` 는 변경 없음.
