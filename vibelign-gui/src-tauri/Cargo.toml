@@ -1,6 +1,6 @@
 [package]
 name = "vibelign-gui"
-version = "2.2.16"
+version = "2.2.17"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"

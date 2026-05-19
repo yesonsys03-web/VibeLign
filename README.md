@@ -319,6 +319,10 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.17** — PyPI publish unblocked (macos-13 → macos-latest):
+
+- ⚡ **macOS wheel runner switched to Apple Silicon** — `macos-13` (Intel x86_64) runner pool was queue-jammed for hours, blocking PyPI publish since v2.2.12. `macos-latest` (Apple Silicon arm64) runs in seconds. Trade-off: Intel Mac users now install via sdist (requires Rust toolchain locally), not PyPI binary wheel.
+
 **v2.2.16** — Phase 9 CI greens up (MCP checkpoint handler tests):
 
 - 🟢 **`test_handle_checkpoint_create_*` 2 failures fixed** — Rust-engine migration leftovers. `handle_checkpoint_create` now treats `file_count == 0` the same as `summary is None` (both audited as "blocked"). The list-checkpoints test now uses `router.list_checkpoints` so it can see Rust engine's SQLite store. Phase 9 cross-platform CI back to green after staying red since v2.2.11.

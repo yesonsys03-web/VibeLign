@@ -319,6 +319,10 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.17** — PyPI publish 큐 적체 해소 (macos-13 → macos-latest):
+
+- ⚡ **macOS wheel runner 를 Apple Silicon 으로 교체** — `macos-13` (Intel x86_64) runner pool 이 GitHub Actions 에서 만성 큐 적체. v2.2.12 부터 PyPI publish 가 시간 단위로 묶였음. `macos-latest` (Apple Silicon arm64) 는 초 단위로 잡힘. 트레이드오프: Intel Mac 사용자는 PyPI binary wheel 대신 sdist 로 설치 (Rust 툴체인 필요).
+
 **v2.2.16** — Phase 9 CI 그린업 (MCP checkpoint handler 테스트):
 
 - 🟢 **`test_handle_checkpoint_create_*` 2건 실패 fix** — Rust 엔진 migration 잔재. `handle_checkpoint_create` 가 `file_count == 0` 도 `summary is None` 과 동일하게 "blocked" 로 audit. list-checkpoints 테스트가 `router.list_checkpoints` 사용해서 Rust 엔진 SQLite 결과를 보도록. v2.2.11 부터 빨갛던 Phase 9 cross-platform CI green.

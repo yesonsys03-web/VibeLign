@@ -10,6 +10,21 @@
 
 ---
 
+## [2.2.17] — 2026-05-19
+
+PyPI publish 워크플로의 macos-13 runner 큐 적체 (시간당 1개 슬롯 정도) 로 v2.2.12 이후 PyPI 배포가 4시간 넘게 묶이던 회귀를 차단. macOS wheel 빌드 runner 를 Apple Silicon (macos-latest) 로 교체.
+
+### Changed
+
+- **`publish.yml` macos-13 → macos-latest** (Apple Silicon arm64): macos-13 (Intel x86_64) runner pool 이 GitHub-hosted Actions 에서 만성적으로 큐 적체. v2.2.12-v2.2.16 publish 가 1-4 시간 단위로 묶임. macos-latest (Apple Silicon, 큐 거의 즉시) 로 교체해 publish 회복. sdist build 도 macos-latest 로 이동.
+
+### Notes
+
+- macOS x86_64 (Intel Mac) 사용자는 PyPI wheel 미제공 → sdist 로 설치 (Rust 툴체인 필요). 사용자 본인은 이미 `npm run tauri build` 환경이라 Rust 보유. 다른 Intel Mac 사용자가 생기면 `pip install vibelign --no-binary vibelign` 또는 GUI 의 v2.2.14+ self-heal 기반 로컬 빌드 권장.
+- 큐에 박혀있던 v2.2.12-v2.2.16 publish 워크플로 5개 모두 수동 취소 — v2.2.17 부터 깨끗한 큐로 진행.
+
+---
+
 ## [2.2.16] — 2026-05-19
 
 Phase 9 cross-platform CI 가 v2.2.11 이전부터 빨간색이던 회귀 2건을 제거. Rust 엔진 migration 부수효과로 깨졌던 MCP checkpoint handler 테스트 페어 동기화.
