@@ -199,20 +199,22 @@ def uninstall_pre_commit_secret_hook(root: Path) -> HookInstallResult:
 
 
 # === ANCHOR: GIT_HOOKS_POST_COMMIT_RECORD_START ===
-_POST_COMMIT_MARKER_V3 = "# vibelign: post-commit-record v3"
+_POST_COMMIT_MARKER_V4 = "# vibelign: post-commit-record v4"
 _POST_COMMIT_END = "# vibelign: post-commit-record-end"
-_POST_COMMIT_MARKER_RE = re.compile(r"# vibelign: post-commit-record v[123]")
+_POST_COMMIT_MARKER_RE = re.compile(r"# vibelign: post-commit-record v[1234]")
 
-# repo-local uv → python module → global CLI fallback. stdin 으로 commit 메시지 전달.
-# v3 (2026-05-09): stdout 은 버리되 stderr 는 살려서 자동 백업 실패가 사용자에게
-# 보이도록 한다. Python 핸들러가 추가로 `.vibelign/logs/post_commit_errors.log` 에
-# 남겨 사후 진단도 가능. git commit 자체는 여전히 실패하지 않는다 (`|| true`).
+# v4 (2026-05-19): install 시점에 shutil.which('vib') / shutil.which('vibelign') /
+# sys.executable 절대 경로를 캡처해 hook 에 박는다. GUI tool (Sourcetree, VS Code 등)
+# 에서 commit 할 때 PATH 가 빈약해 `command -v vib` 가 false 가 되던 케이스에서
+# 자동 백업이 누락되던 회귀를 막는다. PATH 기반 fallback (uv/python/python3/vib/vibelign/py)
+# 은 그대로 두어 사용자가 vib 를 PATH 옮기거나 재설치한 경우에도 동작.
 _POST_COMMIT_BLOCK_TEMPLATE = """\
 {marker}
 sha=$(git rev-parse HEAD 2>/dev/null)
 msg=$(git log -1 --pretty=%B 2>/dev/null)
 if [ -n "$sha" ] && [ -n "$msg" ]; then
     vibelign_post_commit_done=0
+{absolute_branches}\
     if [ "$vibelign_post_commit_done" -eq 0 ] && command -v uv >/dev/null 2>&1; then
         printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 uv run python -m vibelign.cli.vib_cli _internal_post_commit "$sha" >/dev/null && vibelign_post_commit_done=1
     fi
@@ -236,9 +238,41 @@ fi
 """
 
 
+def _absolute_path_branch(command: str) -> str:
+    return (
+        '    if [ "$vibelign_post_commit_done" -eq 0 ] '
+        f"&& [ -x {command.split()[0]} ]; then\n"
+        f'        printf "%s" "$msg" | VIBELIGN_REQUIRE_RUST_CHECKPOINT=1 {command} '
+        '_internal_post_commit "$sha" >/dev/null && vibelign_post_commit_done=1\n'
+        "    fi\n"
+    )
+
+
+def _collect_absolute_branches() -> str:
+    """Install 시점에 PATH 에서 찾은 vib/vibelign 절대경로를 hook 에 박는다.
+
+    Why: GUI commit tool (Sourcetree, VS Code, Tower) 은 launchd PATH 만 상속해
+    `~/.local/bin` 이 없는 경우가 흔하다. `command -v vib` 가 false → fallback 5개
+    전부 fail → 자동 백업 누락. install 시점에 캡처한 절대 경로를 최우선 fallback 으로
+    두면 PATH 환경 차이를 우회할 수 있다.
+    """
+    branches: list[str] = []
+    for tool_name in ("vib", "vibelign"):
+        resolved = shutil.which(tool_name)
+        if resolved:
+            branches.append(_absolute_path_branch(f'"{resolved}"'))
+    if sys.executable:
+        branches.append(
+            _absolute_path_branch(f'"{sys.executable}" -m vibelign.cli.vib_cli')
+        )
+    return "".join(branches)
+
+
 def _build_post_commit_block() -> str:
     return _POST_COMMIT_BLOCK_TEMPLATE.format(
-        marker=_POST_COMMIT_MARKER_V3, end=_POST_COMMIT_END
+        marker=_POST_COMMIT_MARKER_V4,
+        end=_POST_COMMIT_END,
+        absolute_branches=_collect_absolute_branches(),
     )
 
 

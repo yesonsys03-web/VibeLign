@@ -10,6 +10,31 @@
 
 ---
 
+## [2.2.13] — 2026-05-19
+
+자동 백업 정합성 hotfix — GUI `RUST_ENGINE_INTEGRITY_FAILED` 폭발과 GUI commit tool 환경의 post-commit 자동 백업 누락 동시에 해소.
+
+### Fixed
+
+- **GUI `vibelign-engine` integrity check 실패** (`.github/workflows/gui.yml`): macOS `codesign --deep` 가 bundled binary 끝에 서명 blob 을 추가해 사전 생성된 `.sha256` 매니페스트와 hash 가 어긋나던 회귀. codesign 직후 매니페스트를 재생성하도록 step 보강. GUI 의 `vib history`, BACKUPS 페이지 등 Rust 엔진 호출이 `RUST_ENGINE_INTEGRITY_FAILED: integrity check failed` 로 폭발하던 issue 해결.
+- **post-commit 자동 백업 PATH 의존성** (`vibelign/core/git_hooks.py`): hook 의 모든 fallback 이 `command -v vib` 같은 PATH lookup 에만 의존해서, Sourcetree / VS Code / Tower 처럼 launchd PATH 만 상속해 `~/.local/bin` 이 빠진 commit tool 에서 자동 백업이 통째로 누락되던 회귀. install 시점에 `shutil.which('vib')` / `shutil.which('vibelign')` / `sys.executable` 절대 경로를 캡처해 PATH 분기보다 먼저 시도하도록 hook 구조 변경. marker 를 v4 로 bump 하고 v1-v3 hook 자동 교체.
+
+### Changed
+
+- **CI 매트릭스에서 Linux 제외** (`.github/workflows/publish.yml`, `python.yml`): wheel publish 가 `[macos-13, windows-latest]` 만 build, sdist 는 macos-13 로 이동. `python.yml` 의 smoke build 도 `macos-latest` 로 이동. Linux user 대상 PyPI wheel 제공 중단.
+
+### Verified
+
+- `tests/test_git_hooks.py` + `tests/test_git_hooks_post_commit.py` 24 통과 (절대 경로 분기 회귀 테스트 신규 1건, marker v4 자동 교체 회귀 포함).
+- `_build_post_commit_block()` 출력 수동 검증 — 절대 경로 3개 fallback (vib, vibelign, python -m vibelign) 가 PATH 분기 위에 위치.
+
+### Notes
+
+- 사용자는 `vib start` 한 번 다시 돌리거나 GUI 를 새 릴리즈로 업데이트하면 양 issue 자동 해소.
+- 기존 v2.2.12 GUI 설치본에서 즉시 우회하려면: `cp ~/.local/share/uv/tools/vibelign/lib/python*/site-packages/vibelign/_bundled/vibelign-engine /Applications/vibelign-gui.app/Contents/Resources/vib-runtime/_internal/vibelign/_bundled/vibelign-engine`.
+
+---
+
 ## [2.2.12] — 2026-05-19
 
 vib 의 pre-commit hook 이 사소한 구조 drift 만으로 commit 을 막던 문제를 해소. secrets 차단은 유지하면서 guard 실패는 advisory(경고만) 로 강등.

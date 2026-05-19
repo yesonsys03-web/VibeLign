@@ -319,6 +319,12 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.13** — Auto-backup integrity hotfix (GUI + GUI commit tools):
+
+- 🩹 **`RUST_ENGINE_INTEGRITY_FAILED` on macOS GUI fixed** — `codesign --deep` was adding a signature blob to the bundled `vibelign-engine` binary AFTER the `.sha256` manifest was generated, so every Rust engine call from the GUI (history, backups page) blew up with an integrity check failure. CI now refreshes the manifest right after signing.
+- 🔌 **Post-commit auto-backup no longer requires `vib` on PATH** — Sourcetree / VS Code / Tower commits inherit the launchd PATH and usually miss `~/.local/bin`, so every `command -v vib` fallback was silently failing → no backup. The hook now captures absolute paths to `vib` / `vibelign` / `python -m vibelign.cli.vib_cli` at install time and tries them first. Marker bumped to v4; old v1-v3 hooks auto-upgrade on next `vib start`.
+- 🐧 **Linux builds dropped from CI** — wheel publish + Python smoke build moved off Ubuntu; targets are macOS + Windows only.
+
 **v2.2.12** — Flexible pre-commit hook (guard advisory + skip env):
 
 - 🟢 **`vib guard --strict` no longer blocks commits** — guard failures now print a one-line advisory to stderr and let the commit through; `vib secrets --staged` still blocks (secrets leakage is irreversible, drift is not). Guard issues are still caught by `vib doctor` and the next session.

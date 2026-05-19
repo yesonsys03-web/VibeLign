@@ -319,6 +319,12 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.13** — 자동 백업 정합성 hotfix (GUI + GUI commit tool):
+
+- 🩹 **macOS GUI 의 `RUST_ENGINE_INTEGRITY_FAILED` 해소** — `codesign --deep` 가 bundled `vibelign-engine` binary 에 서명 blob 을 추가한 후 `.sha256` manifest 가 재생성되지 않아 모든 Rust 엔진 호출 (history, BACKUPS) 이 integrity check 로 폭발하던 회귀. CI 에서 codesign 직후 manifest 를 재생성하도록 step 보강.
+- 🔌 **post-commit 자동 백업이 `vib` PATH 에 의존하지 않음** — Sourcetree / VS Code / Tower 의 commit 은 launchd PATH 만 상속해 `~/.local/bin` 이 빠지는 경우가 흔함. 모든 `command -v vib` fallback 이 false → 자동 백업 누락이던 회귀. install 시점에 `vib` / `vibelign` / `python -m vibelign.cli.vib_cli` 절대 경로를 캡처해 PATH 분기보다 먼저 시도. marker v4 로 bump, v1-v3 hook 다음 `vib start` 에서 자동 교체.
+- 🐧 **CI 에서 Linux 빌드 제외** — wheel publish + Python smoke build 가 Ubuntu 에서 빠짐. 타겟은 macOS + Windows.
+
 **v2.2.12** — pre-commit hook 유연화 (guard advisory + skip env):
 
 - 🟢 **`vib guard --strict` 가 commit 을 막지 않음** — guard 실패는 stderr 에 한 줄 알림만 출력하고 commit 통과. `vib secrets --staged` 는 그대로 차단 (시크릿 누출은 비가역, 구조 drift 는 가역이라 비대칭). guard 가 잡던 drift 는 `vib doctor` / 다음 작업에서 계속 잡힘.

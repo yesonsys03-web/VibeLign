@@ -177,6 +177,19 @@ jobs:
           if [ -n "$APP" ]; then
             codesign --force --deep --sign - "$APP"
             echo "Signed: $APP"
+            # codesign --deep 가 bundled vibelign-engine 의 끝에 서명 blob 을 추가해
+            # 사전 생성된 .sha256 manifest 와 hash 가 어긋난다. 사이드카 manifest 를
+            # 재생성해서 vibelign 의 integrity check (discovery.py:_verify_integrity) 가
+            # 통과하도록 한다. 누락 시 GUI 의 `vib history` 등 Rust 엔진 호출이
+            # RUST_ENGINE_INTEGRITY_FAILED 로 폭발.
+            ENGINE_PATH="$APP/Contents/Resources/vib-runtime/_internal/vibelign/_bundled/vibelign-engine"
+            if [ -f "$ENGINE_PATH" ]; then
+              ENGINE_DIGEST=$(shasum -a 256 "$ENGINE_PATH" | awk '{print $1}')
+              printf '%s  vibelign-engine\n' "$ENGINE_DIGEST" > "$ENGINE_PATH.sha256"
+              echo "Refreshed manifest: $ENGINE_PATH.sha256 ($ENGINE_DIGEST)"
+            else
+              echo "WARN: bundled vibelign-engine not found under signed app; skipping manifest refresh" >&2
+            fi
           else
             echo "No macOS .app bundle found under src-tauri/target; skipping ad-hoc codesign"
           fi
