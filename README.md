@@ -319,6 +319,11 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.18** — Plan docs sync + GUI tsconfig test exclude:
+
+- 📝 **Plan/spec docs reconciled with shipped code (2026-05-14)** — Five superpowers plan/spec docs (`mcp-host-llm-pivot-plan`, `규칙수정안-3`, `원클릭설치-기획안_초안`, `지식저장고-기획안`, `mcp-host-llm-pivot-eval-runbook`) got "현재 구현 대조 메모" headers so readers don't mistake aspirational designs for shipped features. Real implementation status (e.g. MCP primitives mainlined, `vib knowledge` not yet built, `claude doctor` excluded from v1 success criteria) now sits at the top of each doc.
+- 🧹 **`vibelign-gui/tsconfig.json` excludes test files** — Vitest fixtures (`src/**/__tests__/**`, `*.test.{ts,tsx}`, `src/test/**`) were dragged into `tsc && vite build` and produced spurious type errors. Added an `exclude` list so production builds stay quiet without changing test behavior.
+
 **v2.2.17** — PyPI publish unblocked (macos-13 → macos-latest):
 
 - ⚡ **macOS wheel runner switched to Apple Silicon** — `macos-13` (Intel x86_64) runner pool was queue-jammed for hours, blocking PyPI publish since v2.2.12. `macos-latest` (Apple Silicon arm64) runs in seconds. Trade-off: Intel Mac users now install via sdist (requires Rust toolchain locally), not PyPI binary wheel.

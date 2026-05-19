@@ -10,6 +10,26 @@
 
 ---
 
+## [2.2.18] — 2026-05-19
+
+기획/스펙 문서가 실제 코드와 어긋난 채 남아 있던 위험을 차단하기 위한 docs 동기화 릴리즈. 추가로 vibelign-gui 의 production TypeScript 빌드가 vitest 픽스처를 끌어가 type error 를 뱉던 노이즈를 정리.
+
+### Changed
+
+- **superpowers plan/spec 5건 헤더에 "현재 구현 대조 메모 (2026-05-14)" 추가**: 문서가 비전을 담은 미래 설계인지, 이미 shipped 된 사실 기록인지를 첫 화면에서 분리해 읽도록.
+  - `docs/superpowers/plans/2026-05-13-mcp-host-llm-pivot-plan.md`: `anchor_read_content`/`project_map_get` MCP primitive 와 baseline lock, `user_requests.json` 데이터셋이 이미 mainlined 됐음을 명시 — 남은 결정은 도구 추가가 아니라 Gemini/`vib patch --ai` 경로 deprecation 또는 host-LLM 중심 full migration 의 순서.
+  - `docs/superpowers/plans/VibeLign-규칙수정안-3.md`: pre-commit 외에 post-commit 기록 블록도 있고, 줄수 enforcement 는 별도 스크립트가 아니라 `vib guard --strict` 안으로 들어가야 함. 300/500 줄수 차단 + legacy baseline 동결은 아직 미반영, `risk_analyzer.py` 도 500/800/1000 단계.
+  - `docs/superpowers/plans/VibeLign-원클릭설치-기획안_초안.md`: `claude doctor` 가 non-TTY/Ink raw-mode 한계로 v1 성공 조건에서 제외, PTY 기반 "첫 응답 토큰 수신" 검증은 장기 목표. v1 현실 기준은 `claude --version` + 대표 셸 PATH + 로그인 안내.
+  - `docs/superpowers/plans/VibeLign-지식저장고-기획안.md`: `vib knowledge`, `docs/knowledge/`, `/know` slash, knowledge-기반 patch 주입 모두 미구현. MVP 1단계 = 수동 저장 + docs viewer 노출 + 원본 보존 정책으로 범위 축소, 의미 검색/자동 주입/export 는 후속 RFC.
+  - `docs/superpowers/specs/2026-05-13-mcp-host-llm-pivot-eval-runbook.md`: 사용자 실요청 자연 분포 측정 결과 (rule-based `0/6`, host-LLM flow `6/6`) 가 v2.2.10 changelog 에 이미 기록됐고 `tests/benchmark/user_requests.json` 도 추가됐음.
+- **`vibelign-gui/tsconfig.json` 에 test exclude 추가**: `src/**/__tests__/**`, `src/**/*.test.ts`, `src/**/*.test.tsx`, `src/test/**` 를 제외. `tsc && vite build` 가 vitest 픽스처를 production 타입체크에 끌어가 가짜 에러를 뿜던 회귀 정리. vitest 자체 실행은 영향 없음.
+
+### Verified
+
+- 디버그 세션에서 발견된 회귀 추적 결과는 v2.2.13 sidecar `RUST_ENGINE_INTEGRITY_FAILED` 가 원인이었음을 재확인 — v2.2.14+ self-heal 적용 환경에서 `vib checkpoint` 8회 + GUI "지금 저장" 2회 + GUI 재시동 모두 audit trigger 가 `DELETE FROM checkpoints` 0건을 기록. 신규 코드 변경 없음, 기존 fix 가 그대로 유효함이 확인됨.
+
+---
+
 ## [2.2.17] — 2026-05-19
 
 PyPI publish 워크플로의 macos-13 runner 큐 적체 (시간당 1개 슬롯 정도) 로 v2.2.12 이후 PyPI 배포가 4시간 넘게 묶이던 회귀를 차단. macOS wheel 빌드 runner 를 Apple Silicon (macos-latest) 로 교체.

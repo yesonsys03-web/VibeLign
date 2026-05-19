@@ -4,6 +4,8 @@
 
 **Goal:** host LLM(Claude Code 등)이 anchor + project_map MCP primitive로 사용자 자유 자연어 요청에서 **정확한 file:anchor 지점을 직접 지적**할 수 있는지 검증. 현재 rule-based `patch_suggester` 정확도를 baseline으로 잡고, host-LLM-driven 경로가 동등 이상인지 측정한다.
 
+> **Current status note (2026-05-14):** 이 문서는 PoC 실행 계획이자 구현 기록으로 보존한다. 신규 MCP 도구 2개(`anchor_read_content`, `project_map_get`)와 baseline lock, `user_requests.json` 데이터셋은 이미 mainlined 되었고, `CHANGELOG.md` v2.2.10 에 사용자 실요청 측정 결과(rule-based baseline `0/6`, host-LLM flow `6/6`)가 기록되어 있다. 따라서 남은 판단은 “도구를 만들 것인가”가 아니라 **Gemini/`vib patch --ai` 경로 deprecation 또는 host-LLM 중심 full migration을 어떤 순서로 진행할 것인가**이다.
+
 **Architecture:**
 - 진짜 책임 영역은 `vibelign/core/patch_suggester.py` + `vibelign/core/project_map.py` (file/anchor 매핑). codespeak action 라벨, Gemini는 PoC 범위 밖.
 - 기존 `vibelign/mcp/` 인프라(19개 핸들러)는 그대로. 신규 2개 도구만 추가 — host LLM이 전역 구조와 앵커 내용을 직접 탐색하도록.

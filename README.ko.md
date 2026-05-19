@@ -319,6 +319,11 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.18** — 기획 문서 코드 동기화 + GUI tsconfig 테스트 제외:
+
+- 📝 **superpowers plan/spec 문서 5개에 "현재 구현 대조 메모 (2026-05-14)" 추가** — `mcp-host-llm-pivot-plan`, `규칙수정안-3`, `원클릭설치-기획안_초안`, `지식저장고-기획안`, `mcp-host-llm-pivot-eval-runbook` 의 헤더에 "지금 코드와 실제 격차" 를 명시. MCP primitive 2개 mainlined 사실, `vib knowledge` 미구현 사실, `claude doctor` v1 성공 기준 제외 사실 등이 문서 상단에서 바로 보임. 미래 비전과 v1 현실을 분리해 읽도록.
+- 🧹 **`vibelign-gui/tsconfig.json` 에서 테스트 파일 제외** — `src/**/__tests__/**`, `*.test.{ts,tsx}`, `src/test/**` 가 `tsc && vite build` 에 끌려 들어가 가짜 type error 를 뿜던 노이즈 정리. `exclude` 항목 추가로 production 빌드만 깨끗해지고 vitest 실행에는 영향 없음.
+
 **v2.2.17** — PyPI publish 큐 적체 해소 (macos-13 → macos-latest):
 
 - ⚡ **macOS wheel runner 를 Apple Silicon 으로 교체** — `macos-13` (Intel x86_64) runner pool 이 GitHub Actions 에서 만성 큐 적체. v2.2.12 부터 PyPI publish 가 시간 단위로 묶였음. `macos-latest` (Apple Silicon arm64) 는 초 단위로 잡힘. 트레이드오프: Intel Mac 사용자는 PyPI binary wheel 대신 sdist 로 설치 (Rust 툴체인 필요).

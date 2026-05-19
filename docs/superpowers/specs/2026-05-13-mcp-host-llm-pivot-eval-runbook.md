@@ -15,6 +15,16 @@ Baseline = `patch_suggester.suggest_patch(request, use_ai=False)` (Task 4 `tests
 - **사용자 프로젝트 (anchor-level)** 측정 보류 — `tests/benchmark/user_requests.json` 미수집. 사용자가 본인 프로젝트에서 자연어 수정 요청 3~10개 + 정답 file/anchor 메모를 제공해야 anchor-level 평가가 가능. 그 전까지 anchor 측정은 sample_project 한정 (anchor 0개로 의미 없음).
 - 의미 있는 평가 진행 = sample_project file-level 1차 → user_requests.json 수집 후 anchor 2차.
 
+### 최신 상태 반영 (2026-05-14)
+
+이 runbook의 위 “현재 상태”는 PoC 실행 전 기준이다. 이후 `tests/benchmark/user_requests.json` 이 추가되었고, `CHANGELOG.md` v2.2.10 에 사용자 실요청 자연 분포 측정 결과가 기록되었다.
+
+- `tests/benchmark/user_requests.json`: 사용자 실 자연어 요청 데이터셋 존재.
+- `tests/benchmark/test_patch_suggester_baseline.py`: sample_project baseline `14/20 file`, `0/19 anchor` 고정.
+- `CHANGELOG.md` v2.2.10 측정: 사용자 실 요청에서 rule-based baseline `0/6`, host-LLM-driven flow `6/6`.
+
+따라서 이 문서는 더 이상 “데이터 미수집으로 평가 보류” 상태의 source of truth 로 읽으면 안 된다. 다음 작업자는 이 runbook을 **평가 절차 기록**으로 보존하되, 실제 의사결정에는 `CHANGELOG.md` v2.2.10 과 `tests/benchmark/user_requests.json` 을 함께 대조해야 한다.
+
 ## 한계 (먼저 알아둘 것)
 
 sample_project는 anchor marker가 0개이므로 `correct_anchor` 매핑 평가는 사실상 불가능하다. 이 한계는 의도적 — host LLM이 신규 도구로 file 매핑을 어떻게 하는지가 1차 측정, anchor 매핑은 사용자 실 프로젝트가 필요.
