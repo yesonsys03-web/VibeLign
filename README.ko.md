@@ -319,6 +319,10 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.14** — `RUST_ENGINE_INTEGRITY_FAILED` runtime self-heal:
+
+- 🛟 **번들 엔진 integrity 가 macOS 에서 자동 회복** — v2.2.13 은 CI codesign step 만 보강해서, 사용자가 로컬에서 `npm run tauri build` (Intel/ARM Mac) 로 직접 빌드한 GUI 에선 integrity check 가 그대로 폭발. 런타임에서 `codesign --verify --strict` 가 통과하는 binary 면 `.sha256` manifest 를 자동 갱신해 회복한다. Windows/Linux 는 codesign 신뢰 신호가 없어 tamper 검사 그대로 유지.
+
 **v2.2.13** — 자동 백업 정합성 hotfix (GUI + GUI commit tool):
 
 - 🩹 **macOS GUI 의 `RUST_ENGINE_INTEGRITY_FAILED` 해소** — `codesign --deep` 가 bundled `vibelign-engine` binary 에 서명 blob 을 추가한 후 `.sha256` manifest 가 재생성되지 않아 모든 Rust 엔진 호출 (history, BACKUPS) 이 integrity check 로 폭발하던 회귀. CI 에서 codesign 직후 manifest 를 재생성하도록 step 보강.

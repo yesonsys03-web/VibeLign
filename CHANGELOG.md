@@ -10,6 +10,34 @@
 
 ---
 
+## [2.2.14] — 2026-05-19
+
+v2.2.13 의 CI codesign manifest 보강이 GitHub Actions 빌드만 커버해서, **로컬 빌드 (사용자 직접 `npm run tauri build`)** 에서는 같은 `RUST_ENGINE_INTEGRITY_FAILED` 가 그대로 재발하던 회귀를 차단. integrity 검사를 런타임 self-heal 로 격상.
+
+### Fixed
+
+- **macOS 번들 `vibelign-engine` integrity self-heal** (`vibelign/core/checkpoint_engine/rust_engine/discovery.py`): 매니페스트와 binary hash 가 어긋날 때, `codesign --verify --strict` 가 통과하는 binary 는 정상 codesigned artifact 로 간주하고 매니페스트를 갱신해 회복한다. macOS 한정 — Windows/Linux 는 codesign 신뢰 신호가 없어 기존대로 실패. 로컬 빌드, CI 빌드, 사용자가 직접 재서명한 빌드 모두 동일하게 동작.
+
+### Why
+
+v2.2.13 의 `gui.yml` 수정은 CI 의 `codesign --deep` 직후 매니페스트를 재생성했지만, 사용자가 로컬에서 직접 `npm run tauri build` (혹은 Tauri 의 cargo bundle 단계) 를 실행하면 같은 binary mutation 이 일어나도 manifest refresh step 이 없어 같은 증상 재발. 빌드 경로별 후처리를 강제하기보다 vibelign 자체가 codesign 검증을 통과한 binary 를 신뢰하도록 격상하는 게 robust.
+
+### Verified
+
+- `tests/test_rust_engine_discovery_integrity.py` 8 통과 (darwin self-heal 회귀 테스트 3건 신규 — codesigned 회복, 미서명 실패 유지, non-darwin self-heal 금지).
+- `tests/test_git_hooks*.py` 24 통과 (v2.2.13 변경 회귀 없음).
+
+### Notes
+
+- macOS Big Sur+ 의 linker 자동 ad-hoc 서명, Tauri 의 cargo bundle 단계 서명, 사용자 수동 `codesign --deep -s -` 모두 같은 경로로 처리.
+- 기존 v2.2.13 GUI 설치본 즉시 우회 (v2.2.14 빌드 받기 전까지):
+  ```
+  ENGINE="/Applications/vibelign-gui.app/Contents/Resources/vib-runtime/_internal/vibelign/_bundled/vibelign-engine"
+  shasum -a 256 "$ENGINE" | awk '{print $1"  vibelign-engine"}' > "$ENGINE.sha256"
+  ```
+
+---
+
 ## [2.2.13] — 2026-05-19
 
 자동 백업 정합성 hotfix — GUI `RUST_ENGINE_INTEGRITY_FAILED` 폭발과 GUI commit tool 환경의 post-commit 자동 백업 누락 동시에 해소.

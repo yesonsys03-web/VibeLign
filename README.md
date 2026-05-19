@@ -319,6 +319,10 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.14** — Runtime self-heal for `RUST_ENGINE_INTEGRITY_FAILED`:
+
+- 🛟 **Bundled engine integrity now self-heals on macOS** — v2.2.13 only fixed the CI codesign step, so locally-built GUI apps (`npm run tauri build` on Intel/ARM Mac) kept tripping the integrity check. The runtime check now refreshes the `.sha256` manifest when `codesign --verify --strict` confirms the binary is properly signed. Tamper detection preserved on Windows/Linux (no codesign signal there).
+
 **v2.2.13** — Auto-backup integrity hotfix (GUI + GUI commit tools):
 
 - 🩹 **`RUST_ENGINE_INTEGRITY_FAILED` on macOS GUI fixed** — `codesign --deep` was adding a signature blob to the bundled `vibelign-engine` binary AFTER the `.sha256` manifest was generated, so every Rust engine call from the GUI (history, backups page) blew up with an integrity check failure. CI now refreshes the manifest right after signing.
