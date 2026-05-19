@@ -319,6 +319,10 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.16** — Phase 9 CI greens up (MCP checkpoint handler tests):
+
+- 🟢 **`test_handle_checkpoint_create_*` 2 failures fixed** — Rust-engine migration leftovers. `handle_checkpoint_create` now treats `file_count == 0` the same as `summary is None` (both audited as "blocked"). The list-checkpoints test now uses `router.list_checkpoints` so it can see Rust engine's SQLite store. Phase 9 cross-platform CI back to green after staying red since v2.2.11.
+
 **v2.2.15** — Post-commit hook v5: restore v3 branch order:
 
 - 🔁 **Auto-backup fallback order reverted to v3** — v4's "absolute-path first" structure broke auto-backup for some LLM commit tools (OpenCode + GPT-5.5 reproduced). v5 puts PATH branches back at the top (matching the v3 behavior that worked) and demotes absolute-path branches to the last fallback for the GUI-commit-tool-without-PATH case only. Marker bumped to v5; v1-v4 hooks auto-upgrade on next `vib start`.

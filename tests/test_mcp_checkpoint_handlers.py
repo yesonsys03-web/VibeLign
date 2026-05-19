@@ -10,7 +10,10 @@ from typing import cast
 from unittest.mock import patch
 
 from vibelign.core.checkpoint_engine.rust_engine import RustEngineResult
-from vibelign.core.local_checkpoints import list_checkpoints
+# Rust 엔진 migration 이후 체크포인트는 SQLite + content-addressable 스토어에 저장.
+# 옛 vibelign.core.local_checkpoints.list_checkpoints (filesystem) 는 Rust 엔진 결과를
+# 보지 못하므로 router 의 list_checkpoints 를 통해 엔진 추상화 너머의 실제 데이터를 확인.
+from vibelign.core.checkpoint_engine.router import list_checkpoints
 
 
 @dataclass

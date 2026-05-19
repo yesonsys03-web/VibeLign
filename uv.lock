@@ -1022,7 +1022,7 @@ wheels = [
 
 [[package]]
 name = "vibelign"
-version = "2.2.15"
+version = "2.2.16"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },

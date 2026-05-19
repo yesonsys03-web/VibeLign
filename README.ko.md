@@ -319,6 +319,10 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.16** — Phase 9 CI 그린업 (MCP checkpoint handler 테스트):
+
+- 🟢 **`test_handle_checkpoint_create_*` 2건 실패 fix** — Rust 엔진 migration 잔재. `handle_checkpoint_create` 가 `file_count == 0` 도 `summary is None` 과 동일하게 "blocked" 로 audit. list-checkpoints 테스트가 `router.list_checkpoints` 사용해서 Rust 엔진 SQLite 결과를 보도록. v2.2.11 부터 빨갛던 Phase 9 cross-platform CI green.
+
 **v2.2.15** — post-commit hook v5: v3 분기 순서 복원:
 
 - 🔁 **자동 백업 fallback 순서 v3 으로 되돌림** — v4 의 "절대경로 먼저" 구조가 OpenCode + GPT-5.5 같은 일부 LLM commit tool 에서 자동 백업을 전부 누락시킴 (사용자 신고로 재현). v5 는 v3 와 동일하게 PATH 분기를 앞에 두고, 절대경로 분기는 마지막 fallback 으로 강등 — PATH 가 빈약한 GUI commit tool 케이스만 커버. marker v5 로 bump, v1-v4 hook 다음 `vib start` 에서 자동 교체.

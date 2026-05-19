@@ -10,6 +10,27 @@
 
 ---
 
+## [2.2.16] — 2026-05-19
+
+Phase 9 cross-platform CI 가 v2.2.11 이전부터 빨간색이던 회귀 2건을 제거. Rust 엔진 migration 부수효과로 깨졌던 MCP checkpoint handler 테스트 페어 동기화.
+
+### Fixed
+
+- **`handle_checkpoint_create` 가 file_count=0 도 blocked 로 audit** (`vibelign/mcp/mcp_checkpoint_handlers.py`): Rust 엔진은 빈 workspace 에서도 file_count=0 summary 를 반환해서 handler 가 잘못 `success` 로 audit 하던 회귀. `summary is None or summary.file_count == 0` 둘 다 "변경사항 없음" 으로 통일.
+- **`tests/test_mcp_checkpoint_handlers.py` 가 router.list_checkpoints 사용** (`tests/test_mcp_checkpoint_handlers.py`): 옛 `vibelign.core.local_checkpoints.list_checkpoints` (filesystem) 가 Rust 엔진의 SQLite 결과를 못 봐서 `len(list_checkpoints) == 0` 으로 실패하던 회귀. `router.list_checkpoints` 로 import 갱신해 엔진 추상화 너머의 실제 데이터 검증.
+
+### Verified
+
+- `tests/test_mcp_checkpoint_handlers.py` 12 통과 (이전 2 실패 → 0 실패)
+- `tests/test_cross_platform_paths.py` + `tests/test_checkpoint_cmd_wrapper.py` + `tests/test_mcp_checkpoint_handlers.py` (Phase 9 의 정확한 매트릭스) 21 전부 통과
+- macOS + Windows GitHub Actions Phase 9 다음 빌드에서 첫 green 예상
+
+### Notes
+
+- v2.2.11 부터 Phase 9 가 빨갛던 원인 — Rust 엔진 migration 시 테스트가 옛 Python checkpoints API 를 그대로 참조하고 있었던 잔재.
+
+---
+
 ## [2.2.15] — 2026-05-19
 
 v2.2.13 의 post-commit hook v4 가 OpenCode 등 일부 LLM commit tool 에서 자동 백업이 누락되는 회귀를 일으켜 (원인 미특정), v3 의 분기 순서를 복구.

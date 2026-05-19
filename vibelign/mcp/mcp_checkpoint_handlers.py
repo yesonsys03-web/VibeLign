@@ -46,7 +46,10 @@ def handle_checkpoint_create(
 
     message = str(arguments.get("message", ""))
     summary = create_checkpoint(root, message)
-    if summary is None:
+    # Rust 엔진 migration 이후 빈 workspace 에서도 file_count=0 summary 가
+    # 반환된다. 사용자 입장에서는 백업 컨텐츠가 없는 빈 스냅샷이라 "변경사항
+    # 없음" 과 동치로 audit/UX 통일.
+    if summary is None or summary.file_count == 0:
         append_memory_audit_event(
             memory_audit_path(root),
             build_memory_audit_event(root, event="checkpoint_create", tool="mcp", result="blocked"),
