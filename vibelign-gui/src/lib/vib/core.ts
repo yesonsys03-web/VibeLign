@@ -1,11 +1,14 @@
+// === ANCHOR: CORE_START ===
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 import type { VibProgressEvent, VibResult } from "./types";
 
+// === ANCHOR: CORE_NORMALIZEBRIDGEPATH_START ===
 export function normalizeBridgePath(path: string): string {
   return path.replaceAll("\\", "/");
 }
+// === ANCHOR: CORE_NORMALIZEBRIDGEPATH_END ===
 
 /** GUI에서 캡처한 문자열이 터미널에서 Rich 없이 볼 때와 같도록 plain 출력을 강제한다. */
 const GUI_VIB_PLAIN_ENV: Record<string, string> = {
@@ -22,6 +25,7 @@ const GUI_VIB_PLAIN_ENV: Record<string, string> = {
 };
 
 /** vib CLI 실행. */
+// === ANCHOR: CORE_RUNVIB_START ===
 export async function runVib(
   args: string[],
   cwd?: string,
@@ -36,8 +40,10 @@ export async function runVib(
     env: { ...GUI_VIB_PLAIN_ENV, ...rootEnv, ...(env ?? {}) },
   });
 }
+// === ANCHOR: CORE_RUNVIB_END ===
 
 /** vib CLI 를 실행하면서 stderr `[progress]` 라인을 실시간 이벤트로 받는다. */
+// === ANCHOR: CORE_RUNVIBWITHPROGRESS_START ===
 export async function runVibWithProgress(
   args: string[],
   cwd: string | undefined,
@@ -62,9 +68,11 @@ export async function runVibWithProgress(
     unlisten();
   }
 }
+// === ANCHOR: CORE_RUNVIBWITHPROGRESS_END ===
 
 // ─── 편의 함수 ─────────────────────────────────────────────────────────────────
 
+// === ANCHOR: CORE_VIBSTART_START ===
 export async function vibStart(cwd: string, tools?: string[]): Promise<VibResult> {
   const args = ["start"];
   if (tools && tools.length > 0) {
@@ -72,6 +80,7 @@ export async function vibStart(cwd: string, tools?: string[]): Promise<VibResult
   }
   return runVib(args, cwd);
 }
+// === ANCHOR: CORE_VIBSTART_END ===
 
 interface EngineDirectResult {
   ok: boolean;
@@ -79,6 +88,7 @@ interface EngineDirectResult {
   error: string | null;
 }
 
+// === ANCHOR: CORE_CALLENGINEDIRECT_START ===
 export async function callEngineDirect<T>(request: Record<string, unknown>): Promise<T> {
   const res = await invoke<EngineDirectResult>("run_engine_request_direct", {
     requestJson: JSON.stringify(request),
@@ -86,3 +96,5 @@ export async function callEngineDirect<T>(request: Record<string, unknown>): Pro
   if (!res.ok) throw new Error(res.error ?? "engine direct call failed");
   return JSON.parse(res.response_json) as T;
 }
+// === ANCHOR: CORE_CALLENGINEDIRECT_END ===
+// === ANCHOR: CORE_END ===

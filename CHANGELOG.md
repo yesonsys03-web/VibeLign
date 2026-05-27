@@ -10,6 +10,26 @@
 
 ---
 
+## [2.2.20] — 2026-05-27
+
+Code Explorer 사이드바를 코드 전용에서 **문서 포함**으로 확장하고, 카테고리별 색상 구분을 추가한 GUI 가독성 릴리즈. 추가로 `vib/*.ts` 도메인 모듈과 DocsViewer 테스트에 누락돼 있던 ANCHOR 마커를 일괄 보강.
+
+### Added
+
+- **Code Explorer 사이드바에 `docs/` 트리 + `.md` 미리보기** — 엔진 `project_scan`(코드 분석 파이프라인과 공유) 대신 Tauri 전용 `list_code_files` 스캐너를 신설해 docs/superpowers/specs/wiki/release_notes 의 `.md` 파일이 사이드바에 노출되고 뷰어에서 Markdown 언어로 열림. anchor_tools/patch_suggester/doctor_v2/risk_analyzer 등의 코드 도메인 정책은 영향 없음 (`vibelign-gui/src-tauri/src/code_access.rs` + `commands/code.rs` + `lib.rs`, `vibelign-gui/src/lib/vib/code.ts`).
+- **카테고리 자동 분류 + 4색 탭 컬러** — code(녹 `#22c55e`) / docs(주 `#f97316`) / tests(보라 `#a855f7`) / other(회 `#9ca3af`). 파일은 확장자·경로로, 디렉터리는 하위 파일의 다수결로 자동 판정. 사이드바 행에 4px 왼쪽 액센트 바 + 카테고리 색 배경 틴트(디렉터리 ~40%, 파일 ~25%) + 8px 도트(폴더 채움/파일 외곽선) 3중 표지로 가독성 강화 (`vibelign-gui/src/lib/code-explorer/tree.ts`, `components/code-explorer/CodeFileTree.tsx`).
+
+### Changed
+
+- **`vibelign-gui/src/lib/vib/*.ts` ANCHOR 마커 일괄 보강** — anchor/apiKeys/backup/code/core/docs/errorLogs/guard/index/memory/normalizers/onboarding/recovery/system/types/watch 16 모듈 + DocsViewer epoch/performance 테스트 2건에 `// === ANCHOR: NAME_START === / _END ===` 추가. `vib guard --strict` 의 앵커 경계 검증이 GUI 도메인 코드에도 일관 적용됨.
+- **`opencode.json` / `vibelign-core/examples/bench_tokenizer.rs` / `vibelign-gui/src/components/ScrollToTopButton.tsx` / `vibelign/core/docs_html_visualizer.py` / `vibelign-gui/src/test/setup.ts` / `vitest.config.ts`** 소소한 보강 함께 묶음.
+
+### Verified
+
+- Rust `code_access` 단위 테스트 10/10 (신규 explorer scan/markdown read 2건 추가). 프런트 code-explorer vitest 5/5 (카테고리 분류 + 디렉터리 다수결 테스트 추가). `tsc --noEmit` 0 errors. Windows 호환성 점검 (UNC 경로/심볼릭 스킵/예약 디바이스명 거부) 통과.
+
+---
+
 ## [2.2.19] — 2026-05-27
 
 VibeLign GUI 에 **Code Explorer** 탭 추가. 프로젝트 소스 트리를 폴더 단위로 탐색하고 선택한 파일을 read-only 로 미리볼 수 있다. 파일 목록은 기존 Rust `project_scan` IPC 를 재사용하고, 코드 읽기는 별도 Tauri `read_code_file` command + `code_access.rs` 보안 가드로 처리한다. DocsViewer 의 문서 read 정책은 건드리지 않고 코드 전용 도메인으로 분리.

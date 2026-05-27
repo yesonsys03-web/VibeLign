@@ -1,3 +1,4 @@
+// === ANCHOR: ANCHOR_START ===
 import { callEngineDirect, runVib, runVibWithProgress } from "./core";
 import type {
   AnchorAutoIntentRun,
@@ -7,6 +8,7 @@ import type {
   VibProgressEvent,
 } from "./types";
 
+// === ANCHOR: ANCHOR_ANCHORAUTOINTENT_START ===
 export async function anchorAutoIntent(
   cwd: string,
   aiEnv?: Record<string, string>,
@@ -18,7 +20,9 @@ export async function anchorAutoIntent(
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
   return res.stdout;
 }
+// === ANCHOR: ANCHOR_ANCHORAUTOINTENT_END ===
 
+// === ANCHOR: ANCHOR_ANCHORAUTOINTENTJSON_START ===
 export async function anchorAutoIntentJson(
   cwd: string,
   opts?: {
@@ -27,6 +31,7 @@ export async function anchorAutoIntentJson(
     withAi?: boolean;
     onProgress?: (e: VibProgressEvent) => void;
   }
+// === ANCHOR: ANCHOR_ANCHORAUTOINTENTJSON_END ===
 ): Promise<AnchorAutoIntentRun> {
   const args = ["anchor", "--auto-intent", "--json"];
   if (opts?.force) args.push("--force");
@@ -46,6 +51,7 @@ export async function anchorAutoIntentJson(
   return { data: parsed.data, stderrLog: res.stderr.trim() };
 }
 
+// === ANCHOR: ANCHOR_ANCHORSETINTENT_START ===
 export async function anchorSetIntent(
   cwd: string,
   anchorName: string,
@@ -68,7 +74,9 @@ export async function anchorSetIntent(
   });
   return parsed;
 }
+// === ANCHOR: ANCHOR_ANCHORSETINTENT_END ===
 
+// === ANCHOR: ANCHOR_ANCHORLISTMETA_START ===
 export async function anchorListMeta(cwd: string): Promise<Record<string, AnchorMetaEntry>> {
   const parsed = await callEngineDirect<{ meta?: Record<string, AnchorMetaEntry> }>({
     command: "anchor_list_meta",
@@ -76,3 +84,5 @@ export async function anchorListMeta(cwd: string): Promise<Record<string, Anchor
   });
   return parsed.meta ?? {};
 }
+// === ANCHOR: ANCHOR_ANCHORLISTMETA_END ===
+// === ANCHOR: ANCHOR_END ===

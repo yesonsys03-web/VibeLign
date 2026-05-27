@@ -319,6 +319,12 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.20** — Code Explorer adds docs tree + per-category color coding:
+
+- 📚 **`docs/` + `.md` files now in the sidebar** — A Tauri-only `list_code_files` scanner runs alongside the engine's `project_scan`, so `docs/superpowers/specs/*.md`, wiki, release notes and other Markdown docs show up in the tree and open in the viewer (Markdown language tag). Code-analysis pipelines (anchor_tools, patch_suggester, doctor_v2, risk_analyzer) keep their original code-only scope and are untouched.
+- 🎨 **4-color category tab styling** — code (green) / docs (orange) / tests (purple) / other (gray). Files categorized by extension + path (`.test.*`, `__tests__/`, `spec/`, `tests/`), directories aggregated from subtree majority. Each row gets a 4px left accent bar + category-tinted background + colored dot for fast scanning.
+- 🧩 **`vib/*.ts` ANCHOR markers backfilled** — 16 GUI domain modules + 2 DocsViewer tests gained `// === ANCHOR: NAME_START === / _END ===` so `vib guard --strict` enforces anchor boundaries across the whole GUI surface.
+
 **v2.2.19** — GUI Code Explorer (read-only source viewer):
 
 - 🌲 **New `CODE EXPLORER` tab** — Browse the project source tree by folder (first-level expanded by default, auto-expand while searching) and preview any file read-only with line numbers plus language/line/byte stats. Search matches path, category, and imports. Built as a separate domain from DocsViewer with page/layout/tree/viewer/toolbar/line components so `App.tsx` only wires the tab.

@@ -4,7 +4,7 @@
     "vibelign": {
       "type": "local",
       "command": [
-        "/Users/usabatch/.local/bin/vibelign-mcp"
+        "/Users/topsphinx/.local/bin/vibelign-mcp"
       ],
       "enabled": true
     }

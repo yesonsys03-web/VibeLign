@@ -1,3 +1,4 @@
+// === ANCHOR: SCROLLTOTOPBUTTON_START ===
 import { useEffect, useState } from "react";
 
 const SCROLL_THRESHOLD = 300;
@@ -7,19 +8,23 @@ const SCROLL_THRESHOLD = 300;
 // 이라 그것에만 listener 달면 버튼 안 보임. document 의 capture-phase scroll listener
 // 가 inner element 의 scroll 도 모두 잡음 (scroll 은 bubble 안 하지만 capture phase
 // 에서 받음).
+// === ANCHOR: SCROLLTOTOPBUTTON_GETACTIVESCROLLCONTAINER_START ===
 function getActiveScrollContainer(): HTMLElement | null {
   return document.querySelector<HTMLElement>(".page-content");
 }
+// === ANCHOR: SCROLLTOTOPBUTTON_GETACTIVESCROLLCONTAINER_END ===
 
 export default function ScrollToTopButton() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
+    // === ANCHOR: SCROLLTOTOPBUTTON_UPDATE_START ===
     const update = () => {
       const container = getActiveScrollContainer();
       const scrollTop = container?.scrollTop ?? window.scrollY;
       setVisible(scrollTop > SCROLL_THRESHOLD);
     };
+    // === ANCHOR: SCROLLTOTOPBUTTON_UPDATE_END ===
     update();
     window.addEventListener("scroll", update, { passive: true });
     document.addEventListener("scroll", update, { passive: true, capture: true });
@@ -31,6 +36,7 @@ export default function ScrollToTopButton() {
 
   if (!visible) return null;
 
+  // === ANCHOR: SCROLLTOTOPBUTTON_SCROLLTOTOP_START ===
   const scrollToTop = () => {
     const container = getActiveScrollContainer();
     if (container) {
@@ -39,6 +45,7 @@ export default function ScrollToTopButton() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
+  // === ANCHOR: SCROLLTOTOPBUTTON_SCROLLTOTOP_END ===
 
   return (
     <button
@@ -70,3 +77,4 @@ export default function ScrollToTopButton() {
     </button>
   );
 }
+// === ANCHOR: SCROLLTOTOPBUTTON_END ===

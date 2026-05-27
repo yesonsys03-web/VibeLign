@@ -319,6 +319,12 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.20** — Code Explorer 사이드바에 docs 트리 + 카테고리별 컬러 구분:
+
+- 📚 **사이드바에 `docs/` 폴더 + `.md` 미리보기** — 엔진 `project_scan`(코드 분석 파이프라인과 공유)과 별도로 Tauri 전용 `list_code_files` 스캐너를 신설. `docs/superpowers/specs/*.md`, wiki, release notes 등의 Markdown 문서가 트리에 노출되고 뷰어에서 Markdown 언어 태그로 열림. anchor_tools/patch_suggester/doctor_v2/risk_analyzer 등 코드 도메인 분석은 그대로 유지.
+- 🎨 **4색 탭 카테고리 컬러링** — code(녹) / docs(주황) / tests(보라) / other(회색). 파일은 확장자·경로(`.test.*`, `__tests__/`, `spec/`, `tests/`)로, 디렉터리는 하위 파일 다수결로 자동 판정. 각 행에 4px 왼쪽 액센트 바 + 카테고리 배경 틴트 + 카테고리 도트 — 한눈에 구분.
+- 🧩 **`vib/*.ts` ANCHOR 마커 일괄 보강** — GUI 도메인 모듈 16개 + DocsViewer 테스트 2건에 `// === ANCHOR: NAME_START === / _END ===` 추가. `vib guard --strict` 의 앵커 경계 검증이 GUI 전 영역에 적용됨.
+
 **v2.2.19** — GUI 코드 탐색기 (read-only 소스 뷰어):
 
 - 🌲 **새 `CODE EXPLORER` 탭** — 프로젝트 소스 트리를 폴더 단위로 탐색(1단계 기본 펼침, 검색 시 자동 펼침)하고 선택 파일을 라인 번호·언어·줄수·바이트와 함께 read-only 로 미리보기. 검색은 경로·카테고리·import 매칭. DocsViewer 와 분리된 도메인으로 page/layout/tree/viewer/toolbar/line 컴포넌트를 나눠 `App.tsx` 는 탭 연결만 담당.

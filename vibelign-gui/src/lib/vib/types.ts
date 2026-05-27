@@ -1,3 +1,4 @@
+// === ANCHOR: TYPES_START ===
 // Public bridge types preserved from ../vib.ts.
 export interface ReadFileResult {
   path: string;
@@ -544,3 +545,4 @@ export interface CodeFileReadResult {
   line_count: number;
   language: string;
 }
+// === ANCHOR: TYPES_END ===

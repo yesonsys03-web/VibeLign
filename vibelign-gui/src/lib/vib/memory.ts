@@ -1,3 +1,4 @@
+// === ANCHOR: MEMORY_START ===
 import { callEngineDirect, runVib } from "./core";
 import { requireNumber, requireOptionalRecord, requireRecord, requireRecordArray, requireString } from "./normalizers";
 import type {
@@ -9,6 +10,7 @@ import type {
   VibResult,
 } from "./types";
 
+// === ANCHOR: MEMORY_MEMORYSUMMARY_START ===
 export async function memorySummary(cwd: string): Promise<MemorySummaryResult> {
   const parsed = await callEngineDirect<{ payload?: unknown }>({
     command: "memory_summary_read",
@@ -17,7 +19,9 @@ export async function memorySummary(cwd: string): Promise<MemorySummaryResult> {
   });
   return parseMemorySummaryPayload(parsed.payload);
 }
+// === ANCHOR: MEMORY_MEMORYSUMMARY_END ===
 
+// === ANCHOR: MEMORY_CREATEHANDOFFDRAFT_START ===
 export async function createHandoffDraft(
   cwd: string,
   summary: string,
@@ -41,19 +45,25 @@ export async function createHandoffDraft(
     draft: payload.draft,
   };
 }
+// === ANCHOR: MEMORY_CREATEHANDOFFDRAFT_END ===
 
+// === ANCHOR: MEMORY_ACCEPTHANDOFFDRAFTFIELD_START ===
 export async function acceptHandoffDraftField(cwd: string, draft: HandoffDraftPayload, field: HandoffDraftField): Promise<HandoffDraftActionResult> {
   const res = await runVib(["memory", "proposal-accept", "--field", field, "--draft-json", JSON.stringify(draft)], cwd);
   if (!res.ok) throw new Error(res.stderr || res.stdout || `exit ${res.exit_code}`);
   return JSON.parse(res.stdout) as HandoffDraftActionResult;
 }
+// === ANCHOR: MEMORY_ACCEPTHANDOFFDRAFTFIELD_END ===
 
+// === ANCHOR: MEMORY_DISMISSHANDOFFDRAFTFIELD_START ===
 export async function dismissHandoffDraftField(cwd: string, draft: HandoffDraftPayload, field: HandoffDraftField): Promise<HandoffDraftActionResult> {
   const res = await runVib(["memory", "proposal-dismiss", "--field", field, "--draft-json", JSON.stringify(draft)], cwd);
   if (!res.ok) throw new Error(res.stderr || res.stdout || `exit ${res.exit_code}`);
   return JSON.parse(res.stdout) as HandoffDraftActionResult;
 }
+// === ANCHOR: MEMORY_DISMISSHANDOFFDRAFTFIELD_END ===
 
+// === ANCHOR: MEMORY_PARSEMEMORYSUMMARYPAYLOAD_START ===
 function parseMemorySummaryPayload(raw: unknown): MemorySummaryResult {
   const data = requireRecord(raw, "memory_state.schema.json");
   requireNumber(data.schema_version, "schema_version");
@@ -86,7 +96,9 @@ function parseMemorySummaryPayload(raw: unknown): MemorySummaryResult {
     risks?: Array<{ text?: string }>;
     downgrade_warning?: string;
   };
+  // === ANCHOR: MEMORY_VERIFICATION_START ===
   const verification = (typed.verification ?? []).map((item) => item.stale ? `${item.command ?? ""} (stale)` : item.command ?? "").filter(Boolean);
+  // === ANCHOR: MEMORY_VERIFICATION_END ===
   return {
     schemaVersion: typed.schema_version,
     activeIntent: typed.active_intent?.text || "(none)",
@@ -97,14 +109,18 @@ function parseMemorySummaryPayload(raw: unknown): MemorySummaryResult {
     risks: (typed.risks ?? []).map((item) => item.text ?? "").filter(Boolean),
     verificationFreshness: verificationFreshness(verification),
     warning: typed.downgrade_warning || undefined,
+// === ANCHOR: MEMORY_PARSEMEMORYSUMMARYPAYLOAD_END ===
   };
 }
 
+// === ANCHOR: MEMORY_VERIFICATIONFRESHNESS_START ===
 function verificationFreshness(lines: string[]): "fresh" | "stale" | "missing" {
   if (lines.length === 0) return "missing";
   return lines.some((line) => line.toLowerCase().includes("stale")) ? "stale" : "fresh";
 }
+// === ANCHOR: MEMORY_VERIFICATIONFRESHNESS_END ===
 
+// === ANCHOR: MEMORY_VIBTRANSFER_START ===
 export async function vibTransfer(
   cwd: string,
   opts?: {
@@ -113,6 +129,7 @@ export async function vibTransfer(
     sessionSummary?: string;
     firstNextAction?: string;
   },
+// === ANCHOR: MEMORY_VIBTRANSFER_END ===
 ): Promise<VibResult> {
   const args = ["transfer"];
   if (opts?.handoff) {
@@ -124,3 +141,4 @@ export async function vibTransfer(
   if (opts?.full) args.push("--full");
   return runVib(args, cwd);
 }
+// === ANCHOR: MEMORY_END ===

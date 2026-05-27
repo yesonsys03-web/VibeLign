@@ -14,7 +14,14 @@ const WINDOWS_RESERVED_DEVICE_NAMES: &[&str] = &[
 ];
 const CODE_READ_EXTENSIONS: &[&str] = &[
     "py", "js", "ts", "jsx", "tsx", "rs", "go", "java", "cs", "cpp", "c", "hpp", "h",
-    "mjs", "cjs", "json", "toml", "yaml", "yml", "css", "html",
+    "mjs", "cjs", "json", "toml", "yaml", "yml", "css", "html", "md",
+];
+// 사이드바 트리에 노출할 파일 확장자. 엔진의 SOURCE_FILE_EXTENSIONS(코드 전용)와
+// 분리되어 있어 docs/*.md 같은 문서가 트리에 보이지만 anchor/patch_suggester 등의
+// 코드 분석 파이프라인에는 영향이 가지 않는다.
+const EXPLORER_FILE_EXTENSIONS: &[&str] = &[
+    "py", "js", "ts", "jsx", "tsx", "rs", "go", "java", "cs", "cpp", "c", "hpp", "h",
+    "mjs", "cjs", "md",
 ];
 const CODE_READ_IGNORED_DIRS: &[&str] = &[
     ".git", ".vibelign", ".omc", ".sisyphus", ".venv", "venv", "env", "node_modules", "dist",
@@ -152,7 +159,73 @@ fn language_for_path(path: &str) -> &'static str {
         "yaml" | "yml" => "YAML",
         "css" => "CSS",
         "html" => "HTML",
+        "md" => "Markdown",
         _ => "Text",
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct ExplorerFileEntry {
+    pub(crate) path: String,
+    pub(crate) category: String,
+    pub(crate) imports: Vec<String>,
+}
+
+pub(crate) fn list_explorer_files_under(root: &Path) -> Result<Vec<ExplorerFileEntry>, String> {
+    let root = root
+        .canonicalize()
+        .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?;
+    let mut entries: Vec<ExplorerFileEntry> = Vec::new();
+    walk_explorer(&root, &root, &mut entries);
+    entries.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(entries)
+}
+
+fn walk_explorer(root: &Path, dir: &Path, out: &mut Vec<ExplorerFileEntry>) {
+    let read_dir = match std::fs::read_dir(dir) {
+        Ok(rd) => rd,
+        Err(_) => return,
+    };
+    for entry in read_dir.flatten() {
+        let path = entry.path();
+        let name = match path.file_name().and_then(|n| n.to_str()) {
+            Some(n) => n.to_string(),
+            None => continue,
+        };
+        // hidden entry(.git, .DS_Store, .vscode, ...)는 사이드바에 노출하지 않는다.
+        if name.starts_with('.') {
+            continue;
+        }
+        let name_lower = name.to_ascii_lowercase();
+        let file_type = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if file_type.is_dir() {
+            if CODE_READ_IGNORED_DIRS.contains(&name_lower.as_str()) {
+                continue;
+            }
+            walk_explorer(root, &path, out);
+        } else if file_type.is_file() {
+            let ext = path
+                .extension()
+                .and_then(|v| v.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            if !EXPLORER_FILE_EXTENSIONS.contains(&ext.as_str()) {
+                continue;
+            }
+            let rel = match path.strip_prefix(root) {
+                Ok(r) => r.to_string_lossy().replace('\\', "/"),
+                Err(_) => continue,
+            };
+            let category = if ext == "md" { "docs" } else { "code" }.to_string();
+            out.push(ExplorerFileEntry {
+                path: rel,
+                category,
+                imports: Vec::new(),
+            });
+        }
     }
 }
 
@@ -249,5 +322,50 @@ mod tests {
         let err = read_code_file_under(root.path(), "link.ts").expect_err("symlink escape rejected");
 
         assert!(err.contains("프로젝트 루트 밖"));
+    }
+
+    #[test]
+    fn explorer_lists_docs_and_md_files() {
+        let root = TempDir::new().expect("temp root");
+        write(root.path(), "src/main.ts", b"x");
+        write(root.path(), "docs/index.md", b"# hi");
+        write(root.path(), "docs/superpowers/specs/design.md", b"spec");
+        write(root.path(), "README.md", b"readme");
+        // 제외 대상: hidden, ignored dirs, 미지원 확장자
+        write(root.path(), ".env", b"SECRET=1");
+        write(root.path(), "node_modules/x.js", b"x");
+        write(root.path(), "target/debug/x.rs", b"x");
+        write(root.path(), "docs/.DS_Store", b"x");
+        write(root.path(), "docs/_config.yml", b"x");
+
+        let mut entries = list_explorer_files_under(root.path()).expect("list");
+        entries.sort_by(|a, b| a.path.cmp(&b.path));
+        let paths: Vec<String> = entries.iter().map(|entry| entry.path.clone()).collect();
+
+        assert_eq!(
+            paths,
+            vec![
+                "README.md".to_string(),
+                "docs/index.md".to_string(),
+                "docs/superpowers/specs/design.md".to_string(),
+                "src/main.ts".to_string(),
+            ]
+        );
+        let docs_entry = entries.iter().find(|entry| entry.path == "docs/index.md").expect("docs entry");
+        assert_eq!(docs_entry.category, "docs");
+        let code_entry = entries.iter().find(|entry| entry.path == "src/main.ts").expect("code entry");
+        assert_eq!(code_entry.category, "code");
+    }
+
+    #[test]
+    fn reads_markdown_file_with_markdown_language() {
+        let root = TempDir::new().expect("temp root");
+        write(root.path(), "docs/index.md", b"# title\n\nbody\n");
+
+        let result = read_code_file_under(root.path(), "docs/index.md").expect("read md");
+
+        assert_eq!(result.path, "docs/index.md");
+        assert_eq!(result.language, "Markdown");
+        assert!(result.content.starts_with("# title"));
     }
 }

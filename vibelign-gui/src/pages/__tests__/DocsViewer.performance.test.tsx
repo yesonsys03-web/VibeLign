@@ -1,3 +1,4 @@
+// === ANCHOR: DOCSVIEWER_PERFORMANCE_TEST_START ===
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import DocsViewer from "../DocsViewer";
@@ -74,10 +75,12 @@ vi.mock("../../lib/vib", async () => {
   };
 });
 
+// === ANCHOR: DOCSVIEWER_PERFORMANCE_TEST_PERCENTILE95_START ===
 function percentile95(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.ceil(sorted.length * 0.95) - 1] ?? 0;
 }
+// === ANCHOR: DOCSVIEWER_PERFORMANCE_TEST_PERCENTILE95_END ===
 
 describe("DocsViewer performance spot checks", () => {
   afterEach(() => {
@@ -109,3 +112,4 @@ describe("DocsViewer performance spot checks", () => {
     expect(switchP95).toBeLessThanOrEqual(50);
   });
 });
+// === ANCHOR: DOCSVIEWER_PERFORMANCE_TEST_END ===

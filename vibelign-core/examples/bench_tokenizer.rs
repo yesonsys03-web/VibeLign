@@ -1,3 +1,4 @@
+// === ANCHOR: BENCH_TOKENIZER_START ===
 //! Rust isolated bench: in-process pure tokenizer 의 floor 시간 측정.
 //!
 //! Advisor 권고 (2026-05-13): "If Rust itself is 100ms for 1M calls, you have
@@ -81,3 +82,4 @@ fn main() {
         per = per_call_ns,
     );
 }
+// === ANCHOR: BENCH_TOKENIZER_END ===

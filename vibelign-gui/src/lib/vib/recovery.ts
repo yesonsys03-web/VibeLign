@@ -1,19 +1,25 @@
+// === ANCHOR: RECOVERY_START ===
 import { runVib } from "./core";
 import { requireNumber, requireOptionalRecord, requireRecord, requireRecordArray, requireString } from "./normalizers";
 import type { RecoveryPreviewResult, RecoveryRecommendationResponse } from "./types";
 
+// === ANCHOR: RECOVERY_RECOVERYPREVIEW_START ===
 export async function recoveryPreview(cwd: string): Promise<RecoveryPreviewResult> {
   const res = await runVib(["recover", "--preview", "--json"], cwd);
   if (!res.ok) throw new Error(res.stderr || res.stdout || `exit ${res.exit_code}`);
   return parseRecoveryPreviewJson(res.stdout);
 }
+// === ANCHOR: RECOVERY_RECOVERYPREVIEW_END ===
 
+// === ANCHOR: RECOVERY_RECOVERYRECOMMEND_START ===
 export async function recoveryRecommend(cwd: string, phrase: string, aiEnv?: Record<string, string>): Promise<RecoveryRecommendationResponse> {
   const res = await runVib(["recover", "--recommend", "--phrase", phrase], cwd, aiEnv);
   if (!res.ok) throw new Error(res.stderr || res.stdout || `exit ${res.exit_code}`);
   return parseRecoveryRecommendationJson(res.stdout);
 }
+// === ANCHOR: RECOVERY_RECOVERYRECOMMEND_END ===
 
+// === ANCHOR: RECOVERY_PARSERECOVERYPREVIEWJSON_START ===
 function parseRecoveryPreviewJson(stdout: string): RecoveryPreviewResult {
   const data = requireRecord(JSON.parse(stdout), "recovery_plan.schema.json");
   requireString(data.plan_id, "plan_id");
@@ -72,7 +78,9 @@ function parseRecoveryPreviewJson(stdout: string): RecoveryPreviewResult {
     raw: stdout,
   };
 }
+// === ANCHOR: RECOVERY_PARSERECOVERYPREVIEWJSON_END ===
 
+// === ANCHOR: RECOVERY_PARSERECOVERYRECOMMENDATIONJSON_START ===
 function parseRecoveryRecommendationJson(stdout: string): RecoveryRecommendationResponse {
   const data = requireRecord(JSON.parse(stdout), "recovery_recommendation.schema.json");
   requireString(data.recommendation_provider, "recommendation_provider");
@@ -92,3 +100,5 @@ function parseRecoveryRecommendationJson(stdout: string): RecoveryRecommendation
   });
   return data as unknown as RecoveryRecommendationResponse;
 }
+// === ANCHOR: RECOVERY_PARSERECOVERYRECOMMENDATIONJSON_END ===
+// === ANCHOR: RECOVERY_END ===

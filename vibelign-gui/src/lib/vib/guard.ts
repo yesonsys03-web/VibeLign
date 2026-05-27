@@ -1,6 +1,8 @@
+// === ANCHOR: GUARD_START ===
 import { runVib } from "./core";
 import type { GuardIssue, GuardResult, VibResult } from "./types";
 
+// === ANCHOR: GUARD_DOCTORJSON_START ===
 export async function doctorJson(cwd: string, strict = false): Promise<unknown> {
   const args = ["doctor", "--json"];
   if (strict) args.push("--strict");
@@ -19,27 +21,36 @@ export async function doctorJson(cwd: string, strict = false): Promise<unknown> 
   return parsed.data ?? parsed;
 }
 
+// === ANCHOR: GUARD_DOCTORPLANJSON_START ===
 export async function doctorPlanJson(cwd: string): Promise<unknown> {
   const res = await runVib(["doctor", "--plan", "--json"], cwd);
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
   return JSON.parse(res.stdout);
 }
+// === ANCHOR: GUARD_DOCTORPLANJSON_END ===
 
+// === ANCHOR: GUARD_DOCTORAPPLY_START ===
 export async function doctorApply(cwd: string, aiEnv?: Record<string, string>): Promise<unknown> {
   const res = await runVib(["doctor", "--apply", "--force", "--json"], cwd, aiEnv);
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
   return JSON.parse(res.stdout);
 }
+// === ANCHOR: GUARD_DOCTORAPPLY_END ===
 
+// === ANCHOR: GUARD__TOSTR_START ===
 function _toStr(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
+// === ANCHOR: GUARD__TOSTR_END ===
 
+// === ANCHOR: GUARD__TOSTRINGARRAY_START ===
 function _toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((v): v is string => typeof v === "string");
 }
+// === ANCHOR: GUARD__TOSTRINGARRAY_END ===
 
+// === ANCHOR: GUARD__TOGUARDISSUES_START ===
 function _toGuardIssues(value: unknown): GuardIssue[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -50,7 +61,9 @@ function _toGuardIssues(value: unknown): GuardIssue[] {
       path: _toStr(i.path),
     }));
 }
+// === ANCHOR: GUARD__TOGUARDISSUES_END ===
 
+// === ANCHOR: GUARD_VIBGUARD_START ===
 export async function vibGuard(cwd: string, opts?: { strict?: boolean; sinceMinutes?: number; writeReport?: boolean }): Promise<GuardResult> {
   const args = ["guard", "--json"];
   if (opts?.strict) args.push("--strict");
@@ -63,10 +76,18 @@ export async function vibGuard(cwd: string, opts?: { strict?: boolean; sinceMinu
   // Why: vib CLI 스키마가 달라지거나 비정상 종료로 stderr 가 섞여도
   // UI 가 조용히 `undefined` 를 문자열로 렌더링하지 않게 한다.
   const parsed: unknown = JSON.parse(raw);
+  // === ANCHOR: GUARD_ROOT_START ===
   const root = (parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {});
+  // === ANCHOR: GUARD_ROOT_END ===
+// === ANCHOR: GUARD_DOCTORJSON_END ===
+  // === ANCHOR: GUARD_DATA_START ===
   const data = (root.data && typeof root.data === "object" ? root.data as Record<string, unknown> : root);
+  // === ANCHOR: GUARD_DOCTOR_START ===
+  // === ANCHOR: GUARD_DATA_END ===
   const doctor = (data.doctor && typeof data.doctor === "object" ? data.doctor as Record<string, unknown> : {});
+  // === ANCHOR: GUARD_DOCTOR_END ===
   return {
+// === ANCHOR: GUARD_VIBGUARD_END ===
     status: _toStr(data.status) || "unknown",
     summary: _toStr(data.summary),
     recommendations: _toStringArray(data.recommendations),
@@ -74,6 +95,9 @@ export async function vibGuard(cwd: string, opts?: { strict?: boolean; sinceMinu
   };
 }
 
+// === ANCHOR: GUARD_VIBSCAN_START ===
 export async function vibScan(cwd: string): Promise<VibResult> {
   return runVib(["scan"], cwd);
 }
+// === ANCHOR: GUARD_VIBSCAN_END ===
+// === ANCHOR: GUARD_END ===

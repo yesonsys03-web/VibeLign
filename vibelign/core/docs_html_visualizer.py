@@ -1,3 +1,4 @@
+# === ANCHOR: DOCS_HTML_VISUALIZER_START ===
 from __future__ import annotations
 
 import html
@@ -13,6 +14,7 @@ RAW_HTML_CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; ba
 
 
 @dataclass(frozen=True)
+# === ANCHOR: DOCS_HTML_VISUALIZER_DOCSHTMLARTIFACT_START ===
 class DocsHtmlArtifact:
     source_path: str
     source_hash: str
@@ -24,10 +26,14 @@ class DocsHtmlArtifact:
     csp: str = RAW_HTML_CSP
     mode: str = "raw_html"
 
+    # === ANCHOR: DOCS_HTML_VISUALIZER_TO_DICT_START ===
     def to_dict(self) -> dict[str, Any]:
+# === ANCHOR: DOCS_HTML_VISUALIZER_DOCSHTMLARTIFACT_END ===
         return asdict(self)
+    # === ANCHOR: DOCS_HTML_VISUALIZER_TO_DICT_END ===
 
 
+# === ANCHOR: DOCS_HTML_VISUALIZER__TITLE_FROM_TEXT_START ===
 def _title_from_text(source_path: Path, text: str) -> str:
     for line in text.splitlines():
         stripped = line.strip()
@@ -36,13 +42,17 @@ def _title_from_text(source_path: Path, text: str) -> str:
         if stripped:
             return stripped[:80]
     return source_path.stem.replace("-", " ").replace("_", " ").strip() or source_path.name
+# === ANCHOR: DOCS_HTML_VISUALIZER__TITLE_FROM_TEXT_END ===
 
 
+# === ANCHOR: DOCS_HTML_VISUALIZER__INLINE_MARKDOWN_HTML_START ===
 def _inline_markdown_html(text: str) -> str:
     escaped = html.escape(text)
     return re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
+# === ANCHOR: DOCS_HTML_VISUALIZER__INLINE_MARKDOWN_HTML_END ===
 
 
+# === ANCHOR: DOCS_HTML_VISUALIZER__MARKDOWNISH_TO_RAW_HTML_START ===
 def _markdownish_to_raw_html(text: str) -> str:
     blocks: list[str] = []
     in_code = False
@@ -51,17 +61,22 @@ def _markdownish_to_raw_html(text: str) -> str:
     list_items: list[str] = []
     table_rows: list[list[str]] = []
 
+    # === ANCHOR: DOCS_HTML_VISUALIZER_FLUSH_PARAGRAPH_START ===
     def flush_paragraph() -> None:
         if paragraph:
             blocks.append(f"<p>{_inline_markdown_html(' '.join(paragraph))}</p>")
             paragraph.clear()
+    # === ANCHOR: DOCS_HTML_VISUALIZER_FLUSH_PARAGRAPH_END ===
 
+    # === ANCHOR: DOCS_HTML_VISUALIZER_FLUSH_LIST_START ===
     def flush_list() -> None:
         if list_items:
             items = "".join(f"<li>{item}</li>" for item in list_items)
             blocks.append(f"<ul>{items}</ul>")
             list_items.clear()
+    # === ANCHOR: DOCS_HTML_VISUALIZER_FLUSH_LIST_END ===
 
+    # === ANCHOR: DOCS_HTML_VISUALIZER_FLUSH_TABLE_START ===
     def flush_table() -> None:
         if table_rows:
             rows = "".join(
@@ -70,17 +85,22 @@ def _markdownish_to_raw_html(text: str) -> str:
             )
             blocks.append(f"<table>{rows}</table>")
             table_rows.clear()
+    # === ANCHOR: DOCS_HTML_VISUALIZER_FLUSH_TABLE_END ===
 
+    # === ANCHOR: DOCS_HTML_VISUALIZER_FLUSH_STRUCTURAL_BLOCKS_START ===
     def flush_structural_blocks() -> None:
         flush_paragraph()
         flush_list()
         flush_table()
+    # === ANCHOR: DOCS_HTML_VISUALIZER_FLUSH_STRUCTURAL_BLOCKS_END ===
 
+    # === ANCHOR: DOCS_HTML_VISUALIZER_FLUSH_CODE_START ===
     def flush_code() -> None:
         if code_lines:
             code_text = "\n".join(code_lines)
             blocks.append(f"<pre><code>{html.escape(code_text)}</code></pre>")
             code_lines.clear()
+    # === ANCHOR: DOCS_HTML_VISUALIZER_FLUSH_CODE_END ===
 
     for raw_line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
         line = raw_line.rstrip("\n")
@@ -123,6 +143,7 @@ def _markdownish_to_raw_html(text: str) -> str:
             continue
         if stripped.startswith("<") and stripped.endswith(">"):
             flush_structural_blocks()
+# === ANCHOR: DOCS_HTML_VISUALIZER__MARKDOWNISH_TO_RAW_HTML_END ===
             blocks.append(stripped)
             continue
         flush_list()
@@ -135,10 +156,12 @@ def _markdownish_to_raw_html(text: str) -> str:
     return "\n".join(blocks)
 
 
+# === ANCHOR: DOCS_HTML_VISUALIZER_BUILD_RAW_HTML_DOCUMENT_START ===
 def build_raw_html_document(source_path: Path, text: str) -> str:
     title = _title_from_text(source_path, text)
     body = _markdownish_to_raw_html(text)
     return f"""<!doctype html>
+# === ANCHOR: DOCS_HTML_VISUALIZER_BUILD_RAW_HTML_DOCUMENT_END ===
 <html lang=\"ko\">
 <head>
   <meta charset=\"utf-8\" />
@@ -175,6 +198,7 @@ def build_raw_html_document(source_path: Path, text: str) -> str:
 </html>"""
 
 
+# === ANCHOR: DOCS_HTML_VISUALIZER_BUILD_DOCS_HTML_ARTIFACT_START ===
 def build_docs_html_artifact(source_path: Path) -> DocsHtmlArtifact:
     resolved = source_path.resolve()
     text = _DOCS_CACHE.read_document_text(resolved)
@@ -187,3 +211,5 @@ def build_docs_html_artifact(source_path: Path) -> DocsHtmlArtifact:
         title=_title_from_text(resolved, text),
         html=build_raw_html_document(resolved, text),
     )
+# === ANCHOR: DOCS_HTML_VISUALIZER_BUILD_DOCS_HTML_ARTIFACT_END ===
+# === ANCHOR: DOCS_HTML_VISUALIZER_END ===

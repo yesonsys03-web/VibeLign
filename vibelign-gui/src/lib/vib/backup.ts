@@ -1,3 +1,4 @@
+// === ANCHOR: BACKUP_START ===
 import { callEngineDirect, runVib } from "./core";
 import type {
   BackupCleanupResult,
@@ -13,6 +14,7 @@ import type {
   CheckpointCreateResult,
 } from "./types";
 
+// === ANCHOR: BACKUP_GETAUTOBACKUPONCOMMIT_START ===
 export async function getAutoBackupOnCommit(cwd: string): Promise<boolean> {
   const parsed = await callEngineDirect<{ enabled?: boolean }>({
     command: "auto_backup_status",
@@ -20,7 +22,9 @@ export async function getAutoBackupOnCommit(cwd: string): Promise<boolean> {
   });
   return Boolean(parsed.enabled);
 }
+// === ANCHOR: BACKUP_GETAUTOBACKUPONCOMMIT_END ===
 
+// === ANCHOR: BACKUP_SETAUTOBACKUPONCOMMIT_START ===
 export async function setAutoBackupOnCommit(cwd: string, enabled: boolean): Promise<boolean> {
   const parsed = await callEngineDirect<{ enabled?: boolean }>({
     command: "auto_backup_set",
@@ -29,7 +33,9 @@ export async function setAutoBackupOnCommit(cwd: string, enabled: boolean): Prom
   });
   return Boolean(parsed.enabled);
 }
+// === ANCHOR: BACKUP_SETAUTOBACKUPONCOMMIT_END ===
 
+// === ANCHOR: BACKUP_CHECKPOINTCREATE_START ===
 export async function checkpointCreate(cwd: string, message: string): Promise<CheckpointCreateResult> {
   const res = await runVib(["checkpoint", message, "--json"], cwd);
   if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
@@ -38,14 +44,19 @@ export async function checkpointCreate(cwd: string, message: string): Promise<Ch
   if (data.ok !== false) clearBackupCaches(cwd);
   return data;
 }
+// === ANCHOR: BACKUP_CHECKPOINTCREATE_END ===
 
+// === ANCHOR: BACKUP_BACKUPCREATE_START ===
 export async function backupCreate(cwd: string, note: string): Promise<CheckpointCreateResult> {
   return checkpointCreate(cwd, note);
 }
+// === ANCHOR: BACKUP_BACKUPCREATE_END ===
 
+// === ANCHOR: BACKUP_CHECKPOINTLIST_START ===
 export async function checkpointList(cwd: string): Promise<unknown> {
   return callEngineDirect<unknown>({ command: "checkpoint_list", root: cwd });
 }
+// === ANCHOR: BACKUP_CHECKPOINTLIST_END ===
 
 /**
  * Phase 3 PoC consumer #2 — `vib undo --checkpoint-id … --force --json`
@@ -53,6 +64,7 @@ export async function checkpointList(cwd: string): Promise<unknown> {
  * 응답 shape `{status, result: "restored", checkpoint_id}` 는 호출자가
  * `Promise<unknown>` 으로만 소비하므로 wrapper 변환 불필요.
  */
+// === ANCHOR: BACKUP_UNDOCHECKPOINT_START ===
 export async function undoCheckpoint(cwd: string, checkpointId: string): Promise<unknown> {
   return callEngineDirect<unknown>({
     command: "checkpoint_restore",
@@ -60,6 +72,7 @@ export async function undoCheckpoint(cwd: string, checkpointId: string): Promise
     checkpoint_id: checkpointId,
   });
 }
+// === ANCHOR: BACKUP_UNDOCHECKPOINT_END ===
 
 interface RawCheckpointEntry {
   checkpoint_id?: string;
@@ -192,10 +205,13 @@ interface RawBackupGraphSummaryResult {
   warnings?: string[] | null;
 }
 
+// === ANCHOR: BACKUP_READNUMBER_START ===
 function readNumber(value: number | null | undefined): number {
   return typeof value === "number" ? value : 0;
 }
+// === ANCHOR: BACKUP_READNUMBER_END ===
 
+// === ANCHOR: BACKUP_NORMALIZEDBFILE_START ===
 function normalizeDbFile(raw?: RawBackupDbViewerDbFileStats | null): BackupDbViewerInspectResult["dbFile"] {
   return {
     databaseBytes: readNumber(raw?.database_bytes),
@@ -204,7 +220,9 @@ function normalizeDbFile(raw?: RawBackupDbViewerDbFileStats | null): BackupDbVie
     totalBytes: readNumber(raw?.total_bytes),
   };
 }
+// === ANCHOR: BACKUP_NORMALIZEDBFILE_END ===
 
+// === ANCHOR: BACKUP_NORMALIZERETENTIONPOLICY_START ===
 function normalizeRetentionPolicy(raw?: RawBackupDbViewerRetentionPolicy | null): BackupDbViewerInspectResult["retentionPolicy"] {
   if (!raw) return null;
   return {
@@ -216,7 +234,9 @@ function normalizeRetentionPolicy(raw?: RawBackupDbViewerRetentionPolicy | null)
     minKeep: readNumber(raw.min_keep),
   };
 }
+// === ANCHOR: BACKUP_NORMALIZERETENTIONPOLICY_END ===
 
+// === ANCHOR: BACKUP_NORMALIZEOBJECTSTORE_START ===
 function normalizeObjectStore(raw?: RawBackupDbViewerObjectStore | null): BackupDbViewerInspectResult["objectStore"] {
   const compressionItems = Array.isArray(raw?.compression_summary) ? raw.compression_summary : [];
   return {
@@ -230,7 +250,9 @@ function normalizeObjectStore(raw?: RawBackupDbViewerObjectStore | null): Backup
     originalSizeBytes: readNumber(raw?.original_size_bytes),
   };
 }
+// === ANCHOR: BACKUP_NORMALIZEOBJECTSTORE_END ===
 
+// === ANCHOR: BACKUP_NORMALIZEBACKUPDBVIEWERROW_START ===
 function normalizeBackupDbViewerRow(raw: RawBackupDbViewerCheckpointRow): BackupDbViewerCheckpointRow {
   return {
     checkpointId: raw.checkpoint_id ?? "",
@@ -252,7 +274,9 @@ function normalizeBackupDbViewerRow(raw: RawBackupDbViewerCheckpointRow): Backup
     internalBadges: Array.isArray(raw.internal_badges) ? raw.internal_badges : [],
   };
 }
+// === ANCHOR: BACKUP_NORMALIZEBACKUPDBVIEWERROW_END ===
 
+// === ANCHOR: BACKUP_PARSEBACKUPDBVIEWERINSPECTRESULT_START ===
 function parseBackupDbViewerInspectResult(raw: RawBackupDbViewerInspectResult): BackupDbViewerInspectResult {
   if (raw.ok === false) throw new Error(raw.error ?? "Backup DB Viewer 실패");
   const checkpoints = Array.isArray(raw.checkpoints) ? raw.checkpoints : [];
@@ -276,7 +300,9 @@ function parseBackupDbViewerInspectResult(raw: RawBackupDbViewerInspectResult): 
     warnings,
   };
 }
+// === ANCHOR: BACKUP_PARSEBACKUPDBVIEWERINSPECTRESULT_END ===
 
+// === ANCHOR: BACKUP_PARSEBACKUPDBMAINTENANCERESULT_START ===
 function parseBackupDbMaintenanceResult(raw: RawBackupDbMaintenanceResult): BackupDbMaintenanceResult {
   if (raw.ok === false) throw new Error(raw.error ?? "Backup DB maintenance 실패");
   return {
@@ -290,7 +316,9 @@ function parseBackupDbMaintenanceResult(raw: RawBackupDbMaintenanceResult): Back
     warnings: Array.isArray(raw.warnings) ? raw.warnings.filter((item): item is string => typeof item === "string") : [],
   };
 }
+// === ANCHOR: BACKUP_PARSEBACKUPDBMAINTENANCERESULT_END ===
 
+// === ANCHOR: BACKUP_PARSEBACKUPCLEANUPRESULT_START ===
 function parseBackupCleanupResult(raw: RawBackupCleanupResult): BackupCleanupResult {
   if (raw.ok === false) throw new Error(raw.error ?? "Backup cleanup 실패");
   const retention = raw.retention ?? {};
@@ -305,7 +333,9 @@ function parseBackupCleanupResult(raw: RawBackupCleanupResult): BackupCleanupRes
     maintenance: parseBackupDbMaintenanceResult(raw.maintenance ?? {}),
   };
 }
+// === ANCHOR: BACKUP_PARSEBACKUPCLEANUPRESULT_END ===
 
+// === ANCHOR: BACKUP_NORMALIZEBACKUPGRAPHNODE_START ===
 function normalizeBackupGraphNode(raw?: RawBackupGraphNode | null): BackupGraphNode {
   const rawChildren = Array.isArray(raw?.children) ? raw.children : [];
   const path = typeof raw?.path === "string" ? raw.path.replaceAll("\\", "/") : "";
@@ -317,7 +347,9 @@ function normalizeBackupGraphNode(raw?: RawBackupGraphNode | null): BackupGraphN
     children: rawChildren.map(normalizeBackupGraphNode),
   };
 }
+// === ANCHOR: BACKUP_NORMALIZEBACKUPGRAPHNODE_END ===
 
+// === ANCHOR: BACKUP_PARSEBACKUPGRAPHSUMMARYRESULT_START ===
 function parseBackupGraphSummaryResult(raw: RawBackupGraphSummaryResult): BackupGraphSummaryResult {
   if (raw.ok === false) throw new Error(raw.error ?? "Backup graph summary 실패");
   return {
@@ -327,25 +359,33 @@ function parseBackupGraphSummaryResult(raw: RawBackupGraphSummaryResult): Backup
     warnings: Array.isArray(raw.warnings) ? raw.warnings.filter((item): item is string => typeof item === "string") : [],
   };
 }
+// === ANCHOR: BACKUP_PARSEBACKUPGRAPHSUMMARYRESULT_END ===
 
+// === ANCHOR: BACKUP_BACKUPSOURCEKIND_START ===
 function backupSourceKind(trigger?: string | null): BackupSourceKind {
   if (trigger === "post_commit") return "auto";
   if (trigger === "safe_restore") return "safe";
   if (!trigger) return "manual";
   return "unknown";
 }
+// === ANCHOR: BACKUP_BACKUPSOURCEKIND_END ===
 
+// === ANCHOR: BACKUP_CLEANRAWBACKUPNOTE_START ===
 function cleanRawBackupNote(raw: RawCheckpointEntry): string {
+  // === ANCHOR: BACKUP_NOTE_START ===
   const note = (raw.git_commit_message || raw.message || "")
     .replace(/^vibelign:\s*checkpoint\s*-?\s*/i, "")
     .replace(/\s*\(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}\)\s*$/, "")
+  // === ANCHOR: BACKUP_NOTE_END ===
     .trim();
   if (raw.trigger === "post_commit") {
     return note ? `코드 저장 뒤 자동 보관 - ${note}` : "코드 저장 뒤 자동 보관";
   }
+// === ANCHOR: BACKUP_CLEANRAWBACKUPNOTE_END ===
   return note || "메모 없는 저장본";
 }
 
+// === ANCHOR: BACKUP_NORMALIZEBACKUPENTRY_START ===
 function normalizeBackupEntry(raw: RawCheckpointEntry): BackupEntry {
   const files = Array.isArray(raw.files) ? raw.files.map(normalizeBackupFileEntry).filter((entry): entry is BackupFileEntry => entry !== null) : [];
   return {
@@ -359,7 +399,9 @@ function normalizeBackupEntry(raw: RawCheckpointEntry): BackupEntry {
     commitNote: raw.git_commit_message ?? undefined,
   };
 }
+// === ANCHOR: BACKUP_NORMALIZEBACKUPENTRY_END ===
 
+// === ANCHOR: BACKUP_NORMALIZEBACKUPENTRYFROMDBROW_START ===
 function normalizeBackupEntryFromDbRow(row: BackupDbViewerCheckpointRow): BackupEntry {
   return {
     id: row.checkpointId,
@@ -372,7 +414,9 @@ function normalizeBackupEntryFromDbRow(row: BackupDbViewerCheckpointRow): Backup
     commitNote: row.gitCommitMessage ?? undefined,
   };
 }
+// === ANCHOR: BACKUP_NORMALIZEBACKUPENTRYFROMDBROW_END ===
 
+// === ANCHOR: BACKUP_NORMALIZEBACKUPFILEENTRY_START ===
 function normalizeBackupFileEntry(raw: RawCheckpointFileEntry): BackupFileEntry | null {
   const path = raw.relative_path ?? raw.path;
   if (!path) return null;
@@ -382,29 +426,39 @@ function normalizeBackupFileEntry(raw: RawCheckpointFileEntry): BackupFileEntry 
     sizeBytes: typeof size === "number" ? size : 0,
   };
 }
+// === ANCHOR: BACKUP_NORMALIZEBACKUPFILEENTRY_END ===
 
 const backupListCache = new Map<string, BackupListResult>();
 const backupDbViewerInspectCache = new Map<string, BackupDbViewerInspectResult>();
 const backupGraphSummaryCache = new Map<string, BackupGraphSummaryResult>();
 
+// === ANCHOR: BACKUP_CLEARBACKUPCACHES_START ===
 function clearBackupCaches(cwd: string): void {
   backupListCache.delete(cwd);
   backupDbViewerInspectCache.delete(cwd);
   backupGraphSummaryCache.delete(cwd);
 }
+// === ANCHOR: BACKUP_CLEARBACKUPCACHES_END ===
 
+// === ANCHOR: BACKUP_GETCACHEDBACKUPLIST_START ===
 export function getCachedBackupList(cwd: string): BackupListResult | undefined {
   return backupListCache.get(cwd);
 }
+// === ANCHOR: BACKUP_GETCACHEDBACKUPLIST_END ===
 
+// === ANCHOR: BACKUP_GETCACHEDBACKUPDBVIEWERINSPECT_START ===
 export function getCachedBackupDbViewerInspect(cwd: string): BackupDbViewerInspectResult | undefined {
   return backupDbViewerInspectCache.get(cwd);
 }
+// === ANCHOR: BACKUP_GETCACHEDBACKUPDBVIEWERINSPECT_END ===
 
+// === ANCHOR: BACKUP_GETCACHEDBACKUPGRAPHSUMMARY_START ===
 export function getCachedBackupGraphSummary(cwd: string): BackupGraphSummaryResult | undefined {
   return backupGraphSummaryCache.get(cwd);
 }
+// === ANCHOR: BACKUP_GETCACHEDBACKUPGRAPHSUMMARY_END ===
 
+// === ANCHOR: BACKUP_BACKUPLIST_START ===
 export async function backupList(cwd: string, options?: { force?: boolean }): Promise<BackupListResult> {
   try {
     const report = await backupDbViewerInspect(cwd, { force: options?.force });
@@ -434,6 +488,7 @@ export async function backupList(cwd: string, options?: { force?: boolean }): Pr
   backupListCache.set(cwd, result);
   return result;
 }
+// === ANCHOR: BACKUP_BACKUPLIST_END ===
 
 /**
  * Phase 3 PoC consumer #3 — read-only `backup_db_viewer_inspect`.
@@ -441,6 +496,7 @@ export async function backupList(cwd: string, options?: { force?: boolean }): Pr
  * (explicit false) 만 실패로 보므로, engine raw `{status:"ok", ...}` 가 ok 필드 없이도
  * 그대로 통과한다. cache 정책은 변경 없음.
  */
+// === ANCHOR: BACKUP_BACKUPDBVIEWERINSPECT_START ===
 export async function backupDbViewerInspect(cwd: string, options?: { force?: boolean }): Promise<BackupDbViewerInspectResult> {
   if (!options?.force) {
     const cached = backupDbViewerInspectCache.get(cwd);
@@ -454,10 +510,12 @@ export async function backupDbViewerInspect(cwd: string, options?: { force?: boo
   backupDbViewerInspectCache.set(cwd, result);
   return result;
 }
+// === ANCHOR: BACKUP_BACKUPDBVIEWERINSPECT_END ===
 
 /**
  * Phase 3 PoC consumer #4 — read-only `backup_graph_summary`. 동일 shape parity 패턴.
  */
+// === ANCHOR: BACKUP_BACKUPGRAPHSUMMARY_START ===
 export async function backupGraphSummary(cwd: string, options?: { force?: boolean }): Promise<BackupGraphSummaryResult> {
   if (!options?.force) {
     const cached = backupGraphSummaryCache.get(cwd);
@@ -471,12 +529,14 @@ export async function backupGraphSummary(cwd: string, options?: { force?: boolea
   backupGraphSummaryCache.set(cwd, result);
   return result;
 }
+// === ANCHOR: BACKUP_BACKUPGRAPHSUMMARY_END ===
 
 /**
  * Phase 3 PoC consumer #5 — `backup_db_maintenance` (write path with apply param).
  * Python wrapper 가 `{ok:true, ...report}` 로만 감쌈 — TS parser 가 `raw.ok === false`
  * 만 실패로 보므로 engine raw `{status:"ok", ...}` 그대로 통과.
  */
+// === ANCHOR: BACKUP_BACKUPDBMAINTENANCE_START ===
 export async function backupDbMaintenance(cwd: string, apply = false): Promise<BackupDbMaintenanceResult> {
   const parsed = await callEngineDirect<RawBackupDbMaintenanceResult>({
     command: "backup_db_maintenance",
@@ -487,6 +547,7 @@ export async function backupDbMaintenance(cwd: string, apply = false): Promise<B
   if (apply) clearBackupCaches(cwd);
   return result;
 }
+// === ANCHOR: BACKUP_BACKUPDBMAINTENANCE_END ===
 
 /**
  * Phase 3 PoC consumer #6 — `backup_cleanup` 는 Python 측에서
@@ -495,6 +556,7 @@ export async function backupDbMaintenance(cwd: string, apply = false): Promise<B
  * 순차 실행 후 같은 shape 로 wrap. 필드 이름 매핑(`pruned_count → count` 등)은
  * Python `parse_retention` 이 하던 일을 TS 에서 동일하게 재현.
  */
+// === ANCHOR: BACKUP_BACKUPCLEANUP_START ===
 export async function backupCleanup(cwd: string): Promise<BackupCleanupResult> {
   interface RetentionRaw {
     pruned_count?: number;
@@ -526,9 +588,13 @@ export async function backupCleanup(cwd: string): Promise<BackupCleanupResult> {
   clearBackupCaches(cwd);
   return result;
 }
+// === ANCHOR: BACKUP_BACKUPCLEANUP_END ===
 
+// === ANCHOR: BACKUP_BACKUPRESTORE_START ===
 export async function backupRestore(cwd: string, backupId: string): Promise<unknown> {
   const result = await undoCheckpoint(cwd, backupId);
   clearBackupCaches(cwd);
   return result;
 }
+// === ANCHOR: BACKUP_BACKUPRESTORE_END ===
+// === ANCHOR: BACKUP_END ===

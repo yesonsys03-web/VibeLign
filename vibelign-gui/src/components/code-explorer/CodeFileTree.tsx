@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import { buildCodeTree, collectDirectoryPaths, flattenVisibleTree } from "../../lib/code-explorer/tree";
+import { buildCodeTree, CATEGORY_COLORS, collectDirectoryPaths, flattenVisibleTree } from "../../lib/code-explorer/tree";
 import type { CodeFileEntry } from "../../lib/vib";
 
 interface CodeFileTreeProps {
@@ -46,6 +46,10 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
       ) : visible.map(({ node, depth }) => {
         const active = node.path === selectedPath;
         const isDirectory = node.kind === "directory";
+        const categoryColor = CATEGORY_COLORS[node.category];
+        // 디렉터리는 진하게(~40% alpha), 파일은 적당히(~25% alpha) — 폴더가 더 강조되고
+        // 파일은 같은 색 그룹 안에서 차분하게 보이게.
+        const tint = `${categoryColor}${isDirectory ? "66" : "40"}`;
         return (
           <button
             key={`${node.kind}:${node.path}`}
@@ -57,16 +61,35 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
               width: "100%",
               justifyContent: "flex-start",
               textAlign: "left",
-              paddingLeft: 8 + depth * 14,
+              paddingLeft: 12 + depth * 14,
               marginBottom: 3,
-              background: active ? "#1A1A1A" : undefined,
+              background: active ? "#1A1A1A" : tint,
               color: active ? "#fff" : undefined,
               textTransform: "none",
               letterSpacing: 0,
               overflow: "hidden",
+              // 왼쪽 액센트 바(4px) — 카테고리 색을 가장 잘 드러내는 요소.
+              // .btn-ghost 의 var(--shadow-sm) 도 함께 보존(브루탈리즘 테두리 효과 유지).
+              boxShadow: `inset 4px 0 0 ${categoryColor}, var(--shadow-sm)`,
             }}
           >
             <span style={{ width: 16, display: "inline-block" }}>{isDirectory ? (expandedPaths.has(node.path) ? "▾" : "▸") : ""}</span>
+            <span
+              aria-hidden="true"
+              title={node.category}
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                display: "inline-block",
+                marginRight: 6,
+                verticalAlign: "middle",
+                // 폴더는 채우고 파일은 외곽선만 — 동일 색 안에서도 둘을 구분하기 쉽게.
+                background: isDirectory ? CATEGORY_COLORS[node.category] : "transparent",
+                border: isDirectory ? "none" : `2px solid ${CATEGORY_COLORS[node.category]}`,
+                boxSizing: "border-box",
+              }}
+            />
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{node.name}</span>
           </button>
         );

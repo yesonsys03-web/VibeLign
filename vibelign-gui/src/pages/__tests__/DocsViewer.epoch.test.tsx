@@ -1,3 +1,4 @@
+// === ANCHOR: DOCSVIEWER_EPOCH_TEST_START ===
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import DocsViewer from "../DocsViewer";
@@ -286,3 +287,4 @@ describe("DocsViewer generation epoch", () => {
     expect(srcdoc).toContain("<table><tr><td>Mode</td><td>Purpose</td></tr></table>");
   });
 });
+// === ANCHOR: DOCSVIEWER_EPOCH_TEST_END ===

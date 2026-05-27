@@ -1,3 +1,4 @@
+// === ANCHOR: INDEX_START ===
 export * from "./types";
 export { runVib, runVibWithProgress, vibStart } from "./core";
 export { listCodeFiles, readCodeFile } from "./code";
@@ -12,3 +13,4 @@ export { acceptHandoffDraftField, createHandoffDraft, dismissHandoffDraftField, 
 export { recoveryPreview, recoveryRecommend } from "./recovery";
 export { doctorApply, doctorJson, doctorPlanJson, vibGuard, vibScan } from "./guard";
 export { backupCleanup, backupCreate, backupDbMaintenance, backupDbViewerInspect, backupGraphSummary, backupList, backupRestore, checkpointCreate, checkpointList, getAutoBackupOnCommit, getCachedBackupDbViewerInspect, getCachedBackupGraphSummary, getCachedBackupList, setAutoBackupOnCommit, undoCheckpoint } from "./backup";
+// === ANCHOR: INDEX_END ===

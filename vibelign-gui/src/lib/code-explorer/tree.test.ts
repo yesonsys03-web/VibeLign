@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildCodeTree, collectDirectoryPaths, flattenVisibleTree } from "./tree";
+import { buildCodeTree, categorizeFileEntry, collectDirectoryPaths, flattenVisibleTree } from "./tree";
 import type { CodeFileEntry } from "../vib/types";
 
 const files: CodeFileEntry[] = [
@@ -31,5 +31,22 @@ describe("code explorer tree", () => {
     const dirs = collectDirectoryPaths(tree);
 
     expect(dirs).toEqual(new Set(["src", "src/lib", "src/lib/vib", "vibelign", "vibelign/core"]));
+  });
+
+  it("categorizes files and aggregates directory categories", () => {
+    expect(categorizeFileEntry({ path: "docs/index.md", category: "docs", imports: [] })).toBe("docs");
+    expect(categorizeFileEntry({ path: "docs/superpowers/specs/x.md", category: "docs", imports: [] })).toBe("docs");
+    expect(categorizeFileEntry({ path: "tests/api/auth.py", category: "code", imports: [] })).toBe("tests");
+    expect(categorizeFileEntry({ path: "src/pages/__tests__/foo.test.tsx", category: "code", imports: [] })).toBe("tests");
+    expect(categorizeFileEntry({ path: "src/lib/code.ts", category: "code", imports: [] })).toBe("code");
+
+    const tree = buildCodeTree([
+      { path: "docs/index.md", category: "docs", imports: [] },
+      { path: "docs/specs/design.md", category: "docs", imports: [] },
+      { path: "tests/api/auth.py", category: "code", imports: [] },
+      { path: "src/lib/code.ts", category: "code", imports: [] },
+    ]);
+    const byName = Object.fromEntries(tree.children.map((node) => [node.name, node.category]));
+    expect(byName).toMatchObject({ docs: "docs", tests: "tests", src: "code" });
   });
 });
