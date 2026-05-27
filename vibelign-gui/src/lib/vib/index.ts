@@ -1,5 +1,6 @@
 export * from "./types";
 export { runVib, runVibWithProgress, vibStart } from "./core";
+export { listCodeFiles, readCodeFile } from "./code";
 export { addExtraDocSource, enhanceDocWithAi, getAiEnhancement, getManualJson, listDocsIndex, listExtraDocSources, readDocsHtml, readDocsVisual, readFile, rebuildDocsIndex, removeExtraDocSource, setAiEnhancement } from "./docs";
 export { buildGuiAiEnv, deleteApiKey, deleteProviderApiKey, getEnvKeyStatus, loadApiKey, loadProviderApiKeys, saveApiKey, saveProviderApiKey } from "./apiKeys";
 export { checkGitInstalled, checkXcodeClt, getVibPath, loadRecentProjects, openFolder, pickFile, pickFolder, readProjectSummary, saveRecentProjects } from "./system";

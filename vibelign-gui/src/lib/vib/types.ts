@@ -524,3 +524,23 @@ export interface ProjectSummary {
   checkpoints: SummaryLine[];
   git_commits: SummaryLine[];
 }
+
+export interface CodeFileEntry {
+  path: string;
+  category: string;
+  imports: string[];
+}
+
+export interface ProjectScanResult {
+  result?: string;
+  files?: CodeFileEntry[];
+}
+
+export interface CodeFileReadResult {
+  path: string;
+  content: string;
+  source_hash: string;
+  size_bytes: number;
+  line_count: number;
+  language: string;
+}

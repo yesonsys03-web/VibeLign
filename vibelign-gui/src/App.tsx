@@ -7,6 +7,7 @@ import Onboarding from "./pages/Onboarding";
 import Doctor from "./pages/Doctor";
 import Home from "./pages/Home";
 import DocsViewer from "./pages/DocsViewer";
+import CodeExplorer from "./pages/CodeExplorer";
 import BackupDashboardPage from "./pages/BackupDashboard";
 import ErrorLogs from "./pages/ErrorLogs";
 import Settings from "./pages/Settings";
@@ -56,7 +57,7 @@ class ErrorBoundary extends Component<
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
-type Page = "home" | "manual" | "docs" | "doctor" | "backups" | "logs" | "settings";
+type Page = "home" | "manual" | "docs" | "code" | "doctor" | "backups" | "logs" | "settings";
 
 export default function App() {
   const [projectDir, setProjectDir] = useState<string | null>(null);
@@ -161,6 +162,9 @@ export default function App() {
               <button className={`nav-tab ${page === "docs" ? "active" : ""}`} onClick={() => setPage("docs")}>
                 DOCS VIEWER
               </button>
+              <button className={`nav-tab ${page === "code" ? "active" : ""}`} onClick={() => setPage("code")}>
+                CODE EXPLORER
+              </button>
               <button className={`nav-tab ${page === "backups" ? "active" : ""}`} onClick={() => setPage("backups")}>
                 BACKUPS
               </button>
@@ -191,6 +195,7 @@ export default function App() {
                 {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} />}
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
+                {page === "code" && <CodeExplorer projectDir={projectDir} />}
                 {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} />}
                 {page === "backups" && <BackupDashboardPage projectDir={projectDir} />}
                 {page === "logs" && <ErrorLogs projectDir={projectDir} />}

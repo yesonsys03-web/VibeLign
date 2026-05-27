@@ -319,6 +319,12 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.2.19** — GUI Code Explorer (read-only source viewer):
+
+- 🌲 **New `CODE EXPLORER` tab** — Browse the project source tree by folder (first-level expanded by default, auto-expand while searching) and preview any file read-only with line numbers plus language/line/byte stats. Search matches path, category, and imports. Built as a separate domain from DocsViewer with page/layout/tree/viewer/toolbar/line components so `App.tsx` only wires the tab.
+- 🔒 **Rust `read_code_file` command + `code_access.rs` guard** — Rejects root escapes (`..`, absolute paths, Windows UNC/drive, symlinks), skips hidden/generated dirs (`.git`, `node_modules`, `target`…), blocks Windows reserved device names (`NUL`, `CON`, `COM1`…), enforces an extension allowlist, refuses binary/non-UTF-8 files, and caps size (1MB code / 5MB data). BOM-stripped, CRLF-normalized, SHA-256 hashed.
+- 🧩 **Diff extension seam (`CodeDiffViewer`)** — Red/green diff component pre-split; inactive (unmounted) in v1 until a real diff source is wired.
+
 **v2.2.18** — Plan docs sync + GUI tsconfig test exclude:
 
 - 📝 **Plan/spec docs reconciled with shipped code (2026-05-14)** — Five superpowers plan/spec docs (`mcp-host-llm-pivot-plan`, `규칙수정안-3`, `원클릭설치-기획안_초안`, `지식저장고-기획안`, `mcp-host-llm-pivot-eval-runbook`) got "현재 구현 대조 메모" headers so readers don't mistake aspirational designs for shipped features. Real implementation status (e.g. MCP primitives mainlined, `vib knowledge` not yet built, `claude doctor` excluded from v1 success criteria) now sits at the top of each doc.
