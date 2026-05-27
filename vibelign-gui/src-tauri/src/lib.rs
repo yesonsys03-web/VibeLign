@@ -1,4 +1,5 @@
 // === ANCHOR: LIB_START ===
+mod code_access;
 mod commands;
 mod docs_access;
 mod onboarding;
@@ -123,6 +124,7 @@ pub fn run() {
             commands::watch::get_watch_logs,
             commands::watch::get_watch_errors,
             commands::platform::open_folder,
+            commands::code::read_code_file,
             commands::docs::read_file,
             commands::docs::list_docs_index,
             commands::docs::rebuild_docs_index,

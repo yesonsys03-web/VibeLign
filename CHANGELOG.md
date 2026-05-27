@@ -10,6 +10,22 @@
 
 ---
 
+## [2.2.19] — 2026-05-27
+
+VibeLign GUI 에 **Code Explorer** 탭 추가. 프로젝트 소스 트리를 폴더 단위로 탐색하고 선택한 파일을 read-only 로 미리볼 수 있다. 파일 목록은 기존 Rust `project_scan` IPC 를 재사용하고, 코드 읽기는 별도 Tauri `read_code_file` command + `code_access.rs` 보안 가드로 처리한다. DocsViewer 의 문서 read 정책은 건드리지 않고 코드 전용 도메인으로 분리.
+
+### Added
+
+- **GUI `CODE EXPLORER` 탭** — 좌측 폴더 트리(1단계 기본 펼침 + 검색 시 자동 펼침) / 우측 read-only 코드 뷰어(라인 번호, 언어·줄수·바이트 표시). 검색은 경로·카테고리·import 매칭. page/layout/tree/viewer/toolbar/line 단위로 컴포넌트를 분리해 `App.tsx` 는 탭 wiring 만, `CodeExplorer.tsx` 는 page state/데이터 로딩만 담당.
+- **Rust `read_code_file` command + `code_access.rs` 보안 가드** — 프로젝트 루트 밖 탈출(`..`, 절대경로, Windows UNC/드라이브, symlink) 거부, hidden/generated 디렉터리(`.git`, `node_modules`, `target` 등) 제외, Windows 예약 디바이스명(`NUL`, `CON`, `COM1`…) 차단, 지원 확장자 allowlist, 바이너리/비-UTF-8 거부, 코드 1MB·데이터(json/yaml/toml) 5MB 크기 캡. BOM strip + CRLF 정규화 후 SHA-256 해시 반환.
+- **Diff 확장 seam (`CodeDiffViewer`)** — red/green diff 렌더링 컴포넌트를 미리 분리해 둠. 실제 diff 데이터 소스가 붙기 전까지 v1 에서는 비활성(미마운트).
+
+### Verified
+
+- Rust `code_access` 가드 단위 테스트 8건 통과(전체 src-tauri crate 60건 통과). 프런트 tree/filter 유틸 vitest 4건 통과. `tsc && vite build` 통과. `vib guard --strict` 앵커/보호경로 위반 0건.
+
+---
+
 ## [2.2.18] — 2026-05-19
 
 기획/스펙 문서가 실제 코드와 어긋난 채 남아 있던 위험을 차단하기 위한 docs 동기화 릴리즈. 추가로 vibelign-gui 의 production TypeScript 빌드가 vitest 픽스처를 끌어가 type error 를 뱉던 노이즈를 정리.

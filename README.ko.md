@@ -319,6 +319,12 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.2.19** — GUI 코드 탐색기 (read-only 소스 뷰어):
+
+- 🌲 **새 `CODE EXPLORER` 탭** — 프로젝트 소스 트리를 폴더 단위로 탐색(1단계 기본 펼침, 검색 시 자동 펼침)하고 선택 파일을 라인 번호·언어·줄수·바이트와 함께 read-only 로 미리보기. 검색은 경로·카테고리·import 매칭. DocsViewer 와 분리된 도메인으로 page/layout/tree/viewer/toolbar/line 컴포넌트를 나눠 `App.tsx` 는 탭 연결만 담당.
+- 🔒 **Rust `read_code_file` command + `code_access.rs` 가드** — 루트 밖 탈출(`..`, 절대경로, Windows UNC/드라이브, symlink) 거부, hidden/generated 디렉터리(`.git`, `node_modules`, `target`…) 제외, Windows 예약 디바이스명(`NUL`, `CON`, `COM1`…) 차단, 확장자 allowlist, 바이너리/비-UTF-8 거부, 크기 캡(코드 1MB / 데이터 5MB). BOM strip + CRLF 정규화 + SHA-256 해시.
+- 🧩 **Diff 확장 seam (`CodeDiffViewer`)** — red/green diff 컴포넌트 미리 분리, 실제 diff 소스가 붙기 전 v1 에서는 비활성(미마운트).
+
 **v2.2.18** — 기획 문서 코드 동기화 + GUI tsconfig 테스트 제외:
 
 - 📝 **superpowers plan/spec 문서 5개에 "현재 구현 대조 메모 (2026-05-14)" 추가** — `mcp-host-llm-pivot-plan`, `규칙수정안-3`, `원클릭설치-기획안_초안`, `지식저장고-기획안`, `mcp-host-llm-pivot-eval-runbook` 의 헤더에 "지금 코드와 실제 격차" 를 명시. MCP primitive 2개 mainlined 사실, `vib knowledge` 미구현 사실, `claude doctor` v1 성공 기준 제외 사실 등이 문서 상단에서 바로 보임. 미래 비전과 v1 현실을 분리해 읽도록.
