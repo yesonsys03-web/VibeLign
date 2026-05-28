@@ -94,8 +94,8 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
                 marginRight: 6,
                 verticalAlign: "middle",
                 // 폴더는 채우고 파일은 외곽선만 — 동일 색 안에서도 둘을 구분하기 쉽게.
-                background: isDirectory ? CATEGORY_COLORS[node.category] : "transparent",
-                border: isDirectory ? "none" : `2px solid ${CATEGORY_COLORS[node.category]}`,
+                background: isDirectory ? categoryColor : "transparent",
+                border: isDirectory ? "none" : `2px solid ${categoryColor}`,
                 boxSizing: "border-box",
               }}
             />
