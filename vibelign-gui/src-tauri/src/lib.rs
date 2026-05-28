@@ -1,5 +1,6 @@
 // === ANCHOR: LIB_START ===
 mod code_access;
+mod code_diff;
 mod commands;
 mod docs_access;
 mod onboarding;
