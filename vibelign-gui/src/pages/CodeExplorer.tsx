@@ -30,13 +30,11 @@ export default function CodeExplorer({ projectDir }: CodeExplorerProps) {
   async function refreshFiles() {
     setIsRefreshing(true);
     setListError(null);
+    // 파일 목록(필수 콘텐츠)을 먼저 띄운다 — 변경 배지용 git status(Windows 에서 느림)를
+    // 기다리지 않도록 분리한다.
     try {
-      const [next, changed] = await Promise.all([
-        listCodeFiles(projectDir),
-        listChangedFiles(projectDir).catch(() => [] as ChangedEntry[]),
-      ]);
+      const next = await listCodeFiles(projectDir);
       setFiles(next);
-      setChanges(new Map(changed.map((entry) => [entry.path, entry.status])));
       setSelectedPath((current) => current && next.some((file) => file.path === current) ? current : next[0]?.path ?? null);
     } catch (error: unknown) {
       setListError(error instanceof Error ? error.message : "코드 파일 목록을 읽을 수 없어요");
@@ -44,6 +42,12 @@ export default function CodeExplorer({ projectDir }: CodeExplorerProps) {
       setIsLoadingList(false);
       setIsRefreshing(false);
     }
+    // 변경 배지(M/U)는 독립적으로 로드 — git status 가 느려도 트리 표시를 막지 않는다.
+    listChangedFiles(projectDir)
+      .then((changed: ChangedEntry[]) =>
+        setChanges(new Map(changed.map((entry) => [entry.path, entry.status]))),
+      )
+      .catch(() => setChanges(new Map<string, ChangeStatus>()));
   }
 
   useEffect(() => {
