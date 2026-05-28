@@ -49,19 +49,10 @@ pub(crate) fn resolve_baseline(root: &Path, rel: &str) -> (Option<String>, Basel
 }
 
 fn baseline_from_git(root: &Path, rel: &str) -> Option<String> {
-    // 1. git 저장소인지
-    let probe = std::process::Command::new("git")
-        .args(["-C"]).arg(root)
-        .args(["rev-parse", "--is-inside-work-tree"])
-        .output().ok()?;
-    if !probe.status.success() { return None; }
-    // 2. HEAD에 추적된 파일인지
-    let ls = std::process::Command::new("git")
-        .args(["-C"]).arg(root)
-        .args(["ls-files", "--error-unmatch", "--", rel])
-        .output().ok()?;
-    if !ls.status.success() { return None; }
-    // 3. git show HEAD:rel
+    // `git show HEAD:<rel>` 한 번이면 충분하다: 비-git 디렉토리·HEAD 없음(빈 레포)·HEAD에 없는
+    // (추적 안 된) 파일은 모두 비-제로 종료로 떨어져 None 이 된다.
+    // (Windows 는 프로세스 spawn 비용이 커서 rev-parse+ls-files+show 3회를 1회로 축소 —
+    //  파일 선택 시 코드 표시가 지연되던 주요 원인.)
     let show = std::process::Command::new("git")
         .args(["-C"]).arg(root)
         .arg("show").arg(format!("HEAD:{}", rel))
@@ -220,6 +211,33 @@ mod tests {
         let (text, src) = resolve_baseline(root.path(), "src/main.ts");
         assert_eq!(text.as_deref(), Some("old\n"));
         assert_eq!(src, BaselineSource::Git);
+    }
+
+    #[test]
+    fn git_baseline_excludes_untracked_file_in_repo() {
+        // git 저장소이지만 HEAD에 없는(추적 안 된) 파일은 git baseline 이 아니어야 한다.
+        // 단일 `git show HEAD:rel` 로 축소해도 이 동작이 유지되는지 잠그는 특성 테스트.
+        let probe = std::process::Command::new("git").arg("--version").output();
+        if probe.as_ref().map(|o| !o.status.success()).unwrap_or(true) { return; }
+
+        let root = TempDir::new().unwrap();
+        let run = |args: &[&str]| {
+            let st = std::process::Command::new("git")
+                .args(["-C"]).arg(root.path()).args(args)
+                .status().expect("git");
+            assert!(st.success(), "git {args:?} failed");
+        };
+        run(&["init", "-q", "-b", "main"]);
+        run(&["config", "user.email", "t@t.dev"]);
+        run(&["config", "user.name", "t"]);
+        write(root.path(), "tracked.ts", b"x\n");
+        run(&["add", "tracked.ts"]);
+        run(&["commit", "-q", "-m", "init"]);
+        write(root.path(), "untracked.ts", b"y\n"); // add 안 함 → HEAD에 없음
+
+        let (text, src) = resolve_baseline(root.path(), "untracked.ts");
+        assert!(text.is_none());
+        assert_ne!(src, BaselineSource::Git);
     }
 
     #[test]
