@@ -129,6 +129,7 @@ pub fn run() {
             commands::code::read_code_file,
             commands::code::read_code_file_diff,
             commands::code::list_code_files,
+            commands::code::list_changed_files,
             commands::docs::read_file,
             commands::docs::list_docs_index,
             commands::docs::rebuild_docs_index,
