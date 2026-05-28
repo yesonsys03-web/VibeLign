@@ -3,6 +3,7 @@ mod code_access;
 mod code_diff;
 mod commands;
 mod docs_access;
+mod git_status;
 mod onboarding;
 mod vib_path;
 
