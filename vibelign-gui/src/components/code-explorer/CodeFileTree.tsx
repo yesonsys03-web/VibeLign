@@ -51,6 +51,14 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
         // 디렉터리는 진하게(~40% alpha), 파일은 적당히(~25% alpha) — 폴더가 더 강조되고
         // 파일은 같은 색 그룹 안에서 차분하게 보이게.
         const tint = `${categoryColor}${isDirectory ? "66" : "40"}`;
+        // 변경된 파일 행은 diff 스타일 배경 색조로 강하게 강조한다(카테고리 tint를 덮어씀).
+        // 선택된 행은 다크 배경을 유지해 선택 상태가 항상 우선 보이게 한다.
+        const changeWash =
+          isDirectory || !node.changeStatus
+            ? null
+            : node.changeStatus === "new"
+            ? "rgba(34, 197, 94, 0.22)"   // 신규 = 녹색
+            : "rgba(245, 158, 11, 0.24)"; // 수정 = 주황
         return (
           <button
             key={`${node.kind}:${node.path}`}
@@ -64,7 +72,7 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
               textAlign: "left",
               paddingLeft: 12 + depth * 14,
               marginBottom: 3,
-              background: active ? "#1A1A1A" : tint,
+              background: active ? "#1A1A1A" : (changeWash ?? tint),
               color: active ? "#fff" : undefined,
               textTransform: "none",
               letterSpacing: 0,
@@ -99,10 +107,11 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
                 style={{
                   marginLeft: "auto",
                   flexShrink: 0,
-                  fontSize: 10,
+                  fontSize: 11,
                   fontWeight: 800,
                   fontFamily: "ui-monospace, Menlo, Consolas, monospace",
-                  color: active ? "#fff" : node.changeStatus === "new" ? "#22c55e" : "#f59e0b",
+                  // 행 색조 위에서도 또렷하도록 진한 톤을 쓴다(선택 행은 흰색).
+                  color: active ? "#fff" : node.changeStatus === "new" ? "#166534" : "#92400e",
                 }}
               >
                 {node.changeStatus === "new" ? "U" : "M"}
@@ -116,8 +125,12 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
                   marginLeft: "auto",
                   flexShrink: 0,
                   fontSize: 10,
-                  fontWeight: 700,
-                  color: active ? "#fff" : "#888",
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  padding: "2px 7px",
+                  borderRadius: 999,
+                  background: active ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.10)",
+                  color: active ? "#fff" : "#444",
                 }}
               >
                 {node.changedCount}
