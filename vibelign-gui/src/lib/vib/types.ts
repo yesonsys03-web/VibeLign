@@ -545,4 +545,24 @@ export interface CodeFileReadResult {
   line_count: number;
   language: string;
 }
+
+export type DiffLineKind = "context" | "added" | "removed";
+
+export interface DiffLine {
+  kind: DiffLineKind;
+  old_no: number | null;
+  new_no: number | null;
+  text: string;
+}
+
+export type BaselineSource = "git" | "checkpoint" | "none";
+
+export interface CodeFileDiffResult {
+  path: string;
+  language: string;
+  baseline_source: BaselineSource;
+  added: number;
+  removed: number;
+  lines: DiffLine[];
+}
 // === ANCHOR: TYPES_END ===

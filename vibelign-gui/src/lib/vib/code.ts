@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { normalizeBridgePath } from "./core";
-import type { CodeFileEntry, CodeFileReadResult } from "./types";
+import type { CodeFileEntry, CodeFileReadResult, CodeFileDiffResult } from "./types";
 
 export async function listCodeFiles(root: string): Promise<CodeFileEntry[]> {
   // 엔진 project_scan 은 anchor/patch_suggester 등 코드 분석 파이프라인과 공유되어
@@ -13,6 +13,13 @@ export async function listCodeFiles(root: string): Promise<CodeFileEntry[]> {
 
 export async function readCodeFile(root: string, path: string): Promise<CodeFileReadResult> {
   return invoke<CodeFileReadResult>("read_code_file", {
+    root,
+    path: normalizeBridgePath(path),
+  });
+}
+
+export async function readCodeFileDiff(root: string, path: string): Promise<CodeFileDiffResult> {
+  return invoke<CodeFileDiffResult>("read_code_file_diff", {
     root,
     path: normalizeBridgePath(path),
   });
