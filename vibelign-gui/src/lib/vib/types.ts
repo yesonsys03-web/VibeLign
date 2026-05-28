@@ -565,4 +565,11 @@ export interface CodeFileDiffResult {
   removed: number;
   lines: DiffLine[];
 }
+
+export type ChangeStatus = "modified" | "new";
+
+export interface ChangedEntry {
+  path: string;
+  status: ChangeStatus;
+}
 // === ANCHOR: TYPES_END ===
