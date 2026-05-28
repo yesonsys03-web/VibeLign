@@ -120,9 +120,8 @@ pub(crate) fn list_changed_paths(root: &Path) -> Result<Vec<ChangedEntry>, Strin
             ChangeStatus::Modified
         };
 
-        // root 기준 상대경로로 정규화. git -C 의 경로 기준(cwd=root vs repo-root)이
-        // 버전/플랫폼마다 다를 수 있어, 디스크에 실제 존재하는 쪽을 채택한다
-        // (삭제·root 밖 경로는 자동 제외).
+        // porcelain 경로(repo-root 기준)를 root 기준 상대경로로 정규화한다.
+        // 디스크에 실제 존재하는 파일만 통과(삭제·root 밖 경로는 자동 제외).
         let rel = match resolve_rel(path, &prefix, root) {
             Some(r) => r,
             None => continue,
@@ -133,22 +132,19 @@ pub(crate) fn list_changed_paths(root: &Path) -> Result<Vec<ChangedEntry>, Strin
 }
 
 /// porcelain 경로를 `root` 기준 상대경로로 해석한다.
-/// git status 의 경로 기준(cwd vs repo-root)이 환경마다 다를 수 있어:
-/// (A) root 기준으로 바로 존재하면 그대로, (B) repo-root 기준이면 show-prefix 를 strip,
-/// 어느 쪽도 디스크에 없으면 None (삭제 / root 밖).
+/// `git status --porcelain` 경로는 **repo-root 기준**이다(실측: git 2.50.1,
+/// status.relativePaths 무관). 따라서:
+/// - root 가 repo 하위(prefix 비어있지 않음)면, root 안의 파일은 반드시 prefix 로 시작.
+///   prefix 로 시작하지 않으면 root 밖 → 제외. (as-is 폴백은 동명 파일 오탐을 유발하므로 금지)
+/// - prefix 가 비어있으면 root == repo 루트 → 경로가 곧 root 기준.
+/// 어느 경우든 디스크에 실제 존재하는 파일만 통과(삭제 자동 제외).
 fn resolve_rel(path: &str, prefix: &str, root: &Path) -> Option<String> {
     let p = path.replace('\\', "/");
-    if root.join(&p).is_file() {
-        return Some(p);
-    }
     if !prefix.is_empty() {
-        if let Some(stripped) = p.strip_prefix(prefix) {
-            if root.join(stripped).is_file() {
-                return Some(stripped.to_string());
-            }
-        }
+        let stripped = p.strip_prefix(prefix)?;
+        return root.join(stripped).is_file().then(|| stripped.to_string());
     }
-    None
+    root.join(&p).is_file().then(|| p)
 }
 
 #[cfg(test)]
