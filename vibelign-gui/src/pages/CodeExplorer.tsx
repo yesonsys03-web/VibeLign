@@ -5,7 +5,7 @@ import CodeExplorerToolbar from "../components/code-explorer/CodeExplorerToolbar
 import CodeFileTree from "../components/code-explorer/CodeFileTree";
 import CodeFileViewer from "../components/code-explorer/CodeFileViewer";
 import { filterCodeFiles } from "../lib/code-explorer/filters";
-import { listCodeFiles, readCodeFile, readCodeFileDiff, type CodeFileEntry, type CodeFileReadResult, type CodeFileDiffResult } from "../lib/vib";
+import { listCodeFiles, readCodeFile, readCodeFileDiff, listChangedFiles, type CodeFileEntry, type CodeFileReadResult, type CodeFileDiffResult, type ChangeStatus, type ChangedEntry } from "../lib/vib";
 
 interface CodeExplorerProps {
   projectDir: string;
@@ -23,6 +23,7 @@ export default function CodeExplorer({ projectDir }: CodeExplorerProps) {
   const [fileError, setFileError] = useState<string | null>(null);
   const [selectedDiff, setSelectedDiff] = useState<CodeFileDiffResult | null>(null);
   const [diffMode, setDiffMode] = useState<boolean>(false);
+  const [changes, setChanges] = useState<ReadonlyMap<string, ChangeStatus>>(new Map());
 
   const filteredFiles = useMemo(() => filterCodeFiles(files, query), [files, query]);
 
@@ -30,8 +31,12 @@ export default function CodeExplorer({ projectDir }: CodeExplorerProps) {
     setIsRefreshing(true);
     setListError(null);
     try {
-      const next = await listCodeFiles(projectDir);
+      const [next, changed] = await Promise.all([
+        listCodeFiles(projectDir),
+        listChangedFiles(projectDir).catch(() => [] as ChangedEntry[]),
+      ]);
       setFiles(next);
+      setChanges(new Map(changed.map((entry) => [entry.path, entry.status])));
       setSelectedPath((current) => current && next.some((file) => file.path === current) ? current : next[0]?.path ?? null);
     } catch (error: unknown) {
       setListError(error instanceof Error ? error.message : "코드 파일 목록을 읽을 수 없어요");
@@ -91,7 +96,7 @@ export default function CodeExplorer({ projectDir }: CodeExplorerProps) {
   return (
     <CodeExplorerLayout
       toolbar={<CodeExplorerToolbar query={query} fileCount={filteredFiles.length} isRefreshing={isRefreshing} onQueryChange={setQuery} onRefresh={() => void refreshFiles()} />}
-      tree={<CodeFileTree files={filteredFiles} selectedPath={selectedPath} onSelect={setSelectedPath} autoExpandAll={query.trim().length > 0} />}
+      tree={<CodeFileTree files={filteredFiles} selectedPath={selectedPath} onSelect={setSelectedPath} autoExpandAll={query.trim().length > 0} changes={changes} />}
       viewer={<CodeFileViewer
         selectedPath={selectedPath}
         file={selectedFile}

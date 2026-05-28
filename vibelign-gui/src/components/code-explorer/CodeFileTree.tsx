@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { buildCodeTree, CATEGORY_COLORS, collectDirectoryPaths, flattenVisibleTree } from "../../lib/code-explorer/tree";
-import type { CodeFileEntry } from "../../lib/vib";
+import type { CodeFileEntry, ChangeStatus } from "../../lib/vib";
 
 interface CodeFileTreeProps {
   files: CodeFileEntry[];
@@ -10,10 +10,11 @@ interface CodeFileTreeProps {
   // query가 활성화되면(검색 중) 매칭 파일의 모든 상위 폴더를 자동으로 펼친다.
   // CodeExplorer가 query 비어있지 않을 때 true로 넘긴다.
   autoExpandAll: boolean;
+  changes: ReadonlyMap<string, ChangeStatus>;
 }
 
-export default function CodeFileTree({ files, selectedPath, onSelect, autoExpandAll }: CodeFileTreeProps) {
-  const tree = useMemo(() => buildCodeTree(files), [files]);
+export default function CodeFileTree({ files, selectedPath, onSelect, autoExpandAll, changes }: CodeFileTreeProps) {
+  const tree = useMemo(() => buildCodeTree(files, changes), [files, changes]);
   // 기본 펼침: 프로젝트가 무엇이든(VibeLign 레포 가정 금지) 1단계 디렉터리를 펼친다.
   const firstLevelDirs = useMemo(
     () => new Set(tree.children.filter((node) => node.kind === "directory").map((node) => node.path)),
@@ -91,6 +92,37 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
               }}
             />
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{node.name}</span>
+            {!isDirectory && node.changeStatus && (
+              <span
+                aria-label={node.changeStatus === "new" ? "신규 파일" : "수정된 파일"}
+                title={node.changeStatus === "new" ? "신규 (untracked)" : "수정됨"}
+                style={{
+                  marginLeft: "auto",
+                  flexShrink: 0,
+                  fontSize: 10,
+                  fontWeight: 800,
+                  fontFamily: "ui-monospace, Menlo, Consolas, monospace",
+                  color: active ? "#fff" : node.changeStatus === "new" ? "#22c55e" : "#f59e0b",
+                }}
+              >
+                {node.changeStatus === "new" ? "U" : "M"}
+              </span>
+            )}
+            {isDirectory && node.changedCount > 0 && (
+              <span
+                aria-label={`변경 파일 ${node.changedCount}개`}
+                title={`하위 변경 파일 ${node.changedCount}개`}
+                style={{
+                  marginLeft: "auto",
+                  flexShrink: 0,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: active ? "#fff" : "#888",
+                }}
+              >
+                {node.changedCount}
+              </span>
+            )}
           </button>
         );
       })}
