@@ -62,26 +62,37 @@ export default function CodeExplorer({ projectDir }: CodeExplorerProps) {
     setIsLoadingFile(true);
     setSelectedFile(null);
     setSelectedDiff(null);
+    setDiffMode(false); // diff 도착 전까지는 평면 뷰로 시작
     setFileError(null);
-    Promise.all([
-      readCodeFile(projectDir, selectedPath),
-      readCodeFileDiff(projectDir, selectedPath).catch(() => null),
-    ])
-      .then(([fileResult, diffResult]) => {
+
+    // 코드 본문은 git 을 타지 않으므로(파일 read만) 먼저 띄운다 — 로딩 스피너를 이 호출에만
+    // 연동해, 느린 diff(git 호출)가 코드 표시를 막지 않게 한다.
+    readCodeFile(projectDir, selectedPath)
+      .then((fileResult) => {
         if (cancelled) return;
         setSelectedFile(fileResult);
-        setSelectedDiff(diffResult);
-        // 자동 ON 규칙: baseline 있고 변경 있음 → diffMode = true
-        const hasBaseline = diffResult !== null && diffResult.baseline_source !== "none";
-        const hasChanges = diffResult !== null && (diffResult.added + diffResult.removed) > 0;
-        setDiffMode(hasBaseline && hasChanges);
+        setIsLoadingFile(false);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setFileError(error instanceof Error ? error.message : "코드 파일을 읽을 수 없어요");
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoadingFile(false);
+        if (cancelled) return;
+        setFileError(error instanceof Error ? error.message : "코드 파일을 읽을 수 없어요");
+        setIsLoadingFile(false);
       });
+
+    // diff(baseline 비교)는 git 을 타서 느릴 수 있다 — 독립적으로 로드하고, 도착하면 배지/토글을
+    // 채우고 자동 ON 규칙(baseline 있고 변경 있음 → diff 뷰로 전환)을 적용한다.
+    readCodeFileDiff(projectDir, selectedPath)
+      .then((diffResult) => {
+        if (cancelled) return;
+        setSelectedDiff(diffResult);
+        const hasBaseline = diffResult.baseline_source !== "none";
+        const hasChanges = (diffResult.added + diffResult.removed) > 0;
+        setDiffMode(hasBaseline && hasChanges);
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedDiff(null); // diff 실패는 무시 — 평면 뷰 유지
+      });
+
     return () => { cancelled = true; };
   }, [projectDir, selectedPath]);
 
