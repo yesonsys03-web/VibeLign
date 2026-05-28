@@ -87,6 +87,45 @@ fn normalize_newlines(s: impl Into<String>) -> String {
     s.into().replace("\r\n", "\n").replace('\r', "\n")
 }
 
+pub(crate) fn compute_line_diff(baseline: &str, current: &str) -> Vec<DiffLine> {
+    use similar::{ChangeTag, TextDiff};
+    let diff = TextDiff::from_lines(baseline, current);
+    let mut out = Vec::new();
+    let mut old_no: u32 = 0;
+    let mut new_no: u32 = 0;
+    for change in diff.iter_all_changes() {
+        // similar는 라인 끝 '\n'을 포함해 돌려준다 — 표시용으로 제거.
+        let text = change.value().trim_end_matches('\n').to_string();
+        match change.tag() {
+            ChangeTag::Equal => {
+                old_no += 1; new_no += 1;
+                out.push(DiffLine { kind: DiffKind::Context, old_no: Some(old_no), new_no: Some(new_no), text });
+            }
+            ChangeTag::Delete => {
+                old_no += 1;
+                out.push(DiffLine { kind: DiffKind::Removed, old_no: Some(old_no), new_no: None, text });
+            }
+            ChangeTag::Insert => {
+                new_no += 1;
+                out.push(DiffLine { kind: DiffKind::Added, old_no: None, new_no: Some(new_no), text });
+            }
+        }
+    }
+    out
+}
+
+pub(crate) fn count_changes(lines: &[DiffLine]) -> (u32, u32) {
+    let mut added = 0u32; let mut removed = 0u32;
+    for l in lines {
+        match l.kind {
+            DiffKind::Added => added += 1,
+            DiffKind::Removed => removed += 1,
+            DiffKind::Context => {}
+        }
+    }
+    (added, removed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,5 +195,44 @@ mod tests {
         let (text, src) = resolve_baseline(root.path(), "src/main.ts");
         assert_eq!(text.as_deref(), Some("old\n"));
         assert_eq!(src, BaselineSource::Git);
+    }
+
+    #[test]
+    fn diff_marks_added_and_removed_lines() {
+        let baseline = "a\nb\nc\n";
+        let current  = "a\nB\nc\nd\n";
+        let lines = compute_line_diff(baseline, current);
+        // 기대: a=context(1,1), b=removed(2,_), B=added(_,2), c=context(3,3), d=added(_,4)
+        assert_eq!(lines.len(), 5);
+        assert_eq!(lines[0].kind, DiffKind::Context);
+        assert_eq!(lines[0].old_no, Some(1));
+        assert_eq!(lines[0].new_no, Some(1));
+        assert_eq!(lines[1].kind, DiffKind::Removed);
+        assert_eq!(lines[1].old_no, Some(2));
+        assert_eq!(lines[1].new_no, None);
+        assert_eq!(lines[1].text, "b");
+        assert_eq!(lines[2].kind, DiffKind::Added);
+        assert_eq!(lines[2].old_no, None);
+        assert_eq!(lines[2].new_no, Some(2));
+        assert_eq!(lines[2].text, "B");
+        assert_eq!(lines[4].kind, DiffKind::Added);
+        assert_eq!(lines[4].new_no, Some(4));
+    }
+
+    #[test]
+    fn diff_identical_inputs_all_context() {
+        let s = "x\ny\nz\n";
+        let lines = compute_line_diff(s, s);
+        assert_eq!(lines.len(), 3);
+        assert!(lines.iter().all(|l| l.kind == DiffKind::Context));
+    }
+
+    #[test]
+    fn diff_counts_added_removed() {
+        let baseline = "a\nb\n";
+        let current  = "a\nB\nc\n";
+        let (added, removed) = count_changes(&compute_line_diff(baseline, current));
+        assert_eq!(added, 2);    // B, c
+        assert_eq!(removed, 1);  // b
     }
 }
