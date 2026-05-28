@@ -14,14 +14,14 @@ const WINDOWS_RESERVED_DEVICE_NAMES: &[&str] = &[
 ];
 const CODE_READ_EXTENSIONS: &[&str] = &[
     "py", "js", "ts", "jsx", "tsx", "rs", "go", "java", "cs", "cpp", "c", "hpp", "h",
-    "mjs", "cjs", "json", "toml", "yaml", "yml", "css", "html", "md",
+    "mjs", "cjs", "swift", "json", "toml", "yaml", "yml", "css", "html", "md",
 ];
 // 사이드바 트리에 노출할 파일 확장자. 엔진의 SOURCE_FILE_EXTENSIONS(코드 전용)와
 // 분리되어 있어 docs/*.md 같은 문서가 트리에 보이지만 anchor/patch_suggester 등의
 // 코드 분석 파이프라인에는 영향이 가지 않는다.
 const EXPLORER_FILE_EXTENSIONS: &[&str] = &[
     "py", "js", "ts", "jsx", "tsx", "rs", "go", "java", "cs", "cpp", "c", "hpp", "h",
-    "mjs", "cjs", "md",
+    "mjs", "cjs", "swift", "md",
 ];
 const CODE_READ_IGNORED_DIRS: &[&str] = &[
     ".git", ".vibelign", ".omc", ".sisyphus", ".venv", "venv", "env", "node_modules", "dist",
@@ -154,6 +154,7 @@ fn language_for_path(path: &str) -> &'static str {
         "cs" => "C#",
         "c" | "h" => "C",
         "cpp" | "hpp" => "C++",
+        "swift" => "Swift",
         "json" => "JSON",
         "toml" => "TOML",
         "yaml" | "yml" => "YAML",
@@ -328,6 +329,7 @@ mod tests {
     fn explorer_lists_docs_and_md_files() {
         let root = TempDir::new().expect("temp root");
         write(root.path(), "src/main.ts", b"x");
+        write(root.path(), "apps/native_helper_mac/Sources/App.swift", b"import Foundation\n");
         write(root.path(), "docs/index.md", b"# hi");
         write(root.path(), "docs/superpowers/specs/design.md", b"spec");
         write(root.path(), "README.md", b"readme");
@@ -346,6 +348,7 @@ mod tests {
             paths,
             vec![
                 "README.md".to_string(),
+                "apps/native_helper_mac/Sources/App.swift".to_string(),
                 "docs/index.md".to_string(),
                 "docs/superpowers/specs/design.md".to_string(),
                 "src/main.ts".to_string(),
@@ -355,6 +358,19 @@ mod tests {
         assert_eq!(docs_entry.category, "docs");
         let code_entry = entries.iter().find(|entry| entry.path == "src/main.ts").expect("code entry");
         assert_eq!(code_entry.category, "code");
+    }
+
+    #[test]
+    fn reads_swift_file_with_swift_language() {
+        let root = TempDir::new().expect("temp root");
+        write(root.path(), "apps/native_helper_mac/Sources/App.swift", b"import Foundation\n");
+
+        let result = read_code_file_under(root.path(), "apps/native_helper_mac/Sources/App.swift")
+            .expect("read swift");
+
+        assert_eq!(result.path, "apps/native_helper_mac/Sources/App.swift");
+        assert_eq!(result.language, "Swift");
+        assert!(result.content.starts_with("import Foundation"));
     }
 
     #[test]
