@@ -5,7 +5,7 @@ import CodeExplorerToolbar from "../components/code-explorer/CodeExplorerToolbar
 import CodeFileTree from "../components/code-explorer/CodeFileTree";
 import CodeFileViewer from "../components/code-explorer/CodeFileViewer";
 import { filterCodeFiles } from "../lib/code-explorer/filters";
-import { listCodeFiles, readCodeFile, type CodeFileEntry, type CodeFileReadResult } from "../lib/vib";
+import { listCodeFiles, readCodeFile, readCodeFileDiff, type CodeFileEntry, type CodeFileReadResult, type CodeFileDiffResult } from "../lib/vib";
 
 interface CodeExplorerProps {
   projectDir: string;
@@ -21,6 +21,8 @@ export default function CodeExplorer({ projectDir }: CodeExplorerProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [selectedDiff, setSelectedDiff] = useState<CodeFileDiffResult | null>(null);
+  const [diffMode, setDiffMode] = useState<boolean>(false);
 
   const filteredFiles = useMemo(() => filterCodeFiles(files, query), [files, query]);
 
@@ -47,15 +49,27 @@ export default function CodeExplorer({ projectDir }: CodeExplorerProps) {
     let cancelled = false;
     if (!selectedPath) {
       setSelectedFile(null);
+      setSelectedDiff(null);
+      setDiffMode(false);
       setFileError(null);
       return () => { cancelled = true; };
     }
     setIsLoadingFile(true);
     setSelectedFile(null);
+    setSelectedDiff(null);
     setFileError(null);
-    readCodeFile(projectDir, selectedPath)
-      .then((result) => {
-        if (!cancelled) setSelectedFile(result);
+    Promise.all([
+      readCodeFile(projectDir, selectedPath),
+      readCodeFileDiff(projectDir, selectedPath).catch(() => null),
+    ])
+      .then(([fileResult, diffResult]) => {
+        if (cancelled) return;
+        setSelectedFile(fileResult);
+        setSelectedDiff(diffResult);
+        // 자동 ON 규칙: baseline 있고 변경 있음 → diffMode = true
+        const hasBaseline = diffResult !== null && diffResult.baseline_source !== "none";
+        const hasChanges = diffResult !== null && (diffResult.added + diffResult.removed) > 0;
+        setDiffMode(hasBaseline && hasChanges);
       })
       .catch((error: unknown) => {
         if (!cancelled) setFileError(error instanceof Error ? error.message : "코드 파일을 읽을 수 없어요");
@@ -78,7 +92,15 @@ export default function CodeExplorer({ projectDir }: CodeExplorerProps) {
     <CodeExplorerLayout
       toolbar={<CodeExplorerToolbar query={query} fileCount={filteredFiles.length} isRefreshing={isRefreshing} onQueryChange={setQuery} onRefresh={() => void refreshFiles()} />}
       tree={<CodeFileTree files={filteredFiles} selectedPath={selectedPath} onSelect={setSelectedPath} autoExpandAll={query.trim().length > 0} />}
-      viewer={<CodeFileViewer selectedPath={selectedPath} file={selectedFile} isLoading={isLoadingFile} error={fileError} />}
+      viewer={<CodeFileViewer
+        selectedPath={selectedPath}
+        file={selectedFile}
+        diff={selectedDiff}
+        diffMode={diffMode}
+        onToggleDiffMode={() => setDiffMode((v) => !v)}
+        isLoading={isLoadingFile}
+        error={fileError}
+      />}
     />
   );
 }
