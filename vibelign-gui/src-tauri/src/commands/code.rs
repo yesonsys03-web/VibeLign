@@ -15,3 +15,11 @@ pub(crate) fn list_code_files(root: String) -> Result<Vec<ExplorerFileEntry>, St
     let root_path = PathBuf::from(root);
     list_explorer_files_under(&root_path)
 }
+
+use crate::code_diff::{build_file_diff, CodeFileDiffResult};
+
+#[tauri::command]
+pub(crate) fn read_code_file_diff(root: String, path: String) -> Result<CodeFileDiffResult, String> {
+    let root_path = PathBuf::from(root);
+    build_file_diff(&root_path, &path)
+}

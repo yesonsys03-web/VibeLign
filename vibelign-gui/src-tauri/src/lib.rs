@@ -126,6 +126,7 @@ pub fn run() {
             commands::watch::get_watch_errors,
             commands::platform::open_folder,
             commands::code::read_code_file,
+            commands::code::read_code_file_diff,
             commands::code::list_code_files,
             commands::docs::read_file,
             commands::docs::list_docs_index,

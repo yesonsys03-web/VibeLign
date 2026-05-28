@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use crate::code_access::read_code_file_under;
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DiffKind {
@@ -126,6 +128,29 @@ pub(crate) fn count_changes(lines: &[DiffLine]) -> (u32, u32) {
     (added, removed)
 }
 
+pub(crate) fn build_file_diff(root: &Path, rel: &str) -> Result<CodeFileDiffResult, String> {
+    // 1. 사용자 노출 relpath를 기존 가드로 검증 (현재 파일 읽기가 동일 가드 통과)
+    let current = read_code_file_under(root, rel)?;
+    // current.path는 root 기준 정규화된 relpath (\\→/, 캐노니컬라이즈됨)
+    let canonical_rel = current.path.clone();
+    // 2. baseline 확보 (정규화된 relpath만 사용 → 경로 탈출 불가)
+    let (baseline_text, source) = resolve_baseline(root, &canonical_rel);
+    // 3. diff 계산 (baseline 없으면 빈 문자열 대신 current 자체를 양쪽에 → all context)
+    let lines = match baseline_text {
+        Some(b) => compute_line_diff(&b, &current.content),
+        None => compute_line_diff(&current.content, &current.content),
+    };
+    let (added, removed) = count_changes(&lines);
+    Ok(CodeFileDiffResult {
+        path: canonical_rel,
+        language: current.language,
+        baseline_source: source,
+        added,
+        removed,
+        lines,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -234,5 +259,44 @@ mod tests {
         let (added, removed) = count_changes(&compute_line_diff(baseline, current));
         assert_eq!(added, 2);    // B, c
         assert_eq!(removed, 1);  // b
+    }
+
+    #[test]
+    fn build_diff_baseline_none_returns_all_context() {
+        let root = TempDir::new().unwrap();
+        write(root.path(), "src/main.ts", b"a\nb\nc\n");
+        let result = build_file_diff(root.path(), "src/main.ts").expect("ok");
+        assert_eq!(result.baseline_source, BaselineSource::None);
+        assert_eq!(result.added, 0);
+        assert_eq!(result.removed, 0);
+        assert_eq!(result.lines.len(), 3);
+        assert!(result.lines.iter().all(|l| l.kind == DiffKind::Context));
+        assert_eq!(result.language, "TypeScript");
+    }
+
+    #[test]
+    fn build_diff_checkpoint_baseline_marks_changes() {
+        let root = TempDir::new().unwrap();
+        write(root.path(), "src/main.ts", b"a\nB\nc\n");
+        write(root.path(), ".vibelign/checkpoints/20260101T000000Z_x/files/src/main.ts", b"a\nb\nc\n");
+        let result = build_file_diff(root.path(), "src/main.ts").expect("ok");
+        assert_eq!(result.baseline_source, BaselineSource::Checkpoint);
+        assert_eq!(result.added, 1);
+        assert_eq!(result.removed, 1);
+    }
+
+    #[test]
+    fn build_diff_rejects_parent_escape() {
+        let root = TempDir::new().unwrap();
+        let err = build_file_diff(root.path(), "../secret.ts").expect_err("rejected");
+        assert!(err.contains("허용되지 않은 경로"));
+    }
+
+    #[test]
+    fn build_diff_rejects_ignored_dir() {
+        let root = TempDir::new().unwrap();
+        write(root.path(), "node_modules/x.ts", b"x\n");
+        let err = build_file_diff(root.path(), "node_modules/x.ts").expect_err("rejected");
+        assert!(err.contains("읽을 수 없는 경로"));
     }
 }
