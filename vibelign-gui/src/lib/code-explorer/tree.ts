@@ -1,4 +1,4 @@
-import type { CodeFileEntry } from "../vib/types";
+import type { CodeFileEntry, ChangeStatus } from "../vib/types";
 
 export type CategoryKey = "code" | "docs" | "tests" | "other";
 
@@ -22,6 +22,9 @@ export interface CodeTreeNode {
   file?: CodeFileEntry;
   // 파일은 자신의 카테고리, 디렉터리는 하위 파일의 다수결 카테고리.
   category: CategoryKey;
+  // 변경 마커: 파일은 자신의 상태, 디렉터리는 하위 변경 파일 개수.
+  changeStatus?: ChangeStatus;
+  changedCount: number;
 }
 
 export interface VisibleCodeTreeItem {
@@ -48,6 +51,7 @@ function createNode(name: string, path: string, kind: "directory" | "file", file
     children: [],
     file,
     category: file ? categorizeFileEntry(file) : "other",
+    changedCount: 0,
   };
 }
 
@@ -84,7 +88,22 @@ function assignDirectoryCategories(node: CodeTreeNode): Record<CategoryKey, numb
   return counts;
 }
 
-export function buildCodeTree(files: CodeFileEntry[]): CodeTreeNode {
+function assignChangedCounts(node: CodeTreeNode): number {
+  let count = 0;
+  for (const child of node.children) {
+    if (child.kind === "file") {
+      if (child.changeStatus) count += 1;
+    } else {
+      count += assignChangedCounts(child);
+    }
+  }
+  if (node.kind === "directory") {
+    node.changedCount = count;
+  }
+  return count;
+}
+
+export function buildCodeTree(files: CodeFileEntry[], changes?: ReadonlyMap<string, ChangeStatus>): CodeTreeNode {
   const root = createNode("", "", "directory");
   for (const file of [...files].sort((left, right) => left.path.localeCompare(right.path))) {
     const segments = file.path.split("/").filter(Boolean);
@@ -96,6 +115,9 @@ export function buildCodeTree(files: CodeFileEntry[]): CodeTreeNode {
       let child = current.children.find((item) => item.name === segment && item.kind === (isFile ? "file" : "directory"));
       if (!child) {
         child = createNode(segment, childPath, isFile ? "file" : "directory", isFile ? file : undefined);
+        if (isFile) {
+          child.changeStatus = changes?.get(file.path);
+        }
         current.children.push(child);
         current.children.sort(compareNodes);
       }
@@ -103,6 +125,7 @@ export function buildCodeTree(files: CodeFileEntry[]): CodeTreeNode {
     }
   }
   assignDirectoryCategories(root);
+  assignChangedCounts(root);
   return root;
 }
 

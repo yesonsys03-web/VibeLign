@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildCodeTree, categorizeFileEntry, collectDirectoryPaths, flattenVisibleTree } from "./tree";
-import type { CodeFileEntry } from "../vib/types";
+import type { CodeFileEntry, ChangeStatus } from "../vib/types";
 
 const files: CodeFileEntry[] = [
   { path: "src/App.tsx", category: "ui", imports: [] },
@@ -48,5 +48,41 @@ describe("code explorer tree", () => {
     ]);
     const byName = Object.fromEntries(tree.children.map((node) => [node.name, node.category]));
     expect(byName).toMatchObject({ docs: "docs", tests: "tests", src: "code" });
+  });
+});
+
+describe("buildCodeTree change markers", () => {
+  const files = [
+    { path: "src/a.ts", category: "code", imports: [] },
+    { path: "src/b.ts", category: "code", imports: [] },
+    { path: "docs/c.md", category: "docs", imports: [] },
+  ];
+
+  it("stamps changeStatus on file nodes and rolls up changedCount on directories", () => {
+    const changes = new Map<string, ChangeStatus>([
+      ["src/a.ts", "modified"],
+      ["src/b.ts", "new"],
+    ]);
+    const tree = buildCodeTree(files, changes);
+
+    const src = tree.children.find((n) => n.path === "src")!;
+    const docs = tree.children.find((n) => n.path === "docs")!;
+    const a = src.children.find((n) => n.path === "src/a.ts")!;
+    const b = src.children.find((n) => n.path === "src/b.ts")!;
+    const c = docs.children.find((n) => n.path === "docs/c.md")!;
+
+    expect(a.changeStatus).toBe("modified");
+    expect(b.changeStatus).toBe("new");
+    expect(c.changeStatus).toBeUndefined();
+    expect(src.changedCount).toBe(2);
+    expect(docs.changedCount).toBe(0);
+  });
+
+  it("defaults to no markers when changes map is omitted", () => {
+    const tree = buildCodeTree(files);
+    const src = tree.children.find((n) => n.path === "src")!;
+    expect(src.changedCount).toBe(0);
+    const a = src.children.find((n) => n.path === "src/a.ts")!;
+    expect(a.changeStatus).toBeUndefined();
   });
 });
