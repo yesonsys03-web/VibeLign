@@ -10,6 +10,16 @@
 
 ---
 
+## [2.2.25] — 2026-05-29
+
+Code Explorer 사이드바에 설정·데이터 파일이 보이지 않던 문제를 바로잡은 수정 릴리즈.
+
+### Fixed
+
+- **`.toml`/`.yaml`/`.yml` 파일이 사이드바에 노출** — 트리 표시용 화이트리스트(`EXPLORER_FILE_EXTENSIONS`)에 `toml`/`yaml`/`yml` 이 빠져 있어, 읽기(`CODE_READ_EXTENSIONS`)는 지원하면서도 사이드바 트리에는 안 보이던 비대칭을 해소. `pyproject.toml`·`Cargo.toml`·`*.yaml` 등이 이제 트리에 나타난다. 설정/데이터 파일은 새 `data` 카테고리로 분류돼 사이드바에서 소스 코드(녹색)와 구분되는 `other`(회색)로 표시된다. 회귀 테스트 추가 (`vibelign-gui/src-tauri/src/code_access.rs`). (`json` 은 대용량 데이터 파일·읽기 캡 초과 우려로 의도적으로 제외)
+
+---
+
 ## [2.2.24] — 2026-05-29
 
 Windows 에서 Code Explorer 가 느리고 파일 클릭마다 콘솔 창이 깜빡이던 두 가지 플랫폼 이슈를 바로잡은 수정 릴리즈. (macOS/Linux 동작 불변)

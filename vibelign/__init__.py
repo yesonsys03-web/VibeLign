@@ -1,3 +1,3 @@
 # === ANCHOR: __INIT___START ===
-__version__ = "2.2.24"
+__version__ = "2.2.25"
 # === ANCHOR: __INIT___END ===
