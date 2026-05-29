@@ -21,6 +21,15 @@ on:
       - "vibelign-core/**"
       - ".github/workflows/gui.yml"
   workflow_dispatch:
+    inputs:
+      target:
+        description: "빌드 대상 OS (수동 실행 시)"
+        type: choice
+        default: all
+        options:
+          - all
+          - windows
+          - macos
 
 jobs:
   build:
@@ -32,10 +41,11 @@ jobs:
       CI: "false"
     strategy:
       fail-fast: false
+      # 수동 실행(workflow_dispatch)에서 target=windows/macos 면 해당 OS만 빌드한다.
+      # push/PR 등 inputs 가 없는 이벤트는 빈 문자열이라 기본값(둘 다)으로 떨어진다.
+      # (macOS = Apple Silicon / aarch64 네이티브 빌드)
       matrix:
-        include:
-          - os: windows-latest
-          - os: macos-latest    # Apple Silicon (aarch64) 네이티브 빌드
+        os: ${{ fromJSON(github.event.inputs.target == 'windows' && '["windows-latest"]' || github.event.inputs.target == 'macos' && '["macos-latest"]' || '["windows-latest","macos-latest"]') }}
 
     defaults:
       run:
