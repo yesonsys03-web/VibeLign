@@ -10,6 +10,21 @@
 
 ---
 
+## [2.2.24] — 2026-05-29
+
+Windows 에서 Code Explorer 가 느리고 파일 클릭마다 콘솔 창이 깜빡이던 두 가지 플랫폼 이슈를 바로잡은 수정 릴리즈. (macOS/Linux 동작 불변)
+
+### Fixed
+
+- **Windows Code Explorer 로딩 지연 해소** — Code Explorer 의 4개 Tauri 커맨드(`read_code_file`/`list_code_files`/`read_code_file_diff`/`list_changed_files`)가 동기 `#[tauri::command] fn` 이라 Tauri 메인 스레드에서 서로 직렬 실행됐다. `git status --untracked-files=all`·`git show` 의 프로세스 spawn 비용이 큰 Windows 에서 git 을 타지 않는 빠른 코드 본문 읽기(`read_code_file`)까지 그 뒤에 줄 서서 막혀 UI 가 멈췄다(맥은 spawn/status 가 싸서 체감 안 됨). 다른 커맨드들이 이미 쓰는 `async` + `spawn_blocking` 패턴으로 통일해 메인 스레드를 막지 않고 4개가 실제로 병렬 실행되게 했다. 코드 본문은 즉시 뜨고 변경 배지/diff 는 뒤따라 채워진다 (`vibelign-gui/src-tauri/src/commands/code.rs`).
+- **Windows 콘솔 창 깜빡임 제거** — 코드 파일을 클릭할 때 `git show`(`code_diff.rs`)·트리 새로고침 시 `git rev-parse`/`git status`(`git_status.rs`) 의 git spawn 에 `CREATE_NO_WINDOW` 플래그가 빠져 있어 GUI 가 콘솔 자식을 띄울 때 Windows 콘솔 창이 깜빡였다 사라졌다. 코드베이스의 다른 spawn 들과 동일한 패턴(`apply_no_window`)을 적용해 제거 (`vibelign-gui/src-tauri/src/code_diff.rs`, `git_status.rs`).
+
+### Changed
+
+- **GUI CI 에 OS 선택 입력 추가** — `gui.yml` 의 `workflow_dispatch` 에 `target`(all/windows/macos) 입력을 두고 매트릭스를 동적으로 구성해, 수동 실행 시 특정 OS 만 빌드할 수 있게 했다. push/PR 등 입력이 없는 이벤트는 기존대로 양쪽 모두 빌드 (`.github/workflows/gui.yml`).
+
+---
+
 ## [2.2.23] — 2026-05-28
 
 Code Explorer Diff 뷰의 **체크포인트 기준선(baseline) 선택 정합성**을 바로잡은 수정 릴리즈.
