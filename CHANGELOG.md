@@ -10,6 +10,20 @@
 
 ---
 
+## [2.2.23] — 2026-05-28
+
+Code Explorer Diff 뷰의 **체크포인트 기준선(baseline) 선택 정합성**을 바로잡은 수정 릴리즈.
+
+### Fixed
+
+- **체크포인트 baseline 폴백 + 비-체크포인트 디렉터리 필터** — git 기준선이 없을 때 Diff 뷰가 사용하는 체크포인트 baseline 선택을 두 가지 면에서 수정. ① 가장 최근 체크포인트 하나만 확인하고 그 안에 해당 파일이 없으면(예: 삭제 후 재생성) 기준선 없음으로 처리하던 것을 *파일을 가진 가장 최근 체크포인트로 폴백*하도록, ② `.vibelign/checkpoints/` 아래 timestamp 형식이 아닌 디렉터리가 사전순 정렬상 끼어들어 baseline 을 가로채던 것을 *timestamp 디렉터리만 후보로 제한*하도록 변경. 회귀 테스트 2건 추가 (`vibelign-gui/src-tauri/src/code_diff.rs`).
+
+### Changed
+
+- **내부 정리** — `CodeFileTree` 에서 카테고리 색(`categoryColor`) 중복 조회를 이미 바인딩된 지역변수 재사용으로 정리(동작 불변) (`vibelign-gui/src/components/code-explorer/CodeFileTree.tsx`).
+
+---
+
 ## [2.2.20] — 2026-05-27
 
 Code Explorer 사이드바를 코드 전용에서 **문서 포함**으로 확장하고, 카테고리별 색상 구분을 추가한 GUI 가독성 릴리즈. 추가로 `vib/*.ts` 도메인 모듈과 DocsViewer 테스트에 누락돼 있던 ANCHOR 마커를 일괄 보강.

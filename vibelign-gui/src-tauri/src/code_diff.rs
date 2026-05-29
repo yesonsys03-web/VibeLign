@@ -77,17 +77,42 @@ fn baseline_from_git(root: &Path, rel: &str) -> Option<String> {
 
 fn baseline_from_checkpoint(root: &Path, rel: &str) -> Option<String> {
     let checkpoints_dir = root.join(".vibelign").join("checkpoints");
-    let latest = std::fs::read_dir(&checkpoints_dir).ok()?
+    // timestamp 형식 디렉터리만 후보로 둔다 — 스테이징/인덱스 같은 비-체크포인트 디렉터리가
+    // 사전순으로 더 높게 정렬돼 baseline 을 가로채는 것을 막는다.
+    let mut names: Vec<_> = std::fs::read_dir(&checkpoints_dir).ok()?
         .flatten()
         .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
         .map(|e| e.file_name())
-        .max()?; // 디렉토리명이 ISO timestamp prefix라 사전순 max = 최신
-    let baseline_path = checkpoints_dir.join(latest).join("files").join(rel);
-    let bytes = std::fs::read(&baseline_path).ok()?;
-    if bytes.contains(&0) { return None; }
-    let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(&bytes);
-    let s = std::str::from_utf8(bytes).ok()?;
-    Some(normalize_newlines(s))
+        .filter(|name| is_checkpoint_dir_name(&name.to_string_lossy()))
+        .collect();
+    // 디렉터리명이 zero-padded timestamp prefix라 사전순 정렬 후 뒤에서부터 = 최신 우선.
+    names.sort();
+    // 최신부터 훑어 이 파일의 스냅샷을 가진 첫 체크포인트를 baseline 으로 쓴다.
+    // (최신이 해당 파일을 안 가졌으면—삭제 후 재생성 등—이전 체크포인트로 폴백.)
+    for name in names.into_iter().rev() {
+        let baseline_path = checkpoints_dir.join(&name).join("files").join(rel);
+        let bytes = match std::fs::read(&baseline_path) {
+            Ok(b) => b,
+            Err(_) => continue, // 이 체크포인트엔 이 파일 없음 → 이전 후보로 폴백
+        };
+        // 이 파일을 가진 가장 최근 체크포인트로 baseline 확정.
+        // 바이너리/비-UTF8 이면 텍스트 diff 불가 → 기존과 동일하게 baseline 없음(None).
+        if bytes.contains(&0) { return None; }
+        let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(&bytes);
+        let s = std::str::from_utf8(bytes).ok()?;
+        return Some(normalize_newlines(s));
+    }
+    None
+}
+
+/// 체크포인트 디렉터리 이름인지: `YYYYMMDD` + `T` + `hhmmss…` (8자리 + 'T' + 최소 6자리).
+/// 정확한 마이크로초 자릿수는 버전마다 다를 수 있어 prefix 만 검사한다.
+fn is_checkpoint_dir_name(name: &str) -> bool {
+    let b = name.as_bytes();
+    b.len() >= 15
+        && b[..8].iter().all(u8::is_ascii_digit)
+        && b[8] == b'T'
+        && b[9..15].iter().all(u8::is_ascii_digit)
 }
 
 fn normalize_newlines(s: impl Into<String>) -> String {
@@ -197,6 +222,30 @@ mod tests {
         write(root.path(), ".vibelign/checkpoints/20260201T000000Z_b/files/src/main.ts", b"v2\n");
         let (text, src) = resolve_baseline(root.path(), "src/main.ts");
         assert_eq!(text.as_deref(), Some("v2\n"));
+        assert_eq!(src, BaselineSource::Checkpoint);
+    }
+
+    #[test]
+    fn baseline_falls_back_when_latest_checkpoint_lacks_file() {
+        // 최신 체크포인트는 이 파일을 안 가졌고(삭제 후 재생성 등), 이전 체크포인트만 가졌다.
+        // 최신만 보고 None 을 돌려주면 안 되고, 파일을 가진 가장 최근 체크포인트로 폴백해야 한다.
+        let root = TempDir::new().unwrap();
+        write(root.path(), ".vibelign/checkpoints/20260201T000000Z_new/files/other.ts", b"x\n");
+        write(root.path(), ".vibelign/checkpoints/20260101T000000Z_old/files/src/main.ts", b"old content\n");
+        let (text, src) = resolve_baseline(root.path(), "src/main.ts");
+        assert_eq!(text.as_deref(), Some("old content\n"));
+        assert_eq!(src, BaselineSource::Checkpoint);
+    }
+
+    #[test]
+    fn baseline_ignores_non_checkpoint_sibling_dirs() {
+        // checkpoints/ 아래 timestamp 형식이 아닌 디렉터리(사전순으로 "2026.." 보다 높게 정렬)는
+        // 후보에서 제외돼야 한다 — 그 안의 파일이 진짜 체크포인트 baseline 을 가로채면 안 된다.
+        let root = TempDir::new().unwrap();
+        write(root.path(), ".vibelign/checkpoints/20260101T000000Z_real/files/src/main.ts", b"real\n");
+        write(root.path(), ".vibelign/checkpoints/zz_not_a_checkpoint/files/src/main.ts", b"BOGUS\n");
+        let (text, src) = resolve_baseline(root.path(), "src/main.ts");
+        assert_eq!(text.as_deref(), Some("real\n"));
         assert_eq!(src, BaselineSource::Checkpoint);
     }
 
