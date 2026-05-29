@@ -48,15 +48,29 @@ pub(crate) fn resolve_baseline(root: &Path, rel: &str) -> (Option<String>, Basel
     (None, BaselineSource::None)
 }
 
+/// Windows: GUI 프로세스가 콘솔 자식(git)을 spawn 할 때 콘솔 창이 깜빡였다 사라지는 것을 막는다.
+/// (code_access/vib_bridge/watch 등에서 쓰는 CREATE_NO_WINDOW 패턴과 동일.)
+fn apply_no_window(cmd: &mut std::process::Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    #[cfg(not(windows))]
+    let _ = cmd;
+}
+
 fn baseline_from_git(root: &Path, rel: &str) -> Option<String> {
     // `git show HEAD:<rel>` 한 번이면 충분하다: 비-git 디렉토리·HEAD 없음(빈 레포)·HEAD에 없는
     // (추적 안 된) 파일은 모두 비-제로 종료로 떨어져 None 이 된다.
     // (Windows 는 프로세스 spawn 비용이 커서 rev-parse+ls-files+show 3회를 1회로 축소 —
     //  파일 선택 시 코드 표시가 지연되던 주요 원인.)
-    let show = std::process::Command::new("git")
-        .args(["-C"]).arg(root)
-        .arg("show").arg(format!("HEAD:{}", rel))
-        .output().ok()?;
+    let mut cmd = std::process::Command::new("git");
+    cmd.args(["-C"]).arg(root)
+        .arg("show").arg(format!("HEAD:{}", rel));
+    apply_no_window(&mut cmd);
+    let show = cmd.output().ok()?;
     if !show.status.success() { return None; }
     String::from_utf8(show.stdout).ok().map(normalize_newlines)
 }

@@ -16,13 +16,26 @@ pub struct ChangedEntry {
 /// git status 기반 변경 경로 집합. 비-git 디렉토리는 빈 Vec (에러 아님).
 /// 반환 경로는 `root` 기준 상대경로(`/` 구분)이며, 디스크에 실제 존재하는 파일만 포함한다
 /// (삭제·경로 불일치는 자연히 제외된다).
+/// Windows: GUI 프로세스가 콘솔 자식(git)을 spawn 할 때 콘솔 창이 깜빡였다 사라지는 것을 막는다.
+/// (code_access/vib_bridge/watch 등에서 쓰는 CREATE_NO_WINDOW 패턴과 동일.)
+fn apply_no_window(cmd: &mut std::process::Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    #[cfg(not(windows))]
+    let _ = cmd;
+}
+
 pub(crate) fn list_changed_paths(root: &Path) -> Result<Vec<ChangedEntry>, String> {
     // 1. git 저장소인지 — 아니면 마커 없음
-    let probe = match std::process::Command::new("git")
-        .args(["-C"]).arg(root)
-        .args(["rev-parse", "--is-inside-work-tree"])
-        .output()
-    {
+    let mut probe_cmd = std::process::Command::new("git");
+    probe_cmd.args(["-C"]).arg(root)
+        .args(["rev-parse", "--is-inside-work-tree"]);
+    apply_no_window(&mut probe_cmd);
+    let probe = match probe_cmd.output() {
         Ok(o) => o,
         Err(_) => return Ok(Vec::new()), // git 미설치 → 마커 없음
     };
@@ -31,9 +44,11 @@ pub(crate) fn list_changed_paths(root: &Path) -> Result<Vec<ChangedEntry>, Strin
     }
 
     // 2. root가 repo 하위 디렉토리일 때의 prefix (예: "vibelign-gui/"), repo 루트면 ""
-    let prefix = std::process::Command::new("git")
-        .args(["-C"]).arg(root)
-        .args(["rev-parse", "--show-prefix"])
+    let mut prefix_cmd = std::process::Command::new("git");
+    prefix_cmd.args(["-C"]).arg(root)
+        .args(["rev-parse", "--show-prefix"]);
+    apply_no_window(&mut prefix_cmd);
+    let prefix = prefix_cmd
         .output()
         .ok()
         .filter(|o| o.status.success())
@@ -42,9 +57,11 @@ pub(crate) fn list_changed_paths(root: &Path) -> Result<Vec<ChangedEntry>, Strin
         .unwrap_or_default();
 
     // 3. porcelain -z: NUL 구분, 경로 이스케이프 없음(한글/공백 안전)
-    let out = std::process::Command::new("git")
-        .args(["-C"]).arg(root)
-        .args(["status", "--porcelain", "-z", "--untracked-files=all"])
+    let mut status_cmd = std::process::Command::new("git");
+    status_cmd.args(["-C"]).arg(root)
+        .args(["status", "--porcelain", "-z", "--untracked-files=all"]);
+    apply_no_window(&mut status_cmd);
+    let out = status_cmd
         .output()
         .map_err(|e| format!("git status 실행 실패: {e}"))?;
     if !out.status.success() {
