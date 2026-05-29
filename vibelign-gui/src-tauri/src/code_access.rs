@@ -22,6 +22,9 @@ const CODE_READ_EXTENSIONS: &[&str] = &[
 const EXPLORER_FILE_EXTENSIONS: &[&str] = &[
     "py", "js", "ts", "jsx", "tsx", "rs", "go", "java", "cs", "cpp", "c", "hpp", "h",
     "mjs", "cjs", "swift", "md",
+    // 설정/데이터 파일도 트리에 노출(읽기는 CODE_READ_EXTENSIONS 로 이미 지원).
+    // 카테고리는 "data" 로 분류돼 사이드바에서 "other"(회색)로 표시된다.
+    "toml", "yaml", "yml",
 ];
 const CODE_READ_IGNORED_DIRS: &[&str] = &[
     ".git", ".vibelign", ".omc", ".sisyphus", ".venv", "venv", "env", "node_modules", "dist",
@@ -220,7 +223,12 @@ fn walk_explorer(root: &Path, dir: &Path, out: &mut Vec<ExplorerFileEntry>) {
                 Ok(r) => r.to_string_lossy().replace('\\', "/"),
                 Err(_) => continue,
             };
-            let category = if ext == "md" { "docs" } else { "code" }.to_string();
+            let category = match ext.as_str() {
+                "md" => "docs",
+                "toml" | "yaml" | "yml" => "data",
+                _ => "code",
+            }
+            .to_string();
             out.push(ExplorerFileEntry {
                 path: rel,
                 category,
@@ -333,12 +341,12 @@ mod tests {
         write(root.path(), "docs/index.md", b"# hi");
         write(root.path(), "docs/superpowers/specs/design.md", b"spec");
         write(root.path(), "README.md", b"readme");
+        write(root.path(), "docs/_config.yml", b"title: x\n"); // .yml 도 트리에 노출(config)
         // 제외 대상: hidden, ignored dirs, 미지원 확장자
         write(root.path(), ".env", b"SECRET=1");
         write(root.path(), "node_modules/x.js", b"x");
         write(root.path(), "target/debug/x.rs", b"x");
         write(root.path(), "docs/.DS_Store", b"x");
-        write(root.path(), "docs/_config.yml", b"x");
 
         let mut entries = list_explorer_files_under(root.path()).expect("list");
         entries.sort_by(|a, b| a.path.cmp(&b.path));
@@ -349,6 +357,7 @@ mod tests {
             vec![
                 "README.md".to_string(),
                 "apps/native_helper_mac/Sources/App.swift".to_string(),
+                "docs/_config.yml".to_string(),
                 "docs/index.md".to_string(),
                 "docs/superpowers/specs/design.md".to_string(),
                 "src/main.ts".to_string(),
@@ -358,6 +367,22 @@ mod tests {
         assert_eq!(docs_entry.category, "docs");
         let code_entry = entries.iter().find(|entry| entry.path == "src/main.ts").expect("code entry");
         assert_eq!(code_entry.category, "code");
+    }
+
+    #[test]
+    fn explorer_lists_toml_and_yaml_as_data() {
+        let root = TempDir::new().expect("temp root");
+        write(root.path(), "pyproject.toml", b"[project]\nname = \"x\"\n");
+        write(root.path(), "config/app.yaml", b"key: value\n");
+        write(root.path(), "src/main.rs", b"fn main() {}\n");
+
+        let entries = list_explorer_files_under(root.path()).expect("list");
+        let toml = entries.iter().find(|e| e.path == "pyproject.toml").expect("toml listed");
+        assert_eq!(toml.category, "data");
+        let yaml = entries.iter().find(|e| e.path == "config/app.yaml").expect("yaml listed");
+        assert_eq!(yaml.category, "data");
+        let code = entries.iter().find(|e| e.path == "src/main.rs").expect("code listed");
+        assert_eq!(code.category, "code");
     }
 
     #[test]
