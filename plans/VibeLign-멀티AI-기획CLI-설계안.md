@@ -13,12 +13,13 @@
 vib plan "동네 카페 예약 앱을 만들고 싶어"
 ```
 
-기존 `vib plan-structure`는 유지한다.
+기존 `vib plan-structure`는 새 `vib plan`/기획방의 사용자 흐름에서 제외한다.
+UI에서는 완전히 숨겨도 된다. 기존 내부 구현은 이번 범위에서 삭제하거나 완성하지 않는다.
 
 | 명령 | 역할 | 결과물 |
 |---|---|---|
 | `vib plan` | 제품/기능 기획안 생성 | `plans/{slug}.md` |
-| `vib plan-structure` | 코드 변경 전 파일 구조 계획 | `.vibelign/plans/{id}.json` |
+| `vib plan-structure` | 레거시 내부 구조 계획 보조 기능. 새 기획방/초보 UI에 노출하지 않음 | `.vibelign/plans/{id}.json` |
 
 이 기능은 CodeSpeak, patch 지시문, 코드 수정 명령을 만들지 않는다. 목적은 "AI에게 줄 기획안"을 만드는 것이다.
 
@@ -115,11 +116,19 @@ UI 원칙:
 - 최종 Markdown 원문은 기본 편집 화면이 아니라 "기획안 보기" 뒤에 둔다.
 - 메시지는 말풍선보다 업무용 타임라인에 가깝게, 조밀하고 읽기 쉽게 구성한다.
 
+기획방 시각 스타일:
+
+- `satgat`의 한국형 문서 톤을 채팅방 레퍼런스로 삼는다: 백자지 계열 배경, 먹색 본문, 단청색 포인트, 명조/돋움 대비.
+- `satgat` 화면을 그대로 복제하지 않는다. 문서 출력 화면이 아니라 입력·응답·저장 상태가 빠르게 읽히는 작업실 UI로 변형한다.
+- 배경은 따뜻한 종이색으로 두되, 채팅 영역은 카드처럼 과하게 떠 보이지 않게 하고 문서 위에 기록이 쌓이는 느낌을 준다.
+- 단청색 포인트는 전송 버튼, 중요한 상태, 최종 `[기획안 보기]`/`[AI 작업 시작]` 버튼에만 제한적으로 쓴다.
+- 메시지별 장식보다 읽기 밀도와 스캔성을 우선한다. 큰 여백, 한자 장식, 인쇄물 샘플 같은 장식은 초보 기획 흐름을 방해하면 쓰지 않는다.
+
 OpenDesign 판단:
 
 - OpenDesign는 Claude Design의 유료 대안으로 참고할 수 있는 오픈 디자인 자산으로 사용한다.
 - 1차 구현에서 OpenDesign을 런타임 UI 라이브러리 의존성으로 추가하지 않는다.
-- 대신 `DESIGN.md`, 토큰, 채팅 화면 레퍼런스, anti-pattern 체크리스트를 기획방 디자인 기준으로 삼는다.
+- `satgat` 스타일을 1차 채팅방 레퍼런스로 삼고, `DESIGN.md`, 토큰, 채팅 화면 레퍼런스, anti-pattern 체크리스트는 보조 기준으로 사용한다.
 - 현재 GUI는 React/Vite/Tauri 기반이므로 실제 구현은 VibeLign 내부 React 컴포넌트로 만든다.
 - 유료 Claude Design이 없어도 동일한 UX 기준을 유지할 수 있어야 한다.
 
@@ -456,7 +465,7 @@ VibeLign은 로그인 토큰, 쿠키, 세션 파일을 직접 읽지 않는다. 
 - 사용자가 만든 기획안이 `plans/*.md`에 쌓인다.
 - 클로이/지오/미나의 역할 분담이 사용자의 사고 방식이 된다.
 - 각 AI CLI를 오가며 복사/붙여넣기 하던 검토 루프가 VibeLign 명령 하나로 줄어든다.
-- 기획안이 이후 `vib plan-structure`, GUI 안전장치, AI 작업실로 바로 이어진다.
+- 기획안이 이후 GUI 안전장치와 AI 작업실로 바로 이어진다.
 - VibeLign은 특정 모델보다 "여러 구독 CLI를 한 팀처럼 부르는 작업실"이 된다.
 
 핵심:
@@ -491,8 +500,9 @@ VibeLign은 로그인 토큰, 쿠키, 세션 파일을 직접 읽지 않는다. 
 
 주의:
 
-- 기존 `plan-structure` help 문구는 "코드 구조 계획"으로 좁혀 쓴다.
 - `plan` help 문구는 "기획안 만들기"로 쓴다.
+- `vib plan`/기획방 UI와 초보 도움말에서는 `plan-structure`를 비교 대상이나 다음 단계로 노출하지 않는다.
+- 기존 `plan-structure` CLI 구현은 이번 범위에서 삭제/개선하지 않는다.
 
 ### 새 command
 
@@ -561,7 +571,9 @@ VibeLign은 로그인 토큰, 쿠키, 세션 파일을 직접 읽지 않는다. 
 
 OpenDesign 적용 방식:
 
-- `DESIGN.md` 또는 OpenDesign 산출물을 참고해 색, 간격, 타이포그래피, anti-pattern을 정한다.
+- `satgat` 스타일을 1차 채팅방 레퍼런스로 삼고, `DESIGN.md` 또는 OpenDesign 산출물은 보조 레퍼런스로 참고한다.
+- 색, 간격, 타이포그래피는 백자지 배경·먹색 본문·단청 포인트·명조/돋움 대비를 기준으로 정한다.
+- 단, satgat 문서 화면을 복제하지 않고 VibeLign의 기획방 작업 흐름에 맞게 조밀한 타임라인형 채팅 UI로 변형한다.
 - 의존성 추가보다 내부 컴포넌트 구현을 우선한다.
 - 기존 GUI의 React/Vite/Tauri 구조와 테스트 방식을 유지한다.
 
@@ -659,8 +671,7 @@ OpenDesign 적용 방식:
 완료 기준:
 
 - `vib plan "예약 앱"`이 command dispatch까지 도달한다.
-- `vib plan --help`에서 `plan-structure`와 다른 목적이 보인다.
-- `vib plan-structure`는 기존처럼 동작한다.
+- `vib plan --help`는 기획안 생성 목적만 설명하고 `plan-structure`를 사용자 선택지로 홍보하지 않는다.
 - `vib plan --language ko "예약 앱"`이 한국어 기획안을 만든다.
 
 QA:
@@ -668,7 +679,6 @@ QA:
 ```bash
 python -m vibelign.cli.vib_cli plan --help
 python -m vibelign.cli.vib_cli plan "예약 앱" --template-only
-python -m vibelign.cli.vib_cli plan-structure "로그인 기능"
 ```
 
 ### Task 2: Markdown writer와 저장소 구현
@@ -834,13 +844,14 @@ python -m pytest tests/cli/test_vib_plan_cmd.py
 작업:
 
 - `vib plan`을 "바이브코딩 시작 전 기획안 만들기"로 소개
-- `vib plan-structure`는 "코드 구조 계획"으로 재정의
+- 초보 UI/help/manual에서는 `plan-structure`를 숨기거나 레거시/고급 내부 기능으로 낮춘다.
 - patch/CodeSpeak를 초보 흐름에서 연결하지 않는다.
 
 완료 기준:
 
 - 초보 문서 첫 흐름이 `vib plan` → 기획안 → AI 작업 또는 GUI 안전장치로 이어진다.
 - `vib patch`가 추천 첫 경로로 나오지 않는다.
+- `plan-structure`가 기획방, 초보 온보딩, 주요 도움말의 추천 경로로 나오지 않는다.
 
 QA:
 
@@ -865,7 +876,9 @@ rg -n "vib patch|CodeSpeak|plan-structure|vib plan" README.md README.ko.md vibel
 - CLI 상태를 보조 배지로 표시
 - raw CLI log는 접힌 고급 정보로 분리
 - 최종 `plans/*.md` 생성 후 `[기획안 보기] [AI 작업 시작]` 액션 표시
-- OpenDesign은 디자인 토큰/anti-pattern 참고로만 사용하고 런타임 의존성은 추가하지 않음
+- `satgat` 스타일을 1차 채팅방 레퍼런스로 쓰고 OpenDesign은 디자인 토큰/anti-pattern 보조 참고로만 사용
+- 백자지 배경, 먹색 본문, 단청 포인트, 명조/돋움 대비를 적용하되 문서 갤러리처럼 보이지 않는 조밀한 작업실 UI로 구현
+- 디자인 런타임 의존성은 추가하지 않음
 
 완료 기준:
 
@@ -944,7 +957,8 @@ sed -n '1,160p' plans/*.md
 - 필수 섹션이 모두 있다.
 - 준비된 CLI가 없어도 실패하지 않는다.
 - `patch`, `CodeSpeak`, `target_anchor`가 최종 기획안에 나오지 않는다.
-- 기존 `vib plan-structure`는 그대로 동작한다.
+- `vib plan`은 `.vibelign/plans/*.json`이나 active planning state에 의존하지 않는다.
+- 기획방 UI에서 `plan-structure`는 노출되지 않는다.
 
 ---
 
@@ -964,7 +978,7 @@ sed -n '1,160p' plans/*.md
 
 이유:
 
-- 이미 `vib plan-structure` command 등록/저장 패턴이 있다.
+- 기존 command 등록 패턴은 참고할 수 있지만 `plan-structure` 자체를 사용자 흐름에 연결하지 않는다.
 - GUI는 Tauri invoke와 React 컴포넌트 구조가 있다.
 - Tauri/Rust 쪽에는 subprocess 실행과 Claude 설치/검증 관련 선례가 있다.
 - docs/markdown viewer, `react-markdown`, project file 접근 구조가 이미 있다.
@@ -1063,7 +1077,7 @@ GUI MVP:
 
 | 리스크 | 대응 |
 |---|---|
-| `vib plan`과 `vib plan-structure`가 헷갈림 | help 문구와 manual에서 제품 기획 vs 코드 구조 계획으로 분리 |
+| `vib plan-structure`가 새 기획방/초보 UI에 새어 나와 사용자를 헷갈리게 함 | 기획방, 온보딩, 주요 도움말에서 숨기고 `vib plan`만 노출 |
 | 구독 CLI 자동화 불안정 | CLI adapter contract를 먼저 만들고 timeout/fallback/status 분류를 테스트 |
 | CLI 사용량/실패 | 기본 rounds 1, CLI 오류는 fallback으로 처리 |
 | 중간 채팅 로그가 초보자에게 복잡함 | `--save-transcript`를 켠 경우에만 별도 저장 |
@@ -1084,6 +1098,6 @@ GUI MVP:
 3. 같은 동작이 `vib plan "..."` CLI 진입점으로도 가능하다 (엔진 동일, API 키 없이도 동작).
 4. `claude`/`codex`/`agy` CLI가 준비되어 있으면 해당 페르소나들이 역할별로 참여한다. 일부만 있어도 작동한다 (best-effort).
 5. 생성 기획안은 초보자가 읽을 수 있고 AI 작업자가 실행할 수 있을 만큼 구체적이다.
-6. `vib plan-structure`와 역할이 충돌하지 않는다.
+6. `vib plan-structure`는 기획방/초보 UI에 노출되지 않고, `vib plan`은 기존 구조 계획 state와 독립적으로 동작한다.
 7. CodeSpeak/patch 지시문이 생성되지 않는다.
 8. 자동 테스트와 수동 QA가 모두 통과한다.
