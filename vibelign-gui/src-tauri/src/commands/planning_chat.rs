@@ -1,7 +1,12 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
+
+use super::planning_chat_store::{
+    latest_chat_session_file, planning_dir, read_json, write_json, StoredPlanningChatSession,
+};
+use super::planning_persona::{run_persona_response, PlanningChatLine};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,15 +47,6 @@ pub struct PlanningChatSessionResponse {
     details: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
-struct StoredPlanningChatSession {
-    schema_version: u32,
-    session_id: String,
-    idea: String,
-    mode: String,
-    created_at: String,
-}
-
 fn planning_chat_error(details: impl Into<String>) -> PlanningChatSessionResponse {
     PlanningChatSessionResponse {
         ok: false,
@@ -61,29 +57,6 @@ fn planning_chat_error(details: impl Into<String>) -> PlanningChatSessionRespons
         message: Some("기획방 대화를 준비하지 못했어요.".to_string()),
         details: Some(details.into()),
     }
-}
-
-fn planning_dir(project_dir: &Path) -> PathBuf {
-    project_dir.join(".vibelign").join("planning")
-}
-
-fn latest_chat_session_file(project_dir: &Path) -> Option<PathBuf> {
-    let mut entries = std::fs::read_dir(planning_dir(project_dir))
-        .ok()?
-        .flatten()
-        .filter_map(|entry| {
-            let session_path = entry.path().join("session.json");
-            let messages_path = entry.path().join("messages.json");
-            let modified = messages_path.metadata().ok()?.modified().ok()?;
-            if session_path.exists() && messages_path.exists() {
-                Some((modified, session_path))
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-    entries.sort_by_key(|(modified, _path)| *modified);
-    entries.pop().map(|(_modified, path)| path)
 }
 
 #[tauri::command]
@@ -213,17 +186,26 @@ pub(crate) async fn append_planning_chat_turn(
             id: format!("msg_{}", timestamp_ms()),
             role: "user".to_string(),
             persona_id: None,
-            content: prompt,
+            content: prompt.clone(),
             status: "ok".to_string(),
             created_at: now.clone(),
         });
         for agent in request.agents {
+            let lines = messages
+                .iter()
+                .map(|message| PlanningChatLine {
+                    role: &message.role,
+                    persona_id: message.persona_id.as_deref(),
+                    content: &message.content,
+                })
+                .collect::<Vec<_>>();
+            let persona_run = run_persona_response(&project_dir, &agent, &lines);
             messages.push(PlanningChatMessage {
                 id: format!("msg_{}_{}", agent, timestamp_ms()),
                 role: "assistant".to_string(),
                 persona_id: Some(agent),
-                content: "다음 단계에서 실제 페르소나 응답을 연결합니다.".to_string(),
-                status: "pending".to_string(),
+                content: persona_run.content,
+                status: persona_run.status,
                 created_at: now.clone(),
             });
         }
@@ -244,19 +226,6 @@ pub(crate) async fn append_planning_chat_turn(
     .unwrap_or_else(|error| planning_chat_error(error.to_string()))
 }
 
-fn write_json<T: Serialize>(path: PathBuf, value: &T) -> Result<(), String> {
-    std::fs::write(
-        path,
-        serde_json::to_string_pretty(value).map_err(|error| error.to_string())? + "\n",
-    )
-    .map_err(|error| error.to_string())
-}
-
-fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
-    let text = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
-    serde_json::from_str(&text).map_err(|error| error.to_string())
-}
-
 fn timestamp_ms() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -265,17 +234,7 @@ fn timestamp_ms() -> u128 {
 
 #[cfg(test)]
 mod tests {
-    use super::{latest_chat_session_file, PlanningChatMessage};
-
-    #[test]
-    fn latest_chat_session_requires_messages_file() {
-        let root = tempfile::tempdir().expect("temp root");
-        let session_dir = root.path().join(".vibelign/planning/chat_1");
-        std::fs::create_dir_all(&session_dir).expect("mkdir");
-        std::fs::write(session_dir.join("session.json"), "{}").expect("session");
-
-        assert_eq!(latest_chat_session_file(root.path()), None);
-    }
+    use super::PlanningChatMessage;
 
     #[test]
     fn planning_chat_message_serializes_camel_case() {
@@ -292,19 +251,5 @@ mod tests {
 
         assert!(json.contains("personaId"));
         assert!(json.contains("createdAt"));
-    }
-
-    #[test]
-    fn latest_chat_session_picks_session_with_messages() {
-        let root = tempfile::tempdir().expect("temp root");
-        let session_dir = root.path().join(".vibelign/planning/chat_2");
-        std::fs::create_dir_all(&session_dir).expect("mkdir");
-        std::fs::write(session_dir.join("session.json"), "{}").expect("session");
-        std::fs::write(session_dir.join("messages.json"), "[]").expect("messages");
-
-        assert_eq!(
-            latest_chat_session_file(root.path()),
-            Some(session_dir.join("session.json"))
-        );
     }
 }
