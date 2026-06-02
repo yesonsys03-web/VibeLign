@@ -38,7 +38,7 @@ struct VibPlanJson {
     output_path: String,
     absolute_output_path: String,
     markdown: String,
-    fallback_reason: String,
+    fallback_reason: Option<String>,
     session_id: String,
     adapter: Option<String>,
     persona_id: Option<String>,
@@ -71,7 +71,7 @@ fn planning_success(payload: VibPlanJson) -> CreatePlanningTemplateResponse {
         output_path: Some(payload.output_path),
         absolute_output_path: Some(payload.absolute_output_path),
         markdown: Some(payload.markdown),
-        fallback_reason: Some(payload.fallback_reason),
+        fallback_reason: payload.fallback_reason,
         session_id: Some(payload.session_id),
         adapter: payload.adapter,
         persona_id: payload.persona_id,
@@ -158,6 +158,18 @@ mod tests {
         assert_eq!(response.adapter.as_deref(), Some("codex"));
         assert_eq!(response.persona_id.as_deref(), Some("gio"));
         assert_eq!(response.llm_status.as_deref(), Some("not_installed"));
+    }
+
+    #[test]
+    fn parses_llm_success_with_null_fallback_reason() {
+        let response = parse_plan_stdout(
+            r##"{"ok":true,"output_path":"plans/app.md","absolute_output_path":"/tmp/app/plans/app.md","markdown":"# App\n\n## 지오의 검토\n좋아요.","fallback_reason":null,"session_id":"plan_1","adapter":"codex","persona_id":"gio","llm_status":"ok"}"##,
+        )
+        .expect("parse");
+
+        assert!(response.ok);
+        assert_eq!(response.fallback_reason, None);
+        assert_eq!(response.llm_status.as_deref(), Some("ok"));
     }
 
     #[test]
