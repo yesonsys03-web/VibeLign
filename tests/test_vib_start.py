@@ -9,8 +9,10 @@ from unittest.mock import patch
 from vibelign.cli import build_parser as build_basic_parser
 from vibelign.commands.export_cmd import export_tool_files
 from vibelign.commands.vib_start_cmd import (
+    VIB_START_PROGRESS_LABELS,
     _ensure_gitignore_entry,
     _ensure_rule_files,
+    _emit_start_progress,
     _next_step,
     _parse_start_tools,
     _register_mcp_cursor,
@@ -18,6 +20,7 @@ from vibelign.commands.vib_start_cmd import (
     _status_line,
     _tool_readiness,
 )
+from vibelign.core.auto_install import ensure_pyproject_toml
 from vibelign.cli.vib_cli import build_parser as build_vib_parser
 
 
@@ -181,6 +184,49 @@ class VibStartTest(unittest.TestCase):
         args = parser.parse_args(["start", "--all-tools"])
         self.assertTrue(args.all_tools)
         self.assertFalse(args.force)
+
+    def test_vib_cli_start_parser_accepts_non_interactive(self):
+        parser = build_vib_parser()
+        args = parser.parse_args(["start", "--non-interactive"])
+        self.assertTrue(args.non_interactive)
+
+    def test_basic_cli_start_parser_accepts_non_interactive(self):
+        parser = build_basic_parser()
+        args = parser.parse_args(["start", "--non-interactive"])
+        self.assertTrue(args.non_interactive)
+
+    def test_emit_start_progress_outputs_json_marker(self):
+        with patch("builtins.print") as mocked_print:
+            _emit_start_progress(2)
+
+        payload = json.loads(mocked_print.call_args.args[0])
+        self.assertEqual(payload["type"], "vib_start_progress")
+        self.assertEqual(payload["step"], 2)
+        self.assertEqual(payload["total"], 5)
+        self.assertEqual(payload["label"], VIB_START_PROGRESS_LABELS[1])
+
+    def test_start_progress_labels_do_not_expose_internal_terms(self):
+        forbidden_terms = ("watch", "anchor", "guard", "vib start")
+        joined = "\n".join(VIB_START_PROGRESS_LABELS).lower()
+        for term in forbidden_terms:
+            self.assertNotIn(term, joined)
+
+    def test_ensure_pyproject_non_interactive_skips_prompt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            messages: list[str] = []
+            with patch("builtins.input", side_effect=AssertionError("input called")):
+                created = ensure_pyproject_toml(
+                    root,
+                    messages.append,
+                    messages.append,
+                    messages.append,
+                    interactive=False,
+                )
+
+            self.assertFalse(created)
+            self.assertFalse((root / "pyproject.toml").exists())
+            self.assertTrue(any("건너뜀" in message for message in messages))
 
     def test_basic_cli_watch_parser_accepts_auto_fix(self):
         parser = build_basic_parser()

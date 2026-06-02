@@ -99,6 +99,11 @@ def register_core_commands(
     _ = p.add_argument(
         "--quickstart", action="store_true", help="start + anchor를 한 번에 실행해요"
     )
+    _ = p.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="GUI/자동화용: 질문 없이 첫 체크포인트까지 자동으로 준비해요",
+    )
     _ = p.add_argument("message", nargs="*", help="저장할 메시지 (안 써도 돼요)")
     p.set_defaults(
         func=lazy_command("vibelign.commands.vib_start_cmd", "run_vib_start")

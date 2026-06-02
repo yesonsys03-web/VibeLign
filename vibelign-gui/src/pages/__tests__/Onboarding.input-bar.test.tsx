@@ -1,0 +1,138 @@
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import Onboarding from "../Onboarding";
+import type { VibResult } from "../../lib/vib";
+
+const mocks = vi.hoisted(() => ({
+  openDialogMock: vi.fn<(...args: readonly [unknown]) => Promise<string | null>>(),
+  openUrlMock: vi.fn<(...args: readonly [string]) => Promise<void>>(),
+  getVibPathMock: vi.fn<() => Promise<string | null>>(),
+  checkGitInstalledMock: vi.fn<() => Promise<boolean>>(),
+  checkXcodeCltMock: vi.fn<() => Promise<boolean>>(),
+  getOnboardingSnapshotMock: vi.fn<() => Promise<never>>(),
+  listenOnboardingProgressMock: vi.fn<(...args: readonly [unknown]) => Promise<() => void>>(),
+  getOnboardingLogsMock: vi.fn<() => Promise<{ text: string }>>(),
+  vibStartMock: vi.fn<(...args: readonly [string, readonly string[]?]) => Promise<VibResult>>(),
+  readProjectSummaryMock: vi.fn<() => Promise<never>>(),
+}));
+
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  open: mocks.openDialogMock,
+}));
+
+vi.mock("@tauri-apps/plugin-opener", () => ({
+  openUrl: mocks.openUrlMock,
+}));
+
+vi.mock("../../lib/vib", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/vib")>("../../lib/vib");
+  return {
+    ...actual,
+    getVibPath: mocks.getVibPathMock,
+    checkGitInstalled: mocks.checkGitInstalledMock,
+    checkXcodeClt: mocks.checkXcodeCltMock,
+    getOnboardingSnapshot: mocks.getOnboardingSnapshotMock,
+    listenOnboardingProgress: mocks.listenOnboardingProgressMock,
+    getOnboardingLogs: mocks.getOnboardingLogsMock,
+    vibStart: mocks.vibStartMock,
+    readProjectSummary: mocks.readProjectSummaryMock,
+    loadProviderApiKeys: vi.fn(async () => null),
+    retryOnboardingVerification: vi.fn(),
+    startNativeInstall: vi.fn(),
+    startOnboardingLoginProbe: vi.fn(),
+    addClaudeToUserPath: vi.fn(),
+    uninstallClaudeCode: vi.fn(),
+  };
+});
+
+function renderOnboarding(): void {
+  render(<Onboarding onComplete={vi.fn()} onResume={vi.fn()} onRemoveRecent={vi.fn()} recentDirs={["/tmp/demo"]} />);
+}
+
+describe("Onboarding input bar", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  beforeEach(() => {
+    mocks.openDialogMock.mockReset();
+    mocks.openUrlMock.mockReset();
+    mocks.getVibPathMock.mockReset();
+    mocks.checkGitInstalledMock.mockReset();
+    mocks.checkXcodeCltMock.mockReset();
+    mocks.getOnboardingSnapshotMock.mockReset();
+    mocks.listenOnboardingProgressMock.mockReset();
+    mocks.getOnboardingLogsMock.mockReset();
+    mocks.vibStartMock.mockReset();
+    mocks.readProjectSummaryMock.mockReset();
+
+    mocks.openDialogMock.mockResolvedValue(null);
+    mocks.getVibPathMock.mockResolvedValue("/usr/local/bin/vib");
+    mocks.checkGitInstalledMock.mockResolvedValue(true);
+    mocks.checkXcodeCltMock.mockResolvedValue(true);
+    mocks.getOnboardingSnapshotMock.mockRejectedValue(new Error("snapshot unavailable"));
+    mocks.listenOnboardingProgressMock.mockResolvedValue(() => {});
+    mocks.getOnboardingLogsMock.mockResolvedValue({ text: "" });
+    mocks.vibStartMock.mockResolvedValue({ ok: true, stdout: "", stderr: "", exit_code: 0 });
+    mocks.readProjectSummaryMock.mockRejectedValue(new Error("summary unavailable"));
+  });
+
+  test("test_default_screen_centers_prompt_bar_and_hides_legacy_surface", async () => {
+    renderOnboarding();
+
+    expect(await screen.findByText("내 프로젝트를 안전하게 만들기")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("무엇을 만들고 싶나요?")).toBeInTheDocument();
+    expect(screen.getByLabelText("Claude Code도 자동으로 준비하기")).toBeInTheDocument();
+    expect(screen.getByText("Instant")).toBeInTheDocument();
+
+    expect(screen.queryByText("코드맵 생성")).not.toBeInTheDocument();
+    expect(screen.queryByText("AI 폭주 방지")).not.toBeInTheDocument();
+    expect(screen.queryByText("원클릭 복구")).not.toBeInTheDocument();
+    expect(screen.queryByText("AI 이동 자유")).not.toBeInTheDocument();
+    expect(screen.queryByText(/vibelign start/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/GitHub/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Threads/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("바이브라인 첫걸음")).not.toBeInTheDocument();
+    expect(screen.queryByText("patch")).not.toBeInTheDocument();
+    expect(screen.queryByText("CodeSpeak")).not.toBeInTheDocument();
+    expect(screen.queryByText("plan-structure")).not.toBeInTheDocument();
+  });
+
+  test("test_text_submit_without_folder_keeps_prompt_and_shows_folder_hint", async () => {
+    renderOnboarding();
+    const prompt = await screen.findByPlaceholderText("무엇을 만들고 싶나요?");
+
+    fireEvent.change(prompt, { target: { value: "예약 앱 만들고 싶어" } });
+    fireEvent.click(screen.getByRole("button", { name: "전송" }));
+
+    expect(screen.getByDisplayValue("예약 앱 만들고 싶어")).toBeInTheDocument();
+    expect(screen.getByText("먼저 프로젝트 폴더를 선택해 주세요.")).toBeInTheDocument();
+    expect(mocks.vibStartMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("프로젝트 확인 중...")).not.toBeInTheDocument();
+  });
+
+  test("test_folder_cancel_keeps_prompt_without_error", async () => {
+    renderOnboarding();
+    const prompt = await screen.findByPlaceholderText("무엇을 만들고 싶나요?");
+
+    fireEvent.change(prompt, { target: { value: "예약 앱 만들고 싶어" } });
+    fireEvent.click(screen.getByRole("button", { name: "프로젝트 폴더 선택" }));
+
+    expect(await screen.findByDisplayValue("예약 앱 만들고 싶어")).toBeInTheDocument();
+    expect(screen.queryByText("시작 실패")).not.toBeInTheDocument();
+    expect(mocks.openDialogMock).toHaveBeenCalledWith({ directory: true, multiple: false, title: "프로젝트 폴더 선택" });
+  });
+
+  test("test_advanced_toggle_reveals_secondary_details", async () => {
+    renderOnboarding();
+
+    expect(screen.queryByText("최근 프로젝트")).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "고급 설정 보기" }));
+
+    expect(screen.getByText("최근 프로젝트")).toBeInTheDocument();
+    expect(screen.getByText("시스템 상태")).toBeInTheDocument();
+    expect(screen.queryByText("patch")).not.toBeInTheDocument();
+    expect(screen.queryByText("CodeSpeak")).not.toBeInTheDocument();
+    expect(screen.queryByText("plan-structure")).not.toBeInTheDocument();
+  });
+});

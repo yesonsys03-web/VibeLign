@@ -1,0 +1,163 @@
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import Onboarding from "../Onboarding";
+import type { VibProgressEvent, VibResult } from "../../lib/vib";
+
+const progressLabels = [
+  "프로젝트 확인 중...",
+  "안전 규칙 준비 중...",
+  "되돌리기 지점 저장 중...",
+  "파일 변경 감시 준비 중...",
+  "준비 완료",
+] as const;
+
+const mocks = vi.hoisted(() => ({
+  openDialogMock: vi.fn<(...args: readonly [unknown]) => Promise<string | null>>(),
+  getVibPathMock: vi.fn<() => Promise<string | null>>(),
+  checkGitInstalledMock: vi.fn<() => Promise<boolean>>(),
+  checkXcodeCltMock: vi.fn<() => Promise<boolean>>(),
+  getOnboardingSnapshotMock: vi.fn<() => Promise<never>>(),
+  runVibWithProgressMock: vi.fn<
+    (
+      args: readonly string[],
+      cwd: string | undefined,
+      env: Record<string, string> | undefined,
+      onProgress: (event: VibProgressEvent) => void,
+    ) => Promise<VibResult>
+  >(),
+  startWatchMock: vi.fn<(...args: readonly [string]) => Promise<void>>(),
+  startNativeInstallMock: vi.fn<(...args: readonly ["native-cmd"]) => Promise<never>>(),
+}));
+
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  open: mocks.openDialogMock,
+}));
+
+vi.mock("@tauri-apps/plugin-opener", () => ({
+  openUrl: vi.fn(async () => undefined),
+}));
+
+vi.mock("../../lib/vib", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/vib")>("../../lib/vib");
+  return {
+    ...actual,
+    getVibPath: mocks.getVibPathMock,
+    checkGitInstalled: mocks.checkGitInstalledMock,
+    checkXcodeClt: mocks.checkXcodeCltMock,
+    getOnboardingSnapshot: mocks.getOnboardingSnapshotMock,
+    runVibWithProgress: mocks.runVibWithProgressMock,
+    startWatch: mocks.startWatchMock,
+    startNativeInstall: mocks.startNativeInstallMock,
+  };
+});
+
+function renderOnboarding(): { readonly onComplete: ReturnType<typeof vi.fn> } {
+  const onComplete = vi.fn();
+  render(<Onboarding onComplete={onComplete} recentDirs={[]} />);
+  return { onComplete };
+}
+
+function renderOnboardingWithPlanRequest(): ReturnType<typeof vi.fn> {
+  const onPlanRequest = vi.fn(async () => undefined);
+  render(<Onboarding onComplete={vi.fn()} onPlanRequest={onPlanRequest} recentDirs={[]} />);
+  return onPlanRequest;
+}
+
+async function selectProjectFolder(): Promise<void> {
+  fireEvent.click(await screen.findByRole("button", { name: "프로젝트 폴더 선택" }));
+  await screen.findByText((_content, node) => node?.textContent === "선택한 폴더: demo");
+}
+
+describe("Onboarding PR2 auto start", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  beforeEach(() => {
+    mocks.openDialogMock.mockReset();
+    mocks.getVibPathMock.mockReset();
+    mocks.checkGitInstalledMock.mockReset();
+    mocks.checkXcodeCltMock.mockReset();
+    mocks.getOnboardingSnapshotMock.mockReset();
+    mocks.runVibWithProgressMock.mockReset();
+    mocks.startWatchMock.mockReset();
+    mocks.startNativeInstallMock.mockReset();
+
+    mocks.openDialogMock.mockResolvedValue("/tmp/demo");
+    mocks.getVibPathMock.mockResolvedValue("/usr/local/bin/vib");
+    mocks.checkGitInstalledMock.mockResolvedValue(true);
+    mocks.checkXcodeCltMock.mockResolvedValue(true);
+    mocks.getOnboardingSnapshotMock.mockRejectedValue(new Error("snapshot unavailable"));
+    mocks.runVibWithProgressMock.mockImplementation(async (_args, _cwd, _env, onProgress) => {
+      progressLabels.forEach((label, index) => {
+        onProgress({
+          step: "vib_start_progress",
+          done: index + 1,
+          total: progressLabels.length,
+          message: label,
+        });
+      });
+      return { ok: true, stdout: "", stderr: "", exit_code: 0 };
+    });
+    mocks.startWatchMock.mockResolvedValue();
+    mocks.startNativeInstallMock.mockRejectedValue(new Error("installer failed"));
+  });
+
+  test("runs_non_interactive_start_and_watch_after_folder_submit", async () => {
+    const { onComplete } = renderOnboarding();
+
+    await selectProjectFolder();
+    fireEvent.click(screen.getByLabelText("Claude Code도 자동으로 준비하기"));
+    fireEvent.click(screen.getByRole("button", { name: "전송" }));
+
+    await waitFor(() => {
+      expect(mocks.runVibWithProgressMock).toHaveBeenCalledWith(
+        ["start", "--non-interactive"],
+        "/tmp/demo",
+        undefined,
+        expect.any(Function),
+      );
+    });
+    expect(mocks.startWatchMock).toHaveBeenCalledWith("/tmp/demo");
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(screen.getByText("준비 완료")).toBeInTheDocument();
+  });
+
+  test("renders_five_progress_labels_without_internal_terms", async () => {
+    renderOnboarding();
+
+    await selectProjectFolder();
+    fireEvent.click(screen.getByLabelText("Claude Code도 자동으로 준비하기"));
+    fireEvent.click(screen.getByRole("button", { name: "전송" }));
+
+    for (const label of progressLabels) {
+      expect(await screen.findByText(label)).toBeInTheDocument();
+    }
+    expect(screen.queryByText(/watch|anchor|guard|vib start/i)).not.toBeInTheDocument();
+  });
+
+  test("shows_claude_failure_as_separate_status_after_start_success", async () => {
+    renderOnboarding();
+
+    await selectProjectFolder();
+    fireEvent.click(screen.getByRole("button", { name: "전송" }));
+
+    expect(await screen.findByText("Claude Code 준비만 실패했어요. 프로젝트 안전장치는 켜져 있어요.")).toBeInTheDocument();
+    expect(screen.queryByText("시작 실패")).not.toBeInTheDocument();
+  });
+
+  test("requests_planning_after_start_when_prompt_exists", async () => {
+    const onPlanRequest = renderOnboardingWithPlanRequest();
+
+    await selectProjectFolder();
+    fireEvent.change(screen.getByPlaceholderText("무엇을 만들고 싶나요?"), {
+      target: { value: "예약 앱 만들고 싶어" },
+    });
+    fireEvent.click(screen.getByLabelText("Claude Code도 자동으로 준비하기"));
+    fireEvent.click(screen.getByRole("button", { name: "전송" }));
+
+    await waitFor(() => {
+      expect(onPlanRequest).toHaveBeenCalledWith("/tmp/demo", "예약 앱 만들고 싶어");
+    });
+  });
+});

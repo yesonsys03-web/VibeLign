@@ -63,3 +63,5 @@ vibelign/_bundled/vibelign-engine
 vibelign/_bundled/vibelign-engine.exe
 vibelign/_bundled/vibelign-engine.sha256
 vibelign/_bundled/vibelign-engine.exe.sha256
+.vibelign/logs/
+.vibelign/reports/

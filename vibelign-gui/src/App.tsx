@@ -4,6 +4,7 @@ import CustomTitleBar from "./components/CustomTitleBar";
 import ScrollToTopButton from "./components/ScrollToTopButton";
 import UpdateBanner from "./components/UpdateBanner";
 import Onboarding from "./pages/Onboarding";
+import PlanningRoom from "./pages/PlanningRoom";
 import Doctor from "./pages/Doctor";
 import Home from "./pages/Home";
 import DocsViewer from "./pages/DocsViewer";
@@ -11,7 +12,7 @@ import CodeExplorer from "./pages/CodeExplorer";
 import BackupDashboardPage from "./pages/BackupDashboard";
 import ErrorLogs from "./pages/ErrorLogs";
 import Settings from "./pages/Settings";
-import { backupList, getEnvKeyStatus, loadApiKey, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, stopWatch, openFolder } from "./lib/vib";
+import { backupList, createPlanningTemplate, getEnvKeyStatus, loadApiKey, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, stopWatch, openFolder, type CreatePlanningTemplateResponse } from "./lib/vib";
 import { installGuiErrorReporter, reportReactError, setErrorReporterProjectDir } from "./lib/errorReporter";
 import "./styles/brutalism.css";
 import "./App.css";
@@ -57,7 +58,7 @@ class ErrorBoundary extends Component<
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
-type Page = "home" | "manual" | "docs" | "code" | "doctor" | "backups" | "logs" | "settings";
+type Page = "home" | "manual" | "docs" | "code" | "doctor" | "backups" | "logs" | "settings" | "planning";
 
 export default function App() {
   const [projectDir, setProjectDir] = useState<string | null>(null);
@@ -71,6 +72,8 @@ export default function App() {
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const [watchOn, setWatchOn] = useState(false);
   const [mapMode, setMapMode] = useState<"manual" | "auto">("manual");
+  const [planningPrompt, setPlanningPrompt] = useState("");
+  const [planningResult, setPlanningResult] = useState<CreatePlanningTemplateResponse | null>(null);
 
 
   async function refreshAiKeys() {
@@ -123,6 +126,21 @@ export default function App() {
     setPage("settings");
   }
 
+  async function openPlanningRoom(dir: string, prompt: string) {
+    const normalizedPrompt = prompt.trim().slice(0, 4000);
+    if (!normalizedPrompt) return;
+    addToRecent(dir);
+    setProjectDir(dir);
+    setPlanningPrompt(normalizedPrompt);
+    const result = await createPlanningTemplate({
+      projectDir: dir,
+      prompt: normalizedPrompt,
+      language: "auto",
+    });
+    setPlanningResult(result);
+    setPage("planning");
+  }
+
   return (
     <div className="app-layout">
       <ErrorBoundary>
@@ -141,6 +159,7 @@ export default function App() {
           <Onboarding
             recentDirs={recentDirs}
             onComplete={(dir, key) => { addToRecent(dir); setProjectDir(dir); if (key) setApiKey(key); }}
+            onPlanRequest={openPlanningRoom}
             onResume={(dir) => { addToRecent(dir); setProjectDir(dir); }}
             onRemoveRecent={(dir) => removeFromRecent(dir)}
           />
@@ -193,6 +212,7 @@ export default function App() {
             <div style={{ flex: 1, overflow: "hidden" }}>
               <ErrorBoundary>
                 {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} />}
+                {page === "planning" && planningResult && <PlanningRoom prompt={planningPrompt} result={planningResult} onBack={() => setPage("home")} />}
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
                 {page === "code" && <CodeExplorer projectDir={projectDir} />}

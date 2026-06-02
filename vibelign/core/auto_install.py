@@ -183,6 +183,8 @@ def ensure_pyproject_toml(
     clack_info: PrintFn,
     _clack_warn: PrintFn,
     clack_success: PrintFn,
+    *,
+    interactive: bool = True,
 ) -> bool:
     """pyproject.toml이 없으면 y/N 프롬프트로 생성을 제안. 생성하면 True 반환."""
     pyproject_path = root / "pyproject.toml"
@@ -191,6 +193,12 @@ def ensure_pyproject_toml(
 
     clack_info("📦 pyproject.toml 파일이 없어요.")
     clack_info("  이 파일이 없으면 uv run 으로 파이썬 파일을 실행할 수 없어요.")
+    if not interactive:
+        clack_info(
+            "건너뜀. 나중에 pyproject.toml을 직접 만들거나 `uv init`으로 생성하세요."
+        )
+        return False
+
     if not _ask_yn("  지금 기본 파일을 만들까요? [y/N] "):
         clack_info(
             "건너뜀. 나중에 pyproject.toml을 직접 만들거나 `uv init`으로 생성하세요."

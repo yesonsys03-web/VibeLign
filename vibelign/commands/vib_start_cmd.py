@@ -8,7 +8,7 @@ from argparse import Namespace
 from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import cast
+from typing import Final, cast
 
 from vibelign.commands.export_cmd import (
     AGENTS_MD_CONTENT,
@@ -52,6 +52,13 @@ TOOL_DISPLAY_NAMES = {
     "antigravity": "Antigravity",
     "codex": "Codex",
 }
+VIB_START_PROGRESS_LABELS: Final[tuple[str, str, str, str, str]] = (
+    "프로젝트 확인 중...",
+    "안전 규칙 준비 중...",
+    "되돌리기 지점 저장 중...",
+    "파일 변경 감시 준비 중...",
+    "준비 완료",
+)
 
 _TREE_SKIP = COMMON_IGNORED_DIRS | {
     ".vibelign",
@@ -61,6 +68,22 @@ _TREE_SKIP = COMMON_IGNORED_DIRS | {
     "dist-vib",
     "vib-runtime",
 }
+
+
+def _emit_start_progress(step: int) -> None:
+    label = VIB_START_PROGRESS_LABELS[step - 1]
+    print(
+        json.dumps(
+            {
+                "type": "vib_start_progress",
+                "step": step,
+                "total": len(VIB_START_PROGRESS_LABELS),
+                "label": label,
+            },
+            ensure_ascii=False,
+        ),
+        flush=True,
+    )
 
 
 # === ANCHOR: VIB_START_CMD__BUILD_TREE_START ===
@@ -960,6 +983,9 @@ def _setup_project(
 def run_vib_start(args: Namespace) -> None:
     root = resolve_project_root(Path.cwd())
     meta = MetaPaths(root)
+    non_interactive = bool(getattr(args, "non_interactive", False))
+    if non_interactive:
+        _emit_start_progress(1)
     clack_intro("VibeLign 시작 설정")
     try:
         selected_tools = _selected_start_tools(args)
@@ -968,6 +994,8 @@ def run_vib_start(args: Namespace) -> None:
 
     # [1] 프로젝트 세팅 (새 프로젝트면 전체, 기존이면 누락된 것만 보완)
     is_new = not meta.state_path.exists()
+    if non_interactive:
+        _emit_start_progress(2)
     if is_new:
         clack_step("처음 사용하는 프로젝트예요. 기본 설정을 준비할게요.")
     force = getattr(args, "force", False)
@@ -1070,7 +1098,7 @@ def run_vib_start(args: Namespace) -> None:
         auto_install_mod.try_install_fast_tools,
     )
     ensure_pyproject_toml = cast(
-        Callable[[Path, object, object, object], bool],
+        Callable[..., bool],
         auto_install_mod.ensure_pyproject_toml,
     )
 
@@ -1083,7 +1111,13 @@ def run_vib_start(args: Namespace) -> None:
         try_install_fast_tools(missing_tools, clack_info, clack_warn, clack_success)
 
     # [6] pyproject.toml 없으면 생성 제안
-    _ = ensure_pyproject_toml(root, clack_info, clack_warn, clack_success)
+    _ = ensure_pyproject_toml(
+        root,
+        clack_info,
+        clack_warn,
+        clack_success,
+        interactive=not non_interactive,
+    )
 
     doctor_data = cast(dict[str, object], doctor_data)
     score = doctor_data["project_score"]
@@ -1093,6 +1127,8 @@ def run_vib_start(args: Namespace) -> None:
     clack_info(_status_line(status))
 
     if is_new:
+        if non_interactive:
+            _emit_start_progress(3)
         clack_step("딱 3가지만 기억하세요")
         clack_info("")
         clack_info('  1. 작업 전엔 항상   →  vib checkpoint "설명"')
@@ -1118,12 +1154,17 @@ def run_vib_start(args: Namespace) -> None:
         clack_info("💡 탭키로 명령어 자동완성을 쓰고 싶다면:")
         clack_info("   vib completion --install")
         clack_info("")
-        clack_step("지금 첫 번째 체크포인트를 저장할까요?")
-        clack_info("  나중에 AI가 뭔가 망쳐도 지금 이 시점으로 되돌릴 수 있어요")
-        try:
-            answer = input("  [Y/n]: ").strip().lower()
-        except (EOFError, KeyboardInterrupt, OSError):
-            answer = "n"
+        if non_interactive:
+            clack_step("첫 번째 체크포인트를 저장해요")
+            clack_info("  나중에 AI가 뭔가 망쳐도 지금 이 시점으로 되돌릴 수 있어요")
+            answer = "y"
+        else:
+            clack_step("지금 첫 번째 체크포인트를 저장할까요?")
+            clack_info("  나중에 AI가 뭔가 망쳐도 지금 이 시점으로 되돌릴 수 있어요")
+            try:
+                answer = input("  [Y/n]: ").strip().lower()
+            except (EOFError, KeyboardInterrupt, OSError):
+                answer = "n"
         if answer in ("", "y", "yes"):
             import types
             from vibelign.commands.vib_checkpoint_cmd import run_vib_checkpoint
@@ -1133,8 +1174,13 @@ def run_vib_start(args: Namespace) -> None:
             clack_success("체크포인트 저장 완료! 이제 안심하고 AI 코딩을 시작하세요 🎉")
         else:
             clack_info('나중에 직접 저장하려면: vib checkpoint "시작"')
+        if non_interactive:
+            _emit_start_progress(4)
         clack_outro("준비 완료! 위 단계를 따라해 보세요")
     else:
+        if non_interactive:
+            _emit_start_progress(3)
+            _emit_start_progress(4)
         next_step = _next_step(doctor_data)
         clack_outro(f"다음 할 일: {next_step}")
 
@@ -1162,6 +1208,9 @@ def run_vib_start(args: Namespace) -> None:
             clack_warn(
                 "아직 코드 파일이 없어서 앵커를 달 게 없어요. 코드를 작성한 뒤 vib anchor 를 실행하세요!"
             )
+
+    if non_interactive:
+        _emit_start_progress(5)
 
 
 # === ANCHOR: VIB_START_CMD_RUN_VIB_START_END ===

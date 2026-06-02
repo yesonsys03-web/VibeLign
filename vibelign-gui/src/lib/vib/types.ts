@@ -124,6 +124,24 @@ export interface VibResult {
   exit_code: number;
 }
 
+export interface CreatePlanningTemplateRequest {
+  projectDir: string;
+  prompt: string;
+  language: "auto" | string;
+}
+
+export interface CreatePlanningTemplateResponse {
+  ok: boolean;
+  outputPath?: string | null;
+  absoluteOutputPath?: string | null;
+  markdown?: string | null;
+  fallbackReason?: "template_only" | "cli_unavailable_template_only" | string | null;
+  sessionId?: string | null;
+  errorCode?: string | null;
+  message?: string | null;
+  details?: string | null;
+}
+
 export interface MemorySummaryResult {
   schemaVersion?: number;
   activeIntent: string;

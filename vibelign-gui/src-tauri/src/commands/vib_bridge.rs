@@ -157,7 +157,37 @@ struct VibProgressEvent {
     anchors: Option<u64>,
 }
 
+#[derive(serde::Deserialize)]
+struct VibStartProgressMarker {
+    #[serde(rename = "type")]
+    marker_type: String,
+    step: u64,
+    total: u64,
+    label: String,
+}
+
 fn parse_progress_line(line: &str) -> Option<VibProgressEvent> {
+    if let Ok(marker) = serde_json::from_str::<VibStartProgressMarker>(line.trim()) {
+        if marker.marker_type == "vib_start_progress" {
+            return Some(VibProgressEvent {
+                step: marker.marker_type,
+                done: Some(marker.step),
+                total: Some(marker.total),
+                cached: None,
+                to_call: None,
+                batches: None,
+                message: Some(marker.label),
+                stage: Some("start".to_string()),
+                batch: None,
+                count: None,
+                processed: None,
+                failed: None,
+                retried: None,
+                anchors: None,
+            });
+        }
+    }
+
     let rest = line.strip_prefix("[progress]")?.trim();
     let mut step: Option<String> = None;
     let mut done: Option<u64> = None;
@@ -295,12 +325,9 @@ pub(crate) async fn run_vib_with_progress(
         });
 
         let stdout_thread = stdout_handle.map(|out| {
-            std::thread::spawn(move || {
-                let mut buf = String::new();
-                let mut reader = BufReader::new(out);
-                let _ = std::io::Read::read_to_string(&mut reader, &mut buf);
-                buf
-            })
+            let app_for_stdout = app.clone();
+            let event_for_stdout = event_name.clone();
+            std::thread::spawn(move || read_stdout_stream(out, &app_for_stdout, &event_for_stdout))
         });
 
         let status = child.wait();
@@ -335,8 +362,26 @@ pub(crate) async fn run_vib_with_progress(
     })
 }
 
+fn read_stdout_stream<R: Read + Send + 'static>(
+    reader: R,
+    app: &tauri::AppHandle,
+    event_name: &str,
+) -> String {
+    let mut accumulated = String::new();
+    for line in BufReader::new(reader).lines().map_while(Result::ok) {
+        emit_progress_line(app, event_name, &line);
+        accumulated.push_str(&line);
+        accumulated.push('\n');
+    }
+    accumulated
+}
+
 #[cfg(not(target_os = "windows"))]
-fn read_stderr_stream<R: Read + Send + 'static>(reader: R, app: &tauri::AppHandle, event_name: &str) -> String {
+fn read_stderr_stream<R: Read + Send + 'static>(
+    reader: R,
+    app: &tauri::AppHandle,
+    event_name: &str,
+) -> String {
     let mut accumulated = String::new();
     for line in BufReader::new(reader).lines().map_while(Result::ok) {
         emit_progress_line(app, event_name, &line);
@@ -347,7 +392,11 @@ fn read_stderr_stream<R: Read + Send + 'static>(reader: R, app: &tauri::AppHandl
 }
 
 #[cfg(target_os = "windows")]
-fn read_stderr_stream<R: Read + Send + 'static>(reader: R, app: &tauri::AppHandle, event_name: &str) -> String {
+fn read_stderr_stream<R: Read + Send + 'static>(
+    reader: R,
+    app: &tauri::AppHandle,
+    event_name: &str,
+) -> String {
     let mut accumulated = String::new();
     let mut reader = BufReader::new(reader);
     let mut buf: Vec<u8> = Vec::new();
@@ -380,6 +429,29 @@ fn read_stderr_stream<R: Read + Send + 'static>(reader: R, app: &tauri::AppHandl
     }
     accumulated
 }
+
+#[cfg(test)]
+mod tests {
+    use super::parse_progress_line;
+
+    #[test]
+    fn parses_start_progress_json_marker() {
+        let event = parse_progress_line(
+            r#"{"type":"vib_start_progress","step":2,"total":5,"label":"안전 규칙 준비 중..."}"#,
+        )
+        .expect("start progress marker should parse");
+
+        assert_eq!(event.step, "vib_start_progress");
+        assert_eq!(event.done, Some(2));
+        assert_eq!(event.total, Some(5));
+        assert_eq!(event.message.as_deref(), Some("안전 규칙 준비 중..."));
+    }
+
+    #[test]
+    fn ignores_malformed_json_progress_as_plain_stdout() {
+        assert!(parse_progress_line(r#"{"type":"vib_start_progress","step":"bad"}"#).is_none());
+    }
+}
 #[derive(Serialize, serde::Deserialize)]
 pub struct EngineDirectResult {
     pub ok: bool,
@@ -400,7 +472,9 @@ pub struct EngineDirectResult {
 #[tauri::command]
 pub(crate) async fn run_engine_request_direct(request_json: String) -> EngineDirectResult {
     tauri::async_runtime::spawn_blocking(move || {
-        let request = match serde_json::from_str::<vibelign_core::ipc::protocol::EngineRequest>(&request_json) {
+        let request = match serde_json::from_str::<vibelign_core::ipc::protocol::EngineRequest>(
+            &request_json,
+        ) {
             Ok(parsed) => parsed,
             Err(error) => {
                 return EngineDirectResult {

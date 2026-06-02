@@ -689,6 +689,28 @@ def register_extended_commands(
     )
 
     p = sub.add_parser(
+        "plan",
+        help="기획안 만들기",
+        description="아이디어를 결정론적 템플릿 기획안으로 정리해요.",
+        epilog=(
+            "이렇게 쓰세요:\n"
+            '  vib plan "예약 앱 만들고 싶어" --template-only\n'
+            '  vib plan "예약 앱 만들고 싶어" --template-only --json'
+        ),
+    )
+    _ = p.add_argument("idea", nargs="*", help="기획할 아이디어")
+    _ = p.add_argument(
+        "--template-only",
+        action="store_true",
+        help="LLM 없이 템플릿 기획안만 생성해요",
+    )
+    _ = p.add_argument("--output", default=None, help="저장할 프로젝트 상대 경로")
+    _ = p.add_argument("--force", action="store_true", help="기존 output 파일 덮어쓰기")
+    _ = p.add_argument("--language", default="auto", help="기획안 언어")
+    _ = p.add_argument("--json", action="store_true", help="결과를 JSON으로 출력해요")
+    p.set_defaults(func=lazy_command("vibelign.commands.vib_plan_cmd", "run_vib_plan"))
+
+    p = sub.add_parser(
         "plan-structure",
         help="AI가 코딩하기 전 구조 계획을 만들어요",
         description=(
