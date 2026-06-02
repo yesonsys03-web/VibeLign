@@ -33,6 +33,7 @@ import ProtectCard from "../components/cards/security/ProtectCard";
 import SecretsCard from "../components/cards/security/SecretsCard";
 import SessionMemoryCard from "../components/agent-memory/SessionMemoryCard";
 import RecoveryOptionsCard from "../components/agent-memory/RecoveryOptionsCard";
+import { HomePlanningEntry } from "../components/home/HomePlanningEntry";
 import pkg from "../../package.json";
 
 // ── 드래그 래퍼 (핸들 전용) ────────────────────────────────────────────────────
@@ -139,11 +140,15 @@ interface HomeProps {
   setWatchOn?: (v: boolean) => void;
   mapMode?: "manual" | "auto";
   setMapMode?: (v: "manual" | "auto") => void;
+  planningPrompt?: string;
+  planningOutputPath?: string | null;
+  planningPending?: boolean;
+  onOpenPlanning?: () => void;
 }
 
 
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────────
-export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, mapMode: mapModeProp, setMapMode: setMapModeProp }: HomeProps) {
+export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning }: HomeProps) {
   const [view, setView]                   = useState<View>(initialView);
   const [selectedCmd, setSelectedCmd]     = useState<typeof COMMANDS[0] | null>(null);
   const [guardResult, setGuardResult]     = useState<GuardResult | null>(null);
@@ -464,6 +469,14 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
       </div>
 
       <div className="page-content">
+        {planningPrompt && onOpenPlanning && (
+          <HomePlanningEntry
+            prompt={planningPrompt}
+            outputPath={planningOutputPath}
+            isPending={planningPending}
+            onOpen={onOpenPlanning}
+          />
+        )}
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}

@@ -57,4 +57,22 @@ describe("PlanningRoom static template view", () => {
     expect(screen.getByText("AI 연결은 아직 준비되지 않았지만, 기본 기획안은 저장했어요.")).toBeInTheDocument();
     expect(screen.queryByText("raw stderr")).not.toBeInTheDocument();
   });
+
+  test("renders_pending_state_without_markdown_action", () => {
+    render(
+      <PlanningRoom
+        prompt="예약 앱 만들고 싶어"
+        result={{
+          ...result,
+          outputPath: null,
+          markdown: null,
+          llmStatus: "pending",
+        }}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("지오가 기획안을 검토하는 중이에요.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "기획안 보기" })).toBeDisabled();
+  });
 });

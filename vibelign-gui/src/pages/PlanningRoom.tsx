@@ -14,6 +14,7 @@ interface PlanningRoomProps {
 export default function PlanningRoom({ prompt, result, onBack }: PlanningRoomProps) {
   const [showMarkdown, setShowMarkdown] = useState(false);
   const markdown = result.markdown ?? "";
+  const isPending = result.llmStatus === "pending";
 
   return (
     <main style={{ height: "100%", overflow: "auto", background: "var(--bg)" }}>
@@ -36,7 +37,8 @@ export default function PlanningRoom({ prompt, result, onBack }: PlanningRoomPro
                 className="btn btn-black"
                 type="button"
                 onClick={() => setShowMarkdown((visible) => !visible)}
-                style={{ fontSize: 12 }}
+                disabled={isPending || !markdown}
+                style={{ fontSize: 12, opacity: isPending || !markdown ? 0.5 : 1 }}
               >
                 기획안 보기
               </button>

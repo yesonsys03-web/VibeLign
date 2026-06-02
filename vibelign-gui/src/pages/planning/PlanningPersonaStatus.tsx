@@ -8,6 +8,22 @@ export function PlanningPersonaStatus({ result }: PlanningPersonaStatusProps) {
   if (!result.adapter && !result.llmStatus) {
     return null;
   }
+  if (result.llmStatus === "pending") {
+    return (
+      <div
+        role="status"
+        style={{
+          border: "2px solid #1A1A1A",
+          background: "#FFF5D6",
+          padding: "10px 12px",
+          fontSize: 12,
+          fontWeight: 800,
+        }}
+      >
+        지오가 기획안을 검토하는 중이에요.
+      </div>
+    );
+  }
   const isOk = result.llmStatus === "ok";
   const message = isOk
     ? "지오가 기획안을 한 번 검토했어요."

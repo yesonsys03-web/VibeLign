@@ -132,6 +132,18 @@ export default function App() {
     addToRecent(dir);
     setProjectDir(dir);
     setPlanningPrompt(normalizedPrompt);
+    setPlanningResult({
+      ok: true,
+      outputPath: null,
+      absoluteOutputPath: null,
+      markdown: null,
+      fallbackReason: null,
+      sessionId: null,
+      adapter: "codex",
+      personaId: "gio",
+      llmStatus: "pending",
+    });
+    setPage("planning");
     const result = await createPlanningTemplate({
       projectDir: dir,
       prompt: normalizedPrompt,
@@ -139,7 +151,6 @@ export default function App() {
       cli: "auto",
     });
     setPlanningResult(result);
-    setPage("planning");
   }
 
   return (
@@ -212,7 +223,7 @@ export default function App() {
 
             <div style={{ flex: 1, overflow: "hidden" }}>
               <ErrorBoundary>
-                {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} />}
+                {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningPending={planningResult?.llmStatus === "pending"} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} />}
                 {page === "planning" && planningResult && <PlanningRoom prompt={planningPrompt} result={planningResult} onBack={() => setPage("home")} />}
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
