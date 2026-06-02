@@ -7,3 +7,7 @@ export function createPlanningTemplate(
 ): Promise<CreatePlanningTemplateResponse> {
   return invoke<CreatePlanningTemplateResponse>("create_planning_template", { request });
 }
+
+export function loadLatestPlanningSession(projectDir: string): Promise<CreatePlanningTemplateResponse> {
+  return invoke<CreatePlanningTemplateResponse>("load_latest_planning_session", { projectDir });
+}

@@ -138,6 +138,7 @@ export interface CreatePlanningTemplateResponse {
   markdown?: string | null;
   fallbackReason?: "template_only" | "cli_unavailable_template_only" | string | null;
   sessionId?: string | null;
+  prompt?: string | null;
   adapter?: string | null;
   personaId?: string | null;
   llmStatus?: string | null;

@@ -24,6 +24,7 @@ pub struct CreatePlanningTemplateResponse {
     markdown: Option<String>,
     fallback_reason: Option<String>,
     session_id: Option<String>,
+    prompt: Option<String>,
     adapter: Option<String>,
     persona_id: Option<String>,
     llm_status: Option<String>,
@@ -45,6 +46,14 @@ struct VibPlanJson {
     llm_status: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct StoredPlanningSession {
+    session_id: String,
+    idea: String,
+    output_path: String,
+    fallback_reason: Option<String>,
+}
+
 fn planning_error(details: impl Into<String>) -> CreatePlanningTemplateResponse {
     CreatePlanningTemplateResponse {
         ok: false,
@@ -53,6 +62,7 @@ fn planning_error(details: impl Into<String>) -> CreatePlanningTemplateResponse 
         markdown: None,
         fallback_reason: None,
         session_id: None,
+        prompt: None,
         adapter: None,
         persona_id: None,
         llm_status: None,
@@ -73,6 +83,7 @@ fn planning_success(payload: VibPlanJson) -> CreatePlanningTemplateResponse {
         markdown: Some(payload.markdown),
         fallback_reason: payload.fallback_reason,
         session_id: Some(payload.session_id),
+        prompt: None,
         adapter: payload.adapter,
         persona_id: payload.persona_id,
         llm_status: payload.llm_status,
@@ -91,6 +102,39 @@ fn parse_plan_stdout(stdout: &str) -> Result<CreatePlanningTemplateResponse, Str
     serde_json::from_str::<VibPlanJson>(line)
         .map(planning_success)
         .map_err(|error| error.to_string())
+}
+
+fn latest_session_file(project_dir: &std::path::Path) -> Option<PathBuf> {
+    let planning_dir = project_dir.join(".vibelign").join("planning");
+    let mut entries = std::fs::read_dir(planning_dir)
+        .ok()?
+        .flatten()
+        .filter_map(|entry| {
+            let session_path = entry.path().join("session.json");
+            let modified = session_path.metadata().ok()?.modified().ok()?;
+            Some((modified, session_path))
+        })
+        .collect::<Vec<_>>();
+    entries.sort_by_key(|(modified, _path)| *modified);
+    entries.pop().map(|(_modified, path)| path)
+}
+
+fn relative_markdown_path(root: &std::path::Path, output_path: &str) -> Result<PathBuf, String> {
+    let relative = PathBuf::from(output_path);
+    if relative.is_absolute()
+        || relative
+            .components()
+            .any(|part| matches!(part, std::path::Component::ParentDir))
+    {
+        return Err("invalid planning output path".to_string());
+    }
+    let absolute = root.join(&relative);
+    let canonical_root = root.canonicalize().map_err(|error| error.to_string())?;
+    let canonical_file = absolute.canonicalize().map_err(|error| error.to_string())?;
+    if !canonical_file.starts_with(canonical_root) {
+        return Err("planning output escapes project root".to_string());
+    }
+    Ok(relative)
 }
 
 #[tauri::command]
@@ -138,9 +182,62 @@ pub(crate) async fn create_planning_template(
     .unwrap_or_else(|error| planning_error(error.to_string()))
 }
 
+#[tauri::command]
+pub(crate) async fn load_latest_planning_session(
+    project_dir: String,
+) -> CreatePlanningTemplateResponse {
+    let project_dir = PathBuf::from(project_dir);
+    if !project_dir.is_absolute() {
+        return planning_error("projectDir must be absolute");
+    }
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let Some(session_path) = latest_session_file(&project_dir) else {
+            return planning_error("planning session not found");
+        };
+        let session_text = match std::fs::read_to_string(&session_path) {
+            Ok(text) => text,
+            Err(error) => return planning_error(error.to_string()),
+        };
+        let session = match serde_json::from_str::<StoredPlanningSession>(&session_text) {
+            Ok(parsed) => parsed,
+            Err(error) => return planning_error(error.to_string()),
+        };
+        let relative = match relative_markdown_path(&project_dir, &session.output_path) {
+            Ok(path) => path,
+            Err(error) => return planning_error(error),
+        };
+        let absolute = project_dir.join(&relative);
+        let markdown = match std::fs::read_to_string(&absolute) {
+            Ok(text) => text,
+            Err(error) => return planning_error(error.to_string()),
+        };
+
+        CreatePlanningTemplateResponse {
+            ok: true,
+            output_path: Some(relative.to_string_lossy().replace('\\', "/")),
+            absolute_output_path: Some(absolute.to_string_lossy().to_string()),
+            markdown: Some(markdown),
+            fallback_reason: session.fallback_reason,
+            session_id: Some(session.session_id),
+            prompt: Some(session.idea),
+            adapter: None,
+            persona_id: None,
+            llm_status: None,
+            error_code: None,
+            message: None,
+            details: None,
+        }
+    })
+    .await
+    .unwrap_or_else(|error| planning_error(error.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{parse_plan_stdout, planning_error};
+    use std::fs;
+
+    use super::{latest_session_file, parse_plan_stdout, planning_error, relative_markdown_path};
 
     #[test]
     fn parses_success_json_from_stdout() {
@@ -186,5 +283,34 @@ mod tests {
             Some("기획안을 만들지 못했어요.")
         );
         assert_eq!(response.details.as_deref(), Some("boom"));
+    }
+
+    #[test]
+    fn finds_latest_planning_session_file() {
+        let root = tempfile::tempdir().expect("temp root");
+        let first = root.path().join(".vibelign/planning/plan_1/session.json");
+        let second = root.path().join(".vibelign/planning/plan_2/session.json");
+        fs::create_dir_all(first.parent().expect("first parent")).expect("first mkdir");
+        fs::write(&first, "{}").expect("first write");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        fs::create_dir_all(second.parent().expect("second parent")).expect("second mkdir");
+        fs::write(&second, "{}").expect("second write");
+
+        let latest = latest_session_file(root.path()).expect("latest session");
+
+        assert_eq!(latest, second);
+    }
+
+    #[test]
+    fn validates_relative_markdown_path() {
+        let root = tempfile::tempdir().expect("temp root");
+        let markdown = root.path().join("plans/app.md");
+        fs::create_dir_all(markdown.parent().expect("markdown parent")).expect("mkdir");
+        fs::write(&markdown, "# App\n").expect("write");
+
+        let relative = relative_markdown_path(root.path(), "plans/app.md").expect("relative");
+
+        assert_eq!(relative, std::path::PathBuf::from("plans/app.md"));
+        assert!(relative_markdown_path(root.path(), "../outside.md").is_err());
     }
 }

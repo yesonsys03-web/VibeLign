@@ -12,7 +12,7 @@ import CodeExplorer from "./pages/CodeExplorer";
 import BackupDashboardPage from "./pages/BackupDashboard";
 import ErrorLogs from "./pages/ErrorLogs";
 import Settings from "./pages/Settings";
-import { backupList, createPlanningTemplate, getEnvKeyStatus, loadApiKey, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, stopWatch, openFolder, type CreatePlanningTemplateResponse } from "./lib/vib";
+import { backupList, createPlanningTemplate, getEnvKeyStatus, loadApiKey, loadLatestPlanningSession, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, stopWatch, openFolder, type CreatePlanningTemplateResponse } from "./lib/vib";
 import { installGuiErrorReporter, reportReactError, setErrorReporterProjectDir } from "./lib/errorReporter";
 import "./styles/brutalism.css";
 import "./App.css";
@@ -153,6 +153,20 @@ export default function App() {
     setPlanningResult(result);
   }
 
+  async function resumeProject(dir: string) {
+    addToRecent(dir);
+    setProjectDir(dir);
+    try {
+      const result = await loadLatestPlanningSession(dir);
+      if (!result.ok) return;
+      setPlanningPrompt(result.prompt || result.markdown?.split("\n")[0]?.replace(/^#\s*/, "") || result.outputPath || "기획안");
+      setPlanningResult(result);
+      setPage("planning");
+    } catch {
+      setPage("home");
+    }
+  }
+
   return (
     <div className="app-layout">
       <ErrorBoundary>
@@ -172,7 +186,7 @@ export default function App() {
             recentDirs={recentDirs}
             onComplete={(dir, key) => { addToRecent(dir); setProjectDir(dir); if (key) setApiKey(key); }}
             onPlanRequest={openPlanningRoom}
-            onResume={(dir) => { addToRecent(dir); setProjectDir(dir); }}
+            onResume={(dir) => { void resumeProject(dir); }}
             onRemoveRecent={(dir) => removeFromRecent(dir)}
           />
         ) : (
