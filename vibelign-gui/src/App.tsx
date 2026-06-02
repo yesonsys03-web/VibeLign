@@ -12,7 +12,7 @@ import CodeExplorer from "./pages/CodeExplorer";
 import BackupDashboardPage from "./pages/BackupDashboard";
 import ErrorLogs from "./pages/ErrorLogs";
 import Settings from "./pages/Settings";
-import { backupList, createPlanningTemplate, getEnvKeyStatus, loadApiKey, loadLatestPlanningSession, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, stopWatch, openFolder, type CreatePlanningTemplateResponse } from "./lib/vib";
+import { backupList, createPlanningChatSession, getEnvKeyStatus, loadApiKey, loadLatestPlanningChatSession, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, stopWatch, openFolder, type PlanningChatSessionResponse } from "./lib/vib";
 import { installGuiErrorReporter, reportReactError, setErrorReporterProjectDir } from "./lib/errorReporter";
 import "./styles/brutalism.css";
 import "./App.css";
@@ -73,7 +73,7 @@ export default function App() {
   const [watchOn, setWatchOn] = useState(false);
   const [mapMode, setMapMode] = useState<"manual" | "auto">("manual");
   const [planningPrompt, setPlanningPrompt] = useState("");
-  const [planningResult, setPlanningResult] = useState<CreatePlanningTemplateResponse | null>(null);
+  const [planningResult, setPlanningResult] = useState<PlanningChatSessionResponse | null>(null);
 
 
   async function refreshAiKeys() {
@@ -134,28 +134,23 @@ export default function App() {
     setPlanningPrompt(normalizedPrompt);
     setPlanningResult({
       ok: true,
-      outputPath: null,
-      absoluteOutputPath: null,
-      markdown: null,
-      fallbackReason: null,
       sessionId: null,
-      adapter: "codex",
-      personaId: "gio",
-      llmStatus: "pending",
-      agentsRequested: ["chloe", "gio", "mina"],
-      agentsUsed: [],
-      agentStatuses: {
-        chloe: "pending",
-        gio: "pending",
-        mina: "pending",
-      },
+      prompt: normalizedPrompt,
+      messages: [
+        {
+          id: "pending_initial",
+          role: "user",
+          personaId: null,
+          content: normalizedPrompt,
+          status: "pending",
+          createdAt: new Date().toISOString(),
+        },
+      ],
     });
     setPage("planning");
-    const result = await createPlanningTemplate({
+    const result = await createPlanningChatSession({
       projectDir: dir,
       prompt: normalizedPrompt,
-      language: "auto",
-      cli: "auto",
     });
     setPlanningResult(result);
   }
@@ -164,9 +159,9 @@ export default function App() {
     addToRecent(dir);
     setProjectDir(dir);
     try {
-      const result = await loadLatestPlanningSession(dir);
+      const result = await loadLatestPlanningChatSession(dir);
       if (!result.ok) return;
-      setPlanningPrompt(result.prompt || result.markdown?.split("\n")[0]?.replace(/^#\s*/, "") || result.outputPath || "기획안");
+      setPlanningPrompt(result.prompt || result.messages[0]?.content || "기획방");
       setPlanningResult(result);
       setPage("planning");
     } catch {
@@ -244,8 +239,8 @@ export default function App() {
 
             <div style={{ flex: 1, overflow: "hidden" }}>
               <ErrorBoundary>
-                {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningPending={planningResult?.llmStatus === "pending"} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} />}
-                {page === "planning" && planningResult && <PlanningRoom projectDir={projectDir} prompt={planningPrompt} result={planningResult} onBack={() => setPage("home")} onResultChange={setPlanningResult} />}
+                {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={null} planningPending={planningResult?.messages.some((message) => message.status === "pending") ?? false} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} />}
+                {page === "planning" && planningResult && <PlanningRoom projectDir={projectDir} result={planningResult} onBack={() => setPage("home")} onResultChange={setPlanningResult} />}
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
                 {page === "code" && <CodeExplorer projectDir={projectDir} />}

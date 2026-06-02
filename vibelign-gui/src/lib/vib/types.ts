@@ -159,6 +159,37 @@ export interface CreatePlanningTemplateResponse {
   details?: string | null;
 }
 
+export interface PlanningChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  personaId?: string | null;
+  content: string;
+  status: "pending" | "ok" | "failed" | string;
+  createdAt: string;
+}
+
+export interface CreatePlanningChatSessionRequest {
+  projectDir: string;
+  prompt: string;
+}
+
+export interface AppendPlanningChatTurnRequest {
+  projectDir: string;
+  sessionId: string;
+  prompt: string;
+  agents: readonly string[];
+}
+
+export interface PlanningChatSessionResponse {
+  ok: boolean;
+  sessionId?: string | null;
+  prompt?: string | null;
+  messages: readonly PlanningChatMessage[];
+  errorCode?: string | null;
+  message?: string | null;
+  details?: string | null;
+}
+
 export interface MemorySummaryResult {
   schemaVersion?: number;
   activeIntent: string;

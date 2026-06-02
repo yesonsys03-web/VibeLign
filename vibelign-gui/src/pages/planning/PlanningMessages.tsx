@@ -1,44 +1,52 @@
+import type { PlanningChatMessage } from "../../lib/vib";
+
 interface PlanningMessagesProps {
-  readonly prompt: string;
+  readonly messages: readonly PlanningChatMessage[];
   readonly outputPath: string | null;
 }
 
-export function PlanningMessages({ prompt, outputPath }: PlanningMessagesProps) {
+export function PlanningMessages({ messages, outputPath }: PlanningMessagesProps) {
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      <div
-        style={{
-          justifySelf: "end",
-          maxWidth: 680,
-          border: "2px solid #1A1A1A",
-          background: "#FFFFFF",
-          padding: 12,
-          fontSize: 13,
-          fontWeight: 700,
-          lineHeight: 1.5,
-        }}
-      >
-        {prompt}
-      </div>
-      <div
-        style={{
-          justifySelf: "start",
-          maxWidth: 720,
-          border: "2px solid #1A1A1A",
-          background: "#F5F1E3",
-          padding: 14,
-          fontSize: 13,
-          lineHeight: 1.6,
-        }}
-      >
-        <div style={{ fontWeight: 900, marginBottom: 6 }}>VibeLign 정리</div>
-        <div>첫 기획안을 템플릿으로 정리했어요.</div>
-        {outputPath && (
-          <div style={{ marginTop: 6, fontSize: 12, color: "#555", fontWeight: 700 }}>
-            저장 위치: {outputPath}
-          </div>
-        )}
-      </div>
+      {messages.map((message) => (
+        <PlanningMessageBubble key={message.id} message={message} />
+      ))}
+      {outputPath && <div style={{ fontSize: 12, color: "#555", fontWeight: 700 }}>저장 위치: {outputPath}</div>}
     </div>
   );
+}
+
+function PlanningMessageBubble({ message }: { readonly message: PlanningChatMessage }) {
+  const isUser = message.role === "user";
+  return (
+    <div
+      style={{
+        justifySelf: isUser ? "end" : "start",
+        maxWidth: isUser ? 680 : 720,
+        border: "2px solid #1A1A1A",
+        background: isUser ? "#FFFFFF" : "#F5F1E3",
+        padding: 12,
+        fontSize: 13,
+        fontWeight: isUser ? 700 : 500,
+        lineHeight: 1.5,
+        whiteSpace: "pre-wrap",
+      }}
+    >
+      {message.personaId && <div style={{ fontWeight: 900, marginBottom: 6 }}>{personaLabel(message.personaId)}</div>}
+      {message.content}
+    </div>
+  );
+}
+
+function personaLabel(personaId: string): string {
+  switch (personaId) {
+    case "chloe":
+      return "클로이";
+    case "gio":
+      return "지오";
+    case "mina":
+      return "미나";
+    default:
+      return personaId;
+  }
 }

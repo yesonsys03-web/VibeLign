@@ -1,11 +1,11 @@
 import { useState } from "react";
 
-import { appendPlanningWithAgents, type CreatePlanningTemplateResponse } from "../../lib/vib";
+import { appendPlanningChatTurn, type PlanningChatSessionResponse } from "../../lib/vib";
 
 interface PlanningPersonaComposerProps {
   readonly projectDir: string;
-  readonly outputPath: string | null;
-  readonly onResultChange: (result: CreatePlanningTemplateResponse) => void;
+  readonly sessionId: string | null;
+  readonly onResultChange: (result: PlanningChatSessionResponse) => void;
 }
 
 interface PersonaOption {
@@ -20,22 +20,21 @@ const PERSONAS: readonly PersonaOption[] = [
   { id: "mina", label: "미나", role: "탐색" },
 ];
 
-export function PlanningPersonaComposer({ projectDir, outputPath, onResultChange }: PlanningPersonaComposerProps) {
+export function PlanningPersonaComposer({ projectDir, sessionId, onResultChange }: PlanningPersonaComposerProps) {
   const [selectedPersonaIds, setSelectedPersonaIds] = useState<readonly string[]>(["gio"]);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const canSubmit = message.trim().length > 0 && selectedPersonaIds.length > 0 && Boolean(outputPath) && !isSubmitting;
+  const canSubmit = message.trim().length > 0 && selectedPersonaIds.length > 0 && Boolean(sessionId) && !isSubmitting;
 
   async function handleSubmit() {
-    if (!canSubmit || !outputPath) {
+    if (!canSubmit || !sessionId) {
       return;
     }
     setIsSubmitting(true);
-    const result = await appendPlanningWithAgents({
+    const result = await appendPlanningChatTurn({
       projectDir,
-      outputPath,
+      sessionId,
       prompt: message,
-      cli: "auto",
       agents: selectedPersonaIds,
     });
     setIsSubmitting(false);
@@ -128,6 +127,7 @@ export function PlanningPersonaComposer({ projectDir, outputPath, onResultChange
     </section>
   );
 }
+
 
 function togglePersona(current: readonly string[], personaId: string): readonly string[] {
   if (current.includes(personaId)) {

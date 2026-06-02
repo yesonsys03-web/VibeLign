@@ -1,23 +1,21 @@
 import { useState } from "react";
 
-import type { CreatePlanningTemplateResponse } from "../lib/vib";
+import type { PlanningChatSessionResponse } from "../lib/vib";
 import { PlanningMarkdownView } from "./planning/PlanningMarkdownView";
 import { PlanningMessages } from "./planning/PlanningMessages";
 import { PlanningPersonaComposer } from "./planning/PlanningPersonaComposer";
-import { PlanningPersonaStatus } from "./planning/PlanningPersonaStatus";
 
 interface PlanningRoomProps {
   readonly projectDir: string;
-  readonly prompt: string;
-  readonly result: CreatePlanningTemplateResponse;
+  readonly result: PlanningChatSessionResponse;
   readonly onBack: () => void;
-  readonly onResultChange: (result: CreatePlanningTemplateResponse) => void;
+  readonly onResultChange: (result: PlanningChatSessionResponse) => void;
 }
 
-export default function PlanningRoom({ projectDir, prompt, result, onBack, onResultChange }: PlanningRoomProps) {
+export default function PlanningRoom({ projectDir, result, onBack, onResultChange }: PlanningRoomProps) {
   const [showMarkdown, setShowMarkdown] = useState(false);
-  const markdown = result.markdown ?? "";
-  const isPending = result.llmStatus === "pending";
+  const markdown = "";
+  const isPending = result.messages.some((message) => message.status === "pending");
 
   return (
     <main style={{ height: "100%", overflow: "auto", background: "var(--bg)" }}>
@@ -33,9 +31,8 @@ export default function PlanningRoom({ projectDir, prompt, result, onBack, onRes
 
         {result.ok ? (
           <>
-            <PlanningPersonaStatus result={result} />
-            <PlanningMessages prompt={prompt} outputPath={result.outputPath ?? null} />
-            <PlanningPersonaComposer projectDir={projectDir} outputPath={result.outputPath ?? null} onResultChange={onResultChange} />
+            <PlanningMessages messages={result.messages} outputPath={null} />
+            <PlanningPersonaComposer projectDir={projectDir} sessionId={result.sessionId ?? null} onResultChange={onResultChange} />
             <div>
               <button
                 className="btn btn-black"

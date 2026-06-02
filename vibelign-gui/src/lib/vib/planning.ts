@@ -1,6 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import type { AppendPlanningAgentsRequest, CreatePlanningTemplateRequest, CreatePlanningTemplateResponse } from "./types";
+import type {
+  AppendPlanningChatTurnRequest,
+  AppendPlanningAgentsRequest,
+  CreatePlanningChatSessionRequest,
+  CreatePlanningTemplateRequest,
+  CreatePlanningTemplateResponse,
+  PlanningChatSessionResponse,
+} from "./types";
 
 export function createPlanningTemplate(
   request: CreatePlanningTemplateRequest,
@@ -16,4 +23,20 @@ export function appendPlanningWithAgents(
 
 export function loadLatestPlanningSession(projectDir: string): Promise<CreatePlanningTemplateResponse> {
   return invoke<CreatePlanningTemplateResponse>("load_latest_planning_session", { projectDir });
+}
+
+export function createPlanningChatSession(
+  request: CreatePlanningChatSessionRequest,
+): Promise<PlanningChatSessionResponse> {
+  return invoke<PlanningChatSessionResponse>("create_planning_chat_session", { request });
+}
+
+export function loadLatestPlanningChatSession(projectDir: string): Promise<PlanningChatSessionResponse> {
+  return invoke<PlanningChatSessionResponse>("load_latest_planning_chat_session", { projectDir });
+}
+
+export function appendPlanningChatTurn(
+  request: AppendPlanningChatTurnRequest,
+): Promise<PlanningChatSessionResponse> {
+  return invoke<PlanningChatSessionResponse>("append_planning_chat_turn", { request });
 }
