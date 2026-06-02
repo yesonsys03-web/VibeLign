@@ -7,9 +7,10 @@ from typing import Protocol, cast
 
 from vibelign.core.planning_cli import (
     PlanningInput,
+    create_planning_with_agents,
     create_planning_template,
-    create_planning_with_persona,
 )
+from vibelign.core.planning_cli.cli_adapters import SubprocessPlanningCliRunner
 from vibelign.core.project_root import resolve_project_root
 from vibelign.terminal_render import clack_intro, clack_step, clack_success
 
@@ -22,6 +23,8 @@ class PlanArgs(Protocol):
     language: str
     json: bool
     cli: str
+    agents: str | None
+    save_transcript: bool
     llm_timeout_seconds: int
 
 
@@ -47,11 +50,14 @@ def run_vib_plan(args: object) -> None:
     result = (
         create_planning_template(root, planning_input)
         if bool(raw_args.template_only)
-        else create_planning_with_persona(
+        else create_planning_with_agents(
             root,
             planning_input,
+            agents_choice=getattr(raw_args, "agents", None),
             cli_choice=raw_args.cli or "auto",
             timeout_seconds=int(raw_args.llm_timeout_seconds),
+            save_transcript=bool(getattr(raw_args, "save_transcript", False)),
+            runner=SubprocessPlanningCliRunner(),
         )
     )
 
@@ -68,6 +74,9 @@ def run_vib_plan(args: object) -> None:
                     "adapter": result.adapter,
                     "persona_id": result.persona_id,
                     "llm_status": result.llm_status,
+                    "agents_requested": list(result.agents_requested),
+                    "agents_used": list(result.agents_used),
+                    "agent_statuses": result.agent_statuses or {},
                 },
                 ensure_ascii=False,
             )

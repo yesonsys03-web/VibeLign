@@ -142,6 +142,13 @@ export default function App() {
       adapter: "codex",
       personaId: "gio",
       llmStatus: "pending",
+      agentsRequested: ["chloe", "gio", "mina"],
+      agentsUsed: [],
+      agentStatuses: {
+        chloe: "pending",
+        gio: "pending",
+        mina: "pending",
+      },
     });
     setPage("planning");
     const result = await createPlanningTemplate({

@@ -21,6 +21,9 @@ class PlanningResult:
     adapter: str | None = None
     persona_id: str | None = None
     llm_status: str | None = None
+    agents_requested: tuple[str, ...] = ()
+    agents_used: tuple[str, ...] = ()
+    agent_statuses: dict[str, str] | None = None
 
     def with_markdown(self, markdown: str) -> "PlanningResult":
         return PlanningResult(
@@ -32,6 +35,9 @@ class PlanningResult:
             adapter=self.adapter,
             persona_id=self.persona_id,
             llm_status=self.llm_status,
+            agents_requested=self.agents_requested,
+            agents_used=self.agents_used,
+            agent_statuses=self.agent_statuses,
         )
 
     def with_llm_status(
@@ -51,4 +57,32 @@ class PlanningResult:
             adapter=adapter,
             persona_id=persona_id,
             llm_status=llm_status,
+            agents_requested=self.agents_requested,
+            agents_used=self.agents_used,
+            agent_statuses=self.agent_statuses,
+        )
+
+    def with_agents(
+        self,
+        *,
+        agents_requested: tuple[str, ...],
+        agents_used: tuple[str, ...],
+        agent_statuses: dict[str, str],
+        adapter: str | None,
+        persona_id: str | None,
+        llm_status: str | None,
+        fallback_reason: str | None,
+    ) -> "PlanningResult":
+        return PlanningResult(
+            output_path=self.output_path,
+            absolute_output_path=self.absolute_output_path,
+            markdown=self.markdown,
+            fallback_reason=fallback_reason,
+            session_id=self.session_id,
+            adapter=adapter,
+            persona_id=persona_id,
+            llm_status=llm_status,
+            agents_requested=agents_requested,
+            agents_used=agents_used,
+            agent_statuses=agent_statuses,
         )

@@ -13,6 +13,13 @@ const result = {
   adapter: "codex",
   personaId: "gio",
   llmStatus: "ok",
+  agentsRequested: ["chloe", "gio", "mina"],
+  agentsUsed: ["chloe", "gio", "mina"],
+  agentStatuses: {
+    chloe: "ok",
+    gio: "ok",
+    mina: "ok",
+  },
 };
 
 describe("PlanningRoom static template view", () => {
@@ -25,7 +32,9 @@ describe("PlanningRoom static template view", () => {
 
     expect(screen.getByText("예약 앱 만들고 싶어")).toBeInTheDocument();
     expect(screen.getByText("VibeLign 정리")).toBeInTheDocument();
-    expect(screen.getByText("지오가 기획안을 한 번 검토했어요.")).toBeInTheDocument();
+    expect(screen.getByText("AI들이 기획안을 역할별로 확인했어요.")).toBeInTheDocument();
+    expect(screen.getByText("클로이")).toBeInTheDocument();
+    expect(screen.getByText("미나")).toBeInTheDocument();
     expect(screen.getByText("저장 위치: plans/reservation-app.md")).toBeInTheDocument();
     expect(screen.queryByText(/model|모델|plan-structure/i)).not.toBeInTheDocument();
     expect(screen.queryByText("# 예약 앱")).not.toBeInTheDocument();
@@ -48,6 +57,12 @@ describe("PlanningRoom static template view", () => {
           ...result,
           fallbackReason: "cli_unavailable_template_only",
           llmStatus: "not_logged_in",
+          agentsUsed: [],
+          agentStatuses: {
+            chloe: "not_logged_in",
+            gio: "not_logged_in",
+            mina: "not_logged_in",
+          },
           details: "raw stderr",
         }}
         onBack={vi.fn()}
@@ -67,12 +82,18 @@ describe("PlanningRoom static template view", () => {
           outputPath: null,
           markdown: null,
           llmStatus: "pending",
+          agentsUsed: [],
+          agentStatuses: {
+            chloe: "pending",
+            gio: "pending",
+            mina: "pending",
+          },
         }}
         onBack={vi.fn()}
       />,
     );
 
-    expect(screen.getByText("지오가 기획안을 검토하는 중이에요.")).toBeInTheDocument();
+    expect(screen.getByText("AI들이 기획안을 나눠서 확인하는 중이에요.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "기획안 보기" })).toBeDisabled();
   });
 });

@@ -28,11 +28,12 @@ def test_vib_plan_template_only_json_outputs_result(tmp_path: Path, capsys: pyte
     assert (tmp_path / payload["output_path"]).exists()
 
 
-def test_vib_plan_without_template_only_is_reserved_for_later() -> None:
+def test_vib_plan_without_template_only_is_reserved_for_later(tmp_path: Path) -> None:
     with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(
-            "vibelign.core.planning_cli.engine.build_codex_command",
-            lambda _prompt: None,
+            "vibelign.core.planning_cli.cli_adapters.resolve_cli_executable",
+            lambda _adapter: None,
         )
         run_vib_plan(
             Namespace(
@@ -48,11 +49,11 @@ def test_vib_plan_without_template_only_is_reserved_for_later() -> None:
         )
 
 
-def test_vib_plan_json_includes_pr4_llm_fields(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
+def test_vib_plan_json_includes_legacy_llm_fields(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "vibelign.core.planning_cli.engine.build_codex_command",
-        lambda _prompt: None,
+        "vibelign.core.planning_cli.cli_adapters.resolve_cli_executable",
+        lambda _adapter: None,
     )
 
     run_vib_plan(
@@ -70,7 +71,7 @@ def test_vib_plan_json_includes_pr4_llm_fields(tmp_path: Path, capsys: pytest.Ca
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
-    assert payload["adapter"] == "codex"
-    assert payload["persona_id"] == "gio"
+    assert payload["adapter"] == "claude"
+    assert payload["persona_id"] == "chloe"
     assert payload["llm_status"] == "not_installed"
     assert payload["fallback_reason"] == "cli_unavailable_template_only"

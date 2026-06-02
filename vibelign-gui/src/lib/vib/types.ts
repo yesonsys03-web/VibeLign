@@ -128,7 +128,8 @@ export interface CreatePlanningTemplateRequest {
   projectDir: string;
   prompt: string;
   language: "auto" | string;
-  cli?: "auto" | "codex" | "claude" | "agy";
+  cli?: string;
+  agents?: readonly string[];
 }
 
 export interface CreatePlanningTemplateResponse {
@@ -142,6 +143,9 @@ export interface CreatePlanningTemplateResponse {
   adapter?: string | null;
   personaId?: string | null;
   llmStatus?: string | null;
+  agentsRequested?: readonly string[];
+  agentsUsed?: readonly string[];
+  agentStatuses?: Record<string, string>;
   errorCode?: string | null;
   message?: string | null;
   details?: string | null;

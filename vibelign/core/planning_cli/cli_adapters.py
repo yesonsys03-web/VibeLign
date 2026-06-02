@@ -148,15 +148,29 @@ def probe_cli_candidates() -> list[PlanningCliCandidate]:
 
 
 def select_adapter(cli_choice: str) -> str:
-    if cli_choice in ("", "auto"):
-        return "codex"
-    if cli_choice == "codex":
-        return "codex"
-    raise ValueError(f"unsupported planning cli: {cli_choice}")
+    match cli_choice:
+        case "" | "auto":
+            return "codex"
+        case "codex" | "claude" | "agy":
+            return cli_choice
+        case _:
+            raise ValueError(f"unsupported planning cli: {cli_choice}")
 
 
 def build_codex_command(prompt: str) -> list[str] | None:
-    executable = resolve_cli_executable("codex")
+    return build_cli_command("codex", prompt)
+
+
+def build_cli_command(adapter: str, prompt: str) -> list[str] | None:
+    executable = resolve_cli_executable(adapter)
     if executable is None:
         return None
-    return [executable, "exec", prompt]
+    match adapter:
+        case "codex":
+            return [executable, "exec", prompt]
+        case "claude":
+            return [executable, "-p", prompt]
+        case "agy":
+            return [executable, "--print", prompt]
+        case _:
+            raise ValueError(f"unsupported planning cli: {adapter}")

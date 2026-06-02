@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -13,6 +14,7 @@ pub struct CreatePlanningTemplateRequest {
     prompt: String,
     language: String,
     cli: Option<String>,
+    agents: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -28,6 +30,9 @@ pub struct CreatePlanningTemplateResponse {
     adapter: Option<String>,
     persona_id: Option<String>,
     llm_status: Option<String>,
+    agents_requested: Vec<String>,
+    agents_used: Vec<String>,
+    agent_statuses: HashMap<String, String>,
     error_code: Option<String>,
     message: Option<String>,
     details: Option<String>,
@@ -44,6 +49,12 @@ struct VibPlanJson {
     adapter: Option<String>,
     persona_id: Option<String>,
     llm_status: Option<String>,
+    #[serde(default)]
+    agents_requested: Vec<String>,
+    #[serde(default)]
+    agents_used: Vec<String>,
+    #[serde(default)]
+    agent_statuses: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -66,6 +77,9 @@ fn planning_error(details: impl Into<String>) -> CreatePlanningTemplateResponse 
         adapter: None,
         persona_id: None,
         llm_status: None,
+        agents_requested: Vec::new(),
+        agents_used: Vec::new(),
+        agent_statuses: HashMap::new(),
         error_code: Some("PLANNING_TEMPLATE_FAILED".to_string()),
         message: Some("기획안을 만들지 못했어요.".to_string()),
         details: Some(details.into()),
@@ -87,6 +101,9 @@ fn planning_success(payload: VibPlanJson) -> CreatePlanningTemplateResponse {
         adapter: payload.adapter,
         persona_id: payload.persona_id,
         llm_status: payload.llm_status,
+        agents_requested: payload.agents_requested,
+        agents_used: payload.agents_used,
+        agent_statuses: payload.agent_statuses,
         error_code: None,
         message: None,
         details: None,
@@ -161,6 +178,9 @@ pub(crate) async fn create_planning_template(
         if let Some(cli) = request.cli.as_deref() {
             cmd.args(["--cli", cli]);
         }
+        if let Some(agents) = request.agents.as_ref().filter(|items| !items.is_empty()) {
+            cmd.args(["--agents", &agents.join(",")]);
+        }
         cmd.current_dir(&project_dir);
         cmd.stdin(std::process::Stdio::null());
         cmd.env("PATH", augmented_vib_path());
@@ -224,6 +244,9 @@ pub(crate) async fn load_latest_planning_session(
             adapter: None,
             persona_id: None,
             llm_status: None,
+            agents_requested: Vec::new(),
+            agents_used: Vec::new(),
+            agent_statuses: HashMap::new(),
             error_code: None,
             message: None,
             details: None,
@@ -242,7 +265,7 @@ mod tests {
     #[test]
     fn parses_success_json_from_stdout() {
         let response = parse_plan_stdout(
-            r##"{"ok":true,"output_path":"plans/app.md","absolute_output_path":"/tmp/app/plans/app.md","markdown":"# App","fallback_reason":"cli_unavailable_template_only","session_id":"plan_1","adapter":"codex","persona_id":"gio","llm_status":"not_installed"}"##,
+            r##"{"ok":true,"output_path":"plans/app.md","absolute_output_path":"/tmp/app/plans/app.md","markdown":"# App","fallback_reason":"cli_unavailable_template_only","session_id":"plan_1","adapter":"codex","persona_id":"gio","llm_status":"not_installed","agents_requested":["gio"],"agents_used":[],"agent_statuses":{"gio":"not_installed"}}"##,
         )
         .expect("parse");
 
@@ -255,6 +278,12 @@ mod tests {
         assert_eq!(response.adapter.as_deref(), Some("codex"));
         assert_eq!(response.persona_id.as_deref(), Some("gio"));
         assert_eq!(response.llm_status.as_deref(), Some("not_installed"));
+        assert_eq!(response.agents_requested, vec!["gio".to_string()]);
+        assert_eq!(response.agents_used, Vec::<String>::new());
+        assert_eq!(
+            response.agent_statuses.get("gio").map(String::as_str),
+            Some("not_installed")
+        );
     }
 
     #[test]

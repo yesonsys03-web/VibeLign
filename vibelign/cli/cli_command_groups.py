@@ -709,10 +709,15 @@ def register_extended_commands(
     _ = p.add_argument("--language", default="auto", help="기획안 언어")
     _ = p.add_argument(
         "--cli",
-        choices=["auto", "codex", "claude", "agy"],
         default="auto",
-        help="기획 보강에 사용할 공식 CLI",
+        help="기획 보강에 사용할 공식 CLI 또는 쉼표 목록",
     )
+    _ = p.add_argument(
+        "--agents",
+        default=None,
+        help="실행할 페르소나 목록 (예: chloe,gio,mina)",
+    )
+    _ = p.add_argument("--save-transcript", action="store_true", help="원문 응답 저장")
     _ = p.add_argument(
         "--llm-timeout-seconds",
         type=int,
