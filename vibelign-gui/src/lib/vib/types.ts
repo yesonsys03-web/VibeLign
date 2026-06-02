@@ -132,6 +132,14 @@ export interface CreatePlanningTemplateRequest {
   agents?: readonly string[];
 }
 
+export interface AppendPlanningAgentsRequest {
+  projectDir: string;
+  outputPath: string;
+  prompt: string;
+  cli?: string;
+  agents: readonly string[];
+}
+
 export interface CreatePlanningTemplateResponse {
   ok: boolean;
   outputPath?: string | null;

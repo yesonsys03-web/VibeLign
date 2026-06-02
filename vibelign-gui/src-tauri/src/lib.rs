@@ -111,6 +111,7 @@ pub fn run() {
             commands::vib_bridge::run_vib_with_progress,
             commands::vib_bridge::run_engine_request_direct,
             commands::planning::create_planning_template,
+            commands::planning::append_planning_with_agents,
             commands::planning::load_latest_planning_session,
             commands::error_logs::read_error_logs,
             commands::error_logs::clear_error_logs,

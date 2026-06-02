@@ -1,3 +1,5 @@
+import { OnboardingPromptTextarea } from "./OnboardingPromptTextarea";
+
 interface OnboardingInputBarProps {
   readonly promptText: string;
   readonly selectedDirName: string;
@@ -41,19 +43,7 @@ export function OnboardingInputBar({
         >
           +
         </button>
-        <input
-          className="input-field"
-          value={promptText}
-          onChange={(event) => onPromptChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              onSubmit();
-            }
-          }}
-          placeholder="무엇을 만들고 싶나요?"
-          style={{ border: "none", minWidth: 0, fontSize: 14, boxShadow: "none" }}
-        />
+        <OnboardingPromptTextarea value={promptText} onChange={onPromptChange} onSubmit={onSubmit} />
         <button
           type="button"
           aria-label="AI 선택"

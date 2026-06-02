@@ -3,6 +3,18 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 import PlanningRoom from "../PlanningRoom";
 
+const mocks = vi.hoisted(() => ({
+  appendPlanningWithAgentsMock: vi.fn(),
+}));
+
+vi.mock("../../lib/vib", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/vib")>("../../lib/vib");
+  return {
+    ...actual,
+    appendPlanningWithAgents: mocks.appendPlanningWithAgentsMock,
+  };
+});
+
 const result = {
   ok: true,
   outputPath: "plans/reservation-app.md",
@@ -25,23 +37,25 @@ const result = {
 describe("PlanningRoom static template view", () => {
   afterEach(() => {
     cleanup();
+    mocks.appendPlanningWithAgentsMock.mockReset();
   });
 
   test("renders_user_message_and_template_response_without_model_controls", () => {
-    render(<PlanningRoom prompt="예약 앱 만들고 싶어" result={result} onBack={vi.fn()} />);
+    render(<PlanningRoom projectDir="/tmp/demo" prompt="예약 앱 만들고 싶어" result={result} onBack={vi.fn()} onResultChange={vi.fn()} />);
 
     expect(screen.getByText("예약 앱 만들고 싶어")).toBeInTheDocument();
     expect(screen.getByText("VibeLign 정리")).toBeInTheDocument();
-    expect(screen.getByText("AI들이 기획안을 역할별로 확인했어요.")).toBeInTheDocument();
-    expect(screen.getByText("클로이")).toBeInTheDocument();
-    expect(screen.getByText("미나")).toBeInTheDocument();
+    expect(screen.getByText("클로이 설계")).toBeInTheDocument();
+    expect(screen.getByText("지오 검토")).toBeInTheDocument();
+    expect(screen.getByText("미나 탐색")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("기획안을 어떻게 더 다듬을까요?")).toBeInTheDocument();
     expect(screen.getByText("저장 위치: plans/reservation-app.md")).toBeInTheDocument();
     expect(screen.queryByText(/model|모델|plan-structure/i)).not.toBeInTheDocument();
     expect(screen.queryByText("# 예약 앱")).not.toBeInTheDocument();
   });
 
   test("shows_markdown_pane_after_action", () => {
-    render(<PlanningRoom prompt="예약 앱 만들고 싶어" result={result} onBack={vi.fn()} />);
+    render(<PlanningRoom projectDir="/tmp/demo" prompt="예약 앱 만들고 싶어" result={result} onBack={vi.fn()} onResultChange={vi.fn()} />);
 
     fireEvent.click(screen.getByRole("button", { name: "기획안 보기" }));
 
@@ -52,6 +66,7 @@ describe("PlanningRoom static template view", () => {
   test("renders_fallback_status_without_raw_error_output", () => {
     render(
       <PlanningRoom
+        projectDir="/tmp/demo"
         prompt="예약 앱 만들고 싶어"
         result={{
           ...result,
@@ -66,6 +81,7 @@ describe("PlanningRoom static template view", () => {
           details: "raw stderr",
         }}
         onBack={vi.fn()}
+        onResultChange={vi.fn()}
       />,
     );
 
@@ -76,6 +92,7 @@ describe("PlanningRoom static template view", () => {
   test("renders_pending_state_without_markdown_action", () => {
     render(
       <PlanningRoom
+        projectDir="/tmp/demo"
         prompt="예약 앱 만들고 싶어"
         result={{
           ...result,
@@ -90,10 +107,35 @@ describe("PlanningRoom static template view", () => {
           },
         }}
         onBack={vi.fn()}
+        onResultChange={vi.fn()}
       />,
     );
 
     expect(screen.getByText("AI들이 기획안을 나눠서 확인하는 중이에요.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "기획안 보기" })).toBeDisabled();
+  });
+
+  test("calls_selected_persona_with_followup_message", async () => {
+    const onResultChange = vi.fn();
+    mocks.appendPlanningWithAgentsMock.mockResolvedValue({
+      ...result,
+      markdown: `${result.markdown}\n\n## 지오의 검토\n좋아요.`,
+    });
+    render(<PlanningRoom projectDir="/tmp/demo" prompt="예약 앱 만들고 싶어" result={result} onBack={vi.fn()} onResultChange={onResultChange} />);
+
+    fireEvent.change(screen.getByPlaceholderText("기획안을 어떻게 더 다듬을까요?"), {
+      target: { value: "사용 흐름을 더 구체화해줘" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "호출" }));
+
+    expect(await screen.findByRole("button", { name: "호출" })).toBeInTheDocument();
+    expect(mocks.appendPlanningWithAgentsMock).toHaveBeenCalledWith({
+      projectDir: "/tmp/demo",
+      outputPath: "plans/reservation-app.md",
+      prompt: "사용 흐름을 더 구체화해줘",
+      cli: "auto",
+      agents: ["gio"],
+    });
+    expect(onResultChange).toHaveBeenCalled();
   });
 });

@@ -7,6 +7,7 @@ from typing import Protocol, cast
 
 from vibelign.core.planning_cli import (
     PlanningInput,
+    append_planning_with_agents,
     create_planning_with_agents,
     create_planning_template,
 )
@@ -18,6 +19,7 @@ from vibelign.terminal_render import clack_intro, clack_step, clack_success
 class PlanArgs(Protocol):
     idea: Sequence[str] | str
     template_only: bool
+    append_to: str | None
     output: str | None
     force: bool
     language: str
@@ -47,10 +49,21 @@ def run_vib_plan(args: object) -> None:
         output=raw_args.output,
         force=bool(raw_args.force),
     )
-    result = (
-        create_planning_template(root, planning_input)
-        if bool(raw_args.template_only)
-        else create_planning_with_agents(
+    if getattr(raw_args, "append_to", None):
+        result = append_planning_with_agents(
+            root,
+            output_path=str(raw_args.append_to),
+            message=idea,
+            agents_choice=getattr(raw_args, "agents", None),
+            cli_choice=raw_args.cli or "auto",
+            timeout_seconds=int(raw_args.llm_timeout_seconds),
+            save_transcript=bool(getattr(raw_args, "save_transcript", False)),
+            runner=SubprocessPlanningCliRunner(),
+        )
+    elif bool(raw_args.template_only):
+        result = create_planning_template(root, planning_input)
+    else:
+        result = create_planning_with_agents(
             root,
             planning_input,
             agents_choice=getattr(raw_args, "agents", None),
@@ -59,7 +72,6 @@ def run_vib_plan(args: object) -> None:
             save_transcript=bool(getattr(raw_args, "save_transcript", False)),
             runner=SubprocessPlanningCliRunner(),
         )
-    )
 
     if bool(raw_args.json):
         print(

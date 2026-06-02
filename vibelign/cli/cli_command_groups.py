@@ -705,6 +705,7 @@ def register_extended_commands(
         help="LLM 없이 템플릿 기획안만 생성해요",
     )
     _ = p.add_argument("--output", default=None, help="저장할 프로젝트 상대 경로")
+    _ = p.add_argument("--append-to", default=None, help="기존 기획안 파일에 페르소나 응답 추가")
     _ = p.add_argument("--force", action="store_true", help="기존 output 파일 덮어쓰기")
     _ = p.add_argument("--language", default="auto", help="기획안 언어")
     _ = p.add_argument(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from uuid import uuid4
 
 from vibelign.core.planning_cli import cli_adapters
 from vibelign.core.planning_cli.cli_adapters import (
@@ -8,7 +9,7 @@ from vibelign.core.planning_cli.cli_adapters import (
     PlanningCliStatus,
     SubprocessPlanningCliRunner,
 )
-from vibelign.core.planning_cli.mentions import PersonaMentionResult, resolve_persona_mentions
+from vibelign.core.planning_cli.mentions import resolve_persona_mentions
 from vibelign.core.planning_cli.models import PlanningInput, PlanningResult
 from vibelign.core.planning_cli.personas import (
     PlanningPersona,
@@ -37,7 +38,71 @@ def create_planning_with_agents(
         force=planning_input.force,
     )
     base = create_planning_template(root, clean_input)
-    personas = _resolve_personas(mention_result, agents_choice)
+    return _apply_agents_to_result(
+        root,
+        base,
+        message=clean_input.idea,
+        agents_choice=agents_choice,
+        default_persona_ids=mention_result.persona_ids,
+        cli_choice=cli_choice,
+        timeout_seconds=timeout_seconds,
+        save_transcript=save_transcript,
+        runner=runner,
+    )
+
+
+def append_planning_with_agents(
+    root: Path,
+    *,
+    output_path: str,
+    message: str,
+    agents_choice: str | None = None,
+    cli_choice: str = "auto",
+    timeout_seconds: int = 300,
+    save_transcript: bool = False,
+    runner: PlanningCliRunner | None = None,
+) -> PlanningResult:
+    root = root.resolve()
+    relative_path = _safe_relative_output_path(output_path)
+    absolute_path = root / relative_path
+    markdown = absolute_path.read_text(encoding="utf-8")
+    base = PlanningResult(
+        output_path=relative_path.as_posix(),
+        absolute_output_path=str(absolute_path),
+        markdown=markdown,
+        fallback_reason=None,
+        session_id=f"followup_{uuid4().hex[:8]}",
+    )
+    return _apply_agents_to_result(
+        root,
+        base,
+        message=message,
+        agents_choice=agents_choice,
+        default_persona_ids=None,
+        cli_choice=cli_choice,
+        timeout_seconds=timeout_seconds,
+        save_transcript=save_transcript,
+        runner=runner,
+    )
+
+
+def _apply_agents_to_result(
+    root: Path,
+    base: PlanningResult,
+    *,
+    message: str,
+    agents_choice: str | None,
+    default_persona_ids: tuple[str, ...] | None,
+    cli_choice: str,
+    timeout_seconds: int,
+    save_transcript: bool,
+    runner: PlanningCliRunner | None,
+) -> PlanningResult:
+    mention_result = resolve_persona_mentions(message)
+    personas = _resolve_personas(
+        default_persona_ids or mention_result.persona_ids,
+        agents_choice,
+    )
     adapters = _resolve_adapters(cli_choice, personas)
     active_runner = runner or SubprocessPlanningCliRunner()
     markdown = base.markdown
@@ -48,7 +113,7 @@ def create_planning_with_agents(
         adapter = adapters[persona.id]
         command = cli_adapters.build_cli_command(
             adapter,
-            _build_persona_prompt(persona, clean_input.idea, markdown),
+            _build_persona_prompt(persona, mention_result.clean_text or message, markdown),
         )
         if command is None:
             statuses[persona.id] = "not_installed"
@@ -80,13 +145,13 @@ def create_planning_with_agents(
 
 
 def _resolve_personas(
-    mention_result: PersonaMentionResult,
+    default_persona_ids: tuple[str, ...],
     agents_choice: str | None,
 ) -> tuple[PlanningPersona, ...]:
     persona_ids = (
         _parse_csv(agents_choice)
         if agents_choice
-        else mention_result.persona_ids
+        else default_persona_ids
     )
     return ordered_personas_for_ids(persona_ids)
 
@@ -115,6 +180,13 @@ def _parse_csv(raw: str | None) -> tuple[str, ...]:
     if raw is None:
         return ()
     return tuple(item.strip().lower() for item in raw.split(",") if item.strip())
+
+
+def _safe_relative_output_path(raw_path: str) -> Path:
+    relative_path = Path(raw_path)
+    if relative_path.is_absolute() or any(part == ".." for part in relative_path.parts):
+        raise ValueError("append_to must be a project-relative path")
+    return relative_path
 
 
 def _build_persona_prompt(

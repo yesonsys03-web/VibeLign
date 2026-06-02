@@ -111,6 +111,19 @@ describe("Onboarding input bar", () => {
     expect(screen.queryByText("프로젝트 확인 중...")).not.toBeInTheDocument();
   });
 
+  test("test_shift_enter_adds_new_line_without_submitting", async () => {
+    renderOnboarding();
+    const prompt = await screen.findByPlaceholderText("무엇을 만들고 싶나요?");
+
+    fireEvent.change(prompt, { target: { value: "예약 앱" } });
+    fireEvent.keyDown(prompt, { key: "Enter", shiftKey: true });
+    fireEvent.change(prompt, { target: { value: "예약 앱\n관리자 화면" } });
+
+    expect(prompt).toHaveValue("예약 앱\n관리자 화면");
+    expect(screen.queryByText("먼저 프로젝트 폴더를 선택해 주세요.")).not.toBeInTheDocument();
+    expect(mocks.vibStartMock).not.toHaveBeenCalled();
+  });
+
   test("test_folder_cancel_keeps_prompt_without_error", async () => {
     renderOnboarding();
     const prompt = await screen.findByPlaceholderText("무엇을 만들고 싶나요?");

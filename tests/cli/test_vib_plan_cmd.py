@@ -75,3 +75,35 @@ def test_vib_plan_json_includes_legacy_llm_fields(tmp_path: Path, capsys: pytest
     assert payload["persona_id"] == "chloe"
     assert payload["llm_status"] == "not_installed"
     assert payload["fallback_reason"] == "cli_unavailable_template_only"
+
+
+def test_vib_plan_append_to_json_updates_existing_plan(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    plan_path = tmp_path / "plans" / "app.md"
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text("# 앱\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "vibelign.core.planning_cli.cli_adapters.resolve_cli_executable",
+        lambda _adapter: None,
+    )
+
+    run_vib_plan(
+        Namespace(
+            idea=["후속 질문"],
+            template_only=False,
+            append_to="plans/app.md",
+            output=None,
+            force=False,
+            language="auto",
+            json=True,
+            cli="auto",
+            agents="gio",
+            save_transcript=False,
+            llm_timeout_seconds=1,
+        )
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["output_path"] == "plans/app.md"
+    assert payload["agents_requested"] == ["gio"]

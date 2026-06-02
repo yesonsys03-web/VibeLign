@@ -245,7 +245,7 @@ export default function App() {
             <div style={{ flex: 1, overflow: "hidden" }}>
               <ErrorBoundary>
                 {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningPending={planningResult?.llmStatus === "pending"} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} />}
-                {page === "planning" && planningResult && <PlanningRoom prompt={planningPrompt} result={planningResult} onBack={() => setPage("home")} />}
+                {page === "planning" && planningResult && <PlanningRoom projectDir={projectDir} prompt={planningPrompt} result={planningResult} onBack={() => setPage("home")} onResultChange={setPlanningResult} />}
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
                 {page === "code" && <CodeExplorer projectDir={projectDir} />}

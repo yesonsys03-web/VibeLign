@@ -2,7 +2,10 @@ from pathlib import Path
 
 from vibelign.core.planning_cli.cli_adapters import PlanningCliResult
 from vibelign.core.planning_cli.models import PlanningInput
-from vibelign.core.planning_cli.orchestrator import create_planning_with_agents
+from vibelign.core.planning_cli.orchestrator import (
+    append_planning_with_agents,
+    create_planning_with_agents,
+)
 
 
 class FakeRunner:
@@ -77,3 +80,35 @@ def test_orchestrator_keeps_template_when_all_agents_fail(
     assert result.fallback_reason == "cli_unavailable_template_only"
     assert "## 클로이의 설계" not in result.markdown
     assert (tmp_path / result.output_path).read_text(encoding="utf-8") == result.markdown
+
+
+def test_orchestrator_appends_followup_to_existing_plan(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "vibelign.core.planning_cli.cli_adapters.resolve_cli_executable",
+        lambda adapter: f"/bin/{adapter}",
+    )
+    plan_path = tmp_path / "plans" / "app.md"
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text("# 앱\n## 한 줄 목표\n앱 만들기\n", encoding="utf-8")
+    runner = FakeRunner(
+        [
+            PlanningCliResult("ok", "레이어 선택 흐름부터 정하세요.", "", 0, 10),
+        ]
+    )
+
+    result = append_planning_with_agents(
+        tmp_path,
+        output_path="plans/app.md",
+        message="PSD 라인 레이어 익스포트 앱으로 다듬어줘",
+        agents_choice="chloe",
+        runner=runner,
+    )
+
+    assert result.output_path == "plans/app.md"
+    assert result.agents_requested == ("chloe",)
+    assert result.agents_used == ("chloe",)
+    assert "## 클로이의 설계" in result.markdown
+    assert "레이어 선택 흐름부터 정하세요." in plan_path.read_text(encoding="utf-8")

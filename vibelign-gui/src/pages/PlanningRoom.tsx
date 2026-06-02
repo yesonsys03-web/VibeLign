@@ -3,15 +3,18 @@ import { useState } from "react";
 import type { CreatePlanningTemplateResponse } from "../lib/vib";
 import { PlanningMarkdownView } from "./planning/PlanningMarkdownView";
 import { PlanningMessages } from "./planning/PlanningMessages";
+import { PlanningPersonaComposer } from "./planning/PlanningPersonaComposer";
 import { PlanningPersonaStatus } from "./planning/PlanningPersonaStatus";
 
 interface PlanningRoomProps {
+  readonly projectDir: string;
   readonly prompt: string;
   readonly result: CreatePlanningTemplateResponse;
   readonly onBack: () => void;
+  readonly onResultChange: (result: CreatePlanningTemplateResponse) => void;
 }
 
-export default function PlanningRoom({ prompt, result, onBack }: PlanningRoomProps) {
+export default function PlanningRoom({ projectDir, prompt, result, onBack, onResultChange }: PlanningRoomProps) {
   const [showMarkdown, setShowMarkdown] = useState(false);
   const markdown = result.markdown ?? "";
   const isPending = result.llmStatus === "pending";
@@ -32,6 +35,7 @@ export default function PlanningRoom({ prompt, result, onBack }: PlanningRoomPro
           <>
             <PlanningPersonaStatus result={result} />
             <PlanningMessages prompt={prompt} outputPath={result.outputPath ?? null} />
+            <PlanningPersonaComposer projectDir={projectDir} outputPath={result.outputPath ?? null} onResultChange={onResultChange} />
             <div>
               <button
                 className="btn btn-black"

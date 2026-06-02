@@ -17,6 +17,16 @@ pub struct CreatePlanningTemplateRequest {
     agents: Option<Vec<String>>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppendPlanningAgentsRequest {
+    project_dir: String,
+    output_path: String,
+    prompt: String,
+    cli: Option<String>,
+    agents: Vec<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatePlanningTemplateResponse {
@@ -121,6 +131,20 @@ fn parse_plan_stdout(stdout: &str) -> Result<CreatePlanningTemplateResponse, Str
         .map_err(|error| error.to_string())
 }
 
+fn apply_planning_command_env(cmd: &mut std::process::Command) {
+    cmd.env("PATH", augmented_vib_path());
+    cmd.env("NO_COLOR", "1");
+    cmd.env("PYTHONUTF8", "1");
+    cmd.env("PYTHONIOENCODING", "utf-8");
+    #[cfg(debug_assertions)]
+    if let Some(repo_root) = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(std::path::Path::parent)
+    {
+        cmd.env("PYTHONPATH", repo_root);
+    }
+}
+
 fn latest_session_file(project_dir: &std::path::Path) -> Option<PathBuf> {
     let planning_dir = project_dir.join(".vibelign").join("planning");
     let mut entries = std::fs::read_dir(planning_dir)
@@ -174,7 +198,14 @@ pub(crate) async fn create_planning_template(
 
     tauri::async_runtime::spawn_blocking(move || {
         let mut cmd = std::process::Command::new(vib);
-        cmd.args(["plan", &prompt, "--json", "--language", &request.language]);
+        cmd.args([
+            "plan",
+            &prompt,
+            "--template-only",
+            "--json",
+            "--language",
+            &request.language,
+        ]);
         if let Some(cli) = request.cli.as_deref() {
             cmd.args(["--cli", cli]);
         }
@@ -183,10 +214,63 @@ pub(crate) async fn create_planning_template(
         }
         cmd.current_dir(&project_dir);
         cmd.stdin(std::process::Stdio::null());
-        cmd.env("PATH", augmented_vib_path());
-        cmd.env("NO_COLOR", "1");
-        cmd.env("PYTHONUTF8", "1");
-        cmd.env("PYTHONIOENCODING", "utf-8");
+        apply_planning_command_env(&mut cmd);
+        hide_console(&mut cmd);
+
+        match cmd.output() {
+            Ok(output) if output.status.success() => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                parse_plan_stdout(&stdout).unwrap_or_else(planning_error)
+            }
+            Ok(output) => planning_error(String::from_utf8_lossy(&output.stderr).into_owned()),
+            Err(error) => planning_error(error.to_string()),
+        }
+    })
+    .await
+    .unwrap_or_else(|error| planning_error(error.to_string()))
+}
+
+#[tauri::command]
+pub(crate) async fn append_planning_with_agents(
+    request: AppendPlanningAgentsRequest,
+) -> CreatePlanningTemplateResponse {
+    let project_dir = PathBuf::from(&request.project_dir);
+    if !project_dir.is_absolute() {
+        return planning_error("projectDir must be absolute");
+    }
+    let prompt = request.prompt.trim().to_string();
+    if prompt.is_empty() {
+        return planning_error("prompt is required");
+    }
+    if request.output_path.trim().is_empty() {
+        return planning_error("outputPath is required");
+    }
+
+    let vib = match vib_path::find_runtime_vib() {
+        Some(path) => path,
+        None => return planning_error("vib executable not found"),
+    };
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut cmd = std::process::Command::new(vib);
+        cmd.args([
+            "plan",
+            &prompt,
+            "--append-to",
+            &request.output_path,
+            "--json",
+            "--llm-timeout-seconds",
+            "300",
+        ]);
+        if let Some(cli) = request.cli.as_deref() {
+            cmd.args(["--cli", cli]);
+        }
+        if !request.agents.is_empty() {
+            cmd.args(["--agents", &request.agents.join(",")]);
+        }
+        cmd.current_dir(&project_dir);
+        cmd.stdin(std::process::Stdio::null());
+        apply_planning_command_env(&mut cmd);
         hide_console(&mut cmd);
 
         match cmd.output() {
