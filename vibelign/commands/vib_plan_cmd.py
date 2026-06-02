@@ -5,7 +5,11 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Protocol, cast
 
-from vibelign.core.planning_cli import PlanningInput, create_planning_template
+from vibelign.core.planning_cli import (
+    PlanningInput,
+    create_planning_template,
+    create_planning_with_persona,
+)
 from vibelign.core.project_root import resolve_project_root
 from vibelign.terminal_render import clack_intro, clack_step, clack_success
 
@@ -17,6 +21,8 @@ class PlanArgs(Protocol):
     force: bool
     language: str
     json: bool
+    cli: str
+    llm_timeout_seconds: int
 
 
 def _idea_text(raw_idea: Sequence[str] | str) -> str:
@@ -30,18 +36,23 @@ def run_vib_plan(args: object) -> None:
     idea = _idea_text(raw_args.idea)
     if not idea:
         raise SystemExit('기획할 내용을 입력하세요. 예: vib plan "예약 앱 만들고 싶어"')
-    if not bool(raw_args.template_only):
-        raise SystemExit("PR 3에서는 --template-only만 지원합니다.")
 
     root = resolve_project_root(Path.cwd())
-    result = create_planning_template(
-        root,
-        PlanningInput(
-            idea=idea,
-            language=raw_args.language or "auto",
-            output=raw_args.output,
-            force=bool(raw_args.force),
-        ),
+    planning_input = PlanningInput(
+        idea=idea,
+        language=raw_args.language or "auto",
+        output=raw_args.output,
+        force=bool(raw_args.force),
+    )
+    result = (
+        create_planning_template(root, planning_input)
+        if bool(raw_args.template_only)
+        else create_planning_with_persona(
+            root,
+            planning_input,
+            cli_choice=raw_args.cli or "auto",
+            timeout_seconds=int(raw_args.llm_timeout_seconds),
+        )
     )
 
     if bool(raw_args.json):
@@ -54,6 +65,9 @@ def run_vib_plan(args: object) -> None:
                     "markdown": result.markdown,
                     "fallback_reason": result.fallback_reason,
                     "session_id": result.session_id,
+                    "adapter": result.adapter,
+                    "persona_id": result.persona_id,
+                    "llm_status": result.llm_status,
                 },
                 ensure_ascii=False,
             )
@@ -61,5 +75,5 @@ def run_vib_plan(args: object) -> None:
         return
 
     clack_intro("VibeLign 기획안")
-    clack_step("템플릿 기획안 생성")
+    clack_step("기획안 생성")
     clack_success(f"기획안 저장: {result.output_path}")

@@ -13,6 +13,8 @@ def test_vib_plan_parser_registers_template_only() -> None:
     args = parser.parse_args(["plan", "예약 앱", "--template-only", "--json"])
     assert args.template_only is True
     assert args.json is True
+    assert args.cli == "auto"
+    assert args.llm_timeout_seconds == 300
 
 
 def test_vib_plan_template_only_json_outputs_result(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
@@ -27,5 +29,48 @@ def test_vib_plan_template_only_json_outputs_result(tmp_path: Path, capsys: pyte
 
 
 def test_vib_plan_without_template_only_is_reserved_for_later() -> None:
-    with pytest.raises(SystemExit):
-        run_vib_plan(Namespace(idea=["예약 앱"], template_only=False, output=None, force=False, language="auto", json=False))
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(
+            "vibelign.core.planning_cli.engine.build_codex_command",
+            lambda _prompt: None,
+        )
+        run_vib_plan(
+            Namespace(
+                idea=["예약 앱"],
+                template_only=False,
+                output=None,
+                force=False,
+                language="auto",
+                json=False,
+                cli="auto",
+                llm_timeout_seconds=1,
+            )
+        )
+
+
+def test_vib_plan_json_includes_pr4_llm_fields(tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "vibelign.core.planning_cli.engine.build_codex_command",
+        lambda _prompt: None,
+    )
+
+    run_vib_plan(
+        Namespace(
+            idea=["예약 앱"],
+            template_only=False,
+            output=None,
+            force=False,
+            language="auto",
+            json=True,
+            cli="auto",
+            llm_timeout_seconds=1,
+        )
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["adapter"] == "codex"
+    assert payload["persona_id"] == "gio"
+    assert payload["llm_status"] == "not_installed"
+    assert payload["fallback_reason"] == "cli_unavailable_template_only"

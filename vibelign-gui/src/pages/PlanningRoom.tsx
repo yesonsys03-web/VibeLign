@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { CreatePlanningTemplateResponse } from "../lib/vib";
 import { PlanningMarkdownView } from "./planning/PlanningMarkdownView";
 import { PlanningMessages } from "./planning/PlanningMessages";
+import { PlanningPersonaStatus } from "./planning/PlanningPersonaStatus";
 
 interface PlanningRoomProps {
   readonly prompt: string;
@@ -28,6 +29,7 @@ export default function PlanningRoom({ prompt, result, onBack }: PlanningRoomPro
 
         {result.ok ? (
           <>
+            <PlanningPersonaStatus result={result} />
             <PlanningMessages prompt={prompt} outputPath={result.outputPath ?? null} />
             <div>
               <button

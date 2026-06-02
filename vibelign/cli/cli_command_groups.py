@@ -707,6 +707,18 @@ def register_extended_commands(
     _ = p.add_argument("--output", default=None, help="저장할 프로젝트 상대 경로")
     _ = p.add_argument("--force", action="store_true", help="기존 output 파일 덮어쓰기")
     _ = p.add_argument("--language", default="auto", help="기획안 언어")
+    _ = p.add_argument(
+        "--cli",
+        choices=["auto", "codex", "claude", "agy"],
+        default="auto",
+        help="기획 보강에 사용할 공식 CLI",
+    )
+    _ = p.add_argument(
+        "--llm-timeout-seconds",
+        type=int,
+        default=300,
+        help="CLI 응답 대기 시간",
+    )
     _ = p.add_argument("--json", action="store_true", help="결과를 JSON으로 출력해요")
     p.set_defaults(func=lazy_command("vibelign.commands.vib_plan_cmd", "run_vib_plan"))
 

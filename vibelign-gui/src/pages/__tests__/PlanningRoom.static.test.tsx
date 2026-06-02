@@ -8,8 +8,11 @@ const result = {
   outputPath: "plans/reservation-app.md",
   absoluteOutputPath: "/tmp/demo/plans/reservation-app.md",
   markdown: "# 예약 앱\n## 한 줄 목표\n예약을 쉽게 만든다.",
-  fallbackReason: "template_only",
+  fallbackReason: null,
   sessionId: "plan_1",
+  adapter: "codex",
+  personaId: "gio",
+  llmStatus: "ok",
 };
 
 describe("PlanningRoom static template view", () => {
@@ -22,6 +25,7 @@ describe("PlanningRoom static template view", () => {
 
     expect(screen.getByText("예약 앱 만들고 싶어")).toBeInTheDocument();
     expect(screen.getByText("VibeLign 정리")).toBeInTheDocument();
+    expect(screen.getByText("지오가 기획안을 한 번 검토했어요.")).toBeInTheDocument();
     expect(screen.getByText("저장 위치: plans/reservation-app.md")).toBeInTheDocument();
     expect(screen.queryByText(/model|모델|plan-structure/i)).not.toBeInTheDocument();
     expect(screen.queryByText("# 예약 앱")).not.toBeInTheDocument();
@@ -34,5 +38,23 @@ describe("PlanningRoom static template view", () => {
 
     expect(screen.getByRole("heading", { name: "예약 앱" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "한 줄 목표" })).toBeInTheDocument();
+  });
+
+  test("renders_fallback_status_without_raw_error_output", () => {
+    render(
+      <PlanningRoom
+        prompt="예약 앱 만들고 싶어"
+        result={{
+          ...result,
+          fallbackReason: "cli_unavailable_template_only",
+          llmStatus: "not_logged_in",
+          details: "raw stderr",
+        }}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("AI 연결은 아직 준비되지 않았지만, 기본 기획안은 저장했어요.")).toBeInTheDocument();
+    expect(screen.queryByText("raw stderr")).not.toBeInTheDocument();
   });
 });

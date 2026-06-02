@@ -136,6 +136,7 @@ export default function App() {
       projectDir: dir,
       prompt: normalizedPrompt,
       language: "auto",
+      cli: "auto",
     });
     setPlanningResult(result);
     setPage("planning");

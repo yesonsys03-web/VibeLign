@@ -128,6 +128,7 @@ export interface CreatePlanningTemplateRequest {
   projectDir: string;
   prompt: string;
   language: "auto" | string;
+  cli?: "auto" | "codex" | "claude" | "agy";
 }
 
 export interface CreatePlanningTemplateResponse {
@@ -137,6 +138,9 @@ export interface CreatePlanningTemplateResponse {
   markdown?: string | null;
   fallbackReason?: "template_only" | "cli_unavailable_template_only" | string | null;
   sessionId?: string | null;
+  adapter?: string | null;
+  personaId?: string | null;
+  llmStatus?: string | null;
   errorCode?: string | null;
   message?: string | null;
   details?: string | null;
