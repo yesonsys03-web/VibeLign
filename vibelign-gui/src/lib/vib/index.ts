@@ -1,7 +1,7 @@
 // === ANCHOR: INDEX_START ===
 export * from "./types";
 export { runVib, runVibWithProgress, vibStart } from "./core";
-export { appendPlanningChatTurn, appendPlanningWithAgents, createPlanningChatSession, createPlanningTemplate, loadLatestPlanningChatSession, loadLatestPlanningSession } from "./planning";
+export { appendPlanningChatTurn, appendPlanningWithAgents, createPlanningChatSession, createPlanningTemplate, loadLatestPlanningChatSession, loadLatestPlanningSession, savePlanningChatAsMarkdown } from "./planning";
 export { listCodeFiles, readCodeFile, readCodeFileDiff, listChangedFiles } from "./code";
 export { addExtraDocSource, enhanceDocWithAi, getAiEnhancement, getManualJson, listDocsIndex, listExtraDocSources, readDocsHtml, readDocsVisual, readFile, rebuildDocsIndex, removeExtraDocSource, setAiEnhancement } from "./docs";
 export { buildGuiAiEnv, deleteApiKey, deleteProviderApiKey, getEnvKeyStatus, loadApiKey, loadProviderApiKeys, saveApiKey, saveProviderApiKey } from "./apiKeys";

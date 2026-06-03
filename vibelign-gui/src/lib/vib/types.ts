@@ -178,6 +178,12 @@ export interface AppendPlanningChatTurnRequest {
   sessionId: string;
   prompt: string;
   agents: readonly string[];
+  includeUserMessage?: boolean;
+}
+
+export interface SavePlanningChatPlanRequest {
+  projectDir: string;
+  sessionId: string;
 }
 
 export interface PlanningChatSessionResponse {
@@ -185,6 +191,9 @@ export interface PlanningChatSessionResponse {
   sessionId?: string | null;
   prompt?: string | null;
   messages: readonly PlanningChatMessage[];
+  outputPath?: string | null;
+  absoluteOutputPath?: string | null;
+  markdown?: string | null;
   errorCode?: string | null;
   message?: string | null;
   details?: string | null;

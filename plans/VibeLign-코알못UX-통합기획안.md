@@ -547,7 +547,9 @@ vib plan "내 가게 예약을 받는 웹앱을 만들고 싶어"
 - VibeLign은 **인증 무관 relay**다 — 공식 CLI 바이너리를 subprocess로 실행해 I/O만 중계하고, OAuth/토큰을 수행·보관·열람하지 않는다(토큰 추출이 밴 사례의 원인 — 멀티AI 설계안 §13-7). CLI 인증(OAuth/API 키)은 사용자 본인의 터미널 설정이고 VibeLign이 고르지 않는다. 구독-tier 집행이 걱정되는 사용자가 자기 CLI를 API 키로 구성하는 건 자유지만, 그건 VibeLign이 제공하는 경로가 아니다.
 - 사용자는 온보딩에서 쓰는 AI를 선택만 하고, VibeLign이 그 선택을 공식 CLI로 매핑해 설치/로그인 흐름을 대신 띄운다 (§4-1-2). 사용자는 CLI 이름이나 `claude login` 같은 명령을 몰라도 된다.
 - VibeLign은 로그인 토큰이나 세션 파일을 읽지 않는다. "연결"은 공식 CLI의 로그인 흐름을 실행하는 것이지 자격증명을 가로채는 것이 아니다.
-- VibeLign은 `claude`, `codex`, `antigravity` 같은 공식 CLI를 실행하고 stdout/stderr 결과만 수집한다.
+- VibeLign은 `claude -p`, `codex exec`, `agy -p` 같은 공식 CLI의 비대화형 경로를 실행하고 stdout/stderr 결과만 수집한다.
+- 앞선 페르소나 응답은 다음 페르소나의 검토 맥락으로 전달될 수 있음을 UI에 고지한다. 원문 transcript는 `--save-transcript` 또는 GUI 고급 옵션을 켠 경우에만 저장한다.
+- 수집한 응답은 사용자의 기획안 생성에만 쓰고, 경쟁 모델 학습·fine-tuning·평가 데이터셋으로 재사용하지 않는다.
 - 각 LLM 응답은 VibeLign이 발급한 `session_id`, `turn_id`, `run_id`, `persona_id`, `cli_id`로 관리한다.
 - LLM이 자체 ID를 응답에 포함하더라도, 신뢰 기준은 VibeLign metadata다.
 
@@ -557,7 +559,7 @@ vib plan "내 가게 예약을 받는 웹앱을 만들고 싶어"
 .vibelign/planning/plan_20260531_abc123/session.json
 .vibelign/planning/plan_20260531_abc123/turns/turn_001_claude.md
 .vibelign/planning/plan_20260531_abc123/turns/turn_002_codex.md
-.vibelign/planning/plan_20260531_abc123/turns/turn_003_antigravity.md
+.vibelign/planning/plan_20260531_abc123/turns/turn_003_agy.md
 .vibelign/planning/plan_20260531_abc123/final.md
 ```
 
@@ -1184,7 +1186,7 @@ dogfood 시점:
 
 세부 스펙: `plans/spec-pr4-first-cli-persona-spike.md`
 
-> **약관 단서 (멀티AI 설계안 §13-6/§13-7)**: 밴 사례는 **토큰 추출형**(OpenClaw식)이고, VibeLign식 **공식 바이너리 relay**(토큰 미열람, stdin/stdout 중계)는 선례 없는 회색지대다. PR 4는 구현 시작 전에 Codex/Claude/Antigravity 후보를 probe해서 첫 adapter 1개만 확정한다. 최대 안전 시작점은 Codex(지오), 본인 dogfood 시작점은 agy(미나)다. agy는 relay 패턴(비대화형 헤드리스 모드)이 로컬에서 확인될 때만 진행한다.
+> **정책 단서 (멀티AI 설계안 §13)**: 금지선은 **토큰/세션 파일 추출, 비공식 backend 호출, 계정 풀링/재판매형 proxy**다. VibeLign은 공식 CLI 바이너리만 실행하고 토큰을 읽지 않는다. PR 4는 구현 시작 전에 Codex/Claude/Antigravity 후보를 probe해서 첫 adapter 1개만 확정한다. 현재 공식 문서 기준 호출 후보는 `codex exec`, `claude -p`, `agy -p`다.
 
 포함:
 
@@ -1211,7 +1213,7 @@ dogfood 시점:
 - PR 4에서 붙이지 않은 나머지 CLI adapter 추가
 - claude adapter (`claude -p`)
 - codex adapter (`codex exec`)
-- agy adapter (확정된 headless/print 계열)
+- agy adapter (`agy -p`)
 - 3 페르소나 순차 응답 (best-effort)
 - mention 입력: `@클로이`, `@지오`, `@미나`, `@모두`
 - 모드 선택 드롭다운 (`Instant ⌄`)에 페르소나 모드 매핑
@@ -1395,7 +1397,7 @@ AI 작업실 → "버튼 문구 바꾸기" 선택 → 작업 전 checkpoint → 
 바로 가능한 것:
 
 - `vib plan --template-only`로 Markdown 기획안 생성
-- `claude`, `codex`, `antigravity` 설치 여부 확인
+- `claude`, `codex`, `agy` 설치 여부 확인
 - 준비된 CLI가 없어도 템플릿으로 fallback
 - React/Vite/Tauri 기반 GUI에 기획방 컴포넌트 추가
 - 기본 클로이/지오/미나 아바타 제공
@@ -1410,14 +1412,14 @@ AI 작업실 → "버튼 문구 바꾸기" 선택 → 작업 전 checkpoint → 
 
 - 각 CLI는 API처럼 안정된 JSON 계약을 제공하지 않을 수 있다.
 - 로그인 만료, TTY 요구, 사용량 제한, stdout 형식 변경이 발생할 수 있다.
-- Antigravity CLI의 non-interactive 호출 안정성은 별도 검증이 필요하다.
+- Antigravity CLI의 non-interactive 호출은 공식 예시의 `agy -p` 경로로 검증한다.
 - 실패한 CLI가 전체 기획 생성을 막으면 초보 UX가 깨진다.
 
 안정성과 별개로 **약관/계약 리스크가 벤더별로 다르다** (멀티AI 설계안 §13 약관 준수 분석 참조):
 
 - OpenAI(Codex)는 가장 안전(구독+`codex exec` 비대화형 공식 지원).
-- Anthropic(Claude)은 회색지대 — `claude -p`는 허용이나 제3자 자격증명 라우팅은 능동 단속. VibeLign은 "공식 바이너리 subprocess + 토큰 미열람"으로 방어 가능한 쪽에 선다.
-- Google Antigravity(`agy`): 밴 사례는 **토큰 추출/프록시**(OpenClaw식)이지 공식 바이너리 relay가 아니다(§13-7). VibeLign은 인증 무관 relay(agy OAuth/토큰 미취급)라 그 우려는 N/A. 남는 건 ToS 6조 문구뿐(인증 방식 무관). 무료 OSS라 재판매 조항도 무관(§13-8).
+- Anthropic(Claude): `claude -p`는 공식 비대화형 경로다. VibeLign은 제3자 자격증명 라우팅/토큰 추출을 하지 않고, 사용자의 로컬 공식 바이너리를 실행한다.
+- Google Antigravity(`agy`): 공식 CLI 문서의 `agy -p` 경로를 사용한다. VibeLign은 agy OAuth/토큰/세션 파일을 읽지 않고, 비공식 backend endpoint나 재판매형 proxy를 만들지 않는다.
 - 어떤 벤더도 VibeLign의 정확한 패턴(BYO 로그인 로컬 래핑)을 명시 허용하지 않았다. "위반 아님"이 아니라 "정면으로 다뤄지지 않음"이다.
 
 따라서 첫 구현은 다음 순서로 제한한다.

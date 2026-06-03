@@ -4,6 +4,7 @@ import { appendPlanningChatTurn, type PlanningChatSessionResponse } from "../../
 
 interface PlanningPersonaComposerProps {
   readonly projectDir: string;
+  readonly result: PlanningChatSessionResponse;
   readonly sessionId: string | null;
   readonly onResultChange: (result: PlanningChatSessionResponse) => void;
 }
@@ -20,7 +21,7 @@ const PERSONAS: readonly PersonaOption[] = [
   { id: "mina", label: "미나", role: "탐색" },
 ];
 
-export function PlanningPersonaComposer({ projectDir, sessionId, onResultChange }: PlanningPersonaComposerProps) {
+export function PlanningPersonaComposer({ projectDir, result, sessionId, onResultChange }: PlanningPersonaComposerProps) {
   const [selectedPersonaIds, setSelectedPersonaIds] = useState<readonly string[]>(["gio"]);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,18 +31,28 @@ export function PlanningPersonaComposer({ projectDir, sessionId, onResultChange 
     if (!canSubmit || !sessionId) {
       return;
     }
+    const prompt = message.trim();
+    const agents = [...selectedPersonaIds];
+    const createdAt = new Date().toISOString();
     setIsSubmitting(true);
-    const result = await appendPlanningChatTurn({
-      projectDir,
-      sessionId,
-      prompt: message,
-      agents: selectedPersonaIds,
-    });
-    setIsSubmitting(false);
-    if (result.ok) {
-      setMessage("");
+    setMessage("");
+    onResultChange(withPendingTurn(result, prompt, agents, createdAt));
+
+    for (const [index, agent] of agents.entries()) {
+      const nextResult = await appendPlanningChatTurn({
+        projectDir,
+        sessionId,
+        prompt,
+        agents: [agent],
+        includeUserMessage: index === 0,
+      });
+      if (!nextResult.ok) {
+        onResultChange(nextResult);
+        break;
+      }
+      onResultChange(withPendingAgents(nextResult, agents.slice(index + 1), createdAt));
     }
-    onResultChange(result);
+    setIsSubmitting(false);
   }
 
   return (
@@ -134,4 +145,61 @@ function togglePersona(current: readonly string[], personaId: string): readonly 
     return current.filter((id) => id !== personaId);
   }
   return [...current, personaId];
+}
+
+function withPendingTurn(
+  result: PlanningChatSessionResponse,
+  prompt: string,
+  agents: readonly string[],
+  createdAt: string,
+): PlanningChatSessionResponse {
+  const userMessage = {
+    id: `pending_user_${Date.now()}`,
+    role: "user" as const,
+    personaId: null,
+    content: prompt,
+    status: "ok",
+    createdAt,
+  };
+  return {
+    ...result,
+    messages: [
+      ...result.messages,
+      userMessage,
+      ...pendingAgentMessages(agents, createdAt),
+    ],
+  };
+}
+
+function withPendingAgents(
+  result: PlanningChatSessionResponse,
+  agents: readonly string[],
+  createdAt: string,
+): PlanningChatSessionResponse {
+  if (agents.length === 0) {
+    return result;
+  }
+  return {
+    ...result,
+    messages: [
+      ...result.messages,
+      ...pendingAgentMessages(agents, createdAt),
+    ],
+  };
+}
+
+function pendingAgentMessages(agents: readonly string[], createdAt: string) {
+  return agents.map((agent, index) => ({
+    id: `pending_${agent}_${Date.now()}_${index}`,
+    role: "assistant" as const,
+    personaId: agent,
+    content: `${personaName(agent)}가 답변을 준비하고 있어요.`,
+    status: "pending",
+    createdAt,
+  }));
+}
+
+function personaName(personaId: string): string {
+  const persona = PERSONAS.find((item) => item.id === personaId);
+  return persona?.label ?? personaId;
 }

@@ -93,7 +93,7 @@ fn persona_spec(persona_id: &str) -> Option<PersonaSpec> {
             name: "미나",
             role: "사용자 탐색자. 실제 사용자가 겪을 상황, 입력 방식, 엣지케이스를 질문한다.",
             executable: "agy",
-            args_before_prompt: &["--print"],
+            args_before_prompt: &["-p"],
         }),
         _ => None,
     }
@@ -157,6 +157,14 @@ mod tests {
 
         assert_eq!(spec.executable, "codex");
         assert_eq!(spec.args_before_prompt, &["exec"]);
+    }
+
+    #[test]
+    fn persona_spec_maps_mina_to_agy_print_mode() {
+        let spec = persona_spec("mina").expect("mina persona");
+
+        assert_eq!(spec.executable, "agy");
+        assert_eq!(spec.args_before_prompt, &["-p"]);
     }
 
     #[test]

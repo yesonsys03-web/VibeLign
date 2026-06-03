@@ -214,7 +214,7 @@ vib plan [idea...]
 | 옵션 | 기본값 | 의미 |
 |---|---:|---|
 | `--agents chloe,gio,mina` | 준비된 agent 자동 선택 | 부를 페르소나 순서 |
-| `--cli claude,codex,antigravity` | 자동 탐지 | 사용할 공식 CLI 순서 |
+| `--cli claude,codex,agy` | 자동 탐지 | 사용할 공식 CLI 순서 |
 | `--rounds 1` | `1` | draft/review/synthesis 반복 횟수 |
 | `--output plans/name.md` | 자동 slug | 최종 기획안 저장 경로 |
 | `--language auto` | `auto` | 출력 언어. `auto`, `ko`, `en` 지원 |
@@ -325,7 +325,7 @@ ID 계층:
 .vibelign/planning/{session_id}/session.json
 .vibelign/planning/{session_id}/turns/turn_001_claude.md
 .vibelign/planning/{session_id}/turns/turn_002_codex.md
-.vibelign/planning/{session_id}/turns/turn_003_antigravity.md
+.vibelign/planning/{session_id}/turns/turn_003_agy.md
 .vibelign/planning/{session_id}/final.md
 ```
 
@@ -468,7 +468,15 @@ ChatGPT 선택  → codex CLI 감지/설치/로그인 흐름
 Gemini 선택   → agy(Antigravity) CLI 감지/설치/로그인 흐름
 ```
 
-**VibeLign은 인증에 무관(auth-agnostic)하다.** OAuth든 API 키든, 인증은 사용자가 터미널에서 공식 CLI에 이미 해둔 설정이고 VibeLign은 그것을 수행·보관·열람·선택하지 않는다. VibeLign은 공식 CLI를 subprocess로 실행해 stdin/stdout만 relay한다. 미인증이면 사용자가 공식 CLI에서 직접 로그인하도록 안내만 한다(토큰은 공식 CLI가 보관). 로그인 자체는 브라우저 OAuth 등 공식 CLI의 대화형 단계를 거칠 수 있고, 이 자동화 안정성은 §10의 최대 리스크에 포함된다.
+**VibeLign은 인증에 무관(auth-agnostic)하다.** OAuth든 API 키든, 인증은 사용자가 터미널에서 공식 CLI에 이미 해둔 설정이고 VibeLign은 그것을 수행·보관·열람·선택하지 않는다. VibeLign은 공식 CLI의 비대화형 경로(`claude -p`, `codex exec`, `agy -p`)를 subprocess로 실행해 stdin/stdout만 relay한다. 미인증이면 사용자가 공식 CLI에서 직접 로그인하도록 안내만 한다(토큰은 공식 CLI가 보관). 로그인 자체는 브라우저 OAuth 등 공식 CLI의 대화형 단계를 거칠 수 있고, 이 자동화 안정성은 §10의 최대 리스크에 포함된다.
+
+정책 안전 경계:
+
+- VibeLign은 토큰/세션 파일, cookie, keychain을 읽지 않는다.
+- VibeLign은 비공식 backend endpoint, 토큰 추출형 proxy, 계정 풀링, 재판매형 relay를 만들지 않는다.
+- 앞선 페르소나 응답은 다음 페르소나의 검토 맥락으로 전달될 수 있다. UI는 이 교차 페르소나 전달을 고지하고, 완전 분리를 원하는 사용자는 단일 mention 실행을 사용한다.
+- 원문 transcript는 `--save-transcript` 또는 GUI 고급 옵션을 켠 경우에만 저장한다.
+- CLI 응답은 사용자의 기획안 생성에만 쓰고 경쟁 모델 학습·fine-tuning·평가 데이터셋으로 재사용하지 않는다.
 
 ### 락인 효과
 
@@ -988,7 +996,7 @@ sed -n '1,160p' plans/*.md
 
 - `vib plan --template-only`로 `plans/*.md` 생성
 - 쉬운 질문 3~5개를 받아 Markdown 기획안으로 정리
-- `claude`, `codex`, `antigravity` 설치 여부 확인
+- `claude`, `codex`, `agy` 설치 여부 확인
 - CLI 미설치/미로그인 상태를 친절한 fallback reason으로 표시
 - React/Vite/Tauri 기반 GUI에 `PlanningRoom` 페이지 또는 컴포넌트 추가
 - 기본 클로이/지오/미나 아바타 preset 제공
@@ -1008,13 +1016,13 @@ sed -n '1,160p' plans/*.md
 - 구독 CLI 3개를 안정적으로 non-interactive 호출
 - 각 CLI의 stdout/stderr를 같은 형식으로 파싱
 - 로그인 만료, TTY 요구, 사용량 제한, CLI 업데이트에 대응
-- Antigravity CLI의 자동화 가능한 non-interactive 계약 확정
+- Antigravity CLI의 `agy -p` non-interactive 계약을 로컬 OS별로 검증
 - 앱 안에서 sprite-gen을 직접 실행해 사용자가 새 캐릭터를 만드는 흐름
 - 채팅 UI, CLI orchestration, persona asset system을 한 PR에서 동시에 구현
 
 ### 가장 큰 문제
 
-가장 큰 기술 리스크는 sprite-gen이 아니라 **구독 CLI 자동화 안정성**이다. 그리고 안정성과 별개로 **약관/계약 차원의 리스크**가 벤더별로 다르게 존재한다 — 상세는 §13 참조. 특히 Anthropic은 제3자 자격증명 라우팅을 능동 단속 중이고, Google Antigravity(`agy`)는 **토큰 추출형 접근**에 밴 사례가 있으나 **공식 바이너리 relay(VibeLign식, 토큰 미열람)는 선례 없는 회색지대**다(§13-7).
+가장 큰 기술 리스크는 sprite-gen이 아니라 **구독 CLI 자동화 안정성**이다. 그리고 안정성과 별개로 **정책/계약 차원의 리스크**가 벤더별로 다르게 존재한다 — 상세는 §13 참조. 현재 방어 가능한 설계는 `claude -p`, `codex exec`, `agy -p` 같은 공식 CLI 경로만 사용하고, 토큰 추출·비공식 backend 호출·계정 풀링·재판매형 proxy를 금지하는 것이다.
 
 API 방식은 JSON schema, timeout, retry, structured output을 우리가 통제할 수 있다. 반면 구독 CLI 방식은 각 도구의 CLI UX에 종속된다. 다음 문제가 실제로 발생할 수 있다.
 
@@ -1098,7 +1106,7 @@ GUI MVP:
 |---|---|
 | `vib plan-structure`가 새 기획방/초보 UI에 새어 나와 사용자를 헷갈리게 함 | 기획방, 온보딩, 주요 도움말에서 숨기고 `vib plan`만 노출 |
 | 구독 CLI 자동화 불안정 | CLI adapter contract를 먼저 만들고 timeout/fallback/status 분류를 테스트 |
-| 구독 CLI 약관 위반 리스크(벤더별 상이) | §13 가드레일 준수: 공식 바이너리 subprocess relay만·토큰 추출 금지·재판매/풀링 금지. agy 토큰 추출은 밴 사례, 공식 바이너리 relay는 회색지대(§13-7) → VibeLign은 인증 무관 relay(OAuth/토큰 미취급), 잔존은 Antigravity ToS 6조 문구뿐(§13-8). Claude Agent SDK 크레딧(6-15~) 고지 |
+| 구독 CLI 정책 위반 리스크(벤더별 상이) | §13 가드레일 준수: 공식 바이너리 subprocess relay만·토큰/세션 파일 추출 금지·비공식 backend 호출 금지·재판매/풀링 금지. Antigravity는 공식 문서의 `agy -p` 경로만 사용하고 permission/sandbox 설정을 우회하지 않는다. Claude Agent SDK 크레딧(6-15~) 고지 |
 | CLI 사용량/실패 | 기본 rounds 1, CLI 오류는 fallback으로 처리 |
 | 중간 채팅 로그가 초보자에게 복잡함 | `--save-transcript`를 켠 경우에만 별도 저장 |
 | AI가 근거 없는 요구사항을 추가함 | prompt에 모르는 것은 "결정 필요"로 남기도록 고정 |
@@ -1124,120 +1132,61 @@ GUI MVP:
 
 ---
 
-## 13. 구독 CLI 약관 준수 분석 (2026-06-02 리서치)
+## 13. 공식 CLI 정책 준수 구조 (2026-06-03 리서치)
 
-> 1차 출처(공식 약관/정책 페이지) 기반 다출처 적대적 검증 결과. 약관은 자주 바뀌므로 구현 착수·배포 전 재확인 필요. **법률 자문이 아니다.**
+> 공식 문서 기준의 제품 설계 가드레일이다. 약관은 바뀔 수 있으므로 구현 착수·배포 전 재확인한다. 법률 자문이 아니다.
 
 ### 13-0. 한 줄 결론
 
-벤더별로 답이 다르다. 단일 yes/no가 아니다.
+VibeLign은 세 벤더의 모델을 API key orchestration으로 우회하지 않고, 사용자가 이미 로그인한 **공식 CLI 바이너리**만 subprocess로 실행한다. 현재 기획안의 허용 가능한 구조는 다음 세 명령에 고정한다.
 
-- **OpenAI(Codex) — 가장 안전.** 구독으로 CLI 사용 + 비대화형 `codex exec` 공식 지원. 소비자 약관에 프로그래매틱 추출 금지 조항 없음(반대 주장은 검증에서 0-3 반증).
-- **Anthropic(Claude) — 회색지대(미해결).** `claude -p` 비대화형은 구독에서 명시적으로 허용. 그러나 "제3자가 Pro/Max 자격증명을 사용자 대신 라우팅"하는 것은 금지(2026-01-09부터 서버측 능동 단속, OpenCode 등 차단). **공식 `claude` 바이너리를 사용자 본인 로그인으로 로컬 subprocess 실행하는 것**이 "native app의 통상 사용"인지 "금지된 제3자 라우팅"인지는 어떤 1차 출처도 결론 내리지 않음.
-- **Google(Antigravity, `agy`) — 접근 패턴에 따라 갈림(후속 리서치 §13-7).** Antigravity CLI(2026-05-19 GA, 구 Gemini CLI 후신)는 Google AI 구독으로 쓸 수 있다. 🔴 **토큰 추출/리버스-프록시**(OAuth 토큰을 읽어 비공식 클라이언트로 백엔드 접근, OpenClaw식)는 유료 AI Pro/Ultra 구독자($250/월 포함)도 밴된 확정 위반이다. 🟡 **공식 `agy` 바이너리를 subprocess로 relay**(토큰 미열람, stdin/stdout만 중계 — VibeLign의 실제 설계)는 요청을 진짜 공식 바이너리가 보내므로 사용자가 직접 친 것과 구분되지 않고, OpenClaw를 잡은 시그니처 탐지의 근거가 약하다 → 밴 선례 없는 회색지대다. **VibeLign은 agy의 OAuth/토큰을 다루지 않고 공식 바이너리를 relay할 뿐이므로 OpenClaw식 토큰 추출 우려는 적용되지 않는다.** 남는 건 Antigravity ToS 6조("Service를 우리가 제공하지 않은 제품과 연결해 사용하지 말 것")의 넓은 문구뿐인데, 이는 인증 방식과 무관하게 "제3자 제품이 루프에 끼어있음"을 겨냥한 회색지대다(§13-8).
+| 벤더 / 페르소나 | 공식 CLI 경로 | VibeLign의 처리 |
+|---|---|---|
+| OpenAI Codex / 지오 | `codex exec "<prompt>"` | stdout/stderr만 수집, 실패 시 template fallback |
+| Anthropic Claude Code / 클로이 | `claude -p "<prompt>"` | Agent SDK/print-mode 사용량 고지, stdout/stderr만 수집 |
+| Google Antigravity / 미나 | `agy -p "<prompt>"` | 공식 Antigravity CLI 비대화형 경로 사용, permission/sandbox 설정 우회 금지 |
 
-### 13-1. 벤더별 상세
+### 13-1. 공식 출처 기준
 
-| 벤더 / CLI | 구독으로 CLI 사용 | 비대화형/프로그래매틱 | 제3자 로컬 subprocess 래핑 |
-|---|---|---|---|
-| OpenAI Codex | ✅ Free/Go/Plus/Pro/Business/Edu/Enterprise 포함 | ✅ `codex exec` 공식 문서화, 구독 계정 인증 지원(단 CI/CD엔 API 키 권장) | 🟢 가장 방어 가능 — 금지 조항 미발견 |
-| Anthropic Claude Code | ✅ Pro/Max(소비자 약관 적용) | ✅ `claude -p` 명시 허용. 단 2026-06-15부터 구독의 `claude -p`/Agent SDK는 별도 월 Agent SDK 크레딧에서 차감 | 🟡 미해결 회색지대 — `claude -p` 허용 vs "자격증명 대신 라우팅/OAuth 토큰 추출" 금지의 경계 미확정 |
-| Google Antigravity CLI (`agy`) | 구독으로 사용 가능(AI Pro/Ultra/무료) | 헤드리스 플래그 존재하나 약관 지위 미확인 | 🔴 토큰 추출/프록시 = 밴 확정(2026-02). 🟡 공식 바이너리 subprocess relay(VibeLign식, 토큰 미열람) = 선례 없는 회색지대(ToS 6조 넓음). §13-7 |
+- Antigravity 공식 docs: installer는 `agy` 바이너리를 등록한다. best-practices 문서는 `agy -p "Review this git diff and draft a conventional commit message" --cwd $(pwd)` 예시를 제공한다. permissions 문서는 allow/deny/ask 규칙과 sandbox 설정을 사용자 로컬 설정으로 관리한다.
+- Claude Code CLI reference: `claude -p "query"`는 query 후 종료하는 print/non-interactive 경로다.
+- OpenAI Codex CLI: `codex exec`는 VibeLign이 이미 쓰는 non-interactive 계약이며, Codex CLI는 사용자의 터미널에서 로컬로 동작한다.
 
-출처(1차/공식 우선):
+### 13-2. 금지선
 
-- Anthropic: [Use the Claude Agent SDK with your Claude plan](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan), [Agent SDK overview](https://code.claude.com/docs/en/agent-sdk/overview), [Anthropic legal terms](https://www.anthropic.com/legal)
-- OpenAI: [Codex CLI and Sign in with ChatGPT](https://help.openai.com/en/articles/11381614-api-codex-cli-and-sign-in-with-chatgpt), [OpenAI Codex CLI - Getting Started](https://help.openai.com/en/articles/11096431), [OpenAI Terms of Use](https://openai.com/policies/row-terms-of-use)
-- Google: [Transitioning Gemini CLI to Antigravity CLI](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/), [Gemini API Terms](https://ai.google.dev/gemini-api/terms), [Gemini CLI ToS/privacy resource](https://github.com/google-gemini/gemini-cli/blob/main/docs/resources/tos-privacy.md)
+VibeLign은 다음을 하지 않는다.
 
-README/README.ko 공개 고지는 PR 4/5에서 실제 CLI adapter를 넣기 직전에 추가한다. PR 3까지는 공식 CLI 호출이 없으므로 README에 약관 고지를 먼저 노출하지 않는다.
+- 토큰/세션 파일, cookie, keychain, OAuth cache 직접 읽기
+- `.claude`, `.codex`, `.gemini`, `.config` credential 파일 직접 파싱
+- 비공식 backend endpoint 호출
+- TUI 화면 자동 입력 또는 화면 스크래핑
+- vendor safety/permission/sandbox 설정 우회
+- 계정 풀링, 중앙 credential 저장, 재판매형 proxy
+- CLI 응답을 경쟁 모델 학습, fine-tuning, 평가 데이터셋으로 재사용
+- 모델 응답 원문 기본 저장
 
-### 13-2. 시한부 데드라인 (오늘 2026-06-02 기준)
+### 13-3. 사용자 고지
 
-- **2026-06-15 — Anthropic Agent SDK 크레딧 분리.** Anthropic Help Center에 따르면 구독의 `claude -p`/Agent SDK 사용은 대화형 한도와 분리된 월 Agent SDK 크레딧을 사용한다. → VibeLign이 Claude를 자동 호출하면 사용자의 이 크레딧을 소모할 수 있다는 점을 UX에 투명 고지.
-- **2026-06-18 — 구 Gemini CLI 구독 종료(= Antigravity CLI로 전환 완료).** Google Developers Blog는 Gemini CLI/Gemini Code Assist IDE extensions가 개인/free/Google AI Pro·Ultra 요청 제공을 중단하고 Antigravity CLI로 전환한다고 공지했다. VibeLign은 후신인 `agy`(Antigravity CLI)를 쓰는 방향이므로 남는 리스크는 종료가 아니라 **Antigravity CLI의 구독·제3자 래핑 약관 미확인**(§13-5)이다.
+GUI와 README는 다음을 쉬운 문장으로 고지한다.
 
-### 13-3. VibeLign 설계가 이미 방어선에 있는 부분
+- VibeLign은 공식 CLI를 대신 실행할 뿐, 로그인 토큰이나 세션 파일을 읽지 않는다.
+- 각 CLI 호출은 사용자의 계정 사용량, 크레딧, quota, permission prompt를 소모하거나 발생시킬 수 있다.
+- 앞선 페르소나 응답은 다음 페르소나의 검토 맥락으로 전달될 수 있다. 완전 분리를 원하면 `@지오`, `@클로이`, `@미나` 같은 단일 mention을 사용한다.
+- 원문 transcript는 `--save-transcript` 또는 GUI 고급 옵션을 켠 경우에만 저장한다.
 
-배포 래퍼가 추가로 위반할 수 있는 조항(재판매, rate limit 우회, 모델 출력으로 경쟁 모델 학습)은 세 벤더 공통이지만, VibeLign의 **재판매 없음 · 계정 풀링 없음 · 사용자 본인 구독 한도 내 · 로컬 실행 · 자격증명 미열람** 설계는 표면적으로 이들을 건드리지 않는다(특히 무료 OSS라 재판매·경쟁 모델 조항은 거의 무관 — §13-8). 단 "제3자 앱이 BYO 로그인으로 구독을 쓰는 것이 공식 인정된 사용처"라는 주장은 검증에서 0-3 반증됨 — **어떤 벤더도 VibeLign의 정확한 패턴을 명시적으로 축복하지 않았다.** "위반 아님"이 아니라 "정면으로 다뤄지지 않음"이 정확한 상태다.
+### 13-4. Adapter acceptance criteria
 
-### 13-4. 설계 가드레일 (이 분석에서 도출)
+- `resolve_cli_executable()`은 `shutil.which("codex"|"claude"|"agy")` 결과만 사용한다.
+- `build_cli_command()`는 `codex exec`, `claude -p`, `agy -p`만 생성한다.
+- 각 adapter는 timeout, UTF-8 capture, Windows no-window subprocess flag, status 분류를 공유한다.
+- CLI가 미설치·미로그인·timeout·rate limit·TTY 필요·bad output이면 전체 기획 생성을 실패시키지 않고 template fallback으로 저장한다.
+- `agy -p`의 cwd 문제는 Python subprocess의 `cwd=root`로 먼저 처리한다. OS별 probe에서 문제가 보이면 공식 예시의 `--cwd` 추가를 별도 패치로 검증한다.
 
-- VibeLign은 **공식 CLI 바이너리를 subprocess로 실행**할 뿐, OAuth 토큰/세션 파일을 읽거나 비공식 API 클라이언트로 추출하지 않는다(§5 경계 = Anthropic 회색지대에서 방어 가능한 쪽).
-- 계정 풀링·중앙 자격증명 보관·재판매·모델 학습 금지를 acceptance criteria에 명시한다.
-- VibeLign은 **인증 무관 relay**다 — CLI의 인증(OAuth/API 키)은 사용자 터미널 설정이고 VibeLign이 고르거나 다루지 않는다. (구독-tier 집행이 걱정되는 사용자는 자기 CLI를 API 키로 구성할 수 있으나, 그건 VibeLign 밖 사용자 설정이다.)
-- Claude 자동 호출이 사용자의 Agent SDK 크레딧(2026-06-15~)을 소모할 수 있음을 고지한다.
+### 13-5. 배포 모델
 
-### 13-5. 미해결 질문 (구현·배포 전 확정 필요)
+VibeLign은 무료 오픈소스 로컬 앱이다. 무료/OSS 여부만으로 정책 위험이 사라지는 것은 아니므로, 방어선은 라이선스가 아니라 메커니즘이다.
 
-1. Anthropic: 사용자 본인 OAuth 로그인으로 공식 `claude` 바이너리를 로컬 subprocess 실행하는 것이 "통상 사용"인가 "금지된 제3자 라우팅"인가? — 1차 출처 미결, VibeLign의 Claude 적법성을 좌우.
-2. Google/Antigravity: **§13-7에서 부분 확인됨** — 토큰 추출형 접근(OAuth 토큰을 비공식 클라이언트로 라우팅)은 실제 밴 집행 대상으로 확인(유료 구독자 포함). 단 **공식 바이너리 subprocess relay**(VibeLign식)는 밴 선례가 없고, 렌더 가능한 Antigravity 전용 1차 약관 클로즈(antigravity.google/terms)도 공백이라 명시 허용/금지 미확정. 유료 API 키 경로가 제3자 앱에 공식 허용인지도 Google 미확인.
-3. OpenAI: `codex exec` + ChatGPT 계정 인증은 지원되나 공개/오픈소스 repo CI에는 권고하지 않음 — 공개 OSS로 배포되는 로컬 래퍼가 "신뢰된 사설 자동화"인가, 공개 배포 자체가 태세를 바꾸는가?
-4. 공통: 자격증명 미접촉 로컬 오케스트레이터를 "판매"하는 행위 자체가 분석을 바꾸는가? 검토한 약관은 자격증명 라우팅·재판매를 겨냥할 뿐 이 케이스를 정면으로 다루지 않음.
-
-### 13-6. 권고 — 패턴 구분이 핵심 (§13-7 반영)
-
-핵심은 "agy를 쓰느냐"가 아니라 "**어떻게 접근하느냐**"다.
-
-- **(절대 금지) OAuth 토큰 추출 / 리버스-프록시** — 토큰을 읽어 비공식 클라이언트로 백엔드 접근. OpenClaw식, 유료 구독자도 밴된 확정 위반. **VibeLign은 이걸 하지 않는다(§5 경계).**
-- **(VibeLign의 설계 = 허용 가능한 회색지대) 공식 CLI 바이너리 subprocess relay** — 사용자가 터미널에서 이미 쓰는 공식 CLI를 그대로 실행하고 stdin/stdout만 채팅창에 relay. 토큰 미열람. 밴 선례 없음. 다만 Antigravity ToS 6조 문구가 넓어 회색이고, 공개 OSS여도 벤더 재량 리스크는 남는다.
-
-벤더별 (relay 패턴 기준):
-
-- **OpenAI Codex 🟢** — `codex exec` 비대화형 공식 문서화. relay 가장 안전.
-- **Anthropic Claude 🟡(안전 쪽)** — `claude -p` 구독에서 명시 허용. 금지되는 건 토큰 라우팅/추출이지 공식 바이너리 relay가 아니다.
-- **Google Antigravity 🟡** — 공식 `agy` relay는 밴 선례 없음·기술 탐지 근거 약함. 단 ToS 6조 가장 넓음·축복 없음.
-
-따라서 **PR 4 `agy` dogfood는 토큰 추출 없이 공식 바이너리 relay로만 한다면 진행 가능**하다(작성자 본인 1인 로컬). 단:
-
-- 각 CLI의 **비대화형/헤드리스 모드**(`claude -p`, `codex exec`, agy 헤드리스)로 relay한다. TUI 자동 제어는 깨지기 쉬워 피한다.
-- 공개 OSS 배포라도(§13-8) Antigravity ToS 6조·축복 부재는 남는다(인증 방식과 무관). 단 VibeLign은 인증 무관 relay라 OAuth 토큰 추출 우려는 없고, 남는 §6 리스크는 "제3자 제품이 루프에 끼어있음" 자체다.
-- "최대한 확인된 footing"을 원하면 Codex(지오) 우선 시작이 가장 안전하지만, agy 우선도 relay 패턴이면 방어 가능하다.
-
-### 13-7. Antigravity CLI 약관 후속 리서치 (2026-06-02)
-
-agy(Antigravity CLI) 전용으로 1차 출처 검증을 다시 돌린 결과, 앞선 "미확인 → 아마 괜찮음" 톤을 **하향 조정한다.** VibeLign의 정확한 시나리오(로컬 앱이 사용자 본인 구독 로그인 agy를 subprocess로 호출)는 **깨끗한 허용이 아니라 상당한 약관 리스크**다.
-
-확정된 사실(high confidence):
-
-- **실제 밴 집행.** Google은 2026년 2월 제3자 도구/프록시로 구독 OAuth를 통해 Antigravity 백엔드에 접근한 계정을 밴했고, **유료 AI Pro/Ultra 구독자($250/월 포함)**도 포함됐다. (Google 공식 메인테이너 jackwotherspoon, GitHub Discussion #20632 "Addressing Antigravity Bans"; Techzine·The Register 등 다수 보도 교차 확인)
-- **인용 클로즈.** 메인테이너: "제3자 소프트웨어·도구·서비스로 Gemini CLI/Antigravity OAuth 인증을 harvest/piggyback해 백엔드에 접근하는 것은 직접적 위반." Antigravity ToS 6조: "You must not ... use the Service in connection with products not provided by us."
-- **탐지 방식 — 패턴이 갈린다.** 밴 사례는 전부 **OAuth 토큰을 추출해 비공식 클라이언트로 백엔드를 친** 패턴(OpenClaw/Pi/OpenCode)이다. User-Agent/시그니처 탐지가 그 비공식 클라이언트를 잡았다. **반면 VibeLign의 확정 설계는 공식 `agy` 바이너리를 subprocess로 실행해 stdin/stdout만 relay**하는 것 — 네트워크 요청은 진짜 공식 바이너리가 보내므로 사용자가 터미널에서 직접 친 것과 구분되지 않고, OpenClaw를 잡은 시그니처 탐지의 근거가 약하다. **즉 VibeLign 패턴은 밴 선례가 없는 회색지대지, 확정 위반이 아니다.** 남는 리스크는 기술 탐지가 아니라 ToS 6조의 넓은 문구 + 공식 축복 부재 + 벤더 재량이다(공개 OSS여도 남는다 — §13-8).
-
-뉘앙스/완화 요인:
-
-- 집행을 촉발한 abuse는 OpenClaw 등 **대량 토큰 하베스팅**(보조 가격 Gemini 2.5 Pro 착취). VibeLign 의도는 1 페르소나·소량·로컬 호출로 성격이 다르다. **단 집행 클로즈와 탐지는 사용량에 게이트되지 않아, 가벼운 사용이 면제된다는 근거는 없다.**
-- 최초 "영구 밴" 인상 이후 Google은 초범 자동 해제를 1회 운영(반복 위반은 영구). 정책 자체는 유지.
-
-1차 출처 공백:
-
-- Antigravity 전용 약관 페이지(antigravity.google/terms)는 JS 렌더 실패로 전문 확인 불가 — 구독 vs API 키 권한, 비대화형 호출, 제3자 subprocess 오케스트레이션을 명시 허용/금지하는 **렌더 가능한 1차 클로즈는 확인 못 함.** 승계는 published 클로즈 텍스트가 아니라 **실제 집행으로** 입증됨.
-- 커뮤니티 해석(Google 미확인): "구독 = Google 공식 도구만, 제3자 앱은 유료 API 키로." Google 스태프는 확인 요청에 무응답.
-
-배포 일반 제약(§13-8):
-
-- Gemini API 약관: 경쟁 모델 개발 금지 + 리버스 엔지니어링/추출/복제 금지. VibeLign은 무료 OSS·비경쟁이라 거의 무관하나, 사용자 CLI가 API 키로 구성된 경우 일반 적용.
-
-출처(주요): `github.com/google-gemini/gemini-cli/discussions/20632`(Google 스태프), `techzine.eu/.../google-intervenes-in-heavy-use-of-antigravity-and-gemini`, `github.com/openclaw/openclaw/issues/14203`, `discuss.ai.google.dev`(다수 밴 appeal 스레드), `ai.google.dev/gemini-api/terms`, `developers.googleblog.com`(전환 발표), `antigravity.google/terms`(렌더 실패·공백).
-
-### 13-8. 배포 모델: 공개 OSS (GitHub) — 현 상태
-
-VibeLign은 상업 배포가 아니라 **GitHub에 공개된 무료 오픈소스**다. 각 사용자가 자기 머신에서 자기 구독/CLI로 실행한다. 이게 약관 분석에 미치는 영향:
-
-**완화되는 축 (재판매):**
-
-- 재판매·서비스 유료 중계·계정 풀링이 없으므로, 세 벤더의 resale/redistribution 조항은 사실상 적용되지 않는다.
-- 경쟁 모델 학습을 하지 않으므로 해당 조항도 무관.
-
-**완화되지 않는 축 (제3자 래핑) — 중요:**
-
-- **무료·OSS라고 더 안전한 게 아니다.** 밴난 OpenClaw·OpenCode·Pi는 전부 무료 오픈소스였다. 벤더는 "돈을 받았는지"가 아니라 "**제3자 도구가 자기 백엔드에 붙는 패턴**"을 단속한다.
-- 공개 OSS가 인기를 얻어 많은 사용자를 끌면 OpenClaw처럼 **벤더 스크러티니를 부를 수 있다.**
-- 노출은 repo가 아니라 **각 사용자의 계정**에 발생한다(OpenClaw도 repo가 아니라 사용자 계정이 밴됐다). 즉 VibeLign 공개 자체보다 그걸 쓰는 사용자가 리스크를 짊어진다.
-
-**진짜 방어선은 라이선스가 아니라 메커니즘:**
-
-- VibeLign은 토큰을 추출하지 않고 **공식 바이너리를 relay**한다(§13-7) → OpenClaw류와 기술적으로 구분되는 쪽.
-- 사용자가 모르고 자기 계정을 걸지 않게 **각 벤더 ToS 회색지대를 앱/README에 정직하게 고지**한다.
-- VibeLign은 인증을 다루지 않는다(auth-agnostic relay). CLI 인증은 사용자 설정이다 — 구독-tier 집행이 걱정되는 사용자는 자기 CLI를 API 키로 구성할 수 있으나, VibeLign이 제공하는 인증 경로가 아니라 사용자 본인의 CLI 설정이다.
-- OpenAI는 공개/오픈소스 맥락에서 ChatGPT 계정 인증보다 API 키를 권한다(§13-1) — OSS라서 생기는 추가 단서.
+- 사용자는 자기 머신에서 자기 공식 CLI 로그인 상태로 실행한다.
+- VibeLign은 인증을 다루지 않는 auth-agnostic relay다.
+- VibeLign은 서비스 유료 중계, 재판매, 계정 공유, quota 우회를 제공하지 않는다.
+- 공개 배포 전 README/README.ko에 위 고지를 추가하고, 실제 CLI adapter가 들어가기 전까지는 과장된 "벤더 인증 완료" 표현을 쓰지 않는다.

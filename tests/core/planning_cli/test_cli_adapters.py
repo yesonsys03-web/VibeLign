@@ -14,6 +14,12 @@ def test_classifies_login_and_empty_output() -> None:
     assert classify_cli_output(0, "", "") == "bad_output"
 
 
+def test_successful_output_is_not_reclassified_by_broad_auth_words() -> None:
+    output = "검토 결과: 로그인 화면과 authentication flow를 기획안에 추가하세요."
+
+    assert classify_cli_output(0, output, "") == "ok"
+
+
 def test_select_adapter_keeps_pr4_to_codex_only() -> None:
     assert select_adapter("auto") == "codex"
     assert select_adapter("codex") == "codex"

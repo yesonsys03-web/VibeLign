@@ -1,63 +1,16 @@
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde::{Deserialize, Serialize};
-
 use super::planning_chat_store::{
     latest_chat_session_file, planning_dir, read_json, write_json, StoredPlanningChatSession,
 };
+use super::planning_chat_synthesis::{read_saved_markdown, save_planning_markdown};
+use super::planning_chat_types::{
+    planning_chat_error, planning_chat_success, AppendPlanningChatTurnRequest,
+    CreatePlanningChatSessionRequest, PlanningChatMessage, PlanningChatSessionResponse,
+    SavePlanningChatPlanRequest,
+};
 use super::planning_persona::{run_persona_response, PlanningChatLine};
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CreatePlanningChatSessionRequest {
-    project_dir: String,
-    prompt: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AppendPlanningChatTurnRequest {
-    project_dir: String,
-    session_id: String,
-    prompt: String,
-    agents: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct PlanningChatMessage {
-    id: String,
-    role: String,
-    persona_id: Option<String>,
-    content: String,
-    status: String,
-    created_at: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct PlanningChatSessionResponse {
-    ok: bool,
-    session_id: Option<String>,
-    prompt: Option<String>,
-    messages: Vec<PlanningChatMessage>,
-    error_code: Option<String>,
-    message: Option<String>,
-    details: Option<String>,
-}
-
-fn planning_chat_error(details: impl Into<String>) -> PlanningChatSessionResponse {
-    PlanningChatSessionResponse {
-        ok: false,
-        session_id: None,
-        prompt: None,
-        messages: Vec::new(),
-        error_code: Some("PLANNING_CHAT_FAILED".to_string()),
-        message: Some("기획방 대화를 준비하지 못했어요.".to_string()),
-        details: Some(details.into()),
-    }
-}
 
 #[tauri::command]
 pub(crate) async fn create_planning_chat_session(
@@ -85,6 +38,8 @@ pub(crate) async fn create_planning_chat_session(
             idea: prompt.clone(),
             mode: "chat".to_string(),
             created_at: now.clone(),
+            output_path: None,
+            absolute_output_path: None,
         };
         let messages = vec![PlanningChatMessage {
             id: format!("msg_{}", timestamp_ms()),
@@ -100,15 +55,7 @@ pub(crate) async fn create_planning_chat_session(
         if let Err(error) = write_json(session_dir.join("messages.json"), &messages) {
             return planning_chat_error(error);
         }
-        PlanningChatSessionResponse {
-            ok: true,
-            session_id: Some(session_id),
-            prompt: Some(prompt),
-            messages,
-            error_code: None,
-            message: None,
-            details: None,
-        }
+        planning_chat_success(session, messages, None)
     })
     .await
     .unwrap_or_else(|error| planning_chat_error(error.to_string()))
@@ -139,15 +86,8 @@ pub(crate) async fn load_latest_planning_chat_session(
             Ok(parsed) => parsed,
             Err(error) => return planning_chat_error(error),
         };
-        PlanningChatSessionResponse {
-            ok: true,
-            session_id: Some(session.session_id),
-            prompt: Some(session.idea),
-            messages,
-            error_code: None,
-            message: None,
-            details: None,
-        }
+        let markdown = read_saved_markdown(&project_dir, &session);
+        planning_chat_success(session, messages, markdown)
     })
     .await
     .unwrap_or_else(|error| planning_chat_error(error.to_string()))
@@ -173,7 +113,7 @@ pub(crate) async fn append_planning_chat_turn(
         let session_dir = planning_dir(&project_dir).join(&request.session_id);
         let session_path = session_dir.join("session.json");
         let messages_path = session_dir.join("messages.json");
-        let session = match read_json::<StoredPlanningChatSession>(&session_path) {
+        let mut session = match read_json::<StoredPlanningChatSession>(&session_path) {
             Ok(parsed) => parsed,
             Err(error) => return planning_chat_error(error),
         };
@@ -182,14 +122,16 @@ pub(crate) async fn append_planning_chat_turn(
             Err(error) => return planning_chat_error(error),
         };
         let now = timestamp_ms().to_string();
-        messages.push(PlanningChatMessage {
-            id: format!("msg_{}", timestamp_ms()),
-            role: "user".to_string(),
-            persona_id: None,
-            content: prompt.clone(),
-            status: "ok".to_string(),
-            created_at: now.clone(),
-        });
+        if request.include_user_message.unwrap_or(true) {
+            messages.push(PlanningChatMessage {
+                id: format!("msg_{}", timestamp_ms()),
+                role: "user".to_string(),
+                persona_id: None,
+                content: prompt.clone(),
+                status: "ok".to_string(),
+                created_at: now.clone(),
+            });
+        }
         for agent in request.agents {
             let lines = messages
                 .iter()
@@ -212,15 +154,51 @@ pub(crate) async fn append_planning_chat_turn(
         if let Err(error) = write_json(messages_path, &messages) {
             return planning_chat_error(error);
         }
-        PlanningChatSessionResponse {
-            ok: true,
-            session_id: Some(session.session_id),
-            prompt: Some(session.idea),
-            messages,
-            error_code: None,
-            message: None,
-            details: None,
+        if session.output_path.is_some() || session.absolute_output_path.is_some() {
+            session.output_path = None;
+            session.absolute_output_path = None;
+            if let Err(error) = write_json(session_path, &session) {
+                return planning_chat_error(error);
+            }
         }
+        planning_chat_success(session, messages, None)
+    })
+    .await
+    .unwrap_or_else(|error| planning_chat_error(error.to_string()))
+}
+
+#[tauri::command]
+pub(crate) async fn save_planning_chat_as_markdown(
+    request: SavePlanningChatPlanRequest,
+) -> PlanningChatSessionResponse {
+    let project_dir = PathBuf::from(&request.project_dir);
+    if !project_dir.is_absolute() {
+        return planning_chat_error("projectDir must be absolute");
+    }
+    if request.session_id.trim().is_empty() {
+        return planning_chat_error("sessionId is required");
+    }
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let session_dir = planning_dir(&project_dir).join(&request.session_id);
+        let session_path = session_dir.join("session.json");
+        let messages_path = session_dir.join("messages.json");
+        let mut session = match read_json::<StoredPlanningChatSession>(&session_path) {
+            Ok(parsed) => parsed,
+            Err(error) => return planning_chat_error(error),
+        };
+        let messages = match read_json::<Vec<PlanningChatMessage>>(&messages_path) {
+            Ok(parsed) => parsed,
+            Err(error) => return planning_chat_error(error),
+        };
+        let saved = match save_planning_markdown(&project_dir, &mut session, &messages) {
+            Ok(saved) => saved,
+            Err(error) => return planning_chat_error(error),
+        };
+        if let Err(error) = write_json(session_path, &session) {
+            return planning_chat_error(error);
+        }
+        planning_chat_success(session, messages, Some(saved.markdown))
     })
     .await
     .unwrap_or_else(|error| planning_chat_error(error.to_string()))
@@ -230,26 +208,4 @@ fn timestamp_ms() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_millis())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::PlanningChatMessage;
-
-    #[test]
-    fn planning_chat_message_serializes_camel_case() {
-        let message = PlanningChatMessage {
-            id: "msg_1".to_string(),
-            role: "assistant".to_string(),
-            persona_id: Some("chloe".to_string()),
-            content: "좋아요.".to_string(),
-            status: "ok".to_string(),
-            created_at: "2026-06-02T00:00:00Z".to_string(),
-        };
-
-        let json = serde_json::to_string(&message).expect("json");
-
-        assert!(json.contains("personaId"));
-        assert!(json.contains("createdAt"));
-    }
 }

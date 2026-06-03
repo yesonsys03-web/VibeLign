@@ -7,6 +7,7 @@ import type {
   CreatePlanningTemplateRequest,
   CreatePlanningTemplateResponse,
   PlanningChatSessionResponse,
+  SavePlanningChatPlanRequest,
 } from "./types";
 
 export function createPlanningTemplate(
@@ -39,4 +40,10 @@ export function appendPlanningChatTurn(
   request: AppendPlanningChatTurnRequest,
 ): Promise<PlanningChatSessionResponse> {
   return invoke<PlanningChatSessionResponse>("append_planning_chat_turn", { request });
+}
+
+export function savePlanningChatAsMarkdown(
+  request: SavePlanningChatPlanRequest,
+): Promise<PlanningChatSessionResponse> {
+  return invoke<PlanningChatSessionResponse>("save_planning_chat_as_markdown", { request });
 }

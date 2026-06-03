@@ -9,6 +9,8 @@ pub(crate) struct StoredPlanningChatSession {
     pub(crate) idea: String,
     pub(crate) mode: String,
     pub(crate) created_at: String,
+    pub(crate) output_path: Option<String>,
+    pub(crate) absolute_output_path: Option<String>,
 }
 
 pub(crate) fn planning_dir(project_dir: &Path) -> PathBuf {
@@ -49,7 +51,24 @@ pub(crate) fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, 
 
 #[cfg(test)]
 mod tests {
-    use super::latest_chat_session_file;
+    use super::{latest_chat_session_file, StoredPlanningChatSession};
+
+    #[test]
+    fn stored_chat_session_accepts_missing_output_fields() {
+        let session = serde_json::from_str::<StoredPlanningChatSession>(
+            r#"{
+              "schema_version": 1,
+              "session_id": "chat_1",
+              "idea": "예약 앱",
+              "mode": "chat",
+              "created_at": "1"
+            }"#,
+        )
+        .expect("session");
+
+        assert_eq!(session.output_path, None);
+        assert_eq!(session.absolute_output_path, None);
+    }
 
     #[test]
     fn latest_chat_session_requires_messages_file() {

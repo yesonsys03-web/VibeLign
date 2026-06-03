@@ -109,8 +109,20 @@ def _duration_ms(started: float) -> int:
 
 
 def classify_cli_output(exit_code: int, stdout: str, stderr: str) -> PlanningCliStatus:
+    if exit_code == 0 and stdout.strip():
+        return "ok"
+
     combined = f"{stdout}\n{stderr}".lower()
-    if "not logged in" in combined or "login" in combined or "auth" in combined:
+    login_patterns = (
+        "not logged in",
+        "not signed in",
+        "please login",
+        "please log in",
+        "login required",
+        "authentication required",
+        "auth required",
+    )
+    if any(pattern in combined for pattern in login_patterns):
         return "not_logged_in"
     if "rate limit" in combined or "rate_limited" in combined:
         return "rate_limited"
@@ -171,6 +183,6 @@ def build_cli_command(adapter: str, prompt: str) -> list[str] | None:
         case "claude":
             return [executable, "-p", prompt]
         case "agy":
-            return [executable, "--print", prompt]
+            return [executable, "-p", prompt]
         case _:
             raise ValueError(f"unsupported planning cli: {adapter}")

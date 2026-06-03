@@ -54,7 +54,7 @@ def test_orchestrator_runs_requested_personas_in_fixed_order(
     assert "## 지오의 검토" in result.markdown
     assert "## 미나의 탐색" in result.markdown
     assert runner.commands[0][:2] == ["/bin/codex", "exec"]
-    assert runner.commands[1][:2] == ["/bin/agy", "--print"]
+    assert runner.commands[1][:2] == ["/bin/agy", "-p"]
 
 
 def test_orchestrator_keeps_template_when_all_agents_fail(

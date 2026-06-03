@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { PlanningChatSessionResponse } from "../lib/vib";
+import { savePlanningChatAsMarkdown, type PlanningChatSessionResponse } from "../lib/vib";
 import { PlanningMarkdownView } from "./planning/PlanningMarkdownView";
 import { PlanningMessages } from "./planning/PlanningMessages";
 import { PlanningPersonaComposer } from "./planning/PlanningPersonaComposer";
@@ -14,8 +14,37 @@ interface PlanningRoomProps {
 
 export default function PlanningRoom({ projectDir, result, onBack, onResultChange }: PlanningRoomProps) {
   const [showMarkdown, setShowMarkdown] = useState(false);
-  const markdown = "";
+  const [isSaving, setIsSaving] = useState(false);
+  const markdown = result.markdown ?? "";
   const isPending = result.messages.some((message) => message.status === "pending");
+  const canSave = result.ok && !isPending && !isSaving && Boolean(result.sessionId);
+  const canView = !isPending && Boolean(markdown);
+
+  async function handleSavePlan() {
+    const sessionId = result.sessionId;
+    if (!sessionId || !canSave) {
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const next = await savePlanningChatAsMarkdown({ projectDir, sessionId });
+      onResultChange(next);
+      if (next.markdown) {
+        setShowMarkdown(true);
+      }
+    } catch (error) {
+      onResultChange({
+        ok: false,
+        sessionId,
+        prompt: result.prompt ?? null,
+        messages: result.messages,
+        message: "기획안을 저장하지 못했어요.",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
 
   return (
     <main style={{ height: "100%", overflow: "auto", background: "var(--bg)" }}>
@@ -31,15 +60,24 @@ export default function PlanningRoom({ projectDir, result, onBack, onResultChang
 
         {result.ok ? (
           <>
-            <PlanningMessages messages={result.messages} outputPath={null} />
-            <PlanningPersonaComposer projectDir={projectDir} sessionId={result.sessionId ?? null} onResultChange={onResultChange} />
-            <div>
+            <PlanningMessages messages={result.messages} outputPath={result.outputPath ?? null} />
+            <PlanningPersonaComposer projectDir={projectDir} result={result} sessionId={result.sessionId ?? null} onResultChange={onResultChange} />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                className="btn btn-black"
+                type="button"
+                onClick={handleSavePlan}
+                disabled={!canSave}
+                style={{ fontSize: 12, opacity: canSave ? 1 : 0.5 }}
+              >
+                {isSaving ? "저장중" : result.outputPath ? "기획안 다시 저장" : "기획안으로 저장"}
+              </button>
               <button
                 className="btn btn-black"
                 type="button"
                 onClick={() => setShowMarkdown((visible) => !visible)}
-                disabled={isPending || !markdown}
-                style={{ fontSize: 12, opacity: isPending || !markdown ? 0.5 : 1 }}
+                disabled={!canView}
+                style={{ fontSize: 12, opacity: canView ? 1 : 0.5 }}
               >
                 기획안 보기
               </button>
