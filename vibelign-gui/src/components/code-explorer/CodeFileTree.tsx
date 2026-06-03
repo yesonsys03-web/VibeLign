@@ -1,3 +1,4 @@
+// === ANCHOR: CODEFILETREE_START ===
 import { useMemo, useState } from "react";
 
 import { buildCodeTree, CATEGORY_COLORS, collectDirectoryPaths, flattenVisibleTree } from "../../lib/code-explorer/tree";
@@ -27,6 +28,7 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
   }, [autoExpandAll, tree, userExpanded, firstLevelDirs]);
   const visible = useMemo(() => flattenVisibleTree(tree, expandedPaths), [tree, expandedPaths]);
 
+  // === ANCHOR: CODEFILETREE_TOGGLE_START ===
   function toggle(path: string) {
     if (autoExpandAll) return; // 검색 중에는 자동 펼침이 우선하므로 수동 토글 무시
     setUserExpanded((prev) => {
@@ -36,6 +38,7 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
       return next;
     });
   }
+  // === ANCHOR: CODEFILETREE_TOGGLE_END ===
 
   return (
     <div className="card" style={{ height: "100%", overflow: "auto", padding: 10 }}>
@@ -142,3 +145,4 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
     </div>
   );
 }
+// === ANCHOR: CODEFILETREE_END ===

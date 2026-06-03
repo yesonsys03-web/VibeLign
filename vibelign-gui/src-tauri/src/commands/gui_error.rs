@@ -2,7 +2,10 @@
 use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 
 use crate::vib_path;
 
@@ -73,7 +76,11 @@ fn drain_gui_error_batch(runtime: &mut GuiErrorRuntime) -> Vec<GuiErrorEntry> {
 }
 
 #[tauri::command]
-pub(crate) fn record_gui_error(state: tauri::State<GuiErrorState>, project_dir: String, payload: serde_json::Value) {
+pub(crate) fn record_gui_error(
+    state: tauri::State<GuiErrorState>,
+    project_dir: String,
+    payload: serde_json::Value,
+) {
     let state = Arc::clone(&state.0);
     let _ = std::panic::catch_unwind(move || {
         if project_dir.trim().is_empty() {
@@ -84,7 +91,13 @@ pub(crate) fn record_gui_error(state: tauri::State<GuiErrorState>, project_dir: 
         };
         let flush_now = match state.lock() {
             Ok(mut guard) => {
-                let flush_now = push_gui_error(&mut guard, GuiErrorEntry { project_dir, payload });
+                let flush_now = push_gui_error(
+                    &mut guard,
+                    GuiErrorEntry {
+                        project_dir,
+                        payload,
+                    },
+                );
                 if !guard.flush_scheduled {
                     guard.flush_scheduled = true;
                     schedule_gui_error_flush(Arc::clone(&state), GUI_ERROR_FLUSH_DELAY_MS);
@@ -115,7 +128,10 @@ fn schedule_gui_error_flush(state: Arc<Mutex<GuiErrorRuntime>>, delay_ms: u64) {
 fn flush_gui_error_entries(entries: Vec<GuiErrorEntry>) {
     let mut grouped: HashMap<String, Vec<serde_json::Value>> = HashMap::new();
     for entry in entries {
-        grouped.entry(entry.project_dir).or_default().push(entry.payload);
+        grouped
+            .entry(entry.project_dir)
+            .or_default()
+            .push(entry.payload);
     }
     for (project_dir, payloads) in grouped {
         flush_gui_error_batch(&project_dir, &payloads);
@@ -127,7 +143,11 @@ fn flush_gui_error_batch(project_dir: &str, payloads: &[serde_json::Value]) {
     let _ = flush_gui_error_batch_with_vib(vib, project_dir, payloads);
 }
 
-fn flush_gui_error_batch_with_vib(vib: Option<PathBuf>, project_dir: &str, payloads: &[serde_json::Value]) -> bool {
+fn flush_gui_error_batch_with_vib(
+    vib: Option<PathBuf>,
+    project_dir: &str,
+    payloads: &[serde_json::Value],
+) -> bool {
     if payloads.is_empty() {
         return false;
     }
@@ -162,9 +182,9 @@ mod error_reporter_tests {
     use std::sync::atomic::Ordering;
 
     use super::{
-        drain_gui_error_batch, flush_gui_error_batch_with_vib, push_gui_error,
-        GuiErrorEntry, GuiErrorRuntime, ReportingGuard, GUI_ERROR_BUFFER_LIMIT,
-        GUI_ERROR_FLUSH_BATCH_SIZE, REPORTING_IN_PROGRESS,
+        drain_gui_error_batch, flush_gui_error_batch_with_vib, push_gui_error, GuiErrorEntry,
+        GuiErrorRuntime, ReportingGuard, GUI_ERROR_BUFFER_LIMIT, GUI_ERROR_FLUSH_BATCH_SIZE,
+        REPORTING_IN_PROGRESS,
     };
 
     #[test]
@@ -181,7 +201,13 @@ mod error_reporter_tests {
         }
 
         assert_eq!(runtime.queue.len(), GUI_ERROR_BUFFER_LIMIT);
-        assert_eq!(runtime.queue.front().and_then(|entry| entry.payload["index"].as_u64()), Some(1));
+        assert_eq!(
+            runtime
+                .queue
+                .front()
+                .and_then(|entry| entry.payload["index"].as_u64()),
+            Some(1)
+        );
     }
 
     #[test]
@@ -232,7 +258,8 @@ mod error_reporter_tests {
     fn reporting_guard_resets_after_drop_and_blocks_reentry() {
         REPORTING_IN_PROGRESS.store(false, Ordering::SeqCst);
         {
-            let _guard = ReportingGuard::enter().expect("first reporter entry should acquire guard");
+            let _guard =
+                ReportingGuard::enter().expect("first reporter entry should acquire guard");
             assert!(ReportingGuard::enter().is_none());
         }
         assert!(ReportingGuard::enter().is_some());

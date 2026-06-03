@@ -21,9 +21,8 @@ pub(crate) fn start_install(
     snapshot.install_path_kind = "native-cmd".to_string();
     snapshot.next_action = "none".to_string();
     snapshot.headline = "Claude Code 를 설치하고 있어요".to_string();
-    snapshot.detail = Some(
-        "공식 install.sh 를 실행하는 중이에요. 완료까지 1~2분 걸릴 수 있어요.".to_string(),
-    );
+    snapshot.detail =
+        Some("공식 install.sh 를 실행하는 중이에요. 완료까지 1~2분 걸릴 수 있어요.".to_string());
     snapshot.primary_button_label = None;
     snapshot.logs_available = onboarding_logs_available_from_state(&state.0);
     store_onboarding_snapshot(&state.0, &snapshot);
@@ -78,9 +77,8 @@ fn run_macos_install_flow(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::Ap
                 failed.install_path_kind = "native-cmd".to_string();
                 failed.next_action = "share_logs".to_string();
                 failed.headline = "설치 스크립트가 실패했어요".to_string();
-                failed.detail = Some(
-                    "install.sh 종료 코드가 0 이 아니에요. 로그를 확인해 주세요.".to_string(),
-                );
+                failed.detail =
+                    Some("install.sh 종료 코드가 0 이 아니에요. 로그를 확인해 주세요.".to_string());
                 failed.logs_available = onboarding_logs_available_from_state(state);
                 failed.last_error = Some(OnboardingLastError {
                     code: "installer_false_success".to_string(),
@@ -111,8 +109,7 @@ fn run_macos_install_flow(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::Ap
                         state: "verifying_shells".to_string(),
                         step_id: "run_macos_installer".to_string(),
                         status: "succeeded".to_string(),
-                        message: "install.sh 실행이 끝나서 새 셸 검증 단계로 넘어가요."
-                            .to_string(),
+                        message: "install.sh 실행이 끝나서 새 셸 검증 단계로 넘어가요.".to_string(),
                         stream_chunk: None,
                         shell_target: Some("bash".to_string()),
                         observed_path: None,
@@ -151,9 +148,8 @@ fn verify_macos_shells(
     snapshot.install_path_kind = "native-cmd".to_string();
     snapshot.next_action = "none".to_string();
     snapshot.headline = "새 셸에서 Claude 설치를 검증하는 중이에요".to_string();
-    snapshot.detail = Some(
-        "zsh 와 bash 에서 `claude` 실행 가능 여부를 확인하고 있어요.".to_string(),
-    );
+    snapshot.detail =
+        Some("zsh 와 bash 에서 `claude` 실행 가능 여부를 확인하고 있어요.".to_string());
     snapshot.primary_button_label = None;
     snapshot.logs_available = onboarding_logs_available_from_state(state);
     emit_onboarding_progress(
@@ -179,7 +175,11 @@ fn verify_macos_shells(
         append_onboarding_log(state, "[verify zsh stderr]", &r.stderr);
     }
 
-    append_onboarding_log(state, "[verify] running", "/bin/bash -lc 'claude --version'");
+    append_onboarding_log(
+        state,
+        "[verify] running",
+        "/bin/bash -lc 'claude --version'",
+    );
     let bash_result =
         run_command_capture_with_timeout("/bin/bash", &["-lc", "claude --version"], &[], 30).ok();
     if let Some(r) = &bash_result {
@@ -225,9 +225,8 @@ fn verify_macos_shells(
         snapshot.state = "login_required".to_string();
         snapshot.next_action = "start_login".to_string();
         snapshot.headline = "설치가 잘 끝났어요!".to_string();
-        snapshot.detail = Some(
-            "새 터미널을 열고 `claude` 를 실행하면 로그인 화면이 떠요.".to_string(),
-        );
+        snapshot.detail =
+            Some("새 터미널을 열고 `claude` 를 실행하면 로그인 화면이 떠요.".to_string());
         snapshot.primary_button_label = Some("다음으로".to_string());
         store_onboarding_snapshot(state, &snapshot);
         emit_onboarding_progress(
@@ -523,7 +522,10 @@ fn find_residual_claude_paths(state: &Arc<Mutex<OnboardingRuntime>>) -> Vec<Stri
     }
     if let Ok(r) = run_command_capture_with_timeout(
         "/bin/bash",
-        &["-lc", "which -a claude 2>/dev/null; command -v claude 2>/dev/null"],
+        &[
+            "-lc",
+            "which -a claude 2>/dev/null; command -v claude 2>/dev/null",
+        ],
         &[],
         10,
     ) {
@@ -561,11 +563,7 @@ pub(crate) fn uninstall(
         );
     } else if ok {
         let joined = residuals.join(", ");
-        append_onboarding_log(
-            &state.0,
-            "[uninstall macos] residual claude found",
-            &joined,
-        );
+        append_onboarding_log(&state.0, "[uninstall macos] residual claude found", &joined);
         snapshot.state = "needs_manual_step".to_string();
         snapshot.next_action = "share_logs".to_string();
         snapshot.headline = "다른 경로에 Claude 가 남아있어요".to_string();
@@ -583,9 +581,8 @@ pub(crate) fn uninstall(
         });
     } else {
         snapshot.headline = "삭제 도중 문제가 있었어요".to_string();
-        snapshot.detail = Some(
-            "로그를 확인하고 남은 파일이 있으면 수동으로 지워 주세요.".to_string(),
-        );
+        snapshot.detail =
+            Some("로그를 확인하고 남은 파일이 있으면 수동으로 지워 주세요.".to_string());
     }
     store_onboarding_snapshot(&state.0, &snapshot);
     emit_onboarding_progress(
@@ -607,7 +604,11 @@ pub(crate) fn uninstall(
             stream_chunk: None,
             shell_target: None,
             observed_path: None,
-            error_code: if ok { None } else { Some("unknown".to_string()) },
+            error_code: if ok {
+                None
+            } else {
+                Some("unknown".to_string())
+            },
         },
     );
     snapshot

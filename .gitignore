@@ -44,6 +44,7 @@ vibelign-gui/.vite/
 # Developer-local runtime state (not needed by end users)
 .omc/
 .sisyphus/
+.antigravitycli/
 
 # Native engine artifacts are generated during wheel builds.
 vibelign/_bundled/vibelign-engine*

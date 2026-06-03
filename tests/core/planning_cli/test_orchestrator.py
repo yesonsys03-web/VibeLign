@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from vibelign.core.planning_cli.cli_adapters import PlanningCliResult
@@ -112,3 +113,74 @@ def test_orchestrator_appends_followup_to_existing_plan(
     assert result.agents_used == ("chloe",)
     assert "## 클로이의 설계" in result.markdown
     assert "레이어 선택 흐름부터 정하세요." in plan_path.read_text(encoding="utf-8")
+
+
+def test_orchestrator_saves_opt_in_transcripts_as_turn_files(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "vibelign.core.planning_cli.cli_adapters.resolve_cli_executable",
+        lambda adapter: f"/bin/{adapter}",
+    )
+    runner = FakeRunner(
+        [
+            PlanningCliResult("ok", "클로이 초안입니다.", "", 0, 10),
+            PlanningCliResult("ok", "지오 검토입니다.", "", 0, 10),
+        ]
+    )
+
+    result = create_planning_with_agents(
+        tmp_path,
+        PlanningInput(idea="@chloe @gio 예약 앱"),
+        runner=runner,
+        save_transcript=True,
+    )
+
+    turns_dir = tmp_path / ".vibelign" / "planning" / result.session_id / "turns"
+    assert (turns_dir / "turn_001_claude.md").read_text(encoding="utf-8") == "클로이 초안입니다."
+    assert (turns_dir / "turn_002_codex.md").read_text(encoding="utf-8") == "지오 검토입니다."
+    assert not (tmp_path / ".vibelign" / "planning" / result.session_id / "transcripts").exists()
+
+
+def test_orchestrator_updates_session_json_with_agent_metadata(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "vibelign.core.planning_cli.cli_adapters.resolve_cli_executable",
+        lambda adapter: f"/bin/{adapter}",
+    )
+    long_response = " ".join(["클로이 초안입니다."] * 40)
+    runner = FakeRunner(
+        [
+            PlanningCliResult("ok", long_response, "", 0, 10),
+            PlanningCliResult("timeout", "지오 일부 응답입니다.", "", None, 10),
+        ]
+    )
+
+    result = create_planning_with_agents(
+        tmp_path,
+        PlanningInput(idea="@chloe @gio 예약 앱"),
+        runner=runner,
+    )
+
+    session_path = tmp_path / ".vibelign" / "planning" / result.session_id / "session.json"
+    session = json.loads(session_path.read_text(encoding="utf-8"))
+    assert session["agents_requested"] == ["chloe", "gio"]
+    assert session["agents_used"] == ["chloe"]
+    assert session["agent_statuses"] == {"chloe": "ok", "gio": "timeout"}
+    assert session["runs"][0] == {
+        "run_id": "run_chloe_001",
+        "turn_id": "turn_001",
+        "persona_id": "chloe",
+        "cli_id": "claude",
+        "status": "ok",
+        "summary": session["runs"][0]["summary"],
+    }
+    assert session["runs"][1]["run_id"] == "run_gio_002"
+    assert session["runs"][1]["turn_id"] == "turn_002"
+    assert session["runs"][1]["cli_id"] == "codex"
+    assert session["runs"][1]["status"] == "timeout"
+    assert len(session["runs"][0]["summary"]) < len(long_response)
+    assert long_response not in session_path.read_text(encoding="utf-8")

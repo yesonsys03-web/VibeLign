@@ -1,3 +1,4 @@
+// === ANCHOR: TREE_START ===
 import type { CodeFileEntry, ChangeStatus } from "../vib/types";
 
 export type CategoryKey = "code" | "docs" | "tests" | "other";
@@ -32,6 +33,7 @@ export interface VisibleCodeTreeItem {
   depth: number;
 }
 
+// === ANCHOR: TREE_CATEGORIZEFILEENTRY_START ===
 export function categorizeFileEntry(entry: CodeFileEntry): CategoryKey {
   // .md 등 문서 파일이면 어디에 있든 docs (docs/superpowers/specs/*.md 포함).
   if (entry.category === "docs") return "docs";
@@ -42,7 +44,9 @@ export function categorizeFileEntry(entry: CodeFileEntry): CategoryKey {
   if (entry.category === "code") return "code";
   return "other";
 }
+// === ANCHOR: TREE_CATEGORIZEFILEENTRY_END ===
 
+// === ANCHOR: TREE_CREATENODE_START ===
 function createNode(name: string, path: string, kind: "directory" | "file", file?: CodeFileEntry): CodeTreeNode {
   return {
     name,
@@ -54,7 +58,9 @@ function createNode(name: string, path: string, kind: "directory" | "file", file
     changedCount: 0,
   };
 }
+// === ANCHOR: TREE_CREATENODE_END ===
 
+// === ANCHOR: TREE_PICKDOMINANTCATEGORY_START ===
 function pickDominantCategory(counts: Record<CategoryKey, number>): CategoryKey {
   // 다수결, 동률일 때는 docs > tests > code > other 우선 (더 의미 있는 분류가 이긴다).
   const priority: CategoryKey[] = ["docs", "tests", "code", "other"];
@@ -68,7 +74,9 @@ function pickDominantCategory(counts: Record<CategoryKey, number>): CategoryKey 
   }
   return best;
 }
+// === ANCHOR: TREE_PICKDOMINANTCATEGORY_END ===
 
+// === ANCHOR: TREE_ASSIGNDIRECTORYCATEGORIES_START ===
 function assignDirectoryCategories(node: CodeTreeNode): Record<CategoryKey, number> {
   const counts: Record<CategoryKey, number> = { code: 0, docs: 0, tests: 0, other: 0 };
   for (const child of node.children) {
@@ -87,6 +95,7 @@ function assignDirectoryCategories(node: CodeTreeNode): Record<CategoryKey, numb
   }
   return counts;
 }
+// === ANCHOR: TREE_ASSIGNDIRECTORYCATEGORIES_END ===
 
 function assignChangedCounts(node: CodeTreeNode): number {
   let count = 0;
@@ -103,6 +112,7 @@ function assignChangedCounts(node: CodeTreeNode): number {
   return count;
 }
 
+// === ANCHOR: TREE_BUILDCODETREE_START ===
 export function buildCodeTree(files: CodeFileEntry[], changes?: ReadonlyMap<string, ChangeStatus>): CodeTreeNode {
   const root = createNode("", "", "directory");
   for (const file of [...files].sort((left, right) => left.path.localeCompare(right.path))) {
@@ -128,9 +138,12 @@ export function buildCodeTree(files: CodeFileEntry[], changes?: ReadonlyMap<stri
   assignChangedCounts(root);
   return root;
 }
+// === ANCHOR: TREE_BUILDCODETREE_END ===
 
+// === ANCHOR: TREE_FLATTENVISIBLETREE_START ===
 export function flattenVisibleTree(root: CodeTreeNode, expandedPaths: ReadonlySet<string>): VisibleCodeTreeItem[] {
   const result: VisibleCodeTreeItem[] = [];
+  // === ANCHOR: TREE_VISIT_START ===
   function visit(node: CodeTreeNode, depth: number) {
     for (const child of node.children) {
       result.push({ node: child, depth });
@@ -139,12 +152,16 @@ export function flattenVisibleTree(root: CodeTreeNode, expandedPaths: ReadonlySe
       }
     }
   }
+  // === ANCHOR: TREE_VISIT_END ===
   visit(root, 0);
+// === ANCHOR: TREE_FLATTENVISIBLETREE_END ===
   return result;
 }
 
+// === ANCHOR: TREE_COLLECTDIRECTORYPATHS_START ===
 export function collectDirectoryPaths(root: CodeTreeNode): Set<string> {
   const paths = new Set<string>();
+  // === ANCHOR: TREE_VISIT_START ===
   function visit(node: CodeTreeNode) {
     for (const child of node.children) {
       if (child.kind === "directory") {
@@ -153,11 +170,16 @@ export function collectDirectoryPaths(root: CodeTreeNode): Set<string> {
       }
     }
   }
+  // === ANCHOR: TREE_VISIT_END ===
   visit(root);
+// === ANCHOR: TREE_COLLECTDIRECTORYPATHS_END ===
   return paths;
 }
 
+// === ANCHOR: TREE_COMPARENODES_START ===
 function compareNodes(left: CodeTreeNode, right: CodeTreeNode): number {
   if (left.kind !== right.kind) return left.kind === "directory" ? -1 : 1;
   return left.name.localeCompare(right.name);
 }
+// === ANCHOR: TREE_COMPARENODES_END ===
+// === ANCHOR: TREE_END ===

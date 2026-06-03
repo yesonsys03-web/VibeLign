@@ -67,11 +67,15 @@ fn baseline_from_git(root: &Path, rel: &str) -> Option<String> {
     // (Windows 는 프로세스 spawn 비용이 커서 rev-parse+ls-files+show 3회를 1회로 축소 —
     //  파일 선택 시 코드 표시가 지연되던 주요 원인.)
     let mut cmd = std::process::Command::new("git");
-    cmd.args(["-C"]).arg(root)
-        .arg("show").arg(format!("HEAD:{}", rel));
+    cmd.args(["-C"])
+        .arg(root)
+        .arg("show")
+        .arg(format!("HEAD:{}", rel));
     apply_no_window(&mut cmd);
     let show = cmd.output().ok()?;
-    if !show.status.success() { return None; }
+    if !show.status.success() {
+        return None;
+    }
     String::from_utf8(show.stdout).ok().map(normalize_newlines)
 }
 
@@ -79,7 +83,8 @@ fn baseline_from_checkpoint(root: &Path, rel: &str) -> Option<String> {
     let checkpoints_dir = root.join(".vibelign").join("checkpoints");
     // timestamp 형식 디렉터리만 후보로 둔다 — 스테이징/인덱스 같은 비-체크포인트 디렉터리가
     // 사전순으로 더 높게 정렬돼 baseline 을 가로채는 것을 막는다.
-    let mut names: Vec<_> = std::fs::read_dir(&checkpoints_dir).ok()?
+    let mut names: Vec<_> = std::fs::read_dir(&checkpoints_dir)
+        .ok()?
         .flatten()
         .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
         .map(|e| e.file_name())
@@ -97,7 +102,9 @@ fn baseline_from_checkpoint(root: &Path, rel: &str) -> Option<String> {
         };
         // 이 파일을 가진 가장 최근 체크포인트로 baseline 확정.
         // 바이너리/비-UTF8 이면 텍스트 diff 불가 → 기존과 동일하게 baseline 없음(None).
-        if bytes.contains(&0) { return None; }
+        if bytes.contains(&0) {
+            return None;
+        }
         let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(&bytes);
         let s = std::str::from_utf8(bytes).ok()?;
         return Some(normalize_newlines(s));
@@ -130,16 +137,32 @@ pub(crate) fn compute_line_diff(baseline: &str, current: &str) -> Vec<DiffLine> 
         let text = change.value().trim_end_matches('\n').to_string();
         match change.tag() {
             ChangeTag::Equal => {
-                old_no += 1; new_no += 1;
-                out.push(DiffLine { kind: DiffKind::Context, old_no: Some(old_no), new_no: Some(new_no), text });
+                old_no += 1;
+                new_no += 1;
+                out.push(DiffLine {
+                    kind: DiffKind::Context,
+                    old_no: Some(old_no),
+                    new_no: Some(new_no),
+                    text,
+                });
             }
             ChangeTag::Delete => {
                 old_no += 1;
-                out.push(DiffLine { kind: DiffKind::Removed, old_no: Some(old_no), new_no: None, text });
+                out.push(DiffLine {
+                    kind: DiffKind::Removed,
+                    old_no: Some(old_no),
+                    new_no: None,
+                    text,
+                });
             }
             ChangeTag::Insert => {
                 new_no += 1;
-                out.push(DiffLine { kind: DiffKind::Added, old_no: None, new_no: Some(new_no), text });
+                out.push(DiffLine {
+                    kind: DiffKind::Added,
+                    old_no: None,
+                    new_no: Some(new_no),
+                    text,
+                });
             }
         }
     }
@@ -147,7 +170,8 @@ pub(crate) fn compute_line_diff(baseline: &str, current: &str) -> Vec<DiffLine> 
 }
 
 pub(crate) fn count_changes(lines: &[DiffLine]) -> (u32, u32) {
-    let mut added = 0u32; let mut removed = 0u32;
+    let mut added = 0u32;
+    let mut removed = 0u32;
     for l in lines {
         match l.kind {
             DiffKind::Added => added += 1,
@@ -218,8 +242,16 @@ mod tests {
     #[test]
     fn baseline_picks_latest_checkpoint_by_name() {
         let root = TempDir::new().unwrap();
-        write(root.path(), ".vibelign/checkpoints/20260101T000000Z_a/files/src/main.ts", b"v1\n");
-        write(root.path(), ".vibelign/checkpoints/20260201T000000Z_b/files/src/main.ts", b"v2\n");
+        write(
+            root.path(),
+            ".vibelign/checkpoints/20260101T000000Z_a/files/src/main.ts",
+            b"v1\n",
+        );
+        write(
+            root.path(),
+            ".vibelign/checkpoints/20260201T000000Z_b/files/src/main.ts",
+            b"v2\n",
+        );
         let (text, src) = resolve_baseline(root.path(), "src/main.ts");
         assert_eq!(text.as_deref(), Some("v2\n"));
         assert_eq!(src, BaselineSource::Checkpoint);
@@ -230,8 +262,16 @@ mod tests {
         // 최신 체크포인트는 이 파일을 안 가졌고(삭제 후 재생성 등), 이전 체크포인트만 가졌다.
         // 최신만 보고 None 을 돌려주면 안 되고, 파일을 가진 가장 최근 체크포인트로 폴백해야 한다.
         let root = TempDir::new().unwrap();
-        write(root.path(), ".vibelign/checkpoints/20260201T000000Z_new/files/other.ts", b"x\n");
-        write(root.path(), ".vibelign/checkpoints/20260101T000000Z_old/files/src/main.ts", b"old content\n");
+        write(
+            root.path(),
+            ".vibelign/checkpoints/20260201T000000Z_new/files/other.ts",
+            b"x\n",
+        );
+        write(
+            root.path(),
+            ".vibelign/checkpoints/20260101T000000Z_old/files/src/main.ts",
+            b"old content\n",
+        );
         let (text, src) = resolve_baseline(root.path(), "src/main.ts");
         assert_eq!(text.as_deref(), Some("old content\n"));
         assert_eq!(src, BaselineSource::Checkpoint);
@@ -242,8 +282,16 @@ mod tests {
         // checkpoints/ 아래 timestamp 형식이 아닌 디렉터리(사전순으로 "2026.." 보다 높게 정렬)는
         // 후보에서 제외돼야 한다 — 그 안의 파일이 진짜 체크포인트 baseline 을 가로채면 안 된다.
         let root = TempDir::new().unwrap();
-        write(root.path(), ".vibelign/checkpoints/20260101T000000Z_real/files/src/main.ts", b"real\n");
-        write(root.path(), ".vibelign/checkpoints/zz_not_a_checkpoint/files/src/main.ts", b"BOGUS\n");
+        write(
+            root.path(),
+            ".vibelign/checkpoints/20260101T000000Z_real/files/src/main.ts",
+            b"real\n",
+        );
+        write(
+            root.path(),
+            ".vibelign/checkpoints/zz_not_a_checkpoint/files/src/main.ts",
+            b"BOGUS\n",
+        );
         let (text, src) = resolve_baseline(root.path(), "src/main.ts");
         assert_eq!(text.as_deref(), Some("real\n"));
         assert_eq!(src, BaselineSource::Checkpoint);
@@ -253,13 +301,18 @@ mod tests {
     fn baseline_from_git_head_when_repo_present() {
         // git이 PATH에 없거나 호스트 정책상 실패하면 테스트 자체를 skip한다.
         let probe = std::process::Command::new("git").arg("--version").output();
-        if probe.as_ref().map(|o| !o.status.success()).unwrap_or(true) { return; }
+        if probe.as_ref().map(|o| !o.status.success()).unwrap_or(true) {
+            return;
+        }
 
         let root = TempDir::new().unwrap();
         let run = |args: &[&str]| {
             let st = std::process::Command::new("git")
-                .args(["-C"]).arg(root.path()).args(args)
-                .status().expect("git");
+                .args(["-C"])
+                .arg(root.path())
+                .args(args)
+                .status()
+                .expect("git");
             assert!(st.success(), "git {args:?} failed");
         };
         run(&["init", "-q", "-b", "main"]);
@@ -281,13 +334,18 @@ mod tests {
         // git 저장소이지만 HEAD에 없는(추적 안 된) 파일은 git baseline 이 아니어야 한다.
         // 단일 `git show HEAD:rel` 로 축소해도 이 동작이 유지되는지 잠그는 특성 테스트.
         let probe = std::process::Command::new("git").arg("--version").output();
-        if probe.as_ref().map(|o| !o.status.success()).unwrap_or(true) { return; }
+        if probe.as_ref().map(|o| !o.status.success()).unwrap_or(true) {
+            return;
+        }
 
         let root = TempDir::new().unwrap();
         let run = |args: &[&str]| {
             let st = std::process::Command::new("git")
-                .args(["-C"]).arg(root.path()).args(args)
-                .status().expect("git");
+                .args(["-C"])
+                .arg(root.path())
+                .args(args)
+                .status()
+                .expect("git");
             assert!(st.success(), "git {args:?} failed");
         };
         run(&["init", "-q", "-b", "main"]);
@@ -306,7 +364,7 @@ mod tests {
     #[test]
     fn diff_marks_added_and_removed_lines() {
         let baseline = "a\nb\nc\n";
-        let current  = "a\nB\nc\nd\n";
+        let current = "a\nB\nc\nd\n";
         let lines = compute_line_diff(baseline, current);
         // 기대: a=context(1,1), b=removed(2,_), B=added(_,2), c=context(3,3), d=added(_,4)
         assert_eq!(lines.len(), 5);
@@ -336,10 +394,10 @@ mod tests {
     #[test]
     fn diff_counts_added_removed() {
         let baseline = "a\nb\n";
-        let current  = "a\nB\nc\n";
+        let current = "a\nB\nc\n";
         let (added, removed) = count_changes(&compute_line_diff(baseline, current));
-        assert_eq!(added, 2);    // B, c
-        assert_eq!(removed, 1);  // b
+        assert_eq!(added, 2); // B, c
+        assert_eq!(removed, 1); // b
     }
 
     #[test]
@@ -359,7 +417,11 @@ mod tests {
     fn build_diff_checkpoint_baseline_marks_changes() {
         let root = TempDir::new().unwrap();
         write(root.path(), "src/main.ts", b"a\nB\nc\n");
-        write(root.path(), ".vibelign/checkpoints/20260101T000000Z_x/files/src/main.ts", b"a\nb\nc\n");
+        write(
+            root.path(),
+            ".vibelign/checkpoints/20260101T000000Z_x/files/src/main.ts",
+            b"a\nb\nc\n",
+        );
         let result = build_file_diff(root.path(), "src/main.ts").expect("ok");
         assert_eq!(result.baseline_source, BaselineSource::Checkpoint);
         assert_eq!(result.added, 1);

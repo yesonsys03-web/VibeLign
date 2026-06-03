@@ -16,7 +16,8 @@ use super::{
 use super::check_git_installed;
 
 fn read_windows_user_path() -> Option<String> {
-    let output = run_command_capture("reg", &["query", r"HKCU\Environment", "/v", "Path"], &[]).ok()?;
+    let output =
+        run_command_capture("reg", &["query", r"HKCU\Environment", "/v", "Path"], &[]).ok()?;
     if !output.ok {
         return None;
     }
@@ -36,7 +37,11 @@ fn merge_windows_path() -> Option<String> {
     let current = std::env::var("PATH").ok().unwrap_or_default();
     let user = read_windows_user_path().unwrap_or_default();
     if user.is_empty() {
-        return if current.is_empty() { None } else { Some(current) };
+        return if current.is_empty() {
+            None
+        } else {
+            Some(current)
+        };
     }
     if current.is_empty() {
         return Some(user);
@@ -56,7 +61,9 @@ fn windows_placeholder_artifact_exists() -> bool {
     let Some(path) = windows_placeholder_artifact() else {
         return false;
     };
-    std::fs::metadata(path).map(|m| m.is_file() && m.len() == 0).unwrap_or(false)
+    std::fs::metadata(path)
+        .map(|m| m.is_file() && m.len() == 0)
+        .unwrap_or(false)
 }
 
 fn windows_expected_claude_path() -> Option<PathBuf> {
@@ -69,29 +76,41 @@ fn windows_expected_claude_exists() -> bool {
         .unwrap_or(false)
 }
 
-fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::AppHandle, install_path_kind: &str) -> OnboardingSnapshot {
+fn verify_windows_shells(
+    state: &Arc<Mutex<OnboardingRuntime>>,
+    app: &tauri::AppHandle,
+    install_path_kind: &str,
+) -> OnboardingSnapshot {
     let mut snapshot = build_onboarding_snapshot();
     snapshot.state = "verifying_shells".to_string();
     snapshot.install_path_kind = install_path_kind.to_string();
     snapshot.next_action = "none".to_string();
     snapshot.headline = "새 셸에서 Claude 설치를 검증하는 중이에요".to_string();
-    snapshot.detail = Some("PowerShell과 CMD에서 `claude` 실행 가능 여부를 확인하고 있어요.".to_string());
+    snapshot.detail =
+        Some("PowerShell과 CMD에서 `claude` 실행 가능 여부를 확인하고 있어요.".to_string());
     snapshot.primary_button_label = None;
     snapshot.logs_available = onboarding_logs_available_from_state(state);
-    emit_onboarding_progress(app, OnboardingProgressEvent {
-        phase: "verify".to_string(),
-        state: snapshot.state.clone(),
-        step_id: "verify_version".to_string(),
-        status: "started".to_string(),
-        message: "새 셸에서 `claude --version` 과 `claude doctor` 를 확인하는 중이에요.".to_string(),
-        stream_chunk: None,
-        shell_target: None,
-        observed_path: None,
-        error_code: None,
-    });
+    emit_onboarding_progress(
+        app,
+        OnboardingProgressEvent {
+            phase: "verify".to_string(),
+            state: snapshot.state.clone(),
+            step_id: "verify_version".to_string(),
+            status: "started".to_string(),
+            message: "새 셸에서 `claude --version` 과 `claude doctor` 를 확인하는 중이에요."
+                .to_string(),
+            stream_chunk: None,
+            shell_target: None,
+            observed_path: None,
+            error_code: None,
+        },
+    );
 
     let merged_path = merge_windows_path();
-    let env_overrides: Vec<(&str, String)> = merged_path.clone().map(|p| vec![("PATH", p)]).unwrap_or_default();
+    let env_overrides: Vec<(&str, String)> = merged_path
+        .clone()
+        .map(|p| vec![("PATH", p)])
+        .unwrap_or_default();
 
     append_onboarding_log(state, "[verify] running", "cmd /C where.exe claude");
     let where_result = run_command_capture("cmd", &["/C", "where.exe claude"], &env_overrides).ok();
@@ -101,7 +120,10 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
     } else {
         append_onboarding_log(state, "[verify where.exe claude]", "spawn error");
     }
-    let where_found = where_result.as_ref().map(|r| r.ok && !r.stdout.trim().is_empty()).unwrap_or(false);
+    let where_found = where_result
+        .as_ref()
+        .map(|r| r.ok && !r.stdout.trim().is_empty())
+        .unwrap_or(false);
     // `where.exe` 를 우리가 주입한 merged PATH 로 실행하기 때문에,
     // install.ps1 이 HKCU\Environment\Path 를 건드리지 않은 경우에도
     // GUI 프로세스 env 만으로 claude.exe 가 잡힐 수 있다.
@@ -134,32 +156,71 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
     append_onboarding_log(state, "[verify] running", "cmd /C claude --version");
     let cmd_version = run_command_capture("cmd", &["/C", "claude --version"], &env_overrides).ok();
     if let Some(result) = &cmd_version {
-        append_onboarding_log(state, "[verify cmd claude --version stdout]", &result.stdout);
-        append_onboarding_log(state, "[verify cmd claude --version stderr]", &result.stderr);
+        append_onboarding_log(
+            state,
+            "[verify cmd claude --version stdout]",
+            &result.stdout,
+        );
+        append_onboarding_log(
+            state,
+            "[verify cmd claude --version stderr]",
+            &result.stderr,
+        );
     } else {
         append_onboarding_log(state, "[verify cmd claude --version]", "spawn error");
     }
     append_onboarding_log(state, "[verify] running", "powershell claude --version");
-    let ps_version = run_command_capture("powershell", &["-NoProfile", "-Command", "claude --version"], &env_overrides).ok();
+    let ps_version = run_command_capture(
+        "powershell",
+        &["-NoProfile", "-Command", "claude --version"],
+        &env_overrides,
+    )
+    .ok();
     if let Some(result) = &ps_version {
-        append_onboarding_log(state, "[verify powershell claude --version stdout]", &result.stdout);
-        append_onboarding_log(state, "[verify powershell claude --version stderr]", &result.stderr);
+        append_onboarding_log(
+            state,
+            "[verify powershell claude --version stdout]",
+            &result.stdout,
+        );
+        append_onboarding_log(
+            state,
+            "[verify powershell claude --version stderr]",
+            &result.stderr,
+        );
     } else {
         append_onboarding_log(state, "[verify powershell claude --version]", "spawn error");
     }
     // claude doctor 는 Ink raw-mode TTY 가 필요해서 GUI 자식 프로세스에선 항상 timeout.
     // 진단 가치가 없어 검증 단계에서 생략한다.
-    append_onboarding_log(state, "[verify] skip", "claude doctor (non-TTY 한계로 생략)");
+    append_onboarding_log(
+        state,
+        "[verify] skip",
+        "claude doctor (non-TTY 한계로 생략)",
+    );
     let doctor_result: Option<CommandCapture> = None;
 
     let direct_version = windows_expected_claude_path().and_then(|path| {
         let path_str = path.to_string_lossy().to_string();
-        append_onboarding_log(state, "[verify] running direct", &format!("{} --version (timeout 15s)", path_str));
-        run_command_capture_with_timeout(&path_str, &["--version"], &[], 15).ok().map(|result| (path_str, result))
+        append_onboarding_log(
+            state,
+            "[verify] running direct",
+            &format!("{} --version (timeout 15s)", path_str),
+        );
+        run_command_capture_with_timeout(&path_str, &["--version"], &[], 15)
+            .ok()
+            .map(|result| (path_str, result))
     });
     if let Some((_, result)) = &direct_version {
-        append_onboarding_log(state, "[verify direct claude.exe --version stdout]", &result.stdout);
-        append_onboarding_log(state, "[verify direct claude.exe --version stderr]", &result.stderr);
+        append_onboarding_log(
+            state,
+            "[verify direct claude.exe --version stdout]",
+            &result.stdout,
+        );
+        append_onboarding_log(
+            state,
+            "[verify direct claude.exe --version stderr]",
+            &result.stderr,
+        );
     }
 
     let direct_doctor: Option<(String, CommandCapture)> = None;
@@ -203,17 +264,20 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
             suggested_action: Some("open_manual_steps".to_string()),
         });
         store_onboarding_snapshot(state, &snapshot);
-        emit_onboarding_progress(app, OnboardingProgressEvent {
-            phase: "verify".to_string(),
-            state: snapshot.state.clone(),
-            step_id: "verify_doctor".to_string(),
-            status: "failed".to_string(),
-            message: "설치는 성공했지만 PATH 미설정 상태로 분류했어요.".to_string(),
-            stream_chunk: None,
-            shell_target: None,
-            observed_path: Some(install_path),
-            error_code: Some("path_not_configured".to_string()),
-        });
+        emit_onboarding_progress(
+            app,
+            OnboardingProgressEvent {
+                phase: "verify".to_string(),
+                state: snapshot.state.clone(),
+                step_id: "verify_doctor".to_string(),
+                status: "failed".to_string(),
+                message: "설치는 성공했지만 PATH 미설정 상태로 분류했어요.".to_string(),
+                stream_chunk: None,
+                shell_target: None,
+                observed_path: Some(install_path),
+                error_code: Some("path_not_configured".to_string()),
+            },
+        );
         return snapshot;
     }
 
@@ -229,17 +293,21 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
             suggested_action: None,
         });
         store_onboarding_snapshot(state, &snapshot);
-        emit_onboarding_progress(app, OnboardingProgressEvent {
-            phase: "verify".to_string(),
-            state: snapshot.state.clone(),
-            step_id: "verify_version".to_string(),
-            status: "failed".to_string(),
-            message: "0-byte placeholder artifact 가 감지되어 설치를 실패로 분류했어요.".to_string(),
-            stream_chunk: None,
-            shell_target: None,
-            observed_path,
-            error_code: Some("placeholder_artifact".to_string()),
-        });
+        emit_onboarding_progress(
+            app,
+            OnboardingProgressEvent {
+                phase: "verify".to_string(),
+                state: snapshot.state.clone(),
+                step_id: "verify_version".to_string(),
+                status: "failed".to_string(),
+                message: "0-byte placeholder artifact 가 감지되어 설치를 실패로 분류했어요."
+                    .to_string(),
+                stream_chunk: None,
+                shell_target: None,
+                observed_path,
+                error_code: Some("placeholder_artifact".to_string()),
+            },
+        );
         return snapshot;
     }
 
@@ -254,17 +322,20 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
         snapshot.detail = Some("이제 터미널에서 `claude` 를 실행하면 로그인 화면이 뜨고, 로그인만 한 번 하면 바로 쓸 수 있어요.".to_string());
         snapshot.primary_button_label = Some("다음으로".to_string());
         store_onboarding_snapshot(state, &snapshot);
-        emit_onboarding_progress(app, OnboardingProgressEvent {
-            phase: "verify".to_string(),
-            state: snapshot.state.clone(),
-            step_id: "verify_doctor".to_string(),
-            status: "succeeded".to_string(),
-            message: "새 셸 검증이 통과했어요.".to_string(),
-            stream_chunk: None,
-            shell_target: None,
-            observed_path,
-            error_code: None,
-        });
+        emit_onboarding_progress(
+            app,
+            OnboardingProgressEvent {
+                phase: "verify".to_string(),
+                state: snapshot.state.clone(),
+                step_id: "verify_doctor".to_string(),
+                status: "succeeded".to_string(),
+                message: "새 셸 검증이 통과했어요.".to_string(),
+                stream_chunk: None,
+                shell_target: None,
+                observed_path,
+                error_code: None,
+            },
+        );
         return snapshot;
     }
 
@@ -308,17 +379,24 @@ fn verify_windows_shells(state: &Arc<Mutex<OnboardingRuntime>>, app: &tauri::App
         },
     });
     store_onboarding_snapshot(state, &snapshot);
-    emit_onboarding_progress(app, OnboardingProgressEvent {
-        phase: "verify".to_string(),
-        state: snapshot.state.clone(),
-        step_id: if doctor_failed { "verify_doctor".to_string() } else { "verify_version".to_string() },
-        status: "failed".to_string(),
-        message: "새 셸 검증이 실패해 설치를 false-success 로 분류했어요.".to_string(),
-        stream_chunk: None,
-        shell_target: None,
-        observed_path,
-        error_code: Some("installer_false_success".to_string()),
-    });
+    emit_onboarding_progress(
+        app,
+        OnboardingProgressEvent {
+            phase: "verify".to_string(),
+            state: snapshot.state.clone(),
+            step_id: if doctor_failed {
+                "verify_doctor".to_string()
+            } else {
+                "verify_version".to_string()
+            },
+            status: "failed".to_string(),
+            message: "새 셸 검증이 실패해 설치를 false-success 로 분류했어요.".to_string(),
+            stream_chunk: None,
+            shell_target: None,
+            observed_path,
+            error_code: Some("installer_false_success".to_string()),
+        },
+    );
     snapshot
 }
 
@@ -338,23 +416,35 @@ fn run_wsl_install_flow(
     snapshot.detail = Some("PowerShell·CMD 설치는 이미 끝났고, 이어서 WSL 터미널에서도 바로 쓸 수 있도록 Linux 버전을 설치해요.".to_string());
     snapshot.primary_button_label = None;
     store_onboarding_snapshot(state, &snapshot);
-    emit_onboarding_progress(app, OnboardingProgressEvent {
-        phase: "install".to_string(),
-        state: snapshot.state.clone(),
-        step_id: "run_wsl_installer".to_string(),
-        status: "started".to_string(),
-        message: "WSL 안에서 공식 install.sh 를 실행하는 중이에요.".to_string(),
-        stream_chunk: None,
-        shell_target: Some("wsl".to_string()),
-        observed_path: None,
-        error_code: None,
-    });
+    emit_onboarding_progress(
+        app,
+        OnboardingProgressEvent {
+            phase: "install".to_string(),
+            state: snapshot.state.clone(),
+            step_id: "run_wsl_installer".to_string(),
+            status: "started".to_string(),
+            message: "WSL 안에서 공식 install.sh 를 실행하는 중이에요.".to_string(),
+            stream_chunk: None,
+            shell_target: Some("wsl".to_string()),
+            observed_path: None,
+            error_code: None,
+        },
+    );
 
-    append_onboarding_log(state, "[wsl installer] running", "wsl.exe -- bash -lc 'curl -fsSL https://claude.ai/install.sh | bash'");
+    append_onboarding_log(
+        state,
+        "[wsl installer] running",
+        "wsl.exe -- bash -lc 'curl -fsSL https://claude.ai/install.sh | bash'",
+    );
     let state_for_sink = Arc::clone(state);
     let install_result = run_command_capture_streamed(
         "wsl.exe",
-        &["--", "bash", "-lc", "curl -fsSL https://claude.ai/install.sh | bash"],
+        &[
+            "--",
+            "bash",
+            "-lc",
+            "curl -fsSL https://claude.ai/install.sh | bash",
+        ],
         &[],
         |title, line| append_onboarding_log(&state_for_sink, title, line),
     );
@@ -379,37 +469,47 @@ fn run_wsl_install_flow(
         snapshot.state = "needs_wsl_fallback".to_string();
         snapshot.next_action = "continue_with_wsl".to_string();
         snapshot.headline = "WSL 트랙 설치만 실패했어요".to_string();
-        snapshot.detail = Some("PowerShell·CMD 에서는 Claude 가 잘 동작해요. WSL 설치는 나중에 다시 시도할 수 있어요.".to_string());
+        snapshot.detail = Some(
+            "PowerShell·CMD 에서는 Claude 가 잘 동작해요. WSL 설치는 나중에 다시 시도할 수 있어요."
+                .to_string(),
+        );
         snapshot.primary_button_label = Some("WSL 설치 다시 시도".to_string());
         snapshot.last_error = Some(OnboardingLastError {
             code: "unknown".to_string(),
             summary: "WSL 안에서 Claude Code 설치가 완료되지 않았어요.".to_string(),
-            detail: install_result.err().map(|e| e).or(Some("install.sh 가 비정상 종료했어요.".to_string())),
+            detail: install_result
+                .err()
+                .map(|e| e)
+                .or(Some("install.sh 가 비정상 종료했어요.".to_string())),
             suggested_action: Some("continue_with_wsl".to_string()),
         });
         store_onboarding_snapshot(state, &snapshot);
-        emit_onboarding_progress(app, OnboardingProgressEvent {
-            phase: "install".to_string(),
-            state: snapshot.state.clone(),
-            step_id: "run_wsl_installer".to_string(),
-            status: "failed".to_string(),
-            message: "WSL 트랙 설치가 실패했어요. 네이티브 트랙은 그대로 사용할 수 있어요.".to_string(),
-            stream_chunk: None,
-            shell_target: Some("wsl".to_string()),
-            observed_path: None,
-            error_code: Some("unknown".to_string()),
-        });
+        emit_onboarding_progress(
+            app,
+            OnboardingProgressEvent {
+                phase: "install".to_string(),
+                state: snapshot.state.clone(),
+                step_id: "run_wsl_installer".to_string(),
+                status: "failed".to_string(),
+                message: "WSL 트랙 설치가 실패했어요. 네이티브 트랙은 그대로 사용할 수 있어요."
+                    .to_string(),
+                stream_chunk: None,
+                shell_target: Some("wsl".to_string()),
+                observed_path: None,
+                error_code: Some("unknown".to_string()),
+            },
+        );
         return snapshot;
     }
 
     // WSL 검증: `claude --version`
-    append_onboarding_log(state, "[wsl verify] running", "wsl.exe -- bash -lc 'claude --version'");
-    let verify = run_command_capture(
-        "wsl.exe",
-        &["--", "bash", "-lc", "claude --version"],
-        &[],
-    )
-    .ok();
+    append_onboarding_log(
+        state,
+        "[wsl verify] running",
+        "wsl.exe -- bash -lc 'claude --version'",
+    );
+    let verify =
+        run_command_capture("wsl.exe", &["--", "bash", "-lc", "claude --version"], &[]).ok();
     if let Some(r) = &verify {
         append_onboarding_log(state, "[wsl verify stdout]", &r.stdout);
         append_onboarding_log(state, "[wsl verify stderr]", &r.stderr);
@@ -427,17 +527,20 @@ fn run_wsl_install_flow(
         snapshot.primary_button_label = Some("다음으로".to_string());
         snapshot.last_error = None;
         store_onboarding_snapshot(state, &snapshot);
-        emit_onboarding_progress(app, OnboardingProgressEvent {
-            phase: "install".to_string(),
-            state: snapshot.state.clone(),
-            step_id: "run_wsl_installer".to_string(),
-            status: "succeeded".to_string(),
-            message: "WSL 트랙 설치와 검증이 모두 통과했어요.".to_string(),
-            stream_chunk: None,
-            shell_target: Some("wsl".to_string()),
-            observed_path: None,
-            error_code: None,
-        });
+        emit_onboarding_progress(
+            app,
+            OnboardingProgressEvent {
+                phase: "install".to_string(),
+                state: snapshot.state.clone(),
+                step_id: "run_wsl_installer".to_string(),
+                status: "succeeded".to_string(),
+                message: "WSL 트랙 설치와 검증이 모두 통과했어요.".to_string(),
+                stream_chunk: None,
+                shell_target: Some("wsl".to_string()),
+                observed_path: None,
+                error_code: None,
+            },
+        );
         return snapshot;
     }
 
@@ -453,28 +556,35 @@ fn run_wsl_install_flow(
         suggested_action: Some("continue_with_wsl".to_string()),
     });
     store_onboarding_snapshot(state, &snapshot);
-    emit_onboarding_progress(app, OnboardingProgressEvent {
-        phase: "verify".to_string(),
-        state: snapshot.state.clone(),
-        step_id: "verify_version".to_string(),
-        status: "failed".to_string(),
-        message: "WSL 쪽 검증이 통과하지 못했어요.".to_string(),
-        stream_chunk: None,
-        shell_target: Some("wsl".to_string()),
-        observed_path: None,
-        error_code: Some("installer_false_success".to_string()),
-    });
+    emit_onboarding_progress(
+        app,
+        OnboardingProgressEvent {
+            phase: "verify".to_string(),
+            state: snapshot.state.clone(),
+            step_id: "verify_version".to_string(),
+            status: "failed".to_string(),
+            message: "WSL 쪽 검증이 통과하지 못했어요.".to_string(),
+            stream_chunk: None,
+            shell_target: Some("wsl".to_string()),
+            observed_path: None,
+            error_code: Some("installer_false_success".to_string()),
+        },
+    );
     snapshot
 }
 
-pub(crate) fn start_wsl_install(app: tauri::AppHandle, state: tauri::State<OnboardingState>) -> OnboardingSnapshot {
+pub(crate) fn start_wsl_install(
+    app: tauri::AppHandle,
+    state: tauri::State<OnboardingState>,
+) -> OnboardingSnapshot {
     if !check_wsl_available() {
         let mut blocked = build_initial_onboarding_snapshot();
         blocked.state = "blocked".to_string();
         blocked.install_path_kind = "wsl".to_string();
         blocked.next_action = "none".to_string();
         blocked.headline = "WSL 을 감지하지 못했어요".to_string();
-        blocked.detail = Some("WSL 배포판이 설치되어 있어야 이 트랙을 사용할 수 있어요.".to_string());
+        blocked.detail =
+            Some("WSL 배포판이 설치되어 있어야 이 트랙을 사용할 수 있어요.".to_string());
         blocked.last_error = Some(OnboardingLastError {
             code: "unsupported_environment".to_string(),
             summary: "WSL 이 사용 가능한 상태가 아니에요.".to_string(),
@@ -535,17 +645,20 @@ pub(crate) fn start_install(
         StartNativeInstallPathKind::NativeCmd => Some("cmd".to_string()),
     };
 
-    emit_onboarding_progress(&app, OnboardingProgressEvent {
-        phase: "install".to_string(),
-        state: snapshot.state.clone(),
-        step_id: step_id.to_string(),
-        status: "started".to_string(),
-        message: "공식 설치 스크립트를 실행하는 중이에요.".to_string(),
-        stream_chunk: None,
-        shell_target: shell_target.clone(),
-        observed_path: None,
-        error_code: None,
-    });
+    emit_onboarding_progress(
+        &app,
+        OnboardingProgressEvent {
+            phase: "install".to_string(),
+            state: snapshot.state.clone(),
+            step_id: step_id.to_string(),
+            status: "started".to_string(),
+            message: "공식 설치 스크립트를 실행하는 중이에요.".to_string(),
+            stream_chunk: None,
+            shell_target: shell_target.clone(),
+            observed_path: None,
+            error_code: None,
+        },
+    );
 
     if !check_git_installed() {
         let missing = build_initial_onboarding_snapshot();
@@ -557,14 +670,24 @@ pub(crate) fn start_install(
     let app_handle = app.clone();
     std::thread::spawn(move || {
         clear_onboarding_logs(&state_arc);
-        let env_overrides: Vec<(&str, String)> = merge_windows_path().map(|p| vec![("PATH", p)]).unwrap_or_default();
+        let env_overrides: Vec<(&str, String)> = merge_windows_path()
+            .map(|p| vec![("PATH", p)])
+            .unwrap_or_default();
         let installer = match path_kind {
             StartNativeInstallPathKind::NativePowershell => {
-                append_onboarding_log(&state_arc, "[installer] running", "powershell -NoProfile -Command irm https://claude.ai/install.ps1 | iex");
+                append_onboarding_log(
+                    &state_arc,
+                    "[installer] running",
+                    "powershell -NoProfile -Command irm https://claude.ai/install.ps1 | iex",
+                );
                 let state_for_sink = Arc::clone(&state_arc);
                 run_command_capture_streamed(
                     "powershell",
-                    &["-NoProfile", "-Command", "irm https://claude.ai/install.ps1 | iex"],
+                    &[
+                        "-NoProfile",
+                        "-Command",
+                        "irm https://claude.ai/install.ps1 | iex",
+                    ],
                     &env_overrides,
                     |title, line| append_onboarding_log(&state_for_sink, title, line),
                 )
@@ -598,41 +721,59 @@ pub(crate) fn start_install(
                     failed.install_path_kind = path_kind.as_contract_value().to_string();
                     failed.next_action = "none".to_string();
                     failed.headline = "메모리 부족으로 설치가 중단됐어요".to_string();
-                    failed.detail = Some("RAM을 늘리거나 실행 중인 다른 프로그램을 종료한 뒤 다시 시도해 주세요.".to_string());
+                    failed.detail = Some(
+                        "RAM을 늘리거나 실행 중인 다른 프로그램을 종료한 뒤 다시 시도해 주세요."
+                            .to_string(),
+                    );
                     failed.primary_button_label = None;
                     failed.logs_available = onboarding_logs_available_from_state(&state_arc);
-                failed.last_error = Some(OnboardingLastError {
-                    code: "installer_oom".to_string(),
-                    summary: "설치 중 Bun out-of-memory 가 발생했어요.".to_string(),
-                    detail: Some(format!("exit_code={}", result.exit_code)),
-                    suggested_action: None,
-                });
-                store_onboarding_snapshot(&state_arc, &failed);
-                emit_onboarding_progress(&app_handle, OnboardingProgressEvent {
-                        phase: "install".to_string(),
-                        state: failed.state.clone(),
-                        step_id: step_id.to_string(),
-                        status: "failed".to_string(),
-                        message: "설치 중 메모리 부족이 감지되어 실패로 처리했어요.".to_string(),
-                        stream_chunk: None,
-                        shell_target: shell_target.clone(),
-                        observed_path: None,
-                        error_code: Some("installer_oom".to_string()),
+                    failed.last_error = Some(OnboardingLastError {
+                        code: "installer_oom".to_string(),
+                        summary: "설치 중 Bun out-of-memory 가 발생했어요.".to_string(),
+                        detail: Some(format!("exit_code={}", result.exit_code)),
+                        suggested_action: None,
                     });
+                    store_onboarding_snapshot(&state_arc, &failed);
+                    emit_onboarding_progress(
+                        &app_handle,
+                        OnboardingProgressEvent {
+                            phase: "install".to_string(),
+                            state: failed.state.clone(),
+                            step_id: step_id.to_string(),
+                            status: "failed".to_string(),
+                            message: "설치 중 메모리 부족이 감지되어 실패로 처리했어요."
+                                .to_string(),
+                            stream_chunk: None,
+                            shell_target: shell_target.clone(),
+                            observed_path: None,
+                            error_code: Some("installer_oom".to_string()),
+                        },
+                    );
                     failed
                 } else {
-                    emit_onboarding_progress(&app_handle, OnboardingProgressEvent {
-                        phase: "install".to_string(),
-                        state: "verifying_shells".to_string(),
-                        step_id: step_id.to_string(),
-                        status: if result.ok { "succeeded".to_string() } else { "failed".to_string() },
-                        message: "설치 실행이 끝나서 새 셸 검증 단계로 넘어가요.".to_string(),
-                        stream_chunk: None,
-                        shell_target: shell_target.clone(),
-                        observed_path: None,
-                        error_code: None,
-                    });
-                    let mut verified = verify_windows_shells(&state_arc, &app_handle, path_kind.as_contract_value());
+                    emit_onboarding_progress(
+                        &app_handle,
+                        OnboardingProgressEvent {
+                            phase: "install".to_string(),
+                            state: "verifying_shells".to_string(),
+                            step_id: step_id.to_string(),
+                            status: if result.ok {
+                                "succeeded".to_string()
+                            } else {
+                                "failed".to_string()
+                            },
+                            message: "설치 실행이 끝나서 새 셸 검증 단계로 넘어가요.".to_string(),
+                            stream_chunk: None,
+                            shell_target: shell_target.clone(),
+                            observed_path: None,
+                            error_code: None,
+                        },
+                    );
+                    let mut verified = verify_windows_shells(
+                        &state_arc,
+                        &app_handle,
+                        path_kind.as_contract_value(),
+                    );
                     verified.install_path_kind = path_kind.as_contract_value().to_string();
                     // 네이티브 검증이 login_required(성공) 상태이고 WSL 이 감지되면
                     // '코알못' 사용자도 WSL 터미널에서 곧장 `claude` 를 쓸 수 있도록
@@ -661,17 +802,20 @@ pub(crate) fn start_install(
                     suggested_action: None,
                 });
                 store_onboarding_snapshot(&state_arc, &failed);
-                emit_onboarding_progress(&app_handle, OnboardingProgressEvent {
-                    phase: "install".to_string(),
-                    state: failed.state.clone(),
-                    step_id: step_id.to_string(),
-                    status: "failed".to_string(),
-                    message: "설치 프로세스 실행 자체가 실패했어요.".to_string(),
-                    stream_chunk: None,
-                    shell_target,
-                    observed_path: None,
-                    error_code: Some("unknown".to_string()),
-                });
+                emit_onboarding_progress(
+                    &app_handle,
+                    OnboardingProgressEvent {
+                        phase: "install".to_string(),
+                        state: failed.state.clone(),
+                        step_id: step_id.to_string(),
+                        status: "failed".to_string(),
+                        message: "설치 프로세스 실행 자체가 실패했어요.".to_string(),
+                        stream_chunk: None,
+                        shell_target,
+                        observed_path: None,
+                        error_code: Some("unknown".to_string()),
+                    },
+                );
                 failed
             }
         };
@@ -682,15 +826,20 @@ pub(crate) fn start_install(
     snapshot
 }
 
-pub(crate) fn retry_verification(app: tauri::AppHandle, state: tauri::State<OnboardingState>) -> OnboardingSnapshot {
+pub(crate) fn retry_verification(
+    app: tauri::AppHandle,
+    state: tauri::State<OnboardingState>,
+) -> OnboardingSnapshot {
     let install_path_kind = state
         .0
         .lock()
         .ok()
-        .and_then(|runtime| runtime
-            .snapshot
-        .as_ref()
-        .map(|snapshot| snapshot.install_path_kind.clone()))
+        .and_then(|runtime| {
+            runtime
+                .snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.install_path_kind.clone())
+        })
         .unwrap_or_else(|| "unknown".to_string());
 
     let mut snapshot = build_initial_onboarding_snapshot();
@@ -712,7 +861,10 @@ pub(crate) fn retry_verification(app: tauri::AppHandle, state: tauri::State<Onbo
     snapshot
 }
 
-pub(crate) fn add_to_user_path(app: tauri::AppHandle, state: tauri::State<OnboardingState>) -> OnboardingSnapshot {
+pub(crate) fn add_to_user_path(
+    app: tauri::AppHandle,
+    state: tauri::State<OnboardingState>,
+) -> OnboardingSnapshot {
     let bin_dir = windows_expected_claude_path()
         .and_then(|p| p.parent().map(|d| d.to_string_lossy().to_string()))
         .unwrap_or_else(|| String::from("C:\\Users\\%USERNAME%\\.local\\bin"));
@@ -738,18 +890,41 @@ pub(crate) fn add_to_user_path(app: tauri::AppHandle, state: tauri::State<Onboar
     let result = match &result {
         Ok(capture) if capture.ok => result,
         _ => {
-            append_onboarding_log(&state.0, "[path-fix] fallback", "powershell 경로 실패 → cmd + reg add 로 재시도");
+            append_onboarding_log(
+                &state.0,
+                "[path-fix] fallback",
+                "powershell 경로 실패 → cmd + reg add 로 재시도",
+            );
             let current = read_windows_user_path().unwrap_or_default();
             let already_present = current.split(';').any(|p| p.eq_ignore_ascii_case(&bin_dir));
             if already_present {
                 append_onboarding_log(&state.0, "[path-fix] fallback", "PATH_ALREADY_PRESENT");
-                Ok(CommandCapture { ok: true, stdout: "PATH_ALREADY_PRESENT".to_string(), stderr: String::new(), exit_code: 0 })
+                Ok(CommandCapture {
+                    ok: true,
+                    stdout: "PATH_ALREADY_PRESENT".to_string(),
+                    stderr: String::new(),
+                    exit_code: 0,
+                })
             } else {
-                let new_value = if current.is_empty() { bin_dir.clone() } else { format!("{};{}", current.trim_end_matches(';'), bin_dir) };
+                let new_value = if current.is_empty() {
+                    bin_dir.clone()
+                } else {
+                    format!("{};{}", current.trim_end_matches(';'), bin_dir)
+                };
                 let state_for_sink2 = Arc::clone(&state.0);
                 run_command_capture_streamed(
                     "reg",
-                    &["add", r"HKCU\Environment", "/v", "Path", "/t", "REG_EXPAND_SZ", "/d", &new_value, "/f"],
+                    &[
+                        "add",
+                        r"HKCU\Environment",
+                        "/v",
+                        "Path",
+                        "/t",
+                        "REG_EXPAND_SZ",
+                        "/d",
+                        &new_value,
+                        "/f",
+                    ],
                     &[],
                     |title, line| append_onboarding_log(&state_for_sink2, title, line),
                 )
@@ -762,7 +937,12 @@ pub(crate) fn add_to_user_path(app: tauri::AppHandle, state: tauri::State<Onboar
         .0
         .lock()
         .ok()
-        .and_then(|runtime| runtime.snapshot.as_ref().map(|s| s.install_path_kind.clone()))
+        .and_then(|runtime| {
+            runtime
+                .snapshot
+                .as_ref()
+                .map(|s| s.install_path_kind.clone())
+        })
         .unwrap_or_else(|| "native-powershell".to_string());
     snapshot.logs_available = onboarding_logs_available_from_state(&state.0);
 
@@ -781,17 +961,20 @@ pub(crate) fn add_to_user_path(app: tauri::AppHandle, state: tauri::State<Onboar
             snapshot.diagnostics.claude_version_ok = Some(true);
             snapshot.last_error = None;
             store_onboarding_snapshot(&state.0, &snapshot);
-            emit_onboarding_progress(&app, OnboardingProgressEvent {
-                phase: "verify".to_string(),
-                state: snapshot.state.clone(),
-                step_id: "verify_doctor".to_string(),
-                status: "succeeded".to_string(),
-                message: "PATH 자동 추가 완료.".to_string(),
-                stream_chunk: None,
-                shell_target: None,
-                observed_path: Some(bin_dir),
-                error_code: None,
-            });
+            emit_onboarding_progress(
+                &app,
+                OnboardingProgressEvent {
+                    phase: "verify".to_string(),
+                    state: snapshot.state.clone(),
+                    step_id: "verify_doctor".to_string(),
+                    status: "succeeded".to_string(),
+                    message: "PATH 자동 추가 완료.".to_string(),
+                    stream_chunk: None,
+                    shell_target: None,
+                    observed_path: Some(bin_dir),
+                    error_code: None,
+                },
+            );
 
             // PATH 자동 추가로 native 트랙이 login_required 에 도달한 직후,
             // WSL 이 감지되면 Ubuntu 터미널에서도 `claude` 가 바로 잡히도록
@@ -830,7 +1013,9 @@ pub(crate) fn add_to_user_path(app: tauri::AppHandle, state: tauri::State<Onboar
             snapshot.state = "needs_manual_step".to_string();
             snapshot.next_action = "open_manual_steps".to_string();
             snapshot.headline = "PATH 자동 추가가 실패했어요".to_string();
-            snapshot.detail = Some("권한 문제로 레지스트리 기록이 실패했어요. 수동 안내를 따라 주세요.".to_string());
+            snapshot.detail = Some(
+                "권한 문제로 레지스트리 기록이 실패했어요. 수동 안내를 따라 주세요.".to_string(),
+            );
             snapshot.primary_button_label = Some("PATH 추가 방법 보기".to_string());
             snapshot.last_error = Some(OnboardingLastError {
                 code: "path_not_configured".to_string(),
@@ -846,7 +1031,8 @@ pub(crate) fn add_to_user_path(app: tauri::AppHandle, state: tauri::State<Onboar
             snapshot.state = "needs_manual_step".to_string();
             snapshot.next_action = "open_manual_steps".to_string();
             snapshot.headline = "PATH 자동 추가가 실패했어요".to_string();
-            snapshot.detail = Some("PowerShell 실행에 실패했어요. 수동 안내를 따라 주세요.".to_string());
+            snapshot.detail =
+                Some("PowerShell 실행에 실패했어요. 수동 안내를 따라 주세요.".to_string());
             snapshot.primary_button_label = Some("PATH 추가 방법 보기".to_string());
             snapshot.last_error = Some(OnboardingLastError {
                 code: "path_not_configured".to_string(),
@@ -864,7 +1050,11 @@ pub(crate) fn add_to_user_path(app: tauri::AppHandle, state: tauri::State<Onboar
 /// - "native": cmd/PowerShell 측 claude.exe + .claude 설정 + PATH 항목
 /// - "wsl":    WSL 안의 ~/.local/bin/claude + ~/.claude
 /// - "all":    native + wsl 동시
-pub(crate) fn uninstall(app: tauri::AppHandle, state: tauri::State<OnboardingState>, track: Option<String>) -> OnboardingSnapshot {
+pub(crate) fn uninstall(
+    app: tauri::AppHandle,
+    state: tauri::State<OnboardingState>,
+    track: Option<String>,
+) -> OnboardingSnapshot {
     let track = track.as_deref().unwrap_or("all");
 
     clear_onboarding_logs(&state.0);
@@ -873,7 +1063,11 @@ pub(crate) fn uninstall(app: tauri::AppHandle, state: tauri::State<OnboardingSta
         "wsl" => "WSL",
         _ => "전체",
     };
-    append_onboarding_log(&state.0, "[uninstall] start", &format!("{} 트랙 삭제를 시작해요", track_label));
+    append_onboarding_log(
+        &state.0,
+        "[uninstall] start",
+        &format!("{} 트랙 삭제를 시작해요", track_label),
+    );
 
     let do_native = track == "all" || track == "native";
     let do_wsl = track == "all" || track == "wsl";
@@ -887,13 +1081,21 @@ pub(crate) fn uninstall(app: tauri::AppHandle, state: tauri::State<OnboardingSta
     if do_wsl && check_wsl_available() {
         uninstall_wsl_track(&state.0);
     } else if do_wsl {
-        append_onboarding_log(&state.0, "[uninstall wsl] skip", "WSL 이 감지되지 않아 건너뜀");
+        append_onboarding_log(
+            &state.0,
+            "[uninstall wsl] skip",
+            "WSL 이 감지되지 않아 건너뜀",
+        );
     }
 
     if native_incomplete {
         append_onboarding_log(&state.0, "[uninstall] incomplete", "claude.exe 를 지우지 못했어요. 열려 있는 터미널·VS Code·에이전트를 모두 닫고 다시 시도해 주세요.");
     } else {
-        append_onboarding_log(&state.0, "[uninstall] done", &format!("{} 삭제가 끝났어요.", track_label));
+        append_onboarding_log(
+            &state.0,
+            "[uninstall] done",
+            &format!("{} 삭제가 끝났어요.", track_label),
+        );
     }
 
     let mut snapshot = build_initial_onboarding_snapshot();
@@ -910,17 +1112,20 @@ pub(crate) fn uninstall(app: tauri::AppHandle, state: tauri::State<OnboardingSta
     }
     snapshot.logs_available = onboarding_logs_available_from_state(&state.0);
     store_onboarding_snapshot(&state.0, &snapshot);
-    emit_onboarding_progress(&app, OnboardingProgressEvent {
-        phase: "install".to_string(),
-        state: snapshot.state.clone(),
-        step_id: "complete".to_string(),
-        status: "succeeded".to_string(),
-        message: format!("{} Claude Code 삭제 완료.", track_label),
-        stream_chunk: None,
-        shell_target: None,
-        observed_path: None,
-        error_code: None,
-    });
+    emit_onboarding_progress(
+        &app,
+        OnboardingProgressEvent {
+            phase: "install".to_string(),
+            state: snapshot.state.clone(),
+            step_id: "complete".to_string(),
+            status: "succeeded".to_string(),
+            message: format!("{} Claude Code 삭제 완료.", track_label),
+            stream_chunk: None,
+            shell_target: None,
+            observed_path: None,
+            error_code: None,
+        },
+    );
     snapshot
 }
 
@@ -949,7 +1154,10 @@ fn uninstall_native_track(state: &Arc<Mutex<OnboardingRuntime>>) -> bool {
             let mut last_err: Option<String> = None;
             for attempt in 0..5 {
                 match std::fs::remove_file(path) {
-                    Ok(_) => { removed = true; break; }
+                    Ok(_) => {
+                        removed = true;
+                        break;
+                    }
                     Err(e) => {
                         last_err = Some(e.to_string());
                         std::thread::sleep(std::time::Duration::from_millis(200 + 200 * attempt));
@@ -963,11 +1171,19 @@ fn uninstall_native_track(state: &Arc<Mutex<OnboardingRuntime>>) -> bool {
                 append_onboarding_log(
                     state,
                     "[uninstall native] remove claude.exe failed",
-                    &format!("{}: {} — 실행 중인 터미널/에이전트를 모두 닫고 다시 시도하세요.", path.to_string_lossy(), msg),
+                    &format!(
+                        "{}: {} — 실행 중인 터미널/에이전트를 모두 닫고 다시 시도하세요.",
+                        path.to_string_lossy(),
+                        msg
+                    ),
                 );
             }
         } else {
-            append_onboarding_log(state, "[uninstall native] skip", &format!("{} 가 이미 없음", path.to_string_lossy()));
+            append_onboarding_log(
+                state,
+                "[uninstall native] skip",
+                &format!("{} 가 이미 없음", path.to_string_lossy()),
+            );
         }
     }
 
@@ -975,9 +1191,17 @@ fn uninstall_native_track(state: &Arc<Mutex<OnboardingRuntime>>) -> bool {
     if let Some(path) = &placeholder {
         if path.exists() && path.is_file() {
             if let Err(e) = std::fs::remove_file(path) {
-                append_onboarding_log(state, "[uninstall native] remove placeholder failed", &format!("{}: {}", path.to_string_lossy(), e));
+                append_onboarding_log(
+                    state,
+                    "[uninstall native] remove placeholder failed",
+                    &format!("{}: {}", path.to_string_lossy(), e),
+                );
             } else {
-                append_onboarding_log(state, "[uninstall native] removed placeholder", &path.to_string_lossy());
+                append_onboarding_log(
+                    state,
+                    "[uninstall native] removed placeholder",
+                    &path.to_string_lossy(),
+                );
             }
         }
     }
@@ -986,8 +1210,16 @@ fn uninstall_native_track(state: &Arc<Mutex<OnboardingRuntime>>) -> bool {
     if let Some(path) = &claude_data_dir {
         if path.exists() {
             match std::fs::remove_dir_all(path) {
-                Ok(_) => append_onboarding_log(state, "[uninstall native] removed", &path.to_string_lossy()),
-                Err(e) => append_onboarding_log(state, "[uninstall native] remove .claude failed", &format!("{}: {}", path.to_string_lossy(), e)),
+                Ok(_) => append_onboarding_log(
+                    state,
+                    "[uninstall native] removed",
+                    &path.to_string_lossy(),
+                ),
+                Err(e) => append_onboarding_log(
+                    state,
+                    "[uninstall native] remove .claude failed",
+                    &format!("{}: {}", path.to_string_lossy(), e),
+                ),
             }
         }
     }
@@ -1013,11 +1245,22 @@ fn uninstall_native_track(state: &Arc<Mutex<OnboardingRuntime>>) -> bool {
             if ps_result.as_ref().map(|c| c.ok).unwrap_or(false) {
                 append_onboarding_log(state, "[uninstall native] removed from PATH", &dir_str);
             } else {
-                append_onboarding_log(state, "[uninstall native] PATH 제거 실패", "(PowerShell 경로). 필요하면 환경 변수에서 수동 제거하세요.");
+                append_onboarding_log(
+                    state,
+                    "[uninstall native] PATH 제거 실패",
+                    "(PowerShell 경로). 필요하면 환경 변수에서 수동 제거하세요.",
+                );
             }
             let _ = std::fs::remove_dir(dir);
         } else {
-            append_onboarding_log(state, "[uninstall native] keep PATH", &format!("{} 에 다른 파일이 남아 있어 PATH 에서 제거하지 않음", dir.to_string_lossy()));
+            append_onboarding_log(
+                state,
+                "[uninstall native] keep PATH",
+                &format!(
+                    "{} 에 다른 파일이 남아 있어 PATH 에서 제거하지 않음",
+                    dir.to_string_lossy()
+                ),
+            );
         }
     }
 
@@ -1026,7 +1269,11 @@ fn uninstall_native_track(state: &Arc<Mutex<OnboardingRuntime>>) -> bool {
 
 /// WSL 트랙 삭제: WSL 안의 ~/.local/bin/claude + ~/.claude 제거
 fn uninstall_wsl_track(state: &Arc<Mutex<OnboardingRuntime>>) {
-    append_onboarding_log(state, "[uninstall wsl] running", "wsl -- bash -lc 'rm -f ~/.local/bin/claude'");
+    append_onboarding_log(
+        state,
+        "[uninstall wsl] running",
+        "wsl -- bash -lc 'rm -f ~/.local/bin/claude'",
+    );
     let state_for_sink = Arc::clone(state);
     let rm_bin = run_command_capture_streamed(
         "wsl.exe",
@@ -1035,12 +1282,22 @@ fn uninstall_wsl_track(state: &Arc<Mutex<OnboardingRuntime>>) {
         |title, line| append_onboarding_log(&state_for_sink, title, line),
     );
     match &rm_bin {
-        Ok(r) if r.ok => append_onboarding_log(state, "[uninstall wsl] removed", "~/.local/bin/claude"),
-        Ok(r) => append_onboarding_log(state, "[uninstall wsl] rm failed", &format!("exit={} stderr={}", r.exit_code, r.stderr.trim())),
+        Ok(r) if r.ok => {
+            append_onboarding_log(state, "[uninstall wsl] removed", "~/.local/bin/claude")
+        }
+        Ok(r) => append_onboarding_log(
+            state,
+            "[uninstall wsl] rm failed",
+            &format!("exit={} stderr={}", r.exit_code, r.stderr.trim()),
+        ),
         Err(e) => append_onboarding_log(state, "[uninstall wsl] rm failed", e),
     }
 
-    append_onboarding_log(state, "[uninstall wsl] running", "wsl -- bash -lc 'rm -rf ~/.claude'");
+    append_onboarding_log(
+        state,
+        "[uninstall wsl] running",
+        "wsl -- bash -lc 'rm -rf ~/.claude'",
+    );
     let state_for_sink2 = Arc::clone(state);
     let rm_data = run_command_capture_streamed(
         "wsl.exe",
@@ -1050,12 +1307,19 @@ fn uninstall_wsl_track(state: &Arc<Mutex<OnboardingRuntime>>) {
     );
     match &rm_data {
         Ok(r) if r.ok => append_onboarding_log(state, "[uninstall wsl] removed", "~/.claude"),
-        Ok(r) => append_onboarding_log(state, "[uninstall wsl] rm .claude failed", &format!("exit={} stderr={}", r.exit_code, r.stderr.trim())),
+        Ok(r) => append_onboarding_log(
+            state,
+            "[uninstall wsl] rm .claude failed",
+            &format!("exit={} stderr={}", r.exit_code, r.stderr.trim()),
+        ),
         Err(e) => append_onboarding_log(state, "[uninstall wsl] rm .claude failed", e),
     }
 }
 
-pub(crate) fn start_login_probe(app: tauri::AppHandle, state: tauri::State<OnboardingState>) -> OnboardingSnapshot {
+pub(crate) fn start_login_probe(
+    app: tauri::AppHandle,
+    state: tauri::State<OnboardingState>,
+) -> OnboardingSnapshot {
     emit_onboarding_progress(
         &app,
         OnboardingProgressEvent {
@@ -1107,7 +1371,10 @@ fn detect_wsl_available_inner() -> bool {
         _ => return false,
     };
     let utf8_text = String::from_utf8_lossy(&list_output);
-    if utf8_text.lines().any(|l| !l.trim().is_empty() && !l.trim().chars().all(|c| c == '\0')) {
+    if utf8_text
+        .lines()
+        .any(|l| !l.trim().is_empty() && !l.trim().chars().all(|c| c == '\0'))
+    {
         return true;
     }
     if list_output.len() >= 2 {

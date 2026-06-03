@@ -1,3 +1,4 @@
+// === ANCHOR: FILTERS_TEST_START ===
 import { describe, expect, it } from "vitest";
 
 import { filterCodeFiles } from "./filters";
@@ -13,3 +14,4 @@ describe("filterCodeFiles", () => {
     expect(filterCodeFiles(files, "core").map((file) => file.path)).toEqual(["vibelign/core/project_scan.py"]);
   });
 });
+// === ANCHOR: FILTERS_TEST_END ===

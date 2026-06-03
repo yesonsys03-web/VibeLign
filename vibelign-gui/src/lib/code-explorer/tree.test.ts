@@ -1,3 +1,4 @@
+// === ANCHOR: TREE_TEST_START ===
 import { describe, expect, it } from "vitest";
 
 import { buildCodeTree, categorizeFileEntry, collectDirectoryPaths, flattenVisibleTree } from "./tree";
@@ -50,7 +51,6 @@ describe("code explorer tree", () => {
     expect(byName).toMatchObject({ docs: "docs", tests: "tests", src: "code" });
   });
 });
-
 describe("buildCodeTree change markers", () => {
   const files = [
     { path: "src/a.ts", category: "code", imports: [] },
@@ -86,3 +86,5 @@ describe("buildCodeTree change markers", () => {
     expect(a.changeStatus).toBeUndefined();
   });
 });
+
+// === ANCHOR: TREE_TEST_END ===

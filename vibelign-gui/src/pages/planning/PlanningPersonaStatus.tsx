@@ -1,20 +1,10 @@
 import type { CreatePlanningTemplateResponse } from "../../lib/vib";
+import { PLANNING_PERSONAS, type PlanningPersonaMeta } from "./PlanningPersonas";
+import { planningPersonaStatusDisplay } from "./PlanningPersonaStatusLabel";
 
 interface PlanningPersonaStatusProps {
   readonly result: CreatePlanningTemplateResponse;
 }
-
-interface PersonaMeta {
-  readonly id: string;
-  readonly name: string;
-  readonly role: string;
-}
-
-const PERSONAS: readonly PersonaMeta[] = [
-  { id: "chloe", name: "클로이", role: "설계" },
-  { id: "gio", name: "지오", role: "검토" },
-  { id: "mina", name: "미나", role: "탐색" },
-];
 
 export function PlanningPersonaStatus({ result }: PlanningPersonaStatusProps) {
   const requested = result.agentsRequested?.length ? result.agentsRequested : legacyRequested(result);
@@ -43,7 +33,7 @@ export function PlanningPersonaStatus({ result }: PlanningPersonaStatusProps) {
     >
       <strong style={{ fontSize: 12 }}>{message}</strong>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {PERSONAS.filter((persona) => requested.includes(persona.id)).map((persona) => (
+        {PLANNING_PERSONAS.filter((persona) => requested.includes(persona.id)).map((persona) => (
           <PersonaChip key={persona.id} persona={persona} status={statuses[persona.id] ?? result.llmStatus ?? "unknown"} />
         ))}
       </div>
@@ -51,7 +41,7 @@ export function PlanningPersonaStatus({ result }: PlanningPersonaStatusProps) {
   );
 }
 
-function PersonaChip({ persona, status }: { readonly persona: PersonaMeta; readonly status: string }) {
+function PersonaChip({ persona, status }: { readonly persona: PlanningPersonaMeta; readonly status: string }) {
   return (
     <span
       style={{
@@ -65,7 +55,7 @@ function PersonaChip({ persona, status }: { readonly persona: PersonaMeta; reado
         alignItems: "center",
       }}
     >
-      <span>{persona.name}</span>
+      <span>{persona.label}</span>
       <span style={{ color: "#6F6F6F" }}>{persona.role}</span>
       <span>{statusLabel(status)}</span>
     </span>
@@ -83,21 +73,5 @@ function legacyRequested(result: CreatePlanningTemplateResponse): readonly strin
 }
 
 function statusLabel(status: string): string {
-  switch (status) {
-    case "ok":
-      return "완료";
-    case "pending":
-      return "진행중";
-    case "not_installed":
-    case "not_logged_in":
-    case "timeout":
-    case "rate_limited":
-    case "tty_required":
-    case "bad_output":
-    case "terms_blocked":
-    case "process_error":
-      return "대기";
-    default:
-      return "대기";
-  }
+  return planningPersonaStatusDisplay(status).label;
 }

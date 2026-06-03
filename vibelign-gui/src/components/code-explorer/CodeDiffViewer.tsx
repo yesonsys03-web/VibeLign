@@ -1,3 +1,4 @@
+// === ANCHOR: CODEDIFFVIEWER_START ===
 import CodeLine from "./CodeLine";
 
 export type DiffLineKind = "context" | "added" | "removed";
@@ -33,3 +34,4 @@ export default function CodeDiffViewer({ path, lines }: CodeDiffViewerProps) {
     </div>
   );
 }
+// === ANCHOR: CODEDIFFVIEWER_END ===

@@ -1,4 +1,7 @@
 import type { PlanningChatMessage } from "../../lib/vib";
+import { PlanningPersonaAvatar } from "./PlanningPersonaAvatar";
+import { planningPersonaLabel } from "./PlanningPersonas";
+import { planningPersonaStatusBackground, planningPersonaStatusColor, planningPersonaStatusDisplay } from "./PlanningPersonaStatusLabel";
 
 interface PlanningMessagesProps {
   readonly messages: readonly PlanningChatMessage[];
@@ -18,6 +21,7 @@ export function PlanningMessages({ messages, outputPath }: PlanningMessagesProps
 
 function PlanningMessageBubble({ message }: { readonly message: PlanningChatMessage }) {
   const isUser = message.role === "user";
+  const display = planningPersonaStatusDisplay(message.status, "message");
   return (
     <div
       style={{
@@ -34,71 +38,24 @@ function PlanningMessageBubble({ message }: { readonly message: PlanningChatMess
     >
       {message.personaId && (
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
-          <div style={{ fontWeight: 900 }}>{personaLabel(message.personaId)}</div>
+          <PlanningPersonaAvatar personaId={message.personaId} label={planningPersonaLabel(message.personaId)} decorative size={18} />
+          <div style={{ fontWeight: 900 }}>{planningPersonaLabel(message.personaId)}</div>
           <span
             style={{
               border: "1px solid #1A1A1A",
-              background: statusBackground(message.status),
-              color: statusColor(message.status),
+              background: planningPersonaStatusBackground(display.tone),
+              color: planningPersonaStatusColor(display.tone),
               padding: "1px 5px",
               fontSize: 10,
               fontWeight: 900,
               lineHeight: "14px",
             }}
           >
-            {statusLabel(message.status)}
+            {display.label}
           </span>
         </div>
       )}
       {message.content}
     </div>
   );
-}
-
-function personaLabel(personaId: string): string {
-  switch (personaId) {
-    case "chloe":
-      return "클로이";
-    case "gio":
-      return "지오";
-    case "mina":
-      return "미나";
-    default:
-      return personaId;
-  }
-}
-
-function statusLabel(status: string): string {
-  switch (status) {
-    case "pending":
-      return "준비 중";
-    case "ok":
-      return "완료";
-    case "failed":
-      return "실패";
-    default:
-      return status;
-  }
-}
-
-function statusBackground(status: string): string {
-  switch (status) {
-    case "pending":
-      return "#F7F0DF";
-    case "ok":
-      return "#EAF5ED";
-    case "failed":
-      return "#FCEDEA";
-    default:
-      return "#FFFFFF";
-  }
-}
-
-function statusColor(status: string): string {
-  switch (status) {
-    case "failed":
-      return "#B42318";
-    default:
-      return "#1A1A1A";
-  }
 }

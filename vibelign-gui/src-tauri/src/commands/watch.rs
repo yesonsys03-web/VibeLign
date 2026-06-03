@@ -78,7 +78,11 @@ fn emit_watch_error(app: &tauri::AppHandle, state: &Arc<Mutex<WatchRuntime>>, by
 }
 
 #[cfg(target_os = "windows")]
-fn spawn_watch_log_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle, state: Arc<Mutex<WatchRuntime>>) {
+fn spawn_watch_log_thread<R: Read + Send + 'static>(
+    reader: R,
+    app: tauri::AppHandle,
+    state: Arc<Mutex<WatchRuntime>>,
+) {
     std::thread::spawn(move || {
         let mut reader = BufReader::new(reader);
         let mut buf = Vec::new();
@@ -107,7 +111,11 @@ fn spawn_watch_log_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHa
 }
 
 #[cfg(not(target_os = "windows"))]
-fn spawn_watch_log_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle, state: Arc<Mutex<WatchRuntime>>) {
+fn spawn_watch_log_thread<R: Read + Send + 'static>(
+    reader: R,
+    app: tauri::AppHandle,
+    state: Arc<Mutex<WatchRuntime>>,
+) {
     std::thread::spawn(move || {
         for line in BufReader::new(reader).lines() {
             if let Ok(line) = line {
@@ -122,7 +130,11 @@ fn spawn_watch_log_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHa
 }
 
 #[cfg(not(target_os = "windows"))]
-fn spawn_watch_error_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle, state: Arc<Mutex<WatchRuntime>>) {
+fn spawn_watch_error_thread<R: Read + Send + 'static>(
+    reader: R,
+    app: tauri::AppHandle,
+    state: Arc<Mutex<WatchRuntime>>,
+) {
     std::thread::spawn(move || {
         for line in BufReader::new(reader).lines() {
             if let Ok(line) = line {
@@ -139,7 +151,11 @@ fn spawn_watch_error_thread<R: Read + Send + 'static>(reader: R, app: tauri::App
 }
 
 #[cfg(target_os = "windows")]
-fn spawn_watch_error_thread<R: Read + Send + 'static>(reader: R, app: tauri::AppHandle, state: Arc<Mutex<WatchRuntime>>) {
+fn spawn_watch_error_thread<R: Read + Send + 'static>(
+    reader: R,
+    app: tauri::AppHandle,
+    state: Arc<Mutex<WatchRuntime>>,
+) {
     std::thread::spawn(move || {
         let mut reader = BufReader::new(reader);
         let mut buf = Vec::new();
@@ -191,7 +207,9 @@ fn kill_watch_child(child: &mut std::process::Child) {
         }
     }
     #[cfg(all(not(unix), not(target_os = "windows")))]
-    { let _ = child.kill(); }
+    {
+        let _ = child.kill();
+    }
     let _ = child.wait();
 }
 
@@ -206,8 +224,13 @@ impl Drop for WatchState {
 }
 
 #[tauri::command]
-pub(crate) fn start_watch(app: tauri::AppHandle, state: tauri::State<WatchState>, cwd: String) -> Result<(), String> {
-    let vib = vib_path::find_watch_vib().ok_or("watch에 사용할 vib 실행 파일을 찾을 수 없습니다")?;
+pub(crate) fn start_watch(
+    app: tauri::AppHandle,
+    state: tauri::State<WatchState>,
+    cwd: String,
+) -> Result<(), String> {
+    let vib =
+        vib_path::find_watch_vib().ok_or("watch에 사용할 vib 실행 파일을 찾을 수 없습니다")?;
     // 기존 watch가 있으면 먼저 중지
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
     if let Some(ref mut child) = guard.child {
@@ -237,7 +260,10 @@ pub(crate) fn start_watch(app: tauri::AppHandle, state: tauri::State<WatchState>
     #[cfg(unix)]
     unsafe {
         use std::os::unix::process::CommandExt;
-        watch_cmd.pre_exec(|| { libc::setpgid(0, 0); Ok(()) });
+        watch_cmd.pre_exec(|| {
+            libc::setpgid(0, 0);
+            Ok(())
+        });
     }
     let mut child = watch_cmd.spawn().map_err(|e| e.to_string())?;
     // watchdog 설치 프롬프트(y/N)에 자동으로 "y" 응답
@@ -272,9 +298,7 @@ pub(crate) fn stop_watch(state: tauri::State<WatchState>) -> Result<(), String> 
 
 #[tauri::command]
 pub(crate) fn watch_status(state: tauri::State<WatchState>) -> bool {
-    state.0.lock()
-        .map(|g| g.child.is_some())
-        .unwrap_or(false)
+    state.0.lock().map(|g| g.child.is_some()).unwrap_or(false)
 }
 
 #[tauri::command]
@@ -310,8 +334,14 @@ mod tests {
         }
 
         let guard = shutdown.0.lock().expect("watch shutdown lock");
-        assert_eq!(guard.logs.iter().cloned().collect::<Vec<_>>(), vec!["started"]);
-        assert_eq!(guard.errors.iter().cloned().collect::<Vec<_>>(), vec!["warning"]);
+        assert_eq!(
+            guard.logs.iter().cloned().collect::<Vec<_>>(),
+            vec!["started"]
+        );
+        assert_eq!(
+            guard.errors.iter().cloned().collect::<Vec<_>>(),
+            vec!["warning"]
+        );
     }
 
     #[cfg(unix)]

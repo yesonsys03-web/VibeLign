@@ -6,13 +6,13 @@ from typing import Final
 
 from vibelign.core.planning_cli.personas import ORDERED_PERSONAS
 
-DEFAULT_PERSONA_IDS: Final = tuple(persona.id for persona in ORDERED_PERSONAS)
-MENTION_ALIASES: Final = {
-    "chloe": ("chloe", "클로이"),
-    "gio": ("gio", "지오"),
-    "mina": ("mina", "미나"),
-}
-ALL_ALIASES: Final = ("all", "모두")
+PersonaAliasGroup = tuple[str, tuple[str, ...]]
+
+DEFAULT_PERSONA_IDS: Final[tuple[str, ...]] = tuple(persona.id for persona in ORDERED_PERSONAS)
+MENTION_ALIASES: Final[tuple[PersonaAliasGroup, ...]] = tuple(
+    (persona.id, (persona.id, persona.name)) for persona in ORDERED_PERSONAS
+)
+ALL_ALIASES: Final[tuple[str, ...]] = ("all", "모두")
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,8 +34,8 @@ def resolve_persona_mentions(text: str) -> PersonaMentionResult:
 
     matched = tuple(
         persona_id
-        for persona_id in DEFAULT_PERSONA_IDS
-        if _has_any_alias(normalized, MENTION_ALIASES[persona_id])
+        for persona_id, aliases in MENTION_ALIASES
+        if _has_any_alias(normalized, aliases)
     )
     if matched:
         return PersonaMentionResult(
@@ -56,7 +56,7 @@ def _has_any_alias(text: str, aliases: tuple[str, ...]) -> bool:
 
 def _clean_mentions(text: str) -> str:
     aliases = [*ALL_ALIASES]
-    for alias_group in MENTION_ALIASES.values():
+    for _, alias_group in MENTION_ALIASES:
         aliases.extend(alias_group)
     escaped = "|".join(re.escape(alias) for alias in aliases)
     pattern = rf"@(?:{escaped})[가-힣a-zA-Z0-9_-]*"

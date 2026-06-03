@@ -47,9 +47,7 @@ fn read_docs_index_cache_file(root: &Path) -> Option<Vec<DocsIndexEntry>> {
     if payload.schema_version != DOCS_INDEX_CACHE_SCHEMA_VERSION {
         return None;
     }
-    let cached_root = strip_unc_prefix(
-        PathBuf::from(&payload.root).canonicalize().ok()?,
-    );
+    let cached_root = strip_unc_prefix(PathBuf::from(&payload.root).canonicalize().ok()?);
     if cached_root != root {
         return None;
     }
@@ -83,8 +81,8 @@ pub(crate) struct DocsHtmlReadResult {
 
 fn normalize_text_document(bytes: &[u8]) -> Result<String, String> {
     let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes);
-    let text = std::str::from_utf8(bytes)
-        .map_err(|_| "UTF-8 텍스트 문서만 읽을 수 있어요".to_string())?;
+    let text =
+        std::str::from_utf8(bytes).map_err(|_| "UTF-8 텍스트 문서만 읽을 수 있어요".to_string())?;
     Ok(text.replace("\r\n", "\n").replace('\r', "\n"))
 }
 
@@ -134,7 +132,10 @@ fn normalize_document_content(path: &Path, bytes: &[u8]) -> Result<String, Strin
         "pdf" | "docx" | "doc" => {
             let text = printable_document_runs(bytes);
             if text.is_empty() {
-                Err(format!("{} 문서에서 표시할 텍스트를 추출할 수 없어요", ext.to_uppercase()))
+                Err(format!(
+                    "{} 문서에서 표시할 텍스트를 추출할 수 없어요",
+                    ext.to_uppercase()
+                ))
             } else {
                 Ok(text)
             }
@@ -231,7 +232,13 @@ fn run_vib_docs_index(root: &Path, extra_args: &[&str]) -> Option<Result<String,
         Ok(output) => {
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
             let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            let msg = if !stderr.is_empty() { stderr } else if !stdout.is_empty() { stdout } else { "vib docs-index 실행 실패".into() };
+            let msg = if !stderr.is_empty() {
+                stderr
+            } else if !stdout.is_empty() {
+                stdout
+            } else {
+                "vib docs-index 실행 실패".into()
+            };
             Some(Err(format!("[vib docs-index] {msg}")))
         }
         Err(err) => Some(Err(format!(
@@ -342,8 +349,7 @@ fn docs_artifact_path(root_path: &Path, relative_path: &str, dir_name: &str) -> 
         .unwrap_or_else(|| {
             let extras = docs_access::ExtraSourceAllowlist::load(root_path);
             extras.roots().iter().any(|prefix| {
-                relative_path == *prefix
-                    || relative_path.starts_with(&format!("{prefix}/"))
+                relative_path == *prefix || relative_path.starts_with(&format!("{prefix}/"))
             })
         });
     if is_extra {
@@ -361,10 +367,15 @@ fn docs_artifact_path(root_path: &Path, relative_path: &str, dir_name: &str) -> 
 }
 
 #[tauri::command]
-pub(crate) fn read_docs_visual(root: String, path: PathBuf) -> Result<Option<DocsVisualReadResult>, String> {
+pub(crate) fn read_docs_visual(
+    root: String,
+    path: PathBuf,
+) -> Result<Option<DocsVisualReadResult>, String> {
     let (_resolved_path, relative_path) = resolve_doc_path(&root, path)?;
     if !docs_access::is_canvas_eligible_path(&relative_path) {
-        return Err(format!("Canvas visualization is unsupported for excluded docs path: {relative_path}"));
+        return Err(format!(
+            "Canvas visualization is unsupported for excluded docs path: {relative_path}"
+        ));
     }
     let root_path = strip_unc_prefix(
         PathBuf::from(&root)
@@ -392,10 +403,15 @@ pub(crate) fn read_docs_visual(root: String, path: PathBuf) -> Result<Option<Doc
 }
 
 #[tauri::command]
-pub(crate) fn read_docs_html(root: String, path: PathBuf) -> Result<Option<DocsHtmlReadResult>, String> {
+pub(crate) fn read_docs_html(
+    root: String,
+    path: PathBuf,
+) -> Result<Option<DocsHtmlReadResult>, String> {
     let (_resolved_path, relative_path) = resolve_doc_path(&root, path)?;
     if !docs_access::is_canvas_eligible_path(&relative_path) {
-        return Err(format!("Raw HTML Canvas is unsupported for excluded docs path: {relative_path}"));
+        return Err(format!(
+            "Raw HTML Canvas is unsupported for excluded docs path: {relative_path}"
+        ));
     }
     let root_path = strip_unc_prefix(
         PathBuf::from(&root)
@@ -481,15 +497,15 @@ fn run_doc_sources_cmd(root: &str, args: &[&str]) -> Result<DocSourcesResponse, 
         .map_err(|e| format!("[vib doc-sources] JSON 파싱 실패: {e}\n출력: {raw}"))?;
 
     if value.get("ok").and_then(|v| v.as_bool()) == Some(false) {
-        let err = value.get("error")
+        let err = value
+            .get("error")
             .and_then(|v| v.as_str())
             .unwrap_or("알 수 없는 오류")
             .to_string();
         return Err(err);
     }
 
-    serde_json::from_value(value)
-        .map_err(|e| format!("[vib doc-sources] 응답 역직렬화 실패: {e}"))
+    serde_json::from_value(value).map_err(|e| format!("[vib doc-sources] 응답 역직렬화 실패: {e}"))
 }
 
 #[tauri::command]
@@ -498,12 +514,18 @@ pub(crate) fn list_extra_doc_sources(root: String) -> Result<DocSourcesResponse,
 }
 
 #[tauri::command]
-pub(crate) fn add_extra_doc_source(root: String, path: String) -> Result<DocSourcesResponse, String> {
+pub(crate) fn add_extra_doc_source(
+    root: String,
+    path: String,
+) -> Result<DocSourcesResponse, String> {
     run_doc_sources_cmd(&root, &["add", &path])
 }
 
 #[tauri::command]
-pub(crate) fn remove_extra_doc_source(root: String, path: String) -> Result<DocSourcesResponse, String> {
+pub(crate) fn remove_extra_doc_source(
+    root: String,
+    path: String,
+) -> Result<DocSourcesResponse, String> {
     run_doc_sources_cmd(&root, &["remove", &path])
 }
 
@@ -580,7 +602,11 @@ pub(crate) async fn enhance_doc_with_ai(
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
         let out = String::from_utf8_lossy(&output.stdout);
-        let msg = if !err.trim().is_empty() { err.trim().to_string() } else { out.trim().to_string() };
+        let msg = if !err.trim().is_empty() {
+            err.trim().to_string()
+        } else {
+            out.trim().to_string()
+        };
         return Err(format!("docs-enhance 실패: {}", msg));
     }
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())

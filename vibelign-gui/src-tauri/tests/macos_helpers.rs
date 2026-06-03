@@ -6,10 +6,7 @@ use vibelign_gui_lib::testing::{run_command_capture_streamed_for_test, CommandCa
 #[cfg(target_os = "macos")]
 fn macos_install_fake_script_produces_runnable_artifact() {
     use std::io::Write;
-    let tmp = std::env::temp_dir().join(format!(
-        "vibelign-fake-install-{}.sh",
-        std::process::id()
-    ));
+    let tmp = std::env::temp_dir().join(format!("vibelign-fake-install-{}.sh", std::process::id()));
     let mut f = std::fs::File::create(&tmp).unwrap();
     writeln!(f, "#!/bin/bash").unwrap();
     writeln!(f, "mkdir -p \"$HOME/.local/bin\"").unwrap();
@@ -31,7 +28,11 @@ fn macos_install_fake_script_produces_runnable_artifact() {
     assert!(result.ok, "fake installer should exit 0");
     let home = std::env::var("HOME").unwrap();
     let bin = std::path::PathBuf::from(&home).join(".local/bin/claude-vibelign-test");
-    assert!(bin.exists(), "fake binary should exist at {}", bin.display());
+    assert!(
+        bin.exists(),
+        "fake binary should exist at {}",
+        bin.display()
+    );
 
     let _ = std::fs::remove_file(&tmp);
     let _ = std::fs::remove_file(&bin);
@@ -78,8 +79,7 @@ fn ensure_macos_path_marker_is_idempotent() {
     let zshrc = tmp.join(".zshrc");
     std::fs::write(&zshrc, "# existing zshrc\nexport FOO=bar\n").unwrap();
 
-    vibelign_gui_lib::testing::ensure_macos_path_marker_at(&tmp)
-        .expect("first append succeeds");
+    vibelign_gui_lib::testing::ensure_macos_path_marker_at(&tmp).expect("first append succeeds");
     let first = std::fs::read_to_string(&zshrc).unwrap();
     assert!(first.contains("# >>> vibelign >>>"));
     assert!(first.contains("export PATH=\"$HOME/.local/bin:$PATH\""));
@@ -103,7 +103,10 @@ fn ensure_macos_path_marker_creates_missing_rc_files() {
         .expect("should create missing rc files");
 
     assert!(tmp.join(".zshrc").exists(), ".zshrc should be created");
-    assert!(tmp.join(".bash_profile").exists(), ".bash_profile should be created");
+    assert!(
+        tmp.join(".bash_profile").exists(),
+        ".bash_profile should be created"
+    );
 
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -140,14 +143,32 @@ fn uninstall_macos_removes_marker_blocks_only() {
 
     vibelign_gui_lib::testing::uninstall_macos_track_at(&tmp).unwrap();
 
-    assert!(!bin_dir.join("claude").exists(), "claude binary should be removed");
-    assert!(!tmp.join(".claude").exists(), ".claude dir should be removed");
-    assert!(!tmp.join(".claude.json").exists(), ".claude.json should be removed");
+    assert!(
+        !bin_dir.join("claude").exists(),
+        "claude binary should be removed"
+    );
+    assert!(
+        !tmp.join(".claude").exists(),
+        ".claude dir should be removed"
+    );
+    assert!(
+        !tmp.join(".claude.json").exists(),
+        ".claude.json should be removed"
+    );
 
     let zshrc = std::fs::read_to_string(tmp.join(".zshrc")).unwrap();
-    assert!(!zshrc.contains("# >>> vibelign >>>"), "marker block should be gone");
-    assert!(zshrc.contains("# user content"), "user content must be preserved");
-    assert!(zshrc.contains("export FOO=1"), "user export must be preserved");
+    assert!(
+        !zshrc.contains("# >>> vibelign >>>"),
+        "marker block should be gone"
+    );
+    assert!(
+        zshrc.contains("# user content"),
+        "user content must be preserved"
+    );
+    assert!(
+        zshrc.contains("export FOO=1"),
+        "user export must be preserved"
+    );
 
     let _ = std::fs::remove_dir_all(&tmp);
 }

@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "active_work_id": "planning-work-message-status-badges",
+  "active_work_id": "planning-work-engine-prompt-boundary",
   "works": {
     "planning-room-next-actions": {
       "work_id": "planning-room-next-actions",
@@ -79,6 +79,142 @@
       "active_plan": ".omo/plans/planning-work-message-status-badges.md",
       "plan_name": "planning-work-message-status-badges",
       "session_ids": ["codex:planning-work-message-status-badges"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-persona-progress-summary": {
+      "work_id": "planning-work-persona-progress-summary",
+      "active_plan": ".omo/plans/planning-work-persona-progress-summary.md",
+      "plan_name": "planning-work-persona-progress-summary",
+      "session_ids": ["codex:planning-work-persona-progress-summary"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-mention-chip-input": {
+      "work_id": "planning-work-mention-chip-input",
+      "active_plan": ".omo/plans/planning-work-mention-chip-input.md",
+      "plan_name": "planning-work-mention-chip-input",
+      "session_ids": ["codex:planning-work-mention-chip-input"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-open-saved-plan": {
+      "work_id": "planning-work-open-saved-plan",
+      "active_plan": ".omo/plans/planning-work-open-saved-plan.md",
+      "plan_name": "planning-work-open-saved-plan",
+      "session_ids": ["codex:planning-work-open-saved-plan"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-mode-selector": {
+      "work_id": "planning-work-mode-selector",
+      "active_plan": ".omo/plans/planning-work-mode-selector.md",
+      "plan_name": "planning-work-mode-selector",
+      "session_ids": ["codex:planning-work-mode-selector"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-persona-avatars": {
+      "work_id": "planning-work-persona-avatars",
+      "active_plan": ".omo/plans/planning-work-persona-avatars.md",
+      "plan_name": "planning-work-persona-avatars",
+      "session_ids": ["codex:planning-work-persona-avatars"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-persona-response-summary": {
+      "work_id": "planning-work-persona-response-summary",
+      "active_plan": ".omo/plans/planning-work-persona-response-summary.md",
+      "plan_name": "planning-work-persona-response-summary",
+      "session_ids": ["codex:planning-work-persona-response-summary"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-advanced-details": {
+      "work_id": "planning-work-advanced-details",
+      "active_plan": ".omo/plans/planning-work-advanced-details.md",
+      "plan_name": "planning-work-advanced-details",
+      "session_ids": ["codex:planning-work-advanced-details"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-status-labels": {
+      "work_id": "planning-work-status-labels",
+      "active_plan": ".omo/plans/planning-work-status-labels.md",
+      "plan_name": "planning-work-status-labels",
+      "session_ids": ["codex:planning-work-status-labels"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-transcript-turn-files": {
+      "work_id": "planning-work-transcript-turn-files",
+      "active_plan": ".omo/plans/planning-work-transcript-turn-files.md",
+      "plan_name": "planning-work-transcript-turn-files",
+      "session_ids": ["codex:planning-work-transcript-turn-files"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-session-agent-metadata": {
+      "work_id": "planning-work-session-agent-metadata",
+      "active_plan": ".omo/plans/planning-work-session-agent-metadata.md",
+      "plan_name": "planning-work-session-agent-metadata",
+      "session_ids": ["codex:planning-work-session-agent-metadata"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-orchestrator-boundary": {
+      "work_id": "planning-work-orchestrator-boundary",
+      "active_plan": ".omo/plans/planning-work-orchestrator-boundary.md",
+      "plan_name": "planning-work-orchestrator-boundary",
+      "session_ids": ["codex:planning-work-orchestrator-boundary"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-persona-composer-boundary": {
+      "work_id": "planning-work-persona-composer-boundary",
+      "active_plan": ".omo/plans/planning-work-persona-composer-boundary.md",
+      "plan_name": "planning-work-persona-composer-boundary",
+      "session_ids": ["codex:planning-work-persona-composer-boundary"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-persona-meta-boundary": {
+      "work_id": "planning-work-persona-meta-boundary",
+      "active_plan": ".omo/plans/planning-work-persona-meta-boundary.md",
+      "plan_name": "planning-work-persona-meta-boundary",
+      "session_ids": ["codex:planning-work-persona-meta-boundary"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-mode-meta-boundary": {
+      "work_id": "planning-work-mode-meta-boundary",
+      "active_plan": ".omo/plans/planning-work-mode-meta-boundary.md",
+      "plan_name": "planning-work-mode-meta-boundary",
+      "session_ids": ["codex:planning-work-mode-meta-boundary"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-mode-target-label-boundary": {
+      "work_id": "planning-work-mode-target-label-boundary",
+      "active_plan": ".omo/plans/planning-work-mode-target-label-boundary.md",
+      "plan_name": "planning-work-mode-target-label-boundary",
+      "session_ids": ["codex:planning-work-mode-target-label-boundary"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-mention-persona-boundary": {
+      "work_id": "planning-work-mention-persona-boundary",
+      "active_plan": ".omo/plans/planning-work-mention-persona-boundary.md",
+      "plan_name": "planning-work-mention-persona-boundary",
+      "session_ids": ["codex:planning-work-mention-persona-boundary"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-engine-prompt-boundary": {
+      "work_id": "planning-work-engine-prompt-boundary",
+      "active_plan": ".omo/plans/planning-work-engine-prompt-boundary.md",
+      "plan_name": "planning-work-engine-prompt-boundary",
+      "session_ids": ["codex:planning-work-engine-prompt-boundary"],
       "status": "complete",
       "worktree_path": null
     }

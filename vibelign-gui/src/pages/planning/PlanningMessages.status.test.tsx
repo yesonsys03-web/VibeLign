@@ -49,4 +49,32 @@ describe("PlanningMessages status badges", () => {
     expect(screen.getByText("실패")).toBeInTheDocument();
     expect(screen.queryByText("사용자 완료")).not.toBeInTheDocument();
   });
+
+  test("maps_backend_failure_codes_to_user_facing_badges", () => {
+    const messages: readonly PlanningChatMessage[] = [
+      {
+        id: "chloe_not_installed",
+        role: "assistant",
+        personaId: "chloe",
+        content: "클로이 연결이 필요해요.",
+        status: "not_installed",
+        createdAt: "2026-06-03T00:00:00Z",
+      },
+      {
+        id: "mina_timeout",
+        role: "assistant",
+        personaId: "mina",
+        content: "미나는 이번 실행에서 건너뛰었어요.",
+        status: "timeout",
+        createdAt: "2026-06-03T00:00:01Z",
+      },
+    ];
+
+    render(<PlanningMessages messages={messages} outputPath={null} />);
+
+    expect(screen.getByText("연결 필요")).toBeInTheDocument();
+    expect(screen.getByText("건너뜀")).toBeInTheDocument();
+    expect(screen.queryByText("not_installed")).not.toBeInTheDocument();
+    expect(screen.queryByText("timeout")).not.toBeInTheDocument();
+  });
 });

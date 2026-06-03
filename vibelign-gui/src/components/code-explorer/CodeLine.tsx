@@ -1,3 +1,4 @@
+// === ANCHOR: CODELINE_START ===
 interface CodeLineProps {
   lineNumber: number | null;
   text: string;
@@ -18,3 +19,4 @@ export default function CodeLine({ lineNumber, text, tone = "normal" }: CodeLine
     </div>
   );
 }
+// === ANCHOR: CODELINE_END ===

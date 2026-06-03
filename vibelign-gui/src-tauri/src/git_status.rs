@@ -32,7 +32,9 @@ fn apply_no_window(cmd: &mut std::process::Command) {
 pub(crate) fn list_changed_paths(root: &Path) -> Result<Vec<ChangedEntry>, String> {
     // 1. git 저장소인지 — 아니면 마커 없음
     let mut probe_cmd = std::process::Command::new("git");
-    probe_cmd.args(["-C"]).arg(root)
+    probe_cmd
+        .args(["-C"])
+        .arg(root)
         .args(["rev-parse", "--is-inside-work-tree"]);
     apply_no_window(&mut probe_cmd);
     let probe = match probe_cmd.output() {
@@ -45,7 +47,9 @@ pub(crate) fn list_changed_paths(root: &Path) -> Result<Vec<ChangedEntry>, Strin
 
     // 2. root가 repo 하위 디렉토리일 때의 prefix (예: "vibelign-gui/"), repo 루트면 ""
     let mut prefix_cmd = std::process::Command::new("git");
-    prefix_cmd.args(["-C"]).arg(root)
+    prefix_cmd
+        .args(["-C"])
+        .arg(root)
         .args(["rev-parse", "--show-prefix"]);
     apply_no_window(&mut prefix_cmd);
     let prefix = prefix_cmd
@@ -58,8 +62,12 @@ pub(crate) fn list_changed_paths(root: &Path) -> Result<Vec<ChangedEntry>, Strin
 
     // 3. porcelain -z: NUL 구분, 경로 이스케이프 없음(한글/공백 안전)
     let mut status_cmd = std::process::Command::new("git");
-    status_cmd.args(["-C"]).arg(root)
-        .args(["status", "--porcelain", "-z", "--untracked-files=all"]);
+    status_cmd.args(["-C"]).arg(root).args([
+        "status",
+        "--porcelain",
+        "-z",
+        "--untracked-files=all",
+    ]);
     apply_no_window(&mut status_cmd);
     let out = status_cmd
         .output()
@@ -79,9 +87,10 @@ pub(crate) fn list_changed_paths(root: &Path) -> Result<Vec<ChangedEntry>, Strin
         }
         let xy = &entry[0..2];
         let path = &entry[3..]; // entry[2]는 공백
-        // rename/copy 는 -z 에서 "XY new\0old" 2토큰 → old 토큰을 소비
+                                // rename/copy 는 -z 에서 "XY new\0old" 2토큰 → old 토큰을 소비
         let bytes = xy.as_bytes();
-        let is_rename = bytes[0] == b'R' || bytes[1] == b'R' || bytes[0] == b'C' || bytes[1] == b'C';
+        let is_rename =
+            bytes[0] == b'R' || bytes[1] == b'R' || bytes[0] == b'C' || bytes[1] == b'C';
         if is_rename {
             let _orig = tokens.next();
         }
@@ -135,8 +144,11 @@ mod tests {
 
     fn run(root: &Path, args: &[&str]) {
         let st = std::process::Command::new("git")
-            .args(["-C"]).arg(root).args(args)
-            .status().expect("git");
+            .args(["-C"])
+            .arg(root)
+            .args(args)
+            .status()
+            .expect("git");
         assert!(st.success(), "git {args:?} failed");
     }
 
@@ -162,7 +174,9 @@ mod tests {
 
     #[test]
     fn modified_tracked_file_is_modified() {
-        if !git_available() { return; }
+        if !git_available() {
+            return;
+        }
         let root = TempDir::new().unwrap();
         init_repo(root.path());
         write(root.path(), "src/main.ts", b"old\n");
@@ -171,13 +185,18 @@ mod tests {
         write(root.path(), "src/main.ts", b"new\n"); // worktree 수정
 
         let changed = list_changed_paths(root.path()).expect("ok");
-        let hit = changed.iter().find(|e| e.path == "src/main.ts").expect("found");
+        let hit = changed
+            .iter()
+            .find(|e| e.path == "src/main.ts")
+            .expect("found");
         assert_eq!(hit.status, ChangeStatus::Modified);
     }
 
     #[test]
     fn untracked_file_is_new() {
-        if !git_available() { return; }
+        if !git_available() {
+            return;
+        }
         let root = TempDir::new().unwrap();
         init_repo(root.path());
         write(root.path(), "src/main.ts", b"a\n");
@@ -186,13 +205,18 @@ mod tests {
         write(root.path(), "src/brand_new.ts", b"fresh\n"); // add 안 함
 
         let changed = list_changed_paths(root.path()).expect("ok");
-        let hit = changed.iter().find(|e| e.path == "src/brand_new.ts").expect("found");
+        let hit = changed
+            .iter()
+            .find(|e| e.path == "src/brand_new.ts")
+            .expect("found");
         assert_eq!(hit.status, ChangeStatus::New);
     }
 
     #[test]
     fn deleted_file_is_excluded() {
-        if !git_available() { return; }
+        if !git_available() {
+            return;
+        }
         let root = TempDir::new().unwrap();
         init_repo(root.path());
         write(root.path(), "src/gone.ts", b"bye\n");
@@ -206,7 +230,9 @@ mod tests {
 
     #[test]
     fn subdir_root_paths_are_relative_to_root() {
-        if !git_available() { return; }
+        if !git_available() {
+            return;
+        }
         // repo 루트에서 init 후, 하위 디렉토리 app/ 을 root 로 사용
         let repo = TempDir::new().unwrap();
         init_repo(repo.path());
@@ -219,7 +245,10 @@ mod tests {
         let root = repo.path().join("app");
         let changed = list_changed_paths(&root).expect("ok");
         // root 기준 상대경로 "src/main.ts" 로 나와야 한다 (app/ prefix 제거)
-        let hit = changed.iter().find(|e| e.path == "src/main.ts").expect("found");
+        let hit = changed
+            .iter()
+            .find(|e| e.path == "src/main.ts")
+            .expect("found");
         assert_eq!(hit.status, ChangeStatus::Modified);
         // app/ 밖의 outside.ts 는 포함되지 않는다
         assert!(changed.iter().all(|e| !e.path.contains("outside.ts")));
@@ -227,7 +256,9 @@ mod tests {
 
     #[test]
     fn renamed_file_uses_new_path() {
-        if !git_available() { return; }
+        if !git_available() {
+            return;
+        }
         let root = TempDir::new().unwrap();
         init_repo(root.path());
         write(root.path(), "src/old.ts", b"x\n");
@@ -236,7 +267,13 @@ mod tests {
         run(root.path(), &["mv", "src/old.ts", "src/new.ts"]);
 
         let changed = list_changed_paths(root.path()).expect("ok");
-        assert!(changed.iter().any(|e| e.path == "src/new.ts"), "new path present");
-        assert!(changed.iter().all(|e| e.path != "src/old.ts"), "old path absent");
+        assert!(
+            changed.iter().any(|e| e.path == "src/new.ts"),
+            "new path present"
+        );
+        assert!(
+            changed.iter().all(|e| e.path != "src/old.ts"),
+            "old path absent"
+        );
     }
 }

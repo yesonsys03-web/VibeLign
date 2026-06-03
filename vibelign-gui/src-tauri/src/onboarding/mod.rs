@@ -173,9 +173,11 @@ pub(crate) fn build_onboarding_snapshot() -> OnboardingSnapshot {
     #[cfg(not(target_os = "windows"))]
     let wsl_available = None;
 
-    let (state, next_action, headline, detail, primary_button_label, last_error) =
-        if os == "windows" && git_installed == Some(false) {
-            (
+    let (state, next_action, headline, detail, primary_button_label, last_error) = if os
+        == "windows"
+        && git_installed == Some(false)
+    {
+        (
                 "needs_git".to_string(),
                 "install_git".to_string(),
                 "Git for Windows가 먼저 필요해요".to_string(),
@@ -188,16 +190,18 @@ pub(crate) fn build_onboarding_snapshot() -> OnboardingSnapshot {
                     suggested_action: Some("install_git".to_string()),
                 }),
             )
-        } else {
-            (
-                "ready_to_install".to_string(),
-                "start_install".to_string(),
-                "Claude Code 자동 설치를 시작할 수 있어요".to_string(),
-                Some("공식 설치 경로를 먼저 시도하고, 실패하면 다음 성공 경로로 안내할게요.".to_string()),
-                Some("자동 설치 시작".to_string()),
-                None,
-            )
-        };
+    } else {
+        (
+            "ready_to_install".to_string(),
+            "start_install".to_string(),
+            "Claude Code 자동 설치를 시작할 수 있어요".to_string(),
+            Some(
+                "공식 설치 경로를 먼저 시도하고, 실패하면 다음 성공 경로로 안내할게요.".to_string(),
+            ),
+            Some("자동 설치 시작".to_string()),
+            None,
+        )
+    };
 
     OnboardingSnapshot {
         state,
@@ -297,8 +301,18 @@ where
 
     let child = cmd.spawn().map_err(|e| e.to_string())?;
     let child = StdArc::new(StdMutex::new(child));
-    let stdout = child.lock().unwrap().stdout.take().ok_or_else(|| "stdout pipe missing".to_string())?;
-    let stderr = child.lock().unwrap().stderr.take().ok_or_else(|| "stderr pipe missing".to_string())?;
+    let stdout = child
+        .lock()
+        .unwrap()
+        .stdout
+        .take()
+        .ok_or_else(|| "stdout pipe missing".to_string())?;
+    let stderr = child
+        .lock()
+        .unwrap()
+        .stderr
+        .take()
+        .ok_or_else(|| "stderr pipe missing".to_string())?;
 
     let (tx, rx) = mpsc::channel::<(&'static str, String)>();
     let tx_out = tx.clone();
@@ -340,7 +354,11 @@ where
         };
         match rx.recv_timeout(remaining) {
             Ok((stream, line)) => {
-                let title = if stream == "stdout" { "[stream stdout]" } else { "[stream stderr]" };
+                let title = if stream == "stdout" {
+                    "[stream stdout]"
+                } else {
+                    "[stream stderr]"
+                };
                 sink(title, &line);
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
@@ -352,7 +370,10 @@ where
     }
 
     if timed_out {
-        sink("[stream timeout]", &format!("command exceeded {}s, killing", timeout_secs.unwrap_or(0)));
+        sink(
+            "[stream timeout]",
+            &format!("command exceeded {}s, killing", timeout_secs.unwrap_or(0)),
+        );
         let _ = child.lock().unwrap().kill();
     }
 

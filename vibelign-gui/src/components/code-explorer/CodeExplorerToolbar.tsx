@@ -1,3 +1,4 @@
+// === ANCHOR: CODEEXPLORERTOOLBAR_START ===
 interface CodeExplorerToolbarProps {
   query: string;
   fileCount: number;
@@ -23,3 +24,4 @@ export default function CodeExplorerToolbar({ query, fileCount, isRefreshing, on
     </div>
   );
 }
+// === ANCHOR: CODEEXPLORERTOOLBAR_END ===

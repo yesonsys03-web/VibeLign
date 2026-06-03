@@ -1,10 +1,13 @@
 import { useState } from "react";
 
-import { savePlanningChatAsMarkdown, type PlanningChatSessionResponse } from "../lib/vib";
+import { openFolder, savePlanningChatAsMarkdown, type PlanningChatSessionResponse } from "../lib/vib";
 import { PlanningActionBar } from "./planning/PlanningActionBar";
+import { PlanningAdvancedDetails } from "./planning/PlanningAdvancedDetails";
 import { PlanningMarkdownView } from "./planning/PlanningMarkdownView";
 import { PlanningMessages } from "./planning/PlanningMessages";
 import { PlanningPersonaComposer } from "./planning/PlanningPersonaComposer";
+import { PlanningPersonaProgressSummary } from "./planning/PlanningPersonaProgressSummary";
+import { PlanningPersonaResponseSummary } from "./planning/PlanningPersonaResponseSummary";
 
 interface PlanningRoomProps {
   readonly projectDir: string;
@@ -19,7 +22,8 @@ export default function PlanningRoom({ projectDir, result, onBack, onStartWork, 
   const [isSaving, setIsSaving] = useState(false);
   const markdown = result.markdown ?? "";
   const isPending = result.messages.some((message) => message.status === "pending");
-  const hasSavedPlan = Boolean(result.outputPath);
+  const savedPlanOpenPath = getSavedPlanOpenPath(projectDir, result);
+  const hasSavedPlan = Boolean(savedPlanOpenPath);
   const canSave = result.ok && !isPending && !isSaving && Boolean(result.sessionId);
   const canView = !isPending && Boolean(markdown);
 
@@ -49,6 +53,22 @@ export default function PlanningRoom({ projectDir, result, onBack, onStartWork, 
     }
   }
 
+  async function handleOpenSavedPlan() {
+    if (!savedPlanOpenPath) {
+      return;
+    }
+    try {
+      await openFolder(savedPlanOpenPath);
+    } catch (error) {
+      onResultChange({
+        ...result,
+        ok: false,
+        message: "저장된 기획안 파일을 열지 못했어요.",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   return (
     <main style={{ height: "100%", overflow: "auto", background: "var(--bg)" }}>
       <div style={{ width: "min(920px, calc(100% - 32px))", margin: "0 auto", padding: "28px 0", display: "grid", gap: 16 }}>
@@ -63,6 +83,8 @@ export default function PlanningRoom({ projectDir, result, onBack, onStartWork, 
 
         {result.ok ? (
           <>
+            <PlanningPersonaProgressSummary messages={result.messages} />
+            <PlanningPersonaResponseSummary messages={result.messages} />
             <PlanningMessages messages={result.messages} outputPath={result.outputPath ?? null} />
             <PlanningPersonaComposer projectDir={projectDir} result={result} sessionId={result.sessionId ?? null} onResultChange={onResultChange} />
             <PlanningActionBar
@@ -70,18 +92,42 @@ export default function PlanningRoom({ projectDir, result, onBack, onStartWork, 
               canView={canView}
               hasSavedPlan={hasSavedPlan}
               isSaving={isSaving}
+              onOpenSavedPlan={() => void handleOpenSavedPlan()}
               onSave={handleSavePlan}
               onStartWork={onStartWork ?? onBack}
               onToggleMarkdown={() => setShowMarkdown((visible) => !visible)}
             />
+            <PlanningAdvancedDetails details={result.details} />
             {showMarkdown && <PlanningMarkdownView markdown={markdown} />}
           </>
         ) : (
-          <div role="alert" className="alert alert-error" style={{ padding: 14, fontSize: 12 }}>
-            {result.message ?? "기획안을 만들지 못했어요."}
-          </div>
+          <>
+            <div role="alert" className="alert alert-error" style={{ padding: 14, fontSize: 12 }}>
+              {result.message ?? "기획안을 만들지 못했어요."}
+            </div>
+            <PlanningAdvancedDetails details={result.details} />
+          </>
         )}
       </div>
     </main>
   );
+}
+
+function getSavedPlanOpenPath(projectDir: string, result: PlanningChatSessionResponse): string | null {
+  const absoluteOutputPath = result.absoluteOutputPath?.trim();
+  if (absoluteOutputPath) {
+    return absoluteOutputPath;
+  }
+  const outputPath = result.outputPath?.trim();
+  if (!outputPath) {
+    return null;
+  }
+  if (isAbsolutePath(outputPath)) {
+    return outputPath;
+  }
+  return `${projectDir.replace(/[\\/]$/, "")}/${outputPath.replace(/^[\\/]/, "")}`;
+}
+
+function isAbsolutePath(path: string): boolean {
+  return path.startsWith("/") || /^[A-Z]:[\\/]/i.test(path);
 }

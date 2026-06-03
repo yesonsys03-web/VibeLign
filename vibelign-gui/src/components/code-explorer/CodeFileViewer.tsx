@@ -1,3 +1,4 @@
+// === ANCHOR: CODEFILEVIEWER_START ===
 import type { CodeFileReadResult, CodeFileDiffResult } from "../../lib/vib/types";
 import CodeLine from "./CodeLine";
 import DiffLine from "./DiffLine";
@@ -67,3 +68,4 @@ export default function CodeFileViewer({
     </div>
   );
 }
+// === ANCHOR: CODEFILEVIEWER_END ===

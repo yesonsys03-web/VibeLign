@@ -6,7 +6,6 @@ from uuid import uuid4
 from vibelign.core.planning_cli import cli_adapters
 from vibelign.core.planning_cli.cli_adapters import (
     PlanningCliRunner,
-    PlanningCliStatus,
     SubprocessPlanningCliRunner,
 )
 from vibelign.core.planning_cli.mentions import resolve_persona_mentions
@@ -15,9 +14,14 @@ from vibelign.core.planning_cli.personas import (
     PlanningPersona,
     ordered_personas_for_ids,
 )
+from vibelign.core.planning_cli.prompts import append_persona_section, build_persona_prompt
+from vibelign.core.planning_cli.response_policy import safe_planning_status
+from vibelign.core.planning_cli.session_metadata import (
+    AgentRunMetadata,
+    write_agent_session_metadata,
+)
 from vibelign.core.planning_cli.storage import create_planning_template
-
-FORBIDDEN_LLM_TERMS = ("codespeak", "target_anchor", "patch")
+from vibelign.core.planning_cli.transcripts import write_turn_transcript
 
 
 def create_planning_with_agents(
@@ -108,15 +112,17 @@ def _apply_agents_to_result(
     markdown = base.markdown
     statuses: dict[str, str] = {}
     used_agents: list[str] = []
+    runs: list[AgentRunMetadata] = []
 
-    for persona in personas:
+    for turn_index, persona in enumerate(personas, start=1):
         adapter = adapters[persona.id]
         command = cli_adapters.build_cli_command(
             adapter,
-            _build_persona_prompt(persona, mention_result.clean_text or message, markdown),
+            build_persona_prompt(persona, mention_result.clean_text or message, markdown),
         )
         if command is None:
             statuses[persona.id] = "not_installed"
+            runs.append(AgentRunMetadata(turn_index, persona.id, adapter, "not_installed", ""))
             continue
         cli_result = active_runner.run(
             command,
@@ -124,24 +130,40 @@ def _apply_agents_to_result(
             input_text="",
             timeout_seconds=timeout_seconds,
         )
-        status = _safe_status(cli_result.status, cli_result.stdout)
+        status = safe_planning_status(cli_result.status, cli_result.stdout)
         statuses[persona.id] = status
+        runs.append(AgentRunMetadata(turn_index, persona.id, adapter, status, cli_result.stdout))
         if save_transcript:
-            _save_transcript(root, base.session_id, persona.id, cli_result.stdout)
+            write_turn_transcript(
+                root,
+                session_id=base.session_id,
+                turn_index=turn_index,
+                adapter=adapter,
+                response=cli_result.stdout,
+            )
         if status != "ok":
             continue
-        markdown = _append_persona_section(markdown, persona.section_title, cli_result.stdout)
+        markdown = append_persona_section(markdown, persona.section_title, cli_result.stdout)
         used_agents.append(persona.id)
 
     output_path = Path(base.absolute_output_path)
     output_path.write_text(markdown, encoding="utf-8")
-    return _finalize_agent_result(
+    final_result = _finalize_agent_result(
         base.with_markdown(markdown),
         personas=personas,
         adapters=adapters,
         statuses=statuses,
         used_agents=tuple(used_agents),
     )
+    write_agent_session_metadata(
+        root,
+        session_id=base.session_id,
+        agents_requested=final_result.agents_requested,
+        agents_used=final_result.agents_used,
+        agent_statuses=statuses,
+        runs=tuple(runs),
+    )
+    return final_result
 
 
 def _resolve_personas(
@@ -189,42 +211,6 @@ def _safe_relative_output_path(raw_path: str) -> Path:
     return relative_path
 
 
-def _build_persona_prompt(
-    persona: PlanningPersona,
-    idea: str,
-    template_markdown: str,
-) -> str:
-    return "\n".join(
-        [
-            f"VibeLign 기획방의 {persona.prompt_role} 페르소나로 답하세요.",
-            "초보자가 읽기 쉬운 한국어로 기획안을 보강하세요.",
-            "불확실한 내용은 아직 결정이 필요한 질문으로 남기세요.",
-            "프로젝트 전체 소스 코드를 요청하지 마세요.",
-            "CodeSpeak, patch, target_anchor 용어를 쓰지 마세요.",
-            "",
-            f"사용자 아이디어: {idea.strip()}",
-            "",
-            "현재 기획안:",
-            template_markdown,
-        ]
-    )
-
-
-def _safe_status(status: PlanningCliStatus, stdout: str) -> str:
-    if status == "ok" and _contains_forbidden_terms(stdout):
-        return "bad_output"
-    return status
-
-
-def _contains_forbidden_terms(text: str) -> bool:
-    lowered = text.lower()
-    return any(term in lowered for term in FORBIDDEN_LLM_TERMS)
-
-
-def _append_persona_section(markdown: str, section_title: str, response: str) -> str:
-    return f"{markdown.rstrip()}\n\n## {section_title}\n{response.strip()}\n"
-
-
 def _finalize_agent_result(
     base: PlanningResult,
     *,
@@ -249,9 +235,3 @@ def _finalize_agent_result(
         llm_status=llm_status,
         fallback_reason=fallback_reason,
     )
-
-
-def _save_transcript(root: Path, session_id: str, persona_id: str, response: str) -> None:
-    transcript_dir = root / ".vibelign" / "planning" / session_id / "transcripts"
-    transcript_dir.mkdir(parents=True, exist_ok=True)
-    (transcript_dir / f"{persona_id}.txt").write_text(response, encoding="utf-8")

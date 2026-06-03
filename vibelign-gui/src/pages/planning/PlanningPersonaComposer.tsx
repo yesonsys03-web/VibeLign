@@ -1,6 +1,16 @@
 import { useState } from "react";
 
 import { appendPlanningChatTurn, type PlanningChatSessionResponse } from "../../lib/vib";
+import { DEFAULT_PLANNING_MODE, type PlanningModeOption } from "./PlanningModes";
+import { PlanningModeSelector } from "./PlanningModeSelector";
+import { allPlanningPersonaIds, PLANNING_PERSONAS } from "./PlanningPersonas";
+import {
+  appendMention,
+  togglePersona,
+  withPendingAgents,
+  withPendingTurn,
+} from "./PlanningPersonaComposerState";
+import { PlanningPersonaAvatar } from "./PlanningPersonaAvatar";
 
 interface PlanningPersonaComposerProps {
   readonly projectDir: string;
@@ -9,20 +19,9 @@ interface PlanningPersonaComposerProps {
   readonly onResultChange: (result: PlanningChatSessionResponse) => void;
 }
 
-interface PersonaOption {
-  readonly id: string;
-  readonly label: string;
-  readonly role: string;
-}
-
-const PERSONAS: readonly PersonaOption[] = [
-  { id: "chloe", label: "클로이", role: "설계" },
-  { id: "gio", label: "지오", role: "검토" },
-  { id: "mina", label: "미나", role: "탐색" },
-];
-
 export function PlanningPersonaComposer({ projectDir, result, sessionId, onResultChange }: PlanningPersonaComposerProps) {
-  const [selectedPersonaIds, setSelectedPersonaIds] = useState<readonly string[]>(["gio"]);
+  const [selectedModeId, setSelectedModeId] = useState<PlanningModeOption["id"]>(DEFAULT_PLANNING_MODE.id);
+  const [selectedPersonaIds, setSelectedPersonaIds] = useState<readonly string[]>(DEFAULT_PLANNING_MODE.personaIds);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const canSubmit = message.trim().length > 0 && selectedPersonaIds.length > 0 && Boolean(sessionId) && !isSubmitting;
@@ -65,13 +64,23 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
         gap: 10,
       }}
     >
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {PERSONAS.map((persona) => (
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <PlanningModeSelector
+          value={selectedModeId}
+          onChange={(option) => {
+            setSelectedModeId(option.id);
+            setSelectedPersonaIds(option.personaIds);
+          }}
+        />
+        {PLANNING_PERSONAS.map((persona) => (
           <button
             key={persona.id}
             type="button"
             aria-pressed={selectedPersonaIds.includes(persona.id)}
-            onClick={() => setSelectedPersonaIds(togglePersona(selectedPersonaIds, persona.id))}
+            onClick={() => {
+              setSelectedPersonaIds(togglePersona(selectedPersonaIds, persona.id));
+              setMessage((current) => appendMention(current, persona.mention));
+            }}
             style={{
               border: "2px solid #1A1A1A",
               background: selectedPersonaIds.includes(persona.id) ? "#1A1A1A" : "#F7F0DF",
@@ -82,17 +91,21 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
               cursor: "pointer",
             }}
           >
+            <PlanningPersonaAvatar personaId={persona.id} label={persona.label} decorative size={18} />
             {persona.label} {persona.role}
           </button>
         ))}
         <button
           type="button"
-          aria-pressed={selectedPersonaIds.length === PERSONAS.length}
-          onClick={() => setSelectedPersonaIds(PERSONAS.map((persona) => persona.id))}
+          aria-pressed={selectedPersonaIds.length === PLANNING_PERSONAS.length}
+          onClick={() => {
+            setSelectedPersonaIds(allPlanningPersonaIds());
+            setMessage((current) => appendMention(current, "@모두"));
+          }}
           style={{
             border: "2px solid #1A1A1A",
-            background: selectedPersonaIds.length === PERSONAS.length ? "#1A1A1A" : "#FFFFFF",
-            color: selectedPersonaIds.length === PERSONAS.length ? "#FFFFFF" : "#1A1A1A",
+            background: selectedPersonaIds.length === PLANNING_PERSONAS.length ? "#1A1A1A" : "#FFFFFF",
+            color: selectedPersonaIds.length === PLANNING_PERSONAS.length ? "#FFFFFF" : "#1A1A1A",
             padding: "7px 9px",
             fontSize: 11,
             fontWeight: 900,
@@ -137,69 +150,4 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
       </div>
     </section>
   );
-}
-
-
-function togglePersona(current: readonly string[], personaId: string): readonly string[] {
-  if (current.includes(personaId)) {
-    return current.filter((id) => id !== personaId);
-  }
-  return [...current, personaId];
-}
-
-function withPendingTurn(
-  result: PlanningChatSessionResponse,
-  prompt: string,
-  agents: readonly string[],
-  createdAt: string,
-): PlanningChatSessionResponse {
-  const userMessage = {
-    id: `pending_user_${Date.now()}`,
-    role: "user" as const,
-    personaId: null,
-    content: prompt,
-    status: "ok",
-    createdAt,
-  };
-  return {
-    ...result,
-    messages: [
-      ...result.messages,
-      userMessage,
-      ...pendingAgentMessages(agents, createdAt),
-    ],
-  };
-}
-
-function withPendingAgents(
-  result: PlanningChatSessionResponse,
-  agents: readonly string[],
-  createdAt: string,
-): PlanningChatSessionResponse {
-  if (agents.length === 0) {
-    return result;
-  }
-  return {
-    ...result,
-    messages: [
-      ...result.messages,
-      ...pendingAgentMessages(agents, createdAt),
-    ],
-  };
-}
-
-function pendingAgentMessages(agents: readonly string[], createdAt: string) {
-  return agents.map((agent, index) => ({
-    id: `pending_${agent}_${Date.now()}_${index}`,
-    role: "assistant" as const,
-    personaId: agent,
-    content: `${personaName(agent)}가 답변을 준비하고 있어요.`,
-    status: "pending",
-    createdAt,
-  }));
-}
-
-function personaName(personaId: string): string {
-  const persona = PERSONAS.find((item) => item.id === personaId);
-  return persona?.label ?? personaId;
 }

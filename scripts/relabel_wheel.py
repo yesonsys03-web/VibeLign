@@ -1,3 +1,4 @@
+# === ANCHOR: RELABEL_WHEEL_START ===
 """Replace a wheel's platform tag and move it to a destination directory.
 
 Used as CIBW_REPAIR_WHEEL_COMMAND_LINUX. auditwheel refuses to handle wheels
@@ -13,6 +14,7 @@ import sys
 from pathlib import Path
 
 
+# === ANCHOR: RELABEL_WHEEL_MAIN_START ===
 def main() -> int:
     if len(sys.argv) != 4:
         sys.stderr.write("usage: relabel_wheel.py <wheel> <dest_dir> <plat_tag>\n")
@@ -29,7 +31,9 @@ def main() -> int:
     shutil.copy(retagged, dest / retagged.name)
     print(f"relabeled -> {dest / retagged.name}")
     return 0
+# === ANCHOR: RELABEL_WHEEL_MAIN_END ===
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+# === ANCHOR: RELABEL_WHEEL_END ===

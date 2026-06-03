@@ -34,7 +34,8 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
             #[cfg(all(desktop, feature = "updater"))]
-            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
 
             // 번들된 vib 실행파일 경로를 OnceLock 에 주입한다.
             // PyInstaller onedir 빌드는 `vib` 와 sibling `_internal/` 이 함께 있어야 실행되므로
@@ -155,13 +156,11 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(move |_app_handle, event| {
-            match event {
-                tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. } => {
-                    commands::watch::stop_for_exit(&watch_shutdown);
-                }
-                _ => {}
+        .run(move |_app_handle, event| match event {
+            tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. } => {
+                commands::watch::stop_for_exit(&watch_shutdown);
             }
+            _ => {}
         });
 }
 // === ANCHOR: LIB_END ===

@@ -37,24 +37,42 @@ fn git_cmd() -> std::process::Command {
 fn trunc(s: &str, max: usize) -> String {
     let mut chars = s.chars();
     let result: String = chars.by_ref().take(max).collect();
-    if chars.next().is_some() { format!("{}…", result) } else { result }
+    if chars.next().is_some() {
+        format!("{}…", result)
+    } else {
+        result
+    }
 }
 
 fn parse_checkpoints_from_ctx(content: &str) -> Vec<[String; 2]> {
     let mut in_section = false;
     let mut results = Vec::new();
     for line in content.lines() {
-        if line.starts_with("## 4.") { in_section = true; continue; }
-        if in_section && line.starts_with("## ") { break; }
-        if !in_section || !line.starts_with('|') { continue; }
+        if line.starts_with("## 4.") {
+            in_section = true;
+            continue;
+        }
+        if in_section && line.starts_with("## ") {
+            break;
+        }
+        if !in_section || !line.starts_with('|') {
+            continue;
+        }
         let cols: Vec<&str> = line.split('|').map(|s| s.trim()).collect();
-        if cols.len() < 3 { continue; }
+        if cols.len() < 3 {
+            continue;
+        }
         let ts = cols[1];
         let msg = cols[2];
-        if msg.is_empty() || msg == "작업 내용" || msg.starts_with('-') || msg == "(메시지 없음)" { continue; }
+        if msg.is_empty() || msg == "작업 내용" || msg.starts_with('-') || msg == "(메시지 없음)"
+        {
+            continue;
+        }
         let detail = format!("{} — {}", ts, msg);
         results.push([trunc(msg, 20), detail]);
-        if results.len() >= 2 { break; }
+        if results.len() >= 2 {
+            break;
+        }
     }
     results
 }
@@ -75,7 +93,8 @@ pub(crate) struct ProjectSummary {
 #[tauri::command]
 pub(crate) fn read_project_summary(dir: String) -> ProjectSummary {
     let path = std::path::Path::new(&dir);
-    let project_name = path.file_name()
+    let project_name = path
+        .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "프로젝트".to_string());
 
@@ -86,13 +105,18 @@ pub(crate) fn read_project_summary(dir: String) -> ProjectSummary {
         .output()
         .ok()
         .map(|o| {
-            String::from_utf8_lossy(&o.stdout).lines()
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
                 .filter_map(|l| {
                     let parts: Vec<&str> = l.splitn(3, '|').collect();
-                    if parts.len() < 2 { return None; }
+                    if parts.len() < 2 {
+                        return None;
+                    }
                     let hash = parts[0].trim();
                     let subject = parts[1].trim();
-                    if subject.is_empty() { return None; }
+                    if subject.is_empty() {
+                        return None;
+                    }
                     let date = parts.get(2).copied().unwrap_or("").trim();
 
                     // git show --stat: 변경 파일 목록 (on-load 프리페치)
@@ -109,7 +133,10 @@ pub(crate) fn read_project_summary(dir: String) -> ProjectSummary {
                         detail.push_str(&format!("\n\n{}", stat));
                     }
 
-                    Some(SummaryLine { display: trunc(subject, 20), detail })
+                    Some(SummaryLine {
+                        display: trunc(subject, 20),
+                        detail,
+                    })
                 })
                 .collect::<Vec<_>>()
         })
@@ -121,6 +148,10 @@ pub(crate) fn read_project_summary(dir: String) -> ProjectSummary {
         .map(|[display, detail]| SummaryLine { display, detail })
         .collect();
 
-    ProjectSummary { project_name, checkpoints, git_commits }
+    ProjectSummary {
+        project_name,
+        checkpoints,
+        git_commits,
+    }
 }
 // === ANCHOR: PROJECT_SUMMARY_END ===

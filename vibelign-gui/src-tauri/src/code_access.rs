@@ -1,3 +1,4 @@
+// === ANCHOR: CODE_ACCESS_START ===
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::path::{Component, Path, PathBuf};
@@ -8,28 +9,49 @@ const MAX_CODE_READ_BYTES: u64 = 1_000_000;
 const MAX_DATA_READ_BYTES: u64 = 5_000_000;
 const DATA_READ_EXTENSIONS: &[&str] = &["json", "toml", "yaml", "yml"];
 const WINDOWS_RESERVED_DEVICE_NAMES: &[&str] = &[
-    "con", "prn", "aux", "nul", "conin$", "conout$",
-    "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
-    "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+    "con", "prn", "aux", "nul", "conin$", "conout$", "com1", "com2", "com3", "com4", "com5",
+    "com6", "com7", "com8", "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8",
+    "lpt9",
 ];
 const CODE_READ_EXTENSIONS: &[&str] = &[
-    "py", "js", "ts", "jsx", "tsx", "rs", "go", "java", "cs", "cpp", "c", "hpp", "h",
-    "mjs", "cjs", "swift", "json", "toml", "yaml", "yml", "css", "html", "md",
+    "py", "js", "ts", "jsx", "tsx", "rs", "go", "java", "cs", "cpp", "c", "hpp", "h", "mjs", "cjs",
+    "swift", "json", "toml", "yaml", "yml", "css", "html", "md",
 ];
 // 사이드바 트리에 노출할 파일 확장자. 엔진의 SOURCE_FILE_EXTENSIONS(코드 전용)와
 // 분리되어 있어 docs/*.md 같은 문서가 트리에 보이지만 anchor/patch_suggester 등의
 // 코드 분석 파이프라인에는 영향이 가지 않는다.
 const EXPLORER_FILE_EXTENSIONS: &[&str] = &[
-    "py", "js", "ts", "jsx", "tsx", "rs", "go", "java", "cs", "cpp", "c", "hpp", "h",
-    "mjs", "cjs", "swift", "md",
+    "py", "js", "ts", "jsx", "tsx", "rs", "go", "java", "cs", "cpp", "c", "hpp", "h", "mjs", "cjs",
+    "swift", "md",
     // 설정/데이터 파일도 트리에 노출(읽기는 CODE_READ_EXTENSIONS 로 이미 지원).
     // 카테고리는 "data" 로 분류돼 사이드바에서 "other"(회색)로 표시된다.
     "toml", "yaml", "yml",
 ];
 const CODE_READ_IGNORED_DIRS: &[&str] = &[
-    ".git", ".vibelign", ".omc", ".sisyphus", ".venv", "venv", "env", "node_modules", "dist",
-    "build", "target", "coverage", ".next", ".nuxt", ".turbo", ".cache", "__pycache__",
-    ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox", ".gradle", ".idea", ".vscode",
+    ".git",
+    ".vibelign",
+    ".omc",
+    ".sisyphus",
+    ".venv",
+    "venv",
+    "env",
+    "node_modules",
+    "dist",
+    "build",
+    "target",
+    "coverage",
+    ".next",
+    ".nuxt",
+    ".turbo",
+    ".cache",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".tox",
+    ".gradle",
+    ".idea",
+    ".vscode",
 ];
 
 #[derive(Debug, Serialize)]
@@ -43,26 +65,39 @@ pub(crate) struct CodeFileReadResult {
 }
 
 pub(crate) fn read_code_file_under(root: &Path, rel: &str) -> Result<CodeFileReadResult, String> {
-    let root = root.canonicalize().map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?;
+    let root = root
+        .canonicalize()
+        .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?;
     let rel = normalize_relative_input(rel)?;
     reject_ignored_segments(&rel)?;
     let joined = root.join(&rel);
-    let canonical = joined.canonicalize().map_err(|e| format!("코드 파일을 찾을 수 없어요: {e}"))?;
+    let canonical = joined
+        .canonicalize()
+        .map_err(|e| format!("코드 파일을 찾을 수 없어요: {e}"))?;
     let relative = canonical
         .strip_prefix(&root)
         .map_err(|_| "프로젝트 루트 밖 파일은 읽을 수 없어요".to_string())?;
     let relative_path = relative.to_string_lossy().replace('\\', "/");
     reject_ignored_segments(&relative_path)?;
     ensure_supported_extension(&canonical)?;
-    let meta = std::fs::metadata(&canonical).map_err(|e| format!("파일 정보를 읽을 수 없어요: {e}"))?;
+    let meta =
+        std::fs::metadata(&canonical).map_err(|e| format!("파일 정보를 읽을 수 없어요: {e}"))?;
     if !meta.is_file() {
         return Err("일반 파일만 읽을 수 있어요".to_string());
     }
-    let max_bytes = if is_data_extension(&canonical) { MAX_DATA_READ_BYTES } else { MAX_CODE_READ_BYTES };
+    let max_bytes = if is_data_extension(&canonical) {
+        MAX_DATA_READ_BYTES
+    } else {
+        MAX_CODE_READ_BYTES
+    };
     if meta.len() > max_bytes {
-        return Err(format!("파일이 너무 커서 미리보기를 열 수 없어요 ({} bytes)", meta.len()));
+        return Err(format!(
+            "파일이 너무 커서 미리보기를 열 수 없어요 ({} bytes)",
+            meta.len()
+        ));
     }
-    let bytes = std::fs::read(&canonical).map_err(|e| format!("코드 파일을 읽을 수 없어요: {e}"))?;
+    let bytes =
+        std::fs::read(&canonical).map_err(|e| format!("코드 파일을 읽을 수 없어요: {e}"))?;
     if bytes.contains(&0) {
         return Err("바이너리 파일은 코드 뷰어에서 열 수 없어요".to_string());
     }
@@ -87,7 +122,11 @@ pub(crate) fn read_code_file_under(root: &Path, rel: &str) -> Result<CodeFileRea
 }
 
 fn is_data_extension(path: &Path) -> bool {
-    let ext = path.extension().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase();
+    let ext = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
     DATA_READ_EXTENSIONS.contains(&ext.as_str())
 }
 
@@ -98,7 +137,8 @@ fn normalize_relative_input(rel: &str) -> Result<String, String> {
     //  지워져서 Windows 절대경로 가드가 죽은 코드가 된다.)
     if raw.starts_with('/')                     // POSIX 절대경로
         || raw.starts_with('\\')                // Windows 절대경로 + UNC(\\server\share)
-        || raw.as_bytes().get(1) == Some(&b':') // 드라이브: C:\ , C:/ , C:foo
+        || raw.as_bytes().get(1) == Some(&b':')
+    // 드라이브: C:\ , C:/ , C:foo
     {
         return Err("허용되지 않은 경로입니다".to_string());
     }
@@ -107,7 +147,12 @@ fn normalize_relative_input(rel: &str) -> Result<String, String> {
         return Err("파일 경로가 비어 있어요".to_string());
     }
     let rel_path = PathBuf::from(&trimmed);
-    if rel_path.components().any(|component| matches!(component, Component::ParentDir | Component::Prefix(_) | Component::RootDir)) {
+    if rel_path.components().any(|component| {
+        matches!(
+            component,
+            Component::ParentDir | Component::Prefix(_) | Component::RootDir
+        )
+    }) {
         return Err("허용되지 않은 경로입니다".to_string());
     }
     Ok(trimmed)
@@ -132,7 +177,11 @@ fn reject_ignored_segments(rel: &str) -> Result<(), String> {
 }
 
 fn ensure_supported_extension(path: &Path) -> Result<(), String> {
-    let ext = path.extension().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase();
+    let ext = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
     if CODE_READ_EXTENSIONS.contains(&ext.as_str()) {
         Ok(())
     } else {
@@ -147,7 +196,13 @@ fn hash_content(content: &str) -> String {
 }
 
 fn language_for_path(path: &str) -> &'static str {
-    match path.rsplit('.').next().unwrap_or("").to_ascii_lowercase().as_str() {
+    match path
+        .rsplit('.')
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
         "py" => "Python",
         "ts" | "tsx" => "TypeScript",
         "js" | "jsx" | "mjs" | "cjs" => "JavaScript",
@@ -273,9 +328,17 @@ mod tests {
     fn rejects_windows_absolute_and_unc() {
         // raw 입력 기준 거부이므로 OS와 무관하게 모든 빌드에서 검증된다.
         let root = TempDir::new().expect("temp root");
-        for input in ["C:\\Windows\\system.ini", "C:/Windows/system.ini", "\\\\server\\share\\x.ts", "/etc/passwd"] {
+        for input in [
+            "C:\\Windows\\system.ini",
+            "C:/Windows/system.ini",
+            "\\\\server\\share\\x.ts",
+            "/etc/passwd",
+        ] {
             let err = read_code_file_under(root.path(), input).expect_err("absolute/UNC rejected");
-            assert!(err.contains("허용되지 않은 경로"), "input={input} err={err}");
+            assert!(
+                err.contains("허용되지 않은 경로"),
+                "input={input} err={err}"
+            );
         }
     }
 
@@ -283,8 +346,19 @@ mod tests {
     fn rejects_windows_reserved_device_names() {
         // Windows reserved device names are rejected at string level so every OS build verifies the guard.
         let root = TempDir::new().expect("temp root");
-        for input in ["NUL", "NUL.ts", "NUL. ", "src/CON.js", "logs/PRN.ts", "serial/COM1.rs", "printer/LPT9.py", "AUX.json", "src/CONOUT$.ts"] {
-            let err = read_code_file_under(root.path(), input).expect_err("reserved device name rejected");
+        for input in [
+            "NUL",
+            "NUL.ts",
+            "NUL. ",
+            "src/CON.js",
+            "logs/PRN.ts",
+            "serial/COM1.rs",
+            "printer/LPT9.py",
+            "AUX.json",
+            "src/CONOUT$.ts",
+        ] {
+            let err = read_code_file_under(root.path(), input)
+                .expect_err("reserved device name rejected");
             assert!(err.contains("예약된 파일명"), "input={input} err={err}");
         }
     }
@@ -294,7 +368,8 @@ mod tests {
         let root = TempDir::new().expect("temp root");
         write(root.path(), "node_modules/pkg/index.ts", b"export {};\n");
 
-        let err = read_code_file_under(root.path(), "node_modules/pkg/index.ts").expect_err("ignored dir rejected");
+        let err = read_code_file_under(root.path(), "node_modules/pkg/index.ts")
+            .expect_err("ignored dir rejected");
 
         assert!(err.contains("읽을 수 없는 경로"));
     }
@@ -304,7 +379,8 @@ mod tests {
         let root = TempDir::new().expect("temp root");
         write(root.path(), "assets/logo.png", b"png");
 
-        let err = read_code_file_under(root.path(), "assets/logo.png").expect_err("extension rejected");
+        let err =
+            read_code_file_under(root.path(), "assets/logo.png").expect_err("extension rejected");
 
         assert!(err.contains("지원하지 않는 코드 파일"));
     }
@@ -325,10 +401,14 @@ mod tests {
         let outside = TempDir::new().expect("outside root");
         write(outside.path(), "secret.ts", b"export const secret = 1;\n");
         let root = TempDir::new().expect("temp root");
-        std::os::unix::fs::symlink(outside.path().join("secret.ts"), root.path().join("link.ts"))
-            .expect("symlink");
+        std::os::unix::fs::symlink(
+            outside.path().join("secret.ts"),
+            root.path().join("link.ts"),
+        )
+        .expect("symlink");
 
-        let err = read_code_file_under(root.path(), "link.ts").expect_err("symlink escape rejected");
+        let err =
+            read_code_file_under(root.path(), "link.ts").expect_err("symlink escape rejected");
 
         assert!(err.contains("프로젝트 루트 밖"));
     }
@@ -337,12 +417,16 @@ mod tests {
     fn explorer_lists_docs_and_md_files() {
         let root = TempDir::new().expect("temp root");
         write(root.path(), "src/main.ts", b"x");
-        write(root.path(), "apps/native_helper_mac/Sources/App.swift", b"import Foundation\n");
+        write(
+            root.path(),
+            "apps/native_helper_mac/Sources/App.swift",
+            b"import Foundation\n",
+        );
         write(root.path(), "docs/index.md", b"# hi");
         write(root.path(), "docs/superpowers/specs/design.md", b"spec");
         write(root.path(), "README.md", b"readme");
         write(root.path(), "docs/_config.yml", b"title: x\n"); // .yml 도 트리에 노출(config)
-        // 제외 대상: hidden, ignored dirs, 미지원 확장자
+                                                               // 제외 대상: hidden, ignored dirs, 미지원 확장자
         write(root.path(), ".env", b"SECRET=1");
         write(root.path(), "node_modules/x.js", b"x");
         write(root.path(), "target/debug/x.rs", b"x");
@@ -363,9 +447,15 @@ mod tests {
                 "src/main.ts".to_string(),
             ]
         );
-        let docs_entry = entries.iter().find(|entry| entry.path == "docs/index.md").expect("docs entry");
+        let docs_entry = entries
+            .iter()
+            .find(|entry| entry.path == "docs/index.md")
+            .expect("docs entry");
         assert_eq!(docs_entry.category, "docs");
-        let code_entry = entries.iter().find(|entry| entry.path == "src/main.ts").expect("code entry");
+        let code_entry = entries
+            .iter()
+            .find(|entry| entry.path == "src/main.ts")
+            .expect("code entry");
         assert_eq!(code_entry.category, "code");
     }
 
@@ -377,18 +467,31 @@ mod tests {
         write(root.path(), "src/main.rs", b"fn main() {}\n");
 
         let entries = list_explorer_files_under(root.path()).expect("list");
-        let toml = entries.iter().find(|e| e.path == "pyproject.toml").expect("toml listed");
+        let toml = entries
+            .iter()
+            .find(|e| e.path == "pyproject.toml")
+            .expect("toml listed");
         assert_eq!(toml.category, "data");
-        let yaml = entries.iter().find(|e| e.path == "config/app.yaml").expect("yaml listed");
+        let yaml = entries
+            .iter()
+            .find(|e| e.path == "config/app.yaml")
+            .expect("yaml listed");
         assert_eq!(yaml.category, "data");
-        let code = entries.iter().find(|e| e.path == "src/main.rs").expect("code listed");
+        let code = entries
+            .iter()
+            .find(|e| e.path == "src/main.rs")
+            .expect("code listed");
         assert_eq!(code.category, "code");
     }
 
     #[test]
     fn reads_swift_file_with_swift_language() {
         let root = TempDir::new().expect("temp root");
-        write(root.path(), "apps/native_helper_mac/Sources/App.swift", b"import Foundation\n");
+        write(
+            root.path(),
+            "apps/native_helper_mac/Sources/App.swift",
+            b"import Foundation\n",
+        );
 
         let result = read_code_file_under(root.path(), "apps/native_helper_mac/Sources/App.swift")
             .expect("read swift");
@@ -410,3 +513,4 @@ mod tests {
         assert!(result.content.starts_with("# title"));
     }
 }
+// === ANCHOR: CODE_ACCESS_END ===

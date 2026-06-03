@@ -1,3 +1,4 @@
+// === ANCHOR: CODE_START ===
 use std::path::PathBuf;
 
 use crate::code_access::{
@@ -12,7 +13,10 @@ use crate::code_access::{
 const SPAWN_FAIL: &str = "작업 실행에 실패했어요";
 
 #[tauri::command]
-pub(crate) async fn read_code_file(root: String, path: String) -> Result<CodeFileReadResult, String> {
+pub(crate) async fn read_code_file(
+    root: String,
+    path: String,
+) -> Result<CodeFileReadResult, String> {
     let root_path = PathBuf::from(root);
     tauri::async_runtime::spawn_blocking(move || read_code_file_under(&root_path, &path))
         .await
@@ -31,7 +35,10 @@ use crate::code_diff::{build_file_diff, CodeFileDiffResult};
 use crate::git_status::{list_changed_paths, ChangedEntry};
 
 #[tauri::command]
-pub(crate) async fn read_code_file_diff(root: String, path: String) -> Result<CodeFileDiffResult, String> {
+pub(crate) async fn read_code_file_diff(
+    root: String,
+    path: String,
+) -> Result<CodeFileDiffResult, String> {
     let root_path = PathBuf::from(root);
     tauri::async_runtime::spawn_blocking(move || build_file_diff(&root_path, &path))
         .await
@@ -45,3 +52,4 @@ pub(crate) async fn list_changed_files(root: String) -> Result<Vec<ChangedEntry>
         .await
         .map_err(|_| SPAWN_FAIL.to_string())?
 }
+// === ANCHOR: CODE_END ===

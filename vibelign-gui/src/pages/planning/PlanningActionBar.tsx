@@ -3,6 +3,7 @@ interface PlanningActionBarProps {
   readonly canView: boolean;
   readonly hasSavedPlan: boolean;
   readonly isSaving: boolean;
+  readonly onOpenSavedPlan: () => void;
   readonly onSave: () => void;
   readonly onStartWork: () => void;
   readonly onToggleMarkdown: () => void;
@@ -13,6 +14,7 @@ export function PlanningActionBar({
   canView,
   hasSavedPlan,
   isSaving,
+  onOpenSavedPlan,
   onSave,
   onStartWork,
   onToggleMarkdown,
@@ -37,6 +39,11 @@ export function PlanningActionBar({
       >
         기획안 보기
       </button>
+      {hasSavedPlan && (
+        <button className="btn btn-black" type="button" onClick={onOpenSavedPlan} style={{ fontSize: 12 }}>
+          저장 파일 열기
+        </button>
+      )}
       {hasSavedPlan && (
         <button className="btn btn-black" type="button" onClick={onStartWork} style={{ fontSize: 12 }}>
           AI 작업 시작

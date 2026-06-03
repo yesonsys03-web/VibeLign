@@ -17,14 +17,40 @@ use std::path::Path;
 /// Python `docs_scan.IGNORED_DIRS`와 같은 집합 — read_file 가드와 인덱스 스캔에서
 /// 동일하게 차단되는 폴더 목록.
 pub const DOCS_READ_IGNORED_DIRS: &[&str] = &[
-    "node_modules", "target", "dist", "build", "out", "coverage",
-    ".next", ".nuxt", ".turbo", ".cache", ".venv", "venv", "env", ".env",
-    "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox",
-    ".gradle", ".idea", ".vscode", ".DS_Store",
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    "out",
+    "coverage",
+    ".next",
+    ".nuxt",
+    ".turbo",
+    ".cache",
+    ".venv",
+    "venv",
+    "env",
+    ".env",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".tox",
+    ".gradle",
+    ".idea",
+    ".vscode",
+    ".DS_Store",
 ];
 
 pub const DOCS_READ_EXTENSIONS: &[&str] = &[
-    ".md", ".markdown", ".txt", ".json", ".csv", ".pdf", ".docx", ".doc",
+    ".md",
+    ".markdown",
+    ".txt",
+    ".json",
+    ".csv",
+    ".pdf",
+    ".docx",
+    ".doc",
 ];
 
 const CANVAS_ALLOWED_HIDDEN_PREFIXES: &[&str] = &[".omc/plans"];
@@ -46,7 +72,9 @@ impl ExtraSourceAllowlist {
     /// Empty allowlist — only built-in docs are accessible.
     #[cfg(test)]
     pub fn new_empty() -> Self {
-        Self { roots: BTreeSet::new() }
+        Self {
+            roots: BTreeSet::new(),
+        }
     }
 
     /// Load allowlist from `<project_root>/.vibelign/docs_index.json`.
@@ -165,18 +193,31 @@ pub fn is_allowed_doc_path(relative_path: &str, extras: &ExtraSourceAllowlist) -
 }
 
 pub fn is_canvas_eligible_path(relative_path: &str) -> bool {
-    let normalized = relative_path.trim().replace('\\', "/").trim_matches('/').to_string();
-    if normalized.is_empty() || normalized.split('/').any(|segment| segment == ".." || segment.is_empty()) {
+    let normalized = relative_path
+        .trim()
+        .replace('\\', "/")
+        .trim_matches('/')
+        .to_string();
+    if normalized.is_empty()
+        || normalized
+            .split('/')
+            .any(|segment| segment == ".." || segment.is_empty())
+    {
         return false;
     }
     if CANVAS_EXCLUDED_FILES.contains(&normalized.as_str()) {
         return false;
     }
-    if CANVAS_EXCLUDED_PREFIXES.iter().any(|prefix| normalized == *prefix || normalized.starts_with(&format!("{prefix}/"))) {
+    if CANVAS_EXCLUDED_PREFIXES
+        .iter()
+        .any(|prefix| normalized == *prefix || normalized.starts_with(&format!("{prefix}/")))
+    {
         return false;
     }
     if normalized.starts_with(".omc/") {
-        return CANVAS_ALLOWED_HIDDEN_PREFIXES.iter().any(|prefix| normalized == *prefix || normalized.starts_with(&format!("{prefix}/")));
+        return CANVAS_ALLOWED_HIDDEN_PREFIXES
+            .iter()
+            .any(|prefix| normalized == *prefix || normalized.starts_with(&format!("{prefix}/")));
     }
     true
 }
@@ -202,12 +243,18 @@ mod tests {
 
     #[test]
     fn test_extension_md_accepted() {
-        assert!(is_allowed_doc_path("docs/wiki/index.md", &empty_allowlist()));
+        assert!(is_allowed_doc_path(
+            "docs/wiki/index.md",
+            &empty_allowlist()
+        ));
     }
 
     #[test]
     fn test_extension_markdown_accepted() {
-        assert!(is_allowed_doc_path("docs/guide.markdown", &empty_allowlist()));
+        assert!(is_allowed_doc_path(
+            "docs/guide.markdown",
+            &empty_allowlist()
+        ));
     }
 
     #[test]
@@ -238,7 +285,10 @@ mod tests {
 
     #[test]
     fn test_dotdot_rejected() {
-        assert!(!is_allowed_doc_path("docs/../secret.md", &empty_allowlist()));
+        assert!(!is_allowed_doc_path(
+            "docs/../secret.md",
+            &empty_allowlist()
+        ));
     }
 
     #[test]
@@ -250,12 +300,18 @@ mod tests {
 
     #[test]
     fn test_builtin_only_accepts_non_hidden() {
-        assert!(is_allowed_doc_path("docs/wiki/index.md", &empty_allowlist()));
+        assert!(is_allowed_doc_path(
+            "docs/wiki/index.md",
+            &empty_allowlist()
+        ));
     }
 
     #[test]
     fn test_builtin_rejects_node_modules() {
-        assert!(!is_allowed_doc_path("node_modules/foo.md", &empty_allowlist()));
+        assert!(!is_allowed_doc_path(
+            "node_modules/foo.md",
+            &empty_allowlist()
+        ));
     }
 
     #[test]
@@ -265,12 +321,18 @@ mod tests {
 
     #[test]
     fn test_builtin_rejects_dot_venv() {
-        assert!(!is_allowed_doc_path(".venv/docs/page.md", &empty_allowlist()));
+        assert!(!is_allowed_doc_path(
+            ".venv/docs/page.md",
+            &empty_allowlist()
+        ));
     }
 
     #[test]
     fn test_builtin_rejects_ignored_dir_nested() {
-        assert!(!is_allowed_doc_path("src/target/foo.md", &empty_allowlist()));
+        assert!(!is_allowed_doc_path(
+            "src/target/foo.md",
+            &empty_allowlist()
+        ));
     }
 
     // ── Extra allowlist: .omc/plans ────────────────────────────────────────────
@@ -297,7 +359,10 @@ mod tests {
     #[test]
     fn test_extra_ignored_dir_in_sub_rejected() {
         let extras = allowlist_with(&[".omc/plans"]);
-        assert!(!is_allowed_doc_path(".omc/plans/node_modules/y.md", &extras));
+        assert!(!is_allowed_doc_path(
+            ".omc/plans/node_modules/y.md",
+            &extras
+        ));
     }
 
     #[test]
@@ -434,7 +499,9 @@ mod tests {
     fn test_canvas_eligibility_exclusions_and_carveouts() {
         assert!(!is_canvas_eligible_path(".omc/state/session.json"));
         assert!(!is_canvas_eligible_path(".mcp.json"));
-        assert!(!is_canvas_eligible_path("promo/vibelign-promo-100s/README.md"));
+        assert!(!is_canvas_eligible_path(
+            "promo/vibelign-promo-100s/README.md"
+        ));
         assert!(is_canvas_eligible_path(".omc/plans/plan.md"));
         assert!(is_canvas_eligible_path("docs/superpowers/plans/plan.md"));
     }

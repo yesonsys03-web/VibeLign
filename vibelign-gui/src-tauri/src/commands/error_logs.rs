@@ -97,13 +97,19 @@ pub(crate) async fn clear_error_logs(root: String) -> ClearErrorLogsResult {
     };
     tauri::async_runtime::spawn_blocking(move || sweep_error_logs(&canonical))
         .await
-        .unwrap_or(ClearErrorLogsResult { removed: 0, kept: 0 })
+        .unwrap_or(ClearErrorLogsResult {
+            removed: 0,
+            kept: 0,
+        })
 }
 
 fn sweep_error_logs(root: &std::path::Path) -> ClearErrorLogsResult {
     let logs_dir = root.join(".vibelign").join("logs");
     let Ok(read_dir) = std::fs::read_dir(&logs_dir) else {
-        return ClearErrorLogsResult { removed: 0, kept: 0 };
+        return ClearErrorLogsResult {
+            removed: 0,
+            kept: 0,
+        };
     };
     let mut removed = 0_usize;
     let mut kept = 0_usize;
@@ -112,7 +118,8 @@ fn sweep_error_logs(root: &std::path::Path) -> ClearErrorLogsResult {
         let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
             continue;
         };
-        let is_target = (file_name.starts_with("cli-error-") || file_name.starts_with("gui-error-"))
+        let is_target = (file_name.starts_with("cli-error-")
+            || file_name.starts_with("gui-error-"))
             && file_name.ends_with(".jsonl");
         if !is_target {
             continue;
@@ -127,7 +134,11 @@ fn sweep_error_logs(root: &std::path::Path) -> ClearErrorLogsResult {
 
 fn parse_line(line: &str, kind: &str) -> Option<ErrorLogEntry> {
     let value: serde_json::Value = serde_json::from_str(line).ok()?;
-    let ts = value.get("ts").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let ts = value
+        .get("ts")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
     let error_class = value
         .get("error_class")
         .and_then(|v| v.as_str())

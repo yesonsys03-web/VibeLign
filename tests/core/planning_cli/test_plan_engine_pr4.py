@@ -53,6 +53,16 @@ def test_engine_appends_persona_review_on_cli_success(tmp_path: Path, monkeypatc
     assert result.fallback_reason is None
     assert "## 지오의 검토" in result.markdown
     assert (tmp_path / result.output_path).read_text(encoding="utf-8") == result.markdown
+    assert "검토자 지오" in runner.commands[0][2]
+
+
+def test_engine_reuses_persona_prompt_helpers() -> None:
+    source = Path("vibelign/core/planning_cli/engine.py").read_text(encoding="utf-8")
+
+    assert "build_persona_prompt" in source
+    assert "append_persona_section" in source
+    assert "VibeLign 기획방의 지오 페르소나로 답하세요." not in source
+    assert "## {persona_name}의 검토" not in source
 
 
 def test_engine_falls_back_when_cli_missing(tmp_path: Path, monkeypatch) -> None:
