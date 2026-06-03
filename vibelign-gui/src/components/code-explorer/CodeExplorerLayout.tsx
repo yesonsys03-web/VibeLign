@@ -1,14 +1,17 @@
+// === ANCHOR: CODEEXPLORERLAYOUT_START ===
 import type { ReactNode } from "react";
 
 interface CodeExplorerLayoutProps {
+  planningContext?: ReactNode;
   toolbar: ReactNode;
   tree: ReactNode;
   viewer: ReactNode;
 }
 
-export default function CodeExplorerLayout({ toolbar, tree, viewer }: CodeExplorerLayoutProps) {
+export default function CodeExplorerLayout({ planningContext, toolbar, tree, viewer }: CodeExplorerLayoutProps) {
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", gap: 12, padding: 12, minHeight: 0 }}>
+      {planningContext}
       {toolbar}
       <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "320px minmax(0, 1fr)", gap: 12 }}>
         <div style={{ minHeight: 0 }}>{tree}</div>
@@ -17,3 +20,4 @@ export default function CodeExplorerLayout({ toolbar, tree, viewer }: CodeExplor
     </div>
   );
 }
+// === ANCHOR: CODEEXPLORERLAYOUT_END ===

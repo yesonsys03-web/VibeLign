@@ -80,6 +80,8 @@ describe("PlanningRoom chat session view", () => {
   });
 
   test("renders_saved_markdown_plan", () => {
+    const onBack = vi.fn();
+    const onStartWork = vi.fn();
     render(
       <PlanningRoom
         projectDir="/tmp/demo"
@@ -88,16 +90,27 @@ describe("PlanningRoom chat session view", () => {
           outputPath: "plans/예약-앱-만들고-싶어.md",
           markdown: "# 예약 앱 만들고 싶어\n\n## 한 줄 목표\n예약 앱 만들고 싶어\n",
         }}
-        onBack={vi.fn()}
+        onBack={onBack}
+        onStartWork={onStartWork}
         onResultChange={vi.fn()}
       />,
     );
 
     expect(screen.getByText("저장 위치: plans/예약-앱-만들고-싶어.md")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "AI 작업 시작" }));
+    expect(onStartWork).toHaveBeenCalledOnce();
+    expect(onBack).not.toHaveBeenCalled();
+
     fireEvent.click(screen.getByRole("button", { name: "기획안 보기" }));
 
     expect(screen.getByRole("heading", { name: "예약 앱 만들고 싶어", level: 1 })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "한 줄 목표", level: 2 })).toBeInTheDocument();
+  });
+
+  test("hides_start_work_action_until_plan_is_saved", () => {
+    render(<PlanningRoom projectDir="/tmp/demo" result={result} onBack={vi.fn()} onResultChange={vi.fn()} />);
+
+    expect(screen.queryByRole("button", { name: "AI 작업 시작" })).not.toBeInTheDocument();
   });
 
   test("appends_followup_message_to_chat_state", async () => {

@@ -25,6 +25,40 @@ fn synthesized_markdown_includes_persona_conversation() {
 }
 
 #[test]
+fn synthesized_markdown_distributes_persona_sections() {
+    let session = test_session("예약 앱 만들고 싶어");
+    let messages = vec![
+        test_message("user", None, "예약 앱 만들고 싶어"),
+        test_message(
+            "assistant",
+            Some("chloe"),
+            "핵심 기능: 예약 생성, 일정 변경\n사용자 흐름: 날짜 선택 후 예약 확정",
+        ),
+        test_message(
+            "assistant",
+            Some("gio"),
+            "제외할 것: 결제 연동은 MVP에서 제외\n질문: 관리자 승인 방식 결정 필요",
+        ),
+    ];
+
+    let markdown = synthesize_planning_markdown(&session, &messages);
+
+    assert_section_contains(&markdown, "## 핵심 기능", "- 예약 생성, 일정 변경");
+    assert_section_contains(&markdown, "## 사용자 흐름", "- 날짜 선택 후 예약 확정");
+    assert_section_contains(&markdown, "## 제외할 것", "- 결제 연동은 MVP에서 제외");
+    assert_section_contains(
+        &markdown,
+        "## 아직 결정이 필요한 질문",
+        "- 관리자 승인 방식 결정 필요",
+    );
+    assert_section_contains(
+        &markdown,
+        "## 기획방 대화 정리",
+        "> 핵심 기능: 예약 생성, 일정 변경",
+    );
+}
+
+#[test]
 fn save_planning_markdown_writes_unique_plan_file() {
     let root = tempfile::tempdir().expect("temp root");
     let mut session = test_session("예약 앱 만들고 싶어");
@@ -38,6 +72,16 @@ fn save_planning_markdown_writes_unique_plan_file() {
     );
     assert!(root.path().join("plans/예약-앱-만들고-싶어.md").exists());
     assert!(saved.markdown.contains("# 예약 앱 만들고 싶어"));
+}
+
+fn assert_section_contains(markdown: &str, heading: &str, expected: &str) {
+    let start = markdown.find(heading).expect("heading");
+    let rest = &markdown[start + heading.len()..];
+    let end = rest.find("\n## ").unwrap_or(rest.len());
+    assert!(
+        rest[..end].contains(expected),
+        "section {heading} did not contain {expected}"
+    );
 }
 
 fn test_session(idea: &str) -> StoredPlanningChatSession {

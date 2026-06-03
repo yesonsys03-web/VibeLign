@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use super::planning_chat_markdown::synthesize_planning_markdown;
 use super::planning_chat_store::StoredPlanningChatSession;
 use super::planning_chat_types::PlanningChatMessage;
 
@@ -36,74 +37,6 @@ pub(crate) fn read_saved_markdown(
 ) -> Option<String> {
     let output_path = session.output_path.as_ref()?;
     std::fs::read_to_string(project_dir.join(output_path)).ok()
-}
-
-fn synthesize_planning_markdown(
-    session: &StoredPlanningChatSession,
-    messages: &[PlanningChatMessage],
-) -> String {
-    let title = title_from_idea(&session.idea);
-    let mut markdown = String::new();
-    push_section(&mut markdown, &format!("# {title}"));
-    push_section(&mut markdown, "## 한 줄 목표");
-    push_section(&mut markdown, session.idea.trim());
-    push_section(&mut markdown, "## 대상 사용자");
-    push_section(
-        &mut markdown,
-        "- 기획방 대화에서 대상 사용자를 구체화합니다.",
-    );
-    push_section(&mut markdown, "## 핵심 문제");
-    push_section(
-        &mut markdown,
-        "- 사용자가 처음 말한 목표와 이후 페르소나 검토를 기준으로 확정합니다.",
-    );
-    push_section(&mut markdown, "## 핵심 기능");
-    push_section(
-        &mut markdown,
-        "- 기획방 대화에서 합의된 기능을 구현 전에 우선순위로 정리합니다.",
-    );
-    push_section(&mut markdown, "## 사용자 흐름");
-    push_section(
-        &mut markdown,
-        "- 대화에서 정리된 화면 흐름과 저장 흐름을 기준으로 작성합니다.",
-    );
-    push_section(&mut markdown, "## 기획방 대화 정리");
-    append_conversation(&mut markdown, messages);
-    push_section(&mut markdown, "## 제외할 것");
-    push_section(&mut markdown, "- 아직 명시적으로 결정되지 않았습니다.");
-    push_section(&mut markdown, "## 아직 결정이 필요한 질문");
-    push_section(
-        &mut markdown,
-        "- 첫 구현 범위와 우선순위를 확정해야 합니다.",
-    );
-    push_section(
-        &mut markdown,
-        "- 화면 진입 후 저장/공유 흐름을 확정해야 합니다.",
-    );
-    push_section(&mut markdown, "## 구현 전에 AI가 알아야 할 맥락");
-    push_section(
-        &mut markdown,
-        &format!(
-            "- 이 문서는 기획방 대화를 기반으로 결정적으로 생성되었습니다.\n- 원본 대화는 `.vibelign/planning/{}/messages.json` 에 저장됩니다.",
-            session.session_id
-        ),
-    );
-    markdown
-}
-
-fn append_conversation(markdown: &mut String, messages: &[PlanningChatMessage]) {
-    if messages.is_empty() {
-        push_section(markdown, "- 아직 저장된 대화가 없습니다.");
-        return;
-    }
-    for message in messages {
-        let label = message_label(message);
-        push_section(markdown, &format!("### {label}"));
-        if message.status != "ok" {
-            push_section(markdown, &format!("- 응답 상태: {}", message.status));
-        }
-        push_section(markdown, &quote_block(&message.content));
-    }
 }
 
 fn unique_plan_path(project_dir: &Path, idea: &str) -> Result<(String, PathBuf), String> {
@@ -185,56 +118,6 @@ fn is_windows_reserved_name(slug: &str) -> bool {
             | "lpt8"
             | "lpt9"
     )
-}
-
-fn title_from_idea(idea: &str) -> String {
-    let trimmed = idea.trim();
-    if trimmed.is_empty() {
-        "기획안".to_string()
-    } else {
-        trimmed
-            .lines()
-            .next()
-            .unwrap_or("기획안")
-            .trim()
-            .to_string()
-    }
-}
-
-fn message_label(message: &PlanningChatMessage) -> String {
-    if message.role == "user" {
-        return "사용자".to_string();
-    }
-    match message.persona_id.as_deref() {
-        Some("chloe") => "클로이의 정리".to_string(),
-        Some("gio") => "지오의 검토".to_string(),
-        Some("mina") => "미나의 탐색".to_string(),
-        Some(persona_id) => format!("{persona_id}의 답변"),
-        None => "AI 답변".to_string(),
-    }
-}
-
-fn quote_block(content: &str) -> String {
-    let trimmed = content.trim();
-    if trimmed.is_empty() {
-        return "> (내용 없음)".to_string();
-    }
-    trimmed
-        .lines()
-        .map(|line| {
-            if line.trim().is_empty() {
-                ">".to_string()
-            } else {
-                format!("> {}", line.trim_end())
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-fn push_section(markdown: &mut String, section: &str) {
-    markdown.push_str(section);
-    markdown.push_str("\n\n");
 }
 
 #[cfg(test)]

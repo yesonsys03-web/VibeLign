@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { savePlanningChatAsMarkdown, type PlanningChatSessionResponse } from "../lib/vib";
+import { PlanningActionBar } from "./planning/PlanningActionBar";
 import { PlanningMarkdownView } from "./planning/PlanningMarkdownView";
 import { PlanningMessages } from "./planning/PlanningMessages";
 import { PlanningPersonaComposer } from "./planning/PlanningPersonaComposer";
@@ -9,14 +10,16 @@ interface PlanningRoomProps {
   readonly projectDir: string;
   readonly result: PlanningChatSessionResponse;
   readonly onBack: () => void;
+  readonly onStartWork?: () => void;
   readonly onResultChange: (result: PlanningChatSessionResponse) => void;
 }
 
-export default function PlanningRoom({ projectDir, result, onBack, onResultChange }: PlanningRoomProps) {
+export default function PlanningRoom({ projectDir, result, onBack, onStartWork, onResultChange }: PlanningRoomProps) {
   const [showMarkdown, setShowMarkdown] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const markdown = result.markdown ?? "";
   const isPending = result.messages.some((message) => message.status === "pending");
+  const hasSavedPlan = Boolean(result.outputPath);
   const canSave = result.ok && !isPending && !isSaving && Boolean(result.sessionId);
   const canView = !isPending && Boolean(markdown);
 
@@ -62,26 +65,15 @@ export default function PlanningRoom({ projectDir, result, onBack, onResultChang
           <>
             <PlanningMessages messages={result.messages} outputPath={result.outputPath ?? null} />
             <PlanningPersonaComposer projectDir={projectDir} result={result} sessionId={result.sessionId ?? null} onResultChange={onResultChange} />
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                className="btn btn-black"
-                type="button"
-                onClick={handleSavePlan}
-                disabled={!canSave}
-                style={{ fontSize: 12, opacity: canSave ? 1 : 0.5 }}
-              >
-                {isSaving ? "저장중" : result.outputPath ? "기획안 다시 저장" : "기획안으로 저장"}
-              </button>
-              <button
-                className="btn btn-black"
-                type="button"
-                onClick={() => setShowMarkdown((visible) => !visible)}
-                disabled={!canView}
-                style={{ fontSize: 12, opacity: canView ? 1 : 0.5 }}
-              >
-                기획안 보기
-              </button>
-            </div>
+            <PlanningActionBar
+              canSave={canSave}
+              canView={canView}
+              hasSavedPlan={hasSavedPlan}
+              isSaving={isSaving}
+              onSave={handleSavePlan}
+              onStartWork={onStartWork ?? onBack}
+              onToggleMarkdown={() => setShowMarkdown((visible) => !visible)}
+            />
             {showMarkdown && <PlanningMarkdownView markdown={markdown} />}
           </>
         ) : (

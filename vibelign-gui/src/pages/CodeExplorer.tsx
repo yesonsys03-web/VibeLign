@@ -1,6 +1,8 @@
+// === ANCHOR: CODEEXPLORER_START ===
 import { useEffect, useMemo, useState } from "react";
 
 import CodeExplorerLayout from "../components/code-explorer/CodeExplorerLayout";
+import CodeExplorerPlanningContext from "../components/code-explorer/CodeExplorerPlanningContext";
 import CodeExplorerToolbar from "../components/code-explorer/CodeExplorerToolbar";
 import CodeFileTree from "../components/code-explorer/CodeFileTree";
 import CodeFileViewer from "../components/code-explorer/CodeFileViewer";
@@ -9,9 +11,11 @@ import { listCodeFiles, readCodeFile, readCodeFileDiff, listChangedFiles, type C
 
 interface CodeExplorerProps {
   projectDir: string;
+  planningPrompt?: string;
+  planningOutputPath?: string | null;
 }
 
-export default function CodeExplorer({ projectDir }: CodeExplorerProps) {
+export default function CodeExplorer({ projectDir, planningPrompt = "", planningOutputPath = null }: CodeExplorerProps) {
   const [files, setFiles] = useState<CodeFileEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<CodeFileReadResult | null>(null);
@@ -27,6 +31,7 @@ export default function CodeExplorer({ projectDir }: CodeExplorerProps) {
 
   const filteredFiles = useMemo(() => filterCodeFiles(files, query), [files, query]);
 
+  // === ANCHOR: CODEEXPLORER_REFRESHFILES_START ===
   async function refreshFiles() {
     setIsRefreshing(true);
     setListError(null);
@@ -49,6 +54,7 @@ export default function CodeExplorer({ projectDir }: CodeExplorerProps) {
       )
       .catch(() => setChanges(new Map<string, ChangeStatus>()));
   }
+  // === ANCHOR: CODEEXPLORER_REFRESHFILES_END ===
 
   useEffect(() => {
     void refreshFiles();
@@ -110,6 +116,7 @@ export default function CodeExplorer({ projectDir }: CodeExplorerProps) {
 
   return (
     <CodeExplorerLayout
+      planningContext={planningOutputPath ? <CodeExplorerPlanningContext prompt={planningPrompt} outputPath={planningOutputPath} /> : undefined}
       toolbar={<CodeExplorerToolbar query={query} fileCount={filteredFiles.length} isRefreshing={isRefreshing} onQueryChange={setQuery} onRefresh={() => void refreshFiles()} />}
       tree={<CodeFileTree files={filteredFiles} selectedPath={selectedPath} onSelect={setSelectedPath} autoExpandAll={query.trim().length > 0} changes={changes} />}
       viewer={<CodeFileViewer
@@ -124,3 +131,4 @@ export default function CodeExplorer({ projectDir }: CodeExplorerProps) {
     />
   );
 }
+// === ANCHOR: CODEEXPLORER_END ===

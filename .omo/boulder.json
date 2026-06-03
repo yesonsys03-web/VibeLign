@@ -1,0 +1,38 @@
+{
+  "schema_version": 2,
+  "active_work_id": "planning-work-persona-cli-copy",
+  "works": {
+    "planning-room-next-actions": {
+      "work_id": "planning-room-next-actions",
+      "active_plan": ".omo/plans/planning-room-next-actions.md",
+      "plan_name": "planning-room-next-actions",
+      "session_ids": ["codex:planning-room-next-actions"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-start-context": {
+      "work_id": "planning-work-start-context",
+      "active_plan": ".omo/plans/planning-work-start-context.md",
+      "plan_name": "planning-work-start-context",
+      "session_ids": ["codex:planning-work-start-context"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-instruction-copy": {
+      "work_id": "planning-work-instruction-copy",
+      "active_plan": ".omo/plans/planning-work-instruction-copy.md",
+      "plan_name": "planning-work-instruction-copy",
+      "session_ids": ["codex:planning-work-instruction-copy"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-persona-cli-copy": {
+      "work_id": "planning-work-persona-cli-copy",
+      "active_plan": ".omo/plans/planning-work-persona-cli-copy.md",
+      "plan_name": "planning-work-persona-cli-copy",
+      "session_ids": ["codex:planning-work-persona-cli-copy"],
+      "status": "complete",
+      "worktree_path": null
+    }
+  }
+}
