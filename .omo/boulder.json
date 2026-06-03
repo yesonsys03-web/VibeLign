@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "active_work_id": "planning-work-preview-selection-state",
+  "active_work_id": "planning-work-message-status-badges",
   "works": {
     "planning-room-next-actions": {
       "work_id": "planning-room-next-actions",
@@ -71,6 +71,14 @@
       "active_plan": ".omo/plans/planning-work-preview-selection-state.md",
       "plan_name": "planning-work-preview-selection-state",
       "session_ids": ["codex:planning-work-preview-selection-state"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-message-status-badges": {
+      "work_id": "planning-work-message-status-badges",
+      "active_plan": ".omo/plans/planning-work-message-status-badges.md",
+      "plan_name": "planning-work-message-status-badges",
+      "session_ids": ["codex:planning-work-message-status-badges"],
       "status": "complete",
       "worktree_path": null
     }
