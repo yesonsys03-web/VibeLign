@@ -98,6 +98,115 @@ describe("CodeExplorer planning context", () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining("Codex CLI"));
   });
 
+  test("previews_saved_plan_work_instruction_before_copy", async () => {
+    givenCodeExplorerData();
+
+    render(
+      <CodeExplorer
+        projectDir="/tmp/demo"
+        planningPrompt="예약 앱 만들고 싶어"
+        planningOutputPath="plans/예약-앱-만들고-싶어.md"
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText("1 files")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "작업 지시 미리보기" }));
+
+    expect(screen.getByRole("heading", { name: "작업 지시 미리보기" })).toBeInTheDocument();
+    expect(screen.getByText((text) => text.includes("저장된 기획안: plans/예약-앱-만들고-싶어.md"))).toBeInTheDocument();
+    expect(screen.getByText((text) => text.includes("공식 CLI"))).toBeInTheDocument();
+  });
+
+  test("previews_persona_specific_cli_work_instruction_before_copy", async () => {
+    givenCodeExplorerData();
+
+    render(
+      <CodeExplorer
+        projectDir="/tmp/demo"
+        planningPrompt="예약 앱 만들고 싶어"
+        planningOutputPath="plans/예약-앱-만들고-싶어.md"
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText("1 files")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "작업 지시 미리보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "지오 미리보기" }));
+
+    expect(screen.getByRole("heading", { name: "작업 지시 미리보기" })).toBeInTheDocument();
+    expect(screen.getByText((text) => text.includes("검토자 지오"))).toBeInTheDocument();
+    expect(screen.getByText((text) => text.includes("Codex CLI"))).toBeInTheDocument();
+  });
+
+  test("copies_current_persona_preview_instruction", async () => {
+    givenCodeExplorerData();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+
+    render(
+      <CodeExplorer
+        projectDir="/tmp/demo"
+        planningPrompt="예약 앱 만들고 싶어"
+        planningOutputPath="plans/예약-앱-만들고-싶어.md"
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText("1 files")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "작업 지시 미리보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "지오 미리보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "현재 미리보기 복사" }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("검토자 지오"));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("Codex CLI"));
+  });
+
+  test("shows_current_preview_target_label", async () => {
+    givenCodeExplorerData();
+
+    render(
+      <CodeExplorer
+        projectDir="/tmp/demo"
+        planningPrompt="예약 앱 만들고 싶어"
+        planningOutputPath="plans/예약-앱-만들고-싶어.md"
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText("1 files")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "작업 지시 미리보기" }));
+
+    expect(screen.getByText("현재 미리보기: 공통")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "지오 미리보기" }));
+
+    expect(screen.getByText("현재 미리보기: 지오 Codex")).toBeInTheDocument();
+  });
+
+  test("marks_current_preview_choice_as_selected", async () => {
+    givenCodeExplorerData();
+
+    render(
+      <CodeExplorer
+        projectDir="/tmp/demo"
+        planningPrompt="예약 앱 만들고 싶어"
+        planningOutputPath="plans/예약-앱-만들고-싶어.md"
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText("1 files")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "작업 지시 미리보기" }));
+
+    const commonPreview = screen.getByRole("button", { name: "공통 미리보기" });
+    const gioPreview = screen.getByRole("button", { name: "지오 미리보기" });
+
+    expect(commonPreview).toHaveAttribute("aria-pressed", "true");
+    expect(gioPreview).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(gioPreview);
+
+    expect(commonPreview).toHaveAttribute("aria-pressed", "false");
+    expect(gioPreview).toHaveAttribute("aria-pressed", "true");
+  });
+
   test("shows_instruction_preview_when_clipboard_copy_fails", async () => {
     givenCodeExplorerData();
     const writeText = vi.fn().mockRejectedValue(new Error("clipboard denied"));

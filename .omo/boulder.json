@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "active_work_id": "planning-work-persona-cli-copy",
+  "active_work_id": "planning-work-preview-selection-state",
   "works": {
     "planning-room-next-actions": {
       "work_id": "planning-room-next-actions",
@@ -31,6 +31,46 @@
       "active_plan": ".omo/plans/planning-work-persona-cli-copy.md",
       "plan_name": "planning-work-persona-cli-copy",
       "session_ids": ["codex:planning-work-persona-cli-copy"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-instruction-preview": {
+      "work_id": "planning-work-instruction-preview",
+      "active_plan": ".omo/plans/planning-work-instruction-preview.md",
+      "plan_name": "planning-work-instruction-preview",
+      "session_ids": ["codex:planning-work-instruction-preview"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-persona-preview": {
+      "work_id": "planning-work-persona-preview",
+      "active_plan": ".omo/plans/planning-work-persona-preview.md",
+      "plan_name": "planning-work-persona-preview",
+      "session_ids": ["codex:planning-work-persona-preview"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-preview-copy": {
+      "work_id": "planning-work-preview-copy",
+      "active_plan": ".omo/plans/planning-work-preview-copy.md",
+      "plan_name": "planning-work-preview-copy",
+      "session_ids": ["codex:planning-work-preview-copy"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-preview-target-label": {
+      "work_id": "planning-work-preview-target-label",
+      "active_plan": ".omo/plans/planning-work-preview-target-label.md",
+      "plan_name": "planning-work-preview-target-label",
+      "session_ids": ["codex:planning-work-preview-target-label"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-preview-selection-state": {
+      "work_id": "planning-work-preview-selection-state",
+      "active_plan": ".omo/plans/planning-work-preview-selection-state.md",
+      "plan_name": "planning-work-preview-selection-state",
+      "session_ids": ["codex:planning-work-preview-selection-state"],
       "status": "complete",
       "worktree_path": null
     }
