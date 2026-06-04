@@ -29,7 +29,9 @@ from vibelign.core.recovery.models import (
     RecoveryCandidate,
     RecoveryCandidateSource,
     RecoveryRecommendation,
+    RecoverySignalSet,
 )
+from vibelign.core.recovery.planner import build_recovery_plan
 
 
 def _candidate(candidate_id: str, source: str, created_at: str, **kwargs: object) -> RecoveryCandidate:
@@ -62,6 +64,21 @@ def test_recovery_candidate_and_recommendation_models() -> None:
     assert recommendation.provider == "deterministic"
     assert recommendation.llm_confidence is None
     assert 0.0 <= recommendation.evidence_score.score() <= 1.0
+
+
+def test_recovery_plan_does_not_import_patch_suggester(tmp_path: Path) -> None:
+    import sys
+
+    sys.modules.pop("vibelign.core.patch_suggester", None)
+    plan = build_recovery_plan(
+        RecoverySignalSet(guard_has_failures=True, guard_summary="로그인 실패"),
+        project_root=tmp_path,
+        recovery_request="로그인 실패 고쳐줘",
+    )
+
+    assert plan.mode == "read_only"
+    assert plan.no_files_modified is True
+    assert "vibelign.core.patch_suggester" not in sys.modules
 
 
 def test_llm_response_models_default_to_no_apply() -> None:

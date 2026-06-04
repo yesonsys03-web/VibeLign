@@ -5,8 +5,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from vibelign.core.patch_suggester import suggest_recovery_level2_patch
-
 from .intent_zone import build_intent_zone
 from .models import (
     DriftCandidate,
@@ -214,12 +212,7 @@ def recovery_request_placeholder() -> str:
 
 
 def _recovery_level2_target(project_root: Path | None, recovery_request: str) -> str:
-    if project_root is None or not recovery_request.strip():
-        return ""
-    suggestion = suggest_recovery_level2_patch(project_root, recovery_request)
-    if suggestion.target_file == "[소스 파일 없음]":
-        return ""
-    return suggestion.target_file
+    return ""
 
 
 def _summary_for(

@@ -1,6 +1,6 @@
 {
   "function": "_intent_tokens",
-  "source": "vibelign/core/patch_suggester.py",
+  "source": "vibelign/core/token_aliases.py",
   "case_count": 102,
   "cases": [
     {

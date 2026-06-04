@@ -4,7 +4,7 @@ import re
 import json
 import importlib
 from dataclasses import dataclass, asdict
-from typing import Any, Iterable, Optional, Union
+from typing import Any, Iterable, Optional
 from collections.abc import Mapping
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_map import ProjectMapSnapshot, load_project_map
@@ -12,6 +12,12 @@ from vibelign.core.project_scan import iter_source_files, relpath_str
 from vibelign.core.anchor_tools import AnchorMetaEntry, extract_anchors
 from vibelign.core.ui_label_index import load_ui_label_index, score_boost_for_ui_labels
 from vibelign.core.import_resolver import parse_local_imports
+from vibelign.core.token_aliases import (
+    decompose_korean_compound as _decompose_korean_compound,
+    intent_tokens as _intent_tokens,
+    path_tokens as _path_tokens,
+    tokenize,
+)
 
 KEYWORD_HINTS = {
     "progress": [
@@ -74,94 +80,6 @@ class PatchSuggestion:
         return asdict(self)
 
 
-_KOREAN_PARTICLE_SUFFIXES = (
-    "입니다",
-    "으로",
-    "에서",
-    "에게",
-    "께서",
-    "한테",
-    "까지",
-    "부터",
-    "처럼",
-    "보다",
-    "라고",
-    "이라",
-    "라서",
-    "이다",
-    "였다",
-    "했다",
-    "하면",
-    "하며",
-    "하고",
-    "이고",
-    "이며",
-    "와는",
-    "과는",
-    "와의",
-    "과의",
-    "에는",
-    "와",
-    "과",
-    "을",
-    "를",
-    "이",
-    "가",
-    "은",
-    "는",
-    "에",
-    "로",
-    "도",
-    "만",
-    "의",
-)
-
-# `_normalize_korean_token` 의 hot loop (609k calls / preview) 가 매번 같은 sort 를
-# 재실행하던 것을 module-level pre-sort 로 한 번에 고정. 결정성/순서는 동일.
-_KOREAN_PARTICLE_SUFFIXES_SORTED = tuple(
-    sorted(_KOREAN_PARTICLE_SUFFIXES, key=len, reverse=True)
-)
-
-_TOKEN_ALIASES = {
-    "홈": ["home"],
-    "홈화면": ["home", "screen", "page"],
-    "메인화면": ["main", "home", "screen", "page"],
-    "화면": ["screen", "page"],
-    "메뉴": ["menu", "nav", "navigation"],
-    "첫화면": ["onboarding", "screen"],
-    "시작화면": ["onboarding", "screen"],
-    "버전": ["version"],
-    "설정": ["settings", "config"],
-    "설치": ["install"],
-    "안내": ["guide"],
-    "가이드": ["guide"],
-    "클로드": ["claude"],
-    "훅": ["hook"],
-    "상태": ["state", "status"],
-    "유지": ["persist", "state"],
-    "활성화": ["enable", "enabled"],
-    "비활성화": ["disable", "disabled"],
-    "프로필": ["profile"],
-    "로그인": ["login"],
-    "이메일": ["email"],
-    "비밀번호": ["password"],
-    "서버": ["server", "app"],
-    "포트": ["port"],
-    "사용자": ["user", "users"],
-    "회원가입": ["signup", "register"],
-    "조회": ["get", "query"],
-    "검증": ["validate", "validators"],
-    "유효성": ["validate", "validators"],
-    "토큰": ["token", "auth"],
-    "발급": ["generate", "issue", "token"],
-    "저장": ["save", "store", "update"],
-    "평문": ["hash", "encrypt", "plaintext"],
-    "해시": ["hash", "encrypt"],
-    "중복": ["duplicate", "create", "unique"],
-    "캐시": ["cache", "database"],
-    "느려": ["performance", "optimize"],
-}
-
 _LOW_SIGNAL_TOKENS = {
     "name",
     "function",
@@ -178,131 +96,12 @@ _LOW_SIGNAL_TOKENS = {
     "app",
 }
 
-# Korean alias keys sorted by length desc so prefix matching is greedy.
-# Used to decompose a Korean compound like '클로드훅' into ['클로드','훅']
-# without adding new dictionary entries.
-_KOREAN_ALIAS_KEYS = tuple(
-    sorted(
-        (k for k in _TOKEN_ALIASES if re.fullmatch(r"[가-힣]+", k)),
-        key=len,
-        reverse=True,
-    )
-)
-
-
-def _decompose_korean_compound(token: str) -> list[str]:
-    """Greedy prefix match against known Korean alias keys.
-
-    Returns the decomposition ONLY when the entire token is covered by
-    alias keys AND at least two parts are found. This means we never
-    invent a new mapping — we just recognize that a compound is made of
-    parts we already know.
-    """
-    if not re.fullmatch(r"[가-힣]+", token):
-        return []
-    if token in _TOKEN_ALIASES:
-        return []  # already a known key, nothing to split
-    parts: list[str] = []
-    i = 0
-    n = len(token)
-    while i < n:
-        matched_key = ""
-        for key in _KOREAN_ALIAS_KEYS:
-            if token.startswith(key, i):
-                matched_key = key
-                break
-        if not matched_key:
-            return []
-        parts.append(matched_key)
-        i += len(matched_key)
-    return parts if len(parts) >= 2 else []
-
-
-def _split_identifier_parts(text: str) -> list[str]:
-    parts = re.findall(r"[a-z]+|[0-9]+|[가-힣]+", text.lower())
-    return [part for part in parts if part]
-
-
-def _normalize_korean_token(token: str) -> list[str]:
-    values = [token]
-    for suffix in _KOREAN_PARTICLE_SUFFIXES_SORTED:
-        if len(token) > len(suffix) + 1 and token.endswith(suffix):
-            trimmed = token[: -len(suffix)]
-            values.append(trimmed)
-            break
-    return values
-
-
-def _expand_token(token: str) -> list[str]:
-    expanded: list[str] = []
-    for candidate in _normalize_korean_token(token):
-        expanded.append(candidate)
-        expanded.extend(_split_identifier_parts(candidate))
-        expanded.extend(_TOKEN_ALIASES.get(candidate, []))
-        # Structurally decompose Korean compounds (e.g. '클로드훅' →
-        # '클로드' + '훅') using only existing alias keys. This relays
-        # the aliases of each recognized part without hand-coding the
-        # compound itself.
-        for part in _decompose_korean_compound(candidate):
-            expanded.append(part)
-            expanded.extend(_TOKEN_ALIASES.get(part, []))
-    seen: set[str] = set()
-    result: list[str] = []
-    for item in expanded:
-        if item and item not in seen:
-            seen.add(item)
-            result.append(item)
-    return result
-
-
-def tokenize(text: str) -> list[str]:
-    raw_tokens = re.findall(r"[a-zA-Z0-9_]+|[가-힣]+", text.lower())
-    tokens: list[str] = []
-    seen: set[str] = set()
-    for raw in raw_tokens:
-        for token in _expand_token(raw):
-            if token not in seen:
-                seen.add(token)
-                tokens.append(token)
-    return tokens
-
-
-_PASCAL_SPLIT_RE1 = re.compile(r"([A-Z]+)([A-Z][a-z])")
-_PASCAL_SPLIT_RE2 = re.compile(r"([a-z0-9])([A-Z])")
-
-
-def _snake_ify_path(text: str) -> str:
-    """Insert underscores at camelCase/PascalCase boundaries so downstream
-    tokenizers can split 'ClaudeHookCard' into ['claude', 'hook', 'card'].
-    Paths that are already lowercase or snake_case pass through unchanged.
-    """
-    return _PASCAL_SPLIT_RE2.sub(r"\1_\2", _PASCAL_SPLIT_RE1.sub(r"\1_\2", text))
-
-
-def _path_tokens(path: Union[Path, str]) -> set[str]:
-    raw_tokens = re.findall(r"[a-zA-Z0-9]+|[가-힣]+", _snake_ify_path(str(path)).lower())
-    tokens: set[str] = set()
-    for raw in raw_tokens:
-        for token in _expand_token(raw):
-            tokens.add(token)
-    return tokens
-
-
 def _meaningful_overlap(
     request_tokens: Iterable[str], candidate_tokens: Iterable[str]
 ) -> list[str]:
     candidate_set = set(candidate_tokens)
     matches = [token for token in request_tokens if token in candidate_set]
     return list(dict.fromkeys(matches))
-
-
-def _intent_tokens(text: str) -> set[str]:
-    tokens: set[str] = set()
-    for raw in re.findall(r"[a-zA-Z0-9_]+|[가-힣]+", text.lower()):
-        for token in _expand_token(raw):
-            tokens.add(token)
-    return tokens
-
 
 def _anchor_quality_penalty(anchor_tokens: set[str]) -> int:
     informative = [token for token in anchor_tokens if token not in _LOW_SIGNAL_TOKENS]
@@ -1745,10 +1544,6 @@ def suggest_patch(root: Path, request: str, use_ai: bool = True, *, recovery_lev
                         suggestion.anchor_signature = sig
                     break
     return suggestion
-
-
-def suggest_recovery_level2_patch(root: Path, request: str) -> PatchSuggestion:
-    return suggest_patch(root, request, use_ai=False, recovery_level=2)
 
 
 def resolve_target_for_role(

@@ -763,19 +763,11 @@ _REVERSE_ALIASES: dict[str, list[str]] = {}  # 영어→한국어 역방향 매�
 
 
 def _get_reverse_aliases() -> dict[str, list[str]]:
-    """patch_suggester의 _TOKEN_ALIASES를 역방향으로 변환. button→버튼 등."""
     if _REVERSE_ALIASES:
         return _REVERSE_ALIASES
-    try:
-        from vibelign.core.patch_suggester import _TOKEN_ALIASES
-        for korean, english_list in _TOKEN_ALIASES.items():
-            for eng in english_list:
-                if eng not in _REVERSE_ALIASES:
-                    _REVERSE_ALIASES[eng] = []
-                if korean not in _REVERSE_ALIASES[eng]:
-                    _REVERSE_ALIASES[eng].append(korean)
-    except ImportError:
-        pass
+    from vibelign.core.token_aliases import reverse_token_aliases
+
+    _REVERSE_ALIASES.update(reverse_token_aliases())
     return _REVERSE_ALIASES
 
 

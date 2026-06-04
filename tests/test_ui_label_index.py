@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from vibelign.core.patch_suggester import tokenize
+from vibelign.core.token_aliases import tokenize
 from vibelign.core.ui_label_index import build_ui_label_index, score_boost_for_ui_labels
 
 

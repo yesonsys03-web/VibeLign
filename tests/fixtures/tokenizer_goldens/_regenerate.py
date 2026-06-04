@@ -1,7 +1,6 @@
 """Regenerate tokenizer parity goldens.
 
-Run when `patch_suggester` 의 leaf 함수 또는 alias table (`_TOKEN_ALIASES`,
-`_KOREAN_ALIAS_KEYS`, `_KOREAN_PARTICLE_SUFFIXES`) 가 변경되면 재실행.
+Run when `token_aliases` 의 leaf 함수 또는 alias table 이 변경되면 재실행.
 
 Output: `tests/fixtures/tokenizer_goldens/<function>.expected.json` 6개 파일.
 
@@ -18,12 +17,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from vibelign.core.patch_suggester import (
-    _decompose_korean_compound,
-    _expand_token,
-    _intent_tokens,
-    _normalize_korean_token,
-    _split_identifier_parts,
+from vibelign.core.token_aliases import (
+    decompose_korean_compound,
+    expand_token,
+    intent_tokens,
+    normalize_korean_token,
+    split_identifier_parts,
     tokenize,
 )
 
@@ -31,7 +30,7 @@ from vibelign.core.patch_suggester import (
 # (description, input) — 한 입력 셋을 모든 leaf 함수에 통과시킨다.
 # 카테고리:
 #  A. English basic / camelCase / snake_case / 숫자
-#  B. Korean alias-known single (`_TOKEN_ALIASES` key)
+#  B. Korean alias-known single (`TOKEN_ALIASES` key)
 #  C. Korean alias-unknown
 #  D. Korean compound (decomposable into 2+ alias keys)
 #  E. Korean particle suffix
@@ -61,7 +60,7 @@ CASES: list[tuple[str, str]] = [
     ("A20 snake_case + digit", "test_case_123"),
     ("A21 digit only", "12345"),
     ("A22 alpha + digit", "button123"),
-    # B. Korean alias-known single (verified against _TOKEN_ALIASES keys)
+    # B. Korean alias-known single (verified against TOKEN_ALIASES keys)
     ("B01 alias-known", "훅"),
     ("B02 alias-known", "로그인"),
     ("B03 alias-known", "회원가입"),
@@ -165,12 +164,12 @@ def _normalize_output(value: object) -> object:
 
 def regenerate() -> None:
     functions: list[tuple[str, object]] = [
-        ("_decompose_korean_compound", _decompose_korean_compound),
-        ("_split_identifier_parts", _split_identifier_parts),
-        ("_normalize_korean_token", _normalize_korean_token),
-        ("_expand_token", _expand_token),
+        ("_decompose_korean_compound", decompose_korean_compound),
+        ("_split_identifier_parts", split_identifier_parts),
+        ("_normalize_korean_token", normalize_korean_token),
+        ("_expand_token", expand_token),
         ("tokenize", tokenize),
-        ("_intent_tokens", _intent_tokens),
+        ("_intent_tokens", intent_tokens),
     ]
 
     for name, func in functions:
