@@ -142,6 +142,7 @@ interface HomeProps {
   setWatchOn?: (v: boolean) => void;
   watchError?: string | null;
   onRetryWatch?: () => void;
+  hasCheckpoint?: boolean;
   mapMode?: "manual" | "auto";
   setMapMode?: (v: "manual" | "auto") => void;
   planningPrompt?: string;
@@ -152,7 +153,7 @@ interface HomeProps {
 
 
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────────
-export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, watchError = null, onRetryWatch, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning }: HomeProps) {
+export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, watchError = null, onRetryWatch, hasCheckpoint = false, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning }: HomeProps) {
   const [view, setView]                   = useState<View>(initialView);
   const [selectedCmd, setSelectedCmd]     = useState<typeof COMMANDS[0] | null>(null);
   const [guardResult, setGuardResult]     = useState<GuardResult | null>(null);
@@ -490,7 +491,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
             guardResult={guardResult}
             watchOn={watchOn}
             watchError={watchError}
-            hasCheckpoint={false}
+            hasCheckpoint={hasCheckpoint}
             onRetryWatch={() => {
               onRetryWatch?.();
             }}

@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "active_work_id": "planning-work-guard-home-copy",
+  "active_work_id": "planning-work-home-checkpoint-state",
   "works": {
     "planning-room-next-actions": {
       "work_id": "planning-room-next-actions",
@@ -263,6 +263,14 @@
       "active_plan": ".omo/plans/planning-work-guard-home-copy.md",
       "plan_name": "planning-work-guard-home-copy",
       "session_ids": ["codex:planning-work-guard-home-copy"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-home-checkpoint-state": {
+      "work_id": "planning-work-home-checkpoint-state",
+      "active_plan": ".omo/plans/planning-work-home-checkpoint-state.md",
+      "plan_name": "planning-work-home-checkpoint-state",
+      "session_ids": ["codex:planning-work-home-checkpoint-state"],
       "status": "complete",
       "worktree_path": null
     }

@@ -56,4 +56,11 @@ describe("Simple Home", () => {
     expect(retry).toHaveBeenCalledOnce();
     expect(screen.queryByText(/backend/i)).not.toBeInTheDocument();
   });
+
+  test("shows_checkpoint_ready_state_when_backups_exist", () => {
+    render(<Home projectDir="/tmp/demo" onNavigate={() => undefined} hasCheckpoint />);
+
+    expect(screen.getByText("최근 저장 지점이 있어요")).toBeInTheDocument();
+    expect(screen.getByText("필요하면 이전 상태 후보를 확인할 수 있어요.")).toBeInTheDocument();
+  });
 });
