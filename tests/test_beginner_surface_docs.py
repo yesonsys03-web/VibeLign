@@ -24,16 +24,15 @@ def test_korean_readme_first_flow_does_not_recommend_legacy_patch_surface() -> N
     assert "plan-structure" not in first_flow
 
 
-def test_manual_removes_patch_section_and_keeps_plan_structure_legacy() -> None:
+def test_manual_removes_legacy_patch_and_plan_structure_sections() -> None:
     manual = (ROOT / "docs" / "MANUAL.md").read_text(encoding="utf-8")
 
-    plan_structure_section = manual.split("## `vib plan-structure`", maxsplit=1)[1].split("## `vib transfer`", maxsplit=1)[0]
-
     assert "## `vib patch`" not in manual
+    assert "## `vib plan-structure`" not in manual
+    assert "plan-structure" not in manual
     assert "CodeSpeak" not in manual
     assert "target_file" not in manual
     assert "target_anchor" not in manual
-    assert "legacy" in plan_structure_section.lower()
 
 
 def test_docs_wiki_first_flows_do_not_recommend_legacy_patch_surface() -> None:
@@ -73,5 +72,6 @@ def test_active_rules_and_docs_use_direct_read_workflow() -> None:
         "target_file",
         "target_anchor",
         "vib patch",
+        "plan-structure",
     ]:
         assert removed not in active_text

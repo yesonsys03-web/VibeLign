@@ -534,7 +534,7 @@ Output includes:
 - doctor findings
 - recent changed files
 - protected file violations (if any)
-- planning 상태 (`planning_required`, `planning_exempt`, `plan_exists_but_deviated`)
+- planning 상태 (`planning_required`, `planning_exempt`)
 - 새 source 파일 앵커 누락 여부
 
 자주 쓰는 플래그:
@@ -550,53 +550,6 @@ vib guard --json
 - `--since-minutes` = 최근 몇 분 변경만 본다
 - `--write-report` = 결과를 파일로 저장한다
 - `--json` = 개발자용 JSON 출력
-
----
-
-## `vib plan-structure`
-
-Legacy command for internal structure-planning JSON.
-새 기획방/초보 흐름에서는 `vib plan`과 `plans/*.md`를 사용해요.
-
-큰 기능을 만들기 전에 어느 파일을 고치고 어느 파일을 새로 만들지 먼저 정하는 명령어예요.
-쉽게 말하면 “코딩 시작 전에 설계도 한 장 먼저 만드는 버튼”이에요.
-
-보통은 이렇게 생각하면 쉬워요.
-
-1. 먼저 `plan-structure`로 작업 설계도를 만들고
-2. 그다음 host AI 작업으로 실제 구현을 하고
-3. 마지막에 `guard --strict`로 계획대로 잘 됐는지 확인하는 거예요.
-
-```bash
-vib plan-structure "OAuth 인증 추가"
-vib plan-structure --scope vibelign/core/ "watch 기능 확장"
-vib plan-structure --ai "mcp handler 수정"
-```
-
-- 큰 기능이라 여러 파일이 바뀔 것 같을 때 좋아요
-- 새 production 파일을 만들기 전에 쓰면 guard와 pre-check가 이 계획을 보고 검사할 수 있어요
-- 결과는 `.vibelign/plans/` 아래에 저장돼요
-
-추천 흐름:
-
-```bash
-vib plan "OAuth 인증 추가"
-vib guard --strict
-```
-
-언제 특히 좋냐면:
-
-- 새 기능이라 파일 여러 개가 같이 바뀔 때
-- 새 source / production 파일을 만들 가능성이 있을 때
-- AI가 한 파일에 모든 걸 몰아넣지 않게 먼저 범위를 정하고 싶을 때
-
-반대로 문서만 고치거나, 테스트만 조금 만지거나, 설정만 바꾸는 작은 작업이면 보통 안 써도 괜찮아요.
-
-플래그:
-
-- `feature` = 무엇을 만들지 말로 적어요
-- `--scope` = 특정 폴더만 보고 계획해요
-- `--ai` = 나중에 AI 흐름에서 참고할 metadata로 기록해요
 
 ---
 

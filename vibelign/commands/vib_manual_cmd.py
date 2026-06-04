@@ -611,43 +611,6 @@ MANUAL: dict[str, ManualEntry] = {
             ),
         ],
     },
-    "patch": {
-        "emoji": "🛠️",
-        "title": "vib patch",
-        "one_line": "legacy: 구조화된 수정 계획을 만들어요",
-        "what": (
-            "legacy 기능이에요. 초보 흐름에서는 더 이상 추천하지 않아요.\n"
-            "자연어 수정은 Claude Code/Codex/Cursor 같은 host AI가 VibeLign MCP 도구를 직접 읽는 방식을 권장해요.\n\n"
-            '"로그인 버튼 추가해줘" 같이 말로 요청하면,\n'
-            "어떤 파일의 어느 부분을 어떻게 수정할지 계획을 세워줘요.\n"
-            "이 계획을 복사해서 AI (Claude, ChatGPT 등)에 붙여넣으면 돼요."
-        ),
-        "when": [
-            "AI한테 코드 수정을 요청할 때 더 정확하게 전달하고 싶을 때",
-            "어떤 파일을 수정해야 할지 모를 때 도움받고 싶을 때",
-            "수정 전에 계획을 먼저 확인하고 싶을 때",
-        ],
-        "examples": [
-            ('vib patch "로그인 버튼 추가"', "수정 계획 만들기"),
-            ('vib patch "버그 수정" --ai', "AI가 더 정확하게 분석"),
-            ('vib patch "사이드바 제거" --preview', "미리 보기"),
-            ('vib patch "기능 추가" --copy', "결과를 클립보드에 복사"),
-        ],
-        "options": [
-            ("request", '수정 요청을 말로 써요.\n예: vib patch "다크모드 추가해줘"'),
-            (
-                "--ai",
-                "AI가 코드를 더 자세히 분석해서 정확한 계획을 세워요.\n조금 더 시간이 걸려요.",
-            ),
-            ("--preview", "수정 계획을 미리 보기로 확인해요."),
-            (
-                "--copy",
-                "AI에 전달할 프롬프트를 클립보드에 복사해요.\n바로 붙여넣기할 수 있어요.",
-            ),
-            ("--write-report", "수정 계획을 파일로 저장해요."),
-            ("--json", "결과를 JSON 형식으로 출력해요. (개발자용)"),
-        ],
-    },
     "guard": {
         "emoji": "🛡️",
         "title": "vib guard",
@@ -677,8 +640,8 @@ MANUAL: dict[str, ManualEntry] = {
             ("--write-report", "검사 결과를 파일로 저장해요."),
             ("--json", "결과를 JSON 형식으로 출력해요. (개발자용)"),
             (
-                "구조 계획 확인",
-                "여러 파일을 크게 바꾸거나 새 production 파일을 만들면 plan-structure가 필요한지도 같이 알려줘요.",
+                "기획 필요 확인",
+                '여러 파일을 크게 바꾸거나 새 production 파일을 만들면 `vib plan "작업 내용"` 또는 GUI 기획방이 필요한지도 같이 알려줘요.',
             ),
             (
                 "신규 파일 앵커 검사",
@@ -962,51 +925,6 @@ MANUAL: dict[str, ManualEntry] = {
             ("--output PATH", "저장할 프로젝트 상대 경로를 지정해요."),
             ("--agents LIST", "실행할 페르소나 목록을 쉼표로 지정해요."),
             ("--json", "결과를 JSON 형식으로 출력해요. (개발자용)"),
-        ],
-    },
-    "plan-structure": {
-        "emoji": "🧱",
-        "title": "vib plan-structure",
-        "one_line": "legacy: 내부 구조 계획 JSON을 만들어요",
-        "what": (
-            "legacy 기능이에요. 새 기획방/초보 흐름에서는 vib plan과 plans/*.md를 사용해요.\n\n"
-            "기능 설명을 바탕으로 어느 파일은 수정하고 어느 파일은 새로 만들어야 하는지 먼저 계획해요.\n"
-            "쉽게 말하면 '코딩 시작 전에 설계도 한 장 먼저 만드는 버튼'이에요.\n"
-            "계획은 `.vibelign/plans/` 아래에 저장되고, guard나 pre-check가 이 계획을 보고 검사할 수 있어요.\n\n"
-            "보통은 '계획 먼저 → 구현 → guard로 확인' 순서로 쓰면 돼요.\n"
-            "예를 들어 새 로그인 기능처럼 파일 여러 개가 같이 바뀌는 작업이면,\n"
-            "바로 코드를 쓰기 전에 이 명령어로 파일 배치를 먼저 정하는 거예요."
-        ),
-        "when": [
-            "새 기능을 추가해서 파일이 여러 개 바뀔 것 같을 때",
-            "새 production 파일을 만들기 전에 어디에 둘지 정하고 싶을 때",
-            "AI가 큰 기능을 한 파일에 몰아넣지 않게 막고 싶을 때",
-            "작은 단일 파일 수정이 아니라 작업 범위가 헷갈릴 때",
-        ],
-        "examples": [
-            ('vib plan-structure "OAuth 인증 추가"', "기본 구조 계획 만들기"),
-            ('vib plan-structure "watch 기능 확장"', "가장 쉬운 기본 사용법"),
-            (
-                'vib plan-structure --scope vibelign/core/ "watch 기능 확장"',
-                "특정 폴더만 보고 계획 만들기",
-            ),
-            ('vib plan-structure --ai "mcp handler 수정"', "AI 계획 메타데이터로 기록"),
-            (
-                'vib plan "OAuth 인증 추가" → host AI 작업 → vib guard --strict',
-                "새 초보 흐름 예시",
-            ),
-        ],
-        "options": [
-            (
-                "feature",
-                '무엇을 만들지 말로 적어요.\n예: vib plan-structure "로그인 기능 추가"',
-            ),
-            ("--scope", "분석할 폴더를 좁혀요.\n예: --scope vibelign/core/"),
-            ("--ai", "나중에 AI 흐름에서 참고할 plan metadata로 기록해요."),
-            (
-                "언제 안 써도 되나요?",
-                "문서만 고치거나, 테스트만 조금 손보거나, 설정 파일만 바꾸는 작은 작업이면 보통 없어도 돼요.",
-            ),
         ],
     },
     "export": {
@@ -1572,7 +1490,6 @@ GROUPS = [
             "completion",
         ],
     ),
-    ("고급 / legacy", ["patch", "plan-structure"]),
     ("🤖 MCP (AI 자동 연동)", ["mcp"]),
     ("📋 AI 개발 규칙", ["manual", "rules"]),
 ]
