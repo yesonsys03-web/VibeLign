@@ -17,8 +17,8 @@ class _MemoryFreshnessLike(Protocol):
     stale_relevant_files: list[str]
     conflicting_fields: list[str]
     missing_next_action: bool
-    missing_decision_after_patches: bool
-    patch_outside_intent_zone: list[str]
+    missing_decision_after_observed_edits: bool
+    observed_edit_outside_intent_zone: list[str]
     active_trigger_ids: list[str]
 
 
@@ -224,15 +224,15 @@ def test_assess_memory_freshness_marks_missing_next_action_trigger() -> None:
     assert "missing_next_action" in freshness.active_trigger_ids
 
 
-def test_assess_memory_freshness_marks_missing_decision_after_repeated_patches() -> None:
+def test_assess_memory_freshness_marks_missing_decision_after_repeated_observed_edits() -> None:
     state = MemoryState(
         next_action=MemoryTextField(text="Continue handoff"),
         relevant_files=[
             MemoryRelevantFile(
                 path=f"src/file_{index}.py",
-                why="patch_apply target",
+                why="observed edit target",
                 source="observed",
-                updated_by="mcp patch_apply",
+                updated_by="memory_observer",
             )
             for index in range(3)
         ],
@@ -240,20 +240,20 @@ def test_assess_memory_freshness_marks_missing_decision_after_repeated_patches()
 
     freshness = _assess_memory_freshness()(state)
 
-    assert freshness.missing_decision_after_patches is True
-    assert "missing_decision_after_patches" in freshness.active_trigger_ids
+    assert freshness.missing_decision_after_observed_edits is True
+    assert "missing_decision_after_observed_edits" in freshness.active_trigger_ids
 
 
-def test_assess_memory_freshness_skips_patch_decision_trigger_when_decision_exists() -> None:
+def test_assess_memory_freshness_skips_observed_edit_decision_trigger_when_decision_exists() -> None:
     state = MemoryState(
-        decisions=[MemoryTextField(text="Keep patch path")],
+        decisions=[MemoryTextField(text="Keep edit path")],
         next_action=MemoryTextField(text="Continue handoff"),
         relevant_files=[
             MemoryRelevantFile(
                 path=f"src/file_{index}.py",
-                why="patch_apply target",
+                why="observed edit target",
                 source="observed",
-                updated_by="mcp patch_apply",
+                updated_by="memory_observer",
             )
             for index in range(3)
         ],
@@ -261,14 +261,14 @@ def test_assess_memory_freshness_skips_patch_decision_trigger_when_decision_exis
 
     freshness = _assess_memory_freshness()(state)
 
-    assert freshness.missing_decision_after_patches is False
-    assert "missing_decision_after_patches" not in freshness.active_trigger_ids
+    assert freshness.missing_decision_after_observed_edits is False
+    assert "missing_decision_after_observed_edits" not in freshness.active_trigger_ids
 
 
-def test_assess_memory_freshness_marks_latest_patch_outside_intent_zone() -> None:
+def test_assess_memory_freshness_marks_latest_observed_edit_outside_intent_zone() -> None:
     state = MemoryState(
-        decisions=[MemoryTextField(text="Keep app patch focused")],
-        next_action=MemoryTextField(text="Review latest patch"),
+        decisions=[MemoryTextField(text="Keep app edit focused")],
+        next_action=MemoryTextField(text="Review latest edit"),
         relevant_files=[
             MemoryRelevantFile(
                 path="src/app.py",
@@ -277,31 +277,31 @@ def test_assess_memory_freshness_marks_latest_patch_outside_intent_zone() -> Non
             ),
             MemoryRelevantFile(
                 path="src/app.py",
-                why="patch_apply target",
+                why="observed edit target",
                 source="observed",
                 last_updated="2026-05-03T00:00:00Z",
-                updated_by="mcp patch_apply",
+                updated_by="memory_observer",
             ),
             MemoryRelevantFile(
                 path="src/auth.py",
-                why="patch_apply target",
+                why="observed edit target",
                 source="observed",
                 last_updated="2026-05-03T00:10:00Z",
-                updated_by="mcp patch_apply",
+                updated_by="memory_observer",
             ),
         ],
     )
 
     freshness = _assess_memory_freshness()(state)
 
-    assert freshness.patch_outside_intent_zone == ["src/auth.py"]
-    assert "patch_outside_intent_zone" in freshness.active_trigger_ids
+    assert freshness.observed_edit_outside_intent_zone == ["src/auth.py"]
+    assert "observed_edit_outside_intent_zone" in freshness.active_trigger_ids
 
 
-def test_assess_memory_freshness_keeps_latest_patch_inside_intent_zone() -> None:
+def test_assess_memory_freshness_keeps_latest_observed_edit_inside_intent_zone() -> None:
     state = MemoryState(
-        decisions=[MemoryTextField(text="Keep app patch focused")],
-        next_action=MemoryTextField(text="Review latest patch"),
+        decisions=[MemoryTextField(text="Keep app edit focused")],
+        next_action=MemoryTextField(text="Review latest edit"),
         relevant_files=[
             MemoryRelevantFile(
                 path="src/app.py",
@@ -310,18 +310,18 @@ def test_assess_memory_freshness_keeps_latest_patch_inside_intent_zone() -> None
             ),
             MemoryRelevantFile(
                 path="src/app.py",
-                why="patch_apply target",
+                why="observed edit target",
                 source="observed",
                 last_updated="2026-05-03T00:10:00Z",
-                updated_by="mcp patch_apply",
+                updated_by="memory_observer",
             ),
         ],
     )
 
     freshness = _assess_memory_freshness()(state)
 
-    assert freshness.patch_outside_intent_zone == []
-    assert "patch_outside_intent_zone" not in freshness.active_trigger_ids
+    assert freshness.observed_edit_outside_intent_zone == []
+    assert "observed_edit_outside_intent_zone" not in freshness.active_trigger_ids
 
 
 def test_assess_memory_freshness_marks_scope_unknown_verification_stale() -> None:
@@ -343,7 +343,7 @@ def test_assess_memory_freshness_marks_scope_unknown_verification_stale() -> Non
     assert "stale_verification" in freshness.active_trigger_ids
 
 
-def test_assess_memory_freshness_marks_verification_stale_when_newer_patch_exists() -> None:
+def test_assess_memory_freshness_marks_verification_stale_when_newer_observed_edit_exists() -> None:
     state = MemoryState(
         next_action=MemoryTextField(text="Continue handoff"),
         verification=[
@@ -356,10 +356,10 @@ def test_assess_memory_freshness_marks_verification_stale_when_newer_patch_exist
         relevant_files=[
             MemoryRelevantFile(
                 path="src/other.py",
-                why="patch_apply target",
+                why="observed edit target",
                 source="observed",
                 last_updated="2026-05-03T00:10:00Z",
-                updated_by="mcp patch_apply",
+                updated_by="memory_observer",
             )
         ],
     )
@@ -417,7 +417,7 @@ def test_assess_memory_freshness_keeps_verification_fresh_when_intent_is_older()
     assert "stale_verification" not in freshness.active_trigger_ids
 
 
-def test_assess_memory_freshness_ignores_patch_before_verification() -> None:
+def test_assess_memory_freshness_ignores_observed_edit_before_verification() -> None:
     state = MemoryState(
         next_action=MemoryTextField(text="Continue handoff"),
         verification=[
@@ -430,10 +430,10 @@ def test_assess_memory_freshness_ignores_patch_before_verification() -> None:
         relevant_files=[
             MemoryRelevantFile(
                 path="src/other.py",
-                why="patch_apply target",
+                why="observed edit target",
                 source="observed",
                 last_updated="2026-05-03T00:00:00Z",
-                updated_by="mcp patch_apply",
+                updated_by="memory_observer",
             )
         ],
     )

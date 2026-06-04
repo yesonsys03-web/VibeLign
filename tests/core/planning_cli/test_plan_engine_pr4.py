@@ -83,10 +83,14 @@ def test_engine_rejects_forbidden_terms_from_cli(tmp_path: Path, monkeypatch) ->
         "vibelign.core.planning_cli.engine.build_codex_command",
         lambda prompt: ["/usr/local/bin/codex", "exec", prompt],
     )
+    monkeypatch.setattr(
+        "vibelign.core.planning_cli.engine.FORBIDDEN_LLM_TERMS",
+        ("internal_marker",),
+    )
     runner = FakeRunner(
         PlanningCliResult(
             status="ok",
-            stdout="target_anchor를 써야 합니다.",
+            stdout="internal_marker를 써야 합니다.",
             stderr="",
             exit_code=0,
             duration_ms=10,
@@ -101,4 +105,4 @@ def test_engine_rejects_forbidden_terms_from_cli(tmp_path: Path, monkeypatch) ->
 
     assert result.llm_status == "bad_output"
     assert result.fallback_reason == "cli_unavailable_template_only"
-    assert "target_anchor" not in (tmp_path / result.output_path).read_text(encoding="utf-8")
+    assert "internal_marker" not in (tmp_path / result.output_path).read_text(encoding="utf-8")

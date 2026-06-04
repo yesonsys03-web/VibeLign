@@ -2,15 +2,15 @@
 
 ## What The Project Is Working On
 
-The most current transfer context describes active work around patch accuracy, anchor scoring, and benchmark measurement.
-Recent focus includes verb-aware scoring improvements in `patch_suggester` and follow-up benchmark work for `--ai` mode.
+The most current transfer context describes active work around beginner-first planning, anchor safety, and legacy surface removal.
+Recent focus includes removing failed legacy command surfaces while keeping direct-edit guardrails and project-map workflows intact.
 
 ## Recent Highlights
 
-- post-C1 benchmark results were documented
-- regression scenarios were added for patch accuracy
-- verb-cluster scoring improvements were added to file and anchor ranking
-- follow-up work is planned around `--ai` baseline measurement and patch benchmark automation
+- beginner-facing planning flows were promoted over legacy command surfaces
+- project-map and anchor safety remain the direct-edit guardrails
+- regression tests now assert removed legacy surfaces stay absent
+- follow-up work is planned around final static cleanup and broad regression checks
 
 ## Important Practical Note
 

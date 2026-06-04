@@ -79,7 +79,7 @@ def test_summarize_trigger_ignored_rate_counts_engagements(tmp_path: Path) -> No
             _trigger_row("2026-05-03T00:01:00Z", "stale_intent", "snoozed"),
             _trigger_row("2026-05-03T00:02:00Z", "missing_next_action", "shown"),
             _trigger_row("2026-05-03T00:03:00Z", "missing_next_action", "dismissed"),
-            _trigger_row("2026-05-03T00:04:00Z", "patch_outside_intent_zone", "shown"),
+            _trigger_row("2026-05-03T00:04:00Z", "observed_edit_outside_intent_zone", "shown"),
         ],
     )
 
@@ -146,7 +146,7 @@ def test_write_trigger_baseline_snapshot_logs_tuning_recommendation(tmp_path: Pa
             _trigger_row("2026-05-03T00:00:00Z", "stale_intent", "shown"),
             _trigger_row("2026-05-03T00:01:00Z", "stale_intent", "dismissed"),
             _trigger_row("2026-05-03T00:02:00Z", "missing_next_action", "shown"),
-            _trigger_row("2026-05-03T00:03:00Z", "patch_outside_intent_zone", "shown"),
+            _trigger_row("2026-05-03T00:03:00Z", "observed_edit_outside_intent_zone", "shown"),
         ],
     )
 

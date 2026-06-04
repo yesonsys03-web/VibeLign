@@ -391,21 +391,21 @@ def test_memory_review_persisting_actions_does_not_clear_session_state(tmp_path:
     ]
 
 
-def test_memory_review_surfaces_repeated_patch_decision_trigger(tmp_path: Path) -> None:
+def test_memory_review_surfaces_repeated_observed_edit_decision_trigger(tmp_path: Path) -> None:
     path = tmp_path / ".vibelign" / "work_memory.json"
     path.parent.mkdir()
     _ = path.write_text(
         json.dumps(
             {
                 "schema_version": 1,
-                "active_intent": {"text": "Review repeated patches"},
+                "active_intent": {"text": "Review repeated observed edits"},
                 "next_action": {"text": "Capture decision"},
                 "relevant_files": [
                     {
                         "path": f"src/file_{index}.py",
-                        "why": "patch_apply target",
+                        "why": "observed edit target",
                         "source": "observed",
-                        "updated_by": "mcp patch_apply",
+                        "updated_by": "memory_observer",
                     }
                     for index in range(3)
                 ],
@@ -417,23 +417,23 @@ def test_memory_review_surfaces_repeated_patch_decision_trigger(tmp_path: Path) 
     review = _review_memory()(path)
 
     suggestion = (
-        'Capture a decision after repeated patches with: vib memory decide "...". '
-        "[trigger: missing_decision_after_patches; Accept / Dismiss / Snooze]"
+        'Capture a decision after repeated observed edits with: vib memory decide "...". '
+        "[trigger: missing_decision_after_observed_edits; Accept / Dismiss / Snooze]"
     )
-    assert "missing_decision_after_patches" in review.active_trigger_ids
+    assert "missing_decision_after_observed_edits" in review.active_trigger_ids
     assert suggestion in review.suggestions
 
 
-def test_memory_review_surfaces_patch_outside_intent_zone_trigger(tmp_path: Path) -> None:
+def test_memory_review_surfaces_observed_edit_outside_intent_zone_trigger(tmp_path: Path) -> None:
     path = tmp_path / ".vibelign" / "work_memory.json"
     path.parent.mkdir()
     _ = path.write_text(
         json.dumps(
             {
                 "schema_version": 1,
-                "active_intent": {"text": "Keep app patch focused"},
-                "decisions": [{"text": "Keep app patch focused"}],
-                "next_action": {"text": "Review latest patch"},
+                "active_intent": {"text": "Keep app edit focused"},
+                "decisions": [{"text": "Keep app edit focused"}],
+                "next_action": {"text": "Review latest edit"},
                 "relevant_files": [
                     {
                         "path": "src/app.py",
@@ -442,17 +442,17 @@ def test_memory_review_surfaces_patch_outside_intent_zone_trigger(tmp_path: Path
                     },
                     {
                         "path": "src/app.py",
-                        "why": "patch_apply target",
+                        "why": "observed edit target",
                         "source": "observed",
                         "last_updated": "2026-05-03T00:00:00Z",
-                        "updated_by": "mcp patch_apply",
+                        "updated_by": "memory_observer",
                     },
                     {
                         "path": "src/auth.py",
-                        "why": "patch_apply target",
+                        "why": "observed edit target",
                         "source": "observed",
                         "last_updated": "2026-05-03T00:10:00Z",
-                        "updated_by": "mcp patch_apply",
+                        "updated_by": "memory_observer",
                     },
                 ],
             }
@@ -463,8 +463,8 @@ def test_memory_review_surfaces_patch_outside_intent_zone_trigger(tmp_path: Path
     review = _review_memory()(path)
 
     suggestion = (
-        "Review latest patch target outside the intent zone: src/auth.py. "
-        "[trigger: patch_outside_intent_zone; Accept / Dismiss / Snooze]"
+        "Review latest observed edit outside the intent zone: src/auth.py. "
+        "[trigger: observed_edit_outside_intent_zone; Accept / Dismiss / Snooze]"
     )
-    assert "patch_outside_intent_zone" in review.active_trigger_ids
+    assert "observed_edit_outside_intent_zone" in review.active_trigger_ids
     assert suggestion in review.suggestions

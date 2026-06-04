@@ -1,10 +1,16 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const source = readFileSync(resolve("src/lib/vib.ts"), "utf8");
+const source = [
+  "src/lib/vib/memory.ts",
+  "src/lib/vib/recovery.ts",
+  "src/lib/vib/normalizers.ts",
+]
+  .map((path) => readFileSync(resolve(path), "utf8"))
+  .join("\n");
 
 const requiredSnippets = [
-  "function parseMemorySummaryJson",
+  "function parseMemorySummaryPayload",
   "function parseRecoveryPreviewJson",
   "function parseRecoveryRecommendationJson",
   "function requireRecordArray",

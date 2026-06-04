@@ -68,34 +68,49 @@ class GuiCliContractsTest(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         session_card = root / "vibelign-gui" / "src" / "components" / "agent-memory" / "SessionMemoryCard.tsx"
         recovery_card = root / "vibelign-gui" / "src" / "components" / "agent-memory" / "RecoveryOptionsCard.tsx"
-        home_text = (root / "vibelign-gui" / "src" / "pages" / "Home.tsx").read_text(encoding="utf-8")
+        advanced_home_text = (
+            root / "vibelign-gui" / "src" / "components" / "home" / "AdvancedHomeCards.tsx"
+        ).read_text(encoding="utf-8")
+        manual_command_list_text = (
+            root / "vibelign-gui" / "src" / "components" / "home" / "ManualCommandList.tsx"
+        ).read_text(encoding="utf-8")
+        manual_command_detail_text = (
+            root / "vibelign-gui" / "src" / "components" / "home" / "ManualCommandDetail.tsx"
+        ).read_text(encoding="utf-8")
         order_text = (root / "vibelign-gui" / "src" / "hooks" / "useCardOrder.ts").read_text(encoding="utf-8")
-        vib_text = (root / "vibelign-gui" / "src" / "lib" / "vib.ts").read_text(encoding="utf-8")
+        vib_memory_text = (root / "vibelign-gui" / "src" / "lib" / "vib" / "memory.ts").read_text(encoding="utf-8")
+        vib_recovery_text = (
+            root / "vibelign-gui" / "src" / "lib" / "vib" / "recovery.ts"
+        ).read_text(encoding="utf-8")
+        vib_normalizers_text = (
+            root / "vibelign-gui" / "src" / "lib" / "vib" / "normalizers.ts"
+        ).read_text(encoding="utf-8")
+        vib_contract_text = "\n".join([vib_memory_text, vib_recovery_text, vib_normalizers_text])
 
         self.assertTrue(session_card.exists())
         self.assertTrue(recovery_card.exists())
-        self.assertIn("SessionMemoryCard", home_text)
-        self.assertIn("RecoveryOptionsCard", home_text)
+        self.assertIn("SessionMemoryCard", advanced_home_text)
+        self.assertIn("RecoveryOptionsCard", advanced_home_text)
         self.assertIn('"session-memory"', order_text)
         self.assertIn('"recovery-options"', order_text)
-        self.assertIn("memorySummary", vib_text)
-        self.assertIn("recoveryPreview", vib_text)
-        self.assertIn("recoveryRecommend", vib_text)
-        self.assertIn('"memory", "proposal-create"', vib_text)
-        self.assertIn('"--relevant-file"', vib_text)
-        self.assertIn('"--verification"', vib_text)
-        self.assertIn('"--risk-note"', vib_text)
-        self.assertNotIn('"transfer", "--handoff", "--ai"', vib_text)
-        self.assertIn('["memory", "show", "--json"]', vib_text)
-        self.assertIn('["recover", "--preview", "--json"]', vib_text)
-        self.assertIn('["recover", "--recommend", "--phrase", phrase]', vib_text)
-        self.assertIn("verificationFreshness", vib_text)
-        self.assertIn("safeCheckpointCandidate", vib_text)
-        self.assertIn("requireRecord", vib_text)
-        self.assertIn("requireString", vib_text)
-        self.assertIn("requireRecordArray", vib_text)
-        self.assertIn("p0_summaries", vib_text)
-        self.assertIn("drift_candidates[${index}].why_outside_zone", vib_text)
+        self.assertIn("memorySummary", vib_memory_text)
+        self.assertIn("recoveryPreview", vib_recovery_text)
+        self.assertIn("recoveryRecommend", vib_recovery_text)
+        self.assertIn('"memory", "proposal-create"', vib_memory_text)
+        self.assertIn('"--relevant-file"', vib_memory_text)
+        self.assertIn('"--verification"', vib_memory_text)
+        self.assertIn('"--risk-note"', vib_memory_text)
+        self.assertNotIn('"transfer", "--handoff", "--ai"', vib_memory_text)
+        self.assertIn('command: "memory_summary_read"', vib_memory_text)
+        self.assertIn('["recover", "--preview", "--json"]', vib_recovery_text)
+        self.assertIn('["recover", "--recommend", "--phrase", phrase]', vib_recovery_text)
+        self.assertIn("verificationFreshness", vib_contract_text)
+        self.assertIn("safeCheckpointCandidate", vib_contract_text)
+        self.assertIn("requireRecord", vib_contract_text)
+        self.assertIn("requireString", vib_contract_text)
+        self.assertIn("requireRecordArray", vib_contract_text)
+        self.assertIn("p0_summaries", vib_contract_text)
+        self.assertIn("drift_candidates[${index}].why_outside_zone", vib_contract_text)
         recovery_text = recovery_card.read_text(encoding="utf-8")
         transfer_text = (root / "vibelign-gui" / "src" / "components" / "cards" / "transfer" / "TransferCard.tsx").read_text(encoding="utf-8")
         command_data_text = (root / "vibelign-gui" / "src" / "lib" / "commandData.ts").read_text(encoding="utf-8")
@@ -127,8 +142,8 @@ class GuiCliContractsTest(unittest.TestCase):
         self.assertIn('name: "recovery-options"', command_data_text)
         self.assertIn('usage: "vib memory show"', command_data_text)
         self.assertIn('usage: "vib recover --preview"', command_data_text)
-        self.assertIn("{cmd.usage}", home_text)
-        self.assertIn("서브명령 / 옵션", home_text)
+        self.assertIn("{command.usage}", manual_command_list_text)
+        self.assertIn("서브명령 / 옵션", manual_command_detail_text)
         self.assertIn('proposal-create --first-next-action', command_data_text)
         self.assertIn('proposal-accept --field next_action', command_data_text)
         self.assertIn('proposal-undo --proposal-hash', command_data_text)
@@ -264,7 +279,7 @@ class GuiCliContractsTest(unittest.TestCase):
                 "src/session_memory.py",
                 "agent observed recent work",
                 source="observed",
-                updated_by="mcp patch_apply",
+                updated_by="memory_observer",
             )
             previous = Path.cwd()
             try:

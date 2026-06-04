@@ -1422,7 +1422,7 @@ MANUAL: dict[str, ManualEntry] = {
             ('"3번으로 복원해줘"', "checkpoint_restore 바로 호출"),
             (
                 '"바이브라인으로 로그인 버튼 크기 키워줘"',
-                "patch_get → 수정 → guard_check → checkpoint 자동 실행",
+                "안전 수정 → guard_check → checkpoint 자동 실행",
             ),
             (
                 '"바이브라인으로 다크모드 배경색 바꿔줘"',

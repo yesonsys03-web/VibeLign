@@ -10,14 +10,14 @@ from vibelign.core.memory.models import MemoryState, MemoryVerification
 _STALE_INTENT_AGE = timedelta(hours=24)
 _STALE_INTENT_COMMIT_EVENTS = 5
 _CONFLICT_WINDOW = timedelta(seconds=60)
-_PATCH_APPLY_DECISION_THRESHOLD = 3
+_OBSERVED_EDIT_DECISION_THRESHOLD = 3
 TRIGGER_STALE_VERIFICATION = "stale_verification"
 TRIGGER_STALE_INTENT = "stale_intent"
 TRIGGER_STALE_RELEVANT_FILES = "stale_relevant_files"
 TRIGGER_CONFLICT_DETECTED = "conflict_detected"
 TRIGGER_MISSING_NEXT_ACTION = "missing_next_action"
-TRIGGER_MISSING_DECISION_AFTER_PATCHES = "missing_decision_after_patches"
-TRIGGER_PATCH_OUTSIDE_INTENT_ZONE = "patch_outside_intent_zone"
+TRIGGER_MISSING_DECISION_AFTER_OBSERVED_EDITS = "missing_decision_after_observed_edits"
+TRIGGER_OBSERVED_EDIT_OUTSIDE_INTENT_ZONE = "observed_edit_outside_intent_zone"
 
 
 @dataclass(frozen=True)
@@ -28,8 +28,8 @@ class MemoryFreshness:
     stale_relevant_files: list[str] = field(default_factory=list)
     conflicting_fields: list[str] = field(default_factory=list)
     missing_next_action: bool = False
-    missing_decision_after_patches: bool = False
-    patch_outside_intent_zone: list[str] = field(default_factory=list)
+    missing_decision_after_observed_edits: bool = False
+    observed_edit_outside_intent_zone: list[str] = field(default_factory=list)
     active_trigger_ids: list[str] = field(default_factory=list)
 
 
@@ -47,8 +47,8 @@ def assess_memory_freshness(state: MemoryState) -> MemoryFreshness:
     stale_intent = _has_stale_intent(state)
     conflicting_fields = _conflicting_fields(state)
     missing_next_action = state.next_action is None or not state.next_action.text.strip()
-    missing_decision_after_patches = _missing_decision_after_patches(state)
-    patch_outside_intent_zone = _patch_outside_intent_zone(state)
+    missing_decision_after_observed_edits = _missing_decision_after_observed_edits(state)
+    observed_edit_outside_intent_zone = _observed_edit_outside_intent_zone(state)
     active_trigger_ids: list[str] = []
     if stale_commands:
         active_trigger_ids.append(TRIGGER_STALE_VERIFICATION)
@@ -60,10 +60,10 @@ def assess_memory_freshness(state: MemoryState) -> MemoryFreshness:
         active_trigger_ids.append(TRIGGER_CONFLICT_DETECTED)
     if missing_next_action:
         active_trigger_ids.append(TRIGGER_MISSING_NEXT_ACTION)
-    if missing_decision_after_patches:
-        active_trigger_ids.append(TRIGGER_MISSING_DECISION_AFTER_PATCHES)
-    if patch_outside_intent_zone:
-        active_trigger_ids.append(TRIGGER_PATCH_OUTSIDE_INTENT_ZONE)
+    if missing_decision_after_observed_edits:
+        active_trigger_ids.append(TRIGGER_MISSING_DECISION_AFTER_OBSERVED_EDITS)
+    if observed_edit_outside_intent_zone:
+        active_trigger_ids.append(TRIGGER_OBSERVED_EDIT_OUTSIDE_INTENT_ZONE)
     return MemoryFreshness(
         verification_freshness="stale" if stale_commands else "",
         stale_verification_commands=stale_commands,
@@ -71,34 +71,30 @@ def assess_memory_freshness(state: MemoryState) -> MemoryFreshness:
         stale_relevant_files=stale_relevant_files,
         conflicting_fields=conflicting_fields,
         missing_next_action=missing_next_action,
-        missing_decision_after_patches=missing_decision_after_patches,
-        patch_outside_intent_zone=patch_outside_intent_zone,
+        missing_decision_after_observed_edits=missing_decision_after_observed_edits,
+        observed_edit_outside_intent_zone=observed_edit_outside_intent_zone,
         active_trigger_ids=active_trigger_ids,
     )
 
 
-def _missing_decision_after_patches(state: MemoryState) -> bool:
+def _missing_decision_after_observed_edits(state: MemoryState) -> bool:
     if state.decisions:
         return False
-    patch_apply_count = sum(
-        1
-        for item in state.relevant_files
-        if item.updated_by == "mcp patch_apply" or item.why.startswith("patch_apply target")
-    )
-    return patch_apply_count >= _PATCH_APPLY_DECISION_THRESHOLD
+    observed_edit_count = sum(1 for item in state.relevant_files if _is_observed_edit_file(item))
+    return observed_edit_count >= _OBSERVED_EDIT_DECISION_THRESHOLD
 
 
-def _patch_outside_intent_zone(state: MemoryState) -> list[str]:
-    patch_items = [item for item in state.relevant_files if _is_patch_apply_file(item)]
-    patch_times = [
+def _observed_edit_outside_intent_zone(state: MemoryState) -> list[str]:
+    observed_edit_items = [item for item in state.relevant_files if _is_observed_edit_file(item)]
+    observed_edit_times = [
         (item, parsed)
-        for item in patch_items
+        for item in observed_edit_items
         if item.path and (parsed := _parse_timestamp(item.last_updated)) is not None
     ]
-    if not patch_times:
+    if not observed_edit_times:
         return []
-    latest_time = max(parsed for _, parsed in patch_times)
-    latest_paths = {item.path for item, parsed in patch_times if parsed == latest_time}
+    latest_time = max(parsed for _, parsed in observed_edit_times)
+    latest_paths = {item.path for item, parsed in observed_edit_times if parsed == latest_time}
     zone_paths = {
         item.path
         for item in state.relevant_files
@@ -106,7 +102,7 @@ def _patch_outside_intent_zone(state: MemoryState) -> list[str]:
     }
     zone_paths.update(
         item.path
-        for item, parsed in patch_times
+        for item, parsed in observed_edit_times
         if item.path and parsed < latest_time
     )
     if not zone_paths:
@@ -114,10 +110,10 @@ def _patch_outside_intent_zone(state: MemoryState) -> list[str]:
     return sorted(path for path in latest_paths if path not in zone_paths)
 
 
-def _is_patch_apply_file(item: object) -> bool:
+def _is_observed_edit_file(item: object) -> bool:
     return bool(
-        getattr(item, "updated_by", "") == "mcp patch_apply"
-        or getattr(item, "why", "").startswith("patch_apply target")
+        getattr(item, "updated_by", "") == "memory_observer"
+        or getattr(item, "why", "").startswith("observed edit")
     )
 
 
@@ -160,8 +156,8 @@ def _is_stale_verification(state: MemoryState, verification: MemoryVerification)
         event_time = _parse_timestamp(event.timestamp)
         if event_time is not None and event_time > verification_time:
             return True
-    latest_patch_time = _latest_patch_apply_time(state)
-    if latest_patch_time is not None and latest_patch_time > verification_time:
+    latest_observed_edit_time = _latest_observed_edit_time(state)
+    if latest_observed_edit_time is not None and latest_observed_edit_time > verification_time:
         return True
     return False
 
@@ -172,11 +168,11 @@ def _active_intent_timestamp(state: MemoryState) -> datetime | None:
     return _parse_timestamp(state.active_intent.last_updated)
 
 
-def _latest_patch_apply_time(state: MemoryState) -> datetime | None:
+def _latest_observed_edit_time(state: MemoryState) -> datetime | None:
     timestamps = [
         _parse_timestamp(item.last_updated)
         for item in state.relevant_files
-        if item.updated_by == "mcp patch_apply" or item.why.startswith("patch_apply target")
+        if _is_observed_edit_file(item)
     ]
     parsed = [item for item in timestamps if item is not None]
     if not parsed:

@@ -29,8 +29,8 @@ class _MemoryFreshnessLike(Protocol):
     stale_relevant_files: list[str]
     conflicting_fields: list[str]
     missing_next_action: bool
-    missing_decision_after_patches: bool
-    patch_outside_intent_zone: list[str]
+    missing_decision_after_observed_edits: bool
+    observed_edit_outside_intent_zone: list[str]
     active_trigger_ids: list[str]
 
 
@@ -103,23 +103,23 @@ def review_memory(path: Path, suppressed_trigger_ids: Iterable[str] | None = Non
                 "Capture the next handoff action with --first-next-action.",
             )
         )
-    if freshness.missing_decision_after_patches and not _is_suppressed(
-        "missing_decision_after_patches", suppressed
+    if freshness.missing_decision_after_observed_edits and not _is_suppressed(
+        "missing_decision_after_observed_edits", suppressed
     ):
         suggestions.append(
             _trigger_suggestion(
-                "missing_decision_after_patches",
-                'Capture a decision after repeated patches with: vib memory decide "...".',
+                "missing_decision_after_observed_edits",
+                'Capture a decision after repeated observed edits with: vib memory decide "...".',
             )
         )
-    if freshness.patch_outside_intent_zone and not _is_suppressed(
-        "patch_outside_intent_zone", suppressed
+    if freshness.observed_edit_outside_intent_zone and not _is_suppressed(
+        "observed_edit_outside_intent_zone", suppressed
     ):
-        paths = ", ".join(freshness.patch_outside_intent_zone[:3])
+        paths = ", ".join(freshness.observed_edit_outside_intent_zone[:3])
         suggestions.append(
             _trigger_suggestion(
-                "patch_outside_intent_zone",
-                f"Review latest patch target outside the intent zone: {paths}.",
+                "observed_edit_outside_intent_zone",
+                f"Review latest observed edit outside the intent zone: {paths}.",
             )
         )
     if freshness.stale_verification_commands and not _is_suppressed("stale_verification", suppressed):

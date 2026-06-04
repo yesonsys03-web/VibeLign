@@ -763,15 +763,15 @@ Best results come from these conventions:
 - keep entry files tiny
 - split large files before AI keeps growing them
 - run `vib scan` after adding anchors to keep the project map fresh
-- prefer patch requests over vague instructions (Korean is supported)
+- prefer concrete change requests over vague instructions (Korean is supported)
 - run `vib guard` before another large AI change
 
-### VibeLign patch rules
+### VibeLign request interpretation rules
 
 - Split composite requests into `intent / source / destination / behavior_constraint`.
 - If `delete` and `move` appear together, treat it as move + preservation unless the user clearly wants removal.
 - Resolve `source` and `destination` by role, not with the same rule.
-- If patch contract or codespeak shape changes, update tests and docs together.
+- If generated project rules or manual wording changes, update tests and docs together.
 - Keep terminology aligned with the shared glossary and project docs.
 
 ---
