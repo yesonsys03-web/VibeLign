@@ -60,4 +60,3 @@ These commands remain documented for compatibility and internal workflows, but t
 
 | Command | Use it when | Source |
 |---|---|---|
-| `vib patch` | maintaining an older structured-patch workflow | [`../MANUAL.md`](../MANUAL.md) |

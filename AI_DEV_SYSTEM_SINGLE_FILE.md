@@ -87,7 +87,7 @@ Examples:
 ### Large pages or modules (e.g. major UI pages)
 
 - Do not treat one outer anchor as the only safe zone for an entire very large file; prefer sub-anchors per major section until the file can be split.
-- `vib patch` / CodeSpeak targeting works best when `target_anchor` spans a small, stable region.
+- Direct project-map editing works best when anchors span small, stable regions.
 
 ---
 
@@ -310,12 +310,11 @@ Use this loop whenever possible:
 
 ```bash
 vib doctor --strict
-vib anchor
-vib patch "your request here"
-# apply AI edit
+vib scan
 vib explain --write-report
 vib guard --strict --write-report
 ```
+Between `vib scan` and verification, the host AI reads `.vibelign/project_map.json` or uses `project_map_get` / `anchor_read_content`, then edits directly.
 
 ### Meaning
 - `doctor` → inspect structure

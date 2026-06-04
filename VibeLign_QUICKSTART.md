@@ -158,10 +158,6 @@ vib anchor --dry-run
 
 vib scan
 
-vib patch "진행 표시바 추가해줘" --json
-
-vib patch "로그인 버튼 추가해줘" --json
-
 vib explain --json
 
 vib guard --json
@@ -224,7 +220,6 @@ vib start
 vib checkpoint "test"
 vib history
 vib doctor
-vib patch "test" --json
 vib guard --json
 
 Installation is correct.
@@ -249,7 +244,6 @@ Installation is correct.
 | `vib doctor` | 프로젝트 구조 진단 |
 | `vib anchor` | 안전 구역(앵커) 삽입 |
 | `vib scan` | 앵커 스캔 + 코드맵 갱신 한 번에 |
-| `vib patch "요청"` | AI 수정 요청서 생성 (한국어 지원) |
 | `vib explain` | 최근 변경사항 설명 |
 | `vib guard` | 종합 안전 체크 |
 | `vib export <도구>` | 도구별 템플릿 내보내기 |

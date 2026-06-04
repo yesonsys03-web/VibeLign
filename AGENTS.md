@@ -37,15 +37,17 @@ User: "로그인 버튼 색 파란색으로 바꿔줘"
 **Triggered strictly when the user's message contains "바이브라인" or "vibelign" (case-insensitive).**
 Do NOT switch to this mode based on your own judgment — keyword is required.
 
-1. Call `patch_get` with the user's request — translates it to CodeSpeak and pinpoints exact `target_file` and `target_anchor`.
-2. Modify **only** within the returned `target_anchor` boundary in `target_file`.
-3. Call `guard_check` to validate.
-4. Call `checkpoint_create` to save the state.
+1. Call `project_map_get` to inspect project categories, files, and anchors.
+2. Call `anchor_read_content` for the relevant anchor when an MCP host is available.
+3. Edit the relevant file directly, staying inside the appropriate anchor or smallest safe scope.
+4. Call `guard_check` to validate.
+5. Call `checkpoint_create` to save the state.
 
 ```
 User: "바이브라인으로 로그인 버튼 색 파란색으로 바꿔줘"
-→ patch_get("로그인 버튼 색 파란색으로 바꿔줘")
-→ Modify only target_file at target_anchor
+→ project_map_get()
+→ anchor_read_content(file_path="...", anchor_name="...")
+→ Modify only the relevant file/scope
 → guard_check → checkpoint_create
 
 User: "vibelign change login button color to blue"
@@ -56,12 +58,11 @@ User: "vibelign change login button color to blue"
 
 ```bash
 vib doctor --strict
-vib anchor
-vib patch "<your request>"
-# apply the AI edit
+vib scan
 vib explain --write-report
 vib guard --strict --write-report
 ```
+Host AI reads `.vibelign/project_map.json` and edits directly between scan and verification.
 
 ## Project Map
 
@@ -102,7 +103,7 @@ work_memory.json 의 의미 칸은 *3 가지 경로* 로 채워집니다:
 |---|---|---|
 | `decisions[]` | (없음 — 자동 캡처 안 함) | `transfer_set_decision(text)` |
 | `verification[]` | guard_check 결과 | `transfer_set_verification(text)` |
-| `relevant_files[]` | patch_apply target | `transfer_set_relevant(path, why)` |
+| `relevant_files[]` | explicit relevant file calls | `transfer_set_relevant(path, why)` |
 | `recent_events[]` (kind=commit/checkpoint) | git post-commit / checkpoint_create | (호출 없음) |
 
 `decisions[-1]` 이 PROJECT_CONTEXT.md 의 **active_intent** 가 됩니다. 그러므로
@@ -171,15 +172,17 @@ User: "로그인 버튼 색 파란색으로 바꿔줘"
 **Triggered strictly when the user's message contains "바이브라인" or "vibelign" (case-insensitive).**
 Do NOT switch to this mode based on your own judgment — keyword is required.
 
-1. Call `patch_get` with the user's request — translates it to CodeSpeak and pinpoints exact `target_file` and `target_anchor`.
-2. Modify **only** within the returned `target_anchor` boundary in `target_file`.
-3. Call `guard_check` to validate.
-4. Call `checkpoint_create` to save the state.
+1. Call `project_map_get` to inspect project categories, files, and anchors.
+2. Call `anchor_read_content` for the relevant anchor when an MCP host is available.
+3. Edit the relevant file directly, staying inside the appropriate anchor or smallest safe scope.
+4. Call `guard_check` to validate.
+5. Call `checkpoint_create` to save the state.
 
 ```
 User: "바이브라인으로 로그인 버튼 색 파란색으로 바꿔줘"
-→ patch_get("로그인 버튼 색 파란색으로 바꿔줘")
-→ Modify only target_file at target_anchor
+→ project_map_get()
+→ anchor_read_content(file_path="...", anchor_name="...")
+→ Modify only the relevant file/scope
 → guard_check → checkpoint_create
 
 User: "vibelign change login button color to blue"
@@ -190,12 +193,11 @@ User: "vibelign change login button color to blue"
 
 ```bash
 vib doctor --strict
-vib anchor
-vib patch "<your request>"
-# apply the AI edit
+vib scan
 vib explain --write-report
 vib guard --strict --write-report
 ```
+Host AI reads `.vibelign/project_map.json` and edits directly between scan and verification.
 
 ## Project Map
 
@@ -236,7 +238,7 @@ work_memory.json 의 의미 칸은 *3 가지 경로* 로 채워집니다:
 |---|---|---|
 | `decisions[]` | (없음 — 자동 캡처 안 함) | `transfer_set_decision(text)` |
 | `verification[]` | guard_check 결과 | `transfer_set_verification(text)` |
-| `relevant_files[]` | patch_apply target | `transfer_set_relevant(path, why)` |
+| `relevant_files[]` | explicit relevant file calls | `transfer_set_relevant(path, why)` |
 | `recent_events[]` (kind=commit/checkpoint) | git post-commit / checkpoint_create | (호출 없음) |
 
 `decisions[-1]` 이 PROJECT_CONTEXT.md 의 **active_intent** 가 됩니다. 그러므로
@@ -250,4 +252,3 @@ work_memory.json 의 의미 칸은 *3 가지 경로* 로 채워집니다:
 - 단순 진행 보고 ("이제 Task 3 시작")
 - commit 정렬 / 버전 bump 같은 메커니컬 작업
 - 검증 결과 (그건 `transfer_set_verification`)
-

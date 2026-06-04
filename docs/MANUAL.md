@@ -75,7 +75,7 @@ This card explains the rules that keep AI edits safe and predictable.
 |--------|---------------|
 | Request decomposition | AI should split each request into `intent / source / destination / behavior_constraint`. |
 | Narrow scope first | Prefer one file, one anchor, one clear change. Do not let AI spread edits across unrelated code. |
-| No out-of-bound edits | Only `target_file` and `target_anchor` are allowed. Everything else stays untouched. |
+| No out-of-bound edits | Edit only the relevant file and anchor/scope. Everything else stays untouched. |
 | Move/delete preservation | If `delete` and `move` are both present, treat it as move + preservation unless the user explicitly wants removal. |
 | Source/destination by role | Resolve source and destination independently based on their roles. |
 | Guard after edits | Verify and checkpoint after applying AI changes. |
@@ -421,7 +421,7 @@ AI can be instructed to edit only inside an anchor instead of rewriting the full
 ### Anchor intent metadata
 
 You can attach intent descriptions to anchors in `.vibelign/anchor_meta.json`.
-This improves patch suggestion accuracy when using `vib patch`.
+This helps host AIs understand anchor intent when they read the project map directly.
 
 Format:
 
@@ -459,35 +459,19 @@ This is the recommended way to keep the project map fresh after adding anchors.
 
 ---
 
-## `vib patch`
+## Host AI direct-read workflow
 
-Legacy command. Builds a structured AI edit prompt.
+Natural-language edits should be handled by Claude Code, Codex, Cursor, or another host AI reading VibeLign project rules and MCP tools directly.
 
-`vib patch` is no longer recommended in the beginner flow. Natural-language edits should normally be handled by Claude Code, Codex, Cursor, or another host AI reading VibeLign project rules and MCP tools directly.
-
-```bash
-vib patch "로그인 버튼 추가해줘"
-vib patch "add progress indicator to backup worker"
-vib patch "add progress indicator to backup worker" --json
-```
-
-Outputs:
-
-- suggested target file and anchor (CodeSpeak + 앵커 위치 요약)
-- confidence
-- rationale
-
-Korean requests are fully supported:
+Recommended flow:
 
 ```bash
-vib patch "로그인 버튼 크기 키워줘"
-vib patch "장바구니 삭제 버튼 추가해줘"
-vib patch "비밀번호 버그 고쳐줘"
+vib scan
+vib guard --strict
+vib checkpoint "완료: 작업 설명"
 ```
 
-Notes:
-
-- files like `__init__.py`, tests, docs, and cache folders are strongly deprioritized
+When MCP is available, use `project_map_get` to inspect categories/files/anchors and `anchor_read_content` to read the relevant anchor before editing directly.
 - if the project has no useful source files yet, confidence becomes low
 - if anchor intent metadata exists in `.vibelign/anchor_meta.json`, it is used to improve anchor matching accuracy
 

@@ -129,6 +129,24 @@ class VibStartTest(unittest.TestCase):
             self.assertTrue((export_dir / "VERIFICATION_CHECKLIST.md").exists())
             self.assertTrue((export_dir / "SETUP.md").exists())
 
+    def test_export_tool_files_use_direct_read_workflow(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            export_tool_files(root, "codex")
+            export_dir = root / "vibelign_exports" / "codex"
+            exported = "\n".join(
+                path.read_text(encoding="utf-8")
+                for path in sorted(export_dir.glob("*.md"))
+            )
+
+            self.assertIn("project_map_get", exported)
+            self.assertIn("anchor_read_content", exported)
+            self.assertIn("guard_check", exported)
+            self.assertIn("checkpoint_create", exported)
+            self.assertNotIn("patch_get", exported)
+            self.assertNotIn("CodeSpeak", exported)
+            self.assertNotIn("vib patch", exported)
+
     def test_export_tool_files_preserves_existing_files_without_overwrite(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

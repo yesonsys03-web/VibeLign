@@ -67,15 +67,17 @@ User: "로그인 버튼 색 파란색으로 바꿔줘"
 **Triggered strictly when the user's message contains "바이브라인" or "vibelign" (case-insensitive).**
 Do NOT switch to this mode based on your own judgment — keyword is required.
 
-1. Call `patch_get` with the user's request — translates it to CodeSpeak and pinpoints exact `target_file` and `target_anchor`.
-2. Modify **only** within the returned `target_anchor` boundary in `target_file`.
-3. Call `guard_check` to validate.
-4. Call `checkpoint_create` to save the state.
+1. Call `project_map_get` to inspect the file categories and anchor index.
+2. Call `anchor_read_content` for the relevant anchor before editing.
+3. Modify the relevant file directly, staying inside the selected anchor or smallest safe scope.
+4. Call `guard_check` to validate.
+5. Call `checkpoint_create` to save the state.
 
 ```
 User: "바이브라인으로 로그인 버튼 색 파란색으로 바꿔줘"
-→ patch_get("로그인 버튼 색 파란색으로 바꿔줘")
-→ Modify only target_file at target_anchor
+→ project_map_get("로그인 버튼 색 파란색으로 바꿔줘")
+→ anchor_read_content(path="...", anchor="...")
+→ Modify the relevant file directly
 → guard_check → checkpoint_create
 
 User: "vibelign change login button color to blue"
@@ -86,12 +88,11 @@ User: "vibelign change login button color to blue"
 
 ```bash
 vib doctor --strict
-vib anchor
-vib patch "<your request>"
-# apply the AI edit
+vib scan
 vib explain --write-report
 vib guard --strict --write-report
 ```
+Host AI가 `.vibelign/project_map.json`을 읽고 직접 편집합니다.
 
 ## Project Map
 
@@ -142,7 +143,7 @@ _RULES = """\
 8. **코드맵을 먼저 읽으세요** — `.vibelign/project_map.json`에서 파일 구조와 앵커 위치를 확인
 9. **응집도** — 같이 바뀌는 코드는 한 모듈·디렉터리에 두고, 책임이 갈라지면 분리
 10. **이름·경로** — 기능을 경로·이름만으로 찾을 수 있게
-11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할; `vib patch`는 작은 `target_anchor`가 안전
+11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할
 12. **새 기능 기본값** — 새로운 기능은 기존 큰 파일에 덧붙이지 말고 새 파일·모듈·컴포넌트로 분리
 """
 
@@ -169,11 +170,12 @@ vib checkpoint "작업 설명"
 ```
 예: `vib checkpoint "로그인 기능 추가 전"`
 
-**4단계 — 패치 요청 준비**
+**4단계 — 직접 편집 준비**
 ```
-vib patch "원하는 변경사항"
+vib scan
 ```
-AI에게 전달할 안전한 프롬프트가 VIBELIGN_PATCH_REQUEST.md에 생성됩니다.
+MCP host에서는 `project_map_get` 후 `anchor_read_content`를 호출하세요.
+프로젝트 맵과 관련 앵커 내용을 읽고 host AI가 직접 편집합니다.
 
 ---
 
@@ -230,6 +232,7 @@ _PROMPT_TEMPLATE = """\
 ## 반드시 지킬 규칙
 
 - 위에 지정한 파일과 앵커만 수정하세요
+- MCP 사용 가능 시 project_map_get과 anchor_read_content로 범위를 확인하세요
 - 다른 파일은 절대 건드리지 마세요
 - 파일 전체를 다시 쓰지 마세요
 - ANCHOR 마커(ANCHOR: NAME_START / NAME_END)를 삭제하지 마세요
@@ -262,7 +265,7 @@ _CURSOR_RULES = """\
 8. **코드맵을 먼저 읽으세요** — `.vibelign/project_map.json`에서 파일 구조와 앵커 위치를 확인
 9. **응집도** — 같이 바뀌는 코드는 한 모듈·디렉터리에 두고, 책임이 갈라지면 분리
 10. **이름·경로** — 기능을 경로·이름만으로 찾을 수 있게
-11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할; `vib patch`는 작은 `target_anchor`가 안전
+11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할
 """
 
 _ANTIGRAVITY_TASK = """\
@@ -285,6 +288,7 @@ _ANTIGRAVITY_TASK = """\
 ## 제약 조건
 
 - 이 파일과 앵커만 수정
+- MCP 사용 가능 시 project_map_get과 anchor_read_content로 범위 확인
 - 파일 전체 재작성 금지
 - 다른 파일 수정 금지
 - 임포트 구조 유지
@@ -315,9 +319,9 @@ AI가 코드를 수정한 뒤 반드시 아래 항목을 확인하세요.
 - [ ] 임포트 구조가 바뀌지 않았나요?
 
 ## 최종
-- [ ] `vib guard --strict` 실행 → 이상 없음 확인
+- [ ] `guard_check` 또는 `vib guard --strict` 실행 → 이상 없음 확인
 - [ ] 이상 있으면: `vib undo` 로 되돌리기
-- [ ] 이상 없으면: `vib checkpoint "완료: 작업 설명"`
+- [ ] 이상 없으면: `checkpoint_create` 또는 `vib checkpoint "완료: 작업 설명"`
 """
 
 _ANTIGRAVITY_SETUP = """\
@@ -340,6 +344,7 @@ vib checkpoint "작업 설명"
 
 **4단계 — 작업 요청서 작성**
 TASK_ARTIFACT.md를 채워서 AI에게 전달하세요.
+가능하면 AI가 project_map_get과 anchor_read_content로 범위를 먼저 확인하게 하세요.
 
 **5단계 — 작업 완료 후 체크**
 VERIFICATION_CHECKLIST.md 항목을 순서대로 확인하세요.
@@ -349,6 +354,7 @@ VERIFICATION_CHECKLIST.md 항목을 순서대로 확인하세요.
 vib explain --write-report
 vib guard --strict
 ```
+MCP host에서는 guard_check 후 checkpoint_create를 호출하세요.
 
 **문제 없으면** → `vib checkpoint "완료"`
 **문제 있으면** → `vib undo`
@@ -373,7 +379,7 @@ _CLAUDE_MD_CONTENT = """\
 8. **코드맵을 먼저 읽으세요** — `.vibelign/project_map.json`에서 파일 구조와 앵커 위치를 확인
 9. **응집도** — 같이 바뀌는 코드는 한 모듈·디렉터리에 두고, 책임이 갈라지면 분리
 10. **이름·경로** — 기능을 경로·이름만으로 찾을 수 있게
-11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할; `vib patch`는 작은 `target_anchor`가 안전
+11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할
 
 ## 작업 흐름
 
@@ -381,7 +387,7 @@ _CLAUDE_MD_CONTENT = """\
 vib doctor --strict        # 상태 확인
 vib anchor                 # 안전 구역 설정
 vib checkpoint "설명"      # 현재 상태 저장
-# AI 작업 수행
+project_map_get / anchor_read_content 확인 후 AI 작업 수행
 vib guard --strict         # 결과 검증
 vib checkpoint "완료"      # 또는 vib undo
 ```
@@ -404,7 +410,7 @@ _OPENCODE_MD_CONTENT = """\
 8. **코드맵을 먼저 읽으세요** — `.vibelign/project_map.json`에서 파일 구조와 앵커 위치를 확인
 9. **응집도** — 같이 바뀌는 코드는 한 모듈·디렉터리에 두고, 책임이 갈라지면 분리
 10. **이름·경로** — 기능을 경로·이름만으로 찾을 수 있게
-11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할; `vib patch`는 작은 `target_anchor`가 안전
+11. **큰 파일** — 무한 확장보다 새 파일·모듈; ESLint `max-lines`·`watch_rules` 한도 준수; 거대 UI는 구역 앵커 후 분할
 
 ## 작업 흐름
 
@@ -412,7 +418,7 @@ _OPENCODE_MD_CONTENT = """\
 vib doctor --strict        # 상태 확인
 vib anchor                 # 안전 구역 설정
 vib checkpoint "설명"      # 현재 상태 저장
-# AI 작업 수행
+project_map_get / anchor_read_content 확인 후 AI 작업 수행
 vib guard --strict         # 결과 검증
 vib checkpoint "완료"      # 또는 vib undo
 ```

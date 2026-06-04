@@ -365,14 +365,14 @@ VibeLign이 보장하는 것:
 
 **v2.2.11** — GUI Patch 카드 노출 제거 (정확도 기반 deprecation):
 
-- 🚫 **Patch 카드 기본 노출에서 제거** — v2.2.10 측정에서 `vib patch` 자연 분포 정확도가 사용자 실 요청 7건 중 0건이었음 (키워드 함정: `--json` → 무관한 Python docs 명령 파일, `--preview` → 무관한 backup-restore 파일). 사용자가 출력을 무비판적으로 따를 경우 무관 파일이 잘못 수정될 위험이 가장 큰 surface 였음. 신규/기존 사용자 모두 Home 카드 목록에서 더 이상 보이지 않음. CLI `vib patch` 는 그대로 유지. 자연어 패치는 Claude Code / Cursor 에서 직접 (vibelign-mcp 는 `vib start` 시 자동 등록).
+- 🚫 **Patch 카드 기본 노출에서 제거** — v2.2.10 측정에서 레거시 구조화 패치 흐름의 자연 분포 정확도가 사용자 실 요청 7건 중 0건이었음 (키워드 함정: `--json` → 무관한 Python docs 명령 파일, `--preview` → 무관한 backup-restore 파일). 사용자가 출력을 무비판적으로 따를 경우 무관 파일이 잘못 수정될 위험이 가장 큰 surface 였음. 신규/기존 사용자 모두 Home 카드 목록에서 더 이상 보이지 않음. 자연어 편집은 Claude Code / Cursor 에서 직접 (vibelign-mcp 는 `vib start` 시 자동 등록).
 
 **v2.2.10** — MCP host-LLM pivot PoC + BACKUPS 페이지네이션 + Explain 카드 옵션 정리:
 
-- 🧠 **신규 MCP 도구** — `anchor_read_content` (앵커 경계 안 텍스트 read, path traversal 방지, `_START`/`_END` 접미사 자동 정규화) + `project_map_get` (프로젝트 카테고리/파일/앵커 인덱스 일괄 반환). host LLM(Claude Code/Cursor)이 사용자 자연어 요청 → 정확한 `file:anchor` 매핑을 직접 수행. 사용자 실 요청 6건에서 baseline `vib patch` 0/6 vs host LLM 6/6 측정.
+- 🧠 **신규 MCP 도구** — `anchor_read_content` (앵커 경계 안 텍스트 read, path traversal 방지, `_START`/`_END` 접미사 자동 정규화) + `project_map_get` (프로젝트 카테고리/파일/앵커 인덱스 일괄 반환). host LLM(Claude Code/Cursor)이 사용자 자연어 요청 → 정확한 `file:anchor` 매핑을 직접 수행. 사용자 실 요청 6건에서 baseline 레거시 구조화 패치 흐름 0/6 vs host LLM 6/6 측정.
 - 📋 **BACKUPS 파일 기록 + DB Viewer rows 페이지네이션** — 페이지당 10개, "← 이전 / X / Y 페이지 · M–N / TOTAL / 다음 →" 푸터. 리스트가 누적되어도 예전 항목 다시 볼 수 있음. 검색어 변경 시 1페이지 리셋, 선택 항목이 다른 페이지에 있으면 자동 점프.
 - 🧹 **Explain 카드 `--write-report` / `--json` 옵션 제거** — GUI 카드 flags 에서만 제거 (CLI 의 동일 플래그는 그대로 지원, 다른 명령은 영향 없음).
-- 📚 도그푸딩 증거: `vib patch "gui 익스플레인 카드에서 --write-report --json 옵션은 제거해줘"` → `vib_docs_build_cmd.py` 라는 완전 엉뚱한 파일을 짚음 (JSON 키워드 함정). 신규 MCP 도구로 작업하는 host LLM 은 정답 `commandData.ts` 즉시 짚음. PR #5 description 부록 참조.
+- 📚 도그푸딩 증거: 레거시 구조화 패치 흐름은 `vib_docs_build_cmd.py` 라는 완전 엉뚱한 파일을 짚음 (JSON 키워드 함정). 신규 MCP 도구로 작업하는 host LLM 은 정답 `commandData.ts` 즉시 짚음. PR #5 description 부록 참조.
 
 **v2.2.9** — v2.2.8 scroll-to-top 버튼이 안 보이던 패치:
 
