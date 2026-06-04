@@ -6,8 +6,7 @@
 vib checkpoint "before work"
 vib doctor --strict
 vib anchor
-vib patch "your request"
-# apply the AI edit
+# ask your host AI to make the edit after it reads AGENTS.md
 vib explain --write-report
 vib guard --strict --write-report
 vib checkpoint "done"
@@ -18,7 +17,7 @@ vib checkpoint "done"
 - `checkpoint` gives you a rollback point
 - `doctor` catches obvious project issues early
 - `anchor` makes edit locations more precise
-- `patch` narrows the request into safer structure
+- your host AI reads the rules and edits inside the intended project surface
 - `explain` helps review what actually changed
 - `guard` checks that the project still looks healthy
 

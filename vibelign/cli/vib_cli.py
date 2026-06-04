@@ -79,7 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="command",
         required=True,
         parser_class=rich_argument_parser,
-        metavar="{install,init,start,checkpoint,undo,history,backup-db-viewer,backup-graph-summary,backup-db-maintenance,backup-cleanup,docs-build,docs-enhance,docs-index,doc-sources,protect,ask,config,doctor,anchor,patch,secrets,explain,recover,guard,claude-hook,export,scan,show,memory,plan-structure,transfer,watch,bench,manual,rules,completion}",
+        metavar="{install,init,start,checkpoint,undo,history,backup-db-viewer,backup-graph-summary,backup-db-maintenance,backup-cleanup,docs-build,docs-enhance,docs-index,doc-sources,protect,ask,config,doctor,anchor,secrets,explain,recover,guard,claude-hook,export,scan,show,memory,transfer,watch,bench,manual,rules,completion}",
     )
 
     register_core_commands(

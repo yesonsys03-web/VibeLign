@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { COMMANDS } from "../../../lib/commands";
+import { COMMANDS, getPatchCommand, getPlanStructureCommand } from "../../../lib/commands";
 import { ManualCommandList } from "../ManualCommandList";
 
 describe("ManualCommandList", () => {
@@ -28,5 +28,21 @@ describe("ManualCommandList", () => {
     fireEvent.click(screen.getByRole("button", { name: "← 홈" }));
 
     expect(back).toHaveBeenCalledOnce();
+  });
+
+  test("keeps_legacy_commands_findable_with_badges", () => {
+    const selectCommand = vi.fn();
+    const patchCommand = getPatchCommand();
+    const planStructureCommand = getPlanStructureCommand();
+
+    render(<ManualCommandList onBack={() => undefined} onSelectCommand={selectCommand} />);
+
+    expect(screen.getByText(patchCommand.title)).toBeInTheDocument();
+    expect(screen.getByText(planStructureCommand.title)).toBeInTheDocument();
+    expect(screen.getAllByText("legacy")).toHaveLength(2);
+
+    fireEvent.click(screen.getByText(patchCommand.title));
+
+    expect(selectCommand).toHaveBeenCalledWith(patchCommand);
   });
 });

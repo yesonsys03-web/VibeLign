@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from vibelign.cli.cli_base import MAIN_DESCRIPTION
+from vibelign.cli.vib_cli import build_parser
 from vibelign.commands.vib_patch_cmd import run_vib_patch
 from vibelign.commands.vib_plan_structure_cmd import run_vib_plan_structure
 
@@ -21,6 +22,16 @@ class LegacySurfaceTest(unittest.TestCase):
         self.assertIn("고급 / legacy:", MAIN_DESCRIPTION)
         self.assertIn("patch", MAIN_DESCRIPTION)
         self.assertIn("plan-structure", MAIN_DESCRIPTION)
+
+    def test_formatted_help_keeps_legacy_commands_out_of_auto_command_lists(self) -> None:
+        help_text = build_parser().format_help()
+        beginner_sections = help_text.split("고급 / legacy:", maxsplit=1)[0]
+
+        self.assertNotIn("  patch", beginner_sections)
+        self.assertNotIn("plan-structure", beginner_sections)
+        self.assertIn("고급 / legacy:", help_text)
+        self.assertIn("patch", help_text)
+        self.assertIn("plan-structure", help_text)
 
     def test_vib_patch_prints_legacy_notice_before_execution(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

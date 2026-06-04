@@ -3,9 +3,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import GuiCliOutputBlock from "../../GuiCliOutputBlock";
 import { buildGuiAiEnv, runVib } from "../../../lib/vib";
 import type { GenericCommandCardProps } from "../GenericCommandCard";
-import { COMMANDS } from "../../../lib/commands";
+import { getPlanStructureCommand } from "../../../lib/commands";
 
-const CMD = COMMANDS.find((c) => c.name === "plan-structure")!;
+const CMD = getPlanStructureCommand();
 
 const FEATURE_KEYWORDS = [
   "oauth", "auth", "login", "token", "watch", "monitor", "scan", "mcp", "handler",

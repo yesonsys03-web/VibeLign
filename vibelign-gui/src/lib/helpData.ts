@@ -45,7 +45,7 @@ const FALLBACK_TOPICS: HelpTopic[] = [
     command: "vib manual",
     summary: "VibeLign에서 쓸 수 있는 주요 명령어들을 알려줘요.",
     answer:
-      "VibeLign의 주요 터미널 커맨드는 vib start, checkpoint, undo, doctor, guard, anchor, watch, patch, plan-structure, claude-hook, protect, secrets, explain, config, export, manual, install, completion이에요. 전체 설명은 vib manual이나 앱 안의 메뉴얼 화면에서 더 자세히 볼 수 있어요.",
+      "VibeLign의 주요 터미널 커맨드는 vib start, checkpoint, undo, doctor, guard, anchor, watch, claude-hook, protect, secrets, explain, config, export, manual, install, completion이에요. legacy 기능은 vib manual이나 앱 안의 고급 메뉴얼에서 따로 확인할 수 있어요.",
   },
   {
     id: "install",

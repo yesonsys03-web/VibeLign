@@ -9,7 +9,7 @@ from typing import cast
 import mcp.types as types
 
 from vibelign.mcp.mcp_server import call_tool
-from vibelign.core.local_checkpoints import list_checkpoints
+from vibelign.core.checkpoint_engine.router import list_checkpoints
 
 
 class McpPatchApplyTest(unittest.TestCase):

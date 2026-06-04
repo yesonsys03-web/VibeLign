@@ -16,7 +16,6 @@ For full details, use the linked canonical docs.
 | `vib backup-db-maintenance --apply --json` | backing up DB files, truncating WAL, and conditionally compacting SQLite | [`../../README.md`](../../README.md) |
 | `vib doctor` | checking project health | [`../../VIBELIGN_MANUAL.md`](../../VIBELIGN_MANUAL.md) |
 | `vib anchor` | adding or refreshing AI-safe edit markers | [`../../VIBELIGN_MANUAL.md`](../../VIBELIGN_MANUAL.md) |
-| `vib patch` | converting natural requests into safer edit instructions | [`../../README.md`](../../README.md) |
 | `vib explain` | understanding what changed | [`../../VIBELIGN_MANUAL.md`](../../VIBELIGN_MANUAL.md) |
 | `vib guard` | checking whether AI broke the project | [`../../VIBELIGN_MANUAL.md`](../../VIBELIGN_MANUAL.md) |
 | `vib protect` | blocking edits to important files | [`../../README.md`](../../README.md) |
@@ -49,8 +48,16 @@ vib transfer --out ctx.md
 ## Rule Of Thumb
 
 - Before edit: `checkpoint`, `doctor`
-- During edit prep: `anchor`, `patch`
+- During edit prep: `anchor`, then ask your host AI to edit using the project rules
 - After edit: `explain`, `guard`
 - For recovery: `undo`, `history`
 - For backup size questions: `backup-db-viewer` shows actual DB/object-store storage; BACKUPS “backup range” is logical restore coverage, not physical disk use.
 - If commits create too many automatic checkpoints: `vib config auto-backup off`, then use `vib checkpoint` manually when needed.
+
+## Legacy Commands
+
+These commands remain documented for compatibility and internal workflows, but they are not the recommended first path.
+
+| Command | Use it when | Source |
+|---|---|---|
+| `vib patch` | maintaining an older structured-patch workflow | [`../MANUAL.md`](../MANUAL.md) |

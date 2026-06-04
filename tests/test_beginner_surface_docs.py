@@ -32,3 +32,19 @@ def test_manual_marks_patch_and_plan_structure_as_legacy() -> None:
 
     assert "legacy" in patch_section.lower()
     assert "legacy" in plan_structure_section.lower()
+
+
+def test_docs_wiki_first_flows_do_not_recommend_legacy_patch_surface() -> None:
+    getting_started = (ROOT / "docs" / "wiki" / "getting-started.md").read_text(
+        encoding="utf-8"
+    )
+    core_workflow = (ROOT / "docs" / "wiki" / "core-workflow.md").read_text(
+        encoding="utf-8"
+    )
+    command_guide = (ROOT / "docs" / "wiki" / "command-guide.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "vib patch" not in getting_started
+    assert "vib patch" not in core_workflow
+    assert "`vib patch`" not in command_guide.split("## Legacy Commands", maxsplit=1)[0]

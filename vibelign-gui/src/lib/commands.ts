@@ -23,6 +23,14 @@ export function getPatchCommand(): (typeof COMMANDS)[number] {
 
 export const PATCH_COMMAND = getPatchCommand();
 
+export function getPlanStructureCommand(): (typeof COMMANDS)[number] {
+  const command = COMMANDS.find((item) => item.name === "plan-structure");
+  if (!command) {
+    throw new Error("plan-structure command metadata is missing");
+  }
+  return command;
+}
+
 /**
  * 커맨드 이름과 플래그 값으로 vib CLI 인수 배열을 만든다.
  * 필수 플래그가 누락되면 null을 반환한다.

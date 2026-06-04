@@ -288,7 +288,7 @@ def register_extended_commands(
 
     p = sub.add_parser(
         "patch",
-        help="legacy: 구조화된 수정 계획을 만들어요",
+        help=argparse.SUPPRESS,
         description=(
             "legacy 기능입니다.\n"
             "자연어 수정은 host AI가 VibeLign MCP 도구를 직접 읽는 흐름을 권장해요."
@@ -730,7 +730,7 @@ def register_extended_commands(
 
     p = sub.add_parser(
         "plan-structure",
-        help="legacy: 내부 구조 계획 JSON을 만들어요",
+        help=argparse.SUPPRESS,
         description=(
             "내부 구조 계획용 legacy 기능입니다.\n"
             "새 기획방/초보 흐름에서는 vib plan과 plans/*.md를 사용해요."

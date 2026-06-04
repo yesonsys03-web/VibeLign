@@ -13,7 +13,7 @@
 vib start
 vib checkpoint "before AI work"
 vib doctor --strict
-vib patch "add a small feature"
+# Ask your host AI to make the edit after it reads AGENTS.md.
 vib explain --write-report
 vib guard --strict --write-report
 ```
@@ -23,7 +23,7 @@ vib guard --strict --write-report
 - `start` prepares the project for AI work
 - `checkpoint` saves a restorable state
 - `doctor` checks project health
-- `patch` turns a natural request into a safer edit plan
+- your host AI follows the project rules and anchors for the edit
 - `explain` tells you what changed
 - `guard` checks whether the change broke things
 
