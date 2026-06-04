@@ -34,7 +34,7 @@ export function guardSafetyCopy(guardResult: GuardResult | null, watchOn: boolea
   }
   return {
     title: "상태를 아직 확인하지 못했어요",
-    detail: "고급 기능에서 프로젝트 검사를 실행하면 더 정확해져요.",
+    detail: "상태 확인을 실행하면 프로젝트 안전 상태가 더 정확해져요.",
     accent: "#B8B4B0",
   };
 }
@@ -48,10 +48,18 @@ export function guardNextActionCopy(guardResult: GuardResult | null, watchOn: bo
       needsAction: true,
     };
   }
+  if (guardResult?.status === "pass") {
+    return {
+      title: "바로 AI 코딩해도 괜찮아요",
+      detail: "지금은 먼저 처리할 문제가 보이지 않아요.",
+      accent: "#4DFF91",
+      needsAction: false,
+    };
+  }
   if (!watchOn) {
     return {
       title: "프로젝트 상태를 한 번 확인하세요",
-      detail: "고급 기능에서 상태 확인을 실행할 수 있어요.",
+      detail: "아래 버튼으로 프로젝트 상태를 바로 확인할 수 있어요.",
       accent: "#FFD166",
       needsAction: false,
     };

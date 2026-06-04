@@ -27,6 +27,20 @@ describe("HomePlanningEntry", () => {
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
+  test("keeps_current_planning_entry_compact", () => {
+    render(
+      <HomePlanningEntry
+        prompt="자동 스크린샷 앱 만들기"
+        outputPath="plans/자동-스크린샷-앱-만들기.md"
+        isPending={false}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    const entry = screen.getByText("현재 기획안").closest("section");
+    expect(entry).toHaveStyle({ padding: "10px" });
+  });
+
   test("shows_pending_state", () => {
     render(
       <HomePlanningEntry

@@ -11,6 +11,13 @@ const GUARD_WITH_RAW_COMMAND = {
   issues: [],
 } satisfies GuardResult;
 
+const PASSING_GUARD = {
+  status: "pass",
+  summary: "guard passed",
+  recommendations: [],
+  issues: [],
+} satisfies GuardResult;
+
 describe("SimpleHome guard copy", () => {
   afterEach(() => {
     cleanup();
@@ -25,7 +32,10 @@ describe("SimpleHome guard copy", () => {
         watchOn={false}
         watchError={null}
         hasCheckpoint={false}
+        guardCheckPending={false}
+        guardCheckError={null}
         onRetryWatch={() => undefined}
+        onRunGuard={() => undefined}
         onShowAdvanced={() => undefined}
         onNavigateBackups={() => undefined}
         onOpenGuardDetails={openGuardDetails}
@@ -39,5 +49,26 @@ describe("SimpleHome guard copy", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "확인하기" }));
     expect(openGuardDetails).toHaveBeenCalledOnce();
+  });
+
+  test("hides_problem_details_button_when_guard_passes_without_issues", () => {
+    render(
+      <SimpleHome
+        guardResult={PASSING_GUARD}
+        watchOn={false}
+        watchError={null}
+        hasCheckpoint={false}
+        guardCheckPending={false}
+        guardCheckError={null}
+        onRetryWatch={() => undefined}
+        onRunGuard={() => undefined}
+        onShowAdvanced={() => undefined}
+        onNavigateBackups={() => undefined}
+        onOpenGuardDetails={() => undefined}
+      />
+    );
+
+    expect(screen.getByText("안전장치가 켜져 있어요")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "문제 확인하기" })).not.toBeInTheDocument();
   });
 });

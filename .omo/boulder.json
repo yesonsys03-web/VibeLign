@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "active_work_id": "planning-work-home-checkpoint-state",
+  "active_work_id": "planning-work-home-reset-accessible-name",
   "works": {
     "planning-room-next-actions": {
       "work_id": "planning-room-next-actions",
@@ -271,6 +271,118 @@
       "active_plan": ".omo/plans/planning-work-home-checkpoint-state.md",
       "plan_name": "planning-work-home-checkpoint-state",
       "session_ids": ["codex:planning-work-home-checkpoint-state"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-home-guard-action": {
+      "work_id": "planning-work-home-guard-action",
+      "active_plan": ".omo/plans/planning-work-home-guard-action.md",
+      "plan_name": "planning-work-home-guard-action",
+      "session_ids": ["codex:planning-work-home-guard-action"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-home-compact-status-blocks": {
+      "work_id": "planning-work-home-compact-status-blocks",
+      "active_plan": ".omo/plans/planning-work-home-compact-status-blocks.md",
+      "plan_name": "planning-work-home-compact-status-blocks",
+      "session_ids": ["codex:planning-work-home-compact-status-blocks"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-home-compact-planning-entry": {
+      "work_id": "planning-work-home-compact-planning-entry",
+      "active_plan": ".omo/plans/planning-work-home-compact-planning-entry.md",
+      "plan_name": "planning-work-home-compact-planning-entry",
+      "session_ids": ["codex:planning-work-home-compact-planning-entry"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-home-content-spacing": {
+      "work_id": "planning-work-home-content-spacing",
+      "active_plan": ".omo/plans/planning-work-home-content-spacing.md",
+      "plan_name": "planning-work-home-content-spacing",
+      "session_ids": ["codex:planning-work-home-content-spacing"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-home-pass-result-action-copy": {
+      "work_id": "planning-work-home-pass-result-action-copy",
+      "active_plan": ".omo/plans/planning-work-home-pass-result-action-copy.md",
+      "plan_name": "planning-work-home-pass-result-action-copy",
+      "session_ids": ["codex:planning-work-home-pass-result-action-copy"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-home-beginner-guard-copy": {
+      "work_id": "planning-work-home-beginner-guard-copy",
+      "active_plan": ".omo/plans/planning-work-home-beginner-guard-copy.md",
+      "plan_name": "planning-work-home-beginner-guard-copy",
+      "session_ids": ["codex:planning-work-home-beginner-guard-copy"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-home-header-component": {
+      "work_id": "planning-work-home-header-component",
+      "active_plan": ".omo/plans/planning-work-home-header-component.md",
+      "plan_name": "planning-work-home-header-component",
+      "session_ids": ["codex:planning-work-home-header-component"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-home-guard-modal-component": {
+      "work_id": "planning-work-home-guard-modal-component",
+      "active_plan": ".omo/plans/planning-work-home-guard-modal-component.md",
+      "plan_name": "planning-work-home-guard-modal-component",
+      "session_ids": ["codex:planning-work-home-guard-modal-component"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-home-advanced-cards-component": {
+      "work_id": "planning-work-home-advanced-cards-component",
+      "active_plan": ".omo/plans/planning-work-home-advanced-cards-component.md",
+      "plan_name": "planning-work-home-advanced-cards-component",
+      "session_ids": ["codex:planning-work-home-advanced-cards-component"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-home-manual-list-component": {
+      "work_id": "planning-work-home-manual-list-component",
+      "active_plan": ".omo/plans/planning-work-home-manual-list-component.md",
+      "plan_name": "planning-work-home-manual-list-component",
+      "session_ids": ["codex:planning-work-home-manual-list-component"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-home-manual-detail-component": {
+      "work_id": "planning-work-home-manual-detail-component",
+      "active_plan": ".omo/plans/planning-work-home-manual-detail-component.md",
+      "plan_name": "planning-work-home-manual-detail-component",
+      "session_ids": ["codex:planning-work-home-manual-detail-component"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-home-advanced-exit": {
+      "work_id": "planning-work-home-advanced-exit",
+      "active_plan": ".omo/plans/planning-work-home-advanced-exit.md",
+      "plan_name": "planning-work-home-advanced-exit",
+      "session_ids": ["codex:planning-work-home-advanced-exit"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-home-rollback-empty-copy": {
+      "work_id": "planning-work-home-rollback-empty-copy",
+      "active_plan": ".omo/plans/planning-work-home-rollback-empty-copy.md",
+      "plan_name": "planning-work-home-rollback-empty-copy",
+      "session_ids": ["codex:planning-work-home-rollback-empty-copy"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-home-reset-accessible-name": {
+      "work_id": "planning-work-home-reset-accessible-name",
+      "active_plan": ".omo/plans/planning-work-home-reset-accessible-name.md",
+      "plan_name": "planning-work-home-reset-accessible-name",
+      "session_ids": ["codex:planning-work-home-reset-accessible-name"],
       "status": "complete",
       "worktree_path": null
     }
