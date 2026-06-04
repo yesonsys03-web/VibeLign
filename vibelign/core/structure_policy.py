@@ -2,16 +2,13 @@
 from __future__ import annotations
 
 import ast
-import json
 import re
 import subprocess
 import sys
 from collections.abc import Iterable
 from pathlib import Path
-from typing import cast
 
 from vibelign.core.meta_paths import MetaPaths
-from vibelign.mcp.mcp_state_store import load_planning_session
 
 COMMON_IGNORED_DIRS: frozenset[str] = frozenset(
     {
@@ -327,67 +324,6 @@ def is_structure_production_kind(path_kind: str) -> bool:
 
 
 # === ANCHOR: STRUCTURE_POLICY_IS_STRUCTURE_PRODUCTION_KIND_END ===
-
-
-# === ANCHOR: STRUCTURE_POLICY_LOAD_ACTIVE_PLAN_PAYLOAD_START ===
-def load_active_plan_payload(
-    meta: MetaPaths,
-) -> tuple[dict[str, object] | None, str | None, str | None]:
-    planning = load_planning_session(meta)
-    if not planning:
-        return None, None, None
-    if planning.get("override") is True:
-        plan_id = planning.get("plan_id")
-        return None, str(plan_id) if isinstance(plan_id, str) else None, "override"
-    if planning.get("active") is not True:
-        return None, None, None
-    plan_id = planning.get("plan_id")
-    if not isinstance(plan_id, str) or not plan_id:
-        return None, None, "invalid_state"
-    plan_path = meta.plans_dir / f"{plan_id}.json"
-    if not plan_path.exists():
-        return None, plan_id, "missing_plan_file"
-    try:
-        loaded = cast(object, json.loads(plan_path.read_text(encoding="utf-8")))
-    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-        return None, plan_id, "broken_plan"
-    if not isinstance(loaded, dict):
-        return None, plan_id, "broken_plan"
-    payload = cast(dict[str, object], loaded)
-    required_keys = {
-        "id",
-        "schema_version",
-        "allowed_modifications",
-        "required_new_files",
-        "forbidden",
-        "messages",
-        "evidence",
-        "scope",
-    }
-    if not required_keys.issubset(payload.keys()):
-        return None, plan_id, "broken_plan"
-    allowed_modifications = payload.get("allowed_modifications")
-    required_new_files = payload.get("required_new_files")
-    forbidden = payload.get("forbidden")
-    if not isinstance(allowed_modifications, list):
-        return None, plan_id, "broken_plan"
-    if not isinstance(required_new_files, list):
-        return None, plan_id, "broken_plan"
-    if not isinstance(forbidden, list):
-        return None, plan_id, "broken_plan"
-    for item in cast(list[object], allowed_modifications):
-        if not isinstance(item, dict):
-            return None, plan_id, "broken_plan"
-    for item in cast(list[object], required_new_files):
-        if not isinstance(item, dict):
-            return None, plan_id, "broken_plan"
-    for item in cast(list[object], forbidden):
-        if not isinstance(item, dict):
-            return None, plan_id, "broken_plan"
-    return payload, plan_id, None
-
-
-# === ANCHOR: STRUCTURE_POLICY_LOAD_ACTIVE_PLAN_PAYLOAD_END ===
 
 
 # === ANCHOR: STRUCTURE_POLICY_SMALL_FIX_LINE_THRESHOLD_START ===

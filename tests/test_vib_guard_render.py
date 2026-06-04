@@ -35,7 +35,7 @@ class VibGuardRenderTest(unittest.TestCase):
                     "status": "planning_exempt",
                     "strict": False,
                     "active_plan_id": None,
-                    "summary": "현재 변경은 문서만 수정하므로 plan-structure 없이 진행 가능한 범위입니다.",
+                    "summary": "현재 변경은 문서만 수정하므로 별도 기획 없이 진행 가능한 범위입니다.",
                     "changed_files": ["docs/README.md"],
                     "required_reasons": [],
                     "deviations": [],
@@ -49,7 +49,7 @@ class VibGuardRenderTest(unittest.TestCase):
         self.assertIn("구조 위험이 조금 있습니다.", markdown)
         self.assertIn("`app.py`", markdown)
         self.assertIn(
-            "문서만 수정하므로 plan-structure 없이 진행 가능한 범위입니다.", markdown
+            "문서만 수정하므로 별도 기획 없이 진행 가능한 범위입니다.", markdown
         )
 
     def test_run_vib_guard_uses_rich_renderer_for_text_output(self):

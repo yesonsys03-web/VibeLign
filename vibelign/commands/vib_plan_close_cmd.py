@@ -20,7 +20,7 @@ def run_vib_plan_close(_args: Namespace) -> None:
     meta = MetaPaths(root)
     planning = load_planning_session(meta)
     if not planning:
-        clack_info("닫을 활성 구조 계획이 없어요.")
+        clack_info("닫을 기획 상태가 없어요.")
         return
 
     updated = dict(planning)
@@ -32,6 +32,6 @@ def run_vib_plan_close(_args: Namespace) -> None:
     _ = updated.pop("override_count", None)
     updated["updated_at"] = patch_session_now()
     save_planning_session(meta, updated)
-    clack_success("활성 구조 계획을 닫았어요.")
+    clack_success("기획 상태를 닫았어요.")
 # === ANCHOR: VIB_PLAN_CLOSE_CMD_RUN_VIB_PLAN_CLOSE_END ===
 # === ANCHOR: VIB_PLAN_CLOSE_CMD_END ===

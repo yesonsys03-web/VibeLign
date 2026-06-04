@@ -40,36 +40,13 @@ class VibPrecheckTest(unittest.TestCase):
             (root / ".vibelign" / "config.yaml").write_text(
                 "schema_version: 1\nclaude_hook_enabled: false\n", encoding="utf-8"
             )
-            code, _out, _err = self._run_precheck(
-                root,
-                {
-                    "tool_name": "Write",
-                    "tool_input": {
-                        "file_path": str(root / "foo.py"),
-                        "content": "print(1)\n",
-                    },
-                },
-            )
-            self.assertEqual(code, 0)
-
-    def test_claude_hook_disabled_keeps_precheck_non_strict_for_production_write(
-        self,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / ".vibelign").mkdir(parents=True, exist_ok=True)
-            (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nclaude_hook_enabled: false\n", encoding="utf-8"
-            )
             code, out, err = self._run_precheck(
                 root,
                 {
                     "tool_name": "Write",
                     "tool_input": {
-                        "file_path": str(
-                            root / "vibelign" / "core" / "oauth_provider.py"
-                        ),
-                        "content": "def oauth_provider():\n    return True\n",
+                        "file_path": str(root / "vibelign" / "core" / "new.py"),
+                        "content": "def x():\n    return True\n",
                     },
                 },
             )
@@ -82,17 +59,13 @@ class VibPrecheckTest(unittest.TestCase):
             root = Path(tmp)
             (root / ".vibelign").mkdir(parents=True, exist_ok=True)
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
-                encoding="utf-8",
+                "schema_version: 1\nclaude_hook_enabled: true\n", encoding="utf-8"
             )
             code, _out, _err = self._run_precheck(
                 root,
                 {
                     "tool_name": "Read",
-                    "tool_input": {
-                        "file_path": str(root / "foo.py"),
-                        "content": "print(1)\n",
-                    },
+                    "tool_input": {"file_path": str(root / "foo.py")},
                 },
             )
             self.assertEqual(code, 0)
@@ -102,38 +75,15 @@ class VibPrecheckTest(unittest.TestCase):
             root = Path(tmp)
             (root / ".vibelign").mkdir(parents=True, exist_ok=True)
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
-                encoding="utf-8",
+                "schema_version: 1\nclaude_hook_enabled: true\n", encoding="utf-8"
             )
             code, out, err = self._run_precheck(
                 root,
                 {
                     "tool_name": "Write",
                     "tool_input": {
-                        "file_path": str(root / "tests" / "test_example.py"),
+                        "file_path": str(root / "tests" / "test_new.py"),
                         "content": "def test_ok():\n    assert True\n",
-                    },
-                },
-            )
-            self.assertEqual(code, 0)
-            self.assertIn('"permissionDecision": "allow"', out)
-            self.assertEqual(err, "")
-
-    def test_support_python_path_outside_production_scope_skips(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / ".vibelign").mkdir(parents=True, exist_ok=True)
-            (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
-                encoding="utf-8",
-            )
-            code, out, err = self._run_precheck(
-                root,
-                {
-                    "tool_name": "Write",
-                    "tool_input": {
-                        "file_path": str(root / "scripts" / "release.py"),
-                        "content": "def main():\n    return 0\n",
                     },
                 },
             )
@@ -146,16 +96,15 @@ class VibPrecheckTest(unittest.TestCase):
             root = Path(tmp)
             (root / ".vibelign").mkdir(parents=True, exist_ok=True)
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
-                encoding="utf-8",
+                "schema_version: 1\nclaude_hook_enabled: true\n", encoding="utf-8"
             )
             code, out, err = self._run_precheck(
                 root,
                 {
                     "tool_name": "Write",
                     "tool_input": {
-                        "file_path": str(root / "vibelign" / "core" / "schema.json"),
-                        "content": '{"ok": true}\n',
+                        "file_path": str(root / "vibelign" / "core" / "README.md"),
+                        "content": "hello\n",
                     },
                 },
             )
@@ -163,33 +112,14 @@ class VibPrecheckTest(unittest.TestCase):
             self.assertIn('"permissionDecision": "allow"', out)
             self.assertEqual(err, "")
 
-    def test_non_source_non_production_path_allows(self) -> None:
+    def test_planning_required_blocks_new_production_file_with_vib_plan_guidance(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / ".vibelign").mkdir(parents=True, exist_ok=True)
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
-                encoding="utf-8",
-            )
-            code, out, _err = self._run_precheck(
-                root,
-                {
-                    "tool_name": "Write",
-                    "tool_input": {
-                        "file_path": str(root / "README.md"),
-                        "content": "hello\n",
-                    },
-                },
-            )
-            self.assertEqual(code, 0)
-            self.assertIn('"permissionDecision": "allow"', out)
-
-    def test_planning_required_blocks_new_production_file(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / ".vibelign").mkdir(parents=True, exist_ok=True)
-            (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                "schema_version: 1\nclaude_hook_enabled: true\nsmall_fix_line_threshold: 2\n",
                 encoding="utf-8",
             )
             code, _out, err = self._run_precheck(
@@ -200,19 +130,22 @@ class VibPrecheckTest(unittest.TestCase):
                         "file_path": str(
                             root / "vibelign" / "core" / "oauth_provider.py"
                         ),
-                        "content": "# === ANCHOR: OAUTH_PROVIDER_START ===\ndef x():\n    return True\n# === ANCHOR: OAUTH_PROVIDER_END ===\n",
+                        "content": "# === ANCHOR: OAUTH_PROVIDER_START ===\n"
+                        "def x():\n    return True\n"
+                        "# === ANCHOR: OAUTH_PROVIDER_END ===\n",
                     },
                 },
             )
             self.assertEqual(code, 2)
-            self.assertIn("vib plan-structure를 먼저 실행하세요", err)
+            self.assertIn("vib plan", err)
+            self.assertNotIn("plan-structure", err)
 
     def test_small_new_production_file_without_plan_is_planning_exempt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / ".vibelign").mkdir(parents=True, exist_ok=True)
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 10\n",
+                "schema_version: 1\nclaude_hook_enabled: true\nsmall_fix_line_threshold: 10\n",
                 encoding="utf-8",
             )
             code, out, err = self._run_precheck(
@@ -231,30 +164,7 @@ class VibPrecheckTest(unittest.TestCase):
             self.assertIn('"permissionDecision": "allow"', out)
             self.assertEqual(err, "")
 
-    def test_vibelign_patch_path_is_treated_as_production(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / ".vibelign").mkdir(parents=True, exist_ok=True)
-            (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
-                encoding="utf-8",
-            )
-            code, _out, err = self._run_precheck(
-                root,
-                {
-                    "tool_name": "Write",
-                    "tool_input": {
-                        "file_path": str(root / "vibelign" / "patch" / "apply.py"),
-                        "content": "# === ANCHOR: APPLY_START ===\n"
-                        "def apply():\n    import os\n    import sys\n    return True\n"
-                        "# === ANCHOR: APPLY_END ===\n",
-                    },
-                },
-            )
-            self.assertEqual(code, 2)
-            self.assertIn("vib plan-structure를 먼저 실행하세요", err)
-
-    def test_active_plan_outside_scope_blocks(self) -> None:
+    def test_stale_plan_json_does_not_allow_large_new_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / ".vibelign" / "plans").mkdir(parents=True, exist_ok=True)
@@ -264,47 +174,20 @@ class VibPrecheckTest(unittest.TestCase):
                         "schema_version": 1,
                         "planning": {
                             "active": True,
-                            "plan_id": "plan_watch",
-                            "feature": "watch 수정",
-                            "override": False,
-                            "override_reason": None,
-                            "created_at": "2026-04-09T00:00:00Z",
-                            "updated_at": "2026-04-09T00:00:00Z",
+                            "plan_id": "plan_oauth",
                         },
                     },
                     ensure_ascii=False,
-                    indent=2,
                 )
                 + "\n",
                 encoding="utf-8",
             )
-            (root / ".vibelign" / "plans" / "plan_watch.json").write_text(
-                json.dumps(
-                    {
-                        "id": "plan_watch",
-                        "schema_version": 1,
-                        "allowed_modifications": [
-                            {
-                                "path": "vibelign/core/watch_engine.py",
-                                "anchor": "WATCH_ENGINE",
-                                "allowed_change_types": ["edit"],
-                                "max_lines_added": 20,
-                            }
-                        ],
-                        "required_new_files": [],
-                        "forbidden": [],
-                        "messages": {"summary": "ok"},
-                        "evidence": {},
-                        "scope": {},
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-                + "\n",
+            (root / ".vibelign" / "plans" / "plan_oauth.json").write_text(
+                '{"required_new_files": ["vibelign/core/oauth_provider.py"]}\n',
                 encoding="utf-8",
             )
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                "schema_version: 1\nclaude_hook_enabled: true\nsmall_fix_line_threshold: 2\n",
                 encoding="utf-8",
             )
             code, _out, err = self._run_precheck(
@@ -312,27 +195,33 @@ class VibPrecheckTest(unittest.TestCase):
                 {
                     "tool_name": "Write",
                     "tool_input": {
-                        "file_path": str(root / "vibelign" / "core" / "other.py"),
-                        "content": "# === ANCHOR: OTHER_START ===\ndef x():\n    return True\n# === ANCHOR: OTHER_END ===\n",
+                        "file_path": str(
+                            root / "vibelign" / "core" / "oauth_provider.py"
+                        ),
+                        "content": "# === ANCHOR: OAUTH_PROVIDER_START ===\n"
+                        "def x():\n    import os\n    import sys\n    return True\n"
+                        "# === ANCHOR: OAUTH_PROVIDER_END ===\n",
                     },
                 },
             )
             self.assertEqual(code, 2)
-            self.assertIn("활성 구조 계획 범위를 벗어났습니다", err)
+            self.assertIn("vib plan", err)
 
     def test_anchor_missing_soft_blocks_even_when_planning_exempt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / ".vibelign").mkdir(parents=True, exist_ok=True)
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
+                "schema_version: 1\nclaude_hook_enabled: true\nsmall_fix_line_threshold: 10\n",
                 encoding="utf-8",
             )
             src = root / "vibelign" / "core"
             src.mkdir(parents=True, exist_ok=True)
             target = src / "watch_engine.py"
             target.write_text(
-                "# === ANCHOR: WATCH_ENGINE_START ===\ndef x():\n    return True\n# === ANCHOR: WATCH_ENGINE_END ===\n",
+                "# === ANCHOR: WATCH_ENGINE_START ===\n"
+                "def x():\n    return True\n"
+                "# === ANCHOR: WATCH_ENGINE_END ===\n",
                 encoding="utf-8",
             )
             code, _out, err = self._run_precheck(
@@ -355,7 +244,8 @@ class VibPrecheckTest(unittest.TestCase):
             root = Path(tmp)
             (root / ".vibelign").mkdir(parents=True, exist_ok=True)
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 2\n", encoding="utf-8"
+                "schema_version: 1\nclaude_hook_enabled: true\nsmall_fix_line_threshold: 2\n",
+                encoding="utf-8",
             )
             src = root / "vibelign" / "core"
             src.mkdir(parents=True, exist_ok=True)
@@ -372,7 +262,9 @@ class VibPrecheckTest(unittest.TestCase):
                     "tool_name": "Write",
                     "tool_input": {
                         "file_path": str(target),
-                        "content": "# === ANCHOR: WATCH_ENGINE_START ===\ndef x():\n    import os\n    import sys\n    import json\n    return True\n# === ANCHOR: WATCH_ENGINE_END ===\n",
+                        "content": "# === ANCHOR: WATCH_ENGINE_START ===\n"
+                        "def x():\n    import os\n    import sys\n    import json\n    return True\n"
+                        "# === ANCHOR: WATCH_ENGINE_END ===\n",
                     },
                 },
             )
@@ -380,68 +272,23 @@ class VibPrecheckTest(unittest.TestCase):
             self.assertIn('"permissionDecision": "allow"', out)
             self.assertEqual(err, "")
 
-    def test_override_true_skips_planning_block(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / ".vibelign" / "plans").mkdir(parents=True, exist_ok=True)
-            (root / ".vibelign" / "state.json").write_text(
-                json.dumps(
-                    {
-                        "schema_version": 1,
-                        "planning": {
-                            "active": True,
-                            "plan_id": "plan_watch",
-                            "feature": "watch 수정",
-                            "override": True,
-                            "override_reason": "manual",
-                            "created_at": "2026-04-09T00:00:00Z",
-                            "updated_at": "2026-04-09T00:00:00Z",
-                        },
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
-                encoding="utf-8",
-            )
-            code, _out, err = self._run_precheck(
-                root,
-                {
-                    "tool_name": "Write",
-                    "tool_input": {
-                        "file_path": str(
-                            root / "vibelign" / "core" / "oauth_provider.py"
-                        ),
-                        "content": "# === ANCHOR: OAUTH_PROVIDER_START ===\ndef x():\n    return True\n# === ANCHOR: OAUTH_PROVIDER_END ===\n",
-                    },
-                },
-            )
-            self.assertEqual(code, 0)
-            self.assertEqual(err, "")
-
     def test_outside_project_absolute_path_allows_instead_of_crashing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / ".vibelign").mkdir(parents=True, exist_ok=True)
             (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
-                encoding="utf-8",
+                "schema_version: 1\nclaude_hook_enabled: true\n", encoding="utf-8"
             )
-            outside = (
-                Path(tempfile.mkdtemp(prefix="vibelign-precheck-outside-", dir="/tmp"))
-                / "outside.py"
-            )
+            outside = Path(tempfile.mkdtemp(prefix="vibelign-precheck-outside-")) / "outside.py"
             code, out, err = self._run_precheck(
                 root,
                 {
                     "tool_name": "Write",
                     "tool_input": {
                         "file_path": str(outside),
-                        "content": "# === ANCHOR: OUTSIDE_START ===\ndef x():\n    return True\n# === ANCHOR: OUTSIDE_END ===\n",
+                        "content": "# === ANCHOR: OUTSIDE_START ===\n"
+                        "def x():\n    return True\n"
+                        "# === ANCHOR: OUTSIDE_END ===\n",
                     },
                 },
             )
@@ -471,289 +318,6 @@ class VibPrecheckTest(unittest.TestCase):
             self.assertEqual(int(exc.exception.code or 0), 1)
             self.assertEqual(stdout.getvalue(), "")
             self.assertIn("stdin JSON payload", stderr.getvalue())
-
-    def test_malformed_plan_dict_missing_required_fields_fails(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / ".vibelign" / "plans").mkdir(parents=True, exist_ok=True)
-            (root / ".vibelign" / "state.json").write_text(
-                json.dumps(
-                    {
-                        "schema_version": 1,
-                        "planning": {
-                            "active": True,
-                            "plan_id": "bad_plan",
-                            "feature": "watch 수정",
-                            "override": False,
-                            "override_reason": None,
-                            "created_at": "2026-04-09T00:00:00Z",
-                            "updated_at": "2026-04-09T00:00:00Z",
-                        },
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            (root / ".vibelign" / "plans" / "bad_plan.json").write_text(
-                json.dumps(
-                    {"id": "bad_plan", "schema_version": 1},
-                    ensure_ascii=False,
-                    indent=2,
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
-                encoding="utf-8",
-            )
-            code, _out, err = self._run_precheck(
-                root,
-                {
-                    "tool_name": "Write",
-                    "tool_input": {
-                        "file_path": str(
-                            root / "vibelign" / "core" / "watch_engine.py"
-                        ),
-                        "content": "# === ANCHOR: WATCH_ENGINE_START ===\ndef x():\n    return True\n# === ANCHOR: WATCH_ENGINE_END ===\n",
-                    },
-                },
-            )
-            self.assertEqual(code, 2)
-            self.assertEqual(
-                err,
-                "구조 계획 상태가 올바르지 않습니다. plan 파일과 state를 확인하세요\n",
-            )
-            self.assertEqual(_out, "")
-
-    def test_missing_plan_file_blocks_with_state_error_message(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / ".vibelign").mkdir(parents=True, exist_ok=True)
-            (root / ".vibelign" / "state.json").write_text(
-                json.dumps(
-                    {
-                        "schema_version": 1,
-                        "planning": {
-                            "active": True,
-                            "plan_id": "missing_plan",
-                            "feature": "watch 수정",
-                            "override": False,
-                            "override_reason": None,
-                            "created_at": "2026-04-09T00:00:00Z",
-                            "updated_at": "2026-04-09T00:00:00Z",
-                        },
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
-                encoding="utf-8",
-            )
-            code, _out, err = self._run_precheck(
-                root,
-                {
-                    "tool_name": "Write",
-                    "tool_input": {
-                        "file_path": str(
-                            root / "vibelign" / "core" / "watch_engine.py"
-                        ),
-                        "content": "# === ANCHOR: WATCH_ENGINE_START ===\ndef x():\n    return True\n# === ANCHOR: WATCH_ENGINE_END ===\n",
-                    },
-                },
-            )
-            self.assertEqual(code, 2)
-            self.assertEqual(
-                err,
-                "구조 계획 상태가 올바르지 않습니다. plan 파일과 state를 확인하세요\n",
-            )
-            self.assertEqual(_out, "")
-
-    def test_invalid_plan_state_blocks_with_state_error_message(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / ".vibelign").mkdir(parents=True, exist_ok=True)
-            (root / ".vibelign" / "state.json").write_text(
-                json.dumps(
-                    {
-                        "schema_version": 1,
-                        "planning": {
-                            "active": True,
-                            "plan_id": None,
-                            "feature": "watch 수정",
-                            "override": False,
-                            "override_reason": None,
-                            "created_at": "2026-04-09T00:00:00Z",
-                            "updated_at": "2026-04-09T00:00:00Z",
-                        },
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
-                encoding="utf-8",
-            )
-            code, _out, err = self._run_precheck(
-                root,
-                {
-                    "tool_name": "Write",
-                    "tool_input": {
-                        "file_path": str(
-                            root / "vibelign" / "core" / "watch_engine.py"
-                        ),
-                        "content": "# === ANCHOR: WATCH_ENGINE_START ===\ndef x():\n    return True\n# === ANCHOR: WATCH_ENGINE_END ===\n",
-                    },
-                },
-            )
-            self.assertEqual(code, 2)
-            self.assertEqual(
-                err,
-                "구조 계획 상태가 올바르지 않습니다. plan 파일과 state를 확인하세요\n",
-            )
-            self.assertEqual(_out, "")
-
-    def test_key_complete_but_wrong_typed_plan_payload_fails(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / ".vibelign" / "plans").mkdir(parents=True, exist_ok=True)
-            (root / ".vibelign" / "state.json").write_text(
-                json.dumps(
-                    {
-                        "schema_version": 1,
-                        "planning": {
-                            "active": True,
-                            "plan_id": "bad_shape_plan",
-                            "feature": "watch 수정",
-                            "override": False,
-                            "override_reason": None,
-                            "created_at": "2026-04-09T00:00:00Z",
-                            "updated_at": "2026-04-09T00:00:00Z",
-                        },
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            (root / ".vibelign" / "plans" / "bad_shape_plan.json").write_text(
-                json.dumps(
-                    {
-                        "id": "bad_shape_plan",
-                        "schema_version": 1,
-                        "allowed_modifications": {},
-                        "required_new_files": {},
-                        "forbidden": [],
-                        "messages": {},
-                        "evidence": {},
-                        "scope": {},
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\nsmall_fix_line_threshold: 2\n",
-                encoding="utf-8",
-            )
-            code, _out, err = self._run_precheck(
-                root,
-                {
-                    "tool_name": "Write",
-                    "tool_input": {
-                        "file_path": str(
-                            root / "vibelign" / "core" / "watch_engine.py"
-                        ),
-                        "content": "# === ANCHOR: WATCH_ENGINE_START ===\ndef x():\n    return True\n# === ANCHOR: WATCH_ENGINE_END ===\n",
-                    },
-                },
-            )
-            self.assertEqual(code, 2)
-            self.assertIn("구조 계획 상태가 올바르지 않습니다", err)
-
-    def test_valid_plan_with_anchors_allows(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / ".vibelign" / "plans").mkdir(parents=True, exist_ok=True)
-            (root / ".vibelign" / "state.json").write_text(
-                json.dumps(
-                    {
-                        "schema_version": 1,
-                        "planning": {
-                            "active": True,
-                            "plan_id": "plan_watch",
-                            "feature": "watch 수정",
-                            "override": False,
-                            "override_reason": None,
-                            "created_at": "2026-04-09T00:00:00Z",
-                            "updated_at": "2026-04-09T00:00:00Z",
-                        },
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            (root / ".vibelign" / "plans" / "plan_watch.json").write_text(
-                json.dumps(
-                    {
-                        "id": "plan_watch",
-                        "schema_version": 1,
-                        "allowed_modifications": [
-                            {
-                                "path": "vibelign/core/watch_engine.py",
-                                "anchor": "WATCH_ENGINE",
-                                "allowed_change_types": ["edit"],
-                                "max_lines_added": 20,
-                            }
-                        ],
-                        "required_new_files": [],
-                        "forbidden": [],
-                        "messages": {"summary": "ok"},
-                        "evidence": {},
-                        "scope": {},
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            (root / ".vibelign" / "config.yaml").write_text(
-                "schema_version: 1\n", encoding="utf-8"
-            )
-            src = root / "vibelign" / "core"
-            src.mkdir(parents=True, exist_ok=True)
-            target = src / "watch_engine.py"
-            target.write_text(
-                "# === ANCHOR: WATCH_ENGINE_START ===\ndef x():\n    return True\n# === ANCHOR: WATCH_ENGINE_END ===\n",
-                encoding="utf-8",
-            )
-            code, out, _err = self._run_precheck(
-                root,
-                {
-                    "tool_name": "Write",
-                    "tool_input": {
-                        "file_path": str(target),
-                        "content": "# === ANCHOR: WATCH_ENGINE_START ===\ndef x():\n    import os\n    return True\n# === ANCHOR: WATCH_ENGINE_END ===\n",
-                    },
-                },
-            )
-            self.assertEqual(code, 0)
-            self.assertIn('"permissionDecision": "allow"', out)
 
 
 if __name__ == "__main__":

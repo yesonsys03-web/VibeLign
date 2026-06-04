@@ -42,7 +42,7 @@ def run_vib_plan_override(args: Namespace) -> None:
         planning.get("plan_id"), str
     ):
         raise SystemExit(
-            "override할 활성 구조 계획이 없어요. 먼저 vib plan-structure를 실행하세요"
+            'override할 기획 상태가 없어요. 먼저 `vib plan "작업 내용"` 또는 GUI 기획방에서 계획을 정리하세요'
         )
     updated = dict(planning)
     now = patch_session_now()
@@ -59,6 +59,6 @@ def run_vib_plan_override(args: Namespace) -> None:
     updated["updated_at"] = now
     updated["override_count"] = override_count + 1
     save_planning_session(meta, updated)
-    clack_success(f"구조 계획 override를 기록했어요: {reason}")
+    clack_success(f"기획 override를 기록했어요: {reason}")
 # === ANCHOR: VIB_PLAN_OVERRIDE_CMD_RUN_VIB_PLAN_OVERRIDE_END ===
 # === ANCHOR: VIB_PLAN_OVERRIDE_CMD_END ===

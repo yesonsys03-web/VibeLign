@@ -16,7 +16,6 @@ from vibelign.core.project_root import resolve_project_root
 from vibelign.core.structure_policy import (
     classify_structure_path,
     is_structure_production_kind,
-    load_active_plan_payload,
     small_fix_line_threshold,
 )
 
@@ -109,42 +108,12 @@ def _planning_status(root: Path, target_path: Path, content: str) -> tuple[str, 
     if _added_line_count(existing_text, content) <= small_fix_line_threshold(meta):
         return "planning_exempt", ""
 
-    plan_payload, _active_plan_id, plan_error = load_active_plan_payload(meta)
-    if plan_error == "override":
-        return "planning_exempt", ""
-    if plan_error in {"missing_plan_file", "broken_plan", "invalid_state"}:
+    if not target_path.exists():
         return (
-            "fail",
-            "구조 계획 상태가 올바르지 않습니다. plan 파일과 state를 확인하세요",
+            "planning_required",
+            '먼저 `vib plan "작업 내용"` 또는 GUI 기획방에서 계획을 정리하세요',
         )
-    if plan_payload is None and not target_path.exists():
-        return "planning_required", "vib plan-structure를 먼저 실행하세요"
-    if plan_payload is None:
-        return "planning_exempt", ""
-
-    required_new_files = cast(
-        list[dict[str, object]], plan_payload.get("required_new_files", [])
-    )
-    required_new_paths = {
-        str(item["path"])
-        for item in required_new_files
-        if isinstance(item.get("path"), str)
-    }
-    if not target_path.exists() and rel_path in required_new_paths:
-        return "pass", ""
-
-    allowed_modifications = cast(
-        list[dict[str, object]], plan_payload.get("allowed_modifications", [])
-    )
-    allowed_paths = {
-        str(item["path"])
-        for item in allowed_modifications
-        if isinstance(item.get("path"), str)
-    }
-    if rel_path in allowed_paths:
-        return "pass", ""
-
-    return "plan_exists_but_deviated", "현재 변경이 활성 구조 계획 범위를 벗어났습니다"
+    return "planning_exempt", ""
 
 
 # === ANCHOR: VIB_PRECHECK_CMD__PLANNING_STATUS_END ===
@@ -194,7 +163,7 @@ def run_vib_precheck(_args: Namespace) -> None:
         raise SystemExit(0)
 
     planning_status, planning_message = _planning_status(root, target_path, content)
-    if planning_status in {"planning_required", "plan_exists_but_deviated", "fail"}:
+    if planning_status == "planning_required":
         print(planning_message, file=sys.stderr)
         raise SystemExit(2)
 

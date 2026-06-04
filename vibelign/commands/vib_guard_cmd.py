@@ -28,7 +28,6 @@ from vibelign.core.risk_analyzer import analyze_project
 from vibelign.core.structure_policy import (
     WINDOWS_SUBPROCESS_FLAGS,
     classify_structure_path,
-    load_active_plan_payload,
     small_fix_line_threshold,
 )
 from vibelign.terminal_render import print_ai_response
@@ -105,7 +104,7 @@ class GuardArgs(Protocol):
 
 
 _PLAN_REQUIRED_RECOMMENDATION = (
-    "구조 영향 가능성이 높다면 먼저 `vib plan-structure`를 실행하세요."
+    "구조 영향 가능성이 높다면 먼저 `vib plan \"작업 내용\"` 또는 GUI 기획방에서 계획을 정리하세요."
 )
 _ANCHOR_REQUIRED_RECOMMENDATION = "신규 소스 파일에는 먼저 앵커를 추가하세요. `vib anchor --auto` 또는 `vib watch --auto-fix`를 사용할 수 있어요."
 _ANCHOR_PATTERN = re.compile(r"ANCHOR:\s*[A-Z0-9_]+_(START|END)")
@@ -114,36 +113,31 @@ _SOURCE_EXTENSIONS = set(COMMENT_PREFIX.keys())
 
 def _planning_message(status: str) -> str:
     return {
-        "planning_exempt": "현재 변경은 plan-structure 없이 진행 가능한 범위입니다.",
-        "planning_required": "구조 영향 가능성이 높은 변경이 감지되었습니다. 먼저 `vib plan-structure`를 실행하세요.",
-        "plan_exists_but_deviated": "활성 구조 계획은 존재하지만 실제 변경이 허용 범위를 벗어났습니다.",
-        "fail": "구조 계획 검증에 실패했습니다. 금지 규칙 위반 또는 plan 상태 이상을 확인하세요.",
-        "pass": "활성 구조 계획과 실제 변경이 일치합니다.",
-    }.get(status, "구조 계획 상태를 확인하세요.")
+        "planning_exempt": "현재 변경은 별도 기획 없이 진행 가능한 범위입니다.",
+        "planning_required": "구조 영향 가능성이 높은 변경이 감지되었습니다. 먼저 `vib plan \"작업 내용\"` 또는 GUI 기획방에서 계획을 정리하세요.",
+        "fail": "구조 영향 검증에 실패했습니다.",
+        "pass": "구조 영향 검사를 통과했습니다.",
+    }.get(status, "구조 영향 상태를 확인하세요.")
 
 
 def _planning_exempt_summary(reasons: Sequence[str]) -> str:
     if "docs_only" in reasons:
-        return (
-            "현재 변경은 문서만 수정하므로 plan-structure 없이 진행 가능한 범위입니다."
-        )
+        return "현재 변경은 문서만 수정하므로 별도 기획 없이 진행 가능한 범위입니다."
     if "tests_only" in reasons:
-        return "현재 변경은 테스트만 수정하므로 plan-structure 없이 진행 가능한 범위입니다."
+        return "현재 변경은 테스트만 수정하므로 별도 기획 없이 진행 가능한 범위입니다."
     if "config_only" in reasons:
-        return "현재 변경은 config만 수정하므로 plan-structure 없이 진행 가능한 범위입니다."
+        return "현재 변경은 config만 수정하므로 별도 기획 없이 진행 가능한 범위입니다."
     if "small_single_file_fix" in reasons:
-        return "현재 변경은 소규모 단일 파일 수정이므로 plan-structure 없이 진행 가능한 범위입니다."
-    if "override" in reasons:
-        return "planning override가 활성화되어 있어 현재 변경은 plan-structure 없이 진행 가능한 범위입니다."
+        return "현재 변경은 소규모 단일 파일 수정이므로 별도 기획 없이 진행 가능한 범위입니다."
     if "no_changed_files" in reasons:
-        return "현재 변경 파일이 없어 plan-structure 없이 진행 가능한 상태입니다."
-    return "현재 변경은 plan-structure 없이 진행 가능한 범위입니다."
+        return "현재 변경 파일이 없어 별도 기획 없이 진행 가능한 상태입니다."
+    return "현재 변경은 별도 기획 없이 진행 가능한 범위입니다."
 
 
 def _planning_guard_level(status: str, strict: bool) -> str:
     if status in {"fail"}:
         return "fail"
-    if status in {"planning_required", "plan_exists_but_deviated"}:
+    if status == "planning_required":
         return "fail" if strict else "warn"
     return "pass"
 
@@ -266,40 +260,6 @@ def _parse_diff_line_ranges(diff_text: str) -> tuple[int, list[tuple[int, int]]]
     return added_lines, ranges
 
 
-def _anchor_ranges(path: Path) -> dict[str, tuple[int, int]]:
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return {}
-    starts: dict[str, int] = {}
-    ranges: dict[str, tuple[int, int]] = {}
-    for index, line in enumerate(lines, start=1):
-        start_match = re.search(r"ANCHOR:\s*([A-Z0-9_]+)_START", line)
-        if start_match:
-            starts[start_match.group(1)] = index
-        end_match = re.search(r"ANCHOR:\s*([A-Z0-9_]+)_END", line)
-        if end_match:
-            name = end_match.group(1)
-            start = starts.get(name)
-            if start is not None:
-                ranges[name] = (start, index)
-    return ranges
-
-
-def _change_ranges_within_anchor(
-    path: Path, anchor: str, ranges: list[tuple[int, int]]
-) -> bool:
-    anchor_ranges = _anchor_ranges(path)
-    anchor_range = anchor_ranges.get(anchor)
-    if anchor_range is None:
-        return False
-    anchor_start, anchor_end = anchor_range
-    for start, end in ranges:
-        if start < anchor_start or end > anchor_end:
-            return False
-    return True
-
-
 def _file_change_details(
     root: Path, item: FileSummary, *, staged_only: bool
 ) -> FileChangeDetails:
@@ -367,59 +327,6 @@ def _anchor_violations(
     return violations
 
 
-def _is_import_wiring_line(line: str) -> bool:
-    stripped = line.strip()
-    return stripped.startswith("import ") or stripped.startswith("from ")
-
-
-def _is_registration_line(line: str) -> bool:
-    stripped = line.strip()
-    registration_tokens = (
-        "register(",
-        ".register(",
-        "add_parser(",
-        ".add_parser(",
-        "set_defaults(",
-        ".set_defaults(",
-        "router.add_",
-        "app.add_",
-    )
-    return any(token in stripped for token in registration_tokens)
-
-
-def _modified_change_types(root: Path, rel_path: str, *, staged_only: bool) -> set[str]:
-    diff_args = ["diff", "--unified=0"]
-    if staged_only:
-        diff_args.append("--cached")
-    else:
-        diff_args.append("HEAD")
-    diff_args.extend(["--", rel_path])
-    ok, diff = _run_guard_git(root, diff_args)
-    if not ok:
-        return {"edit"}
-    added: list[str] = []
-    removed: list[str] = []
-    for line in diff.splitlines():
-        if line.startswith("+") and not line.startswith("+++"):
-            added.append(line[1:])
-        elif line.startswith("-") and not line.startswith("---"):
-            removed.append(line[1:])
-    parsed = {"added": added, "removed": removed}
-    changed_lines = [
-        str(line) for line in parsed["added"] + parsed["removed"] if str(line).strip()
-    ]
-    if not changed_lines:
-        return {"edit"}
-    detected: set[str] = {"edit"}
-    if all(_is_import_wiring_line(line) for line in changed_lines):
-        detected.add("import_wiring")
-    if all(_is_registration_line(line) for line in changed_lines):
-        detected.add("registration")
-    if classify_structure_path(rel_path) == "config":
-        detected.add("config_touch")
-    return detected
-
-
 def _planning_data(
     root: Path,
     meta: MetaPaths,
@@ -440,19 +347,6 @@ def _planning_data(
             "required_reasons": [],
             "deviations": [],
             "exempt_reasons": ["no_changed_files"],
-        }
-
-    plan_payload, active_plan_id, plan_error = load_active_plan_payload(meta)
-    if plan_error == "override":
-        return {
-            "status": "planning_exempt",
-            "strict": strict,
-            "active_plan_id": active_plan_id,
-            "summary": _planning_exempt_summary(["override"]),
-            "changed_files": changed_files,
-            "required_reasons": [],
-            "deviations": [],
-            "exempt_reasons": ["override"],
         }
 
     production_items = [
@@ -512,7 +406,7 @@ def _planning_data(
         return {
             "status": "planning_exempt",
             "strict": strict,
-            "active_plan_id": active_plan_id,
+            "active_plan_id": None,
             "summary": _planning_exempt_summary(exempt_reasons),
             "changed_files": changed_files,
             "required_reasons": [],
@@ -520,25 +414,11 @@ def _planning_data(
             "exempt_reasons": exempt_reasons,
         }
 
-    forbidden_paths: set[str] = set()
-    if isinstance(plan_payload, dict):
-        forbidden_obj = plan_payload.get("forbidden", [])
-        if isinstance(forbidden_obj, list):
-            forbidden_items = cast(list[object], forbidden_obj)
-            for item in forbidden_items:
-                if isinstance(item, dict):
-                    item_dict = cast(dict[str, object], item)
-                    path = item_dict.get("path")
-                    if isinstance(path, str):
-                        forbidden_paths.add(path)
-
-    if small_fix_candidate and not any(
-        str(item["path"]) in forbidden_paths for item in relevant_items
-    ):
+    if small_fix_candidate:
         return {
             "status": "planning_exempt",
             "strict": strict,
-            "active_plan_id": active_plan_id,
+            "active_plan_id": None,
             "summary": _planning_exempt_summary(["small_single_file_fix"]),
             "changed_files": changed_files,
             "required_reasons": [],
@@ -552,30 +432,11 @@ def _planning_data(
     if len(production_items) >= 2:
         required_reasons.append("multi_file_production_edit")
 
-    if plan_error in {"missing_plan_file", "broken_plan", "invalid_state"}:
-        reason_text = {
-            "missing_plan_file": "plan 파일이 없습니다.",
-            "broken_plan": "plan 파일이 파손되었습니다.",
-            "invalid_state": "planning state가 올바르지 않습니다.",
-        }[plan_error]
-        return {
-            "status": "fail",
-            "strict": strict,
-            "active_plan_id": active_plan_id,
-            "summary": f"{_planning_message('fail')} {reason_text}",
-            "changed_files": changed_files,
-            "required_reasons": required_reasons,
-            "deviations": [plan_error],
-            "exempt_reasons": [],
-        }
-
-    if not required_reasons and (
-        not production_items or (plan_payload is None and plan_error is None)
-    ):
+    if not required_reasons:
         return {
             "status": "planning_exempt",
             "strict": strict,
-            "active_plan_id": active_plan_id,
+            "active_plan_id": None,
             "summary": _planning_exempt_summary(exempt_reasons or ["default_exempt"]),
             "changed_files": changed_files,
             "required_reasons": [],
@@ -583,130 +444,11 @@ def _planning_data(
             "exempt_reasons": exempt_reasons or ["default_exempt"],
         }
 
-    if plan_payload is None:
-        return {
-            "status": "planning_required",
-            "strict": strict,
-            "active_plan_id": None,
-            "summary": f"{_planning_message('planning_required')} 이유: {', '.join(required_reasons)}",
-            "changed_files": changed_files,
-            "required_reasons": required_reasons,
-            "deviations": [],
-            "exempt_reasons": exempt_reasons,
-        }
-
-    allowed_modifications = cast(
-        list[dict[str, object]], plan_payload.get("allowed_modifications", [])
-    )
-    required_new_files = cast(
-        list[dict[str, object]], plan_payload.get("required_new_files", [])
-    )
-    forbidden_rules = cast(list[dict[str, object]], plan_payload.get("forbidden", []))
-
-    allowed_by_path = {
-        str(item["path"]): item
-        for item in allowed_modifications
-        if isinstance(item.get("path"), str)
-    }
-    required_new_paths = {
-        str(item["path"])
-        for item in required_new_files
-        if isinstance(item.get("path"), str)
-    }
-
-    deviations: list[str] = []
-    hard_fail = False
-    for item in relevant_items:
-        rel_path = str(item["path"])
-        status = str(item["status"])
-        details = _file_change_details(root, item, staged_only=staged_only)
-        for rule in forbidden_rules:
-            rule_path = rule.get("path")
-            if rule_path == rel_path:
-                anchor = rule.get("anchor")
-                if isinstance(anchor, str):
-                    if not _change_ranges_within_anchor(
-                        root / rel_path,
-                        anchor,
-                        details["ranges"],
-                    ):
-                        hard_fail = True
-                        deviations.append(f"forbidden:{rel_path}")
-                else:
-                    hard_fail = True
-                    deviations.append(f"forbidden:{rel_path}")
-        if status in {"added", "untracked"}:
-            if rel_path not in required_new_paths:
-                deviations.append(f"unexpected_new_file:{rel_path}")
-            continue
-        if status in {"deleted", "renamed"}:
-            allowed = allowed_by_path.get(rel_path)
-            if allowed is None or status not in cast(
-                list[object], allowed.get("allowed_change_types", [])
-            ):
-                deviations.append(f"unexpected_{status}:{rel_path}")
-                continue
-            continue
-        allowed = allowed_by_path.get(rel_path)
-        if allowed is None:
-            deviations.append(f"unexpected_change:{rel_path}")
-            continue
-        allowed_change_types = cast(
-            list[object], allowed.get("allowed_change_types", [])
-        )
-        allowed_change_type_names = {str(item) for item in allowed_change_types}
-        if allowed_change_types:
-            detected_change_types = _modified_change_types(
-                root, rel_path, staged_only=staged_only
-            )
-            if detected_change_types.isdisjoint(allowed_change_type_names):
-                deviations.append(
-                    f"disallowed_change_type:{'/'.join(sorted(detected_change_types))}:{rel_path}"
-                )
-                continue
-        anchor = allowed.get("anchor")
-        if (
-            isinstance(anchor, str)
-            and "config_touch" not in allowed_change_type_names
-            and not _change_ranges_within_anchor(
-                root / rel_path, anchor, details["ranges"]
-            )
-        ):
-            deviations.append(f"anchor_outside_allowed_range:{rel_path}")
-        max_lines_added = allowed.get("max_lines_added")
-        if (
-            isinstance(max_lines_added, int)
-            and details["added_lines"] > max_lines_added
-        ):
-            deviations.append(f"max_lines_added_exceeded:{rel_path}")
-
-    if hard_fail:
-        return {
-            "status": "fail",
-            "strict": strict,
-            "active_plan_id": active_plan_id,
-            "summary": f"{_planning_message('fail')} 이유: {', '.join(deviations)}",
-            "changed_files": changed_files,
-            "required_reasons": required_reasons,
-            "deviations": deviations,
-            "exempt_reasons": exempt_reasons,
-        }
-    if deviations:
-        return {
-            "status": "plan_exists_but_deviated",
-            "strict": strict,
-            "active_plan_id": active_plan_id,
-            "summary": f"{_planning_message('plan_exists_but_deviated')} 이유: {', '.join(deviations)}",
-            "changed_files": changed_files,
-            "required_reasons": required_reasons,
-            "deviations": deviations,
-            "exempt_reasons": exempt_reasons,
-        }
     return {
-        "status": "pass",
+        "status": "planning_required",
         "strict": strict,
-        "active_plan_id": active_plan_id,
-        "summary": _planning_message("pass"),
+        "active_plan_id": None,
+        "summary": f"{_planning_message('planning_required')} 이유: {', '.join(required_reasons)}",
         "changed_files": changed_files,
         "required_reasons": required_reasons,
         "deviations": [],
@@ -880,7 +622,7 @@ def _render_markdown(data: GuardData) -> str:
             [
                 "## 구조 계획 판정",
                 f"- 상태: {planning.get('status')}",
-                f"- 활성 plan: {planning.get('active_plan_id') or '없음'}",
+                f"- 참조 plan: {planning.get('active_plan_id') or '없음'}",
                 f"- 요약: {planning.get('summary')}",
             ]
         )

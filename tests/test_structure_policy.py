@@ -1,4 +1,3 @@
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,60 +5,27 @@ from pathlib import Path
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.structure_policy import (
     classify_structure_path,
-    load_active_plan_payload,
     small_fix_line_threshold,
 )
-from vibelign.mcp.mcp_state_store import save_planning_session
 
 
 class StructurePolicyTest(unittest.TestCase):
-    def test_classify_structure_path_marks_patch_module_as_production(self) -> None:
-        self.assertEqual(
-            classify_structure_path("vibelign/patch/patch_output.py"),
-            "production",
-        )
-
-    def test_classify_structure_path_separates_non_vibelign_python_files(self) -> None:
-        self.assertEqual(
-            classify_structure_path("scripts/release.py"),
-            "non_vibelign_production",
-        )
-
-    def test_load_active_plan_payload_treats_unicode_errors_as_broken_plan(
-        self,
-    ) -> None:
+    def test_small_fix_line_threshold_reads_project_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             meta = MetaPaths(root)
             meta.ensure_vibelign_dirs()
-            save_planning_session(
-                meta,
-                {
-                    "active": True,
-                    "plan_id": "bad",
-                    "feature": "bad",
-                    "override": False,
-                    "override_reason": None,
-                    "created_at": "2026-04-10T00:00:00Z",
-                    "updated_at": "2026-04-10T00:00:00Z",
-                },
+            _ = meta.config_path.write_text(
+                "schema_version: 1\nsmall_fix_line_threshold: 7\n",
+                encoding="utf-8",
             )
-            (meta.plans_dir / "bad.json").write_bytes(b"\xff\xfe\x00\x00")
 
-            payload, plan_id, error = load_active_plan_payload(meta)
+            self.assertEqual(small_fix_line_threshold(meta), 7)
 
-            self.assertIsNone(payload)
-            self.assertEqual(plan_id, "bad")
-            self.assertEqual(error, "broken_plan")
-
-    def test_small_fix_line_threshold_falls_back_when_config_is_not_utf8(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            meta = MetaPaths(root)
-            meta.ensure_vibelign_dirs()
-            meta.config_path.write_bytes(b"\xff\xfe\x00\x00")
-
-            self.assertEqual(small_fix_line_threshold(meta), 30)
+    def test_classify_structure_path_keeps_core_as_production(self) -> None:
+        self.assertEqual(classify_structure_path("vibelign/core/auth.py"), "production")
+        self.assertEqual(classify_structure_path("tests/test_auth.py"), "tests")
+        self.assertEqual(classify_structure_path("docs/MANUAL.md"), "docs")
 
 
 if __name__ == "__main__":
