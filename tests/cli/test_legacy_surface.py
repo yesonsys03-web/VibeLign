@@ -8,64 +8,29 @@ from unittest.mock import patch
 
 from vibelign.cli.cli_base import MAIN_DESCRIPTION
 from vibelign.cli.vib_cli import build_parser
-from vibelign.commands.vib_patch_cmd import run_vib_patch
 from vibelign.commands.vib_plan_structure_cmd import run_vib_plan_structure
 
 
 class LegacySurfaceTest(unittest.TestCase):
-    def test_main_help_keeps_patch_and_plan_structure_out_of_beginner_groups(self) -> None:
+    def test_main_help_keeps_only_plan_structure_in_legacy_group(self) -> None:
         beginner_sections = MAIN_DESCRIPTION.split("고급 / legacy:", maxsplit=1)[0]
 
         self.assertNotIn("AI 수정 요청:", beginner_sections)
         self.assertNotIn("  patch", beginner_sections)
         self.assertNotIn("plan-structure", beginner_sections)
         self.assertIn("고급 / legacy:", MAIN_DESCRIPTION)
-        self.assertIn("patch", MAIN_DESCRIPTION)
+        self.assertNotIn("patch", MAIN_DESCRIPTION)
         self.assertIn("plan-structure", MAIN_DESCRIPTION)
 
-    def test_formatted_help_keeps_legacy_commands_out_of_auto_command_lists(self) -> None:
+    def test_formatted_help_keeps_patch_absent_and_plan_structure_legacy(self) -> None:
         help_text = build_parser().format_help()
         beginner_sections = help_text.split("고급 / legacy:", maxsplit=1)[0]
 
         self.assertNotIn("  patch", beginner_sections)
         self.assertNotIn("plan-structure", beginner_sections)
         self.assertIn("고급 / legacy:", help_text)
-        self.assertIn("patch", help_text)
+        self.assertNotIn("patch", help_text)
         self.assertIn("plan-structure", help_text)
-
-    def test_vib_patch_prints_legacy_notice_before_execution(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            previous = Path.cwd()
-            try:
-                import os
-
-                os.chdir(root)
-                with patch("vibelign.commands.vib_patch_cmd._build_patch_data") as mocked_build:
-                    mocked_build.return_value = {
-                        "preview": None,
-                        "patch_plan": {"target_file": "app.py"},
-                    }
-                    with patch("vibelign.commands.vib_patch_cmd._output_helpers") as helpers:
-                        helpers.return_value.emit_patch_result.return_value = None
-                        output = StringIO()
-                        with redirect_stdout(output):
-                            run_vib_patch(
-                                SimpleNamespace(
-                                    apply_strict=None,
-                                    request=["로그인", "수정"],
-                                    ai=False,
-                                    json=False,
-                                    preview=False,
-                                    lazy_fanout=False,
-                                    write_report=False,
-                                    copy=False,
-                                )
-                            )
-            finally:
-                os.chdir(previous)
-
-        self.assertIn("vib patch는 legacy 기능이에요", output.getvalue())
 
     def test_vib_plan_structure_prints_legacy_notice_before_execution(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -128,7 +128,6 @@ AI 작업 준비:
   completion  탭 자동완성 설정
 
 고급 / legacy:
-  patch           legacy: 구조화된 수정 계획 생성
   plan-structure  legacy: 내부 구조 계획 JSON 생성"""
 
 MAIN_EPILOG = """\

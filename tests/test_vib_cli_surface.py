@@ -30,7 +30,7 @@ class _McpCliArgs(Protocol):
 
 
 class VibCliSurfaceTest(unittest.TestCase):
-    def test_vib_cli_includes_remaining_legacy_commands(self):
+    def test_vib_cli_excludes_patch_and_keeps_supported_commands(self):
         parser = build_parser()
         subparsers_action = cast(
             Any,
@@ -39,19 +39,19 @@ class VibCliSurfaceTest(unittest.TestCase):
             ),
         )
         commands = set(subparsers_action.choices.keys())
+        self.assertNotIn("patch", commands)
         self.assertTrue(
             {
-                "protect",
-                "ask",
-                "config",
-                "recover",
-                "memory",
-                "claude-hook",
-                "export",
-                "plan-structure",
                 "watch",
                 "start",
-                "secrets",
+                "checkpoint",
+                "doctor",
+                "guard",
+                "anchor",
+                "manual",
+                "rules",
+                "plan",
+                "plan-structure",
             }.issubset(commands)
         )
 
