@@ -500,47 +500,6 @@ export const COMMANDS_CORE = [
     flags: [] as FlagDef[],
   },
   {
-    name: "patch", icon: "🔧", color: "#FFD166",
-    visibility: "legacy" as const,
-    title: "패치",
-    short: "legacy: 구조화된 수정 계획",
-    desc: "초보 흐름에서는 더 이상 추천하지 않는 legacy 기능이에요. 자연어 수정은 host AI가 VibeLign MCP 도구를 직접 읽는 방식을 권장해요.",
-    usage: "vib patch \"로그인 버튼 색깔 바꿔줘\"",
-    tips: ["코드 수정 전에 뭘 바꿔야 하는지 확인할 수 있어요", "AI한테 그대로 전달하면 돼요"],
-    guide: [
-      {
-        step: "기능", title: "말로 요청 → 수정 계획 생성",
-        lines: [
-          { t: "warn",  v: "legacy 기능입니다. 초보 흐름에서는 더 이상 추천하지 않아요." },
-          { t: "info",  v: "'로그인 버튼 추가해줘' 같이 말로 요청하면," },
-          { t: "info",  v: "어떤 파일의 어느 부분을 수정할지 계획을 만들어줘요." },
-          { t: "info",  v: "이 계획을 AI에게 붙여넣으면 정확하게 수정할 수 있어요." },
-          { t: "code",  v: 'vib patch "로그인 버튼 추가"' },
-        ],
-      },
-      {
-        step: "주요 옵션", title: "자주 쓰는 옵션",
-        lines: [
-          { t: "code", v: 'vib patch "요청" --ai' },
-          { t: "info", v: "AI가 코드를 더 자세히 분석해서 정확한 계획 생성 (API 키 필요)" },
-          { t: "code", v: 'vib patch "요청" --copy' },
-          { t: "info", v: "결과를 클립보드에 복사 → AI에 바로 붙여넣기" },
-          { t: "code", v: 'vib patch "요청" --preview' },
-          { t: "info", v: "수정 계획 미리 보기" },
-          { t: "code", v: 'vib patch "요청" --write-report' },
-          { t: "info", v: "결과를 파일로 저장" },
-        ],
-      },
-    ] as GuideStep[],
-    flags: [
-      { type: "text" as const, key: "_request", label: "요청", placeholder: "로그인 버튼 추가...", required: true },
-      { type: "bool" as const, key: "ai", label: "--ai" },
-      { type: "bool" as const, key: "preview", label: "--preview" },
-      { type: "bool" as const, key: "copy", label: "--copy" },
-      { type: "bool" as const, key: "write-report", label: "--write-report" },
-    ] as FlagDef[],
-  },
-  {
     name: "protect", icon: "🔒", color: "#FF4D4D",
     title: "프로텍트",
     short: "중요 파일 잠금 — AI 접근 금지",

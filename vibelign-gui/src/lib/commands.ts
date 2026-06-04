@@ -13,16 +13,6 @@ export const COMMANDS = [...COMMANDS_CORE, ...COMMANDS_EXT].map((command) => ({
 
 export const BEGINNER_COMMANDS = COMMANDS.filter((command) => command.visibility === "beginner");
 
-export function getPatchCommand(): (typeof COMMANDS)[number] {
-  const command = COMMANDS.find((item) => item.name === "patch");
-  if (!command) {
-    throw new Error("patch command metadata is missing");
-  }
-  return command;
-}
-
-export const PATCH_COMMAND = getPatchCommand();
-
 export function getPlanStructureCommand(): (typeof COMMANDS)[number] {
   const command = COMMANDS.find((item) => item.name === "plan-structure");
   if (!command) {

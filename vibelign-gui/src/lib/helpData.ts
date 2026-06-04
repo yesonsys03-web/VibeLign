@@ -144,14 +144,6 @@ const FALLBACK_TOPICS: HelpTopic[] = [
       "vib scan은 앵커를 점검하고 코드맵을 다시 갱신해요. 파일이 많이 바뀌었을 때 정리용으로 좋아요.",
   },
   {
-    id: "patch",
-    title: "패치",
-    command: "vib patch",
-    summary: "말로 요청하면 수정 계획을 만들어줘요.",
-    answer:
-      "vib patch는 말로 요청한 내용을 보고 어떤 파일을 어떻게 바꿔야 할지 계획을 만들어줘요. 코드 전체를 바꾸지 않고 필요한 부분만 고치게 도와줘요.",
-  },
-  {
     id: "guard",
     title: "가드",
     command: "vib guard",
@@ -356,7 +348,6 @@ function topicAliasMarkers(topicId: string): string[] {
     doctor: ["doctor", "닥터", "도크터", "건강검진", "점검", "진단"],
     anchor: ["anchor", "앵커", "앵커링", "표식", "핀", "marker"],
     scan: ["scan", "스캔", "검사", "정리", "갱신", "코드맵", "코드 맵", "codemap", "code map", "project map"],
-    patch: ["patch", "패치", "패칭", "수정계획", "수정 계획", "플랜", "request"],
     "plan-structure": ["plan-structure", "plan structure", "구조계획", "구조 계획", "설계도", "파일 계획", "플랜스트럭처"],
     guard: ["guard", "가드", "가아드", "검사", "검증", "보호"],
     "claude-hook": ["claude-hook", "claude hook", "클로드훅", "클로드 훅", "pretooluse", "pretoluse", "hook", "훅"],

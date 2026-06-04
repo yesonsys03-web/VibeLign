@@ -112,7 +112,6 @@ export const COMMANDS_EXT = [
         step: "추천 흐름", title: "이 순서대로 하면 쉬워요",
         lines: [
           { t: "code", v: 'vib plan-structure "OAuth 인증 추가"' },
-          { t: "code", v: 'vib patch "OAuth 로그인 버튼과 서버 검증 추가"' },
           { t: "code", v: 'vib guard --strict' },
           { t: "info", v: "설계도 만들기 → 구현 → 마지막 확인 흐름이에요." },
         ],
@@ -225,7 +224,7 @@ export const COMMANDS_EXT = [
     name: "config", icon: "🔑", color: "#FFD166",
     title: "컨피그",
     short: "AI 기능용 API 키 설정",
-    desc: "AI 기능(ask, patch --ai 등)을 쓰려면 API 키가 필요해요. Anthropic(Claude), Gemini, OpenAI 등의 키를 여기서 설정해요. Gemini는 무료로 시작할 수 있어요.",
+    desc: "AI 기능(ask, explain --ai 등)을 쓰려면 API 키가 필요해요. Anthropic(Claude), Gemini, OpenAI 등의 키를 여기서 설정해요. Gemini는 무료로 시작할 수 있어요.",
     usage: "vib config",
     tips: ["Gemini API 키는 Google AI Studio에서 무료로 발급받을 수 있어요", "영구 저장 또는 현재 터미널 임시 저장 중 선택할 수 있어요", "설정 후 vib ask로 바로 AI 설명을 받을 수 있어요"],
     guide: [
@@ -355,7 +354,7 @@ export const COMMANDS_EXT = [
         subtitle: "요청에 '바이브라인으로'를 붙이면 전체 안전 워크플로우 자동 실행",
         lines: [
           { t: "code", v: '"바이브라인으로 로그인 버튼 색 파란색으로 바꿔줘"' },
-          { t: "info", v: "patch_get → 정확한 위치 확인 → 수정 → guard_check → checkpoint 저장" },
+          { t: "info", v: "project_map_get → anchor_read_content → 수정 → guard_check → checkpoint 저장" },
         ],
         warn: "'바이브라인으로' 없으면 → AI가 직접 수정 (VibeLign 안전 워크플로우 사용 안 함)",
       },
@@ -440,7 +439,7 @@ export const COMMANDS_EXT = [
           { t: "info", v: "가장 중요한 규칙은: 가장 작고 안전한 패치만 적용하기예요." },
           { t: "info", v: "AI는 요청을 intent / source / destination / behavior_constraint로 쪼개서 이해해요." },
           { t: "info", v: "수정은 한 파일, 한 앵커처럼 좁게 시작해요." },
-          { t: "info", v: "target_file과 target_anchor 밖은 건드리지 않아요." },
+          { t: "info", v: "확인한 파일과 앵커 범위 밖은 건드리지 않아요." },
           { t: "info", v: "관련 없는 파일이나 모듈은 절대 같이 건드리지 않아요." },
         ],
       },
@@ -470,7 +469,7 @@ export const COMMANDS_EXT = [
           { t: "code", v: '"로그인 버튼 색 파란색으로 바꿔줘"' },
           { t: "info", v: "→ 일반 수정: AI가 직접 처리해요." },
           { t: "code", v: '"바이브라인으로 로그인 버튼 색 파란색으로 바꿔줘"' },
-          { t: "info", v: "→ 안전 수정: patch_get → guard_check → checkpoint_create 흐름으로 처리해요." },
+          { t: "info", v: "→ 안전 수정: project_map_get → anchor_read_content → guard_check → checkpoint_create 흐름으로 처리해요." },
         ],
       },
       {
@@ -530,7 +529,7 @@ export const COMMANDS_EXT = [
         lines: [
           { t: "code", v: "vib doctor --strict" },
           { t: "code", v: "vib anchor" },
-          { t: "code", v: 'vib patch "your request here"' },
+          { t: "code", v: "vib guard --strict --write-report" },
           { t: "code", v: "vib explain --write-report" },
           { t: "code", v: "vib guard --strict --write-report" },
         ],

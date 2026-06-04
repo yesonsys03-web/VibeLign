@@ -406,7 +406,7 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
 
         <div style={{ fontSize: 11, color: "#555", lineHeight: 1.6 }}>
           키는 사용자 설정 폴더의 <code style={{ color: "#888" }}>api_keys.json</code>에 저장됩니다. 레포에는 커밋하지 마세요.<br />
-          <code style={{ color: "#888" }}>vib patch --ai</code>, <code style={{ color: "#888" }}>vib doctor --apply</code> 실행 시 GUI에 저장된 키가 해당 환경변수로 전달됩니다.
+          <code style={{ color: "#888" }}>vib ask</code>, <code style={{ color: "#888" }}>vib doctor --apply</code> 실행 시 GUI에 저장된 키가 해당 환경변수로 전달됩니다.
         </div>
 
         {/* vib 경로 섹션 */}

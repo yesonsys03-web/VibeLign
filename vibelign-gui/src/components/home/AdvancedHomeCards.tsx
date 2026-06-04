@@ -21,7 +21,6 @@ import CheckpointCard from "../cards/backup/CheckpointCard";
 import CodemapCard from "../cards/analysis/CodemapCard";
 import GuardCard from "../cards/analysis/GuardCard";
 import AnchorCard from "../cards/analysis/AnchorCard";
-import PatchCard from "../cards/ai/PatchCard";
 import ExplainCard from "../cards/ai/ExplainCard";
 import AskCard from "../cards/ai/AskCard";
 import TransferCard from "../cards/transfer/TransferCard";
@@ -51,6 +50,12 @@ interface AdvancedHomeCardsProps {
 interface CardRenderProps extends AdvancedHomeCardsProps {
   readonly cardId: string;
 }
+
+const RENDERABLE_ADVANCED_CARD_IDS = new Set([
+  "codemap", "guard", "checkpoint", "transfer",
+  "session-memory", "recovery-options", "history", "undo", "anchor",
+  "explain", "ask", "export", "protect", "secrets",
+]);
 
 function SortableCardWrapper({ id, children }: { readonly id: string; readonly children: ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
@@ -108,7 +113,6 @@ function renderAdvancedCard(props: CardRenderProps): ReactNode {
     case "session-memory": return <SessionMemoryCard projectDir={props.projectDir} />;
     case "recovery-options": return <RecoveryOptionsCard projectDir={props.projectDir} apiKey={props.apiKey} providerKeys={props.providerKeys} />;
     case "history": return <HistoryCard projectDir={props.projectDir} />;
-    case "patch": return <PatchCard projectDir={props.projectDir} apiKey={props.apiKey} providerKeys={props.providerKeys} hasAnyAiKey={props.hasAnyAiKey} aiKeyStatusLoaded={props.aiKeyStatusLoaded} onOpenSettings={props.onOpenSettings} />;
     case "undo": return <UndoCard projectDir={props.projectDir} onNavigate={props.onNavigate} />;
     case "anchor": return <AnchorCard projectDir={props.projectDir} apiKey={props.apiKey} providerKeys={props.providerKeys} hasAnyAiKey={props.hasAnyAiKey} aiKeyStatusLoaded={props.aiKeyStatusLoaded} onOpenSettings={props.onOpenSettings} />;
     case "explain": return <ExplainCard projectDir={props.projectDir} apiKey={props.apiKey} providerKeys={props.providerKeys} hasAnyAiKey={props.hasAnyAiKey} aiKeyStatusLoaded={props.aiKeyStatusLoaded} onOpenSettings={props.onOpenSettings} />;
@@ -121,6 +125,7 @@ function renderAdvancedCard(props: CardRenderProps): ReactNode {
 }
 
 export function AdvancedHomeCards(props: AdvancedHomeCardsProps) {
+  const cardOrder = props.cardOrder.filter((cardId) => RENDERABLE_ADVANCED_CARD_IDS.has(cardId));
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
@@ -136,9 +141,9 @@ export function AdvancedHomeCards(props: AdvancedHomeCardsProps) {
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={[...props.cardOrder]} strategy={rectSortingStrategy}>
+      <SortableContext items={cardOrder} strategy={rectSortingStrategy}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {props.cardOrder.map((cardId) => (
+          {cardOrder.map((cardId) => (
             <SortableCardWrapper key={cardId} id={cardId}>
               {renderAdvancedCard({ ...props, cardId })}
             </SortableCardWrapper>

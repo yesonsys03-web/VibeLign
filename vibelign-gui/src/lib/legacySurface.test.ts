@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest";
 
-import { BEGINNER_COMMANDS, getPatchCommand, getPlanStructureCommand } from "./commands";
+import { BEGINNER_COMMANDS, COMMANDS, getPlanStructureCommand } from "./commands";
 
 describe("legacy command surface", () => {
-  test("marks_patch_and_plan_structure_as_legacy", () => {
-    expect(getPatchCommand().visibility).toBe("legacy");
+  test("removes_patch_and_keeps_plan_structure_legacy", () => {
+    expect(COMMANDS.map((command) => command.name)).not.toContain("patch");
     expect(getPlanStructureCommand().visibility).toBe("legacy");
   });
 
