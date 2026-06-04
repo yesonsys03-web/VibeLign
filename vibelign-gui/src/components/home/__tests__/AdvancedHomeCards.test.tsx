@@ -33,11 +33,11 @@ describe("AdvancedHomeCards", () => {
     expect(screen.getByTitle("드래그하여 카드 이동")).toBeInTheDocument();
   });
 
-  test("ignores_removed_patch_card_ids_from_saved_order", () => {
+  test("ignores_removed_legacy_card_ids_from_saved_order", () => {
     render(
       <AdvancedHomeCards
         projectDir="/tmp/demo"
-        cardOrder={["patch", "guard"]}
+        cardOrder={["patch", "plan-structure", "guard"]}
         onCardOrderChange={() => undefined}
         hasAnyAiKey={false}
         aiKeyStatusLoaded={false}

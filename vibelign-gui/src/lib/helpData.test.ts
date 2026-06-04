@@ -18,4 +18,11 @@ describe("helpData beginner surface", () => {
     expect(answer).not.toContain("vib patch");
     expect(answer).not.toContain("패치");
   });
+
+  test("does_not_route_plan_structure_help_topic", () => {
+    const answer = getHelpAnswer("plan-structure");
+
+    expect(answer).not.toContain("vib plan-structure");
+    expect(answer).not.toContain("plan-structure");
+  });
 });

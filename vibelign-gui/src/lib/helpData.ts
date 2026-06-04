@@ -184,14 +184,6 @@ const FALLBACK_TOPICS: HelpTopic[] = [
       "vib watch는 파일이 바뀔 때마다 실시간으로 코드맵을 최신 상태로 유지해요. AI 작업 중에 켜두면 좋고, --auto-fix를 붙이면 새 source 파일에 앵커가 없을 때 자동으로 넣어줘요.",
   },
   {
-    id: "plan-structure",
-    title: "구조 계획",
-    command: "vib plan-structure",
-    summary: "코딩 전에 어느 파일을 바꿀지 먼저 정해요.",
-    answer:
-      "vib plan-structure는 큰 기능을 만들기 전에 어느 파일을 수정하고 어떤 파일을 새로 만들지 먼저 정해줘요. 여러 파일이 같이 바뀌거나 새 production 파일을 만들 때 특히 유용해요. 보통은 plan-structure로 설계도를 만들고, 그다음 구현한 뒤, 마지막에 guard --strict로 확인하면 돼요.",
-  },
-  {
     id: "claude-hook",
     title: "클로드 훅",
     command: "vib claude-hook",
@@ -348,7 +340,6 @@ function topicAliasMarkers(topicId: string): string[] {
     doctor: ["doctor", "닥터", "도크터", "건강검진", "점검", "진단"],
     anchor: ["anchor", "앵커", "앵커링", "표식", "핀", "marker"],
     scan: ["scan", "스캔", "검사", "정리", "갱신", "코드맵", "코드 맵", "codemap", "code map", "project map"],
-    "plan-structure": ["plan-structure", "plan structure", "구조계획", "구조 계획", "설계도", "파일 계획", "플랜스트럭처"],
     guard: ["guard", "가드", "가아드", "검사", "검증", "보호"],
     "claude-hook": ["claude-hook", "claude hook", "클로드훅", "클로드 훅", "pretooluse", "pretoluse", "hook", "훅"],
     explain: ["explain", "익스플레인", "설명", "변경설명", "변경 설명"],

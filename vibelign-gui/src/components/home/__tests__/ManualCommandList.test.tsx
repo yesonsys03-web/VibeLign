@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { COMMANDS, getPlanStructureCommand } from "../../../lib/commands";
+import { COMMANDS } from "../../../lib/commands";
 import { ManualCommandList } from "../ManualCommandList";
 
 describe("ManualCommandList", () => {
@@ -30,19 +30,15 @@ describe("ManualCommandList", () => {
     expect(back).toHaveBeenCalledOnce();
   });
 
-  test("omits_removed_patch_and_keeps_plan_structure_legacy_findable", () => {
+  test("omits_removed_legacy_commands", () => {
     const selectCommand = vi.fn();
-    const planStructureCommand = getPlanStructureCommand();
 
     render(<ManualCommandList onBack={() => undefined} onSelectCommand={selectCommand} />);
 
     expect(COMMANDS.map((command) => command.name)).not.toContain("patch");
+    expect(COMMANDS.map((command) => command.name)).not.toContain("plan-structure");
     expect(screen.queryByText("패치")).not.toBeInTheDocument();
-    expect(screen.getByText(planStructureCommand.title)).toBeInTheDocument();
-    expect(screen.getAllByText("legacy")).toHaveLength(1);
-
-    fireEvent.click(screen.getByText(planStructureCommand.title));
-
-    expect(selectCommand).toHaveBeenCalledWith(planStructureCommand);
+    expect(screen.queryByText("구조 계획")).not.toBeInTheDocument();
+    expect(screen.queryByText("legacy")).not.toBeInTheDocument();
   });
 });
