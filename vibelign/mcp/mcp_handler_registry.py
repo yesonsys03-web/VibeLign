@@ -105,22 +105,6 @@ class ProtectHandlersModule(Protocol):
     ) -> list[object]: ...
 
 
-# === ANCHOR: MCP_HANDLER_REGISTRY_PATCHHANDLERSMODULE_START ===
-class PatchHandlersModule(Protocol):
-    # === ANCHOR: MCP_HANDLER_REGISTRY_HANDLE_PATCH_GET_START ===
-    def handle_patch_get(
-        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
-    # === ANCHOR: MCP_HANDLER_REGISTRY_HANDLE_PATCH_GET_END ===
-    ) -> list[object]: ...
-
-    # === ANCHOR: MCP_HANDLER_REGISTRY_HANDLE_PATCH_APPLY_START ===
-# === ANCHOR: MCP_HANDLER_REGISTRY_PATCHHANDLERSMODULE_END ===
-    def handle_patch_apply(
-        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
-    # === ANCHOR: MCP_HANDLER_REGISTRY_HANDLE_PATCH_APPLY_END ===
-    ) -> list[object]: ...
-
-
 # === ANCHOR: MCP_HANDLER_REGISTRY_ANCHORHANDLERSMODULE_START ===
 class AnchorHandlersModule(Protocol):
     # === ANCHOR: MCP_HANDLER_REGISTRY_HANDLE_ANCHOR_RUN_START ===
@@ -228,11 +212,6 @@ class DoctorHandlersModule(Protocol):
     # === ANCHOR: MCP_HANDLER_REGISTRY_HANDLE_DOCTOR_PLAN_END ===
     ) -> list[object]: ...
 
-    # === ANCHOR: MCP_HANDLER_REGISTRY_HANDLE_DOCTOR_PATCH_START ===
-    def handle_doctor_patch(
-        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
-    # === ANCHOR: MCP_HANDLER_REGISTRY_HANDLE_DOCTOR_PATCH_END ===
-    ) -> list[object]: ...
 # === ANCHOR: MCP_HANDLER_REGISTRY_DOCTORHANDLERSMODULE_END ===
 
     # === ANCHOR: MCP_HANDLER_REGISTRY_HANDLE_DOCTOR_APPLY_START ===
@@ -286,15 +265,6 @@ def _protect_handlers() -> ProtectHandlersModule:
         cast(object, importlib.import_module("vibelign.mcp.mcp_protect_handlers")),
     )
 # === ANCHOR: MCP_HANDLER_REGISTRY__PROTECT_HANDLERS_END ===
-
-
-# === ANCHOR: MCP_HANDLER_REGISTRY__PATCH_HANDLERS_START ===
-def _patch_handlers() -> PatchHandlersModule:
-    return cast(
-        PatchHandlersModule,
-        cast(object, importlib.import_module("vibelign.mcp.mcp_patch_handlers")),
-    )
-# === ANCHOR: MCP_HANDLER_REGISTRY__PATCH_HANDLERS_END ===
 
 
 # === ANCHOR: MCP_HANDLER_REGISTRY__ANCHOR_HANDLERS_START ===
@@ -494,8 +464,6 @@ DISPATCH_TABLE: dict[str, DispatchHandler] = {
     "doctor_run": _health_handlers().handle_doctor_run,
     "guard_check": _health_handlers().handle_guard_check,
     "protect_add": _protect_handlers().handle_protect_add,
-    "patch_get": _patch_handlers().handle_patch_get,
-    "patch_apply": _patch_handlers().handle_patch_apply,
     "anchor_run": _handle_anchor_run,
     "anchor_auto_intent": _handle_anchor_auto_intent,
     "anchor_set_intent": _handle_anchor_set_intent,
@@ -509,7 +477,6 @@ DISPATCH_TABLE: dict[str, DispatchHandler] = {
     "config_get": _handle_config_get,
     "project_map_get": _handle_project_map_get,
     "doctor_plan": _doctor_handlers().handle_doctor_plan,
-    "doctor_patch": _doctor_handlers().handle_doctor_patch,
     "doctor_apply": _doctor_handlers().handle_doctor_apply,
 }
 # === ANCHOR: MCP_HANDLER_REGISTRY_END ===

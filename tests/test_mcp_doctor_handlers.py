@@ -20,10 +20,6 @@ handle_doctor_plan = cast(
     Callable[[Path, dict[str, object], type[TextContent]], list[TextContent]],
     doctor_handlers.handle_doctor_plan,
 )
-handle_doctor_patch = cast(
-    Callable[[Path, dict[str, object], type[TextContent]], list[TextContent]],
-    doctor_handlers.handle_doctor_patch,
-)
 handle_doctor_apply = cast(
     Callable[[Path, dict[str, object], type[TextContent]], list[TextContent]],
     doctor_handlers.handle_doctor_apply,
@@ -49,25 +45,6 @@ class McpDoctorHandlersTest(unittest.TestCase):
         payload = cast(dict[str, object], json.loads(result[0].text))
         steps = cast(list[dict[str, object]], payload["steps"])
         self.assertEqual(steps[0]["action_type"], "split_file")
-
-    def test_handle_doctor_patch_returns_preview_text(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            with patch("vibelign.core.doctor_v2.analyze_project_v2") as analyze:
-                with patch(
-                    "vibelign.action_engine.action_planner.generate_plan",
-                    return_value=object(),
-                ):
-                    with patch(
-                        "vibelign.action_engine.generators.patch_generator.generate_patch_preview",
-                        return_value="preview text",
-                    ):
-                        analyze.return_value = object()
-                        result = handle_doctor_patch(
-                            root, {"strict": False}, TextContent
-                        )
-
-        self.assertEqual(result[0].text, "preview text")
 
     def test_handle_doctor_apply_returns_execution_summary(self) -> None:
         class FakeAction:

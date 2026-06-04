@@ -275,54 +275,6 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         },
     },
     {
-        "name": "patch_get",
-        "description": (
-            "사용자의 자연어 요청을 CodeSpeak(구조화된 수정 지시어)로 번역하고, "
-            "프로젝트 앵커 인덱스를 검색하여 수정할 파일과 정확한 위치(target_anchor)를 특정합니다. "
-            "코드를 수정하기 전에 반드시 이 도구를 먼저 호출하고, "
-            "반환된 target_file과 target_anchor 범위 안에서만 수정하세요."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "request": {
-                    "type": "string",
-                    "description": "수정 요청 (예: '로그인 버튼 크기 키워줘')",
-                },
-                "lazy_fanout": {
-                    "type": "boolean",
-                    "description": (
-                        "다중 의도가 있을 때 첫 의도만 상세 계획하고 "
-                        "나머지는 pending_sub_intents로 돌려 비용을 줄임"
-                    ),
-                },
-            },
-            "required": ["request"],
-        },
-    },
-    {
-        "name": "patch_apply",
-        "description": (
-            "Strict Patch JSON을 validator 규칙으로 검증한 뒤 정확히 한 번 매치될 때만 적용합니다. "
-            "적용 직전에 자동 checkpoint를 생성합니다. "
-            "dry_run=true이면 검증만 하고 파일을 쓰지 않으며 checkpoint도 만들지 않습니다."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "strict_patch": {
-                    "type": "object",
-                    "description": "patch_get 또는 handoff prompt에서 얻은 Strict Patch JSON",
-                },
-                "dry_run": {
-                    "type": "boolean",
-                    "description": "true면 검증만 수행 (워크스페이스 변경·checkpoint 없음)",
-                },
-            },
-            "required": ["strict_patch"],
-        },
-    },
-    {
         "name": "handoff_create",
         "description": (
             "현재 AI 세션 요약을 받아 PROJECT_CONTEXT.md 상단에 Session Handoff 블록을 생성합니다. "
@@ -542,19 +494,6 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     {
         "name": "doctor_plan",
         "description": "프로젝트 분석 결과를 실행 가능한 단계 목록(Plan)으로 반환합니다. 파일 수정 없음.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "strict": {
-                    "type": "boolean",
-                    "description": "엄격 모드 (기본값: false)",
-                }
-            },
-        },
-    },
-    {
-        "name": "doctor_patch",
-        "description": "Plan의 각 Action에 대한 변경 예정 미리보기를 반환합니다. 파일 수정 없음.",
         "inputSchema": {
             "type": "object",
             "properties": {

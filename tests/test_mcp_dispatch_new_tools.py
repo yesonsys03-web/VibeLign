@@ -70,6 +70,17 @@ class TestDispatchAnchorReadContent:
         text = result[0]["text"]
         assert "알 수 없는 도구" in text
 
+    def test_removed_patch_tools_return_unknown_text(self):
+        for tool_name in ["patch_get", "patch_apply", "doctor_patch"]:
+            result = _run(call_tool_dispatch(
+                tool_name,
+                {"request": "fix login"},
+                root=self.root,
+                text_content=_tc,
+            ))
+            text = result[0]["text"]
+            assert "알 수 없는 도구" in text
+
 
 class TestDispatchProjectMapGet:
     """call_tool_dispatch("project_map_get", ...) reaches the real handler."""

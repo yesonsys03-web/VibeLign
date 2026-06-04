@@ -111,7 +111,7 @@ class DispatchAutoCaptureTest(unittest.TestCase):
         )
         self.assertEqual(wm.relevant_files, [])
 
-    def test_patch_apply_with_strict_patch_logs_relevant_file_only(self):
+    def test_removed_patch_apply_has_no_relevant_file_side_effect(self):
         strict = {
             "target": {
                 "file": "vibelign/core/work_memory.py",
@@ -126,34 +126,7 @@ class DispatchAutoCaptureTest(unittest.TestCase):
                 root=self.root, text_content=_tc))
         wm = self._wm()
         self.assertEqual(wm.decisions, [])
-        self.assertTrue(
-            any(rf.path == "vibelign/core/work_memory.py"
-                for rf in wm.relevant_files),
-            f"relevant_files missing: {wm.relevant_files}",
-        )
-
-    def test_patch_apply_dry_run_skipped(self):
-        strict = {
-            "target": {"file": "vibelign/core/work_memory.py"},
-            "dry_run": True,
-        }
-        with mock_patch.dict(mcp_dispatch.DISPATCH_TABLE,
-            {"patch_apply": lambda r, a, t: [{"type": "text", "text": "would apply"}]}):
-            _run(call_tool_dispatch("patch_apply",
-                {"strict_patch": strict},
-                root=self.root, text_content=_tc))
-        self.assertEqual(self._wm().relevant_files, [])
-
-    def test_patch_apply_top_level_dry_run_skipped(self):
-        strict = {
-            "target": {"file": "vibelign/core/work_memory.py"},
-        }
-        with mock_patch.dict(mcp_dispatch.DISPATCH_TABLE,
-            {"patch_apply": lambda r, a, t: [{"type": "text", "text": "would apply"}]}):
-            _run(call_tool_dispatch("patch_apply",
-                {"strict_patch": strict, "dry_run": True},
-                root=self.root, text_content=_tc))
-        self.assertEqual(self._wm().relevant_files, [])
+        self.assertEqual(wm.relevant_files, [])
 
     def test_other_tools_have_no_side_effect(self):
         with mock_patch.dict(mcp_dispatch.DISPATCH_TABLE,

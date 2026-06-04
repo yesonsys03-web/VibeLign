@@ -36,24 +36,6 @@ def handle_doctor_plan(
     return _text(text_content, json.dumps(plan.to_dict(), indent=2, ensure_ascii=False))
 
 
-# === ANCHOR: MCP_DOCTOR_HANDLERS_HANDLE_DOCTOR_PATCH_START ===
-def handle_doctor_patch(
-    root: Path,
-    arguments: dict[str, object],
-    text_content: TextContentFactory,
-# === ANCHOR: MCP_DOCTOR_HANDLERS_HANDLE_DOCTOR_PATCH_END ===
-) -> list[object]:
-    from vibelign.action_engine.action_planner import generate_plan
-    from vibelign.action_engine.generators.patch_generator import generate_patch_preview
-    from vibelign.core.doctor_v2 import analyze_project_v2
-
-    strict = bool(arguments.get("strict", False))
-    report = analyze_project_v2(root, strict=strict)
-    plan = generate_plan(report)
-    preview = generate_patch_preview(plan, root)
-    return _text(text_content, preview)
-
-
 # === ANCHOR: MCP_DOCTOR_HANDLERS_HANDLE_DOCTOR_APPLY_START ===
 def handle_doctor_apply(
     root: Path,

@@ -101,8 +101,6 @@ class McpToolSnapshotTest(unittest.TestCase):
                 "doctor_run",
                 "guard_check",
                 "protect_add",
-                "patch_get",
-                "patch_apply",
                 "handoff_create",
                 "anchor_run",
                 "anchor_list",
@@ -117,7 +115,6 @@ class McpToolSnapshotTest(unittest.TestCase):
                 "config_get",
                 "project_map_get",
                 "doctor_plan",
-                "doctor_patch",
                 "doctor_apply",
             ],
         )
@@ -149,14 +146,6 @@ class McpToolSnapshotTest(unittest.TestCase):
         self.assertEqual(
             cast(list[str], by_name["protect_add"].inputSchema.get("required", [])),
             ["file_paths"],
-        )
-        self.assertEqual(
-            cast(list[str], by_name["patch_get"].inputSchema.get("required", [])),
-            ["request"],
-        )
-        self.assertEqual(
-            cast(list[str], by_name["patch_apply"].inputSchema.get("required", [])),
-            ["strict_patch"],
         )
         self.assertEqual(
             cast(list[str], by_name["handoff_create"].inputSchema.get("required", [])),

@@ -10,7 +10,6 @@ from vibelign.mcp.mcp_handler_registry import TextContentFactory
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.memory.store import (
     add_memory_observed_context,
-    add_memory_relevant_file,
     add_memory_verification,
 )
 
@@ -80,30 +79,6 @@ def _auto_capture_narrative(
                 context_path="checkpoint",
                 source_tool="mcp checkpoint_create",
             )
-
-    elif name == "patch_apply":
-        strict = arguments.get("strict_patch")
-        if not isinstance(strict, dict):
-            return
-        if arguments.get("dry_run") is True or strict.get("dry_run") is True:
-            return
-        target = strict.get("target")
-        if isinstance(target, dict):
-            file_path = target.get("file")
-            if isinstance(file_path, str) and file_path:
-                anchor = target.get("anchor", "")
-                why = (
-                    f"patch_apply target (anchor: {anchor})"
-                    if isinstance(anchor, str) and anchor
-                    else "patch_apply target"
-                )
-                add_memory_relevant_file(
-                    wm,
-                    file_path,
-                    why,
-                    source="observed",
-                    updated_by="mcp patch_apply",
-                )
 
 
 def _flatten_result_text(result: list[object]) -> str:

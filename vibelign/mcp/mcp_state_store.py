@@ -2,13 +2,11 @@
 from __future__ import annotations
 
 import json
-import uuid
 from datetime import datetime, timezone
 from typing import cast
 
 from vibelign.core.meta_paths import MetaPaths
 
-PATCH_SESSION_KEY = "patch_session"
 PLANNING_KEY = "planning"
 
 
@@ -41,33 +39,6 @@ def save_state(meta: MetaPaths, state: dict[str, object]) -> None:
 
 
 # === ANCHOR: MCP_STATE_STORE_SAVE_STATE_END ===
-
-
-# === ANCHOR: MCP_STATE_STORE_LOAD_PATCH_SESSION_START ===
-def load_patch_session(meta: MetaPaths) -> dict[str, object] | None:
-    state = load_state(meta)
-    session = state.get(PATCH_SESSION_KEY)
-    if not isinstance(session, dict):
-        return None
-    return {
-        str(key): value for key, value in cast(dict[object, object], session).items()
-    }
-
-
-# === ANCHOR: MCP_STATE_STORE_LOAD_PATCH_SESSION_END ===
-
-
-# === ANCHOR: MCP_STATE_STORE_SAVE_PATCH_SESSION_START ===
-def save_patch_session(meta: MetaPaths, session: dict[str, object] | None) -> None:
-    state = load_state(meta)
-    if session is None:
-        _ = state.pop(PATCH_SESSION_KEY, None)
-    else:
-        state[PATCH_SESSION_KEY] = session
-    save_state(meta, state)
-
-
-# === ANCHOR: MCP_STATE_STORE_SAVE_PATCH_SESSION_END ===
 
 
 # === ANCHOR: MCP_STATE_STORE_LOAD_PLANNING_SESSION_START ===
@@ -105,10 +76,4 @@ def patch_session_now() -> str:
 # === ANCHOR: MCP_STATE_STORE_PATCH_SESSION_NOW_END ===
 
 
-# === ANCHOR: MCP_STATE_STORE_NEW_PATCH_SESSION_ID_START ===
-def new_patch_session_id() -> str:
-    return uuid.uuid4().hex
-
-
-# === ANCHOR: MCP_STATE_STORE_NEW_PATCH_SESSION_ID_END ===
 # === ANCHOR: MCP_STATE_STORE_END ===
