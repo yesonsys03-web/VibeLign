@@ -1,25 +1,24 @@
+import { planningPersonaRoleLabel, type PlanningPersonaId } from "../../pages/planning/PlanningPersonas";
+
 interface PlanningWorkInstructionInput {
   readonly prompt: string;
   readonly outputPath: string;
   readonly persona?: PlanningWorkPersona;
 }
 
-export type PlanningWorkPersona = "chloe" | "gio" | "mina";
+export type PlanningWorkPersona = PlanningPersonaId;
 
-const PERSONA_CLI_DETAILS: Record<PlanningWorkPersona, { readonly cliName: string; readonly label: string; readonly role: string }> = {
+const PERSONA_CLI_DETAILS: Record<PlanningWorkPersona, { readonly cliName: string; readonly role: string }> = {
   chloe: {
     cliName: "Claude Code CLI",
-    label: "설계자 클로이",
     role: "구현 구조와 컴포넌트 분리를 먼저 설계합니다.",
   },
   gio: {
     cliName: "Codex CLI",
-    label: "검토자 지오",
     role: "변경 위험, 테스트 기준, 정책 위반 가능성을 검토합니다.",
   },
   mina: {
     cliName: "Antigravity CLI",
-    label: "탐색자 미나",
     role: "대안 흐름, 놓친 사용자 시나리오, 탐색 관점을 보강합니다.",
   },
 };
@@ -32,7 +31,7 @@ export function buildPlanningWorkInstruction({ prompt, outputPath, persona }: Pl
     ...(personaDetails
       ? [
           "",
-          `대상 역할: ${personaDetails.label}`,
+          `대상 역할: ${planningPersonaRoleLabel(persona)}`,
           `사용 CLI: ${personaDetails.cliName}`,
           `역할 기준: ${personaDetails.role}`,
         ]

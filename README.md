@@ -140,16 +140,15 @@ vib start
 
 | Command | What It Does |
 |---------|--------------|
-| `vib patch "add button"` | Tell AI exactly how to edit (Korean OK!) |
 | `vib anchor` | Mark safe areas for AI to edit |
 | `vib scan` | Clean up files + check status |
 
-### VibeLign patch rules
+### AI edit rules
 
 - Split composite requests into `intent / source / destination / behavior_constraint`.
 - If `delete` and `move` appear together, treat it as move + preservation unless the user clearly wants removal.
 - Resolve `source` and `destination` by role, not with the same rule.
-- If patch contract or codespeak shape changes, update tests and docs together.
+- If an internal edit contract changes, update tests and docs together.
 - Keep terminology aligned with the shared glossary and project docs.
 
 ### Checking & Verification
@@ -205,7 +204,6 @@ vib start
 # Before AI edits
 vib checkpoint "before login feature"
 vib doctor --strict
-vib patch "create login button"
 
 # After AI edits
 vib explain --write-report

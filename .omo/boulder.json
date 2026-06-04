@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "active_work_id": "planning-work-engine-prompt-boundary",
+  "active_work_id": "planning-work-guard-home-copy",
   "works": {
     "planning-room-next-actions": {
       "work_id": "planning-room-next-actions",
@@ -215,6 +215,54 @@
       "active_plan": ".omo/plans/planning-work-engine-prompt-boundary.md",
       "plan_name": "planning-work-engine-prompt-boundary",
       "session_ids": ["codex:planning-work-engine-prompt-boundary"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-code-explorer-persona-boundary": {
+      "work_id": "planning-work-code-explorer-persona-boundary",
+      "active_plan": ".omo/plans/planning-work-code-explorer-persona-boundary.md",
+      "plan_name": "planning-work-code-explorer-persona-boundary",
+      "session_ids": ["codex:planning-work-code-explorer-persona-boundary"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-simple-home": {
+      "work_id": "planning-work-simple-home",
+      "active_plan": ".omo/plans/planning-work-simple-home.md",
+      "plan_name": "planning-work-simple-home",
+      "session_ids": ["codex:planning-work-simple-home"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-legacy-surface-cleanup": {
+      "work_id": "planning-work-legacy-surface-cleanup",
+      "active_plan": ".omo/plans/planning-work-legacy-surface-cleanup.md",
+      "plan_name": "planning-work-legacy-surface-cleanup",
+      "session_ids": ["codex:planning-work-legacy-surface-cleanup"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-safety-automation-notice": {
+      "work_id": "planning-work-safety-automation-notice",
+      "active_plan": ".omo/plans/planning-work-safety-automation-notice.md",
+      "plan_name": "planning-work-safety-automation-notice",
+      "session_ids": ["codex:planning-work-safety-automation-notice"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-automation-error-humanizer": {
+      "work_id": "planning-work-automation-error-humanizer",
+      "active_plan": ".omo/plans/planning-work-automation-error-humanizer.md",
+      "plan_name": "planning-work-automation-error-humanizer",
+      "session_ids": ["codex:planning-work-automation-error-humanizer"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-guard-home-copy": {
+      "work_id": "planning-work-guard-home-copy",
+      "active_plan": ".omo/plans/planning-work-guard-home-copy.md",
+      "plan_name": "planning-work-guard-home-copy",
+      "session_ids": ["codex:planning-work-guard-home-copy"],
       "status": "complete",
       "worktree_path": null
     }

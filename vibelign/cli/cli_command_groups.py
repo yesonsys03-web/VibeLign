@@ -288,13 +288,13 @@ def register_extended_commands(
 
     p = sub.add_parser(
         "patch",
-        help="말로 요청하면 안전한 수정 계획을 만들어요",
+        help="legacy: 구조화된 수정 계획을 만들어요",
         description=(
-            '"로그인 버튼 추가해줘" 같이 말로 요청하면\n'
-            "어떤 파일의 어느 부분을 수정할지 계획을 세워요."
+            "legacy 기능입니다.\n"
+            "자연어 수정은 host AI가 VibeLign MCP 도구를 직접 읽는 흐름을 권장해요."
         ),
         epilog=(
-            "이렇게 쓰세요:\n"
+            "legacy 사용 예:\n"
             '  vib patch "로그인 버튼 추가"           수정 계획\n'
             '  vib patch "버그 수정" --ai             AI가 분석\n'
             '  vib patch "사이드바 제거" --preview    미리 보기\n'
@@ -730,13 +730,13 @@ def register_extended_commands(
 
     p = sub.add_parser(
         "plan-structure",
-        help="AI가 코딩하기 전 구조 계획을 만들어요",
+        help="legacy: 내부 구조 계획 JSON을 만들어요",
         description=(
-            "기능 설명을 바탕으로 어느 파일을 수정하고 어떤 파일을 새로 만들지 계획해요.\n"
-            "생성된 계획은 .vibelign/plans/ 아래에 저장돼요."
+            "내부 구조 계획용 legacy 기능입니다.\n"
+            "새 기획방/초보 흐름에서는 vib plan과 plans/*.md를 사용해요."
         ),
         epilog=(
-            "이렇게 쓰세요:\n"
+            "legacy 사용 예:\n"
             '  vib plan-structure "OAuth 인증 추가"\n'
             '  vib plan-structure --scope vibelign/core/ "watch 기능 확장"\n'
             '  vib plan-structure --ai "mcp handler 수정"'

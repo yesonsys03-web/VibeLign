@@ -99,13 +99,11 @@ VibeLign - AI한테 코딩 시켜도 안전하게 지켜주는 도구
   guard       AI가 코드를 망가뜨리지 않았는지 검사해요
   explain     뭐가 바뀌었는지 쉽게 알려줘요
 
-AI 수정 요청:
-  patch       말로 요청하면 안전한 수정 계획을 만들어요
+AI 작업 준비:
   anchor      AI가 건드려도 되는 안전 구역을 표시해요
   scan        앵커 스캔 + 코드맵 갱신을 한 번에 해요
-  plan-structure  코딩 전에 구조 계획을 만들어요
-  claude-hook     Claude 저장 전 검사를 관리해요
-  secrets         API 키 같은 비밀정보 커밋을 막아요
+  claude-hook Claude 저장 전 검사를 관리해요
+  secrets     API 키 같은 비밀정보 커밋을 막아요
 
 파일 & 설정:
   protect     중요한 파일을 잠가요
@@ -127,7 +125,11 @@ AI 수정 요청:
 도움말:
   manual      코알못을 위한 상세 사용 설명서
   rules       AI 개발 규칙 전체 보기
-  completion  탭 자동완성 설정"""
+  completion  탭 자동완성 설정
+
+고급 / legacy:
+  patch           legacy: 구조화된 수정 계획 생성
+  plan-structure  legacy: 내부 구조 계획 JSON 생성"""
 
 MAIN_EPILOG = """\
 처음이세요? 이것만 따라하세요:

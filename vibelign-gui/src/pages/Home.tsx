@@ -33,7 +33,9 @@ import ProtectCard from "../components/cards/security/ProtectCard";
 import SecretsCard from "../components/cards/security/SecretsCard";
 import SessionMemoryCard from "../components/agent-memory/SessionMemoryCard";
 import RecoveryOptionsCard from "../components/agent-memory/RecoveryOptionsCard";
+import LegacyCommandBadge from "../components/home/LegacyCommandBadge";
 import { HomePlanningEntry } from "../components/home/HomePlanningEntry";
+import { SimpleHome } from "../components/home/SimpleHome";
 import pkg from "../../package.json";
 
 // ── 드래그 래퍼 (핸들 전용) ────────────────────────────────────────────────────
@@ -138,6 +140,8 @@ interface HomeProps {
   initialView?: View;
   watchOn?: boolean;
   setWatchOn?: (v: boolean) => void;
+  watchError?: string | null;
+  onRetryWatch?: () => void;
   mapMode?: "manual" | "auto";
   setMapMode?: (v: "manual" | "auto") => void;
   planningPrompt?: string;
@@ -148,11 +152,12 @@ interface HomeProps {
 
 
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────────
-export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning }: HomeProps) {
+export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, watchError = null, onRetryWatch, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning }: HomeProps) {
   const [view, setView]                   = useState<View>(initialView);
   const [selectedCmd, setSelectedCmd]     = useState<typeof COMMANDS[0] | null>(null);
   const [guardResult, setGuardResult]     = useState<GuardResult | null>(null);
   const [guardModal, setGuardModal] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [watchOnLocal, setWatchOnLocal]   = useState(watchOnProp ?? false);
   const watchOn = watchOnProp ?? watchOnLocal;
   const setWatchOn = (v: boolean) => { setWatchOnLocal(v); setWatchOnProp?.(v); };
@@ -349,6 +354,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
                   </div>
                   <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
                     <span style={{ fontWeight: 700, fontSize: 16.5, flexShrink: 0 }}>{cmd.title}</span>
+                    <LegacyCommandBadge visibility={cmd.visibility} />
                     <span style={{ fontSize: 9, fontWeight: 500, color: "#666", lineHeight: 1.25 }}>{cmd.short}</span>
                   </div>
                 </div>
@@ -437,14 +443,16 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
 
       <div className="page-header" style={{ padding: "14px 20px 12px" }}>
         <span className="page-title">HOME</span>
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={resetOrder}
-          style={{ fontSize: 10, padding: "2px 8px", border: "1.5px solid #ccc", color: "#888" }}
-          title="카드 순서 초기화"
-        >
-          ↺
-        </button>
+        {advancedOpen && (
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={resetOrder}
+            style={{ fontSize: 10, padding: "2px 8px", border: "1.5px solid #ccc", color: "#888" }}
+            title="카드 순서 초기화"
+          >
+            ↺
+          </button>
+        )}
         <div
           className="terminal"
           style={{
@@ -477,34 +485,50 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
             onOpen={onOpenPlanning}
           />
         )}
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext items={cardOrder} strategy={rectSortingStrategy}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {cardOrder.map((id) => (
-                <SortableCardWrapper key={id} id={id}>
-                  {renderCard(id, {
-                    projectDir,
-                    apiKey,
-                    providerKeys,
-                    hasAnyAiKey,
-                    aiKeyStatusLoaded,
-                    onNavigate,
-                    onOpenSettings,
-                    watchOn,
-                    setWatchOn,
-                    mapMode,
-                    setMapMode,
-                    onGuardResult: (r) => { setGuardResult(r); setGuardModal(true); },
-                  })}
-                </SortableCardWrapper>
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
+        {!advancedOpen && (
+          <SimpleHome
+            guardResult={guardResult}
+            watchOn={watchOn}
+            watchError={watchError}
+            hasCheckpoint={false}
+            onRetryWatch={() => {
+              onRetryWatch?.();
+            }}
+            onShowAdvanced={() => setAdvancedOpen(true)}
+            onNavigateBackups={() => onNavigate("backups")}
+            onOpenGuardDetails={() => setGuardModal(true)}
+          />
+        )}
+        {advancedOpen && (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={cardOrder} strategy={rectSortingStrategy}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {cardOrder.map((id) => (
+                  <SortableCardWrapper key={id} id={id}>
+                    {renderCard(id, {
+                      projectDir,
+                      apiKey,
+                      providerKeys,
+                      hasAnyAiKey,
+                      aiKeyStatusLoaded,
+                      onNavigate,
+                      onOpenSettings,
+                      watchOn,
+                      setWatchOn,
+                      mapMode,
+                      setMapMode,
+                      onGuardResult: (r) => { setGuardResult(r); setGuardModal(true); },
+                    })}
+                  </SortableCardWrapper>
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        )}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { readFileSync } from "node:fs";
 
 import { buildPlanningWorkInstruction } from "./planningInstruction";
 
@@ -26,5 +27,17 @@ describe("buildPlanningWorkInstruction", () => {
     expect(instruction).toContain("Codex CLI");
     expect(instruction).toContain("저장된 기획안: plans/예약-앱-만들고-싶어.md");
     expect(instruction).toContain("토큰, 쿠키, 세션 파일을 읽지 마세요");
+  });
+
+  test("derives_persona_labels_from_planning_persona_metadata", () => {
+    const helperSource = readFileSync("src/lib/code-explorer/planningInstruction.ts", "utf8");
+    const actionsSource = readFileSync("src/components/code-explorer/PlanningInstructionActions.tsx", "utf8");
+
+    expect(helperSource).not.toContain('label: "설계자 클로이"');
+    expect(helperSource).not.toContain('label: "검토자 지오"');
+    expect(helperSource).not.toContain('label: "탐색자 미나"');
+    expect(actionsSource).not.toContain('label: "클로이 Claude"');
+    expect(actionsSource).not.toContain('label: "지오 Codex"');
+    expect(actionsSource).not.toContain('label: "미나 Antigravity"');
   });
 });

@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { buildPlanningWorkInstruction, type PlanningWorkPersona } from "../../lib/code-explorer/planningInstruction";
+import { planningPersonaLabel } from "../../pages/planning/PlanningPersonas";
 
 interface PlanningInstructionActionsProps {
   readonly prompt: string;
@@ -10,21 +11,21 @@ interface PlanningInstructionActionsProps {
 type CopyStatus = "idle" | "copied" | "error";
 
 const PERSONA_COPY_ACTIONS: readonly { readonly label: string; readonly persona: PlanningWorkPersona }[] = [
-  { label: "클로이 Claude", persona: "chloe" },
-  { label: "지오 Codex", persona: "gio" },
-  { label: "미나 Antigravity", persona: "mina" },
+  { label: `${planningPersonaLabel("chloe")} Claude`, persona: "chloe" },
+  { label: `${planningPersonaLabel("gio")} Codex`, persona: "gio" },
+  { label: `${planningPersonaLabel("mina")} Antigravity`, persona: "mina" },
 ];
 
 const PERSONA_PREVIEW_ACTIONS: readonly { readonly label: string; readonly persona: PlanningWorkPersona }[] = [
-  { label: "클로이 미리보기", persona: "chloe" },
-  { label: "지오 미리보기", persona: "gio" },
-  { label: "미나 미리보기", persona: "mina" },
+  { label: `${planningPersonaLabel("chloe")} 미리보기`, persona: "chloe" },
+  { label: `${planningPersonaLabel("gio")} 미리보기`, persona: "gio" },
+  { label: `${planningPersonaLabel("mina")} 미리보기`, persona: "mina" },
 ];
 
 const PREVIEW_TARGET_LABELS: Record<PlanningWorkPersona, string> = {
-  chloe: "클로이 Claude",
-  gio: "지오 Codex",
-  mina: "미나 Antigravity",
+  chloe: `${planningPersonaLabel("chloe")} Claude`,
+  gio: `${planningPersonaLabel("gio")} Codex`,
+  mina: `${planningPersonaLabel("mina")} Antigravity`,
 };
 
 export function PlanningInstructionActions({ prompt, outputPath }: PlanningInstructionActionsProps) {

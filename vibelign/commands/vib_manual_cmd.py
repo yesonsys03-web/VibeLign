@@ -614,8 +614,10 @@ MANUAL: dict[str, ManualEntry] = {
     "patch": {
         "emoji": "🛠️",
         "title": "vib patch",
-        "one_line": "말로 요청하면 안전한 수정 계획을 만들어요",
+        "one_line": "legacy: 구조화된 수정 계획을 만들어요",
         "what": (
+            "legacy 기능이에요. 초보 흐름에서는 더 이상 추천하지 않아요.\n"
+            "자연어 수정은 Claude Code/Codex/Cursor 같은 host AI가 VibeLign MCP 도구를 직접 읽는 방식을 권장해요.\n\n"
             '"로그인 버튼 추가해줘" 같이 말로 요청하면,\n'
             "어떤 파일의 어느 부분을 어떻게 수정할지 계획을 세워줘요.\n"
             "이 계획을 복사해서 AI (Claude, ChatGPT 등)에 붙여넣으면 돼요."
@@ -940,11 +942,38 @@ MANUAL: dict[str, ManualEntry] = {
             ("disable", "검사는 끄지만 hook 엔트리는 남겨둬서 다시 켜기 쉽게 해요."),
         ],
     },
+    "plan": {
+        "emoji": "📝",
+        "title": "vib plan",
+        "one_line": "새 기획방 흐름으로 plans/*.md 기획안을 만들어요",
+        "what": (
+            "아이디어를 자연어로 적으면 기획안을 만들고 plans/*.md에 저장해요.\n"
+            "초보 흐름에서는 내부 구조 JSON보다 이 명령을 먼저 사용해요."
+        ),
+        "when": [
+            "기능을 바로 구현하기 전에 작업 방향을 정하고 싶을 때",
+            "기획방 페르소나 응답을 plans/*.md로 저장하고 싶을 때",
+            "새 초보 흐름에서 구현 전 계획을 남기고 싶을 때",
+        ],
+        "examples": [
+            ('vib plan "예약 앱 만들고 싶어"', "기획안 생성"),
+            ('vib plan "예약 앱 만들고 싶어" --template-only', "LLM 없이 템플릿 생성"),
+            ('vib plan "예약 앱 만들고 싶어" --template-only --json', "JSON 출력"),
+        ],
+        "options": [
+            ("idea", "기획할 아이디어를 말로 적어요."),
+            ("--template-only", "LLM 없이 템플릿 기획안만 생성해요."),
+            ("--output PATH", "저장할 프로젝트 상대 경로를 지정해요."),
+            ("--agents LIST", "실행할 페르소나 목록을 쉼표로 지정해요."),
+            ("--json", "결과를 JSON 형식으로 출력해요. (개발자용)"),
+        ],
+    },
     "plan-structure": {
         "emoji": "🧱",
         "title": "vib plan-structure",
-        "one_line": "코딩 전에 어느 파일을 바꿀지 구조 계획을 만들어요",
+        "one_line": "legacy: 내부 구조 계획 JSON을 만들어요",
         "what": (
+            "legacy 기능이에요. 새 기획방/초보 흐름에서는 vib plan과 plans/*.md를 사용해요.\n\n"
             "기능 설명을 바탕으로 어느 파일은 수정하고 어느 파일은 새로 만들어야 하는지 먼저 계획해요.\n"
             "쉽게 말하면 '코딩 시작 전에 설계도 한 장 먼저 만드는 버튼'이에요.\n"
             "계획은 `.vibelign/plans/` 아래에 저장되고, guard나 pre-check가 이 계획을 보고 검사할 수 있어요.\n\n"
@@ -967,8 +996,8 @@ MANUAL: dict[str, ManualEntry] = {
             ),
             ('vib plan-structure --ai "mcp handler 수정"', "AI 계획 메타데이터로 기록"),
             (
-                'vib plan-structure "OAuth 인증 추가" → vib patch "OAuth 로그인 버튼과 서버 검증 추가" → vib guard --strict',
-                "추천 흐름 예시",
+                'vib plan "OAuth 인증 추가" → host AI 작업 → vib guard --strict',
+                "새 초보 흐름 예시",
             ),
         ],
         "options": [
@@ -1527,7 +1556,7 @@ GROUPS = [
         ["checkpoint", "undo", "history", "recover", "backup-db-viewer", "backup-graph-summary", "backup-db-maintenance", "backup-cleanup"],
     ),
     ("🔬 점검 & 확인", ["doctor", "guard", "explain"]),
-    ("✏️ AI 수정 요청", ["patch", "anchor", "scan", "plan-structure"]),
+    ("✏️ AI 작업 준비", ["plan", "anchor", "scan"]),
     ("📚 문서 보기 & 다시생성", ["docs-build", "docs-enhance", "docs-index", "doc-sources"]),
     (
         "🗂️ 파일 & 설정",
@@ -1546,6 +1575,7 @@ GROUPS = [
             "completion",
         ],
     ),
+    ("고급 / legacy", ["patch", "plan-structure"]),
     ("🤖 MCP (AI 자동 연동)", ["mcp"]),
     ("📋 AI 개발 규칙", ["manual", "rules"]),
 ]

@@ -501,15 +501,17 @@ export const COMMANDS_CORE = [
   },
   {
     name: "patch", icon: "🔧", color: "#FFD166",
+    visibility: "legacy" as const,
     title: "패치",
-    short: "말로 수정 요청 → 안전한 계획 생성",
-    desc: "수정하고 싶은 걸 말로 설명하면, 어느 파일 어느 부분을 바꿔야 하는지 계획을 세워줘요. 직접 코드를 바꾸는 게 아니라 '여기 바꾸세요' 지시서를 만들어주는 거예요.",
+    short: "legacy: 구조화된 수정 계획",
+    desc: "초보 흐름에서는 더 이상 추천하지 않는 legacy 기능이에요. 자연어 수정은 host AI가 VibeLign MCP 도구를 직접 읽는 방식을 권장해요.",
     usage: "vib patch \"로그인 버튼 색깔 바꿔줘\"",
     tips: ["코드 수정 전에 뭘 바꿔야 하는지 확인할 수 있어요", "AI한테 그대로 전달하면 돼요"],
     guide: [
       {
         step: "기능", title: "말로 요청 → 수정 계획 생성",
         lines: [
+          { t: "warn",  v: "legacy 기능입니다. 초보 흐름에서는 더 이상 추천하지 않아요." },
           { t: "info",  v: "'로그인 버튼 추가해줘' 같이 말로 요청하면," },
           { t: "info",  v: "어떤 파일의 어느 부분을 수정할지 계획을 만들어줘요." },
           { t: "info",  v: "이 계획을 AI에게 붙여넣으면 정확하게 수정할 수 있어요." },

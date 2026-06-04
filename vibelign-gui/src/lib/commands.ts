@@ -6,9 +6,22 @@ import type { FlagDef } from "./commandData";
 import { COMMANDS_CORE } from "./commandData";
 import { COMMANDS_EXT } from "./commandData2";
 
-export const COMMANDS = [...COMMANDS_CORE, ...COMMANDS_EXT];
+export const COMMANDS = [...COMMANDS_CORE, ...COMMANDS_EXT].map((command) => ({
+  visibility: "beginner" as const,
+  ...command,
+}));
 
-export const PATCH_COMMAND = COMMANDS.find((c) => c.name === "patch")!;
+export const BEGINNER_COMMANDS = COMMANDS.filter((command) => command.visibility === "beginner");
+
+export function getPatchCommand(): (typeof COMMANDS)[number] {
+  const command = COMMANDS.find((item) => item.name === "patch");
+  if (!command) {
+    throw new Error("patch command metadata is missing");
+  }
+  return command;
+}
+
+export const PATCH_COMMAND = getPatchCommand();
 
 /**
  * 커맨드 이름과 플래그 값으로 vib CLI 인수 배열을 만든다.

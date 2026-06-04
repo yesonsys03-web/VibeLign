@@ -163,6 +163,13 @@ def _render_markdown(data: dict[str, object], preview_text: str | None = None) -
 
 def run_vib_patch(args: Namespace | object) -> None:
     root = resolve_project_root(Path.cwd())
+    if not bool(getattr(args, "json", False)):
+        print(
+            "vib patch는 legacy 기능이에요.\n"
+            "초보 흐름에서는 더 이상 추천하지 않아요.\n"
+            "자연어 수정은 Claude Code/Codex/Cursor 같은 host AI가 "
+            "VibeLign MCP 도구를 직접 읽는 방식으로 진행하세요."
+        )
     apply_strict_raw = getattr(args, "apply_strict", None)
     apply_strict_text = (
         str(cast(object, apply_strict_raw)).strip()

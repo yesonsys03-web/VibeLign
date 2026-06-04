@@ -50,6 +50,10 @@ def run_vib_plan_structure(args: object) -> None:
     meta.ensure_vibelign_dirs()
 
     if not bool(raw_args.json):
+        clack_warn(
+            "vib plan-structure는 내부 구조 계획용 legacy 기능이에요.\n"
+            "새 기획방/초보 흐름에서는 vib plan과 plans/*.md를 사용해요."
+        )
         clack_intro("VibeLign 구조 계획")
         clack_step("구조 계획 생성 중...")
 

@@ -12,7 +12,7 @@ import CodeExplorer from "./pages/CodeExplorer";
 import BackupDashboardPage from "./pages/BackupDashboard";
 import ErrorLogs from "./pages/ErrorLogs";
 import Settings from "./pages/Settings";
-import { backupList, createPlanningChatSession, getEnvKeyStatus, loadApiKey, loadLatestPlanningChatSession, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, stopWatch, openFolder, type PlanningChatSessionResponse } from "./lib/vib";
+import { backupList, createPlanningChatSession, getEnvKeyStatus, getWatchErrors, loadApiKey, loadLatestPlanningChatSession, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, startWatch, stopWatch, openFolder, type PlanningChatSessionResponse } from "./lib/vib";
 import { installGuiErrorReporter, reportReactError, setErrorReporterProjectDir } from "./lib/errorReporter";
 import "./styles/brutalism.css";
 import "./App.css";
@@ -71,6 +71,7 @@ export default function App() {
   const [prevPage, setPrevPage] = useState<Page>("home");
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const [watchOn, setWatchOn] = useState(false);
+  const [watchError, setWatchError] = useState<string | null>(null);
   const [mapMode, setMapMode] = useState<"manual" | "auto">("manual");
   const [planningPrompt, setPlanningPrompt] = useState("");
   const [planningResult, setPlanningResult] = useState<PlanningChatSessionResponse | null>(null);
@@ -84,6 +85,11 @@ export default function App() {
     } catch {
       /* ignore */
     }
+  }
+
+  function readableError(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    return String(error);
   }
 
   useEffect(() => {
@@ -104,6 +110,16 @@ export default function App() {
     if (!projectDir) return;
     backupList(projectDir).catch(() => {});
   }, [projectDir]);
+
+  useEffect(() => {
+    if (!projectDir) {
+      setWatchError(null);
+      return;
+    }
+    getWatchErrors()
+      .then((errors) => setWatchError(errors[0] ?? null))
+      .catch((error: unknown) => setWatchError(readableError(error)));
+  }, [projectDir, watchOn]);
 
   const hasGuiProviderKey = Object.values(providerKeys).some((v) => Boolean(v?.trim()));
   const hasAnyAiKey = Boolean(apiKey) || hasGuiProviderKey || Object.values(envKeyStatus).some(Boolean);
@@ -153,6 +169,20 @@ export default function App() {
       prompt: normalizedPrompt,
     });
     setPlanningResult(result);
+  }
+
+  async function retryWatch() {
+    if (!projectDir) return;
+    setWatchError(null);
+    try {
+      await startWatch(projectDir);
+      setWatchOn(true);
+      const errors = await getWatchErrors();
+      setWatchError(errors[0] ?? null);
+    } catch (error: unknown) {
+      setWatchOn(false);
+      setWatchError(readableError(error));
+    }
   }
 
   async function resumeProject(dir: string) {
@@ -239,7 +269,7 @@ export default function App() {
 
             <div style={{ flex: 1, overflow: "hidden" }}>
               <ErrorBoundary>
-                {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningPending={planningResult?.messages.some((message) => message.status === "pending") ?? false} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} />}
+                {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} watchError={watchError} onRetryWatch={() => { void retryWatch(); }} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningPending={planningResult?.messages.some((message) => message.status === "pending") ?? false} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} />}
                 {page === "planning" && planningResult && <PlanningRoom projectDir={projectDir} result={planningResult} onBack={() => setPage("home")} onStartWork={() => setPage("code")} onResultChange={setPlanningResult} />}
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}

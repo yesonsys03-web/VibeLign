@@ -69,3 +69,8 @@ export function planningPersonaMeta(personaId: string, fallbackLabel?: string): 
 export function planningPersonaLabel(personaId: string): string {
   return planningPersonaMeta(personaId).label;
 }
+
+export function planningPersonaRoleLabel(personaId: string): string {
+  const persona = planningPersonaMeta(personaId);
+  return persona.role ? `${persona.role}자 ${persona.label}` : persona.label;
+}

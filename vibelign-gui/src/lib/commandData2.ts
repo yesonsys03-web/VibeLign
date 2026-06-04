@@ -80,15 +80,17 @@ export const COMMANDS_EXT = [
   },
   {
     name: "plan-structure", icon: "🧱", color: "#4D9FFF",
+    visibility: "legacy" as const,
     title: "구조 계획",
-    short: "코딩 전에 파일 설계도 먼저 만들기",
-    desc: "새 기능을 만들기 전에 어느 파일을 고치고 어느 파일을 새로 만들지 먼저 정해줘요. 큰 기능을 한 파일에 몰아넣지 않게 막는 설계도 버튼이라고 생각하면 쉬워요. 보통은 계획 먼저, 구현 다음, 마지막에 guard 확인 순서로 써요.",
+    short: "legacy: 내부 구조 계획 JSON",
+    desc: "내부 구조 계획용 legacy 기능이에요. 새 기획방/초보 흐름에서는 vib plan과 plans/*.md를 사용해요.",
     usage: 'vib plan-structure "OAuth 인증 추가"',
     tips: ["새 production 파일을 만들기 전에 쓰면 좋아요", "여러 파일이 같이 바뀔 것 같을 때 먼저 계획을 저장해요", "guard와 pre-check가 이 계획을 보고 검사해요", "작은 단일 파일 수정이면 보통 없어도 돼요"],
     guide: [
       {
         step: "기능", title: "코딩 전 구조 설계도 만들기",
         lines: [
+          { t: "warn", v: "legacy 기능입니다. 새 기획방/초보 흐름에서는 vib plan을 권장해요." },
           { t: "info", v: "무엇을 만들지 말로 적으면 어느 파일을 수정하고 어떤 파일을 새로 만들지 먼저 정해줘요." },
           { t: "info", v: "계획은 .vibelign/plans/ 폴더에 저장돼요." },
           { t: "info", v: "보통은 계획 먼저 → 구현 → guard 확인 순서로 쓰면 돼요." },
@@ -317,7 +319,7 @@ export const COMMANDS_EXT = [
         lines: [
           { t: "info", v: "start  /  checkpoint  /  undo  /  history" },
           { t: "info", v: "doctor  /  guard  /  explain" },
-          { t: "info", v: "anchor  /  scan  /  watch  /  patch  /  plan-structure" },
+          { t: "info", v: "anchor  /  scan  /  watch" },
           { t: "info", v: "protect  /  secrets  /  ask  /  config  /  claude-hook" },
           { t: "info", v: "transfer  /  export  /  install  /  rules" },
         ],

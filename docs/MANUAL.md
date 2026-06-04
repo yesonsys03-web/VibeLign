@@ -52,8 +52,7 @@ Use this loop whenever you ask AI to change code:
 vib checkpoint "before your task"
 vib doctor --strict
 vib anchor
-vib patch "your request here"
-# ask AI using the generated patch request
+# ask your host AI to read VibeLign project rules and MCP tools
 vib explain --write-report
 vib guard --strict --write-report
 
@@ -79,11 +78,11 @@ This card explains the rules that keep AI edits safe and predictable.
 | No out-of-bound edits | Only `target_file` and `target_anchor` are allowed. Everything else stays untouched. |
 | Move/delete preservation | If `delete` and `move` are both present, treat it as move + preservation unless the user explicitly wants removal. |
 | Source/destination by role | Resolve source and destination independently based on their roles. |
-| Strict patch + guard | Build safe patch plans, then verify and checkpoint after applying. |
-| Contract changes require tests/docs | If patch contract or CodeSpeak shape changes, update tests and docs together. |
+| Guard after edits | Verify and checkpoint after applying AI changes. |
+| Contract changes require tests/docs | If internal edit contracts change, update tests and docs together. |
 | Protected files stay protected | Respect `protect`-ed files and other sensitive files like `.env` or config files. |
 
-See also: `AGENTS.md`, `README.md` `VibeLign patch rules`, `PROJECT_CONTEXT.md`, `AI_DEV_SYSTEM_SINGLE_FILE.md`, `VIBELIGN_PATCH_REQUEST.md`, `VIBELIGN_GUARD.md`.
+See also: `AGENTS.md`, `README.md`, `PROJECT_CONTEXT.md`, `AI_DEV_SYSTEM_SINGLE_FILE.md`, `VIBELIGN_GUARD.md`.
 
 ---
 
@@ -462,7 +461,9 @@ This is the recommended way to keep the project map fresh after adding anchors.
 
 ## `vib patch`
 
-Builds a safer AI prompt.
+Legacy command. Builds a structured AI edit prompt.
+
+`vib patch` is no longer recommended in the beginner flow. Natural-language edits should normally be handled by Claude Code, Codex, Cursor, or another host AI reading VibeLign project rules and MCP tools directly.
 
 ```bash
 vib patch "로그인 버튼 추가해줘"
@@ -570,13 +571,16 @@ vib guard --json
 
 ## `vib plan-structure`
 
+Legacy command for internal structure-planning JSON.
+새 기획방/초보 흐름에서는 `vib plan`과 `plans/*.md`를 사용해요.
+
 큰 기능을 만들기 전에 어느 파일을 고치고 어느 파일을 새로 만들지 먼저 정하는 명령어예요.
 쉽게 말하면 “코딩 시작 전에 설계도 한 장 먼저 만드는 버튼”이에요.
 
 보통은 이렇게 생각하면 쉬워요.
 
 1. 먼저 `plan-structure`로 작업 설계도를 만들고
-2. 그다음 `patch`나 AI 작업으로 실제 구현을 하고
+2. 그다음 host AI 작업으로 실제 구현을 하고
 3. 마지막에 `guard --strict`로 계획대로 잘 됐는지 확인하는 거예요.
 
 ```bash
@@ -592,8 +596,7 @@ vib plan-structure --ai "mcp handler 수정"
 추천 흐름:
 
 ```bash
-vib plan-structure "OAuth 인증 추가"
-vib patch "OAuth 로그인 버튼과 서버 검증 추가"
+vib plan "OAuth 인증 추가"
 vib guard --strict
 ```
 
