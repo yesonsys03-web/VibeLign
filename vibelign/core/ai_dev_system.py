@@ -88,7 +88,7 @@ Examples:
 ### Large pages or modules (e.g. major UI pages)
 
 - Do not treat one outer anchor as the only safe zone for an entire very large file; prefer sub-anchors per major section until the file can be split.
-- `vib patch` / CodeSpeak targeting works best when `target_anchor` spans a small, stable region.
+- Direct project-map editing works best when anchors span small, stable regions.
 
 ---
 

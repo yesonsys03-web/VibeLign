@@ -2,7 +2,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from vibelign.core.anchor_tools import extract_anchors, extract_anchor_spans
-from vibelign.core.patch_suggester import PatchSuggestion
 
 
 def _write(tmp_path: Path, name: str, text: str) -> Path:
@@ -188,21 +187,3 @@ class TestSignatureExtraction:
         spans = extract_anchor_spans(p)
         assert "signature" not in spans[0]
 
-
-class TestPatchSuggestionAnchorSpanFields:
-    def test_default_fields_are_none(self) -> None:
-        s = PatchSuggestion("req", "file.py", "ANCHOR", "high", ["reason"])
-        assert s.anchor_start_line is None
-        assert s.anchor_end_line is None
-        assert s.anchor_signature is None
-
-    def test_to_dict_includes_span_fields(self) -> None:
-        s = PatchSuggestion(
-            "req", "file.py", "ANCHOR", "high", ["reason"],
-            anchor_start_line=10, anchor_end_line=20,
-            anchor_signature="def foo():",
-        )
-        d = s.to_dict()
-        assert d["anchor_start_line"] == 10
-        assert d["anchor_end_line"] == 20
-        assert d["anchor_signature"] == "def foo():"

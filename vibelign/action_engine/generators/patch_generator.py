@@ -1,9 +1,4 @@
 # === ANCHOR: PATCH_GENERATOR_START ===
-"""Patch Generator — Plan의 각 Action에 대해 변경 예정 미리보기를 생성한다.
-
-patch_suggester.py를 재사용해 파일/앵커 위치를 찾는다.
-실제 파일 수정은 하지 않는다 — 미리보기만 생성.
-"""
 from __future__ import annotations
 
 from pathlib import Path

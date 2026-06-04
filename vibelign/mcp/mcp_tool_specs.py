@@ -335,7 +335,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "name": "anchor_auto_intent",
         "description": (
             "모든 앵커에 대해 코드 기반 + AI 기반으로 intent/aliases/description을 "
-            "anchor_meta.json에 생성합니다. patch_suggester 스코어링 품질 향상을 위해 "
+            "anchor_meta.json에 생성합니다. host AI 직접 편집 품질 향상을 위해 "
             "앵커 삽입 후 반드시 한 번 실행하세요. "
             "기존 수동/AI 메타는 보존되며, force=true일 때만 재생성됩니다."
         ),

@@ -9,7 +9,6 @@ from vibelign.action_engine.executors.checkpoint_bridge import create_pre_apply_
 from vibelign.commands.vib_backup_db_maintenance_cmd import run_vib_backup_db_maintenance
 from vibelign.commands.vib_checkpoint_cmd import create_for_cli as vib_checkpoint_create_for_cli
 from vibelign.commands.vib_transfer_cmd import get_recent_checkpoints
-from vibelign.core import strict_patch as strict_patch_module
 from vibelign.core.checkpoint_engine.auto_backup import create_post_commit_backup
 from vibelign.core.checkpoint_engine.rust_engine import RustEngineResult
 from vibelign.core.hook_setup import setup_hook_if_needed
@@ -173,32 +172,6 @@ def test_vib_checkpoint_create_for_cli_uses_daemon_router_when_opted_in(tmp_path
         summary, error = vib_checkpoint_create_for_cli(tmp_path, "vibelign: cli manual checkpoint")
 
     assert error is None
-    assert summary is not None
-    assert summary.checkpoint_id == "cp-daemon-1"
-    assert [call.args[1]["command"] for call in daemon_call.call_args_list] == ["checkpoint_create", "checkpoint_prune"]
-    oneshot_call.assert_not_called()
-
-
-def test_strict_patch_create_checkpoint_uses_daemon_router_when_opted_in(tmp_path: Path) -> None:
-    """strict_patch 모듈이 router.create_checkpoint 를 임포트해서 데몬 경로를 통과하는지 검증.
-
-    Why: apply_strict_patch 안에서 자동으로 사전 체크포인트를 생성하는 핫패스이므로
-    daemon dual-mode 회귀 시 1-shot fallback 으로 침묵 회귀하지 않는지 매트릭스 항목으로 고정.
-    """
-    responses = [
-        _rust_ok(_created_payload("vibelign: strict patch apply (2026-05-09 12:00)")),
-        _rust_ok(_pruned_payload()),
-    ]
-
-    with patch.dict("os.environ", {"VIBELIGN_ENGINE_DAEMON": "1"}, clear=False), patch(
-        "vibelign.core.checkpoint_engine.rust_engine.call_rust_engine_daemon",
-        side_effect=responses,
-    ) as daemon_call, patch("vibelign.core.checkpoint_engine.rust_engine.call_rust_engine") as oneshot_call:
-        summary = strict_patch_module.create_checkpoint(
-            tmp_path,
-            "vibelign: strict patch apply (2026-05-09 12:00)",
-        )
-
     assert summary is not None
     assert summary.checkpoint_id == "cp-daemon-1"
     assert [call.args[1]["command"] for call in daemon_call.call_args_list] == ["checkpoint_create", "checkpoint_prune"]

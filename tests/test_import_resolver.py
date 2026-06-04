@@ -71,12 +71,12 @@ def test_python_relative_import_resolves(tmp_project):
     pkg = tmp_project / "vibelign" / "core"
     pkg.mkdir(parents=True)
     (pkg / "__init__.py").write_text("", encoding="utf-8")
-    target = pkg / "codespeak.py"
-    target.write_text("# codespeak", encoding="utf-8")
+    target = pkg / "token_aliases.py"
+    target.write_text("def tokenize(text): return []\n", encoding="utf-8")
 
-    src = pkg / "patch_suggester.py"
+    src = pkg / "anchor_tools.py"
     src.write_text(
-        "from vibelign.core.codespeak import build_codespeak\n",
+        "from vibelign.core.token_aliases import tokenize\n",
         encoding="utf-8",
     )
     result = parse_local_imports(src, tmp_project)

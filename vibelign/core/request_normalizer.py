@@ -1,11 +1,4 @@
 # === ANCHOR: REQUEST_NORMALIZER_START ===
-"""사용자 요청 전처리·다중 의도 분리 (patch_upgrade §6.3 순번 5).
-
-codespeak 파서에 넘기기 전에 공백·반복 추임새를 정리하고,
-접속사·구분자 기준으로 sub_intent 후보를 나눈다.
-쉼표 단독 분할은 동작이 둘 다 잡힐 때만 허용해 오분할을 줄인다.
-"""
-
 from __future__ import annotations
 
 import re

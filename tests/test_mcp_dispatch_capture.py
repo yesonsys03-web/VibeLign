@@ -112,7 +112,7 @@ class DispatchAutoCaptureTest(unittest.TestCase):
         self.assertEqual(wm.relevant_files, [])
 
     def test_removed_patch_apply_has_no_relevant_file_side_effect(self):
-        strict = {
+        payload = {
             "target": {
                 "file": "vibelign/core/work_memory.py",
                 "anchor": "WORK_MEMORY_ADD_DECISION",
@@ -122,7 +122,7 @@ class DispatchAutoCaptureTest(unittest.TestCase):
         with mock_patch.dict(mcp_dispatch.DISPATCH_TABLE,
             {"patch_apply": lambda r, a, t: [{"type": "text", "text": "applied"}]}):
             _run(call_tool_dispatch("patch_apply",
-                {"strict_patch": strict},
+                {"payload": payload},
                 root=self.root, text_content=_tc))
         wm = self._wm()
         self.assertEqual(wm.decisions, [])

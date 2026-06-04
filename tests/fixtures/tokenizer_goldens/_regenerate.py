@@ -187,7 +187,7 @@ def regenerate() -> None:
         path = FIXTURE_DIR / f"{name}.expected.json"
         payload = {
             "function": name,
-            "source": "vibelign/core/patch_suggester.py",
+            "source": "vibelign/core/token_aliases.py",
             "case_count": len(cases_output),
             "cases": cases_output,
         }

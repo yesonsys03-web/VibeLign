@@ -46,7 +46,6 @@ def _resolve_js_import(base_dir: Path, import_path: str, root: Path) -> Path | N
 
 
 def _resolve_py_import(src_file: Path, module_str: str, root: Path) -> Path | None:
-    """'vibelign.core.codespeak' → vibelign/core/codespeak.py (프로젝트 내부만)."""
     parts = module_str.split(".")
     candidate = root.joinpath(*parts).with_suffix(_PY_EXT)
     if candidate.is_file():
