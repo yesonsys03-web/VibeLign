@@ -787,21 +787,17 @@ MANUAL: dict[str, ManualEntry] = {
         ),
         "when": [
             "앵커 적용 전후의 AI 수정 정확도를 비교하고 싶을 때",
-            "patch-suggester 정확도 회귀를 확인할 때",
             "벤치마크 리포트를 만들어 개선 효과를 설명해야 할 때",
         ],
         "examples": [
             ("vib bench --generate", "A/B 조건별 프롬프트 생성"),
             ("vib bench --score", "AI 수정 결과 채점"),
             ("vib bench --report", "마크다운 비교 리포트 생성"),
-            ("vib bench --patch", "patch-suggester 정확도 회귀 측정"),
         ],
         "options": [
             ("--generate", "A/B 조건별 벤치마크 프롬프트를 생성해요."),
             ("--score", "생성된 결과를 채점해요."),
             ("--report", "채점 결과를 마크다운 리포트로 만들어요."),
-            ("--patch", "patch-suggester 정확도 회귀 테스트를 실행해요."),
-            ("--update-baseline", "--patch 결과를 현재 baseline으로 갱신해요."),
             ("--json", "결과를 JSON으로 출력해요."),
         ],
     },

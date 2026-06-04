@@ -29,6 +29,13 @@ class _McpCliArgs(Protocol):
     func: Callable[[object], None]
 
 
+class _BenchCliArgs(Protocol):
+    generate: bool
+    score: bool
+    report: bool
+    func: Callable[[object], None]
+
+
 class VibCliSurfaceTest(unittest.TestCase):
     def test_vib_cli_excludes_patch_and_keeps_supported_commands(self):
         parser = build_parser()
@@ -91,6 +98,31 @@ class VibCliSurfaceTest(unittest.TestCase):
         parser = build_parser()
         args = parser.parse_args(["watch", "--auto-fix"])
         self.assertTrue(args.auto_fix)
+
+    def test_vib_bench_rejects_removed_patch_mode(self):
+        parser = build_parser()
+
+        parsed = cast(object, parser.parse_args(["bench", "--generate"]))
+        args = cast(_BenchCliArgs, parsed)
+        self.assertTrue(args.generate)
+        self.assertTrue(callable(args.func))
+
+        subparsers_action = cast(
+            Any,
+            next(
+                action for action in parser._actions if getattr(action, "choices", None)
+            ),
+        )
+        bench_parser = subparsers_action.choices["bench"]
+        help_text = bench_parser.format_help()
+        self.assertIn("--generate", help_text)
+        self.assertIn("--score", help_text)
+        self.assertIn("--report", help_text)
+        self.assertNotIn("--patch", help_text)
+        self.assertNotIn("--update-baseline", help_text)
+
+        with self.assertRaises(SystemExit):
+            parser.parse_args(["bench", "--patch"])
 
     def test_vib_recover_parser_accepts_explain(self):
         parser = build_parser()
