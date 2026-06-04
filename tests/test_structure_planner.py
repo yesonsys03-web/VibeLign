@@ -1,17 +1,11 @@
 import json
-import os
 import tempfile
 import unittest
-from io import StringIO
 from pathlib import Path
-from contextlib import redirect_stdout
-from types import SimpleNamespace
 from typing import cast
 
-from vibelign.commands.vib_plan_structure_cmd import run_vib_plan_structure
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.structure_planner import build_structure_plan
-from vibelign.mcp.mcp_state_store import load_planning_session
 
 
 class StructurePlannerTest(unittest.TestCase):
@@ -69,72 +63,6 @@ class StructurePlannerTest(unittest.TestCase):
             self.assertEqual(
                 required_new_files[0]["path"], "vibelign/core/oauth_provider.py"
             )
-
-    def test_run_vib_plan_structure_persists_plan_and_active_state(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            meta = MetaPaths(root)
-            meta.ensure_vibelign_dirs()
-            _ = meta.state_path.write_text(
-                json.dumps({"schema_version": 1}, indent=2, ensure_ascii=False) + "\n",
-                encoding="utf-8",
-            )
-            _ = meta.project_map_path.write_text(
-                json.dumps(
-                    {
-                        "schema_version": 2,
-                        "project_name": "demo",
-                        "tree": [],
-                        "files": {
-                            "vibelign/core/watch_engine.py": {
-                                "category": "core",
-                                "anchors": ["WATCH_ENGINE_START"],
-                                "line_count": 120,
-                            }
-                        },
-                        "entry_files": [],
-                        "ui_modules": [],
-                        "core_modules": ["vibelign/core/watch_engine.py"],
-                        "service_modules": [],
-                        "large_files": [],
-                        "file_count": 1,
-                        "anchor_index": {
-                            "vibelign/core/watch_engine.py": ["WATCH_ENGINE_START"]
-                        },
-                        "generated_at": "2026-04-09T00:00:00Z",
-                    },
-                    indent=2,
-                    ensure_ascii=False,
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-
-            previous = Path.cwd()
-            try:
-                os.chdir(root)
-                args = cast(
-                    object,
-                    SimpleNamespace(
-                        feature=["watch", "기능", "확장"],
-                        ai=False,
-                        scope="",
-                        json=False,
-                    ),
-                )
-                run_vib_plan_structure(cast(object, args))
-            finally:
-                os.chdir(previous)
-
-            plans = list(meta.plans_dir.glob("*.json"))
-            self.assertEqual(len(plans), 1)
-            payload = json.loads(plans[0].read_text(encoding="utf-8"))
-            self.assertEqual(payload["feature"], "watch 기능 확장")
-            planning = load_planning_session(meta)
-            self.assertIsNotNone(planning)
-            assert planning is not None
-            self.assertEqual(planning["plan_id"], payload["id"])
-            self.assertEqual(planning["active"], True)
 
     def test_existing_file_only_plan_has_no_self_contradicting_forbidden_rule(
         self,
@@ -426,68 +354,6 @@ class StructurePlannerTest(unittest.TestCase):
             evidence = cast(dict[str, object], plan["evidence"])
             self.assertEqual(evidence["matched_categories"], ["ui"])
             self.assertNotIn("watch", cast(list[object], evidence["path_signals"]))
-
-    def test_run_vib_plan_structure_json_outputs_saved_plan_payload(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            meta = MetaPaths(root)
-            meta.ensure_vibelign_dirs()
-            _ = meta.state_path.write_text(
-                json.dumps({"schema_version": 1}, indent=2, ensure_ascii=False) + "\n",
-                encoding="utf-8",
-            )
-            _ = meta.project_map_path.write_text(
-                json.dumps(
-                    {
-                        "schema_version": 2,
-                        "project_name": "demo",
-                        "tree": [],
-                        "files": {
-                            "vibelign/core/watch_engine.py": {
-                                "category": "core",
-                                "anchors": ["WATCH_ENGINE_START"],
-                                "line_count": 120,
-                            }
-                        },
-                        "entry_files": [],
-                        "ui_modules": [],
-                        "core_modules": ["vibelign/core/watch_engine.py"],
-                        "service_modules": [],
-                        "large_files": [],
-                        "file_count": 1,
-                        "anchor_index": {
-                            "vibelign/core/watch_engine.py": ["WATCH_ENGINE_START"]
-                        },
-                        "generated_at": "2026-04-09T00:00:00Z",
-                    },
-                    indent=2,
-                    ensure_ascii=False,
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-
-            previous = Path.cwd()
-            stdout = StringIO()
-            try:
-                os.chdir(root)
-                args = cast(
-                    object,
-                    SimpleNamespace(
-                        feature=["watch", "기능", "확장"], ai=False, scope="", json=True
-                    ),
-                )
-                with redirect_stdout(stdout):
-                    run_vib_plan_structure(cast(object, args))
-            finally:
-                os.chdir(previous)
-
-            payload = json.loads(stdout.getvalue())
-            self.assertTrue(payload["ok"])
-            data = cast(dict[str, object], payload["data"])
-            self.assertTrue(str(data["plan_path"]).startswith(".vibelign/plans/"))
-            plan = cast(dict[str, object], data["plan"])
-            self.assertEqual(plan["feature"], "watch 기능 확장")
 
     def test_weak_signal_candidate_stays_conservative_when_anchor_does_not_match(
         self,

@@ -125,10 +125,7 @@ AI 작업 준비:
 도움말:
   manual      코알못을 위한 상세 사용 설명서
   rules       AI 개발 규칙 전체 보기
-  completion  탭 자동완성 설정
-
-고급 / legacy:
-  plan-structure  legacy: 내부 구조 계획 JSON 생성"""
+  completion  탭 자동완성 설정"""
 
 MAIN_EPILOG = """\
 처음이세요? 이것만 따라하세요:

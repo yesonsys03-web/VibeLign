@@ -257,11 +257,10 @@ class VibStartTest(unittest.TestCase):
         self.assertEqual(args.command, "claude-hook")
         self.assertEqual(args.action, "status")
 
-    def test_basic_cli_includes_plan_structure_command(self):
+    def test_basic_cli_excludes_plan_structure_command(self):
         parser = build_basic_parser()
-        args = parser.parse_args(["plan-structure", "OAuth 인증 추가"])
-        self.assertEqual(args.command, "plan-structure")
-        self.assertEqual(args.feature, ["OAuth 인증 추가"])
+        with self.assertRaises(SystemExit):
+            parser.parse_args(["plan-structure", "OAuth 인증 추가"])
 
 
 class TestPagesRoutesUiClassification(unittest.TestCase):

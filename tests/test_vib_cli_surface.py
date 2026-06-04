@@ -37,7 +37,9 @@ class _BenchCliArgs(Protocol):
 
 
 class VibCliSurfaceTest(unittest.TestCase):
-    def test_vib_cli_excludes_patch_and_keeps_supported_commands(self):
+    def test_vib_cli_excludes_retired_legacy_commands_and_keeps_supported_commands(
+        self,
+    ):
         parser = build_parser()
         subparsers_action = cast(
             Any,
@@ -47,6 +49,7 @@ class VibCliSurfaceTest(unittest.TestCase):
         )
         commands = set(subparsers_action.choices.keys())
         self.assertNotIn("patch", commands)
+        self.assertNotIn("plan-structure", commands)
         self.assertTrue(
             {
                 "watch",
@@ -58,7 +61,6 @@ class VibCliSurfaceTest(unittest.TestCase):
                 "manual",
                 "rules",
                 "plan",
-                "plan-structure",
             }.issubset(commands)
         )
 

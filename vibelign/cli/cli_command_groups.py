@@ -682,38 +682,6 @@ def register_extended_commands(
     p.set_defaults(func=lazy_command("vibelign.commands.vib_plan_cmd", "run_vib_plan"))
 
     p = sub.add_parser(
-        "plan-structure",
-        help=argparse.SUPPRESS,
-        description=(
-            "내부 구조 계획용 legacy 기능입니다.\n"
-            "새 기획방/초보 흐름에서는 vib plan과 plans/*.md를 사용해요."
-        ),
-        epilog=(
-            "legacy 사용 예:\n"
-            '  vib plan-structure "OAuth 인증 추가"\n'
-            '  vib plan-structure --scope vibelign/core/ "watch 기능 확장"\n'
-            '  vib plan-structure --ai "mcp handler 수정"'
-        ),
-    )
-    _ = p.add_argument("feature", nargs="+", help="구조 계획을 만들 기능 설명")
-    _ = p.add_argument(
-        "--ai", action="store_true", help="향후 AI 모드용 plan metadata로 기록"
-    )
-    _ = p.add_argument(
-        "--scope",
-        default="",
-        help="분석 대상을 특정 경로로 좁혀요 (예: vibelign/core/)",
-    )
-    _ = p.add_argument(
-        "--json", action="store_true", help="구조 계획 결과를 JSON으로 출력해요"
-    )
-    p.set_defaults(
-        func=lazy_command(
-            "vibelign.commands.vib_plan_structure_cmd", "run_vib_plan_structure"
-        )
-    )
-
-    p = sub.add_parser(
         "transfer",
         help="AI 툴 바꿔도 맥락 유지 (PROJECT_CONTEXT.md 생성)",
         description=(
