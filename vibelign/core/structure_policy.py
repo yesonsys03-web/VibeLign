@@ -97,7 +97,19 @@ SCAN_IGNORED_DIRS_LOWER: frozenset[str] = frozenset(
 )
 
 CHECKPOINT_EXTRA_IGNORED: frozenset[str] = frozenset()
-CHECKPOINT_EXTRA_IGNORED_DIRS: frozenset[str] = frozenset({"db_maintenance_backups"})
+CHECKPOINT_EXTRA_IGNORED_DIRS: frozenset[str] = frozenset(
+    {
+        "db_maintenance_backups",
+        # 에이전트 worktree / 외부 도구 상태 / 빌드 산출물은 gitignore·scan 에서도
+        # 제외되는 재생성 가능 폴더라 체크포인트가 매번 복사하면 백업이 수 GB 로 비대해진다.
+        ".claude",
+        ".codex",
+        ".agents",
+        ".omo",
+        ".omc",
+        "dist-vib",
+    }
+)
 CHECKPOINT_IGNORED_DIRS: frozenset[str] = (
     COMMON_IGNORED_DIRS | CHECKPOINT_EXTRA_IGNORED | CHECKPOINT_EXTRA_IGNORED_DIRS
 )

@@ -6,6 +6,9 @@ import { formatBytes } from "./model";
 interface StorageRadialMapProps {
   entries: BackupEntry[];
   root?: BackupGraphNode | null;
+  // 폴더별 표시 크기를 곱할 배율. 백업은 전역 중복제거라 폴더별 실제 디스크를 정확히
+  // 알 수 없어, 전역 압축비(저장/원본)로 환산한 근사 실제 사용량을 보여줄 때 쓴다.
+  sizeScale?: number;
 }
 
 interface FileTreeNode {
@@ -35,10 +38,20 @@ const GAP_DEGREES = 0.8;
 const MIN_SEGMENT_SWEEP = 0.35;
 const MAX_DEPTH = 5;
 
-export default function StorageRadialMap({ entries, root }: StorageRadialMapProps) {
+export default function StorageRadialMap({ entries, root, sizeScale = 1 }: StorageRadialMapProps) {
   const [activePath, setActivePath] = useState("");
   const [selectedPath, setSelectedPath] = useState("");
-  const tree = useMemo(() => root ? graphNodeToFileTree(root) : buildFileTree(entries), [entries, root]);
+  const tree = useMemo(() => {
+    const built = root ? graphNodeToFileTree(root) : buildFileTree(entries);
+    if (sizeScale === 1 || !(sizeScale > 0)) return built;
+    // 균일 배율이라 부채꼴 비율(스윕)은 그대로 유지되고 표시 바이트만 환산된다.
+    const scale = (node: FileTreeNode): FileTreeNode => ({
+      ...node,
+      sizeBytes: Math.round(node.sizeBytes * sizeScale),
+      children: new Map([...node.children].map(([key, child]) => [key, scale(child)])),
+    });
+    return scale(built);
+  }, [entries, root, sizeScale]);
   const activeNode = findNodeByPath(tree, activePath) ?? tree;
   const parentPath = getParentPath(activeNode.path);
   const topNodes = sortedChildren(activeNode).slice(0, 6);

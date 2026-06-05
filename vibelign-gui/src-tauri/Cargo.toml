@@ -38,3 +38,8 @@ libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"
+
+# dev 빌드 디버그 심볼을 라인 정보만으로 제한해 target/debug 비대를 줄인다.
+# 백트레이스(파일:줄)는 유지되고, 디버거의 전체 지역변수 검사만 제한된다.
+[profile.dev]
+debug = "line-tables-only"
