@@ -358,6 +358,14 @@ jobs:
           workspaces: vibelign-gui/src-tauri
           key: windows-gnu
 
+      # tauri.conf.json 의 resources(["vib-runtime/**/*"]) 가 비어 있으면 tauri-build 가
+      # 실패한다. 이 잡은 타입체크만 하고 번들하지 않으므로 실제 runtime 대신 stub 파일
+      # 하나로 글롭을 만족시킨다(비숨김 파일이라야 glob 크레이트가 매칭함).
+      - name: Stub vib-runtime resource (cargo check only)
+        run: |
+          mkdir -p vibelign-gui/src-tauri/vib-runtime
+          echo "placeholder for cargo check; real runtime is built only for full bundles" > vibelign-gui/src-tauri/vib-runtime/placeholder
+
       # cfg(target_os = "windows") 코드(onboarding/windows.rs 등)가 실제로 컴파일되는지
       # 빠르게 검증한다. 풀 windows-latest 번들 빌드보다 훨씬 싸고 빨라 회귀를 조기에 잡는다.
       - name: cargo check (x86_64-pc-windows-gnu)
