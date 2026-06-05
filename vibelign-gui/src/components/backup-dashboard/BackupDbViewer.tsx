@@ -16,6 +16,48 @@ interface BackupDbViewerProps {
 const DB_SIZE_WARNING_BYTES = 64 * 1024 * 1024;
 const DB_SIZE_CRITICAL_BYTES = 256 * 1024 * 1024;
 
+interface MaintenanceHintTextInput {
+  dbTotalBytes: number;
+  maintenancePlannedAction: string | null;
+  showCriticalMaintenance: boolean;
+}
+
+interface CanRunMaintenanceInput {
+  showMaintenanceHint: boolean;
+  showCriticalMaintenance: boolean;
+  maintenancePlannedAction: string | null;
+  blockers: string[];
+}
+
+export function buildMaintenanceHintText({
+  dbTotalBytes,
+  maintenancePlannedAction,
+  showCriticalMaintenance,
+}: MaintenanceHintTextInput): string {
+  if (showCriticalMaintenance) {
+    return `백업 DB가 현재 ${formatBytes(dbTotalBytes)}입니다. 오래된 백업을 정리하고 DB 파일을 최적화할 수 있습니다.`;
+  }
+  if (maintenancePlannedAction === "noop") {
+    return `DB 파일은 현재 ${formatBytes(dbTotalBytes)}입니다. 추가 압축할 빈 공간이 거의 없어요. 살아있는 백업 기록이 많아 64MB 안내가 남을 수 있습니다.`;
+  }
+  if (maintenancePlannedAction !== null) {
+    return `DB 파일은 현재 ${formatBytes(dbTotalBytes)}입니다. 정리하면 DB 백업을 만든 뒤 WAL 정리와 필요한 압축을 실행합니다.`;
+  }
+  return `DB 파일은 현재 ${formatBytes(dbTotalBytes)}입니다. 정리 상태를 확인하는 중입니다.`;
+}
+
+export function canRunBackupDbMaintenance({
+  showMaintenanceHint,
+  showCriticalMaintenance,
+  maintenancePlannedAction,
+  blockers,
+}: CanRunMaintenanceInput): boolean {
+  if (!showMaintenanceHint || blockers.length > 0) return false;
+  if (showCriticalMaintenance) return true;
+  if (maintenancePlannedAction === null) return false;
+  return maintenancePlannedAction !== "noop";
+}
+
 export default function BackupDbViewer({ projectDir }: BackupDbViewerProps) {
   const cachedReport = getCachedBackupDbViewerInspect(projectDir);
   const [report, setReport] = useState<BackupDbViewerInspectResult | null>(cachedReport ?? null);
@@ -79,7 +121,8 @@ export default function BackupDbViewer({ projectDir }: BackupDbViewerProps) {
         setMaintenanceMessage(`${prefix}DB 정리를 완료했어요. 회수한 공간: ${formatBytes(result.reclaimedBytes)}`);
       } else if (result.plannedAction === "noop") {
         const pruned = cleanupResult?.retention.count ?? 0;
-        setMaintenanceMessage(isCritical ? `오래된 백업 ${pruned}개를 정리했고, DB 파일은 이미 추가 압축할 내용이 없어요.` : "이미 정리할 내용이 없어요.");
+        const dbSize = formatBytes(report?.dbFile.totalBytes ?? 0);
+        setMaintenanceMessage(isCritical ? `오래된 백업 ${pruned}개를 정리했고, DB 파일은 이미 추가 압축할 내용이 없어요.` : `이미 정리할 내용이 없어요. 현재 DB 파일은 ${dbSize}입니다.`);
       } else {
         setMaintenanceMessage("DB 정리를 완료했어요. 회수한 공간: 0 B");
       }
@@ -97,7 +140,19 @@ export default function BackupDbViewer({ projectDir }: BackupDbViewerProps) {
   const dbTotalBytes = report?.dbFile.totalBytes ?? 0;
   const showMaintenanceHint = dbTotalBytes >= DB_SIZE_WARNING_BYTES;
   const showCriticalMaintenance = dbTotalBytes >= DB_SIZE_CRITICAL_BYTES;
-  const canRunMaintenance = showMaintenanceHint && (maintenancePlan === null || maintenancePlan.blockers.length === 0);
+  const maintenancePlannedAction = maintenancePlan?.plannedAction ?? null;
+  const maintenanceBlockers = maintenancePlan?.blockers ?? [];
+  const canRunMaintenance = canRunBackupDbMaintenance({
+    showMaintenanceHint,
+    showCriticalMaintenance,
+    maintenancePlannedAction,
+    blockers: maintenanceBlockers,
+  });
+  const maintenanceHintText = buildMaintenanceHintText({
+    dbTotalBytes,
+    maintenancePlannedAction,
+    showCriticalMaintenance,
+  });
   const visibleWarnings = (report?.warnings ?? []).filter((warning) => !warning.includes("백업 관리 DB 파일이 64MB") && !warning.includes("백업 관리 DB 파일이 256MB"));
   // === ANCHOR: BACKUPDBVIEWER_SHOWMAINTENANCEHINT_END ===
 
@@ -106,13 +161,7 @@ export default function BackupDbViewer({ projectDir }: BackupDbViewerProps) {
       <div className="alert alert-success" style={{ margin: 0 }}>읽기 전용입니다. 복원에 쓰이는 값은 수정하지 않습니다.</div>
       {showMaintenanceHint && (
         <div className="alert" style={{ alignItems: "center", display: "flex", gap: 10, justifyContent: "space-between", margin: 0 }}>
-          <span>
-            {showCriticalMaintenance
-              ? "백업 DB가 256MB를 넘었어요. 오래된 백업을 정리하고 DB 파일을 최적화할 수 있습니다."
-              : maintenancePlan !== null && maintenancePlan.plannedAction !== "noop"
-              ? "DB 파일이 커졌어요. 정리하면 DB 백업을 만든 뒤 WAL 정리와 필요한 압축을 실행합니다."
-              : "DB 파일이 64MB를 넘었어요. 버튼을 눌러 정리 상태를 확인하거나 가능한 정리를 실행할 수 있습니다."}
-          </span>
+          <span>{maintenanceHintText}</span>
           {canRunMaintenance && (
             <button type="button" className="btn btn-primary btn-sm" onClick={runMaintenance} disabled={maintenanceLoading || loading}>
               {maintenanceLoading ? <span className="spinner" /> : "DB 정리 실행"}

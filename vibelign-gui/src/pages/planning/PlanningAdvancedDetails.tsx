@@ -1,9 +1,11 @@
+// === ANCHOR: PLANNINGADVANCEDDETAILS_START ===
 import { useState } from "react";
 
 interface PlanningAdvancedDetailsProps {
   readonly details: string | null | undefined;
 }
 
+// === ANCHOR: PLANNINGADVANCEDDETAILS_PLANNINGADVANCEDDETAILS_START ===
 export function PlanningAdvancedDetails({ details }: PlanningAdvancedDetailsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const trimmedDetails = details?.trim();
@@ -59,3 +61,5 @@ export function PlanningAdvancedDetails({ details }: PlanningAdvancedDetailsProp
     </section>
   );
 }
+// === ANCHOR: PLANNINGADVANCEDDETAILS_PLANNINGADVANCEDDETAILS_END ===
+// === ANCHOR: PLANNINGADVANCEDDETAILS_END ===

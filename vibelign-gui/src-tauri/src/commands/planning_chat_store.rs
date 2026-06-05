@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNING_CHAT_STORE_START ===
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -94,3 +95,4 @@ mod tests {
         );
     }
 }
+// === ANCHOR: PLANNING_CHAT_STORE_END ===

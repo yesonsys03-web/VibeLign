@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGMODESELECTOR_START ===
 import { PLANNING_MODE_OPTIONS, resolvePlanningMode, type PlanningModeOption } from "./PlanningModes";
 
 interface PlanningModeSelectorProps {
@@ -5,6 +6,7 @@ interface PlanningModeSelectorProps {
   readonly onChange: (option: PlanningModeOption) => void;
 }
 
+// === ANCHOR: PLANNINGMODESELECTOR_PLANNINGMODESELECTOR_START ===
 export function PlanningModeSelector({ value, onChange }: PlanningModeSelectorProps) {
   return (
     <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 900 }}>
@@ -31,3 +33,5 @@ export function PlanningModeSelector({ value, onChange }: PlanningModeSelectorPr
     </div>
   );
 }
+// === ANCHOR: PLANNINGMODESELECTOR_PLANNINGMODESELECTOR_END ===
+// === ANCHOR: PLANNINGMODESELECTOR_END ===

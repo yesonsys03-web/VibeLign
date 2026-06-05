@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGMESSAGES_START ===
 import type { PlanningChatMessage } from "../../lib/vib";
 import { PlanningPersonaAvatar } from "./PlanningPersonaAvatar";
 import { planningPersonaLabel } from "./PlanningPersonas";
@@ -8,6 +9,7 @@ interface PlanningMessagesProps {
   readonly outputPath: string | null;
 }
 
+// === ANCHOR: PLANNINGMESSAGES_PLANNINGMESSAGES_START ===
 export function PlanningMessages({ messages, outputPath }: PlanningMessagesProps) {
   return (
     <div style={{ display: "grid", gap: 12 }}>
@@ -18,7 +20,9 @@ export function PlanningMessages({ messages, outputPath }: PlanningMessagesProps
     </div>
   );
 }
+// === ANCHOR: PLANNINGMESSAGES_PLANNINGMESSAGES_END ===
 
+// === ANCHOR: PLANNINGMESSAGES_PLANNINGMESSAGEBUBBLE_START ===
 function PlanningMessageBubble({ message }: { readonly message: PlanningChatMessage }) {
   const isUser = message.role === "user";
   const display = planningPersonaStatusDisplay(message.status, "message");
@@ -59,3 +63,5 @@ function PlanningMessageBubble({ message }: { readonly message: PlanningChatMess
     </div>
   );
 }
+// === ANCHOR: PLANNINGMESSAGES_PLANNINGMESSAGEBUBBLE_END ===
+// === ANCHOR: PLANNINGMESSAGES_END ===

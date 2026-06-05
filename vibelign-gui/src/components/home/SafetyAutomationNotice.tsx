@@ -1,3 +1,4 @@
+// === ANCHOR: SAFETYAUTOMATIONNOTICE_START ===
 export type SafetyAutomationCopy = {
   readonly title: string;
   readonly detail: string;
@@ -40,6 +41,7 @@ const WATCH_ERROR_PATTERNS = [
   readonly copy: SafetyAutomationCopy;
 }>;
 
+// === ANCHOR: SAFETYAUTOMATIONNOTICE_HUMANIZEAUTOMATIONERROR_START ===
 export function humanizeAutomationError(rawError: string | null): SafetyAutomationCopy | null {
   const normalizedError = rawError?.trim();
   if (!normalizedError) return null;
@@ -47,7 +49,9 @@ export function humanizeAutomationError(rawError: string | null): SafetyAutomati
   if (matchedPattern) return matchedPattern.copy;
   return WATCH_FAILURE_COPY;
 }
+// === ANCHOR: SAFETYAUTOMATIONNOTICE_HUMANIZEAUTOMATIONERROR_END ===
 
+// === ANCHOR: SAFETYAUTOMATIONNOTICE_SAFETYAUTOMATIONNOTICE_START ===
 export function SafetyAutomationNotice({ rawError, onRetry }: SafetyAutomationNoticeProps) {
   const copy = humanizeAutomationError(rawError);
   if (!copy) return null;
@@ -74,3 +78,5 @@ export function SafetyAutomationNotice({ rawError, onRetry }: SafetyAutomationNo
     </section>
   );
 }
+// === ANCHOR: SAFETYAUTOMATIONNOTICE_SAFETYAUTOMATIONNOTICE_END ===
+// === ANCHOR: SAFETYAUTOMATIONNOTICE_END ===

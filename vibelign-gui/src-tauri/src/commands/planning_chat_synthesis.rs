@@ -1,4 +1,5 @@
-use std::path::{Path, PathBuf};
+// === ANCHOR: PLANNING_CHAT_SYNTHESIS_START ===
+use std::path::{Component, Path, PathBuf};
 
 use super::planning_chat_markdown::synthesize_planning_markdown;
 use super::planning_chat_store::StoredPlanningChatSession;
@@ -12,14 +13,23 @@ pub(crate) fn save_planning_markdown(
     project_dir: &Path,
     session: &mut StoredPlanningChatSession,
     messages: &[PlanningChatMessage],
+    target_path: Option<&str>,
 ) -> Result<SavedPlanningMarkdown, String> {
     let markdown = synthesize_planning_markdown(session, messages);
-    let (output_path, absolute_path) = match &session.output_path {
-        Some(existing) => {
-            let absolute = project_dir.join(existing);
-            (existing.clone(), absolute)
+    let explicit_target = target_path.filter(|rel| !rel.trim().is_empty());
+    let (output_path, absolute_path) = match explicit_target {
+        Some(rel) => {
+            let rel = safe_relative_target(rel)?;
+            let absolute = project_dir.join(&rel);
+            (rel.to_string_lossy().into_owned(), absolute)
         }
-        None => unique_plan_path(project_dir, &session.idea)?,
+        None => match &session.output_path {
+            Some(existing) => {
+                let absolute = project_dir.join(existing);
+                (existing.clone(), absolute)
+            }
+            None => unique_plan_path(project_dir, &session.idea)?,
+        },
     };
     if let Some(parent) = absolute_path.parent() {
         std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
@@ -37,6 +47,20 @@ pub(crate) fn read_saved_markdown(
 ) -> Option<String> {
     let output_path = session.output_path.as_ref()?;
     std::fs::read_to_string(project_dir.join(output_path)).ok()
+}
+
+fn safe_relative_target(rel: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(rel);
+    if path.is_absolute() {
+        return Err("targetPath must be relative".to_string());
+    }
+    if path
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err("targetPath must not contain ..".to_string());
+    }
+    Ok(path)
 }
 
 fn unique_plan_path(project_dir: &Path, idea: &str) -> Result<(String, PathBuf), String> {
@@ -123,3 +147,4 @@ fn is_windows_reserved_name(slug: &str) -> bool {
 #[cfg(test)]
 #[path = "planning_chat_synthesis_tests.rs"]
 mod tests;
+// === ANCHOR: PLANNING_CHAT_SYNTHESIS_END ===

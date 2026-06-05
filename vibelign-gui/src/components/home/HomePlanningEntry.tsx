@@ -1,3 +1,4 @@
+// === ANCHOR: HOMEPLANNINGENTRY_START ===
 interface HomePlanningEntryProps {
   readonly prompt: string;
   readonly outputPath: string | null;
@@ -5,6 +6,7 @@ interface HomePlanningEntryProps {
   readonly onOpen: () => void;
 }
 
+// === ANCHOR: HOMEPLANNINGENTRY_HOMEPLANNINGENTRY_START ===
 export function HomePlanningEntry({ prompt, outputPath, isPending, onOpen }: HomePlanningEntryProps) {
   return (
     <section
@@ -33,3 +35,5 @@ export function HomePlanningEntry({ prompt, outputPath, isPending, onOpen }: Hom
     </section>
   );
 }
+// === ANCHOR: HOMEPLANNINGENTRY_HOMEPLANNINGENTRY_END ===
+// === ANCHOR: HOMEPLANNINGENTRY_END ===

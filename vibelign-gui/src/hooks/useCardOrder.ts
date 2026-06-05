@@ -35,14 +35,14 @@ export function useCardOrder() {
     });
   }, []);
 
-  function saveOrder(order: string[]) {
+  function saveOrder(order: readonly string[]) {
     const s = storeRef.current;
     if (!s) return;
-    s.set(STORE_KEY, order).then(() => s.save()).catch(() => {});
+    s.set(STORE_KEY, [...order]).then(() => s.save()).catch(() => {});
   }
 
-  function setCardOrder(order: string[]) {
-    setCardOrderState(order);
+  function setCardOrder(order: readonly string[]) {
+    setCardOrderState([...order]);
     saveOrder(order);
   }
 

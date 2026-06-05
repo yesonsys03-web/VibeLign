@@ -1,3 +1,4 @@
+// === ANCHOR: GUARDHOMECOPY_START ===
 import type { GuardResult } from "../../lib/vib";
 
 export type HomeCopy = {
@@ -10,6 +11,7 @@ export type HomeActionCopy = HomeCopy & {
   readonly needsAction: boolean;
 };
 
+// === ANCHOR: GUARDHOMECOPY_GUARDSAFETYCOPY_START ===
 export function guardSafetyCopy(guardResult: GuardResult | null, watchOn: boolean): HomeCopy {
   if (guardResult?.status === "fail") {
     return {
@@ -38,7 +40,9 @@ export function guardSafetyCopy(guardResult: GuardResult | null, watchOn: boolea
     accent: "#B8B4B0",
   };
 }
+// === ANCHOR: GUARDHOMECOPY_GUARDSAFETYCOPY_END ===
 
+// === ANCHOR: GUARDHOMECOPY_GUARDNEXTACTIONCOPY_START ===
 export function guardNextActionCopy(guardResult: GuardResult | null, watchOn: boolean): HomeActionCopy {
   if (guardResult?.status === "fail" || guardResult?.status === "warn") {
     return {
@@ -71,3 +75,5 @@ export function guardNextActionCopy(guardResult: GuardResult | null, watchOn: bo
     needsAction: false,
   };
 }
+// === ANCHOR: GUARDHOMECOPY_GUARDNEXTACTIONCOPY_END ===
+// === ANCHOR: GUARDHOMECOPY_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGPERSONASTATUSLABEL_START ===
 export type PlanningPersonaStatusTone = "ready" | "pending" | "ok" | "failed" | "needsConnection" | "skipped" | "unknown";
 
 export interface PlanningPersonaStatusDisplay {
@@ -7,6 +8,7 @@ export interface PlanningPersonaStatusDisplay {
 
 type PlanningPersonaStatusSurface = "progress" | "message";
 
+// === ANCHOR: PLANNINGPERSONASTATUSLABEL_PLANNINGPERSONASTATUSDISPLAY_START ===
 export function planningPersonaStatusDisplay(status: string, surface: PlanningPersonaStatusSurface = "progress"): PlanningPersonaStatusDisplay {
   switch (status) {
     case "ready":
@@ -31,7 +33,9 @@ export function planningPersonaStatusDisplay(status: string, surface: PlanningPe
       return { label: status, tone: "unknown" };
   }
 }
+// === ANCHOR: PLANNINGPERSONASTATUSLABEL_PLANNINGPERSONASTATUSDISPLAY_END ===
 
+// === ANCHOR: PLANNINGPERSONASTATUSLABEL_PLANNINGPERSONASTATUSBACKGROUND_START ===
 export function planningPersonaStatusBackground(tone: PlanningPersonaStatusTone): string {
   switch (tone) {
     case "ready":
@@ -50,7 +54,9 @@ export function planningPersonaStatusBackground(tone: PlanningPersonaStatusTone)
       return "#FFFFFF";
   }
 }
+// === ANCHOR: PLANNINGPERSONASTATUSLABEL_PLANNINGPERSONASTATUSBACKGROUND_END ===
 
+// === ANCHOR: PLANNINGPERSONASTATUSLABEL_PLANNINGPERSONASTATUSCOLOR_START ===
 export function planningPersonaStatusColor(tone: PlanningPersonaStatusTone): string {
   switch (tone) {
     case "failed":
@@ -66,3 +72,5 @@ export function planningPersonaStatusColor(tone: PlanningPersonaStatusTone): str
       return "#1A1A1A";
   }
 }
+// === ANCHOR: PLANNINGPERSONASTATUSLABEL_PLANNINGPERSONASTATUSCOLOR_END ===
+// === ANCHOR: PLANNINGPERSONASTATUSLABEL_END ===

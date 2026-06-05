@@ -1,3 +1,4 @@
+// === ANCHOR: GIT_STATUS_START ===
 use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -277,3 +278,4 @@ mod tests {
         );
     }
 }
+// === ANCHOR: GIT_STATUS_END ===

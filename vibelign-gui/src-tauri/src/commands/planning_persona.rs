@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNING_PERSONA_START ===
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -190,3 +191,4 @@ mod tests {
         assert!(prompt.contains("지오: 회의 플랫폼 범위를 정해야 해요."));
     }
 }
+// === ANCHOR: PLANNING_PERSONA_END ===

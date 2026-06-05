@@ -1,3 +1,4 @@
+// === ANCHOR: MANUALCOMMANDDETAIL_START ===
 import type { GuideStep } from "../../lib/commands";
 import type { ManualCommand } from "./ManualCommandList";
 
@@ -6,6 +7,7 @@ interface ManualCommandDetailProps {
   readonly onBack: () => void;
 }
 
+// === ANCHOR: MANUALCOMMANDDETAIL_MANUALCOMMANDDETAIL_START ===
 export function ManualCommandDetail({ command, onBack }: ManualCommandDetailProps) {
   const guide = "guide" in command && Array.isArray(command.guide) ? command.guide : null;
   return (
@@ -79,7 +81,9 @@ export function ManualCommandDetail({ command, onBack }: ManualCommandDetailProp
     </div>
   );
 }
+// === ANCHOR: MANUALCOMMANDDETAIL_MANUALCOMMANDDETAIL_END ===
 
+// === ANCHOR: MANUALCOMMANDDETAIL_MANUALCOMMANDGUIDE_START ===
 function ManualCommandGuide({ commandColor, guide }: { readonly commandColor: string; readonly guide: readonly GuideStep[] }) {
   return (
     <div>
@@ -122,7 +126,9 @@ function ManualCommandGuide({ commandColor, guide }: { readonly commandColor: st
     </div>
   );
 }
+// === ANCHOR: MANUALCOMMANDDETAIL_MANUALCOMMANDGUIDE_END ===
 
+// === ANCHOR: MANUALCOMMANDDETAIL_MANUALCOMMANDTIPS_START ===
 function ManualCommandTips({ commandColor, tips }: { readonly commandColor: string; readonly tips: readonly string[] }) {
   return (
     <div className="card" style={{ padding: "14px 16px" }}>
@@ -136,3 +142,5 @@ function ManualCommandTips({ commandColor, tips }: { readonly commandColor: stri
     </div>
   );
 }
+// === ANCHOR: MANUALCOMMANDDETAIL_MANUALCOMMANDTIPS_END ===
+// === ANCHOR: MANUALCOMMANDDETAIL_END ===

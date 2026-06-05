@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGROOM_RESPONSE_SUMMARY_TEST_START ===
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -61,3 +62,4 @@ describe("PlanningRoom persona response summary", () => {
     expect(screen.queryByText("raw stderr")).not.toBeInTheDocument();
   });
 });
+// === ANCHOR: PLANNINGROOM_RESPONSE_SUMMARY_TEST_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNING_START ===
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -427,3 +428,4 @@ mod tests {
         assert!(relative_markdown_path(root.path(), "../outside.md").is_err());
     }
 }
+// === ANCHOR: PLANNING_END ===

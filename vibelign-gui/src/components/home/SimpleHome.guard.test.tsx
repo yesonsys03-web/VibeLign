@@ -1,3 +1,4 @@
+// === ANCHOR: SIMPLEHOME_GUARD_TEST_START ===
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -72,3 +73,4 @@ describe("SimpleHome guard copy", () => {
     expect(screen.queryByRole("button", { name: "문제 확인하기" })).not.toBeInTheDocument();
   });
 });
+// === ANCHOR: SIMPLEHOME_GUARD_TEST_END ===

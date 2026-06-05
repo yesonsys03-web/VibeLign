@@ -1,4 +1,5 @@
-use super::{plan_slug, save_planning_markdown, synthesize_planning_markdown};
+// === ANCHOR: PLANNING_CHAT_SYNTHESIS_TESTS_START ===
+use super::{plan_slug, safe_relative_target, save_planning_markdown, synthesize_planning_markdown};
 use crate::commands::planning_chat_store::StoredPlanningChatSession;
 use crate::commands::planning_chat_types::PlanningChatMessage;
 
@@ -64,7 +65,7 @@ fn save_planning_markdown_writes_unique_plan_file() {
     let mut session = test_session("예약 앱 만들고 싶어");
     let messages = vec![test_message("user", None, "예약 앱 만들고 싶어")];
 
-    let saved = save_planning_markdown(root.path(), &mut session, &messages).expect("save");
+    let saved = save_planning_markdown(root.path(), &mut session, &messages, None).expect("save");
 
     assert_eq!(
         session.output_path.as_deref(),
@@ -72,6 +73,35 @@ fn save_planning_markdown_writes_unique_plan_file() {
     );
     assert!(root.path().join("plans/예약-앱-만들고-싶어.md").exists());
     assert!(saved.markdown.contains("# 예약 앱 만들고 싶어"));
+}
+
+#[test]
+fn save_planning_markdown_writes_explicit_target_path() {
+    let root = tempfile::tempdir().expect("temp root");
+    let mut session = test_session("예약 앱 만들고 싶어");
+    let messages = vec![test_message("user", None, "예약 앱 만들고 싶어")];
+
+    let saved = save_planning_markdown(
+        root.path(),
+        &mut session,
+        &messages,
+        Some("docs/spec-foo-review.md"),
+    )
+    .expect("save");
+
+    assert_eq!(session.output_path.as_deref(), Some("docs/spec-foo-review.md"));
+    assert!(root.path().join("docs/spec-foo-review.md").exists());
+    assert!(saved.markdown.contains("# 예약 앱 만들고 싶어"));
+}
+
+#[test]
+fn safe_relative_target_rejects_unsafe_paths() {
+    assert!(safe_relative_target("../outside.md").is_err());
+    assert!(safe_relative_target("/etc/passwd").is_err());
+    assert_eq!(
+        safe_relative_target("docs/spec-foo-review.md").expect("ok"),
+        std::path::PathBuf::from("docs/spec-foo-review.md")
+    );
 }
 
 fn assert_section_contains(markdown: &str, heading: &str, expected: &str) {
@@ -106,3 +136,4 @@ fn test_message(role: &str, persona_id: Option<&str>, content: &str) -> Planning
         created_at: "1".to_string(),
     }
 }
+// === ANCHOR: PLANNING_CHAT_SYNTHESIS_TESTS_END ===

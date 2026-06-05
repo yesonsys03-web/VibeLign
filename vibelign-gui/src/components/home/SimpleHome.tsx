@@ -1,3 +1,4 @@
+// === ANCHOR: SIMPLEHOME_START ===
 import type { ReactNode } from "react";
 import type { GuardResult } from "../../lib/vib";
 import { guardNextActionCopy, guardSafetyCopy } from "./GuardHomeCopy";
@@ -17,6 +18,7 @@ interface SimpleHomeProps {
   readonly onOpenGuardDetails: () => void;
 }
 
+// === ANCHOR: SIMPLEHOME_SIMPLEHOME_START ===
 export function SimpleHome({
   guardResult,
   watchOn,
@@ -90,6 +92,7 @@ export function SimpleHome({
     </section>
   );
 }
+// === ANCHOR: SIMPLEHOME_SIMPLEHOME_END ===
 
 interface HomeStatusBlockProps {
   readonly title: string;
@@ -97,6 +100,7 @@ interface HomeStatusBlockProps {
   readonly children: ReactNode;
 }
 
+// === ANCHOR: SIMPLEHOME_HOMESTATUSBLOCK_START ===
 function HomeStatusBlock({ title, accent, children }: HomeStatusBlockProps) {
   return (
     <section style={{ background: "#FFFCF2", border: "2px solid #1A1A1A", padding: 14, minHeight: 132, display: "flex", flexDirection: "column" }}>
@@ -108,3 +112,5 @@ function HomeStatusBlock({ title, accent, children }: HomeStatusBlockProps) {
     </section>
   );
 }
+// === ANCHOR: SIMPLEHOME_HOMESTATUSBLOCK_END ===
+// === ANCHOR: SIMPLEHOME_END ===

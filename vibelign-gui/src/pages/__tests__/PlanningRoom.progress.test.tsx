@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGROOM_PROGRESS_TEST_START ===
 import { render, screen } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 
@@ -51,3 +52,4 @@ describe("PlanningRoom persona progress summary", () => {
     expect(screen.queryByText("raw stderr")).not.toBeInTheDocument();
   });
 });
+// === ANCHOR: PLANNINGROOM_PROGRESS_TEST_END ===

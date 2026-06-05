@@ -1,3 +1,4 @@
+// === ANCHOR: ONBOARDING_INPUT_BAR_TEST_START ===
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import Onboarding from "../Onboarding";
@@ -45,9 +46,11 @@ vi.mock("../../lib/vib", async () => {
   };
 });
 
+// === ANCHOR: ONBOARDING_INPUT_BAR_TEST_RENDERONBOARDING_START ===
 function renderOnboarding(): void {
   render(<Onboarding onComplete={vi.fn()} onResume={vi.fn()} onRemoveRecent={vi.fn()} recentDirs={["/tmp/demo"]} />);
 }
+// === ANCHOR: ONBOARDING_INPUT_BAR_TEST_RENDERONBOARDING_END ===
 
 describe("Onboarding input bar", () => {
   afterEach(() => {
@@ -149,3 +152,4 @@ describe("Onboarding input bar", () => {
     expect(screen.queryByText("plan-structure")).not.toBeInTheDocument();
   });
 });
+// === ANCHOR: ONBOARDING_INPUT_BAR_TEST_END ===

@@ -613,4 +613,48 @@ pub(crate) fn uninstall(
     );
     snapshot
 }
+
+/// Side-effect free detection of which supported tools are installed on macOS.
+/// Checks zsh/bash login shells via `command -v <tool>`, with a direct
+/// `~/.local/bin/claude` fallback for claude. `antigravity` is detected by
+/// its `~/.gemini/antigravity` directory. Returns keys in stable order.
+/// Emits no logs/snapshots.
+pub(crate) fn installed_tools() -> Vec<String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let cli_tools = ["claude", "codex", "cursor", "opencode"];
+    let mut found: Vec<String> = Vec::new();
+
+    for tool in &cli_tools {
+        let zsh_cmd = format!("command -v {}", tool);
+        let zsh_ok =
+            run_command_capture_with_timeout("/bin/zsh", &["-lc", &zsh_cmd], &[], 10)
+                .map(|r| r.ok)
+                .unwrap_or(false);
+        let bash_cmd = format!("command -v {}", tool);
+        let bash_ok = if !zsh_ok {
+            run_command_capture_with_timeout("/bin/bash", &["-lc", &bash_cmd], &[], 10)
+                .map(|r| r.ok)
+                .unwrap_or(false)
+        } else {
+            false
+        };
+        let direct_ok = if !zsh_ok && !bash_ok && *tool == "claude" {
+            let claude_bin = PathBuf::from(&home).join(".local/bin/claude");
+            claude_bin.exists()
+        } else {
+            false
+        };
+        if zsh_ok || bash_ok || direct_ok {
+            found.push(tool.to_string());
+        }
+    }
+
+    // antigravity has no CLI — detect by its config directory
+    let antigravity_dir = PathBuf::from(&home).join(".gemini").join("antigravity");
+    if antigravity_dir.exists() {
+        found.push("antigravity".to_string());
+    }
+
+    found
+}
 // === ANCHOR: MACOS_END ===

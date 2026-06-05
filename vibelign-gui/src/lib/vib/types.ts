@@ -184,6 +184,7 @@ export interface AppendPlanningChatTurnRequest {
 export interface SavePlanningChatPlanRequest {
   projectDir: string;
   sessionId: string;
+  targetPath?: string;
 }
 
 export interface PlanningChatSessionResponse {

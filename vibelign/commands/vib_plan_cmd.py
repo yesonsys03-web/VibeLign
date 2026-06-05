@@ -1,3 +1,4 @@
+# === ANCHOR: VIB_PLAN_CMD_START ===
 from __future__ import annotations
 
 import json
@@ -16,6 +17,7 @@ from vibelign.core.project_root import resolve_project_root
 from vibelign.terminal_render import clack_intro, clack_step, clack_success
 
 
+# === ANCHOR: VIB_PLAN_CMD_PLANARGS_START ===
 class PlanArgs(Protocol):
     idea: Sequence[str] | str
     template_only: bool
@@ -28,14 +30,18 @@ class PlanArgs(Protocol):
     agents: str | None
     save_transcript: bool
     llm_timeout_seconds: int
+# === ANCHOR: VIB_PLAN_CMD_PLANARGS_END ===
 
 
+# === ANCHOR: VIB_PLAN_CMD__IDEA_TEXT_START ===
 def _idea_text(raw_idea: Sequence[str] | str) -> str:
     if isinstance(raw_idea, str):
         return raw_idea.strip()
     return " ".join(str(item).strip() for item in raw_idea if str(item).strip()).strip()
+# === ANCHOR: VIB_PLAN_CMD__IDEA_TEXT_END ===
 
 
+# === ANCHOR: VIB_PLAN_CMD_RUN_VIB_PLAN_START ===
 def run_vib_plan(args: object) -> None:
     raw_args = cast(PlanArgs, args)
     idea = _idea_text(raw_args.idea)
@@ -98,3 +104,5 @@ def run_vib_plan(args: object) -> None:
     clack_intro("VibeLign 기획안")
     clack_step("기획안 생성")
     clack_success(f"기획안 저장: {result.output_path}")
+# === ANCHOR: VIB_PLAN_CMD_RUN_VIB_PLAN_END ===
+# === ANCHOR: VIB_PLAN_CMD_END ===

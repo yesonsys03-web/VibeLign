@@ -1,3 +1,4 @@
+// === ANCHOR: LEGACYSURFACE_TEST_START ===
 import { describe, expect, test } from "vitest";
 
 import { BEGINNER_COMMANDS, COMMANDS } from "./commands";
@@ -13,3 +14,4 @@ describe("legacy command surface", () => {
     expect(BEGINNER_COMMANDS.map((command) => command.name)).not.toContain("plan-structure");
   });
 });
+// === ANCHOR: LEGACYSURFACE_TEST_END ===

@@ -15,14 +15,14 @@ const WINDOWS_RESERVED_DEVICE_NAMES: &[&str] = &[
 ];
 const CODE_READ_EXTENSIONS: &[&str] = &[
     "py", "js", "ts", "jsx", "tsx", "rs", "go", "java", "cs", "cpp", "c", "hpp", "h", "mjs", "cjs",
-    "swift", "json", "toml", "yaml", "yml", "css", "html", "md",
+    "swift", "json", "toml", "yaml", "yml", "css", "html", "md", "spec",
 ];
 // 사이드바 트리에 노출할 파일 확장자. 엔진의 SOURCE_FILE_EXTENSIONS(코드 전용)와
 // 분리되어 있어 docs/*.md 같은 문서가 트리에 보이지만 anchor/patch_suggester 등의
 // 코드 분석 파이프라인에는 영향이 가지 않는다.
 const EXPLORER_FILE_EXTENSIONS: &[&str] = &[
     "py", "js", "ts", "jsx", "tsx", "rs", "go", "java", "cs", "cpp", "c", "hpp", "h", "mjs", "cjs",
-    "swift", "md",
+    "swift", "md", "spec",
     // 설정/데이터 파일도 트리에 노출(읽기는 CODE_READ_EXTENSIONS 로 이미 지원).
     // 카테고리는 "data" 로 분류돼 사이드바에서 "other"(회색)로 표시된다.
     "toml", "yaml", "yml",
@@ -279,7 +279,7 @@ fn walk_explorer(root: &Path, dir: &Path, out: &mut Vec<ExplorerFileEntry>) {
                 Err(_) => continue,
             };
             let category = match ext.as_str() {
-                "md" => "docs",
+                "md" | "spec" => "docs",
                 "toml" | "yaml" | "yml" => "data",
                 _ => "code",
             }

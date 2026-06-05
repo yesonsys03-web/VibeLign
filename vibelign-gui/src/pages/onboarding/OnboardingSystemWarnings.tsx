@@ -1,3 +1,4 @@
+// === ANCHOR: ONBOARDINGSYSTEMWARNINGS_START ===
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 import type { OnboardingSnapshot } from "../../lib/vib";
@@ -8,6 +9,7 @@ interface OnboardingSystemWarningsProps {
   readonly onboardingSnapshot: OnboardingSnapshot | null;
 }
 
+// === ANCHOR: ONBOARDINGSYSTEMWARNINGS_ONBOARDINGSYSTEMWARNINGS_START ===
 export function OnboardingSystemWarnings({
   gitInstalled,
   xcodeCltInstalled,
@@ -65,3 +67,5 @@ export function OnboardingSystemWarnings({
     </section>
   );
 }
+// === ANCHOR: ONBOARDINGSYSTEMWARNINGS_ONBOARDINGSYSTEMWARNINGS_END ===
+// === ANCHOR: ONBOARDINGSYSTEMWARNINGS_END ===

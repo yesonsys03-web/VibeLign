@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNING_CHAT_TYPES_START ===
 use serde::{Deserialize, Serialize};
 
 use super::planning_chat_store::StoredPlanningChatSession;
@@ -24,6 +25,8 @@ pub struct AppendPlanningChatTurnRequest {
 pub struct SavePlanningChatPlanRequest {
     pub(crate) project_dir: String,
     pub(crate) session_id: String,
+    #[serde(default)]
+    pub(crate) target_path: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -107,3 +110,4 @@ mod tests {
         assert!(json.contains("createdAt"));
     }
 }
+// === ANCHOR: PLANNING_CHAT_TYPES_END ===

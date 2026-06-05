@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGINSTRUCTION_TEST_START ===
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 
@@ -41,3 +42,4 @@ describe("buildPlanningWorkInstruction", () => {
     expect(actionsSource).not.toContain('label: "미나 Antigravity"');
   });
 });
+// === ANCHOR: PLANNINGINSTRUCTION_TEST_END ===

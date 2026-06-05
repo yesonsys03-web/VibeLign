@@ -1,3 +1,4 @@
+// === ANCHOR: MANUALCOMMANDLIST_START ===
 import { COMMANDS } from "../../lib/commands";
 import LegacyCommandBadge from "./LegacyCommandBadge";
 
@@ -8,6 +9,7 @@ interface ManualCommandListProps {
   readonly onSelectCommand: (command: ManualCommand) => void;
 }
 
+// === ANCHOR: MANUALCOMMANDLIST_MANUALCOMMANDLIST_START ===
 export function ManualCommandList({ onBack, onSelectCommand }: ManualCommandListProps) {
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -60,3 +62,5 @@ export function ManualCommandList({ onBack, onSelectCommand }: ManualCommandList
     </div>
   );
 }
+// === ANCHOR: MANUALCOMMANDLIST_MANUALCOMMANDLIST_END ===
+// === ANCHOR: MANUALCOMMANDLIST_END ===

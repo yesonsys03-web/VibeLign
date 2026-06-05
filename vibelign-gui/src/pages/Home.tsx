@@ -6,6 +6,7 @@ import { AdvancedHomeCards } from "../components/home/AdvancedHomeCards";
 import { GuardResultModal } from "../components/home/GuardResultModal";
 import { HomeHeader } from "../components/home/HomeHeader";
 import { HomePlanningEntry } from "../components/home/HomePlanningEntry";
+import { HomePlanningStart } from "../components/home/HomePlanningStart";
 import { ManualCommandDetail } from "../components/home/ManualCommandDetail";
 import type { ManualCommand } from "../components/home/ManualCommandList";
 import { ManualCommandList } from "../components/home/ManualCommandList";
@@ -21,6 +22,7 @@ interface HomeProps {
   hasAnyAiKey?: boolean;
   aiKeyStatusLoaded?: boolean;
   onNavigate: (page: "backups") => void;
+  onOpenDoctor?: () => void;
   onOpenSettings?: (reason?: string) => void;
   initialView?: View;
   watchOn?: boolean;
@@ -34,11 +36,12 @@ interface HomeProps {
   planningOutputPath?: string | null;
   planningPending?: boolean;
   onOpenPlanning?: () => void;
+  onStartPlanning?: (idea: string) => void;
 }
 
 
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────────
-export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, watchError = null, onRetryWatch, hasCheckpoint = false, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning }: HomeProps) {
+export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenDoctor, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, watchError = null, onRetryWatch, hasCheckpoint = false, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning, onStartPlanning }: HomeProps) {
   const [view, setView]                   = useState<View>(initialView);
   const [selectedCmd, setSelectedCmd]     = useState<ManualCommand | null>(null);
   const [guardResult, setGuardResult]     = useState<GuardResult | null>(null);
@@ -94,7 +97,11 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       {guardModal && guardResult && (
-        <GuardResultModal guardResult={guardResult} onClose={() => setGuardModal(false)} />
+        <GuardResultModal
+          guardResult={guardResult}
+          onClose={() => setGuardModal(false)}
+          onOpenDoctor={onOpenDoctor}
+        />
       )}
 
       <HomeHeader
@@ -105,14 +112,16 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
       />
 
       <div className="page-content" style={{ padding: "12px 20px 20px" }}>
-        {planningPrompt && onOpenPlanning && (
+        {planningPrompt && onOpenPlanning ? (
           <HomePlanningEntry
             prompt={planningPrompt}
             outputPath={planningOutputPath}
             isPending={planningPending}
             onOpen={onOpenPlanning}
           />
-        )}
+        ) : onStartPlanning ? (
+          <HomePlanningStart onStart={onStartPlanning} />
+        ) : null}
         {!advancedOpen && (
           <SimpleHome
             guardResult={guardResult}

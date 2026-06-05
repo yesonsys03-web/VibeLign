@@ -13,9 +13,10 @@ interface CodeExplorerProps {
   projectDir: string;
   planningPrompt?: string;
   planningOutputPath?: string | null;
+  onReviewInPlanning?: (path: string) => void;
 }
 
-export default function CodeExplorer({ projectDir, planningPrompt = "", planningOutputPath = null }: CodeExplorerProps) {
+export default function CodeExplorer({ projectDir, planningPrompt = "", planningOutputPath = null, onReviewInPlanning }: CodeExplorerProps) {
   const [files, setFiles] = useState<CodeFileEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<CodeFileReadResult | null>(null);
@@ -118,7 +119,7 @@ export default function CodeExplorer({ projectDir, planningPrompt = "", planning
     <CodeExplorerLayout
       planningContext={planningOutputPath ? <CodeExplorerPlanningContext prompt={planningPrompt} outputPath={planningOutputPath} /> : undefined}
       toolbar={<CodeExplorerToolbar query={query} fileCount={filteredFiles.length} isRefreshing={isRefreshing} onQueryChange={setQuery} onRefresh={() => void refreshFiles()} />}
-      tree={<CodeFileTree files={filteredFiles} selectedPath={selectedPath} onSelect={setSelectedPath} autoExpandAll={query.trim().length > 0} changes={changes} />}
+      tree={<CodeFileTree files={filteredFiles} selectedPath={selectedPath} onSelect={setSelectedPath} autoExpandAll={query.trim().length > 0} changes={changes} onReviewInPlanning={onReviewInPlanning} />}
       viewer={<CodeFileViewer
         selectedPath={selectedPath}
         file={selectedFile}

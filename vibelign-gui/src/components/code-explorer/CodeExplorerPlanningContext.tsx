@@ -1,3 +1,4 @@
+// === ANCHOR: CODEEXPLORERPLANNINGCONTEXT_START ===
 import { PlanningInstructionActions } from "./PlanningInstructionActions";
 
 interface CodeExplorerPlanningContextProps {
@@ -30,3 +31,4 @@ export default function CodeExplorerPlanningContext({ prompt, outputPath }: Code
     </section>
   );
 }
+// === ANCHOR: CODEEXPLORERPLANNINGCONTEXT_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGINSTRUCTIONACTIONS_START ===
 import { useState } from "react";
 
 import { buildPlanningWorkInstruction, type PlanningWorkPersona } from "../../lib/code-explorer/planningInstruction";
@@ -28,6 +29,7 @@ const PREVIEW_TARGET_LABELS: Record<PlanningWorkPersona, string> = {
   mina: `${planningPersonaLabel("mina")} Antigravity`,
 };
 
+// === ANCHOR: PLANNINGINSTRUCTIONACTIONS_PLANNINGINSTRUCTIONACTIONS_START ===
 export function PlanningInstructionActions({ prompt, outputPath }: PlanningInstructionActionsProps) {
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
   const [fallbackInstruction, setFallbackInstruction] = useState("");
@@ -37,6 +39,7 @@ export function PlanningInstructionActions({ prompt, outputPath }: PlanningInstr
   const previewTargetLabel = previewPersona ? PREVIEW_TARGET_LABELS[previewPersona] : "공통";
   const isCommonPreviewSelected = previewPersona === undefined;
 
+  // === ANCHOR: PLANNINGINSTRUCTIONACTIONS_HANDLECOPYINSTRUCTION_START ===
   async function handleCopyInstruction(persona?: PlanningWorkPersona) {
     const instruction = buildPlanningWorkInstruction({ prompt, outputPath, persona });
     try {
@@ -52,7 +55,9 @@ export function PlanningInstructionActions({ prompt, outputPath }: PlanningInstr
       setIsPreviewOpen(true);
     }
   }
+  // === ANCHOR: PLANNINGINSTRUCTIONACTIONS_HANDLECOPYINSTRUCTION_END ===
 
+  // === ANCHOR: PLANNINGINSTRUCTIONACTIONS_HANDLECOPYPREVIEWINSTRUCTION_START ===
   async function handleCopyPreviewInstruction() {
     try {
       await navigator.clipboard.writeText(previewInstruction);
@@ -67,6 +72,7 @@ export function PlanningInstructionActions({ prompt, outputPath }: PlanningInstr
       setIsPreviewOpen(true);
     }
   }
+  // === ANCHOR: PLANNINGINSTRUCTIONACTIONS_HANDLECOPYPREVIEWINSTRUCTION_END ===
 
   return (
     <>
@@ -149,7 +155,9 @@ export function PlanningInstructionActions({ prompt, outputPath }: PlanningInstr
             {previewInstruction}
           </pre>
         </div>
+// === ANCHOR: PLANNINGINSTRUCTIONACTIONS_PLANNINGINSTRUCTIONACTIONS_END ===
       )}
     </>
   );
 }
+// === ANCHOR: PLANNINGINSTRUCTIONACTIONS_END ===

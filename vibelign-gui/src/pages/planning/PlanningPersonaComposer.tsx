@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGPERSONACOMPOSER_START ===
 import { useState } from "react";
 
 import { appendPlanningChatTurn, type PlanningChatSessionResponse } from "../../lib/vib";
@@ -19,6 +20,7 @@ interface PlanningPersonaComposerProps {
   readonly onResultChange: (result: PlanningChatSessionResponse) => void;
 }
 
+// === ANCHOR: PLANNINGPERSONACOMPOSER_PLANNINGPERSONACOMPOSER_START ===
 export function PlanningPersonaComposer({ projectDir, result, sessionId, onResultChange }: PlanningPersonaComposerProps) {
   const [selectedModeId, setSelectedModeId] = useState<PlanningModeOption["id"]>(DEFAULT_PLANNING_MODE.id);
   const [selectedPersonaIds, setSelectedPersonaIds] = useState<readonly string[]>(DEFAULT_PLANNING_MODE.personaIds);
@@ -26,6 +28,7 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
   const [isSubmitting, setIsSubmitting] = useState(false);
   const canSubmit = message.trim().length > 0 && selectedPersonaIds.length > 0 && Boolean(sessionId) && !isSubmitting;
 
+  // === ANCHOR: PLANNINGPERSONACOMPOSER_HANDLESUBMIT_START ===
   async function handleSubmit() {
     if (!canSubmit || !sessionId) {
       return;
@@ -53,6 +56,7 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
     }
     setIsSubmitting(false);
   }
+  // === ANCHOR: PLANNINGPERSONACOMPOSER_HANDLESUBMIT_END ===
 
   return (
     <section
@@ -149,5 +153,7 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
         </button>
       </div>
     </section>
+// === ANCHOR: PLANNINGPERSONACOMPOSER_PLANNINGPERSONACOMPOSER_END ===
   );
 }
+// === ANCHOR: PLANNINGPERSONACOMPOSER_END ===

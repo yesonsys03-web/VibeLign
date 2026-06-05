@@ -1,3 +1,4 @@
+# === ANCHOR: ORCHESTRATOR_START ===
 from __future__ import annotations
 
 from pathlib import Path
@@ -24,6 +25,7 @@ from vibelign.core.planning_cli.storage import create_planning_template
 from vibelign.core.planning_cli.transcripts import write_turn_transcript
 
 
+# === ANCHOR: ORCHESTRATOR_CREATE_PLANNING_WITH_AGENTS_START ===
 def create_planning_with_agents(
     root: Path,
     planning_input: PlanningInput,
@@ -33,6 +35,7 @@ def create_planning_with_agents(
     timeout_seconds: int = 300,
     save_transcript: bool = False,
     runner: PlanningCliRunner | None = None,
+# === ANCHOR: ORCHESTRATOR_CREATE_PLANNING_WITH_AGENTS_END ===
 ) -> PlanningResult:
     mention_result = resolve_persona_mentions(planning_input.idea)
     clean_input = PlanningInput(
@@ -55,6 +58,7 @@ def create_planning_with_agents(
     )
 
 
+# === ANCHOR: ORCHESTRATOR_APPEND_PLANNING_WITH_AGENTS_START ===
 def append_planning_with_agents(
     root: Path,
     *,
@@ -65,6 +69,7 @@ def append_planning_with_agents(
     timeout_seconds: int = 300,
     save_transcript: bool = False,
     runner: PlanningCliRunner | None = None,
+# === ANCHOR: ORCHESTRATOR_APPEND_PLANNING_WITH_AGENTS_END ===
 ) -> PlanningResult:
     root = root.resolve()
     relative_path = _safe_relative_output_path(output_path)
@@ -90,6 +95,7 @@ def append_planning_with_agents(
     )
 
 
+# === ANCHOR: ORCHESTRATOR__APPLY_AGENTS_TO_RESULT_START ===
 def _apply_agents_to_result(
     root: Path,
     base: PlanningResult,
@@ -101,6 +107,7 @@ def _apply_agents_to_result(
     timeout_seconds: int,
     save_transcript: bool,
     runner: PlanningCliRunner | None,
+# === ANCHOR: ORCHESTRATOR__APPLY_AGENTS_TO_RESULT_END ===
 ) -> PlanningResult:
     mention_result = resolve_persona_mentions(message)
     personas = _resolve_personas(
@@ -166,9 +173,11 @@ def _apply_agents_to_result(
     return final_result
 
 
+# === ANCHOR: ORCHESTRATOR__RESOLVE_PERSONAS_START ===
 def _resolve_personas(
     default_persona_ids: tuple[str, ...],
     agents_choice: str | None,
+# === ANCHOR: ORCHESTRATOR__RESOLVE_PERSONAS_END ===
 ) -> tuple[PlanningPersona, ...]:
     persona_ids = (
         _parse_csv(agents_choice)
@@ -178,9 +187,11 @@ def _resolve_personas(
     return ordered_personas_for_ids(persona_ids)
 
 
+# === ANCHOR: ORCHESTRATOR__RESOLVE_ADAPTERS_START ===
 def _resolve_adapters(
     cli_choice: str,
     personas: tuple[PlanningPersona, ...],
+# === ANCHOR: ORCHESTRATOR__RESOLVE_ADAPTERS_END ===
 ) -> dict[str, str]:
     cli_ids = _parse_csv(cli_choice)
     if not cli_ids or cli_ids == ("auto",):
@@ -198,19 +209,24 @@ def _resolve_adapters(
     return mapped
 
 
+# === ANCHOR: ORCHESTRATOR__PARSE_CSV_START ===
 def _parse_csv(raw: str | None) -> tuple[str, ...]:
     if raw is None:
         return ()
     return tuple(item.strip().lower() for item in raw.split(",") if item.strip())
+# === ANCHOR: ORCHESTRATOR__PARSE_CSV_END ===
 
 
+# === ANCHOR: ORCHESTRATOR__SAFE_RELATIVE_OUTPUT_PATH_START ===
 def _safe_relative_output_path(raw_path: str) -> Path:
     relative_path = Path(raw_path)
     if relative_path.is_absolute() or any(part == ".." for part in relative_path.parts):
         raise ValueError("append_to must be a project-relative path")
     return relative_path
+# === ANCHOR: ORCHESTRATOR__SAFE_RELATIVE_OUTPUT_PATH_END ===
 
 
+# === ANCHOR: ORCHESTRATOR__FINALIZE_AGENT_RESULT_START ===
 def _finalize_agent_result(
     base: PlanningResult,
     *,
@@ -218,6 +234,7 @@ def _finalize_agent_result(
     adapters: dict[str, str],
     statuses: dict[str, str],
     used_agents: tuple[str, ...],
+# === ANCHOR: ORCHESTRATOR__FINALIZE_AGENT_RESULT_END ===
 ) -> PlanningResult:
     first_persona = personas[0] if personas else None
     persona_id = used_agents[0] if used_agents else (
@@ -235,3 +252,4 @@ def _finalize_agent_result(
         llm_status=llm_status,
         fallback_reason=fallback_reason,
     )
+# === ANCHOR: ORCHESTRATOR_END ===

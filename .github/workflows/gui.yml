@@ -319,6 +319,54 @@ jobs:
           path: vibelign-gui/macos-release/
           if-no-files-found: warn
 
+  windows-cross-check:
+    name: Windows cross-compile check (gnu)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vibelign-gui/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: vibelign-gui
+        run: npm ci
+
+      # tauri 의 generate_context! 가 컴파일 시점에 frontendDist(../dist)를 임베드하므로
+      # cargo check 전에 dist 가 있어야 한다. vib-runtime/_bundled 사이드카는 cargo check 에
+      # 불필요(없으면 glob 경고만 남고 통과). pyinstaller/엔진 빌드 없이 ubuntu 에서 가볍게 돈다.
+      - name: Build frontend
+        working-directory: vibelign-gui
+        run: npm run build
+
+      - name: Setup Rust (windows-gnu target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
+
+      - name: Install mingw-w64 (windows-gnu C toolchain + linker)
+        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: vibelign-gui/src-tauri
+          key: windows-gnu
+
+      # cfg(target_os = "windows") 코드(onboarding/windows.rs 등)가 실제로 컴파일되는지
+      # 빠르게 검증한다. 풀 windows-latest 번들 빌드보다 훨씬 싸고 빨라 회귀를 조기에 잡는다.
+      - name: cargo check (x86_64-pc-windows-gnu)
+        working-directory: vibelign-gui/src-tauri
+        env:
+          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: x86_64-w64-mingw32-gcc
+          CC_x86_64_pc_windows_gnu: x86_64-w64-mingw32-gcc
+        run: cargo check --target x86_64-pc-windows-gnu
+
   release:
     name: Create GitHub Release
     needs: build

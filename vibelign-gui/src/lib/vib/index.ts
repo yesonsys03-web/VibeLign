@@ -7,7 +7,7 @@ export { addExtraDocSource, enhanceDocWithAi, getAiEnhancement, getManualJson, l
 export { buildGuiAiEnv, deleteApiKey, deleteProviderApiKey, getEnvKeyStatus, loadApiKey, loadProviderApiKeys, saveApiKey, saveProviderApiKey } from "./apiKeys";
 export { checkGitInstalled, checkXcodeClt, getVibPath, loadRecentProjects, openFolder, pickFile, pickFolder, readProjectSummary, saveRecentProjects } from "./system";
 export { clearErrorLogs, readErrorLogs } from "./errorLogs";
-export { addClaudeToUserPath, getOnboardingLogs, getOnboardingSnapshot, listenOnboardingProgress, retryOnboardingVerification, startNativeInstall, startOnboardingLoginProbe, startWslInstall, uninstallClaudeCode } from "./onboarding";
+export { addClaudeToUserPath, detectInstalledTools, getOnboardingLogs, getOnboardingSnapshot, listenOnboardingProgress, retryOnboardingVerification, startNativeInstall, startOnboardingLoginProbe, startWslInstall, uninstallClaudeCode } from "./onboarding";
 export { getWatchErrors, getWatchLogs, startWatch, stopWatch, watchStatus } from "./watch";
 export { anchorAutoIntent, anchorAutoIntentJson, anchorListMeta, anchorSetIntent } from "./anchor";
 export { acceptHandoffDraftField, createHandoffDraft, dismissHandoffDraftField, memorySummary, vibTransfer } from "./memory";

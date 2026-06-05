@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGACTIONBAR_START ===
 interface PlanningActionBarProps {
   readonly canSave: boolean;
   readonly canView: boolean;
@@ -9,6 +10,7 @@ interface PlanningActionBarProps {
   readonly onToggleMarkdown: () => void;
 }
 
+// === ANCHOR: PLANNINGACTIONBAR_PLANNINGACTIONBAR_START ===
 export function PlanningActionBar({
   canSave,
   canView,
@@ -52,3 +54,5 @@ export function PlanningActionBar({
     </div>
   );
 }
+// === ANCHOR: PLANNINGACTIONBAR_PLANNINGACTIONBAR_END ===
+// === ANCHOR: PLANNINGACTIONBAR_END ===

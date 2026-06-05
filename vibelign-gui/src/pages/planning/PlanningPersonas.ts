@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGPERSONAS_START ===
 export type PlanningPersonaId = "chloe" | "gio" | "mina";
 
 export interface PlanningPersonaMeta {
@@ -44,10 +45,13 @@ export const PLANNING_PERSONAS = [
   },
 ] as const satisfies readonly PlanningPersonaMeta[];
 
+// === ANCHOR: PLANNINGPERSONAS_ALLPLANNINGPERSONAIDS_START ===
 export function allPlanningPersonaIds(): readonly string[] {
   return PLANNING_PERSONAS.map((persona) => persona.id);
 }
+// === ANCHOR: PLANNINGPERSONAS_ALLPLANNINGPERSONAIDS_END ===
 
+// === ANCHOR: PLANNINGPERSONAS_PLANNINGPERSONAMETA_START ===
 export function planningPersonaMeta(personaId: string, fallbackLabel?: string): PlanningPersonaMeta {
   const knownPersona = PLANNING_PERSONAS.find((persona) => persona.id === personaId);
   if (knownPersona) {
@@ -65,12 +69,18 @@ export function planningPersonaMeta(personaId: string, fallbackLabel?: string): 
     avatarColor: "#1A1A1A",
   };
 }
+// === ANCHOR: PLANNINGPERSONAS_PLANNINGPERSONAMETA_END ===
 
+// === ANCHOR: PLANNINGPERSONAS_PLANNINGPERSONALABEL_START ===
 export function planningPersonaLabel(personaId: string): string {
   return planningPersonaMeta(personaId).label;
 }
+// === ANCHOR: PLANNINGPERSONAS_PLANNINGPERSONALABEL_END ===
 
+// === ANCHOR: PLANNINGPERSONAS_PLANNINGPERSONAROLELABEL_START ===
 export function planningPersonaRoleLabel(personaId: string): string {
   const persona = planningPersonaMeta(personaId);
   return persona.role ? `${persona.role}자 ${persona.label}` : persona.label;
 }
+// === ANCHOR: PLANNINGPERSONAS_PLANNINGPERSONAROLELABEL_END ===
+// === ANCHOR: PLANNINGPERSONAS_END ===

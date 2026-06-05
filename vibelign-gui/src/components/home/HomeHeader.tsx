@@ -1,3 +1,4 @@
+// === ANCHOR: HOMEHEADER_START ===
 interface HomeHeaderProps {
   readonly version: string;
   readonly advancedOpen: boolean;
@@ -5,6 +6,7 @@ interface HomeHeaderProps {
   readonly onShowSimple: () => void;
 }
 
+// === ANCHOR: HOMEHEADER_HOMEHEADER_START ===
 export function HomeHeader({ version, advancedOpen, onResetOrder, onShowSimple }: HomeHeaderProps) {
   return (
     <div className="page-header" style={{ padding: "14px 20px 12px" }}>
@@ -55,3 +57,5 @@ export function HomeHeader({ version, advancedOpen, onResetOrder, onShowSimple }
     </div>
   );
 }
+// === ANCHOR: HOMEHEADER_HOMEHEADER_END ===
+// === ANCHOR: HOMEHEADER_END ===

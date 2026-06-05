@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGROOM_MENTIONS_TEST_START ===
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 
@@ -34,3 +35,4 @@ describe("PlanningRoom mention chips", () => {
     expect(composer).toHaveValue("@클로이 @모두");
   });
 });
+// === ANCHOR: PLANNINGROOM_MENTIONS_TEST_END ===

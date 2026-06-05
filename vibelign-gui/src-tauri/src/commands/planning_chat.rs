@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNING_CHAT_START ===
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -191,7 +192,12 @@ pub(crate) async fn save_planning_chat_as_markdown(
             Ok(parsed) => parsed,
             Err(error) => return planning_chat_error(error),
         };
-        let saved = match save_planning_markdown(&project_dir, &mut session, &messages) {
+        let saved = match save_planning_markdown(
+            &project_dir,
+            &mut session,
+            &messages,
+            request.target_path.as_deref(),
+        ) {
             Ok(saved) => saved,
             Err(error) => return planning_chat_error(error),
         };
@@ -209,3 +215,4 @@ fn timestamp_ms() -> u128 {
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_millis())
 }
+// === ANCHOR: PLANNING_CHAT_END ===

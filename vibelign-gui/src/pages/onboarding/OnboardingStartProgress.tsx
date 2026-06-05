@@ -1,9 +1,11 @@
+// === ANCHOR: ONBOARDINGSTARTPROGRESS_START ===
 interface OnboardingStartProgressProps {
   readonly labels: readonly string[];
   readonly statusMessage: string | null;
   readonly claudeMessage: string | null;
 }
 
+// === ANCHOR: ONBOARDINGSTARTPROGRESS_ONBOARDINGSTARTPROGRESS_START ===
 export function OnboardingStartProgress({
   labels,
   statusMessage,
@@ -33,3 +35,5 @@ export function OnboardingStartProgress({
     </div>
   );
 }
+// === ANCHOR: ONBOARDINGSTARTPROGRESS_ONBOARDINGSTARTPROGRESS_END ===
+// === ANCHOR: ONBOARDINGSTARTPROGRESS_END ===

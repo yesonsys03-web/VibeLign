@@ -1,3 +1,4 @@
+// === ANCHOR: LEGACYCOMMANDBADGE_START ===
 type LegacyCommandBadgeProps = {
   readonly visibility?: string;
 };
@@ -21,3 +22,4 @@ export default function LegacyCommandBadge({ visibility }: LegacyCommandBadgePro
     </span>
   );
 }
+// === ANCHOR: LEGACYCOMMANDBADGE_END ===

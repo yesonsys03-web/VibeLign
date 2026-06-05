@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGPERSONAAVATAR_START ===
 import { planningPersonaMeta } from "./PlanningPersonas";
 
 interface PlanningPersonaAvatarProps {
@@ -7,6 +8,7 @@ interface PlanningPersonaAvatarProps {
   readonly size?: number;
 }
 
+// === ANCHOR: PLANNINGPERSONAAVATAR_PLANNINGPERSONAAVATAR_START ===
 export function PlanningPersonaAvatar({ personaId, label, decorative = false, size = 22 }: PlanningPersonaAvatarProps) {
   const meta = planningPersonaMeta(personaId, label);
   const style = {
@@ -36,3 +38,5 @@ export function PlanningPersonaAvatar({ personaId, label, decorative = false, si
     </span>
   );
 }
+// === ANCHOR: PLANNINGPERSONAAVATAR_PLANNINGPERSONAAVATAR_END ===
+// === ANCHOR: PLANNINGPERSONAAVATAR_END ===

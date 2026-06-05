@@ -1,3 +1,4 @@
+// === ANCHOR: ADVANCEDHOMECARDS_START ===
 import type { ReactNode } from "react";
 import {
   DndContext,
@@ -57,6 +58,7 @@ const RENDERABLE_ADVANCED_CARD_IDS = new Set([
   "explain", "ask", "export", "protect", "secrets",
 ]);
 
+// === ANCHOR: ADVANCEDHOMECARDS_SORTABLECARDWRAPPER_START ===
 function SortableCardWrapper({ id, children }: { readonly id: string; readonly children: ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   return (
@@ -103,7 +105,9 @@ function SortableCardWrapper({ id, children }: { readonly id: string; readonly c
     </div>
   );
 }
+// === ANCHOR: ADVANCEDHOMECARDS_SORTABLECARDWRAPPER_END ===
 
+// === ANCHOR: ADVANCEDHOMECARDS_RENDERADVANCEDCARD_START ===
 function renderAdvancedCard(props: CardRenderProps): ReactNode {
   switch (props.cardId) {
     case "codemap": return <CodemapCard projectDir={props.projectDir} watchOn={props.watchOn} setWatchOn={props.onWatchChange} mapMode={props.mapMode} setMapMode={props.onMapModeChange} apiKey={props.apiKey} providerKeys={props.providerKeys} />;
@@ -123,13 +127,16 @@ function renderAdvancedCard(props: CardRenderProps): ReactNode {
     default: return null;
   }
 }
+// === ANCHOR: ADVANCEDHOMECARDS_RENDERADVANCEDCARD_END ===
 
+// === ANCHOR: ADVANCEDHOMECARDS_ADVANCEDHOMECARDS_START ===
 export function AdvancedHomeCards(props: AdvancedHomeCardsProps) {
   const cardOrder = props.cardOrder.filter((cardId) => RENDERABLE_ADVANCED_CARD_IDS.has(cardId));
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
+  // === ANCHOR: ADVANCEDHOMECARDS_HANDLEDRAGEND_START ===
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (over && active.id !== over.id) {
@@ -138,6 +145,7 @@ export function AdvancedHomeCards(props: AdvancedHomeCardsProps) {
       props.onCardOrderChange(arrayMove([...props.cardOrder], oldIndex, newIndex));
     }
   }
+  // === ANCHOR: ADVANCEDHOMECARDS_HANDLEDRAGEND_END ===
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -151,5 +159,7 @@ export function AdvancedHomeCards(props: AdvancedHomeCardsProps) {
         </div>
       </SortableContext>
     </DndContext>
+// === ANCHOR: ADVANCEDHOMECARDS_ADVANCEDHOMECARDS_END ===
   );
 }
+// === ANCHOR: ADVANCEDHOMECARDS_END ===

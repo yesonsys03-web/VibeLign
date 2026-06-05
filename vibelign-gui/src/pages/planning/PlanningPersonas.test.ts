@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGPERSONAS_TEST_START ===
 import { describe, expect, test } from "vitest";
 
 import {
@@ -46,3 +47,4 @@ describe("PlanningPersonas", () => {
     });
   });
 });
+// === ANCHOR: PLANNINGPERSONAS_TEST_END ===

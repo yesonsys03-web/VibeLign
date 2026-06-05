@@ -1,3 +1,4 @@
+// === ANCHOR: HELPDATA_TEST_START ===
 import { describe, expect, test } from "vitest";
 
 import { getHelpAnswer } from "./helpData";
@@ -26,3 +27,4 @@ describe("helpData beginner surface", () => {
     expect(answer).not.toContain("plan-structure");
   });
 });
+// === ANCHOR: HELPDATA_TEST_END ===

@@ -1397,4 +1397,44 @@ fn hide_console(cmd: &mut std::process::Command) {
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     cmd.creation_flags(CREATE_NO_WINDOW);
 }
+
+/// Side-effect free detection of which supported tools are installed on Windows.
+/// Checks each CLI tool via `cmd /C where.exe <tool>` (with merged PATH).
+/// For `claude` also counts `windows_expected_claude_path()` existing.
+/// `antigravity` is detected by its `%USERPROFILE%\.gemini\antigravity` directory.
+/// Returns keys in stable order. Emits no logs/snapshots.
+pub(crate) fn installed_tools() -> Vec<String> {
+    let env_overrides: Vec<(&str, String)> = merge_windows_path()
+        .map(|p| vec![("PATH", p)])
+        .unwrap_or_default();
+    let cli_tools = ["claude", "codex", "cursor", "opencode"];
+    let mut found: Vec<String> = Vec::new();
+
+    for tool in &cli_tools {
+        let where_arg = format!("where.exe {}", tool);
+        let where_ok = run_command_capture("cmd", &["/C", &where_arg], &env_overrides)
+            .map(|r| r.ok && !r.stdout.trim().is_empty())
+            .unwrap_or(false);
+        let direct_ok = if !where_ok && *tool == "claude" {
+            windows_expected_claude_path()
+                .map(|p| p.exists())
+                .unwrap_or(false)
+        } else {
+            false
+        };
+        if where_ok || direct_ok {
+            found.push(tool.to_string());
+        }
+    }
+
+    // antigravity has no CLI — detect by its config directory
+    if let Some(profile) = windows_user_profile() {
+        let antigravity_dir = profile.join(".gemini").join("antigravity");
+        if antigravity_dir.exists() {
+            found.push("antigravity".to_string());
+        }
+    }
+
+    found
+}
 // === ANCHOR: WINDOWS_END ===

@@ -1,3 +1,5 @@
+// === ANCHOR: ONBOARDINGINPUTBAR_START ===
+import type { RefObject } from "react";
 import { OnboardingPromptTextarea } from "./OnboardingPromptTextarea";
 
 interface OnboardingInputBarProps {
@@ -5,17 +7,20 @@ interface OnboardingInputBarProps {
   readonly selectedDirName: string;
   readonly folderHint: string | null;
   readonly prepareClaudeCode: boolean;
+  readonly inputRef?: RefObject<HTMLTextAreaElement | null>;
   readonly onPromptChange: (value: string) => void;
   readonly onPickFolder: () => void;
   readonly onSubmit: () => void;
   readonly onPrepareClaudeCodeChange: (checked: boolean) => void;
 }
 
+// === ANCHOR: ONBOARDINGINPUTBAR_ONBOARDINGINPUTBAR_START ===
 export function OnboardingInputBar({
   promptText,
   selectedDirName,
   folderHint,
   prepareClaudeCode,
+  inputRef,
   onPromptChange,
   onPickFolder,
   onSubmit,
@@ -43,7 +48,7 @@ export function OnboardingInputBar({
         >
           +
         </button>
-        <OnboardingPromptTextarea value={promptText} onChange={onPromptChange} onSubmit={onSubmit} />
+        <OnboardingPromptTextarea inputRef={inputRef} value={promptText} onChange={onPromptChange} onSubmit={onSubmit} />
         <button
           type="button"
           aria-label="AI 선택"
@@ -85,3 +90,5 @@ export function OnboardingInputBar({
     </div>
   );
 }
+// === ANCHOR: ONBOARDINGINPUTBAR_ONBOARDINGINPUTBAR_END ===
+// === ANCHOR: ONBOARDINGINPUTBAR_END ===

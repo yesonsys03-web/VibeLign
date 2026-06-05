@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGROOM_ADVANCED_DETAILS_TEST_START ===
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -58,3 +59,4 @@ describe("PlanningRoom advanced details", () => {
     expect(screen.getByText("raw stderr")).toBeVisible();
   });
 });
+// === ANCHOR: PLANNINGROOM_ADVANCED_DETAILS_TEST_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGMESSAGES_STATUS_TEST_START ===
 import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 
@@ -78,3 +79,4 @@ describe("PlanningMessages status badges", () => {
     expect(screen.queryByText("timeout")).not.toBeInTheDocument();
   });
 });
+// === ANCHOR: PLANNINGMESSAGES_STATUS_TEST_END ===

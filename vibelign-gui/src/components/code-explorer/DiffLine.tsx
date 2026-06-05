@@ -1,3 +1,4 @@
+// === ANCHOR: DIFFLINE_START ===
 import type { DiffLine as DiffLineType } from "../../lib/vib/types";
 
 interface Props {
@@ -38,3 +39,4 @@ export default function DiffLine({ line }: Props) {
     </div>
   );
 }
+// === ANCHOR: DIFFLINE_END ===

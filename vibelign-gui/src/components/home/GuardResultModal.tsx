@@ -1,17 +1,31 @@
+// === ANCHOR: GUARDRESULTMODAL_START ===
 import type { GuardResult } from "../../lib/vib";
 
 interface GuardResultModalProps {
   readonly guardResult: GuardResult;
   readonly onClose: () => void;
+  readonly onOpenDoctor?: () => void;
 }
 
+// === ANCHOR: GUARDRESULTMODAL_GUARDSTATUSCOLOR_START ===
 function guardStatusColor(status: GuardResult["status"]) {
   if (status === "pass") return "#4DFF91";
   if (status === "warn") return "#FFD166";
   return "#FF4D4D";
 }
+// === ANCHOR: GUARDRESULTMODAL_GUARDSTATUSCOLOR_END ===
 
-export function GuardResultModal({ guardResult, onClose }: GuardResultModalProps) {
+// === ANCHOR: GUARDRESULTMODAL_GUARDRESULTMODAL_START ===
+export function GuardResultModal({ guardResult, onClose, onOpenDoctor }: GuardResultModalProps) {
+  const canOpenDoctor = guardResult.issues.length > 0 && onOpenDoctor !== undefined;
+
+  // === ANCHOR: GUARDRESULTMODAL_HANDLEOPENDOCTOR_START ===
+  function handleOpenDoctor() {
+    onClose();
+    onOpenDoctor?.();
+  }
+  // === ANCHOR: GUARDRESULTMODAL_HANDLEOPENDOCTOR_END ===
+
   return (
     <div
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
@@ -67,9 +81,16 @@ export function GuardResultModal({ guardResult, onClose }: GuardResultModalProps
 
         <div style={{ padding: "12px 20px", borderTop: "2px solid #1A1A1A", display: "flex", justifyContent: "flex-end", gap: 8 }}>
           <button className="btn btn-ghost btn-sm" onClick={onClose} type="button">닫기</button>
+          {canOpenDoctor ? (
+            <button className="btn btn-sm" style={{ background: "#7B4DFF" }} onClick={handleOpenDoctor} type="button">
+              Doctor로 해결안 만들기
+            </button>
+          ) : null}
           <button className="btn btn-sm" style={{ background: "#FF4D8B" }} onClick={onClose} type="button">닫고 다시 실행</button>
         </div>
       </div>
     </div>
+// === ANCHOR: GUARDRESULTMODAL_GUARDRESULTMODAL_END ===
   );
 }
+// === ANCHOR: GUARDRESULTMODAL_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGINSTRUCTION_START ===
 import { planningPersonaRoleLabel, type PlanningPersonaId } from "../../pages/planning/PlanningPersonas";
 
 interface PlanningWorkInstructionInput {
@@ -23,12 +24,13 @@ const PERSONA_CLI_DETAILS: Record<PlanningWorkPersona, { readonly cliName: strin
   },
 };
 
+// === ANCHOR: PLANNINGINSTRUCTION_BUILDPLANNINGWORKINSTRUCTION_START ===
 export function buildPlanningWorkInstruction({ prompt, outputPath, persona }: PlanningWorkInstructionInput): string {
   const trimmedPrompt = prompt.trim() || "저장된 기획안을 기준으로 구현 범위를 정리하세요.";
   const personaDetails = persona ? PERSONA_CLI_DETAILS[persona] : null;
   return [
     "저장된 기획안을 기준으로 AI 작업을 시작하세요.",
-    ...(personaDetails
+    ...(persona && personaDetails
       ? [
           "",
           `대상 역할: ${planningPersonaRoleLabel(persona)}`,
@@ -48,3 +50,5 @@ export function buildPlanningWorkInstruction({ prompt, outputPath, persona }: Pl
     "- 변경 전 baseline 테스트와 새 동작 RED 테스트를 먼저 작성하세요.",
   ].join("\n");
 }
+// === ANCHOR: PLANNINGINSTRUCTION_BUILDPLANNINGWORKINSTRUCTION_END ===
+// === ANCHOR: PLANNINGINSTRUCTION_END ===

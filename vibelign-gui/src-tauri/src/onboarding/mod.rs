@@ -609,6 +609,54 @@ pub fn check_xcode_clt() -> bool {
     }
 }
 
+/// Side-effect free cross-platform detection of which supported tools are
+/// installed. Used at onboarding submit to build the `--tools` list for
+/// `vib start`. Returns tool keys in stable order.
+pub(crate) fn installed_tools() -> Vec<String> {
+    #[cfg(target_os = "windows")]
+    {
+        return windows::installed_tools();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        return macos::installed_tools();
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        let home = std::env::var("HOME").unwrap_or_default();
+        let cli_tools = ["claude", "codex", "cursor", "opencode"];
+        let mut found: Vec<String> = Vec::new();
+        for tool in &cli_tools {
+            let cmd = format!("command -v {}", tool);
+            let bash_ok =
+                run_command_capture_with_timeout("/bin/bash", &["-lc", &cmd], &[], 10)
+                    .map(|r| r.ok)
+                    .unwrap_or(false);
+            let direct_ok = if !bash_ok && *tool == "claude" {
+                std::path::PathBuf::from(&home)
+                    .join(".local/bin/claude")
+                    .exists()
+            } else {
+                false
+            };
+            if bash_ok || direct_ok {
+                found.push(tool.to_string());
+            }
+        }
+        let antigravity_dir =
+            std::path::PathBuf::from(&home).join(".gemini").join("antigravity");
+        if antigravity_dir.exists() {
+            found.push("antigravity".to_string());
+        }
+        found
+    }
+}
+
+#[tauri::command]
+pub fn detect_installed_tools() -> Vec<String> {
+    installed_tools()
+}
+
 // ─── console hiding (for check_git_installed) ─────────────────────────────────
 
 #[cfg(target_os = "windows")]

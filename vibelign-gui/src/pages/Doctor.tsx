@@ -1,6 +1,7 @@
 // === ANCHOR: DOCTOR_START ===
 import { useState, useEffect, useCallback } from "react";
 import { doctorJson, doctorPlanJson, doctorApply, anchorAutoIntentJson, getAiEnhancement, buildGuiAiEnv } from "../lib/vib";
+import type { DoctorLaunchIntent, DoctorView } from "./doctorFlow";
 
 interface Issue {
   severity: "high" | "medium" | "low";
@@ -35,16 +36,15 @@ interface Plan {
   warnings: string[];
 }
 
-type View = "report" | "plan";
-
 interface DoctorProps {
   projectDir: string;
   apiKey?: string | null;
   providerKeys?: Record<string, string>;
+  launchIntent?: DoctorLaunchIntent | null;
 }
 
-export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps) {
-  const [view, setView] = useState<View>("report");
+export default function Doctor({ projectDir, apiKey, providerKeys, launchIntent = null }: DoctorProps) {
+  const [view, setView] = useState<DoctorView>(launchIntent?.targetView ?? "report");
   const [report, setReport] = useState<DoctorReport | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(false);
@@ -88,11 +88,20 @@ export default function Doctor({ projectDir, apiKey, providerKeys }: DoctorProps
   useEffect(() => { loadReport(); }, [loadReport]);
 
   useEffect(() => {
-    if (!projectDir) return;
+    if (!projectDir || launchIntent) return;
     getAiEnhancement(projectDir)
       .then(setUseWithAi)
       .catch(() => {});
-  }, [projectDir]);
+  }, [projectDir, launchIntent]);
+
+  useEffect(() => {
+    if (!launchIntent) return;
+    setView(launchIntent.targetView);
+    setUseWithAi(launchIntent.applyMode === "ai");
+    if (launchIntent.targetView === "plan") {
+      void loadPlan();
+    }
+  }, [launchIntent, loadPlan]);
 
   function scoreClass(score: number) {
     if (score >= 80) return "score-high";

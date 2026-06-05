@@ -1,3 +1,4 @@
+# === ANCHOR: MENTIONS_START ===
 from __future__ import annotations
 
 import re
@@ -16,12 +17,15 @@ ALL_ALIASES: Final[tuple[str, ...]] = ("all", "모두")
 
 
 @dataclass(frozen=True, slots=True)
+# === ANCHOR: MENTIONS_PERSONAMENTIONRESULT_START ===
 class PersonaMentionResult:
     persona_ids: tuple[str, ...]
     used_default: bool
     clean_text: str
+# === ANCHOR: MENTIONS_PERSONAMENTIONRESULT_END ===
 
 
+# === ANCHOR: MENTIONS_RESOLVE_PERSONA_MENTIONS_START ===
 def resolve_persona_mentions(text: str) -> PersonaMentionResult:
     normalized = text.lower()
     clean_text = _clean_mentions(text)
@@ -48,12 +52,16 @@ def resolve_persona_mentions(text: str) -> PersonaMentionResult:
         used_default=True,
         clean_text=text.strip(),
     )
+# === ANCHOR: MENTIONS_RESOLVE_PERSONA_MENTIONS_END ===
 
 
+# === ANCHOR: MENTIONS__HAS_ANY_ALIAS_START ===
 def _has_any_alias(text: str, aliases: tuple[str, ...]) -> bool:
     return any(f"@{alias}" in text for alias in aliases)
+# === ANCHOR: MENTIONS__HAS_ANY_ALIAS_END ===
 
 
+# === ANCHOR: MENTIONS__CLEAN_MENTIONS_START ===
 def _clean_mentions(text: str) -> str:
     aliases = [*ALL_ALIASES]
     for _, alias_group in MENTION_ALIASES:
@@ -61,3 +69,5 @@ def _clean_mentions(text: str) -> str:
     escaped = "|".join(re.escape(alias) for alias in aliases)
     pattern = rf"@(?:{escaped})[가-힣a-zA-Z0-9_-]*"
     return re.sub(r"\s+", " ", re.sub(pattern, "", text, flags=re.IGNORECASE)).strip()
+# === ANCHOR: MENTIONS__CLEAN_MENTIONS_END ===
+# === ANCHOR: MENTIONS_END ===

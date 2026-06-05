@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGROOM_MODE_TEST_START ===
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -43,3 +44,4 @@ describe("PlanningRoom mode selector", () => {
     expect(screen.getByRole("button", { name: "미나 탐색" })).toHaveAttribute("aria-pressed", "true");
   });
 });
+// === ANCHOR: PLANNINGROOM_MODE_TEST_END ===

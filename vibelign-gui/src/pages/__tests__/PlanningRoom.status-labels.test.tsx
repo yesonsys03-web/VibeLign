@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGROOM_STATUS_LABELS_TEST_START ===
 import { render, screen } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 
@@ -47,3 +48,4 @@ describe("PlanningRoom persona status labels", () => {
     expect(screen.queryByText("timeout")).not.toBeInTheDocument();
   });
 });
+// === ANCHOR: PLANNINGROOM_STATUS_LABELS_TEST_END ===

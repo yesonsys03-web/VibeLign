@@ -1,3 +1,4 @@
+// === ANCHOR: CODEEXPLORER_PLANNING_CONTEXT_TEST_START ===
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -228,6 +229,7 @@ describe("CodeExplorer planning context", () => {
   });
 });
 
+// === ANCHOR: CODEEXPLORER_PLANNING_CONTEXT_TEST_GIVENCODEEXPLORERDATA_START ===
 function givenCodeExplorerData() {
   mocks.listCodeFilesMock.mockResolvedValue([
     { path: "src/App.tsx", category: "ui", imports: [] },
@@ -250,3 +252,5 @@ function givenCodeExplorerData() {
     lines: [],
   });
 }
+// === ANCHOR: CODEEXPLORER_PLANNING_CONTEXT_TEST_GIVENCODEEXPLORERDATA_END ===
+// === ANCHOR: CODEEXPLORER_PLANNING_CONTEXT_TEST_END ===

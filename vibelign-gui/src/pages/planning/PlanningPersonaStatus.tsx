@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGPERSONASTATUS_START ===
 import type { CreatePlanningTemplateResponse } from "../../lib/vib";
 import { PLANNING_PERSONAS, type PlanningPersonaMeta } from "./PlanningPersonas";
 import { planningPersonaStatusDisplay } from "./PlanningPersonaStatusLabel";
@@ -6,6 +7,7 @@ interface PlanningPersonaStatusProps {
   readonly result: CreatePlanningTemplateResponse;
 }
 
+// === ANCHOR: PLANNINGPERSONASTATUS_PLANNINGPERSONASTATUS_START ===
 export function PlanningPersonaStatus({ result }: PlanningPersonaStatusProps) {
   const requested = result.agentsRequested?.length ? result.agentsRequested : legacyRequested(result);
   if (!requested.length) {
@@ -40,7 +42,9 @@ export function PlanningPersonaStatus({ result }: PlanningPersonaStatusProps) {
     </section>
   );
 }
+// === ANCHOR: PLANNINGPERSONASTATUS_PLANNINGPERSONASTATUS_END ===
 
+// === ANCHOR: PLANNINGPERSONASTATUS_PERSONACHIP_START ===
 function PersonaChip({ persona, status }: { readonly persona: PlanningPersonaMeta; readonly status: string }) {
   return (
     <span
@@ -61,7 +65,9 @@ function PersonaChip({ persona, status }: { readonly persona: PlanningPersonaMet
     </span>
   );
 }
+// === ANCHOR: PLANNINGPERSONASTATUS_PERSONACHIP_END ===
 
+// === ANCHOR: PLANNINGPERSONASTATUS_LEGACYREQUESTED_START ===
 function legacyRequested(result: CreatePlanningTemplateResponse): readonly string[] {
   if (result.personaId) {
     return [result.personaId];
@@ -71,7 +77,11 @@ function legacyRequested(result: CreatePlanningTemplateResponse): readonly strin
   }
   return [];
 }
+// === ANCHOR: PLANNINGPERSONASTATUS_LEGACYREQUESTED_END ===
 
+// === ANCHOR: PLANNINGPERSONASTATUS_STATUSLABEL_START ===
 function statusLabel(status: string): string {
   return planningPersonaStatusDisplay(status).label;
 }
+// === ANCHOR: PLANNINGPERSONASTATUS_STATUSLABEL_END ===
+// === ANCHOR: PLANNINGPERSONASTATUS_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: ONBOARDING_PR2_START_TEST_START ===
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import Onboarding from "../Onboarding";
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   checkGitInstalledMock: vi.fn<() => Promise<boolean>>(),
   checkXcodeCltMock: vi.fn<() => Promise<boolean>>(),
   getOnboardingSnapshotMock: vi.fn<() => Promise<never>>(),
+  detectInstalledToolsMock: vi.fn<() => Promise<string[]>>(),
   runVibWithProgressMock: vi.fn<
     (
       args: readonly string[],
@@ -45,28 +47,35 @@ vi.mock("../../lib/vib", async () => {
     checkGitInstalled: mocks.checkGitInstalledMock,
     checkXcodeClt: mocks.checkXcodeCltMock,
     getOnboardingSnapshot: mocks.getOnboardingSnapshotMock,
+    detectInstalledTools: mocks.detectInstalledToolsMock,
     runVibWithProgress: mocks.runVibWithProgressMock,
     startWatch: mocks.startWatchMock,
     startNativeInstall: mocks.startNativeInstallMock,
   };
 });
 
+// === ANCHOR: ONBOARDING_PR2_START_TEST_RENDERONBOARDING_START ===
 function renderOnboarding(): { readonly onComplete: ReturnType<typeof vi.fn> } {
   const onComplete = vi.fn();
   render(<Onboarding onComplete={onComplete} recentDirs={[]} />);
   return { onComplete };
 }
+// === ANCHOR: ONBOARDING_PR2_START_TEST_RENDERONBOARDING_END ===
 
+// === ANCHOR: ONBOARDING_PR2_START_TEST_RENDERONBOARDINGWITHPLANREQUEST_START ===
 function renderOnboardingWithPlanRequest(): ReturnType<typeof vi.fn> {
   const onPlanRequest = vi.fn(async () => undefined);
   render(<Onboarding onComplete={vi.fn()} onPlanRequest={onPlanRequest} recentDirs={[]} />);
   return onPlanRequest;
 }
+// === ANCHOR: ONBOARDING_PR2_START_TEST_RENDERONBOARDINGWITHPLANREQUEST_END ===
 
+// === ANCHOR: ONBOARDING_PR2_START_TEST_SELECTPROJECTFOLDER_START ===
 async function selectProjectFolder(): Promise<void> {
   fireEvent.click(await screen.findByRole("button", { name: "프로젝트 폴더 선택" }));
   await screen.findByText((_content, node) => node?.textContent === "선택한 폴더: demo");
 }
+// === ANCHOR: ONBOARDING_PR2_START_TEST_SELECTPROJECTFOLDER_END ===
 
 describe("Onboarding PR2 auto start", () => {
   afterEach(() => {
@@ -79,6 +88,7 @@ describe("Onboarding PR2 auto start", () => {
     mocks.checkGitInstalledMock.mockReset();
     mocks.checkXcodeCltMock.mockReset();
     mocks.getOnboardingSnapshotMock.mockReset();
+    mocks.detectInstalledToolsMock.mockReset();
     mocks.runVibWithProgressMock.mockReset();
     mocks.startWatchMock.mockReset();
     mocks.startNativeInstallMock.mockReset();
@@ -88,6 +98,7 @@ describe("Onboarding PR2 auto start", () => {
     mocks.checkGitInstalledMock.mockResolvedValue(true);
     mocks.checkXcodeCltMock.mockResolvedValue(true);
     mocks.getOnboardingSnapshotMock.mockRejectedValue(new Error("snapshot unavailable"));
+    mocks.detectInstalledToolsMock.mockResolvedValue([]);
     mocks.runVibWithProgressMock.mockImplementation(async (_args, _cwd, _env, onProgress) => {
       progressLabels.forEach((label, index) => {
         onProgress({
@@ -107,7 +118,6 @@ describe("Onboarding PR2 auto start", () => {
     const { onComplete } = renderOnboarding();
 
     await selectProjectFolder();
-    fireEvent.click(screen.getByLabelText("Claude Code도 자동으로 준비하기"));
     fireEvent.click(screen.getByRole("button", { name: "전송" }));
 
     await waitFor(() => {
@@ -119,7 +129,9 @@ describe("Onboarding PR2 auto start", () => {
       );
     });
     expect(mocks.startWatchMock).toHaveBeenCalledWith("/tmp/demo");
-    expect(onComplete).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(onComplete).toHaveBeenCalledWith("/tmp/demo", null);
+    });
     expect(screen.getByText("준비 완료")).toBeInTheDocument();
   });
 
@@ -127,7 +139,6 @@ describe("Onboarding PR2 auto start", () => {
     renderOnboarding();
 
     await selectProjectFolder();
-    fireEvent.click(screen.getByLabelText("Claude Code도 자동으로 준비하기"));
     fireEvent.click(screen.getByRole("button", { name: "전송" }));
 
     for (const label of progressLabels) {
@@ -140,6 +151,7 @@ describe("Onboarding PR2 auto start", () => {
     renderOnboarding();
 
     await selectProjectFolder();
+    fireEvent.click(screen.getByLabelText("Claude Code도 자동으로 준비하기"));
     fireEvent.click(screen.getByRole("button", { name: "전송" }));
 
     expect(await screen.findByText("Claude Code 준비만 실패했어요. 프로젝트 안전장치는 켜져 있어요.")).toBeInTheDocument();
@@ -153,11 +165,28 @@ describe("Onboarding PR2 auto start", () => {
     fireEvent.change(screen.getByPlaceholderText("무엇을 만들고 싶나요?"), {
       target: { value: "예약 앱 만들고 싶어" },
     });
-    fireEvent.click(screen.getByLabelText("Claude Code도 자동으로 준비하기"));
     fireEvent.click(screen.getByRole("button", { name: "전송" }));
 
     await waitFor(() => {
       expect(onPlanRequest).toHaveBeenCalledWith("/tmp/demo", "예약 앱 만들고 싶어");
     });
   });
+
+  test("includes_tools_for_all_installed_tools", async () => {
+    mocks.detectInstalledToolsMock.mockResolvedValue(["claude", "codex", "cursor", "opencode", "antigravity"]);
+    renderOnboarding();
+
+    await selectProjectFolder();
+    fireEvent.click(screen.getByRole("button", { name: "전송" }));
+
+    await waitFor(() => {
+      expect(mocks.runVibWithProgressMock).toHaveBeenCalledWith(
+        ["start", "--non-interactive", "--tools", "claude,codex,cursor,opencode,antigravity"],
+        "/tmp/demo",
+        undefined,
+        expect.any(Function),
+      );
+    });
+  });
 });
+// === ANCHOR: ONBOARDING_PR2_START_TEST_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: GUARDRESULTMODAL_TEST_START ===
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -39,4 +40,17 @@ describe("GuardResultModal", () => {
 
     expect(close).toHaveBeenCalledTimes(3);
   });
+
+  test("offers_doctor_handoff_when_guard_has_issues", () => {
+    const openDoctor = vi.fn();
+    const close = vi.fn();
+
+    render(<GuardResultModal guardResult={WARN_GUARD} onClose={close} onOpenDoctor={openDoctor} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Doctor로 해결안 만들기" }));
+
+    expect(close).toHaveBeenCalledOnce();
+    expect(openDoctor).toHaveBeenCalledOnce();
+  });
 });
+// === ANCHOR: GUARDRESULTMODAL_TEST_END ===

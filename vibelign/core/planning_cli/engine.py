@@ -1,3 +1,4 @@
+# === ANCHOR: ENGINE_START ===
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,6 +17,7 @@ from vibelign.core.planning_cli.storage import create_planning_template
 FORBIDDEN_LLM_TERMS = ("codespeak", "target_anchor", "patch")
 
 
+# === ANCHOR: ENGINE_CREATE_PLANNING_WITH_PERSONA_START ===
 def create_planning_with_persona(
     root: Path,
     planning_input: PlanningInput,
@@ -23,6 +25,7 @@ def create_planning_with_persona(
     cli_choice: str = "auto",
     timeout_seconds: int = 300,
     runner: PlanningCliRunner | None = None,
+# === ANCHOR: ENGINE_CREATE_PLANNING_WITH_PERSONA_END ===
 ) -> PlanningResult:
     base = create_planning_template(root, planning_input)
     adapter = select_adapter(cli_choice)
@@ -63,6 +66,9 @@ def create_planning_with_persona(
     )
 
 
+# === ANCHOR: ENGINE__CONTAINS_FORBIDDEN_TERMS_START ===
 def _contains_forbidden_terms(text: str) -> bool:
     lowered = text.lower()
     return any(term in lowered for term in FORBIDDEN_LLM_TERMS)
+# === ANCHOR: ENGINE__CONTAINS_FORBIDDEN_TERMS_END ===
+# === ANCHOR: ENGINE_END ===

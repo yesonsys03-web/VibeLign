@@ -1,21 +1,27 @@
-import type { KeyboardEvent } from "react";
+// === ANCHOR: ONBOARDINGPROMPTTEXTAREA_START ===
+import type { KeyboardEvent, RefObject } from "react";
 
 interface OnboardingPromptTextareaProps {
   readonly value: string;
   readonly onChange: (value: string) => void;
   readonly onSubmit: () => void;
+  readonly inputRef?: RefObject<HTMLTextAreaElement | null>;
 }
 
-export function OnboardingPromptTextarea({ value, onChange, onSubmit }: OnboardingPromptTextareaProps) {
+// === ANCHOR: ONBOARDINGPROMPTTEXTAREA_ONBOARDINGPROMPTTEXTAREA_START ===
+export function OnboardingPromptTextarea({ value, onChange, onSubmit, inputRef }: OnboardingPromptTextareaProps) {
+  // === ANCHOR: ONBOARDINGPROMPTTEXTAREA_HANDLEKEYDOWN_START ===
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       onSubmit();
     }
   }
+  // === ANCHOR: ONBOARDINGPROMPTTEXTAREA_HANDLEKEYDOWN_END ===
 
   return (
     <textarea
+      ref={inputRef}
       className="input-field"
       value={value}
       onChange={(event) => onChange(event.target.value)}
@@ -36,5 +42,7 @@ export function OnboardingPromptTextarea({ value, onChange, onSubmit }: Onboardi
         paddingBottom: 7,
       }}
     />
+// === ANCHOR: ONBOARDINGPROMPTTEXTAREA_ONBOARDINGPROMPTTEXTAREA_END ===
   );
 }
+// === ANCHOR: ONBOARDINGPROMPTTEXTAREA_END ===

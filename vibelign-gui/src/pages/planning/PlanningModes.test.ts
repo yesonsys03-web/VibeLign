@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGMODES_TEST_START ===
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 
@@ -46,3 +47,4 @@ describe("PlanningModes", () => {
     expect(source).not.toContain('targetLabel: "클로이"');
   });
 });
+// === ANCHOR: PLANNINGMODES_TEST_END ===

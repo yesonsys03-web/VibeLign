@@ -1,3 +1,4 @@
+# === ANCHOR: PERSONAS_START ===
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -5,12 +6,14 @@ from typing import Final
 
 
 @dataclass(frozen=True, slots=True)
+# === ANCHOR: PERSONAS_PLANNINGPERSONA_START ===
 class PlanningPersona:
     id: str
     name: str
     adapter: str
     section_title: str
     prompt_role: str
+# === ANCHOR: PERSONAS_PLANNINGPERSONA_END ===
 
 
 CHLOE_PERSONA: Final = PlanningPersona(
@@ -38,20 +41,27 @@ ORDERED_PERSONAS: Final = (CHLOE_PERSONA, GIO_PERSONA, MINA_PERSONA)
 PERSONAS_BY_ID: Final = {persona.id: persona for persona in ORDERED_PERSONAS}
 
 
+# === ANCHOR: PERSONAS_PERSONA_FOR_ADAPTER_START ===
 def persona_for_adapter(adapter: str) -> PlanningPersona:
     for persona in ORDERED_PERSONAS:
         if persona.adapter == adapter:
             return persona
     raise ValueError(f"unsupported planning adapter: {adapter}")
+# === ANCHOR: PERSONAS_PERSONA_FOR_ADAPTER_END ===
 
 
+# === ANCHOR: PERSONAS_PERSONA_FOR_ID_START ===
 def persona_for_id(persona_id: str) -> PlanningPersona:
     persona = PERSONAS_BY_ID.get(persona_id)
     if persona is None:
         raise ValueError(f"unsupported planning persona: {persona_id}")
     return persona
+# === ANCHOR: PERSONAS_PERSONA_FOR_ID_END ===
 
 
+# === ANCHOR: PERSONAS_ORDERED_PERSONAS_FOR_IDS_START ===
 def ordered_personas_for_ids(persona_ids: tuple[str, ...]) -> tuple[PlanningPersona, ...]:
     requested = set(persona_ids)
     return tuple(persona for persona in ORDERED_PERSONAS if persona.id in requested)
+# === ANCHOR: PERSONAS_ORDERED_PERSONAS_FOR_IDS_END ===
+# === ANCHOR: PERSONAS_END ===

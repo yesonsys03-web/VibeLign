@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGROOM_STATIC_TEST_START ===
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -296,3 +297,4 @@ describe("PlanningRoom chat session view", () => {
     expect(screen.queryByText("raw stderr")).not.toBeInTheDocument();
   });
 });
+// === ANCHOR: PLANNINGROOM_STATIC_TEST_END ===

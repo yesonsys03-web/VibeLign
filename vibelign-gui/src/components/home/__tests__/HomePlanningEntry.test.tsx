@@ -1,3 +1,4 @@
+// === ANCHOR: HOMEPLANNINGENTRY_TEST_START ===
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -54,3 +55,4 @@ describe("HomePlanningEntry", () => {
     expect(screen.getByText("기획안을 만드는 중...")).toBeInTheDocument();
   });
 });
+// === ANCHOR: HOMEPLANNINGENTRY_TEST_END ===

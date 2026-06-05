@@ -59,4 +59,10 @@ export async function listenOnboardingProgress(
   return listen<OnboardingProgressEvent>("onboarding_progress", (event) => handler(event.payload));
 }
 // === ANCHOR: ONBOARDING_LISTENONBOARDINGPROGRESS_END ===
+
+// === ANCHOR: ONBOARDING_DETECTINSTALLEDTOOLS_START ===
+export async function detectInstalledTools(): Promise<string[]> {
+  return invoke<string[]>("detect_installed_tools");
+}
+// === ANCHOR: ONBOARDING_DETECTINSTALLEDTOOLS_END ===
 // === ANCHOR: ONBOARDING_END ===

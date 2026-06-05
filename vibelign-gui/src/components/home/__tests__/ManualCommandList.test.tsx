@@ -1,3 +1,4 @@
+// === ANCHOR: MANUALCOMMANDLIST_TEST_START ===
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -42,3 +43,4 @@ describe("ManualCommandList", () => {
     expect(screen.queryByText("legacy")).not.toBeInTheDocument();
   });
 });
+// === ANCHOR: MANUALCOMMANDLIST_TEST_END ===

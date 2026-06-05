@@ -1,3 +1,4 @@
+# === ANCHOR: QUESTIONS_START ===
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -7,9 +8,11 @@ SHORT_IDEA_THRESHOLD = 40
 
 
 @dataclass(frozen=True)
+# === ANCHOR: QUESTIONS_PLANNINGQUESTION_START ===
 class PlanningQuestion:
     id: str
     label: str
+# === ANCHOR: QUESTIONS_PLANNINGQUESTION_END ===
 
 
 SHORT_IDEA_QUESTIONS: tuple[PlanningQuestion, ...] = (
@@ -27,6 +30,7 @@ DETAILED_IDEA_QUESTIONS: tuple[PlanningQuestion, ...] = (
 )
 
 
+# === ANCHOR: QUESTIONS_QUESTIONS_FOR_IDEA_START ===
 def questions_for_idea(idea: str) -> list[PlanningQuestion]:
     normalized = " ".join(idea.split())
     questions = (
@@ -35,10 +39,14 @@ def questions_for_idea(idea: str) -> list[PlanningQuestion]:
         else DETAILED_IDEA_QUESTIONS
     )
     return list(questions)
+# === ANCHOR: QUESTIONS_QUESTIONS_FOR_IDEA_END ===
 
 
+# === ANCHOR: QUESTIONS_NORMALIZE_ANSWERS_START ===
 def normalize_answers(
     answers: dict[str, str | None],
     questions: list[PlanningQuestion],
+# === ANCHOR: QUESTIONS_NORMALIZE_ANSWERS_END ===
 ) -> dict[str, str]:
     return {question.id: (answers.get(question.id) or "").strip() for question in questions}
+# === ANCHOR: QUESTIONS_END ===

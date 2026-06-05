@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGPERSONACOMPOSERSTATE_TEST_START ===
 import { describe, expect, test } from "vitest";
 
 import type { PlanningChatSessionResponse } from "../../lib/vib";
@@ -67,3 +68,4 @@ describe("PlanningPersonaComposerState", () => {
     expect(withAgents.messages).toHaveLength(1);
   });
 });
+// === ANCHOR: PLANNINGPERSONACOMPOSERSTATE_TEST_END ===

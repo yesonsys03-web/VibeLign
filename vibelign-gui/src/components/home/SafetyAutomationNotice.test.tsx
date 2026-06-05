@@ -1,3 +1,4 @@
+// === ANCHOR: SAFETYAUTOMATIONNOTICE_TEST_START ===
 import { describe, expect, test } from "vitest";
 
 import { humanizeAutomationError } from "./SafetyAutomationNotice";
@@ -40,3 +41,4 @@ describe("humanizeAutomationError", () => {
     expect(copy?.detail).not.toMatch(/backend/i);
   });
 });
+// === ANCHOR: SAFETYAUTOMATIONNOTICE_TEST_END ===

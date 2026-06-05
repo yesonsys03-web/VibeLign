@@ -1,3 +1,4 @@
+// === ANCHOR: HOME_SIMPLE_TEST_START ===
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { GuardResult } from "../../lib/vib";
@@ -132,6 +133,24 @@ describe("Simple Home", () => {
     expect(screen.getByText("바로 AI 코딩해도 괜찮아요")).toBeInTheDocument();
   });
 
+  test("hands_guard_issues_to_doctor_flow", async () => {
+    const openDoctor = vi.fn();
+    mocks.vibGuardMock.mockResolvedValueOnce({
+      status: "warn",
+      summary: "문제가 있어요",
+      recommendations: ["Doctor로 해결안을 만들 수 있어요."],
+      issues: [{ found: "앵커 누락", next_step: "Doctor 플랜 확인", path: "src/App.tsx" }],
+    });
+
+    render(<Home projectDir="/tmp/demo" onNavigate={() => undefined} onOpenDoctor={openDoctor} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "상태 확인하기" }));
+    fireEvent.click(await screen.findByRole("button", { name: "문제 확인하기" }));
+    fireEvent.click(screen.getByRole("button", { name: "Doctor로 해결안 만들기" }));
+
+    expect(openDoctor).toHaveBeenCalledOnce();
+  });
+
   test("describes_beginner_guard_action_as_available_on_home", () => {
     render(<Home projectDir="/tmp/demo" onNavigate={() => undefined} />);
 
@@ -139,3 +158,4 @@ describe("Simple Home", () => {
     expect(screen.queryByText("고급 기능에서 상태 확인을 실행할 수 있어요.")).not.toBeInTheDocument();
   });
 });
+// === ANCHOR: HOME_SIMPLE_TEST_END ===

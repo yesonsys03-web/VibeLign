@@ -1,10 +1,11 @@
 // === ANCHOR: ONBOARDING_START ===
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   getVibPath,
   checkGitInstalled,
   checkXcodeClt,
+  detectInstalledTools,
   getOnboardingSnapshot,
   runVibWithProgress,
   startNativeInstall,
@@ -25,13 +26,14 @@ interface OnboardingProps {
   readonly recentDirs?: readonly string[];
 }
 
-export default function Onboarding({ onPlanRequest, onResume, onRemoveRecent, recentDirs = [] }: OnboardingProps) {
+export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemoveRecent, recentDirs = [] }: OnboardingProps) {
   const [vibFound, setVibFound] = useState<string | null>(null);
   const [vibChecking, setVibChecking] = useState(true);
   const [selectedDir, setSelectedDir] = useState("");
   const [promptText, setPromptText] = useState("");
+  const promptRef = useRef<HTMLTextAreaElement>(null);
   const [folderHint, setFolderHint] = useState<string | null>(null);
-  const [prepareClaudeCode, setPrepareClaudeCode] = useState(true);
+  const [prepareClaudeCode, setPrepareClaudeCode] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [gitInstalled, setGitInstalled] = useState<boolean | null>(null);
   const [xcodeCltInstalled, setXcodeCltInstalled] = useState<boolean | null>(null);
@@ -64,6 +66,7 @@ export default function Onboarding({ onPlanRequest, onResume, onRemoveRecent, re
     if (typeof dir === "string") {
       setSelectedDir(dir);
       setFolderHint(null);
+      promptRef.current?.focus();
     }
   }
 
@@ -99,8 +102,12 @@ export default function Onboarding({ onPlanRequest, onResume, onRemoveRecent, re
     setClaudeStatusMessage(null);
     setStartProgressLabels([]);
 
+    const installedTools = await detectInstalledTools().catch(() => [] as string[]);
+    const startArgs = installedTools.length > 0
+      ? ["start", "--non-interactive", "--tools", installedTools.join(",")]
+      : ["start", "--non-interactive"];
     const startResult = await runVibWithProgress(
-      ["start", "--non-interactive"],
+      startArgs,
       selectedDir,
       undefined,
       appendStartProgress,
@@ -118,7 +125,9 @@ export default function Onboarding({ onPlanRequest, onResume, onRemoveRecent, re
     await prepareClaudeCodeIfRequested();
     if (prompt && onPlanRequest) {
       await onPlanRequest(selectedDir, prompt);
+      return;
     }
+    onComplete(selectedDir, null);
   }
 
   const selectedDirName = selectedDir.split(/[\\/]/).filter(Boolean).at(-1) ?? selectedDir;
@@ -135,6 +144,7 @@ export default function Onboarding({ onPlanRequest, onResume, onRemoveRecent, re
             selectedDirName={selectedDir ? selectedDirName : ""}
             folderHint={folderHint}
             prepareClaudeCode={prepareClaudeCode}
+            inputRef={promptRef}
             onPromptChange={setPromptText}
             onPickFolder={pickFolder}
             onSubmit={handlePromptSubmit}

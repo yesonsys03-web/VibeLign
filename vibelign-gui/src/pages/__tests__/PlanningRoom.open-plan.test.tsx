@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGROOM_OPEN_PLAN_TEST_START ===
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -89,3 +90,4 @@ describe("PlanningRoom saved plan open action", () => {
     expect(screen.queryByRole("button", { name: "저장 파일 열기" })).not.toBeInTheDocument();
   });
 });
+// === ANCHOR: PLANNINGROOM_OPEN_PLAN_TEST_END ===

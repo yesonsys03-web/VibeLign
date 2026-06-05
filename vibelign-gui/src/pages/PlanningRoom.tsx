@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGROOM_START ===
 import { useState } from "react";
 
 import { openFolder, savePlanningChatAsMarkdown, type PlanningChatSessionResponse } from "../lib/vib";
@@ -12,29 +13,36 @@ import { PlanningPersonaResponseSummary } from "./planning/PlanningPersonaRespon
 interface PlanningRoomProps {
   readonly projectDir: string;
   readonly result: PlanningChatSessionResponse;
+  readonly sourcePath?: string | null;
   readonly onBack: () => void;
   readonly onStartWork?: () => void;
   readonly onResultChange: (result: PlanningChatSessionResponse) => void;
 }
 
-export default function PlanningRoom({ projectDir, result, onBack, onStartWork, onResultChange }: PlanningRoomProps) {
+export default function PlanningRoom({ projectDir, result, sourcePath, onBack, onStartWork, onResultChange }: PlanningRoomProps) {
   const [showMarkdown, setShowMarkdown] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
   const markdown = result.markdown ?? "";
   const isPending = result.messages.some((message) => message.status === "pending");
   const savedPlanOpenPath = getSavedPlanOpenPath(projectDir, result);
   const hasSavedPlan = Boolean(savedPlanOpenPath);
   const canSave = result.ok && !isPending && !isSaving && Boolean(result.sessionId);
   const canView = !isPending && Boolean(markdown);
+  // 특정 파일을 검토하며 시작한 세션이고 아직 저장 전이면 저장 위치를 묻는다.
+  const usesSaveDialog = Boolean(sourcePath) && !result.outputPath;
 
-  async function handleSavePlan() {
+  // === ANCHOR: PLANNINGROOM_HANDLESAVEPLAN_START ===
+  async function savePlan(targetPath?: string) {
     const sessionId = result.sessionId;
     if (!sessionId || !canSave) {
       return;
     }
     setIsSaving(true);
     try {
-      const next = await savePlanningChatAsMarkdown({ projectDir, sessionId });
+      const next = await savePlanningChatAsMarkdown(
+        targetPath ? { projectDir, sessionId, targetPath } : { projectDir, sessionId },
+      );
       onResultChange(next);
       if (next.markdown) {
         setShowMarkdown(true);
@@ -53,6 +61,16 @@ export default function PlanningRoom({ projectDir, result, onBack, onStartWork, 
     }
   }
 
+  function handleSavePlan() {
+    if (usesSaveDialog) {
+      setShowSaveDialog(true);
+      return;
+    }
+    void savePlan();
+  }
+  // === ANCHOR: PLANNINGROOM_HANDLESAVEPLAN_END ===
+
+  // === ANCHOR: PLANNINGROOM_HANDLEOPENSAVEDPLAN_START ===
   async function handleOpenSavedPlan() {
     if (!savedPlanOpenPath) {
       return;
@@ -68,8 +86,10 @@ export default function PlanningRoom({ projectDir, result, onBack, onStartWork, 
       });
     }
   }
+  // === ANCHOR: PLANNINGROOM_HANDLEOPENSAVEDPLAN_END ===
 
   return (
+    <>
     <main style={{ height: "100%", overflow: "auto", background: "var(--bg)" }}>
       <div style={{ width: "min(920px, calc(100% - 32px))", margin: "0 auto", padding: "28px 0", display: "grid", gap: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -110,9 +130,21 @@ export default function PlanningRoom({ projectDir, result, onBack, onStartWork, 
         )}
       </div>
     </main>
+    {showSaveDialog && sourcePath && (
+      <PlanSaveDialog
+        sourcePath={sourcePath}
+        onCancel={() => setShowSaveDialog(false)}
+        onConfirm={(targetPath) => {
+          setShowSaveDialog(false);
+          void savePlan(targetPath);
+        }}
+      />
+    )}
+    </>
   );
 }
 
+// === ANCHOR: PLANNINGROOM_GETSAVEDPLANOPENPATH_START ===
 function getSavedPlanOpenPath(projectDir: string, result: PlanningChatSessionResponse): string | null {
   const absoluteOutputPath = result.absoluteOutputPath?.trim();
   if (absoluteOutputPath) {
@@ -127,7 +159,87 @@ function getSavedPlanOpenPath(projectDir: string, result: PlanningChatSessionRes
   }
   return `${projectDir.replace(/[\\/]$/, "")}/${outputPath.replace(/^[\\/]/, "")}`;
 }
+// === ANCHOR: PLANNINGROOM_GETSAVEDPLANOPENPATH_END ===
 
+// === ANCHOR: PLANNINGROOM_ISABSOLUTEPATH_START ===
 function isAbsolutePath(path: string): boolean {
   return path.startsWith("/") || /^[A-Z]:[\\/]/i.test(path);
 }
+// === ANCHOR: PLANNINGROOM_ISABSOLUTEPATH_END ===
+
+// === ANCHOR: PLANNINGROOM_PLANSAVEDIALOG_START ===
+interface PlanSaveDialogProps {
+  readonly sourcePath: string;
+  readonly onCancel: () => void;
+  readonly onConfirm: (targetPath: string) => void;
+}
+
+function PlanSaveDialog({ sourcePath, onCancel, onConfirm }: PlanSaveDialogProps) {
+  const { dir, basename, stem } = splitSourcePath(sourcePath);
+  const defaultName = `${stem}-review.md`;
+  const [fileName, setFileName] = useState(defaultName);
+  const [overwrite, setOverwrite] = useState(false);
+
+  function handleConfirm() {
+    if (overwrite) {
+      onConfirm(sourcePath);
+      return;
+    }
+    let name = fileName.trim() || defaultName;
+    if (!name.endsWith(".md")) {
+      name = `${name}.md`;
+    }
+    onConfirm(dir ? `${dir}/${name}` : name);
+  }
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+      onClick={onCancel}
+    >
+      <div
+        style={{ background: "#FEFBF0", border: "2px solid #1A1A1A", boxShadow: "8px 8px 0 #1A1A1A", width: "100%", maxWidth: 440, display: "flex", flexDirection: "column" }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div style={{ background: "#1A1A1A", padding: "12px 18px" }}>
+          <span style={{ fontFamily: "IBM Plex Mono, monospace", fontWeight: 700, fontSize: 13, color: "#fff", letterSpacing: 1 }}>기획안 저장</span>
+        </div>
+        <div style={{ padding: "18px", display: "grid", gap: 14 }}>
+          <div style={{ fontSize: 12, color: "#1A1A1A" }}>저장 폴더: {dir || "."}</div>
+          <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 700, opacity: overwrite ? 0.5 : 1 }}>
+            파일 이름
+            <input
+              type="text"
+              value={fileName}
+              disabled={overwrite}
+              onChange={(event) => setFileName(event.target.value)}
+              style={{ padding: "8px 10px", border: "2px solid #1A1A1A", fontSize: 13, background: "#fff" }}
+            />
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 700 }}>
+            <input type="checkbox" checked={overwrite} onChange={(event) => setOverwrite(event.target.checked)} />
+            원본 파일({basename}) 덮어쓰기
+          </label>
+        </div>
+        <div style={{ padding: "12px 18px", borderTop: "2px solid #1A1A1A", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button className="btn btn-ghost btn-sm" type="button" onClick={onCancel}>취소</button>
+          <button className="btn btn-sm" style={{ background: "#FF4D8B" }} type="button" onClick={handleConfirm}>저장</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+// === ANCHOR: PLANNINGROOM_PLANSAVEDIALOG_END ===
+
+// === ANCHOR: PLANNINGROOM_SPLITSOURCEPATH_START ===
+function splitSourcePath(sourcePath: string): { dir: string; basename: string; stem: string } {
+  const normalized = sourcePath.replace(/\\/g, "/");
+  const lastSlash = normalized.lastIndexOf("/");
+  const dir = lastSlash >= 0 ? normalized.slice(0, lastSlash) : "";
+  const basename = lastSlash >= 0 ? normalized.slice(lastSlash + 1) : normalized;
+  const lastDot = basename.lastIndexOf(".");
+  const stem = lastDot > 0 ? basename.slice(0, lastDot) : basename;
+  return { dir, basename, stem };
+}
+// === ANCHOR: PLANNINGROOM_SPLITSOURCEPATH_END ===
+// === ANCHOR: PLANNINGROOM_END ===

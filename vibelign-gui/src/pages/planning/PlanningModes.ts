@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGMODES_START ===
 import { allPlanningPersonaIds, planningPersonaLabel } from "./PlanningPersonas";
 
 export interface PlanningModeOption {
@@ -15,6 +16,9 @@ export const PLANNING_MODE_OPTIONS = [
 
 export const DEFAULT_PLANNING_MODE = PLANNING_MODE_OPTIONS[0];
 
+// === ANCHOR: PLANNINGMODES_RESOLVEPLANNINGMODE_START ===
 export function resolvePlanningMode(value: string): PlanningModeOption {
   return PLANNING_MODE_OPTIONS.find((option) => option.id === value) ?? DEFAULT_PLANNING_MODE;
 }
+// === ANCHOR: PLANNINGMODES_RESOLVEPLANNINGMODE_END ===
+// === ANCHOR: PLANNINGMODES_END ===

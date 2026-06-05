@@ -1,8 +1,10 @@
+# === ANCHOR: TRANSCRIPTS_START ===
 from __future__ import annotations
 
 from pathlib import Path
 
 
+# === ANCHOR: TRANSCRIPTS_WRITE_TURN_TRANSCRIPT_START ===
 def write_turn_transcript(
     root: Path,
     *,
@@ -10,9 +12,11 @@ def write_turn_transcript(
     turn_index: int,
     adapter: str,
     response: str,
+# === ANCHOR: TRANSCRIPTS_WRITE_TURN_TRANSCRIPT_END ===
 ) -> Path:
     turns_dir = root / ".vibelign" / "planning" / session_id / "turns"
     turns_dir.mkdir(parents=True, exist_ok=True)
     transcript_path = turns_dir / f"turn_{turn_index:03d}_{adapter}.md"
     transcript_path.write_text(response, encoding="utf-8")
     return transcript_path
+# === ANCHOR: TRANSCRIPTS_END ===

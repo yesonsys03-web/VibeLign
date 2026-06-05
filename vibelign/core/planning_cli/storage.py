@@ -1,3 +1,4 @@
+# === ANCHOR: STORAGE_START ===
 from __future__ import annotations
 
 import json
@@ -37,6 +38,7 @@ WINDOWS_RESERVED_NAMES = {
 }
 
 
+# === ANCHOR: STORAGE_SAFE_PLAN_SLUG_START ===
 def safe_plan_slug(idea: str) -> str:
     has_filename_text = bool(re.search(r"[a-zA-Z0-9가-힣]", idea))
     slug = _slugify(idea).strip(" .-")
@@ -45,8 +47,10 @@ def safe_plan_slug(idea: str) -> str:
     if not has_filename_text or not slug or slug.lower() in WINDOWS_RESERVED_NAMES:
         return "plan"
     return slug
+# === ANCHOR: STORAGE_SAFE_PLAN_SLUG_END ===
 
 
+# === ANCHOR: STORAGE__RELATIVE_OUTPUT_PATH_START ===
 def _relative_output_path(output: str | None, slug: str) -> Path:
     if not output:
         return Path("plans") / f"{slug}.md"
@@ -54,8 +58,10 @@ def _relative_output_path(output: str | None, slug: str) -> Path:
     if output_path.is_absolute() or any(part == ".." for part in output_path.parts):
         raise ValueError("output must be a project-relative path")
     return output_path
+# === ANCHOR: STORAGE__RELATIVE_OUTPUT_PATH_END ===
 
 
+# === ANCHOR: STORAGE__UNIQUE_OUTPUT_PATH_START ===
 def _unique_output_path(root: Path, relative: Path) -> Path:
     candidate = root / relative
     if not candidate.exists():
@@ -69,8 +75,10 @@ def _unique_output_path(root: Path, relative: Path) -> Path:
         if not (root / next_relative).exists():
             return next_relative
         index += 1
+# === ANCHOR: STORAGE__UNIQUE_OUTPUT_PATH_END ===
 
 
+# === ANCHOR: STORAGE_CREATE_PLANNING_TEMPLATE_START ===
 def create_planning_template(root: Path, planning_input: PlanningInput) -> PlanningResult:
     root = root.resolve()
     idea = planning_input.idea.strip()
@@ -116,3 +124,5 @@ def create_planning_template(root: Path, planning_input: PlanningInput) -> Plann
         fallback_reason="template_only",
         session_id=session_id,
     )
+# === ANCHOR: STORAGE_CREATE_PLANNING_TEMPLATE_END ===
+# === ANCHOR: STORAGE_END ===

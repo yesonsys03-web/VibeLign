@@ -1,3 +1,4 @@
+// === ANCHOR: ADVANCEDHOMECARDS_TEST_START ===
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -54,3 +55,4 @@ describe("AdvancedHomeCards", () => {
     expect(screen.getAllByTitle("드래그하여 카드 이동")).toHaveLength(1);
   });
 });
+// === ANCHOR: ADVANCEDHOMECARDS_TEST_END ===

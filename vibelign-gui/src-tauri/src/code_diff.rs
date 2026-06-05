@@ -1,3 +1,4 @@
+// === ANCHOR: CODE_DIFF_START ===
 use std::path::Path;
 
 use crate::code_access::read_code_file_under;
@@ -443,3 +444,4 @@ mod tests {
         assert!(err.contains("읽을 수 없는 경로"));
     }
 }
+// === ANCHOR: CODE_DIFF_END ===

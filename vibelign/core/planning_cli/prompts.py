@@ -1,12 +1,15 @@
+# === ANCHOR: PROMPTS_START ===
 from __future__ import annotations
 
 from vibelign.core.planning_cli.personas import PlanningPersona
 
 
+# === ANCHOR: PROMPTS_BUILD_PERSONA_PROMPT_START ===
 def build_persona_prompt(
     persona: PlanningPersona,
     idea: str,
     template_markdown: str,
+# === ANCHOR: PROMPTS_BUILD_PERSONA_PROMPT_END ===
 ) -> str:
     return "\n".join(
         [
@@ -24,5 +27,8 @@ def build_persona_prompt(
     )
 
 
+# === ANCHOR: PROMPTS_APPEND_PERSONA_SECTION_START ===
 def append_persona_section(markdown: str, section_title: str, response: str) -> str:
     return f"{markdown.rstrip()}\n\n## {section_title}\n{response.strip()}\n"
+# === ANCHOR: PROMPTS_APPEND_PERSONA_SECTION_END ===
+# === ANCHOR: PROMPTS_END ===

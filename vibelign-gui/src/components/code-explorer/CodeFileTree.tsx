@@ -1,5 +1,5 @@
 // === ANCHOR: CODEFILETREE_START ===
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { buildCodeTree, CATEGORY_COLORS, collectDirectoryPaths, flattenVisibleTree } from "../../lib/code-explorer/tree";
 import type { CodeFileEntry, ChangeStatus } from "../../lib/vib";
@@ -12,9 +12,17 @@ interface CodeFileTreeProps {
   // CodeExplorer가 query 비어있지 않을 때 true로 넘긴다.
   autoExpandAll: boolean;
   changes: ReadonlyMap<string, ChangeStatus>;
+  // md/spec 문서를 우클릭하면 "기획방에서 검토" 메뉴를 띄운다.
+  onReviewInPlanning?: (path: string) => void;
 }
 
-export default function CodeFileTree({ files, selectedPath, onSelect, autoExpandAll, changes }: CodeFileTreeProps) {
+// 기획/스펙 문서로 취급해 우클릭 검토 메뉴를 노출할 확장자.
+function isReviewableDoc(path: string): boolean {
+  const ext = path.split(".").pop()?.toLowerCase();
+  return ext === "md" || ext === "spec";
+}
+
+export default function CodeFileTree({ files, selectedPath, onSelect, autoExpandAll, changes, onReviewInPlanning }: CodeFileTreeProps) {
   const tree = useMemo(() => buildCodeTree(files, changes), [files, changes]);
   // 기본 펼침: 프로젝트가 무엇이든(VibeLign 레포 가정 금지) 1단계 디렉터리를 펼친다.
   const firstLevelDirs = useMemo(
@@ -40,7 +48,23 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
   }
   // === ANCHOR: CODEFILETREE_TOGGLE_END ===
 
+  // === ANCHOR: CODEFILETREE_CONTEXTMENU_START ===
+  const [menu, setMenu] = useState<{ x: number; y: number; path: string } | null>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const onDismiss = () => setMenu(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(null); };
+    document.addEventListener("mousedown", onDismiss);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDismiss);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menu]);
+  // === ANCHOR: CODEFILETREE_CONTEXTMENU_END ===
+
   return (
+    <>
     <div className="card" style={{ height: "100%", overflow: "auto", padding: 10 }}>
       <div style={{ fontSize: 11, fontWeight: 800, color: "#888", marginBottom: 10, textTransform: "uppercase", letterSpacing: 1 }}>
         Project Code
@@ -56,6 +80,7 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
         const tint = `${categoryColor}${isDirectory ? "66" : "40"}`;
         // 변경된 파일 행은 diff 스타일 배경 색조로 강하게 강조한다(카테고리 tint를 덮어씀).
         // 선택된 행은 다크 배경을 유지해 선택 상태가 항상 우선 보이게 한다.
+        const reviewable = !isDirectory && Boolean(onReviewInPlanning) && isReviewableDoc(node.path);
         const changeWash =
           isDirectory || !node.changeStatus
             ? null
@@ -68,6 +93,7 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
             type="button"
             className="btn btn-ghost btn-sm"
             onClick={() => isDirectory ? toggle(node.path) : onSelect(node.path)}
+            onContextMenu={reviewable ? (e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, path: node.path }); } : undefined}
             title={node.path}
             style={{
               width: "100%",
@@ -143,6 +169,23 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
         );
       })}
     </div>
+    {menu && (
+      <div
+        role="menu"
+        style={{ position: "fixed", left: menu.x, top: menu.y, zIndex: 1000, border: "2px solid #1A1A1A", background: "#fff", boxShadow: "var(--shadow-sm)" }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          style={{ display: "block", width: "100%", textAlign: "left", textTransform: "none", letterSpacing: 0 }}
+          onClick={() => { onReviewInPlanning?.(menu.path); setMenu(null); }}
+        >
+          기획방에서 검토
+        </button>
+      </div>
+    )}
+    </>
   );
 }
 // === ANCHOR: CODEFILETREE_END ===

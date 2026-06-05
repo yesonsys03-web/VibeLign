@@ -12,6 +12,8 @@ import CodeExplorer from "./pages/CodeExplorer";
 import BackupDashboardPage from "./pages/BackupDashboard";
 import ErrorLogs from "./pages/ErrorLogs";
 import Settings from "./pages/Settings";
+import { buildGuardDoctorLaunchIntent } from "./pages/doctorFlow";
+import type { DoctorLaunchIntent } from "./pages/doctorFlow";
 import { backupList, createPlanningChatSession, getEnvKeyStatus, getWatchErrors, loadApiKey, loadLatestPlanningChatSession, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, startWatch, stopWatch, openFolder, type PlanningChatSessionResponse } from "./lib/vib";
 import { installGuiErrorReporter, reportReactError, setErrorReporterProjectDir } from "./lib/errorReporter";
 import "./styles/brutalism.css";
@@ -76,6 +78,8 @@ export default function App() {
   const [mapMode, setMapMode] = useState<"manual" | "auto">("manual");
   const [planningPrompt, setPlanningPrompt] = useState("");
   const [planningResult, setPlanningResult] = useState<PlanningChatSessionResponse | null>(null);
+  const [reviewSourcePath, setReviewSourcePath] = useState<string | null>(null);
+  const [doctorLaunchIntent, setDoctorLaunchIntent] = useState<DoctorLaunchIntent | null>(null);
 
 
   async function refreshAiKeys() {
@@ -139,7 +143,7 @@ export default function App() {
   const hasAnyAiKey = Boolean(apiKey) || hasGuiProviderKey || Object.values(envKeyStatus).some(Boolean);
 
   function addToRecent(dir: string) {
-    const next = [dir, ...recentDirs.filter((d) => d !== dir)].slice(0, 5);
+    const next = [dir, ...recentDirs.filter((d) => d !== dir)].slice(0, 20);
     setRecentDirs(next);
     saveRecentProjects(next).catch(() => {});
   }
@@ -156,9 +160,32 @@ export default function App() {
     setPage("settings");
   }
 
-  async function openPlanningRoom(dir: string, prompt: string) {
+  function openDoctorFromGuardIssue() {
+    setDoctorLaunchIntent(buildGuardDoctorLaunchIntent(hasAnyAiKey));
+    setPage("doctor");
+  }
+
+  function openDoctorTab() {
+    setDoctorLaunchIntent(null);
+    setPage("doctor");
+  }
+
+  useEffect(() => {
+    if (page !== "doctor" || !doctorLaunchIntent) return;
+    const nextIntent = buildGuardDoctorLaunchIntent(hasAnyAiKey);
+    if (doctorLaunchIntent.applyMode !== nextIntent.applyMode) {
+      setDoctorLaunchIntent(nextIntent);
+    }
+  }, [doctorLaunchIntent, hasAnyAiKey, page]);
+
+  function buildPlanReviewPrompt(path: string): string {
+    return `프로젝트의 기획/스펙 문서 「${path}」 를 읽고 검토해줘. 빠진 부분, 모순, 개선점을 짚고 더 나은 기획안을 제안해줘.`;
+  }
+
+  async function openPlanningRoom(dir: string, prompt: string, sourcePath: string | null = null) {
     const normalizedPrompt = prompt.trim().slice(0, 4000);
     if (!normalizedPrompt) return;
+    setReviewSourcePath(sourcePath);
     addToRecent(dir);
     setProjectDir(dir);
     setPlanningPrompt(normalizedPrompt);
@@ -199,18 +226,29 @@ export default function App() {
     }
   }
 
+  async function loadProjectPlanning(dir: string): Promise<boolean> {
+    setReviewSourcePath(null);
+    try {
+      const result = await loadLatestPlanningChatSession(dir);
+      if (result.ok) {
+        setPlanningPrompt(result.prompt || result.messages[0]?.content || "기획방");
+        setPlanningResult(result);
+        return true;
+      }
+    } catch {
+      // 세션 로드 실패 시 아래에서 기획방 상태를 비운다.
+    }
+    // 기획방이 없는 프로젝트면 이전 프로젝트의 상태가 남지 않도록 비운다.
+    setPlanningPrompt("");
+    setPlanningResult(null);
+    return false;
+  }
+
   async function resumeProject(dir: string) {
     addToRecent(dir);
     setProjectDir(dir);
-    try {
-      const result = await loadLatestPlanningChatSession(dir);
-      if (!result.ok) return;
-      setPlanningPrompt(result.prompt || result.messages[0]?.content || "기획방");
-      setPlanningResult(result);
-      setPage("planning");
-    } catch {
-      setPage("home");
-    }
+    const hasPlanning = await loadProjectPlanning(dir);
+    setPage(hasPlanning ? "planning" : "home");
   }
 
   return (
@@ -230,7 +268,7 @@ export default function App() {
         {!projectDir ? (
           <Onboarding
             recentDirs={recentDirs}
-            onComplete={(dir, key) => { addToRecent(dir); setProjectDir(dir); if (key) setApiKey(key); }}
+            onComplete={(dir, key) => { addToRecent(dir); setProjectDir(dir); if (key) setApiKey(key); setPage("home"); void loadProjectPlanning(dir); }}
             onPlanRequest={openPlanningRoom}
             onResume={(dir) => { void resumeProject(dir); }}
             onRemoveRecent={(dir) => removeFromRecent(dir)}
@@ -241,7 +279,7 @@ export default function App() {
               <button className={`nav-tab ${page === "home" ? "active" : ""}`} onClick={() => setPage("home")}>
                 홈
               </button>
-              <button className={`nav-tab ${page === "doctor" ? "active" : ""}`} onClick={() => setPage("doctor")}>
+              <button className={`nav-tab ${page === "doctor" ? "active" : ""}`} onClick={openDoctorTab}>
                 Doctor
               </button>
               <button className={`nav-tab ${page === "manual" ? "active" : ""}`} onClick={() => setPage("manual")}>
@@ -275,7 +313,7 @@ export default function App() {
                   display: "block",
                 }}
                 title={projectDir}
-                onClick={() => { stopWatch().catch(() => {}); setProjectDir(null); setPage("home"); }}
+                onClick={() => { stopWatch().catch(() => {}); setProjectDir(null); setPlanningResult(null); setReviewSourcePath(null); setPlanningPrompt(""); setPage("home"); }}
               >
                 {projectDir.replace(/\\/g, "/").split("/").filter(Boolean).slice(-1)[0] || projectDir} ↩
               </button>
@@ -283,12 +321,12 @@ export default function App() {
 
             <div style={{ flex: 1, overflow: "hidden" }}>
               <ErrorBoundary>
-                {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} watchError={watchError} onRetryWatch={() => { void retryWatch(); }} hasCheckpoint={hasCheckpoint} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningPending={planningResult?.messages.some((message) => message.status === "pending") ?? false} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} />}
-                {page === "planning" && planningResult && <PlanningRoom projectDir={projectDir} result={planningResult} onBack={() => setPage("home")} onStartWork={() => setPage("code")} onResultChange={setPlanningResult} />}
-                {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} />}
+                {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenDoctor={openDoctorFromGuardIssue} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} watchError={watchError} onRetryWatch={() => { void retryWatch(); }} hasCheckpoint={hasCheckpoint} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningPending={planningResult?.messages.some((message) => message.status === "pending") ?? false} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} />}
+                {page === "planning" && planningResult && <PlanningRoom projectDir={projectDir} result={planningResult} sourcePath={reviewSourcePath} onBack={() => setPage("home")} onStartWork={() => setPage("code")} onResultChange={setPlanningResult} />}
+                {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
-                {page === "code" && <CodeExplorer projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} />}
-                {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} />}
+                {page === "code" && <CodeExplorer projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} onReviewInPlanning={(path) => { if (projectDir) void openPlanningRoom(projectDir, buildPlanReviewPrompt(path), path); }} />}
+                {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} launchIntent={doctorLaunchIntent} />}
                 {page === "backups" && <BackupDashboardPage projectDir={projectDir} />}
                 {page === "logs" && <ErrorLogs projectDir={projectDir} />}
                 {page === "settings" && (

@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNING_CHAT_MARKDOWN_START ===
 use super::planning_chat_store::StoredPlanningChatSession;
 use super::planning_chat_types::PlanningChatMessage;
 
@@ -202,3 +203,4 @@ fn push_section(markdown: &mut String, section: &str) {
     markdown.push_str(section);
     markdown.push_str("\n\n");
 }
+// === ANCHOR: PLANNING_CHAT_MARKDOWN_END ===

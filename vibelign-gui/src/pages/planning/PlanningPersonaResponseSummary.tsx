@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGPERSONARESPONSESUMMARY_START ===
 import type { PlanningChatMessage } from "../../lib/vib";
 import { PlanningPersonaAvatar } from "./PlanningPersonaAvatar";
 import { planningPersonaLabel } from "./PlanningPersonas";
@@ -14,6 +15,7 @@ interface PersonaSummary {
   readonly content: string;
 }
 
+// === ANCHOR: PLANNINGPERSONARESPONSESUMMARY_PLANNINGPERSONARESPONSESUMMARY_START ===
 export function PlanningPersonaResponseSummary({ messages }: PlanningPersonaResponseSummaryProps) {
   const summaries = personaSummaries(messages);
   if (summaries.length === 0) {
@@ -40,7 +42,9 @@ export function PlanningPersonaResponseSummary({ messages }: PlanningPersonaResp
     </section>
   );
 }
+// === ANCHOR: PLANNINGPERSONARESPONSESUMMARY_PLANNINGPERSONARESPONSESUMMARY_END ===
 
+// === ANCHOR: PLANNINGPERSONARESPONSESUMMARY_PERSONASUMMARYCARD_START ===
 function PersonaSummaryCard({ summary }: { readonly summary: PersonaSummary }) {
   const display = planningPersonaStatusDisplay(summary.status);
   return (
@@ -63,7 +67,9 @@ function PersonaSummaryCard({ summary }: { readonly summary: PersonaSummary }) {
     </div>
   );
 }
+// === ANCHOR: PLANNINGPERSONARESPONSESUMMARY_PERSONASUMMARYCARD_END ===
 
+// === ANCHOR: PLANNINGPERSONARESPONSESUMMARY_PERSONASUMMARIES_START ===
 function personaSummaries(messages: readonly PlanningChatMessage[]): readonly PersonaSummary[] {
   const latestByPersona = new Map<string, PlanningChatMessage>();
   for (const message of messages) {
@@ -79,7 +85,9 @@ function personaSummaries(messages: readonly PlanningChatMessage[]): readonly Pe
     content: message.content,
   }));
 }
+// === ANCHOR: PLANNINGPERSONARESPONSESUMMARY_PERSONASUMMARIES_END ===
 
+// === ANCHOR: PLANNINGPERSONARESPONSESUMMARY_SUMMARYSNIPPET_START ===
 function summarySnippet(content: string): string {
   const normalized = content.trim().split(/\s+/).join(" ");
   if (normalized.length <= 96) {
@@ -87,3 +95,5 @@ function summarySnippet(content: string): string {
   }
   return `${normalized.slice(0, 96)}...`;
 }
+// === ANCHOR: PLANNINGPERSONARESPONSESUMMARY_SUMMARYSNIPPET_END ===
+// === ANCHOR: PLANNINGPERSONARESPONSESUMMARY_END ===

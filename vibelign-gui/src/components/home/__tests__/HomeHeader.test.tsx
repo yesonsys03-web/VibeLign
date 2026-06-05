@@ -1,3 +1,4 @@
+// === ANCHOR: HOMEHEADER_TEST_START ===
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -38,3 +39,4 @@ describe("HomeHeader", () => {
     expect(showSimple).toHaveBeenCalledOnce();
   });
 });
+// === ANCHOR: HOMEHEADER_TEST_END ===

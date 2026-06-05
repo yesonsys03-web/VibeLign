@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGPERSONAPROGRESSSUMMARY_START ===
 import type { PlanningChatMessage } from "../../lib/vib";
 import { PlanningPersonaAvatar } from "./PlanningPersonaAvatar";
 import { PLANNING_PERSONAS, type PlanningPersonaId } from "./PlanningPersonas";
@@ -7,6 +8,7 @@ interface PlanningPersonaProgressSummaryProps {
   readonly messages: readonly PlanningChatMessage[];
 }
 
+// === ANCHOR: PLANNINGPERSONAPROGRESSSUMMARY_PLANNINGPERSONAPROGRESSSUMMARY_START ===
 export function PlanningPersonaProgressSummary({ messages }: PlanningPersonaProgressSummaryProps) {
   return (
     <section
@@ -52,7 +54,9 @@ export function PlanningPersonaProgressSummary({ messages }: PlanningPersonaProg
     </section>
   );
 }
+// === ANCHOR: PLANNINGPERSONAPROGRESSSUMMARY_PLANNINGPERSONAPROGRESSSUMMARY_END ===
 
+// === ANCHOR: PLANNINGPERSONAPROGRESSSUMMARY_PERSONAPROGRESSSTATUS_START ===
 function personaProgressStatus(messages: readonly PlanningChatMessage[], personaId: PlanningPersonaId): string {
   const matchingMessages = messages.filter((message) => message.role === "assistant" && message.personaId === personaId);
   const latestMessage = matchingMessages[matchingMessages.length - 1];
@@ -61,3 +65,5 @@ function personaProgressStatus(messages: readonly PlanningChatMessage[], persona
   }
   return latestMessage.status;
 }
+// === ANCHOR: PLANNINGPERSONAPROGRESSSUMMARY_PERSONAPROGRESSSTATUS_END ===
+// === ANCHOR: PLANNINGPERSONAPROGRESSSUMMARY_END ===
