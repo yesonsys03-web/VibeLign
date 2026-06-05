@@ -137,7 +137,7 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
       <main style={{ width: "min(860px, calc(100% - 32px))", margin: "0 auto", padding: "72px 0 28px", flex: 1 }}>
         <section style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
           <h1 className="heading-xl" style={{ fontSize: 24, margin: 0, textAlign: "center" }}>
-            내 프로젝트를 안전하게 만들기
+            기획 없이 코딩하고, 백업 없이 후회하지 마세요
           </h1>
           <OnboardingInputBar
             promptText={promptText}
