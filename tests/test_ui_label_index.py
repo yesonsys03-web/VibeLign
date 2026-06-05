@@ -2,7 +2,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from vibelign.core.token_aliases import tokenize
 from vibelign.core.ui_label_index import build_ui_label_index, score_boost_for_ui_labels
 
 
@@ -98,7 +97,7 @@ class UiLabelIndexTest(unittest.TestCase):
         index = {
             "버튼": [{"path": "a.tsx", "line": 1}],
         }
-        tokens = tokenize("버튼 색")
+        tokens = ["버튼", "색"]
         boost, reasons = score_boost_for_ui_labels("a.tsx", tokens, index)
         self.assertGreaterEqual(boost, 4)
         self.assertTrue(any("버튼" in r for r in reasons))

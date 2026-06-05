@@ -126,6 +126,15 @@ def test_reverse_aliases_do_not_import_patch_suggester():
     assert "vibelign.core.patch_suggester" not in sys.modules
 
 
+def test_token_alias_module_exposes_only_anchor_alias_api():
+    import vibelign.core.token_aliases as token_aliases
+
+    assert token_aliases.reverse_token_aliases()["home"] == ["홈", "홈화면", "메인화면"]
+    assert not hasattr(token_aliases, "tokenize")
+    assert not hasattr(token_aliases, "path_tokens")
+    assert not hasattr(token_aliases, "intent_tokens")
+
+
 def test_generate_code_based_intents_updates_existing(tmp_path):
     """코드 기반 생성은 기존 앵커도 갱신해야 한다."""
     from vibelign.core.anchor_tools import generate_code_based_intents
