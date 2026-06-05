@@ -50,6 +50,15 @@ class CrossPlatformPathTest(unittest.TestCase):
                 FakePath(("C:", "Repo", "DiSt", "bundle.js"), "bundle.js", ".js")
             )
         )
+        self.assertFalse(
+            is_watchable_path(
+                FakePath(
+                    ("C:", "Repo", ".Claude", "worktrees", "agent", "app.py"),
+                    "app.py",
+                    ".py",
+                )
+            )
+        )
 
     def test_windows_drive_and_unc_paths_are_classified_as_unsafe_inputs(self) -> None:
         unsafe = [

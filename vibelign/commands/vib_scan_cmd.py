@@ -121,6 +121,7 @@ def run_vib_scan(args: Namespace) -> None:
             + "\n",
             encoding="utf-8",
         )
+        meta.analysis_cache_path.unlink(missing_ok=True)
         clack_success(
             f"코드맵 갱신 완료: {project_map['file_count']}개 파일, 앵커 {len(anchor_index)}개 파일 포함"
         )

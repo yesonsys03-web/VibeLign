@@ -62,6 +62,7 @@ class ProjectScanTest(unittest.TestCase):
                         "files": [
                             {"path": "main.py", "category": "entry", "imports": []},
                             {"path": "ui/views/panel.tsx", "category": "ui", "imports": []},
+                            {"path": ".claude/worktrees/agent/app.py", "category": "entry", "imports": []},
                         ],
                     },
                     None,
@@ -149,6 +150,11 @@ class ProjectScanTest(unittest.TestCase):
                 ".vibelign/anchor_meta.json": "{}\n",
                 ".vibelign/engine.sock": "ignored daemon artifact\n",
                 ".vibelign/app.py": "print('ignored vibelign source')\n",
+                ".claude/worktrees/agent-copy/app.py": "print('ignored worktree')\n",
+                ".codex/cache/helper.py": "print('ignored codex cache')\n",
+                ".agents/session/tool.py": "print('ignored agent state')\n",
+                ".omo/ulw-loop/state.py": "print('ignored loop state')\n",
+                ".omc/state/error.py": "print('ignored gui state')\n",
             }
             for rel, content in files.items():
                 path = root / rel

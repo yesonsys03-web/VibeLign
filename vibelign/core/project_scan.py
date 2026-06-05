@@ -82,6 +82,9 @@ def _source_file_records_from_rust_project_scan(root: Path) -> list[SourceFileRe
         raw_item = cast(dict[object, object], item)
         path = raw_item.get("path")
         if isinstance(path, str) and path:
+            rel_parts = tuple(Path(path.replace("\\", "/")).parts)
+            if has_ignored_part(rel_parts):
+                continue
             category = raw_item.get("category")
             raw_imports = raw_item.get("imports")
             import_items = cast(list[object], raw_imports) if isinstance(raw_imports, list) else None

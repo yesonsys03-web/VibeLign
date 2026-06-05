@@ -39,6 +39,11 @@ const IGNORED_DIRS: &[&str] = &[
     "tests",
     ".github",
     ".vibelign",
+    ".claude",
+    ".codex",
+    ".agents",
+    ".omo",
+    ".omc",
 ];
 
 const SOURCE_EXTENSIONS: &[&str] = &[

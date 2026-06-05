@@ -79,7 +79,17 @@ CORE_ENTRY_FILE_NAMES: frozenset[str] = frozenset(
 )
 
 SCAN_EXTRA_IGNORED: frozenset[str] = frozenset(
-    {"docs", "tests", ".github", ".vibelign"}
+    {
+        "docs",
+        "tests",
+        ".github",
+        ".vibelign",
+        ".claude",
+        ".codex",
+        ".agents",
+        ".omo",
+        ".omc",
+    }
 )
 SCAN_IGNORED_DIRS: frozenset[str] = COMMON_IGNORED_DIRS | SCAN_EXTRA_IGNORED
 SCAN_IGNORED_DIRS_LOWER: frozenset[str] = frozenset(

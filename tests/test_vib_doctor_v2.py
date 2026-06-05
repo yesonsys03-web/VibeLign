@@ -519,6 +519,44 @@ class VibDoctorV2Test(unittest.TestCase):
             )
             self.assertEqual("add_anchor", anchor_action["action_type"])
 
+    def test_doctor_plan_json_excludes_agent_worktree_hidden_dirs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "main.py").write_text("print('hello')\n", encoding="utf-8")
+            hidden_file = root / ".claude" / "worktrees" / "agent-copy" / "shadow.py"
+            hidden_file.parent.mkdir(parents=True)
+            hidden_file.write_text("print('shadow')\n", encoding="utf-8")
+
+            previous = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch("vibelign.commands.vib_doctor_cmd.print") as mocked:
+                    run_vib_doctor(
+                        Namespace(
+                            strict=False,
+                            json=True,
+                            write_report=False,
+                            fix=False,
+                            detailed=False,
+                            fix_hints=False,
+                            plan=True,
+                            patch=False,
+                            apply=False,
+                            force=False,
+                        )
+                    )
+                    payload = json.loads(str(mocked.call_args.args[0]))
+            finally:
+                os.chdir(previous)
+
+            action_paths = {
+                item.get("target_path")
+                for item in payload["actions"]
+                if item.get("action_type") == "add_anchor"
+            }
+            self.assertIn("main.py", action_paths)
+            self.assertNotIn(".claude/worktrees/agent-copy/shadow.py", action_paths)
+
     def test_doctor_apply_json_anchors_all_small_anchorless_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

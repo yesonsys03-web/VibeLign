@@ -537,6 +537,11 @@ mod tests {
         write_fixture(root.path(), ".vibelign/anchor_meta.json", "{}\n");
         write_fixture(root.path(), ".vibelign/engine.sock", "ignored daemon artifact\n");
         write_fixture(root.path(), ".vibelign/app.py", "print('ignored vibelign source')\n");
+        write_fixture(root.path(), ".claude/worktrees/agent-copy/app.py", "print('ignored worktree')\n");
+        write_fixture(root.path(), ".codex/cache/helper.py", "print('ignored codex cache')\n");
+        write_fixture(root.path(), ".agents/session/tool.py", "print('ignored agent state')\n");
+        write_fixture(root.path(), ".omo/ulw-loop/state.py", "print('ignored loop state')\n");
+        write_fixture(root.path(), ".omc/state/error.py", "print('ignored gui state')\n");
 
         let response = handle(EngineRequest::ProjectScan { root: root.path().to_path_buf() });
         let value = serde_json::to_value(response).expect("json response");
