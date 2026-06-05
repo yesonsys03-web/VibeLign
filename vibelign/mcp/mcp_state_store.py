@@ -68,12 +68,12 @@ def save_planning_session(meta: MetaPaths, planning: dict[str, object] | None) -
 # === ANCHOR: MCP_STATE_STORE_SAVE_PLANNING_SESSION_END ===
 
 
-# === ANCHOR: MCP_STATE_STORE_PATCH_SESSION_NOW_START ===
-def patch_session_now() -> str:
+# === ANCHOR: MCP_STATE_STORE_STATE_TIMESTAMP_START ===
+def state_timestamp() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-# === ANCHOR: MCP_STATE_STORE_PATCH_SESSION_NOW_END ===
+# === ANCHOR: MCP_STATE_STORE_STATE_TIMESTAMP_END ===
 
 
 # === ANCHOR: MCP_STATE_STORE_END ===

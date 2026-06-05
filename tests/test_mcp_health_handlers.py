@@ -41,26 +41,9 @@ class McpHealthHandlersTest(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].text, '{"ok": true}')
 
-    def test_handle_guard_check_clears_verification_gate_on_non_fail(self) -> None:
+    def test_handle_guard_check_returns_rendered_guard_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            meta_dir = root / ".vibelign"
-            meta_dir.mkdir(parents=True, exist_ok=True)
-            state_path = meta_dir / "state.json"
-            _ = state_path.write_text(
-                json.dumps(
-                    {
-                        "patch_session": {
-                            "session_id": "seed",
-                            "needs_verification": True,
-                            "active": True,
-                        }
-                    },
-                    ensure_ascii=False,
-                ),
-                encoding="utf-8",
-            )
-
             with patch(
                 "vibelign.commands.vib_guard_cmd._build_guard_envelope"
             ) as build:
@@ -69,14 +52,9 @@ class McpHealthHandlersTest(unittest.TestCase):
                     root, {"strict": False, "since_minutes": 30}, TextContent
                 )
 
-            state = cast(
-                dict[str, object], json.loads(state_path.read_text(encoding="utf-8"))
-            )
-
-        patch_session = cast(dict[str, object], state["patch_session"])
         self.assertEqual(len(result), 1)
-        self.assertFalse(bool(patch_session["needs_verification"]))
-        self.assertEqual(patch_session["guard_status"], "warn")
+        payload = cast(dict[str, object], json.loads(result[0].text))
+        self.assertEqual(payload, {"data": {"status": "warn"}})
 
 
 if __name__ == "__main__":

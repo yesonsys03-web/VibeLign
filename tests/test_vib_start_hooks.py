@@ -125,7 +125,7 @@ class VibStartHooksTest(unittest.TestCase):
 
             hook = root / ".git" / "hooks" / "post-commit"
             self.assertTrue(hook.exists())
-            self.assertIn("post-commit-record v2", hook.read_text())
+            self.assertIn("post-commit-record v5", hook.read_text())
 
     def test_set_auto_backup_on_commit_writes_db_meta_toggle(self) -> None:
         from vibelign.commands.vib_start_cmd import _set_auto_backup_on_commit

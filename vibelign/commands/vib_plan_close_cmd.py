@@ -7,8 +7,8 @@ from pathlib import Path
 from vibelign.core.project_root import resolve_project_root
 from vibelign.mcp.mcp_state_store import (
     load_planning_session,
-    patch_session_now,
     save_planning_session,
+    state_timestamp,
 )
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.terminal_render import clack_info, clack_success
@@ -30,7 +30,7 @@ def run_vib_plan_close(_args: Namespace) -> None:
     updated["override_reason"] = None
     _ = updated.pop("overridden_at", None)
     _ = updated.pop("override_count", None)
-    updated["updated_at"] = patch_session_now()
+    updated["updated_at"] = state_timestamp()
     save_planning_session(meta, updated)
     clack_success("기획 상태를 닫았어요.")
 # === ANCHOR: VIB_PLAN_CLOSE_CMD_RUN_VIB_PLAN_CLOSE_END ===

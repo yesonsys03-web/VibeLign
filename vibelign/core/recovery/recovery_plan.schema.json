@@ -27,7 +27,7 @@
       "additionalProperties": false,
       "properties": {
         "path": {"type": "string"},
-        "source": {"enum": ["explicit", "recent_patch_target", "project_map_category", "anchor_co_occurrence", "diff_fallback"]},
+        "source": {"enum": ["explicit", "recent_memory_path", "project_map_category", "anchor_co_occurrence", "diff_fallback"]},
         "reason": {"type": "string"}
       }
     },

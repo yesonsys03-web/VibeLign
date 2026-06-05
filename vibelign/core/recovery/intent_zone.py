@@ -11,7 +11,7 @@ from .models import DriftCandidate, IntentZoneEntry, IntentZoneSource
 def build_intent_zone(
     *,
     explicit_relevant_paths: Iterable[str] = (),
-    recent_patch_paths: Iterable[str] = (),
+    recent_memory_paths: Iterable[str] = (),
     changed_paths: Iterable[str] = (),
     project_map_categories: dict[str, str] | None = None,
     anchor_intents_by_path: dict[str, list[str]] | None = None,
@@ -21,8 +21,8 @@ def build_intent_zone(
     zone_by_path: dict[str, IntentZoneEntry] = {}
     for path in explicit_relevant_paths:
         _add_zone_entry(zone_by_path, path, "explicit", "explicit relevant_files entry")
-    for path in recent_patch_paths:
-        _add_zone_entry(zone_by_path, path, "recent_patch_target", "recent patch target")
+    for path in recent_memory_paths:
+        _add_zone_entry(zone_by_path, path, "recent_memory_path", "recent work-memory path")
 
     zone_categories = {
         categories[path]

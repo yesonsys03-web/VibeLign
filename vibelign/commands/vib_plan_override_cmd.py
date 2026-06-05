@@ -8,8 +8,8 @@ from typing import cast
 from vibelign.core.project_root import resolve_project_root
 from vibelign.mcp.mcp_state_store import (
     load_planning_session,
-    patch_session_now,
     save_planning_session,
+    state_timestamp,
 )
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.terminal_render import clack_success
@@ -45,7 +45,7 @@ def run_vib_plan_override(args: Namespace) -> None:
             'override할 기획 상태가 없어요. 먼저 `vib plan "작업 내용"` 또는 GUI 기획방에서 계획을 정리하세요'
         )
     updated = dict(planning)
-    now = patch_session_now()
+    now = state_timestamp()
     _ = updated.setdefault("active", True)
     _ = updated.setdefault("feature", None)
     _ = updated.setdefault("created_at", now)

@@ -83,7 +83,7 @@ def test_collect_basic_signals_reads_work_memory_project_anchor_and_reports(tmp_
     signals = collect_basic_signals(root)
 
     assert signals.explicit_relevant_paths == ["src/ui.py"]
-    assert signals.recent_patch_paths == ["src/button.py", "src/recent.py"]
+    assert signals.recent_memory_paths == ["src/button.py", "src/recent.py"]
     assert signals.project_map_categories["src/ui.py"] == "ui"
     assert signals.anchor_intents_by_path["src/button.py"] == ["Render UI"]
     assert signals.guard_has_failures is True

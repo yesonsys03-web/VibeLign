@@ -35,7 +35,7 @@ def build_recovery_plan(
     circuit_breaker_state = _drift_circuit_breaker_state(signals)
     intent_zone, drift_candidates = build_intent_zone(
         explicit_relevant_paths=signals.explicit_relevant_paths,
-        recent_patch_paths=signals.recent_patch_paths,
+        recent_memory_paths=signals.recent_memory_paths,
         changed_paths=changed_paths,
         project_map_categories=signals.project_map_categories,
         anchor_intents_by_path=signals.anchor_intents_by_path,
@@ -132,9 +132,6 @@ def _build_options(
         guard_label = "문제만 고치기 — 현재 작업은 유지하고 guard/test/build 실패를 고칩니다."
         if signals.guard_summary:
             guard_label = f"검사 실패 고치기 — {signals.guard_summary}"
-        level2_target = _recovery_level2_target(project_root, recovery_request or signals.guard_summary)
-        if level2_target:
-            guard_label = f"{guard_label} 추천 수정 파일: {level2_target}."
         options.append(
             RecoveryOption(
                 option_id=_new_id("opt"),
@@ -209,10 +206,6 @@ def _attach_recommendation_metadata(
 
 def recovery_request_placeholder() -> str:
     return "'<request>'"
-
-
-def _recovery_level2_target(project_root: Path | None, recovery_request: str) -> str:
-    return ""
 
 
 def _summary_for(

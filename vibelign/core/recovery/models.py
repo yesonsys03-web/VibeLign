@@ -21,7 +21,7 @@ RestoreCapability = Literal["file_restore", "preview_only", "metadata_only"]
 RecommendationProvider = Literal["deterministic", "llm", "invalid", "cache"]
 IntentZoneSource = Literal[
     "explicit",
-    "recent_patch_target",
+    "recent_memory_path",
     "project_map_category",
     "anchor_co_occurrence",
     "diff_fallback",
@@ -169,7 +169,7 @@ class RecoverySignalSet:
     changed_paths: list[str] = field(default_factory=list)
     untracked_paths: list[str] = field(default_factory=list)
     explicit_relevant_paths: list[str] = field(default_factory=list)
-    recent_patch_paths: list[str] = field(default_factory=list)
+    recent_memory_paths: list[str] = field(default_factory=list)
     project_map_categories: dict[str, str] = field(default_factory=dict)
     anchor_intents_by_path: dict[str, list[str]] = field(default_factory=dict)
     safe_checkpoint_candidate: SafeCheckpointCandidate | None = None

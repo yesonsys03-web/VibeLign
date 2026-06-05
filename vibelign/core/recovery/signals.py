@@ -40,15 +40,15 @@ def collect_basic_signals(project_root: Path) -> RecoverySignalSet:
             if entry.get("source") == "explicit"
         ]
     )
-    recent_patch_paths = _filter_recovery_paths(_recent_work_memory_paths(work_memory))
-    all_paths = [*changed_paths, *untracked_paths, *explicit_relevant_paths, *recent_patch_paths]
+    recent_memory_paths = _filter_recovery_paths(_recent_work_memory_paths(work_memory))
+    all_paths = [*changed_paths, *untracked_paths, *explicit_relevant_paths, *recent_memory_paths]
     project_map_categories, anchor_intents_by_path = _project_context(project_root, all_paths)
     guard_summary, guard_has_failures = _guard_report_summary(meta)
     return RecoverySignalSet(
         changed_paths=changed_paths,
         untracked_paths=untracked_paths,
         explicit_relevant_paths=explicit_relevant_paths,
-        recent_patch_paths=recent_patch_paths,
+        recent_memory_paths=recent_memory_paths,
         project_map_categories=project_map_categories,
         anchor_intents_by_path=anchor_intents_by_path,
         safe_checkpoint_candidate=_latest_safe_checkpoint(project_root),

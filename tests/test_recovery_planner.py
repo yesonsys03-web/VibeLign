@@ -77,7 +77,7 @@ def test_drift_accuracy_circuit_breaker_stays_active_above_threshold() -> None:
     assert [candidate.path for candidate in plan.drift_candidates] == ["src/auth.py"]
 
 
-def test_level2_recovery_option_includes_deterministic_patch_target(tmp_path) -> None:
+def test_level2_recovery_option_keeps_changed_paths_without_patch_target_label(tmp_path) -> None:
     root = tmp_path / "repo"
     _ = (root / "src").mkdir(parents=True)
     _ = (root / "src" / "auth.py").write_text("def login():\n    return False\n", encoding="utf-8")
@@ -94,4 +94,5 @@ def test_level2_recovery_option_includes_deterministic_patch_target(tmp_path) ->
     )
     level2_option = next(option for option in plan.options if option.level == 2)
 
-    assert "추천 수정 파일: src/auth.py" in level2_option.label
+    assert level2_option.affected_paths == ["src/auth.py"]
+    assert "추천 수정 파일" not in level2_option.label

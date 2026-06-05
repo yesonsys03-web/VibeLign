@@ -131,9 +131,9 @@ QUICKSTART_MD = """\
 ## AI에게 코드 수정 시키고 싶을 때
 
 ```
-vib patch "로그인 버튼 크기 키워줘"
+AI에게 .vibelign/project_map.json을 읽고 관련 파일만 직접 수정하라고 요청하세요.
 ```
-나온 결과를 복사해서 AI(ChatGPT, Claude 등)에 붙여넣기
+수정 후에는 `vib guard`로 결과를 확인하고 `vib checkpoint "완료"`로 저장하세요.
 
 ---
 
@@ -1142,8 +1142,8 @@ def run_vib_start(args: Namespace) -> None:
         clack_info("   코드에 표식을 달아서 AI가 정확한 위치를 찾게 해요")
         clack_info("")
         clack_info("2단계: AI에게 코드 수정 시키기")
-        clack_info('   vib patch "원하는 변경사항"')
-        clack_info("   AI가 이해하기 쉬운 형태로 바꿔줘요. 복사해서 AI에 붙여넣으세요")
+        clack_info("   AI에게 .vibelign/project_map.json을 읽고 관련 파일만 직접 수정하라고 요청하세요")
+        clack_info("   수정 후에는 guard와 checkpoint로 결과를 확인하고 저장하세요")
         clack_info("")
         clack_info("3단계: 수정 결과 확인하기")
         clack_info("   vib guard")
@@ -1202,7 +1202,7 @@ def run_vib_start(args: Namespace) -> None:
             )
             run_vib_anchor(anchor_args)
             clack_success(
-                "앵커 삽입 완료! 이제 vib patch 로 AI에게 수정을 시킬 수 있어요"
+                "앵커 삽입 완료! 이제 AI에게 관련 앵커 안에서 직접 수정하라고 요청할 수 있어요"
             )
         else:
             clack_warn(

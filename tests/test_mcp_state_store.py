@@ -8,7 +8,7 @@ from vibelign.core.meta_paths import MetaPaths
 
 state_store = importlib.import_module("vibelign.mcp.mcp_state_store")
 load_state = cast(Callable[[MetaPaths], dict[str, object]], state_store.load_state)
-patch_session_now = cast(Callable[[], str], state_store.patch_session_now)
+state_timestamp = cast(Callable[[], str], state_store.state_timestamp)
 save_state = cast(
     Callable[[MetaPaths, dict[str, object]], None], state_store.save_state
 )
@@ -28,7 +28,8 @@ class McpStateStoreTest(unittest.TestCase):
         self.assertFalse(hasattr(state_store, "load_patch_session"))
         self.assertFalse(hasattr(state_store, "save_patch_session"))
         self.assertFalse(hasattr(state_store, "new_patch_session_id"))
-        self.assertIsInstance(patch_session_now(), str)
+        self.assertFalse(hasattr(state_store, "patch_session_now"))
+        self.assertIsInstance(state_timestamp(), str)
 
 
 if __name__ == "__main__":

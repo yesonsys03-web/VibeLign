@@ -312,16 +312,17 @@ Use this loop whenever possible:
 ```bash
 vib doctor --strict
 vib anchor
-vib patch "your request here"
-# apply AI edit
 vib explain --write-report
 vib guard --strict --write-report
 ```
 
+Between `vib anchor` and `vib explain`, ask your AI coding tool to read
+`.vibelign/project_map.json` and edit the relevant scope directly.
+
 ### Meaning
 - `doctor` → inspect structure
 - `anchor` → create safer edit zones
-- `patch` → generate structured request
+- direct AI edit → modify the relevant file/scope using project-map context
 - `explain` → summarize what changed
 - `guard` → verify whether it is safe to continue
 
