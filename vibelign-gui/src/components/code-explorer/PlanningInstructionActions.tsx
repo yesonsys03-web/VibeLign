@@ -102,6 +102,9 @@ export function PlanningInstructionActions({ prompt, outputPath }: PlanningInstr
           </button>
         ))}
       </div>
+      <div style={{ fontSize: 10, color: "#888", fontWeight: 700, lineHeight: 1.5 }}>
+        VibeLign MCP가 연결된 도구(Claude Code·Cursor 등)에서는 복사 없이 그 도구에 <b>“VibeLign 기획안 구현해”</b> 라고만 입력해도 됩니다.
+      </div>
       {copyStatus === "copied" && (
         <div style={{ fontSize: 11, color: "#2f6f46", fontWeight: 800 }}>복사했어요. 사용하는 AI CLI에 붙여넣어 시작하세요.</div>
       )}
