@@ -37,6 +37,11 @@ export function OnboardingAdvancedPanel({
     onboardingSnapshot?.diagnostics.claudeOnPath === true ||
     onboardingSnapshot?.diagnostics.claudeVersionOk === true;
   const claudeCodeLabel = claudeReady ? "준비됨" : claudeInstalled === null ? "확인 중" : "미설치";
+  // Xcode CLT 는 macOS 전용 개념 → Windows/Linux 에서는 배지를 숨긴다.
+  // (백엔드 check_xcode_clt 는 비-macOS 에서 무조건 true 라 표시하면 오해를 부른다.)
+  const isMacOs = onboardingSnapshot
+    ? onboardingSnapshot.os === "macos"
+    : navigator.userAgent.toLowerCase().includes("mac");
   const totalPages = Math.max(1, Math.ceil(recentDirs.length / RECENT_PAGE_SIZE));
   const currentPage = Math.min(recentPage, totalPages - 1);
   const pageStart = currentPage * RECENT_PAGE_SIZE;
@@ -52,9 +57,11 @@ export function OnboardingAdvancedPanel({
         <span className="badge" style={{ fontSize: 10 }}>
           Git: {gitInstalled === null ? "확인 중" : gitInstalled ? "준비됨" : "필요"}
         </span>
-        <span className="badge" style={{ fontSize: 10 }}>
-          Xcode CLT: {xcodeCltInstalled === null ? "확인 중" : xcodeCltInstalled ? "준비됨" : "확인 필요"}
-        </span>
+        {isMacOs && (
+          <span className="badge" style={{ fontSize: 10 }}>
+            Xcode CLT: {xcodeCltInstalled === null ? "확인 중" : xcodeCltInstalled ? "준비됨" : "확인 필요"}
+          </span>
+        )}
         <span className="badge" style={{ fontSize: 10 }}>
           Claude Code: {claudeCodeLabel}
         </span>
