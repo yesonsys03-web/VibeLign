@@ -77,10 +77,6 @@ async function selectProjectFolder(): Promise<void> {
 }
 // === ANCHOR: ONBOARDING_PR2_START_TEST_SELECTPROJECTFOLDER_END ===
 
-function snapshotWithState(state: string, extra: Partial<OnboardingSnapshot> = {}): OnboardingSnapshot {
-  return { state, headline: "", ...extra } as OnboardingSnapshot;
-}
-
 describe("Onboarding PR2 auto start", () => {
   afterEach(() => {
     cleanup();
@@ -137,6 +133,8 @@ describe("Onboarding PR2 auto start", () => {
       expect(onComplete).toHaveBeenCalledWith("/tmp/demo", null);
     });
     expect(screen.getByText("준비 완료")).toBeInTheDocument();
+    // Claude Code 설치는 기획 흐름과 분리됐다 — 전송만으로 설치를 트리거하지 않는다.
+    expect(mocks.startNativeInstallMock).not.toHaveBeenCalled();
   });
 
   test("renders_five_progress_labels_without_internal_terms", async () => {
@@ -151,17 +149,6 @@ describe("Onboarding PR2 auto start", () => {
     expect(screen.queryByText(/watch|anchor|guard|vib start/i)).not.toBeInTheDocument();
   });
 
-  test("shows_claude_failure_as_separate_status_after_start_success", async () => {
-    renderOnboarding();
-
-    await selectProjectFolder();
-    fireEvent.click(screen.getByLabelText("Claude Code도 자동으로 준비하기"));
-    fireEvent.click(screen.getByRole("button", { name: "전송" }));
-
-    expect(await screen.findByText("Claude Code 준비만 실패했어요. 프로젝트 안전장치는 켜져 있어요.")).toBeInTheDocument();
-    expect(screen.queryByText("시작 실패")).not.toBeInTheDocument();
-  });
-
   test("requests_planning_after_start_when_prompt_exists", async () => {
     const onPlanRequest = renderOnboardingWithPlanRequest();
 
@@ -174,48 +161,6 @@ describe("Onboarding PR2 auto start", () => {
     await waitFor(() => {
       expect(onPlanRequest).toHaveBeenCalledWith("/tmp/demo", "예약 앱 만들고 싶어");
     });
-  });
-
-  test("shows_login_hint_when_install_snapshot_reaches_login_required", async () => {
-    mocks.startNativeInstallMock.mockResolvedValue(snapshotWithState("installing_native"));
-    mocks.getOnboardingSnapshotMock.mockResolvedValue(snapshotWithState("login_required"));
-    renderOnboarding();
-
-    await selectProjectFolder();
-    fireEvent.click(screen.getByLabelText("Claude Code도 자동으로 준비하기"));
-    fireEvent.click(screen.getByRole("button", { name: "전송" }));
-
-    expect(await screen.findByText(/claude login/, {}, { timeout: 3000 })).toBeInTheDocument();
-  });
-
-  test("shows_background_message_when_install_still_running", async () => {
-    mocks.startNativeInstallMock.mockResolvedValue(snapshotWithState("installing_native"));
-    mocks.getOnboardingSnapshotMock.mockResolvedValue(snapshotWithState("installing_native"));
-    renderOnboarding();
-
-    await selectProjectFolder();
-    fireEvent.click(screen.getByLabelText("Claude Code도 자동으로 준비하기"));
-    fireEvent.click(screen.getByRole("button", { name: "전송" }));
-
-    expect(await screen.findByText(/백그라운드에서 설치 중/, {}, { timeout: 4000 })).toBeInTheDocument();
-  });
-
-  test("shows_real_reason_when_install_snapshot_reaches_blocked", async () => {
-    mocks.startNativeInstallMock.mockResolvedValue(snapshotWithState("installing_native"));
-    mocks.getOnboardingSnapshotMock.mockResolvedValue(
-      snapshotWithState("blocked", {
-        lastError: { code: "unknown", summary: "설치 프로세스 spawn 자체가 실패했어요." },
-      }),
-    );
-    renderOnboarding();
-
-    await selectProjectFolder();
-    fireEvent.click(screen.getByLabelText("Claude Code도 자동으로 준비하기"));
-    fireEvent.click(screen.getByRole("button", { name: "전송" }));
-
-    expect(
-      await screen.findByText(/준비 실패: 설치 프로세스 spawn 자체가 실패했어요/, {}, { timeout: 3000 }),
-    ).toBeInTheDocument();
   });
 
   test("includes_tools_for_all_installed_tools", async () => {

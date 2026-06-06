@@ -85,7 +85,7 @@ describe("Onboarding input bar", () => {
 
     expect(await screen.findByText("기획 없이 코딩하고, 백업 없이 후회하지 마세요")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("무엇을 만들고 싶나요?")).toBeInTheDocument();
-    expect(screen.getByLabelText("Claude Code도 자동으로 준비하기")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Claude Code 준비하기/ })).toBeInTheDocument();
     expect(screen.getByText("Instant")).toBeInTheDocument();
 
     expect(screen.queryByText("코드맵 생성")).not.toBeInTheDocument();

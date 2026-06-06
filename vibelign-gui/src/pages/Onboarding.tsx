@@ -8,28 +8,15 @@ import {
   detectInstalledTools,
   getOnboardingSnapshot,
   runVibWithProgress,
-  startNativeInstall,
   startWatch,
   type VibProgressEvent,
   type OnboardingSnapshot,
 } from "../lib/vib";
 import { OnboardingAdvancedPanel } from "./onboarding/OnboardingAdvancedPanel";
+import { OnboardingClaudeSetup } from "./onboarding/OnboardingClaudeSetup";
 import { OnboardingInputBar } from "./onboarding/OnboardingInputBar";
 import { OnboardingStartProgress } from "./onboarding/OnboardingStartProgress";
 import { OnboardingSystemWarnings } from "./onboarding/OnboardingSystemWarnings";
-
-// 설치가 완료(설치 + 검증 + 백엔드 자동 PATH)되어 더 기다릴 필요가 없는 종료 상태들.
-// login_required = 설치·PATH 까지 끝났고 `claude login` 만 남은 성공 상태,
-// needs_wsl_fallback = 네이티브는 정상이고 WSL 보조 트랙만 실패한 soft-fail(=네이티브 성공).
-const CLAUDE_INSTALL_SUCCESS_STATES = new Set<string>(["success", "login_required", "needs_wsl_fallback"]);
-const CLAUDE_INSTALL_FAILURE_STATES = new Set<string>(["blocked", "needs_manual_step", "needs_git", "needs_cmd_fallback"]);
-// 화면을 막지 않기 위해 짧게만 확인한다(설치는 백엔드 스레드에서 계속 진행됨).
-const CLAUDE_INSTALL_POLL_INTERVAL_MS = 700;
-const CLAUDE_INSTALL_POLL_ATTEMPTS = 3;
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 interface OnboardingProps {
   readonly onComplete: (projectDir: string, apiKey: string | null) => void;
@@ -46,14 +33,13 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
   const [promptText, setPromptText] = useState("");
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const [folderHint, setFolderHint] = useState<string | null>(null);
-  const [prepareClaudeCode, setPrepareClaudeCode] = useState(false);
+  const [claudeSetupOpen, setClaudeSetupOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [gitInstalled, setGitInstalled] = useState<boolean | null>(null);
   const [xcodeCltInstalled, setXcodeCltInstalled] = useState<boolean | null>(null);
   const [onboardingSnapshot, setOnboardingSnapshot] = useState<OnboardingSnapshot | null>(null);
   const [startProgressLabels, setStartProgressLabels] = useState<string[]>([]);
   const [startStatusMessage, setStartStatusMessage] = useState<string | null>(null);
-  const [claudeStatusMessage, setClaudeStatusMessage] = useState<string | null>(null);
 
   useEffect(() => {
     getVibPath().then((p) => { setVibFound(p); setVibChecking(false); });
@@ -92,47 +78,6 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
     ));
   }
 
-  async function prepareClaudeCodeIfRequested() {
-    if (!prepareClaudeCode) {
-      return;
-    }
-    try {
-      await startNativeInstall("native-powershell");
-    } catch {
-      setClaudeStatusMessage("Claude Code 준비만 실패했어요. 프로젝트 안전장치는 켜져 있어요.");
-      return;
-    }
-    // 설치는 백엔드 스레드에서 진행되고 완료까지(타임아웃 없음) 화면을 막지 않는다.
-    // 짧게만 스냅샷을 확인해 빠른 성공/실패만 정확히 표시하고, 그 외에는 '백그라운드 설치 중'
-    // 으로 정직하게 넘긴다 — 실제로 끝나지 않았는데 '준비됨'이라고 단언하지 않는다.
-    setClaudeStatusMessage("Claude Code 설치를 시작했어요…");
-    for (let attempt = 0; attempt < CLAUDE_INSTALL_POLL_ATTEMPTS; attempt += 1) {
-      await delay(CLAUDE_INSTALL_POLL_INTERVAL_MS);
-      const snapshot = await getOnboardingSnapshot().catch(() => null);
-      if (!snapshot) {
-        continue;
-      }
-      if (CLAUDE_INSTALL_SUCCESS_STATES.has(snapshot.state)) {
-        setClaudeStatusMessage(
-          snapshot.state === "success"
-            ? "Claude Code 준비됨"
-            : "Claude Code 설치됨 — 새 터미널을 열고 `claude login` 하면 바로 쓸 수 있어요.",
-        );
-        return;
-      }
-      if (CLAUDE_INSTALL_FAILURE_STATES.has(snapshot.state)) {
-        const reason = snapshot.lastError?.summary ?? snapshot.headline;
-        setClaudeStatusMessage(
-          reason
-            ? `Claude Code 준비 실패: ${reason} 프로젝트 안전장치는 켜져 있어요.`
-            : "Claude Code 준비만 실패했어요. 프로젝트 안전장치는 켜져 있어요.",
-        );
-        return;
-      }
-    }
-    setClaudeStatusMessage("Claude Code 를 백그라운드에서 설치 중이에요. 잠시 후 새 터미널에서 쓸 수 있어요.");
-  }
-
   async function handlePromptSubmit() {
     const prompt = promptText.trim().slice(0, 4000);
     if (!selectedDir) {
@@ -141,7 +86,6 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
     }
     setFolderHint(null);
     setStartStatusMessage(null);
-    setClaudeStatusMessage(null);
     setStartProgressLabels([]);
 
     const installedTools = await detectInstalledTools().catch(() => [] as string[]);
@@ -164,7 +108,6 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
     } catch {
       setStartStatusMessage("파일 변경 감시를 켜지 못했어요. 다시 켜기");
     }
-    await prepareClaudeCodeIfRequested();
     if (prompt && onPlanRequest) {
       await onPlanRequest(selectedDir, prompt);
       return;
@@ -185,18 +128,18 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
             promptText={promptText}
             selectedDirName={selectedDir ? selectedDirName : ""}
             folderHint={folderHint}
-            prepareClaudeCode={prepareClaudeCode}
+            claudeSetupOpen={claudeSetupOpen}
             inputRef={promptRef}
             onPromptChange={setPromptText}
             onPickFolder={pickFolder}
             onSubmit={handlePromptSubmit}
-            onPrepareClaudeCodeChange={setPrepareClaudeCode}
+            onToggleClaudeSetup={() => setClaudeSetupOpen((open) => !open)}
           />
           <OnboardingStartProgress
             labels={startProgressLabels}
             statusMessage={startStatusMessage}
-            claudeMessage={claudeStatusMessage}
           />
+          {claudeSetupOpen && <OnboardingClaudeSetup />}
           <button
             type="button"
             onClick={() => setAdvancedOpen((open) => !open)}

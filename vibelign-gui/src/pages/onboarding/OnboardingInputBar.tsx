@@ -6,12 +6,12 @@ interface OnboardingInputBarProps {
   readonly promptText: string;
   readonly selectedDirName: string;
   readonly folderHint: string | null;
-  readonly prepareClaudeCode: boolean;
+  readonly claudeSetupOpen: boolean;
   readonly inputRef?: RefObject<HTMLTextAreaElement | null>;
   readonly onPromptChange: (value: string) => void;
   readonly onPickFolder: () => void;
   readonly onSubmit: () => void;
-  readonly onPrepareClaudeCodeChange: (checked: boolean) => void;
+  readonly onToggleClaudeSetup: () => void;
 }
 
 // === ANCHOR: ONBOARDINGINPUTBAR_ONBOARDINGINPUTBAR_START ===
@@ -19,12 +19,12 @@ export function OnboardingInputBar({
   promptText,
   selectedDirName,
   folderHint,
-  prepareClaudeCode,
+  claudeSetupOpen,
   inputRef,
   onPromptChange,
   onPickFolder,
   onSubmit,
-  onPrepareClaudeCodeChange,
+  onToggleClaudeSetup,
 }: OnboardingInputBarProps) {
   return (
     <div style={{ width: "100%", maxWidth: 720 }}>
@@ -67,14 +67,14 @@ export function OnboardingInputBar({
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 10, fontSize: 11, color: "#555" }}>
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
-          <input
-            type="checkbox"
-            checked={prepareClaudeCode}
-            onChange={(event) => onPrepareClaudeCodeChange(event.target.checked)}
-          />
-          Claude Code도 자동으로 준비하기
-        </label>
+        <button
+          type="button"
+          aria-expanded={claudeSetupOpen}
+          onClick={onToggleClaudeSetup}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 11, padding: "4px 10px", border: "2px solid #1A1A1A", background: claudeSetupOpen ? "#1A1A1A" : "#fff", color: claudeSetupOpen ? "#fff" : "#1A1A1A", cursor: "pointer" }}
+        >
+          {claudeSetupOpen ? "▾" : "▸"} Claude Code 준비하기
+        </button>
         {selectedDirName && (
           <span style={{ fontWeight: 700, color: "#1A1A1A" }}>
             선택한 폴더: {selectedDirName}

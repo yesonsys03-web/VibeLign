@@ -2,16 +2,14 @@
 interface OnboardingStartProgressProps {
   readonly labels: readonly string[];
   readonly statusMessage: string | null;
-  readonly claudeMessage: string | null;
 }
 
 // === ANCHOR: ONBOARDINGSTARTPROGRESS_ONBOARDINGSTARTPROGRESS_START ===
 export function OnboardingStartProgress({
   labels,
   statusMessage,
-  claudeMessage,
 }: OnboardingStartProgressProps) {
-  if (labels.length === 0 && !statusMessage && !claudeMessage) {
+  if (labels.length === 0 && !statusMessage) {
     return null;
   }
 
@@ -25,11 +23,6 @@ export function OnboardingStartProgress({
       {statusMessage && (
         <div role="status" style={{ fontSize: 12, fontWeight: 800, color: "#1A1A1A" }}>
           {statusMessage}
-        </div>
-      )}
-      {claudeMessage && (
-        <div role="status" style={{ fontSize: 12, fontWeight: 800, color: "#A14B00" }}>
-          {claudeMessage}
         </div>
       )}
     </div>
