@@ -37,6 +37,7 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [gitInstalled, setGitInstalled] = useState<boolean | null>(null);
   const [xcodeCltInstalled, setXcodeCltInstalled] = useState<boolean | null>(null);
+  const [claudeInstalled, setClaudeInstalled] = useState<boolean | null>(null);
   const [onboardingSnapshot, setOnboardingSnapshot] = useState<OnboardingSnapshot | null>(null);
   const [startProgressLabels, setStartProgressLabels] = useState<string[]>([]);
   const [startStatusMessage, setStartStatusMessage] = useState<string | null>(null);
@@ -46,11 +47,14 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
     checkGitInstalled().then(setGitInstalled).catch(() => setGitInstalled(false));
     checkXcodeClt().then(setXcodeCltInstalled).catch(() => setXcodeCltInstalled(true));
     getOnboardingSnapshot().then(setOnboardingSnapshot).catch(() => setOnboardingSnapshot(null));
+    // 실제 설치 여부로 시스템 상태를 표시하기 위해 claude 가 PATH 에 있는지 탐지한다.
+    detectInstalledTools().then((tools) => setClaudeInstalled(tools.includes("claude"))).catch(() => setClaudeInstalled(false));
 
-    // 앱이 포커스를 다시 받으면 사용자가 외부에서 Git 을 설치했을 수 있으므로 재검사한다.
+    // 앱이 포커스를 다시 받으면 사용자가 외부에서 Git/Claude 를 설치했을 수 있으므로 재검사한다.
     let active = true;
     const onFocus = () => {
       checkGitInstalled().then((ok) => { if (active) setGitInstalled(ok); }).catch(() => undefined);
+      detectInstalledTools().then((tools) => { if (active) setClaudeInstalled(tools.includes("claude")); }).catch(() => undefined);
     };
     window.addEventListener("focus", onFocus);
 
@@ -164,6 +168,7 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
             vibChecking={vibChecking}
             gitInstalled={gitInstalled}
             xcodeCltInstalled={xcodeCltInstalled}
+            claudeInstalled={claudeInstalled}
             onboardingSnapshot={onboardingSnapshot}
             recentDirs={recentDirs}
             onResume={onResume}

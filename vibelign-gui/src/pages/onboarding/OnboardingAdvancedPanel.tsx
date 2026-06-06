@@ -9,6 +9,7 @@ interface OnboardingAdvancedPanelProps {
   readonly vibChecking: boolean;
   readonly gitInstalled: boolean | null;
   readonly xcodeCltInstalled: boolean | null;
+  readonly claudeInstalled: boolean | null;
   readonly onboardingSnapshot: OnboardingSnapshot | null;
   readonly recentDirs: readonly string[];
   readonly onResume?: (dir: string) => void;
@@ -21,12 +22,21 @@ export function OnboardingAdvancedPanel({
   vibChecking,
   gitInstalled,
   xcodeCltInstalled,
+  claudeInstalled,
   onboardingSnapshot,
   recentDirs,
   onResume,
   onRemoveRecent,
 }: OnboardingAdvancedPanelProps) {
   const [recentPage, setRecentPage] = useState(0);
+  // 실제 진단값 기반 Claude Code 상태: PATH 탐지 / 온보딩 검증(success) / 진단 플래그 중
+  // 하나라도 설치를 가리키면 "준비됨". 아직 탐지 전이면 "확인 중", 확실히 없으면 "미설치".
+  const claudeReady =
+    claudeInstalled === true ||
+    onboardingSnapshot?.state === "success" ||
+    onboardingSnapshot?.diagnostics.claudeOnPath === true ||
+    onboardingSnapshot?.diagnostics.claudeVersionOk === true;
+  const claudeCodeLabel = claudeReady ? "준비됨" : claudeInstalled === null ? "확인 중" : "미설치";
   const totalPages = Math.max(1, Math.ceil(recentDirs.length / RECENT_PAGE_SIZE));
   const currentPage = Math.min(recentPage, totalPages - 1);
   const pageStart = currentPage * RECENT_PAGE_SIZE;
@@ -45,11 +55,9 @@ export function OnboardingAdvancedPanel({
         <span className="badge" style={{ fontSize: 10 }}>
           Xcode CLT: {xcodeCltInstalled === null ? "확인 중" : xcodeCltInstalled ? "준비됨" : "확인 필요"}
         </span>
-        {onboardingSnapshot && (
-          <span className="badge" style={{ fontSize: 10 }}>
-            Claude Code: {onboardingSnapshot.state === "success" ? "준비됨" : "확인 필요"}
-          </span>
-        )}
+        <span className="badge" style={{ fontSize: 10 }}>
+          Claude Code: {claudeCodeLabel}
+        </span>
       </div>
 
       {recentDirs.length > 0 && onResume && (
