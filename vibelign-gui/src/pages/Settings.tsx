@@ -1,7 +1,8 @@
 // === ANCHOR: SETTINGS_START ===
 import { useState, useEffect, useMemo } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { saveProviderApiKey, deleteProviderApiKey, getVibPath, getEnvKeyStatus, getAiEnhancement, setAiEnhancement, getAutoBackupOnCommit, setAutoBackupOnCommit } from "../lib/vib";
+import { saveProviderApiKey, deleteProviderApiKey, getVibPath, getEnvKeyStatus, getAiEnhancement, setAiEnhancement, getAutoBackupOnCommit, setAutoBackupOnCommit, detectInstalledTools, runVib } from "../lib/vib";
+import { ToolSetupSelector } from "../components/ToolSetupSelector";
 
 const PROVIDER_MODELS: Record<string, string[]> = {
   ANTHROPIC: ["claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"],
@@ -46,6 +47,44 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
   const [aiEnhancementSaving, setAiEnhancementSaving] = useState(false);
   const [autoBackupOnCommit, setAutoBackupOnCommitState] = useState<boolean | null>(null);
   const [autoBackupSaving, setAutoBackupSaving] = useState(false);
+  const [detectedTools, setDetectedTools] = useState<string[] | null>(null);
+  const [selectedTools, setSelectedTools] = useState<Set<string>>(new Set());
+  const [toolSetupRunning, setToolSetupRunning] = useState(false);
+  const [toolSetupMsg, setToolSetupMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  useEffect(() => {
+    detectInstalledTools()
+      .then((tools) => { setDetectedTools(tools); setSelectedTools(new Set(tools)); })
+      .catch(() => setDetectedTools([]));
+  }, []);
+
+  async function applyToolSetup(): Promise<void> {
+    if (!projectDir) {
+      setToolSetupMsg({ type: "err", text: "프로젝트를 먼저 연 뒤 도구를 설정할 수 있어요." });
+      return;
+    }
+    const tools = Array.from(selectedTools);
+    if (tools.length === 0) {
+      setToolSetupMsg({ type: "err", text: "설정할 도구를 하나 이상 선택하세요." });
+      return;
+    }
+    setToolSetupRunning(true);
+    setToolSetupMsg(null);
+    try {
+      const r = await runVib(["start", "--non-interactive", "--tools", tools.join(",")], projectDir);
+      if (r.ok) {
+        setToolSetupMsg({ type: "ok", text: `선택한 도구를 설정했어요: ${tools.join(", ")}` });
+        const refreshed = await detectInstalledTools().catch(() => null);
+        if (refreshed) setDetectedTools(refreshed);
+      } else {
+        setToolSetupMsg({ type: "err", text: r.stderr || r.stdout || "도구 설정에 실패했어요." });
+      }
+    } catch (e) {
+      setToolSetupMsg({ type: "err", text: `도구 설정 실패: ${String(e)}` });
+    } finally {
+      setToolSetupRunning(false);
+    }
+  }
 
   const handleModelChange = (provider: string, model: string) => {
     const newModels = { ...models, [provider]: model };
@@ -512,6 +551,40 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
               <span style={{ fontSize: 11, color: "#888", fontFamily: "IBM Plex Mono, monospace" }}>
                 ai_enhancement: {aiEnhancement ? "true" : "false"}
               </span>
+            </div>
+          )}
+        </div>
+
+        {/* AI 도구 설정 (설치 후 추가 등록) 섹션 */}
+        <div className="card" style={{ marginTop: 16, padding: 14 }}>
+          <h2 style={{ fontSize: 13, margin: "0 0 6px", fontWeight: 900 }}>AI 도구 설정</h2>
+          <div style={{ fontSize: 11, color: "#666", lineHeight: 1.6, marginBottom: 10 }}>
+            VibeLign을 사용할 AI 도구를 선택해 규칙 파일과 MCP 등록을 생성해요.
+            나중에 새 도구를 설치하면 여기서 그 도구만 추가로 설정할 수 있어요. (설치된 도구는 자동 선택)
+          </div>
+          <ToolSetupSelector
+            detected={detectedTools}
+            selected={selectedTools}
+            onChange={setSelectedTools}
+            disabled={toolSetupRunning}
+          />
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={toolSetupRunning || !projectDir}
+              onClick={() => void applyToolSetup()}
+              style={{ background: "#F5621E", color: "#fff", fontWeight: 700 }}
+            >
+              {toolSetupRunning ? <span className="spinner" /> : "선택한 도구 설정 적용"}
+            </button>
+            {!projectDir && (
+              <span style={{ fontSize: 11, color: "#A14B00", fontWeight: 700 }}>프로젝트를 먼저 열어주세요</span>
+            )}
+          </div>
+          {toolSetupMsg && (
+            <div style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: toolSetupMsg.type === "ok" ? "#2f6f46" : "#b42318" }}>
+              {toolSetupMsg.text}
             </div>
           )}
         </div>

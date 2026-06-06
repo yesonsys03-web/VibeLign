@@ -17,6 +17,7 @@ import { OnboardingClaudeSetup } from "./onboarding/OnboardingClaudeSetup";
 import { OnboardingInputBar } from "./onboarding/OnboardingInputBar";
 import { OnboardingStartProgress } from "./onboarding/OnboardingStartProgress";
 import { OnboardingSystemWarnings } from "./onboarding/OnboardingSystemWarnings";
+import { ToolSetupSelector } from "../components/ToolSetupSelector";
 
 interface OnboardingProps {
   readonly onComplete: (projectDir: string, apiKey: string | null) => void;
@@ -38,6 +39,8 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
   const [gitInstalled, setGitInstalled] = useState<boolean | null>(null);
   const [xcodeCltInstalled, setXcodeCltInstalled] = useState<boolean | null>(null);
   const [claudeInstalled, setClaudeInstalled] = useState<boolean | null>(null);
+  const [detectedTools, setDetectedTools] = useState<string[] | null>(null);
+  const [selectedTools, setSelectedTools] = useState<Set<string>>(new Set());
   const [onboardingSnapshot, setOnboardingSnapshot] = useState<OnboardingSnapshot | null>(null);
   const [startProgressLabels, setStartProgressLabels] = useState<string[]>([]);
   const [startStatusMessage, setStartStatusMessage] = useState<string | null>(null);
@@ -47,14 +50,23 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
     checkGitInstalled().then(setGitInstalled).catch(() => setGitInstalled(false));
     checkXcodeClt().then(setXcodeCltInstalled).catch(() => setXcodeCltInstalled(true));
     getOnboardingSnapshot().then(setOnboardingSnapshot).catch(() => setOnboardingSnapshot(null));
-    // 실제 설치 여부로 시스템 상태를 표시하기 위해 claude 가 PATH 에 있는지 탐지한다.
-    detectInstalledTools().then((tools) => setClaudeInstalled(tools.includes("claude"))).catch(() => setClaudeInstalled(false));
+    // 설치된 AI 도구를 탐지해 시스템 상태 표시 + 도구 선택 기본값(설치된 것 자동 선택)에 쓴다.
+    detectInstalledTools()
+      .then((tools) => {
+        setClaudeInstalled(tools.includes("claude"));
+        setDetectedTools(tools);
+        setSelectedTools(new Set(tools));
+      })
+      .catch(() => {
+        setClaudeInstalled(false);
+        setDetectedTools([]);
+      });
 
     // 앱이 포커스를 다시 받으면 사용자가 외부에서 Git/Claude 를 설치했을 수 있으므로 재검사한다.
     let active = true;
     const onFocus = () => {
       checkGitInstalled().then((ok) => { if (active) setGitInstalled(ok); }).catch(() => undefined);
-      detectInstalledTools().then((tools) => { if (active) setClaudeInstalled(tools.includes("claude")); }).catch(() => undefined);
+      detectInstalledTools().then((tools) => { if (active) { setClaudeInstalled(tools.includes("claude")); setDetectedTools(tools); } }).catch(() => undefined);
     };
     window.addEventListener("focus", onFocus);
 
@@ -92,9 +104,9 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
     setStartStatusMessage(null);
     setStartProgressLabels([]);
 
-    const installedTools = await detectInstalledTools().catch(() => [] as string[]);
-    const startArgs = installedTools.length > 0
-      ? ["start", "--non-interactive", "--tools", installedTools.join(",")]
+    const tools = Array.from(selectedTools);
+    const startArgs = tools.length > 0
+      ? ["start", "--non-interactive", "--tools", tools.join(",")]
       : ["start", "--non-interactive"];
     const startResult = await runVibWithProgress(
       startArgs,
@@ -146,6 +158,12 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
             labels={startProgressLabels}
             statusMessage={startStatusMessage}
           />
+          <div style={{ width: "min(720px, 100%)", display: "grid", gap: 6 }}>
+            <div style={{ fontSize: 11, color: "#888", fontWeight: 700 }}>
+              MCP 자동 설정 <span style={{ color: "#aaa", fontWeight: 600 }}>(설치된 도구는 자동 선택돼요)</span>
+            </div>
+            <ToolSetupSelector detected={detectedTools} selected={selectedTools} onChange={setSelectedTools} />
+          </div>
           {claudeSetupOpen && <OnboardingClaudeSetup />}
           <button
             type="button"
