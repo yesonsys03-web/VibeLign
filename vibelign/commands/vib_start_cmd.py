@@ -417,6 +417,7 @@ def _resolve_import_graph(
 def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object]:
     from vibelign.core.meta_paths import MetaPaths
     from vibelign.core.scan_cache import incremental_scan
+    from vibelign.core.anchor_tools import compact_anchor_spans
 
     ui_tokens = [
         "ui",
@@ -478,7 +479,7 @@ def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object
             large_files.append(rel)
         files[rel] = {
             "category": category,
-            "anchor_spans": anchor_spans,
+            "anchor_spans": compact_anchor_spans(anchor_spans),
             "line_count": lines,
             "imports": resolved_imports.get(rel, []),
             "imported_by": sorted(imported_by.get(rel, [])),
@@ -495,7 +496,7 @@ def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object
     ]
 
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "project_name": root.name,
         "tree": _build_tree(root),
         "files": files,

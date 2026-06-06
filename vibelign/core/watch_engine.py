@@ -467,6 +467,7 @@ def run_watch(config: WatchConfig) -> None:
                     invalidated=set(changed),
                 )
                 from vibelign.commands.vib_start_cmd import _resolve_import_graph
+                from vibelign.core.anchor_tools import compact_anchor_spans
 
                 anchor_index = {
                     rel: data["anchors"]
@@ -482,7 +483,7 @@ def run_watch(config: WatchConfig) -> None:
                 files = {
                     rel: {
                         "category": data["category"],
-                        "anchor_spans": data.get("anchor_spans", []),
+                        "anchor_spans": compact_anchor_spans(data.get("anchor_spans", [])),
                         "line_count": data["line_count"],
                         "imports": resolved_imports.get(rel, []),
                         "imported_by": sorted(imported_by.get(rel, [])),
@@ -504,7 +505,7 @@ def run_watch(config: WatchConfig) -> None:
                 _ = payload.pop("anchor_index", None)
                 payload["file_count"] = len(scan)
                 payload["recently_changed"] = recently_changed
-                payload["schema_version"] = 2
+                payload["schema_version"] = 3
                 payload["updated_at"] = (
                     datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                 )

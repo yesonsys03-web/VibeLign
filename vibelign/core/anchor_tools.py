@@ -529,6 +529,50 @@ def extract_anchor_spans(path: Path) -> list[dict[str, object]]:
 # === ANCHOR: ANCHOR_TOOLS_EXTRACT_ANCHOR_SPANS_END ===
 
 
+# === ANCHOR: ANCHOR_TOOLS_COMPACT_ANCHOR_SPANS_START ===
+def compact_anchor_spans(spans: list[object]) -> list[str]:
+    """project_map.json 저장용 압축 표현. {name,start,end} → "NAME:start-end".
+
+    indent=2 직렬화에서 span 객체 1개가 ~6줄을 차지하던 것을 1줄로 줄인다.
+    signature 등 부가 필드는 맵에서 소비되지 않으므로 버린다(이미 문자열이면 그대로).
+    """
+    out: list[str] = []
+    for span in spans:
+        if isinstance(span, str):
+            out.append(span)
+        elif isinstance(span, dict):
+            name = span.get("name")
+            start = span.get("start")
+            end = span.get("end")
+            if isinstance(name, str) and isinstance(start, int) and isinstance(end, int):
+                out.append(f"{name}:{start}-{end}")
+    return out
+
+
+def rehydrate_anchor_spans(spans: list[object]) -> list[dict[str, object]]:
+    """compact_anchor_spans 의 역변환. "NAME:start-end" → {name,start,end}.
+
+    구버전 맵(객체 형식)도 그대로 통과시킨다(하위 호환).
+    """
+    out: list[dict[str, object]] = []
+    for span in spans:
+        if isinstance(span, dict):
+            out.append(span)
+        elif isinstance(span, str):
+            name, sep, rng = span.rpartition(":")
+            if not sep:
+                continue
+            start_s, dash, end_s = rng.partition("-")
+            if not dash:
+                continue
+            try:
+                out.append({"name": name, "start": int(start_s), "end": int(end_s)})
+            except ValueError:
+                continue
+    return out
+# === ANCHOR: ANCHOR_TOOLS_COMPACT_ANCHOR_SPANS_END ===
+
+
 # === ANCHOR: ANCHOR_TOOLS_SUGGEST_ANCHOR_NAMES_START ===
 def suggest_anchor_names(path: Path) -> list[str]:
     text = safe_read_text(path)

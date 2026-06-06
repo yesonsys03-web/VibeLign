@@ -9,7 +9,7 @@ from typing import cast
 from vibelign.core.meta_paths import MetaPaths
 
 
-SUPPORTED_PROJECT_MAP_SCHEMA = 2
+SUPPORTED_PROJECT_MAP_SCHEMA = 3
 
 
 @dataclass(frozen=True)
@@ -88,8 +88,9 @@ def load_project_map(root: Path) -> tuple[ProjectMapSnapshot | None, str | None]
     payload = cast(dict[str, object], loaded)
 
     schema_version = payload.get("schema_version")
-    if schema_version not in (1, 2):
+    if schema_version not in (1, 2, 3):
         return None, "unsupported_project_map_schema"
+    from vibelign.core.anchor_tools import rehydrate_anchor_spans
 
     # === ANCHOR: PROJECT_MAP__VALUES_START ===
     def _values(name: str) -> frozenset[str]:
@@ -132,23 +133,23 @@ def load_project_map(root: Path) -> tuple[ProjectMapSnapshot | None, str | None]
         else {}
     )
 
-    # 슬림화: project_map.json 은 더 이상 files[].anchors 와 최상위 anchor_index 를
-    # 저장하지 않는다(둘 다 anchor_spans 와 중복). 로드 시 anchor_spans 에서 파생해
-    # 소비처(structure_planner / recovery.signals)가 그대로 동작하게 한다.
-    # 구버전 맵에 키가 남아 있으면 그대로 사용한다(하위 호환).
+    # 슬림화: project_map.json 은 anchor_spans 만 저장하고(압축 "NAME:start-end" 형식),
+    # files[].anchors 와 최상위 anchor_index 는 저장하지 않는다. 로드 시 압축 span 을
+    # 객체({name,start,end})로 복원하고 anchors/anchor_index 를 파생해, 소비처
+    # (structure_planner / recovery.signals)가 그대로 동작하게 한다.
+    # 구버전 맵(객체 span / 키 보유)도 그대로 호환한다.
     for entry in files.values():
+        raw_spans = entry.get("anchor_spans")
+        spans = rehydrate_anchor_spans(
+            cast(list[object], raw_spans) if isinstance(raw_spans, list) else []
+        )
+        entry["anchor_spans"] = spans
         existing = entry.get("anchors")
         if isinstance(existing, list) and existing:
             continue
-        spans = entry.get("anchor_spans")
-        names: list[str] = []
-        if isinstance(spans, list):
-            for span in cast(list[object], spans):
-                if isinstance(span, dict):
-                    name = cast(dict[str, object], span).get("name")
-                    if isinstance(name, str):
-                        names.append(name)
-        entry["anchors"] = names
+        entry["anchors"] = [
+            name for span in spans if isinstance((name := span.get("name")), str)
+        ]
     if not anchor_index:
         anchor_index = {
             path: cast(list[str], anchors_val)
