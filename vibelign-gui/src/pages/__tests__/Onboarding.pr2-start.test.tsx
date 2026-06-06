@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import Onboarding from "../Onboarding";
-import type { VibProgressEvent, VibResult } from "../../lib/vib";
+import type { OnboardingSnapshot, VibProgressEvent, VibResult } from "../../lib/vib";
 
 const progressLabels = [
   "프로젝트 확인 중...",
@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
   getVibPathMock: vi.fn<() => Promise<string | null>>(),
   checkGitInstalledMock: vi.fn<() => Promise<boolean>>(),
   checkXcodeCltMock: vi.fn<() => Promise<boolean>>(),
-  getOnboardingSnapshotMock: vi.fn<() => Promise<never>>(),
+  getOnboardingSnapshotMock: vi.fn<() => Promise<OnboardingSnapshot>>(),
   detectInstalledToolsMock: vi.fn<() => Promise<string[]>>(),
   runVibWithProgressMock: vi.fn<
     (
@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => ({
     ) => Promise<VibResult>
   >(),
   startWatchMock: vi.fn<(...args: readonly [string]) => Promise<void>>(),
-  startNativeInstallMock: vi.fn<(...args: readonly ["native-cmd"]) => Promise<never>>(),
+  startNativeInstallMock: vi.fn<(...args: readonly ["native-powershell"]) => Promise<OnboardingSnapshot>>(),
 }));
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
@@ -76,6 +76,10 @@ async function selectProjectFolder(): Promise<void> {
   await screen.findByText((_content, node) => node?.textContent === "선택한 폴더: demo");
 }
 // === ANCHOR: ONBOARDING_PR2_START_TEST_SELECTPROJECTFOLDER_END ===
+
+function snapshotWithState(state: string, extra: Partial<OnboardingSnapshot> = {}): OnboardingSnapshot {
+  return { state, headline: "", ...extra } as OnboardingSnapshot;
+}
 
 describe("Onboarding PR2 auto start", () => {
   afterEach(() => {
@@ -170,6 +174,48 @@ describe("Onboarding PR2 auto start", () => {
     await waitFor(() => {
       expect(onPlanRequest).toHaveBeenCalledWith("/tmp/demo", "예약 앱 만들고 싶어");
     });
+  });
+
+  test("shows_login_hint_when_install_snapshot_reaches_login_required", async () => {
+    mocks.startNativeInstallMock.mockResolvedValue(snapshotWithState("installing_native"));
+    mocks.getOnboardingSnapshotMock.mockResolvedValue(snapshotWithState("login_required"));
+    renderOnboarding();
+
+    await selectProjectFolder();
+    fireEvent.click(screen.getByLabelText("Claude Code도 자동으로 준비하기"));
+    fireEvent.click(screen.getByRole("button", { name: "전송" }));
+
+    expect(await screen.findByText(/claude login/, {}, { timeout: 3000 })).toBeInTheDocument();
+  });
+
+  test("shows_background_message_when_install_still_running", async () => {
+    mocks.startNativeInstallMock.mockResolvedValue(snapshotWithState("installing_native"));
+    mocks.getOnboardingSnapshotMock.mockResolvedValue(snapshotWithState("installing_native"));
+    renderOnboarding();
+
+    await selectProjectFolder();
+    fireEvent.click(screen.getByLabelText("Claude Code도 자동으로 준비하기"));
+    fireEvent.click(screen.getByRole("button", { name: "전송" }));
+
+    expect(await screen.findByText(/백그라운드에서 설치 중/, {}, { timeout: 4000 })).toBeInTheDocument();
+  });
+
+  test("shows_real_reason_when_install_snapshot_reaches_blocked", async () => {
+    mocks.startNativeInstallMock.mockResolvedValue(snapshotWithState("installing_native"));
+    mocks.getOnboardingSnapshotMock.mockResolvedValue(
+      snapshotWithState("blocked", {
+        lastError: { code: "unknown", summary: "설치 프로세스 spawn 자체가 실패했어요." },
+      }),
+    );
+    renderOnboarding();
+
+    await selectProjectFolder();
+    fireEvent.click(screen.getByLabelText("Claude Code도 자동으로 준비하기"));
+    fireEvent.click(screen.getByRole("button", { name: "전송" }));
+
+    expect(
+      await screen.findByText(/준비 실패: 설치 프로세스 spawn 자체가 실패했어요/, {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
   });
 
   test("includes_tools_for_all_installed_tools", async () => {

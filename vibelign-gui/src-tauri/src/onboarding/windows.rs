@@ -660,12 +660,9 @@ pub(crate) fn start_install(
         },
     );
 
-    if !check_git_installed() {
-        let missing = build_initial_onboarding_snapshot();
-        store_onboarding_snapshot(&state.0, &missing);
-        return missing;
-    }
-
+    // 공식 설치 스크립트(bootstrap.ps1/cmd)는 git 없이 바이너리를 내려받으므로
+    // Claude Code 설치를 git 설치 여부로 막지 않는다. (git 은 프로젝트 안전장치 용도이며
+    // diagnostics 에서 별도로 보고된다.)
     let state_arc = Arc::clone(&state.0);
     let app_handle = app.clone();
     std::thread::spawn(move || {
@@ -775,11 +772,23 @@ pub(crate) fn start_install(
                         path_kind.as_contract_value(),
                     );
                     verified.install_path_kind = path_kind.as_contract_value().to_string();
-                    // 네이티브 검증이 login_required(성공) 상태이고 WSL 이 감지되면
-                    // '코알못' 사용자도 WSL 터미널에서 곧장 `claude` 를 쓸 수 있도록
-                    // 병렬 트랙 설치를 자동으로 이어서 실행한다. 네이티브 결과는
-                    // 이미 저장되어 있어 WSL 실패가 네이티브 성공을 덮어쓰지 않는다.
-                    if verified.state == "login_required" && check_wsl_available() {
+                    // 설치는 성공했지만 PATH 미설정(path_not_configured)이면 '자동으로 준비하기'
+                    // 약속대로 사용자 PATH 에 자동 추가한다. add_to_user_path 는 성공 시
+                    // login_required 로 끌어올리고 WSL 연속 설치까지 내부에서 처리하므로,
+                    // 이 경로에서는 아래 WSL 블록을 다시 타지 않고 그 결과를 그대로 쓴다.
+                    let path_not_configured = verified.state == "needs_manual_step"
+                        && verified
+                            .last_error
+                            .as_ref()
+                            .map(|e| e.code == "path_not_configured")
+                            .unwrap_or(false);
+                    if path_not_configured {
+                        add_to_user_path(app_handle.clone(), &state_arc)
+                    } else if verified.state == "login_required" && check_wsl_available() {
+                        // 네이티브 검증이 login_required(성공) 상태이고 WSL 이 감지되면
+                        // '코알못' 사용자도 WSL 터미널에서 곧장 `claude` 를 쓸 수 있도록
+                        // 병렬 트랙 설치를 자동으로 이어서 실행한다. 네이티브 결과는
+                        // 이미 저장되어 있어 WSL 실패가 네이티브 성공을 덮어쓰지 않는다.
                         run_wsl_install_flow(&state_arc, &app_handle, verified)
                     } else {
                         verified
@@ -863,8 +872,11 @@ pub(crate) fn retry_verification(
 
 pub(crate) fn add_to_user_path(
     app: tauri::AppHandle,
-    state: tauri::State<OnboardingState>,
+    state_arc: &Arc<Mutex<OnboardingRuntime>>,
 ) -> OnboardingSnapshot {
+    // 설치 백그라운드 스레드(&Arc)와 Tauri 커맨드(State) 양쪽에서 호출할 수 있도록
+    // Arc 를 직접 받는다. 본문은 기존 OnboardingState 인터페이스를 그대로 쓰도록 재바인딩한다.
+    let state = OnboardingState(Arc::clone(state_arc));
     let bin_dir = windows_expected_claude_path()
         .and_then(|p| p.parent().map(|d| d.to_string_lossy().to_string()))
         .unwrap_or_else(|| String::from("C:\\Users\\%USERNAME%\\.local\\bin"));

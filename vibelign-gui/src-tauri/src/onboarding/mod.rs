@@ -492,7 +492,7 @@ pub fn add_claude_to_user_path(
 ) -> OnboardingSnapshot {
     #[cfg(target_os = "windows")]
     {
-        return windows::add_to_user_path(app, state);
+        return windows::add_to_user_path(app, &state.0);
     }
 
     #[cfg(target_os = "macos")]
