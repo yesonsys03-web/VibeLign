@@ -122,8 +122,11 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
       <main style={{ width: "min(860px, calc(100% - 32px))", margin: "0 auto", padding: "72px 0 28px", flex: 1 }}>
         <section style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
           <h1 className="heading-xl" style={{ fontSize: 24, margin: 0, textAlign: "center" }}>
-            기획 없이 코딩하고, 백업 없이 후회하지 마세요
+            계획부터, 바이브까지, 되돌림은 언제든
           </h1>
+          <p style={{ margin: 0, textAlign: "center", color: "#666", fontSize: 14, fontWeight: 600 }}>
+            무엇을 만들지 한 줄로 적어보세요. 나머지는 정렬해 드릴게요
+          </p>
           <OnboardingInputBar
             promptText={promptText}
             selectedDirName={selectedDir ? selectedDirName : ""}
