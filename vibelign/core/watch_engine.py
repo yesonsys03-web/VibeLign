@@ -474,7 +474,7 @@ def run_watch(config: WatchConfig) -> None:
                     for rel, data in scan.items()
                     if data.get("anchors")
                 }
-                resolved_imports, imported_by = _resolve_import_graph(
+                resolved_imports, _imported_by = _resolve_import_graph(
                     cast(dict[str, object], cast(object, scan))
                 )
                 # files[].anchors / 최상위 anchor_index 는 project_map.json 에 저장하지
@@ -486,7 +486,6 @@ def run_watch(config: WatchConfig) -> None:
                         "anchor_spans": compact_anchor_spans(data.get("anchor_spans", [])),
                         "line_count": data["line_count"],
                         "imports": resolved_imports.get(rel, []),
-                        "imported_by": sorted(imported_by.get(rel, [])),
                     }
                     for rel, data in scan.items()
                 }
@@ -501,8 +500,9 @@ def run_watch(config: WatchConfig) -> None:
                     for rel, mtime in mtime_pairs[:10]
                 ]
                 payload["files"] = files
-                # 구버전 맵에서 넘어온 stale anchor_index 키 제거(이제 로더가 파생).
+                # 구버전 맵에서 넘어온 stale 키 제거(이제 로더가 파생 / 미저장).
                 _ = payload.pop("anchor_index", None)
+                _ = payload.pop("tree", None)
                 payload["file_count"] = len(scan)
                 payload["recently_changed"] = recently_changed
                 payload["schema_version"] = 3

@@ -27,7 +27,7 @@ from vibelign.core.hook_setup import detect_tool, remove_old_hook, setup_hook_if
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_root import resolve_project_root
 from vibelign.core.project_scan import iter_source_files
-from vibelign.core.structure_policy import COMMON_IGNORED_DIRS, WINDOWS_SUBPROCESS_FLAGS
+from vibelign.core.structure_policy import WINDOWS_SUBPROCESS_FLAGS
 from vibelign.terminal_render import (
     clack_info,
     clack_intro,
@@ -60,16 +60,6 @@ VIB_START_PROGRESS_LABELS: Final[tuple[str, str, str, str, str]] = (
     "준비 완료",
 )
 
-_TREE_SKIP = COMMON_IGNORED_DIRS | {
-    ".vibelign",
-    ".ruff_cache",
-    ".tox",
-    "coverage",
-    "dist-vib",
-    "vib-runtime",
-}
-
-
 def _emit_start_progress(step: int) -> None:
     label = VIB_START_PROGRESS_LABELS[step - 1]
     print(
@@ -84,35 +74,6 @@ def _emit_start_progress(step: int) -> None:
         ),
         flush=True,
     )
-
-
-# === ANCHOR: VIB_START_CMD__BUILD_TREE_START ===
-def _build_tree(root: Path) -> list[str]:
-    lines: list[str] = []
-
-    # === ANCHOR: VIB_START_CMD__WALK_START ===
-    def _walk(path: Path, depth: int) -> None:
-        try:
-            entries = sorted(
-                path.iterdir(), key=lambda p: (p.is_file(), p.name.lower())
-            )
-        except (PermissionError, OSError):
-            return
-        for entry in entries:
-            if entry.name.startswith(".") or entry.name in _TREE_SKIP:
-                continue
-            indent = "  " * depth
-            if entry.is_dir():
-                lines.append(f"{indent}{entry.name}/")
-                _walk(entry, depth + 1)
-            else:
-                lines.append(f"{indent}{entry.name}")
-
-    # === ANCHOR: VIB_START_CMD__WALK_END ===
-
-    # === ANCHOR: VIB_START_CMD__BUILD_TREE_END ===
-    _walk(root, 0)
-    return lines
 
 
 CONFIG_YAML = """schema_version: 1
@@ -456,7 +417,8 @@ def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object
     large_files: list[str] = []
     files: dict[str, object] = {}
 
-    resolved_imports, imported_by = _resolve_import_graph(scan)
+    # imported_by(역참조 인덱스)는 어디서도 소비되지 않아 맵에 저장하지 않는다.
+    resolved_imports, _imported_by = _resolve_import_graph(scan)
 
     for rel, data in scan.items():
         low = rel.lower()
@@ -482,7 +444,6 @@ def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object
             "anchor_spans": compact_anchor_spans(anchor_spans),
             "line_count": lines,
             "imports": resolved_imports.get(rel, []),
-            "imported_by": sorted(imported_by.get(rel, [])),
         }
 
     mtime_pairs: list[tuple[str, float]] = []
@@ -498,7 +459,6 @@ def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object
     return {
         "schema_version": 3,
         "project_name": root.name,
-        "tree": _build_tree(root),
         "files": files,
         "entry_files": sorted(entry_files),
         "ui_modules": sorted(ui_modules),
