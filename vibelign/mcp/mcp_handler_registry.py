@@ -156,6 +156,10 @@ class MiscHandlersModule(Protocol):
         self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
     ) -> list[object]: ...
 
+    def handle_planning_get(
+        self, root: Path, arguments: dict[str, object], text_content: TextContentFactory
+    ) -> list[object]: ...
+
 
 class MemoryHandlersModule(Protocol):
     def handle_memory_summary_read(
@@ -363,6 +367,12 @@ def _handle_project_map_get(
     return _misc_handlers().handle_project_map_get(root, arguments, text_content)
 
 
+def _handle_planning_get(
+    root: Path, arguments: dict[str, object], text_content: TextContentFactory
+) -> list[object]:
+    return _misc_handlers().handle_planning_get(root, arguments, text_content)
+
+
 def _handle_transfer_set_decision(
     root: Path, arguments: dict[str, object], text_content: TextContentFactory
 ) -> list[object]:
@@ -476,6 +486,7 @@ DISPATCH_TABLE: dict[str, DispatchHandler] = {
     "anchor_list": _handle_anchor_list,
     "config_get": _handle_config_get,
     "project_map_get": _handle_project_map_get,
+    "planning_get": _handle_planning_get,
     "doctor_plan": _doctor_handlers().handle_doctor_plan,
     "doctor_apply": _doctor_handlers().handle_doctor_apply,
 }

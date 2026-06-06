@@ -517,5 +517,23 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
             },
         },
     },
+    {
+        "name": "planning_get",
+        "description": (
+            "기획방에서 가장 최근에 저장된 기획안(plan.md)의 내용을 반환합니다. "
+            "host LLM이 이 기획안을 받아 코드베이스에 바로 실행하기 위한 진입점입니다. "
+            "복사-붙여넣기 없이 기획 → 실행을 잇습니다. "
+            "session_id를 주면 특정 기획안을, 생략하면 최신 저장본을 가져옵니다."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "특정 기획 세션 ID (생략 시 가장 최근 저장본)",
+                }
+            },
+        },
+    },
 )
 # === ANCHOR: MCP_TOOL_SPECS_END ===

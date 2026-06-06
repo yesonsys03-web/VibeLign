@@ -116,6 +116,7 @@ class McpToolSnapshotTest(unittest.TestCase):
                 "project_map_get",
                 "doctor_plan",
                 "doctor_apply",
+                "planning_get",
             ],
         )
 
