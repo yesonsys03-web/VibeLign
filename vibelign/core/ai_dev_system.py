@@ -122,7 +122,7 @@ The AI should treat them as the preferred editing boundaries.
 If `.vibelign/project_map.json` exists:
 
 - Read it before making any changes to understand file roles and anchor locations
-- Use the `anchor_index` field to find which anchors exist in each file
+- Use each file's `anchor_spans` field (name + start/end lines) to find which anchors exist and where
 - Check `.vibelign/anchor_meta.json` for anchor intent and cross-file dependencies (`@CONNECTS`)
 - Do not modify files outside the categories relevant to the request
 

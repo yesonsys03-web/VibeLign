@@ -476,10 +476,12 @@ def run_watch(config: WatchConfig) -> None:
                 resolved_imports, imported_by = _resolve_import_graph(
                     cast(dict[str, object], cast(object, scan))
                 )
+                # files[].anchors / 최상위 anchor_index 는 project_map.json 에 저장하지
+                # 않는다(anchor_spans 와 중복, 로더가 파생). anchor_index 변수는 아래
+                # 별도 anchor_index.json 생성에만 쓴다.
                 files = {
                     rel: {
                         "category": data["category"],
-                        "anchors": data["anchors"],
                         "anchor_spans": data.get("anchor_spans", []),
                         "line_count": data["line_count"],
                         "imports": resolved_imports.get(rel, []),
@@ -497,8 +499,9 @@ def run_watch(config: WatchConfig) -> None:
                     {"path": rel, "mtime": mtime}
                     for rel, mtime in mtime_pairs[:10]
                 ]
-                payload["anchor_index"] = anchor_index
                 payload["files"] = files
+                # 구버전 맵에서 넘어온 stale anchor_index 키 제거(이제 로더가 파생).
+                _ = payload.pop("anchor_index", None)
                 payload["file_count"] = len(scan)
                 payload["recently_changed"] = recently_changed
                 payload["schema_version"] = 2

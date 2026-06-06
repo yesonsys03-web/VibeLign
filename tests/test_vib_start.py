@@ -440,9 +440,11 @@ class TestPagesRoutesUiClassification(unittest.TestCase):
 
         rust_files = cast(dict[str, dict[str, object]], rust_map["files"])
         python_files = cast(dict[str, dict[str, object]], python_map["files"])
-        self.assertEqual(rust_map["anchor_index"], python_map["anchor_index"])
-        self.assertEqual(rust_files[rel]["anchors"], python_files[rel]["anchors"])
+        # project_map.json 은 anchor_spans 만 저장한다(anchors/anchor_index 는 로더가 파생).
+        # Rust/Python 스캔 경로의 앵커 일치는 권위본인 anchor_spans 로 검증한다.
         self.assertEqual(rust_files[rel]["anchor_spans"], python_files[rel]["anchor_spans"])
+        self.assertNotIn("anchor_index", rust_map)
+        self.assertNotIn("anchors", rust_files[rel])
         rust_scan.assert_called_once_with(rust_root)
 
 

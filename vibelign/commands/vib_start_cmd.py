@@ -453,7 +453,6 @@ def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object
     core_modules: list[str] = []
     service_modules: list[str] = []
     large_files: list[str] = []
-    anchor_index: dict[str, object] = {}
     files: dict[str, object] = {}
 
     resolved_imports, imported_by = _resolve_import_graph(scan)
@@ -461,7 +460,8 @@ def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object
     for rel, data in scan.items():
         low = rel.lower()
         category = str(data["category"])
-        anchors = data["anchors"]
+        # files[].anchors / 최상위 anchor_index 는 저장하지 않는다(anchor_spans 와 중복).
+        # 로더가 anchor_spans 에서 파생한다.
         anchor_spans = data.get("anchor_spans", [])
         raw_lines = data["line_count"]
         lines = raw_lines if isinstance(raw_lines, int) else 0
@@ -476,11 +476,8 @@ def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object
             service_modules.append(rel)
         if lines >= LARGE_FILE_LINE_THRESHOLD:
             large_files.append(rel)
-        if anchors:
-            anchor_index[rel] = anchors
         files[rel] = {
             "category": category,
-            "anchors": anchors,
             "anchor_spans": anchor_spans,
             "line_count": lines,
             "imports": resolved_imports.get(rel, []),
@@ -508,7 +505,6 @@ def _build_project_map(root: Path, force_scan: bool = False) -> dict[str, object
         "service_modules": sorted(service_modules),
         "large_files": sorted(large_files),
         "file_count": len(scan),
-        "anchor_index": anchor_index,
         "recently_changed": recently_changed,
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }

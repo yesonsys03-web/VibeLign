@@ -131,6 +131,31 @@ def load_project_map(root: Path) -> tuple[ProjectMapSnapshot | None, str | None]
         if isinstance(raw_files, dict)
         else {}
     )
+
+    # 슬림화: project_map.json 은 더 이상 files[].anchors 와 최상위 anchor_index 를
+    # 저장하지 않는다(둘 다 anchor_spans 와 중복). 로드 시 anchor_spans 에서 파생해
+    # 소비처(structure_planner / recovery.signals)가 그대로 동작하게 한다.
+    # 구버전 맵에 키가 남아 있으면 그대로 사용한다(하위 호환).
+    for entry in files.values():
+        existing = entry.get("anchors")
+        if isinstance(existing, list) and existing:
+            continue
+        spans = entry.get("anchor_spans")
+        names: list[str] = []
+        if isinstance(spans, list):
+            for span in cast(list[object], spans):
+                if isinstance(span, dict):
+                    name = cast(dict[str, object], span).get("name")
+                    if isinstance(name, str):
+                        names.append(name)
+        entry["anchors"] = names
+    if not anchor_index:
+        anchor_index = {
+            path: cast(list[str], anchors_val)
+            for path, entry in files.items()
+            if isinstance((anchors_val := entry.get("anchors")), list) and anchors_val
+        }
+
     return (
         ProjectMapSnapshot(
             schema_version=schema_version,
