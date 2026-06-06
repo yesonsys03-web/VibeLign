@@ -1,5 +1,5 @@
 // === ANCHOR: ONBOARDINGCLAUDESETUP_START ===
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   addClaudeToUserPath,
@@ -34,7 +34,11 @@ const PRIMARY_ACTIONS = new Set<string>([
 ]);
 
 // === ANCHOR: ONBOARDINGCLAUDESETUP_ONBOARDINGCLAUDESETUP_START ===
-export function OnboardingClaudeSetup() {
+interface OnboardingClaudeSetupProps {
+  readonly topContent?: ReactNode;
+}
+
+export function OnboardingClaudeSetup({ topContent }: OnboardingClaudeSetupProps) {
   const [snapshot, setSnapshot] = useState<OnboardingSnapshot | null>(null);
   const [progress, setProgress] = useState<OnboardingProgressEvent | null>(null);
   const [logs, setLogs] = useState("");
@@ -127,8 +131,23 @@ export function OnboardingClaudeSetup() {
 
   if (!snapshot) {
     return (
-      <div style={{ width: "min(720px, 100%)", marginTop: 12, fontSize: 12, color: "#555" }}>
-        Claude Code 상태를 확인하는 중이에요…
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          boxSizing: "border-box",
+          display: "flex",
+          flexDirection: "column",
+          border: "2px solid #1A1A1A",
+          background: "#FFF8E8",
+          padding: "12px 16px",
+          boxShadow: "4px 4px 0 #1A1A1A",
+        }}
+      >
+        {topContent && (
+          <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "2px solid #1A1A1A" }}>{topContent}</div>
+        )}
+        <div style={{ fontSize: 12, color: "#555" }}>Claude Code 상태를 확인하는 중이에요…</div>
       </div>
     );
   }
@@ -141,14 +160,20 @@ export function OnboardingClaudeSetup() {
   return (
     <div
       style={{
-        width: "min(720px, 100%)",
-        marginTop: 12,
+        width: "100%",
+        height: "100%",
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
         border: "2px solid #1A1A1A",
         background: snapshot.state === "success" ? "#F2FFF7" : "#FFF8E8",
         padding: "12px 16px",
         boxShadow: "4px 4px 0 #1A1A1A",
       }}
     >
+      {topContent && (
+        <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "2px solid #1A1A1A" }}>{topContent}</div>
+      )}
       <div style={{ fontSize: 10, fontWeight: 800, color: "#666", marginBottom: 5 }}>CLAUDE CODE 설치/관리</div>
       <div style={{ fontSize: 14, fontWeight: 800, color: "#1A1A1A", marginBottom: 4 }}>{snapshot.headline}</div>
       {snapshot.detail && (
@@ -213,7 +238,7 @@ export function OnboardingClaudeSetup() {
       )}
 
       {(primaryEnabled || showUninstall) && (
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: "auto", paddingTop: 12 }}>
           {primaryEnabled && snapshot.primaryButtonLabel && (
             <button
               type="button"

@@ -16,7 +16,7 @@ export function OnboardingSystemWarnings({
   onboardingSnapshot,
 }: OnboardingSystemWarningsProps) {
   return (
-    <section style={{ marginTop: 18 }}>
+    <section>
       {gitInstalled === false && (() => {
         const ua = navigator.userAgent.toLowerCase();
         const isWin = ua.includes("win");

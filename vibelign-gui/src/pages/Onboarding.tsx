@@ -134,7 +134,7 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
 
   return (
     <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "var(--bg)", overflow: "auto" }}>
-      <main style={{ width: "min(860px, calc(100% - 32px))", margin: "0 auto", padding: "72px 0 28px", flex: 1 }}>
+      <main style={{ width: "min(860px, calc(100% - 32px))", margin: "0 auto", padding: setupOpen ? "20px 0 24px" : "72px 0 28px", flex: 1 }}>
         <section style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
           <h1 className="heading-xl" style={{ fontSize: 24, margin: 0, textAlign: "center" }}>
             계획부터, 바이브까지, 되돌림은 언제든
@@ -164,29 +164,38 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
             {setupOpen ? "▾" : "▸"} AI 도구 · 설치 · 시스템 상태
           </button>
           {setupOpen && (
-            <div style={{ width: "min(720px, 100%)", display: "grid", gap: 14 }}>
-              <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 11, color: "#888", fontWeight: 700 }}>
-                  MCP 자동 설정 <span style={{ color: "#aaa", fontWeight: 600 }}>(설치된 도구는 자동 선택돼요)</span>
+            <div style={{ width: "min(860px, 100%)", display: "grid", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "stretch" }}>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <OnboardingClaudeSetup
+                    topContent={
+                      <div style={{ display: "grid", gap: 6 }}>
+                        <div style={{ fontSize: 11, color: "#888", fontWeight: 700 }}>
+                          MCP 자동 설정 <span style={{ color: "#aaa", fontWeight: 600 }}>(설치된 도구는 자동 선택돼요)</span>
+                        </div>
+                        <ToolSetupSelector detected={detectedTools} selected={selectedTools} onChange={setSelectedTools} />
+                      </div>
+                    }
+                  />
                 </div>
-                <ToolSetupSelector detected={detectedTools} selected={selectedTools} onChange={setSelectedTools} />
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <OnboardingAdvancedPanel
+                    vibFound={vibFound}
+                    vibChecking={vibChecking}
+                    gitInstalled={gitInstalled}
+                    xcodeCltInstalled={xcodeCltInstalled}
+                    claudeInstalled={claudeInstalled}
+                    onboardingSnapshot={onboardingSnapshot}
+                    recentDirs={recentDirs}
+                    onResume={onResume}
+                    onRemoveRecent={onRemoveRecent}
+                  />
+                </div>
               </div>
-              <OnboardingClaudeSetup />
               <OnboardingSystemWarnings
                 gitInstalled={gitInstalled}
                 xcodeCltInstalled={xcodeCltInstalled}
                 onboardingSnapshot={onboardingSnapshot}
-              />
-              <OnboardingAdvancedPanel
-                vibFound={vibFound}
-                vibChecking={vibChecking}
-                gitInstalled={gitInstalled}
-                xcodeCltInstalled={xcodeCltInstalled}
-                claudeInstalled={claudeInstalled}
-                onboardingSnapshot={onboardingSnapshot}
-                recentDirs={recentDirs}
-                onResume={onResume}
-                onRemoveRecent={onRemoveRecent}
               />
             </div>
           )}
