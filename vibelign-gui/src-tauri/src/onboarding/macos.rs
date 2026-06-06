@@ -655,6 +655,15 @@ pub(crate) fn installed_tools() -> Vec<String> {
         found.push("antigravity".to_string());
     }
 
+    // Claude Desktop has no CLI — detect by its app-support config directory
+    let claude_desktop_dir = PathBuf::from(&home)
+        .join("Library")
+        .join("Application Support")
+        .join("Claude");
+    if claude_desktop_dir.exists() {
+        found.push("claude_desktop".to_string());
+    }
+
     found
 }
 // === ANCHOR: MACOS_END ===

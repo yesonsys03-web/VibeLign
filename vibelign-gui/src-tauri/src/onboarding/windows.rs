@@ -1452,6 +1452,14 @@ pub(crate) fn installed_tools() -> Vec<String> {
         }
     }
 
+    // Claude Desktop has no CLI — detect by its %APPDATA%\Claude config directory
+    if let Some(profile) = windows_user_profile() {
+        let claude_desktop_dir = profile.join("AppData").join("Roaming").join("Claude");
+        if claude_desktop_dir.exists() {
+            found.push("claude_desktop".to_string());
+        }
+    }
+
     found
 }
 // === ANCHOR: WINDOWS_END ===

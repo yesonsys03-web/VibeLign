@@ -44,13 +44,21 @@ GITIGNORE_SCAN_CACHE_LINE = ".vibelign/scan_cache.json"
 GITIGNORE_LOGS_LINE = ".vibelign/logs/"
 GITIGNORE_REPORTS_LINE = ".vibelign/reports/"
 LARGE_FILE_LINE_THRESHOLD = 300
-START_TOOL_CHOICES = ("claude", "opencode", "cursor", "antigravity", "codex")
+START_TOOL_CHOICES = (
+    "claude",
+    "opencode",
+    "cursor",
+    "antigravity",
+    "codex",
+    "claude_desktop",
+)
 TOOL_DISPLAY_NAMES = {
     "claude": "Claude",
     "opencode": "OpenCode",
     "cursor": "Cursor",
     "antigravity": "Antigravity",
     "codex": "Codex",
+    "claude_desktop": "Claude Desktop",
 }
 VIB_START_PROGRESS_LABELS: Final[tuple[str, str, str, str, str]] = (
     "프로젝트 확인 중...",
@@ -769,6 +777,68 @@ def _register_mcp_codex() -> tuple[bool, Path]:
     return True, config_path
 
 
+def _claude_desktop_config_path() -> Path:
+    """Claude Desktop 글로벌 MCP 설정 파일 경로 (플랫폼별).
+
+    Why: Claude Desktop 은 OS 마다 config 위치가 다르다. CLI(Claude Code)와 별개 앱.
+    """
+    home = Path.home()
+    if sys.platform == "darwin":
+        return (
+            home
+            / "Library"
+            / "Application Support"
+            / "Claude"
+            / "claude_desktop_config.json"
+        )
+    if sys.platform == "win32":
+        # %APPDATA% = ~\AppData\Roaming (표준 설치)
+        return home / "AppData" / "Roaming" / "Claude" / "claude_desktop_config.json"
+    return home / ".config" / "Claude" / "claude_desktop_config.json"
+
+
+def _register_mcp_claude_desktop() -> tuple[bool, Path]:
+    """Claude Desktop 글로벌 MCP 설정에 vibelign 등록.
+
+    Schema: Cursor/Antigravity 와 동일한 mcpServers.<name>.{command, args}
+
+    Why: Claude Desktop 은 CLI(Claude Code)와 별개 앱이고 project-local MCP 를
+         지원하지 않아 글로벌 전용. Claude Code 등록(.mcp.json)과 독립적으로 동작.
+    """
+    config_path = _claude_desktop_config_path()
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if config_path.exists():
+        try:
+            loaded = cast(object, json.loads(config_path.read_text(encoding="utf-8")))
+            config = (
+                cast(dict[str, object], loaded) if isinstance(loaded, dict) else {}
+            )
+        except (json.JSONDecodeError, OSError):
+            backup = config_path.with_suffix(".json.bak")
+            _ = config_path.rename(backup)
+            clack_warn(
+                f"{config_path.name} 파일이 손상되어 백업했습니다. ({backup.name})\n  MCP 등록을 새로 진행합니다."
+            )
+            config = {}
+    else:
+        config = {}
+
+    existing = config.get("mcpServers")
+    servers = cast(dict[str, object], existing) if isinstance(existing, dict) else {}
+    config["mcpServers"] = servers
+    if "vibelign" in servers:
+        return False, config_path
+
+    cmd, args = _resolve_mcp_command()
+    servers["vibelign"] = {"command": cmd, "args": args}
+    _ = config_path.write_text(
+        json.dumps(config, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return True, config_path
+
+
 # === ANCHOR: VIB_START_CMD__REGISTER_MCP_END ===
 
 
@@ -866,12 +936,20 @@ def _configure_start_tools(
             registered, cx_path = _register_mcp_codex()
             if registered:
                 created.append(f"{_display_path(cx_path, root)} (MCP 등록, 글로벌)")
+            continue
+
+        if tool == "claude_desktop":
+            # Claude Desktop 은 프로젝트 규칙 파일(CLAUDE.md 등)이 없는 글로벌 챗 앱 →
+            # export/write_*_md 없이 MCP 등록만 한다.
+            registered, cd_path = _register_mcp_claude_desktop()
+            if registered:
+                created.append(f"{_display_path(cd_path, root)} (MCP 등록, 글로벌)")
 
     return created
 
 
 def _tool_readiness(tools: list[str]) -> dict[str, list[str]]:
-    # 5개 도구 (claude/cursor/opencode/antigravity/codex) 모두 MCP 자동 등록됨.
+    # 6개 도구 (claude/cursor/opencode/antigravity/codex/claude_desktop) 모두 MCP 자동 등록됨.
     return {
         "ready": [TOOL_DISPLAY_NAMES[t] for t in tools],
         "almost_ready": [],

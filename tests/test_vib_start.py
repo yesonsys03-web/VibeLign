@@ -10,11 +10,13 @@ from vibelign.cli import build_parser as build_basic_parser
 from vibelign.commands.export_cmd import export_tool_files
 from vibelign.commands.vib_start_cmd import (
     VIB_START_PROGRESS_LABELS,
+    _claude_desktop_config_path,
     _ensure_gitignore_entry,
     _ensure_rule_files,
     _emit_start_progress,
     _next_step,
     _parse_start_tools,
+    _register_mcp_claude_desktop,
     _register_mcp_cursor,
     _selected_start_tools,
     _status_line,
@@ -49,8 +51,31 @@ class VibStartTest(unittest.TestCase):
         args = types.SimpleNamespace(all_tools=True, tools=None)
         self.assertEqual(
             _selected_start_tools(args),
-            ["claude", "opencode", "cursor", "antigravity", "codex"],
+            ["claude", "opencode", "cursor", "antigravity", "codex", "claude_desktop"],
         )
+
+    def test_claude_desktop_config_path_is_platform_specific(self):
+        path = _claude_desktop_config_path()
+        self.assertEqual(path.name, "claude_desktop_config.json")
+        self.assertIn("Claude", path.parts)
+
+    def test_register_mcp_claude_desktop_writes_global_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Path(tmp) / "Claude" / "claude_desktop_config.json"
+            with patch(
+                "vibelign.commands.vib_start_cmd._claude_desktop_config_path",
+                return_value=cfg,
+            ):
+                created, path = _register_mcp_claude_desktop()
+                # 두 번째 호출은 idempotent (이미 등록됨 → False)
+                second, _ = _register_mcp_claude_desktop()
+
+            self.assertTrue(created)
+            self.assertEqual(path, cfg)
+            self.assertFalse(second)
+            data = cast(dict[str, object], json.loads(cfg.read_text(encoding="utf-8")))
+            servers = cast(dict[str, object], data["mcpServers"])
+            self.assertIn("vibelign", servers)
 
     def test_tool_readiness_marks_all_tools_ready(self):
         # 5개 도구 모두 MCP 자동 등록 → 전부 ready 분류.

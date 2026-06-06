@@ -648,6 +648,11 @@ pub(crate) fn installed_tools() -> Vec<String> {
         if antigravity_dir.exists() {
             found.push("antigravity".to_string());
         }
+        let claude_desktop_dir =
+            std::path::PathBuf::from(&home).join(".config").join("Claude");
+        if claude_desktop_dir.exists() {
+            found.push("claude_desktop".to_string());
+        }
         found
     }
 }

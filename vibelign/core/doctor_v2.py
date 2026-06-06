@@ -90,9 +90,23 @@ MCP_TOOL_CONFIGS = {
         signals=[Path("vibelign_exports/codex")],
         config_format="toml",
     ),
+    "claude_desktop": MCPToolConfig(
+        label="Claude Desktop",
+        # 플랫폼별 경로 — 첫 번째로 존재하는 것이 그 머신의 실제 경로.
+        config_paths=[
+            Path.home()
+            / "Library"
+            / "Application Support"
+            / "Claude"
+            / "claude_desktop_config.json",
+            Path.home() / "AppData" / "Roaming" / "Claude" / "claude_desktop_config.json",
+            Path.home() / ".config" / "Claude" / "claude_desktop_config.json",
+        ],
+        signals=[],
+    ),
 }
 
-# 5개 도구 모두 MCP 자동 등록되도록 통합 → PREPARED_TOOL_CONFIGS 는 비어있음.
+# 6개 도구 모두 MCP 자동 등록되도록 통합 → PREPARED_TOOL_CONFIGS 는 비어있음.
 # (관련 검사 로직은 빈 dict 를 안전하게 반복하도록 그대로 둔다.)
 PREPARED_TOOL_CONFIGS: dict[str, PreparedToolConfig] = {}
 FIX_ANCHOR_EXTENSIONS = {".py", ".js", ".ts", ".jsx", ".tsx"}
