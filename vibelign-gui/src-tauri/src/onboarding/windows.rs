@@ -239,10 +239,15 @@ fn verify_windows_shells(
     snapshot.diagnostics.claude_doctor_ok = Some(claude_doctor_ok);
     snapshot.diagnostics.login_status_known = Some(false);
 
-    // doctor 는 interactive prompt 대기로 종종 hang/timeout 되므로,
-    // 직접 --version 만 통과해도 설치 성공 + PATH 미설정 으로 분류한다.
+    // claude.exe(Node/Ink 기반)는 CREATE_NO_WINDOW 자식 프로세스(비-TTY)에서
+    // `--version`/`doctor` 가 멈추거나 거짓 실패하는 경우가 있다(대화형에선 정상 동작).
+    // 따라서 headless 실행 결과로 설치 성공을 판정하지 않고, 실제 바이너리 존재
+    // (+ 0-byte placeholder 아님)를 설치 성공의 권위 있는 신호로 삼는다.
+    // PATH 설정 여부는 HKCU 레지스트리(bin_dir_in_user_path)로 판정한다.
+    let claude_installed = windows_expected_claude_exists() && !windows_placeholder_artifact_exists();
     let _ = direct_doctor_ok;
-    if !claude_on_path && windows_expected_claude_exists() && direct_version_ok {
+    let _ = direct_version_ok;
+    if !claude_on_path && claude_installed {
         let install_path = windows_expected_claude_path()
             .map(|path| path.to_string_lossy().to_string())
             .unwrap_or_else(|| "C:\\Users\\<user>\\.local\\bin\\claude.exe".to_string());
@@ -253,7 +258,7 @@ fn verify_windows_shells(
         snapshot.next_action = "add_to_path".to_string();
         snapshot.headline = "Claude는 설치됐지만 PATH 연결이 아직 안 됐어요".to_string();
         snapshot.detail = Some(format!(
-            "설치 자체는 성공했고 `{}` 직접 실행도 통과했어요. `{}` 을 사용자 PATH 에 자동으로 추가해 드릴게요.",
+            "설치 파일 `{}` 이 확인됐어요. `{}` 을 사용자 PATH 에 자동으로 추가해 드릴게요.",
             install_path, path_dir
         ));
         snapshot.primary_button_label = Some("PATH 자동 추가".to_string());
@@ -311,11 +316,11 @@ fn verify_windows_shells(
         return snapshot;
     }
 
-    // claude doctor 는 non-TTY 에서 Ink raw-mode 에러로 실패하거나 타임아웃되는 게
-    // 정상 동작이라 성공 조건에서 뺀다. where.exe + claude --version 이 통과하면
-    // 설치·PATH 가 모두 정상이라 판단 가능.
+    // headless claude 실행(--version/doctor)은 비-TTY 에서 거짓 실패할 수 있으므로
+    // 성공 판정에 쓰지 않는다. 바이너리가 실제로 존재하고(claude_installed) HKCU
+    // PATH 에도 잡혀 있으면(claude_on_path) 설치·PATH 모두 정상으로 본다.
     let _ = claude_doctor_ok;
-    if claude_on_path && claude_version_ok {
+    if claude_on_path && claude_installed {
         snapshot.state = "login_required".to_string();
         snapshot.next_action = "start_login".to_string();
         snapshot.headline = "설치가 잘 끝났어요!".to_string();
