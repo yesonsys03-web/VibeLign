@@ -83,9 +83,9 @@ describe("Onboarding input bar", () => {
   test("test_default_screen_centers_prompt_bar_and_hides_legacy_surface", async () => {
     renderOnboarding();
 
-    expect(await screen.findByText("기획 없이 코딩하고, 백업 없이 후회하지 마세요")).toBeInTheDocument();
+    expect(await screen.findByText("계획부터, 바이브까지, 되돌림은 언제든")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("무엇을 만들고 싶나요?")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Claude Code 준비하기/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /AI 도구/ })).toBeInTheDocument();
     expect(screen.getByText("Instant")).toBeInTheDocument();
 
     expect(screen.queryByText("코드맵 생성")).not.toBeInTheDocument();
@@ -143,7 +143,7 @@ describe("Onboarding input bar", () => {
     renderOnboarding();
 
     expect(screen.queryByText("최근 프로젝트")).not.toBeInTheDocument();
-    fireEvent.click(await screen.findByRole("button", { name: "고급 설정 보기" }));
+    fireEvent.click(await screen.findByRole("button", { name: /AI 도구/ }));
 
     expect(screen.getByText("최근 프로젝트")).toBeInTheDocument();
     expect(screen.getByText("시스템 상태")).toBeInTheDocument();

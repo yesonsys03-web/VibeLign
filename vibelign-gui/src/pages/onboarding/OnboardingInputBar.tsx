@@ -6,12 +6,10 @@ interface OnboardingInputBarProps {
   readonly promptText: string;
   readonly selectedDirName: string;
   readonly folderHint: string | null;
-  readonly claudeSetupOpen: boolean;
   readonly inputRef?: RefObject<HTMLTextAreaElement | null>;
   readonly onPromptChange: (value: string) => void;
   readonly onPickFolder: () => void;
   readonly onSubmit: () => void;
-  readonly onToggleClaudeSetup: () => void;
 }
 
 // === ANCHOR: ONBOARDINGINPUTBAR_ONBOARDINGINPUTBAR_START ===
@@ -19,12 +17,10 @@ export function OnboardingInputBar({
   promptText,
   selectedDirName,
   folderHint,
-  claudeSetupOpen,
   inputRef,
   onPromptChange,
   onPickFolder,
   onSubmit,
-  onToggleClaudeSetup,
 }: OnboardingInputBarProps) {
   return (
     <div style={{ width: "100%", maxWidth: 720 }}>
@@ -66,21 +62,11 @@ export function OnboardingInputBar({
         </button>
       </div>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 10, fontSize: 11, color: "#555" }}>
-        <button
-          type="button"
-          aria-expanded={claudeSetupOpen}
-          onClick={onToggleClaudeSetup}
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 11, padding: "4px 10px", border: "2px solid #1A1A1A", background: claudeSetupOpen ? "#1A1A1A" : "#fff", color: claudeSetupOpen ? "#fff" : "#1A1A1A", cursor: "pointer" }}
-        >
-          {claudeSetupOpen ? "▾" : "▸"} Claude Code 준비하기
-        </button>
-        {selectedDirName && (
-          <span style={{ fontWeight: 700, color: "#1A1A1A" }}>
-            선택한 폴더: {selectedDirName}
-          </span>
-        )}
-      </div>
+      {selectedDirName && (
+        <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color: "#1A1A1A" }}>
+          선택한 폴더: {selectedDirName}
+        </div>
+      )}
 
       {folderHint && (
         <div role="status" style={{ marginTop: 10, fontSize: 12, fontWeight: 700, color: "#A14B00" }}>

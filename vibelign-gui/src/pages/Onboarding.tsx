@@ -34,8 +34,7 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
   const [promptText, setPromptText] = useState("");
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const [folderHint, setFolderHint] = useState<string | null>(null);
-  const [claudeSetupOpen, setClaudeSetupOpen] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false);
   const [gitInstalled, setGitInstalled] = useState<boolean | null>(null);
   const [xcodeCltInstalled, setXcodeCltInstalled] = useState<boolean | null>(null);
   const [claudeInstalled, setClaudeInstalled] = useState<boolean | null>(null);
@@ -147,52 +146,51 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
             promptText={promptText}
             selectedDirName={selectedDir ? selectedDirName : ""}
             folderHint={folderHint}
-            claudeSetupOpen={claudeSetupOpen}
             inputRef={promptRef}
             onPromptChange={setPromptText}
             onPickFolder={pickFolder}
             onSubmit={handlePromptSubmit}
-            onToggleClaudeSetup={() => setClaudeSetupOpen((open) => !open)}
           />
           <OnboardingStartProgress
             labels={startProgressLabels}
             statusMessage={startStatusMessage}
           />
-          <div style={{ width: "min(720px, 100%)", display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 11, color: "#888", fontWeight: 700 }}>
-              MCP 자동 설정 <span style={{ color: "#aaa", fontWeight: 600 }}>(설치된 도구는 자동 선택돼요)</span>
-            </div>
-            <ToolSetupSelector detected={detectedTools} selected={selectedTools} onChange={setSelectedTools} />
-          </div>
-          {claudeSetupOpen && <OnboardingClaudeSetup />}
           <button
             type="button"
-            onClick={() => setAdvancedOpen((open) => !open)}
+            aria-expanded={setupOpen}
+            onClick={() => setSetupOpen((open) => !open)}
             style={{ border: "none", background: "transparent", color: "#555", fontSize: 12, fontWeight: 800, cursor: "pointer" }}
           >
-            {advancedOpen ? "고급 설정 숨기기" : "고급 설정 보기"}
+            {setupOpen ? "▾" : "▸"} AI 도구 · 설치 · 시스템 상태
           </button>
+          {setupOpen && (
+            <div style={{ width: "min(720px, 100%)", display: "grid", gap: 14 }}>
+              <div style={{ display: "grid", gap: 6 }}>
+                <div style={{ fontSize: 11, color: "#888", fontWeight: 700 }}>
+                  MCP 자동 설정 <span style={{ color: "#aaa", fontWeight: 600 }}>(설치된 도구는 자동 선택돼요)</span>
+                </div>
+                <ToolSetupSelector detected={detectedTools} selected={selectedTools} onChange={setSelectedTools} />
+              </div>
+              <OnboardingClaudeSetup />
+              <OnboardingSystemWarnings
+                gitInstalled={gitInstalled}
+                xcodeCltInstalled={xcodeCltInstalled}
+                onboardingSnapshot={onboardingSnapshot}
+              />
+              <OnboardingAdvancedPanel
+                vibFound={vibFound}
+                vibChecking={vibChecking}
+                gitInstalled={gitInstalled}
+                xcodeCltInstalled={xcodeCltInstalled}
+                claudeInstalled={claudeInstalled}
+                onboardingSnapshot={onboardingSnapshot}
+                recentDirs={recentDirs}
+                onResume={onResume}
+                onRemoveRecent={onRemoveRecent}
+              />
+            </div>
+          )}
         </section>
-
-        <OnboardingSystemWarnings
-          gitInstalled={gitInstalled}
-          xcodeCltInstalled={xcodeCltInstalled}
-          onboardingSnapshot={onboardingSnapshot}
-        />
-
-        {advancedOpen && (
-          <OnboardingAdvancedPanel
-            vibFound={vibFound}
-            vibChecking={vibChecking}
-            gitInstalled={gitInstalled}
-            xcodeCltInstalled={xcodeCltInstalled}
-            claudeInstalled={claudeInstalled}
-            onboardingSnapshot={onboardingSnapshot}
-            recentDirs={recentDirs}
-            onResume={onResume}
-            onRemoveRecent={onRemoveRecent}
-          />
-        )}
       </main>
     </div>
   );
