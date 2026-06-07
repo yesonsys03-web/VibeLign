@@ -193,6 +193,8 @@ pub(crate) async fn save_planning_chat_as_markdown(
             Ok(parsed) => parsed,
             Err(error) => return planning_chat_error(error),
         };
+        session.readiness =
+            Some(super::planning_chat_readiness::judge_readiness(&project_dir, &messages));
         let saved = match save_planning_markdown(
             &project_dir,
             &mut session,
