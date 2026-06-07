@@ -14,7 +14,8 @@ import ErrorLogs from "./pages/ErrorLogs";
 import Settings from "./pages/Settings";
 import { buildGuardDoctorLaunchIntent } from "./pages/doctorFlow";
 import type { DoctorLaunchIntent } from "./pages/doctorFlow";
-import { backupList, createPlanningChatSession, getEnvKeyStatus, getWatchErrors, loadApiKey, loadLatestPlanningChatSession, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, startWatch, stopWatch, openFolder, type PlanningChatSessionResponse } from "./lib/vib";
+import { backupList, createPlanningChatSession, getEnvKeyStatus, getWatchErrors, loadApiKey, loadLatestPlanningChatSession, loadPlanningChatSession, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, startWatch, stopWatch, openFolder, type PlanningChatSessionResponse } from "./lib/vib";
+import { PlanningSessionPicker } from "./pages/planning/PlanningSessionPicker";
 import { installGuiErrorReporter, reportReactError, setErrorReporterProjectDir } from "./lib/errorReporter";
 import "./styles/brutalism.css";
 import "./App.css";
@@ -80,6 +81,7 @@ export default function App() {
   const [planningResult, setPlanningResult] = useState<PlanningChatSessionResponse | null>(null);
   const [reviewSourcePath, setReviewSourcePath] = useState<string | null>(null);
   const [doctorLaunchIntent, setDoctorLaunchIntent] = useState<DoctorLaunchIntent | null>(null);
+  const [showSessionPicker, setShowSessionPicker] = useState(false);
 
 
   async function refreshAiKeys() {
@@ -212,6 +214,17 @@ export default function App() {
     setPlanningResult(result);
   }
 
+  async function resumeSession(sessionId: string) {
+    if (!projectDir) return;
+    setShowSessionPicker(false);
+    const result = await loadPlanningChatSession(projectDir, sessionId);
+    if (!result.ok) return;
+    setReviewSourcePath(null);
+    setPlanningPrompt(result.prompt || result.messages[0]?.content || "기획방");
+    setPlanningResult(result);
+    setPage("planning");
+  }
+
   async function retryWatch() {
     if (!projectDir) return;
     setWatchError(null);
@@ -321,7 +334,7 @@ export default function App() {
 
             <div style={{ flex: 1, overflow: "hidden" }}>
               <ErrorBoundary>
-                {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenDoctor={openDoctorFromGuardIssue} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} watchError={watchError} onRetryWatch={() => { void retryWatch(); }} hasCheckpoint={hasCheckpoint} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningPending={planningResult?.messages.some((message) => message.status === "pending") ?? false} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} />}
+                {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenDoctor={openDoctorFromGuardIssue} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} watchError={watchError} onRetryWatch={() => { void retryWatch(); }} hasCheckpoint={hasCheckpoint} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningPending={planningResult?.messages.some((message) => message.status === "pending") ?? false} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} onOpenPlanningHistory={() => setShowSessionPicker(true)} />}
                 {page === "planning" && planningResult && <PlanningRoom projectDir={projectDir} result={planningResult} sourcePath={reviewSourcePath} onBack={() => setPage("home")} onStartWork={() => setPage("code")} onResultChange={setPlanningResult} />}
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
@@ -348,6 +361,13 @@ export default function App() {
           </>
         )}
       </ErrorBoundary>
+      {showSessionPicker && projectDir && (
+        <PlanningSessionPicker
+          projectDir={projectDir}
+          onSelect={(sessionId) => void resumeSession(sessionId)}
+          onClose={() => setShowSessionPicker(false)}
+        />
+      )}
       <ScrollToTopButton />
     </div>
   );

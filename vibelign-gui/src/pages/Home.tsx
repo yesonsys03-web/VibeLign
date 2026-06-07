@@ -37,11 +37,12 @@ interface HomeProps {
   planningPending?: boolean;
   onOpenPlanning?: () => void;
   onStartPlanning?: (idea: string) => void;
+  readonly onOpenPlanningHistory?: () => void;
 }
 
 
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────────
-export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenDoctor, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, watchError = null, onRetryWatch, hasCheckpoint = false, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning, onStartPlanning }: HomeProps) {
+export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenDoctor, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, watchError = null, onRetryWatch, hasCheckpoint = false, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning, onStartPlanning, onOpenPlanningHistory }: HomeProps) {
   const [view, setView]                   = useState<View>(initialView);
   const [selectedCmd, setSelectedCmd]     = useState<ManualCommand | null>(null);
   const [guardResult, setGuardResult]     = useState<GuardResult | null>(null);
@@ -122,6 +123,11 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
         ) : onStartPlanning ? (
           <HomePlanningStart onStart={onStartPlanning} />
         ) : null}
+        {onOpenPlanningHistory && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenPlanningHistory} style={{ fontSize: 11 }}>
+            이전 기획 불러오기
+          </button>
+        )}
         {!advancedOpen && (
           <SimpleHome
             guardResult={guardResult}
