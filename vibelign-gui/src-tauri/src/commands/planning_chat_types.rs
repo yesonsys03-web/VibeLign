@@ -59,6 +59,18 @@ pub struct PlanningChatSessionResponse {
     cards: Vec<Card>,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PlanningSessionSummary {
+    pub(crate) session_id: String,
+    pub(crate) title: String,
+    pub(crate) output_path: Option<String>,
+    pub(crate) saved: bool,
+    pub(crate) created_at: String,
+    pub(crate) message_count: usize,
+    pub(crate) card_count: usize,
+}
+
 pub(crate) fn planning_chat_error(details: impl Into<String>) -> PlanningChatSessionResponse {
     PlanningChatSessionResponse {
         ok: false,

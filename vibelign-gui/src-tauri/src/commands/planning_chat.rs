@@ -9,7 +9,7 @@ use super::planning_chat_synthesis::{read_saved_markdown, save_planning_markdown
 use super::planning_chat_types::{
     planning_chat_error, planning_chat_success, AppendPlanningChatTurnRequest,
     CreatePlanningChatSessionRequest, PlanningChatMessage, PlanningChatSessionResponse,
-    SavePlanningChatPlanRequest,
+    PlanningSessionSummary, SavePlanningChatPlanRequest,
 };
 use super::planning_chat_cards::{extract_and_apply, read_cards};
 use super::planning_persona::{run_persona_response, PlanningChatLine};
@@ -220,9 +220,119 @@ pub(crate) async fn save_planning_chat_as_markdown(
     .unwrap_or_else(|error| planning_chat_error(error.to_string()))
 }
 
+fn summary_title(idea: &str) -> String {
+    idea.lines().next().unwrap_or("").trim().chars().take(60).collect()
+}
+
+fn list_sessions(project_dir: &std::path::Path) -> Vec<PlanningSessionSummary> {
+    let dir = planning_dir(project_dir);
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return Vec::new();
+    };
+    let mut rows: Vec<(std::time::SystemTime, PlanningSessionSummary)> = Vec::new();
+    for entry in entries.flatten() {
+        let session_dir = entry.path();
+        let session_path = session_dir.join("session.json");
+        let messages_path = session_dir.join("messages.json");
+        if !session_path.exists() || !messages_path.exists() {
+            continue;
+        }
+        let Ok(session) = read_json::<StoredPlanningChatSession>(&session_path) else {
+            continue;
+        };
+        let messages = read_json::<Vec<PlanningChatMessage>>(&messages_path).unwrap_or_default();
+        let cards = super::planning_chat_cards::read_cards(&session_dir);
+        let modified = messages_path
+            .metadata()
+            .and_then(|meta| meta.modified())
+            .unwrap_or(UNIX_EPOCH);
+        rows.push((
+            modified,
+            PlanningSessionSummary {
+                title: summary_title(&session.idea),
+                saved: session.output_path.is_some(),
+                output_path: session.output_path.clone(),
+                created_at: session.created_at.clone(),
+                message_count: messages.len(),
+                card_count: cards.len(),
+                session_id: session.session_id,
+            },
+        ));
+    }
+    rows.sort_by(|a, b| b.0.cmp(&a.0));
+    rows.into_iter().map(|(_, summary)| summary).collect()
+}
+
+#[tauri::command]
+pub(crate) async fn list_planning_chat_sessions(project_dir: String) -> Vec<PlanningSessionSummary> {
+    let project_dir = PathBuf::from(project_dir);
+    if !project_dir.is_absolute() {
+        return Vec::new();
+    }
+    tauri::async_runtime::spawn_blocking(move || list_sessions(&project_dir))
+        .await
+        .unwrap_or_default()
+}
+
 fn timestamp_ms() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_millis())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn write_session(root: &std::path::Path, id: &str, idea: &str, output: Option<&str>, msgs: usize, cards: usize) {
+        let dir = root.join(".vibelign/planning").join(id);
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let output_json = match output {
+            Some(p) => format!("\"{p}\""),
+            None => "null".to_string(),
+        };
+        std::fs::write(
+            dir.join("session.json"),
+            format!(
+                "{{\"schema_version\":1,\"session_id\":\"{id}\",\"idea\":\"{idea}\",\"mode\":\"chat\",\"created_at\":\"1\",\"output_path\":{output_json}}}"
+            ),
+        )
+        .expect("session");
+        let msg = "{\"id\":\"m\",\"role\":\"user\",\"personaId\":null,\"content\":\"hi\",\"status\":\"ok\",\"createdAt\":\"1\"}";
+        let arr = vec![msg; msgs].join(",");
+        std::fs::write(dir.join("messages.json"), format!("[{arr}]")).expect("messages");
+        let card = "{\"id\":\"c\",\"title\":\"t\",\"summary\":\"\",\"reason\":\"\",\"state\":\"draft\",\"createdAt\":\"1\",\"updatedAt\":\"1\"}";
+        let carr = vec![card; cards].join(",");
+        std::fs::write(dir.join("cards.json"), format!("{{\"cards\":[{carr}]}}")).expect("cards");
+    }
+
+    #[test]
+    fn list_sessions_returns_summaries_with_saved_flag_and_counts() {
+        let root = tempfile::tempdir().expect("root");
+        write_session(root.path(), "chat_1", "예약 앱", None, 2, 1);
+        write_session(root.path(), "chat_2", "카드 흐름", Some("plans/a.md"), 4, 3);
+
+        let summaries = list_sessions(root.path());
+
+        assert_eq!(summaries.len(), 2);
+        let saved = summaries.iter().find(|s| s.session_id == "chat_2").expect("chat_2");
+        assert!(saved.saved);
+        assert_eq!(saved.output_path.as_deref(), Some("plans/a.md"));
+        assert_eq!(saved.title, "카드 흐름");
+        assert_eq!(saved.message_count, 4);
+        assert_eq!(saved.card_count, 3);
+        let draft = summaries.iter().find(|s| s.session_id == "chat_1").expect("chat_1");
+        assert!(!draft.saved);
+        assert_eq!(draft.message_count, 2);
+    }
+
+    #[test]
+    fn list_sessions_skips_dirs_without_messages() {
+        let root = tempfile::tempdir().expect("root");
+        let dir = root.path().join(".vibelign/planning/chat_x");
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        std::fs::write(dir.join("session.json"), "{}").expect("session");
+        assert!(list_sessions(root.path()).is_empty());
+    }
 }
 // === ANCHOR: PLANNING_CHAT_END ===
