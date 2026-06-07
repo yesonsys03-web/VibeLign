@@ -50,6 +50,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
   const [guardCheckPending, setGuardCheckPending] = useState(false);
   const [guardCheckError, setGuardCheckError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [showNewPlanning, setShowNewPlanning] = useState(false);
   const [watchOnLocal, setWatchOnLocal]   = useState(watchOnProp ?? false);
   const watchOn = watchOnProp ?? watchOnLocal;
   const setWatchOn = (v: boolean) => { setWatchOnLocal(v); setWatchOnProp?.(v); };
@@ -114,19 +115,36 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
 
       <div className="page-content" style={{ padding: "12px 20px 20px" }}>
         {planningPrompt && onOpenPlanning ? (
-          <HomePlanningEntry
-            prompt={planningPrompt}
-            outputPath={planningOutputPath}
-            isPending={planningPending}
-            onOpen={onOpenPlanning}
-          />
-        ) : onStartPlanning ? (
-          <HomePlanningStart onStart={onStartPlanning} />
-        ) : null}
-        {onOpenPlanningHistory && (
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenPlanningHistory} style={{ fontSize: 11 }}>
-            이전 기획 불러오기
-          </button>
+          <>
+            <HomePlanningEntry
+              prompt={planningPrompt}
+              outputPath={planningOutputPath}
+              isPending={planningPending}
+              onOpen={onOpenPlanning}
+            />
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {onStartPlanning && (
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowNewPlanning((v) => !v)} style={{ fontSize: 11 }}>
+                  + 새 기획
+                </button>
+              )}
+              {onOpenPlanningHistory && (
+                <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenPlanningHistory} style={{ fontSize: 11 }}>
+                  이전 기획 불러오기
+                </button>
+              )}
+            </div>
+            {showNewPlanning && onStartPlanning && <HomePlanningStart onStart={onStartPlanning} />}
+          </>
+        ) : (
+          <>
+            {onStartPlanning && <HomePlanningStart onStart={onStartPlanning} />}
+            {onOpenPlanningHistory && (
+              <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenPlanningHistory} style={{ fontSize: 11 }}>
+                이전 기획 불러오기
+              </button>
+            )}
+          </>
         )}
         {!advancedOpen && (
           <SimpleHome
