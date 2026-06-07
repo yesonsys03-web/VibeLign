@@ -163,24 +163,18 @@ fn set_state(cards: &mut [Card], id: &str, state: CardState, now: &str) {
     }
 }
 
-const CARD_RUBRIC: &str = r#"너는 기획 대화를 읽고 '결정'을 카드로 관리하는 추출기다.
-이번 턴의 대화를 보고, 카드에 가할 연산(ops)만 JSON으로 낸다.
+const CARD_RUBRIC: &str = r#"너는 기획 대화를 읽고 '결정'을 카드로 감지하는 추출기다.
+이번 턴의 대화를 보고, 새로 생긴 결정만 카드로 추가하는 add 연산을 JSON으로 낸다.
 
 규칙:
 - 결정에만 반응한다. 인사·잡담·질문이면 ops는 빈 배열 [].
 - 새 결정이 생기면 add (흐릿한 초안 카드 생성).
-- 사용자가 직전 흐릿한 카드를 '이어가는 말'로 받으면 그 카드를 confirm.
-- 사용자가 거절('빼줘','아니야')하면 reject, 보류('잠깐','아직')하면 hold.
-- 애매하면 아무 op도 내지 않는다(명확히 앞으로 가겠다고 한 것만).
-- 사용자 한마디는 가장 최근 흐릿한 카드 '한 장'에만 confirm/reject/hold 한다.
-- confirm/reject/hold 의 id 는 아래 '현재 카드'의 id 중 하나여야 한다.
+- 아래 '현재 카드'에 이미 있는 결정은 다시 add하지 않는다(중복 금지).
+- 확정/거절/보류는 사용자가 버튼으로 직접 한다. 추출기는 confirm/reject/hold를 절대 내지 않는다. add만 낸다.
 
 반드시 아래 JSON만 출력한다(설명 금지):
 { "ops": [
-  { "op": "add", "title": "...", "summary": "...", "reason": "..." },
-  { "op": "confirm", "id": "..." },
-  { "op": "reject", "id": "..." },
-  { "op": "hold", "id": "..." }
+  { "op": "add", "title": "...", "summary": "...", "reason": "..." }
 ] }
 "#;
 
@@ -456,7 +450,7 @@ mod tests {
         assert!(prompt.contains("ops"));
         assert!(prompt.contains("card_9"));
         assert!(prompt.contains("접기로 하자"));
-        assert!(prompt.contains("confirm"));
+        assert!(prompt.contains("add만 낸다"));
     }
 }
 // === ANCHOR: PLANNING_CHAT_CARDS_END ===
