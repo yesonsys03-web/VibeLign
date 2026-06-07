@@ -41,6 +41,7 @@ pub(crate) async fn create_planning_chat_session(
             created_at: now.clone(),
             output_path: None,
             absolute_output_path: None,
+            readiness: None,
         };
         let messages = vec![PlanningChatMessage {
             id: format!("msg_{}", timestamp_ms()),

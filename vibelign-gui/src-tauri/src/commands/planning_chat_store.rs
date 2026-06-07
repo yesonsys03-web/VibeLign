@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use super::planning_chat_readiness::ReadinessReport;
+
 #[derive(Serialize, Deserialize)]
 pub(crate) struct StoredPlanningChatSession {
     pub(crate) schema_version: u32,
@@ -12,6 +14,8 @@ pub(crate) struct StoredPlanningChatSession {
     pub(crate) created_at: String,
     pub(crate) output_path: Option<String>,
     pub(crate) absolute_output_path: Option<String>,
+    #[serde(default)]
+    pub(crate) readiness: Option<ReadinessReport>,
 }
 
 pub(crate) fn planning_dir(project_dir: &Path) -> PathBuf {
@@ -69,6 +73,7 @@ mod tests {
 
         assert_eq!(session.output_path, None);
         assert_eq!(session.absolute_output_path, None);
+        assert!(session.readiness.is_none());
     }
 
     #[test]

@@ -120,14 +120,14 @@ pub(crate) enum ReadinessStatus {
     Unavailable,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ReadinessCheck {
     pub(crate) verdict: Verdict,
     pub(crate) note: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ReadinessChecks {
     pub(crate) trigger: ReadinessCheck,
@@ -138,7 +138,7 @@ pub(crate) struct ReadinessChecks {
     pub(crate) platform: ReadinessCheck,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RequirementReadiness {
     pub(crate) title: String,
@@ -147,7 +147,7 @@ pub(crate) struct RequirementReadiness {
     pub(crate) checks: ReadinessChecks,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ReadinessReport {
     pub(crate) status: ReadinessStatus,

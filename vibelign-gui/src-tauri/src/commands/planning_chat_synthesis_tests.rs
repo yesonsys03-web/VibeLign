@@ -123,6 +123,7 @@ fn test_session(idea: &str) -> StoredPlanningChatSession {
         created_at: "1".to_string(),
         output_path: None,
         absolute_output_path: None,
+        readiness: None,
     }
 }
 
