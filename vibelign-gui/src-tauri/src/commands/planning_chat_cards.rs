@@ -234,6 +234,79 @@ pub(crate) fn extract_and_apply(
     updated
 }
 
+fn action_to_op(action: &str, card_id: String) -> Option<CardOp> {
+    match action {
+        "confirm" => Some(CardOp::Confirm { id: card_id }),
+        "hold" => Some(CardOp::Hold { id: card_id }),
+        "reject" => Some(CardOp::Reject { id: card_id }),
+        _ => None,
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCardRequest {
+    pub(crate) project_dir: String,
+    pub(crate) session_id: String,
+    pub(crate) card_id: String,
+    pub(crate) action: String,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CardUpdateResponse {
+    ok: bool,
+    cards: Vec<Card>,
+    error: Option<String>,
+}
+
+#[tauri::command]
+pub(crate) async fn update_card(request: UpdateCardRequest) -> CardUpdateResponse {
+    let project_dir = PathBuf::from(&request.project_dir);
+    if !project_dir.is_absolute() {
+        return CardUpdateResponse {
+            ok: false,
+            cards: Vec::new(),
+            error: Some("projectDir must be absolute".to_string()),
+        };
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let Some(op) = action_to_op(&request.action, request.card_id.clone()) else {
+            return CardUpdateResponse {
+                ok: false,
+                cards: Vec::new(),
+                error: Some(format!("unknown action: {}", request.action)),
+            };
+        };
+        let session_dir =
+            super::planning_chat_store::planning_dir(&project_dir).join(&request.session_id);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis())
+            .to_string();
+        let cards = read_cards(&session_dir);
+        let updated = apply_card_ops(cards, &[op], &now);
+        if let Err(error) = write_cards(&session_dir, &updated) {
+            return CardUpdateResponse {
+                ok: false,
+                cards: updated,
+                error: Some(error),
+            };
+        }
+        CardUpdateResponse {
+            ok: true,
+            cards: updated,
+            error: None,
+        }
+    })
+    .await
+    .unwrap_or_else(|error| CardUpdateResponse {
+        ok: false,
+        cards: Vec::new(),
+        error: Some(error.to_string()),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -358,6 +431,14 @@ mod tests {
         let cards = apply_card_ops(start, &ops, "300");
         assert_eq!(cards.len(), 1);
         assert_eq!(cards[0].state, CardState::Draft);
+    }
+
+    #[test]
+    fn action_to_op_maps_known_and_rejects_unknown() {
+        assert_eq!(action_to_op("confirm", "c1".to_string()), Some(CardOp::Confirm { id: "c1".to_string() }));
+        assert_eq!(action_to_op("hold", "c1".to_string()), Some(CardOp::Hold { id: "c1".to_string() }));
+        assert_eq!(action_to_op("reject", "c1".to_string()), Some(CardOp::Reject { id: "c1".to_string() }));
+        assert_eq!(action_to_op("frob", "c1".to_string()), None);
     }
 
     #[test]
