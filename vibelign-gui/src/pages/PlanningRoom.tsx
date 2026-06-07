@@ -9,6 +9,8 @@ import { PlanningMessages } from "./planning/PlanningMessages";
 import { PlanningPersonaComposer } from "./planning/PlanningPersonaComposer";
 import { PlanningPersonaProgressSummary } from "./planning/PlanningPersonaProgressSummary";
 import { PlanningPersonaResponseSummary } from "./planning/PlanningPersonaResponseSummary";
+import { PlanningReadinessPanel } from "./planning/PlanningReadinessPanel";
+import { readinessSummary } from "./planning/PlanningReadiness";
 
 interface PlanningRoomProps {
   readonly projectDir: string;
@@ -88,6 +90,22 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
   }
   // === ANCHOR: PLANNINGROOM_HANDLEOPENSAVEDPLAN_END ===
 
+  // === ANCHOR: PLANNINGROOM_HANDLESTARTWORK_START ===
+  function handleStartWork() {
+    const proceed = onStartWork ?? onBack;
+    const summary = readinessSummary(result.readiness);
+    if (!summary.canStartWork) {
+      const ok = window.confirm(
+        `핵심 항목 ${summary.coreRedCount}개가 명세에 비어 있어 구현 도구가 임의로 채웁니다.\n그래도 작업을 시작할까요?`,
+      );
+      if (!ok) {
+        return;
+      }
+    }
+    proceed();
+  }
+  // === ANCHOR: PLANNINGROOM_HANDLESTARTWORK_END ===
+
   return (
     <>
     <main className="page-content" style={{ height: "100%", overflow: "auto", background: "var(--bg)", padding: 0 }}>
@@ -106,6 +124,7 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
             <PlanningPersonaProgressSummary messages={result.messages} />
             <PlanningPersonaResponseSummary messages={result.messages} />
             <PlanningMessages messages={result.messages} outputPath={result.outputPath ?? null} />
+            <PlanningReadinessPanel report={result.readiness} />
             <PlanningPersonaComposer projectDir={projectDir} result={result} sessionId={result.sessionId ?? null} onResultChange={onResultChange} />
             <PlanningActionBar
               canSave={canSave}
@@ -114,7 +133,7 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
               isSaving={isSaving}
               onOpenSavedPlan={() => void handleOpenSavedPlan()}
               onSave={handleSavePlan}
-              onStartWork={onStartWork ?? onBack}
+              onStartWork={handleStartWork}
               onToggleMarkdown={() => setShowMarkdown((visible) => !visible)}
             />
             <PlanningAdvancedDetails details={result.details} />
