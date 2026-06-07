@@ -1,6 +1,7 @@
 // === ANCHOR: PLANNING_CHAT_TYPES_START ===
 use serde::{Deserialize, Serialize};
 
+use super::planning_chat_cards::Card;
 use super::planning_chat_readiness::ReadinessReport;
 use super::planning_chat_store::StoredPlanningChatSession;
 
@@ -55,6 +56,7 @@ pub struct PlanningChatSessionResponse {
     message: Option<String>,
     details: Option<String>,
     readiness: Option<ReadinessReport>,
+    cards: Vec<Card>,
 }
 
 pub(crate) fn planning_chat_error(details: impl Into<String>) -> PlanningChatSessionResponse {
@@ -70,6 +72,7 @@ pub(crate) fn planning_chat_error(details: impl Into<String>) -> PlanningChatSes
         message: Some("기획방 대화를 준비하지 못했어요.".to_string()),
         details: Some(details.into()),
         readiness: None,
+        cards: Vec::new(),
     }
 }
 
@@ -77,6 +80,7 @@ pub(crate) fn planning_chat_success(
     session: StoredPlanningChatSession,
     messages: Vec<PlanningChatMessage>,
     markdown: Option<String>,
+    cards: Vec<Card>,
 ) -> PlanningChatSessionResponse {
     let readiness = session.readiness.clone();
     PlanningChatSessionResponse {
@@ -91,6 +95,7 @@ pub(crate) fn planning_chat_success(
         message: None,
         details: None,
         readiness,
+        cards,
     }
 }
 

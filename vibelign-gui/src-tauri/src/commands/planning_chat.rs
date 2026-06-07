@@ -11,6 +11,7 @@ use super::planning_chat_types::{
     CreatePlanningChatSessionRequest, PlanningChatMessage, PlanningChatSessionResponse,
     SavePlanningChatPlanRequest,
 };
+use super::planning_chat_cards::{extract_and_apply, read_cards};
 use super::planning_persona::{run_persona_response, PlanningChatLine};
 
 #[tauri::command]
@@ -57,7 +58,7 @@ pub(crate) async fn create_planning_chat_session(
         if let Err(error) = write_json(session_dir.join("messages.json"), &messages) {
             return planning_chat_error(error);
         }
-        planning_chat_success(session, messages, None)
+        planning_chat_success(session, messages, None, Vec::new())
     })
     .await
     .unwrap_or_else(|error| planning_chat_error(error.to_string()))
@@ -89,7 +90,8 @@ pub(crate) async fn load_latest_planning_chat_session(
             Err(error) => return planning_chat_error(error),
         };
         let markdown = read_saved_markdown(&project_dir, &session);
-        planning_chat_success(session, messages, markdown)
+        let cards = read_cards(&session_path.parent().map(|p| p.to_path_buf()).unwrap_or_default());
+        planning_chat_success(session, messages, markdown, cards)
     })
     .await
     .unwrap_or_else(|error| planning_chat_error(error.to_string()))
@@ -124,6 +126,7 @@ pub(crate) async fn append_planning_chat_turn(
             Err(error) => return planning_chat_error(error),
         };
         let now = timestamp_ms().to_string();
+        let turn_start = messages.len();
         if request.include_user_message.unwrap_or(true) {
             messages.push(PlanningChatMessage {
                 id: format!("msg_{}", timestamp_ms()),
@@ -153,6 +156,9 @@ pub(crate) async fn append_planning_chat_turn(
                 created_at: now.clone(),
             });
         }
+        let now = timestamp_ms().to_string();
+        let turn = messages[turn_start..].to_vec();
+        let cards = extract_and_apply(&project_dir, &session_dir, &messages, &turn, &now);
         if let Err(error) = write_json(messages_path, &messages) {
             return planning_chat_error(error);
         }
@@ -163,7 +169,7 @@ pub(crate) async fn append_planning_chat_turn(
                 return planning_chat_error(error);
             }
         }
-        planning_chat_success(session, messages, None)
+        planning_chat_success(session, messages, None, cards)
     })
     .await
     .unwrap_or_else(|error| planning_chat_error(error.to_string()))
@@ -207,7 +213,8 @@ pub(crate) async fn save_planning_chat_as_markdown(
         if let Err(error) = write_json(session_path, &session) {
             return planning_chat_error(error);
         }
-        planning_chat_success(session, messages, Some(saved.markdown))
+        let cards = read_cards(&session_dir);
+        planning_chat_success(session, messages, Some(saved.markdown), cards)
     })
     .await
     .unwrap_or_else(|error| planning_chat_error(error.to_string()))
