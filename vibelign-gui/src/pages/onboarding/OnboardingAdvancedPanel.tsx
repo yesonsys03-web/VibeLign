@@ -51,18 +51,18 @@ export function OnboardingAdvancedPanel({
     <section style={{ width: "100%", height: "100%", boxSizing: "border-box", border: "2px solid #1A1A1A", borderTop: "5px solid #27AE60", background: "#fff", padding: 14, boxShadow: "4px 4px 0 #1A1A1A" }}>
       <h2 style={{ fontSize: 13, margin: "0 0 10px", fontWeight: 900, color: "#1B7A43" }}>시스템 상태</h2>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-        <span className="badge" style={{ fontSize: 10 }}>
+        <span className="badge" style={{ fontSize: 10, background: "#FF4D8B" }}>
           VIB CLI: {vibChecking ? "확인 중" : vibFound ? "발견됨" : "미설치"}
         </span>
-        <span className="badge" style={{ fontSize: 10 }}>
+        <span className="badge" style={{ fontSize: 10, background: "#FF4D8B" }}>
           Git: {gitInstalled === null ? "확인 중" : gitInstalled ? "준비됨" : "필요"}
         </span>
         {isMacOs && (
-          <span className="badge" style={{ fontSize: 10 }}>
+          <span className="badge" style={{ fontSize: 10, background: "#FF4D8B" }}>
             Xcode CLT: {xcodeCltInstalled === null ? "확인 중" : xcodeCltInstalled ? "준비됨" : "확인 필요"}
           </span>
         )}
-        <span className="badge" style={{ fontSize: 10 }}>
+        <span className="badge" style={{ fontSize: 10, background: "#FF4D8B" }}>
           Claude Code: {claudeCodeLabel}
         </span>
       </div>
