@@ -9,6 +9,7 @@ import { PlanningMessages } from "./planning/PlanningMessages";
 import { PlanningPersonaComposer } from "./planning/PlanningPersonaComposer";
 import { PlanningPersonaProgressSummary } from "./planning/PlanningPersonaProgressSummary";
 import { PlanningPersonaResponseSummary } from "./planning/PlanningPersonaResponseSummary";
+import { PlanningCardsPanel } from "./planning/PlanningCardsPanel";
 import { PlanningReadinessPanel } from "./planning/PlanningReadinessPanel";
 import { readinessSummary } from "./planning/PlanningReadiness";
 
@@ -125,6 +126,7 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
             <PlanningPersonaResponseSummary messages={result.messages} />
             <PlanningMessages messages={result.messages} outputPath={result.outputPath ?? null} />
             <PlanningReadinessPanel report={result.readiness} />
+            <PlanningCardsPanel cards={result.cards} />
             <PlanningPersonaComposer projectDir={projectDir} result={result} sessionId={result.sessionId ?? null} onResultChange={onResultChange} />
             <PlanningActionBar
               canSave={canSave}
