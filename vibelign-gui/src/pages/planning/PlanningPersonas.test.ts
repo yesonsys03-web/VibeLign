@@ -17,11 +17,12 @@ describe("PlanningPersonas", () => {
     const ids = allPlanningPersonaIds();
 
     // Then
-    expect(ids).toEqual(["chloe", "gio", "mina"]);
+    expect(ids).toEqual(["chloe", "gio", "mina", "deepseek"]);
     expect(personas).toEqual([
       expect.objectContaining({ id: "chloe", label: "클로이", role: "설계", mention: "@클로이", initial: "클" }),
       expect.objectContaining({ id: "gio", label: "지오", role: "검토", mention: "@지오", initial: "지" }),
       expect.objectContaining({ id: "mina", label: "미나", role: "탐색", mention: "@미나", initial: "미" }),
+      expect.objectContaining({ id: "deepseek", label: "딥시기", role: "조교", mention: "@딥시기", initial: "딥" }),
     ]);
   });
 

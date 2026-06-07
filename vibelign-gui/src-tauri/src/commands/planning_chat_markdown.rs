@@ -178,6 +178,7 @@ fn message_label(message: &PlanningChatMessage) -> String {
         Some("chloe") => "클로이의 정리".to_string(),
         Some("gio") => "지오의 검토".to_string(),
         Some("mina") => "미나의 탐색".to_string(),
+        Some("deepseek") => "딥시기의 설명".to_string(),
         Some(persona_id) => format!("{persona_id}의 답변"),
         None => "AI 답변".to_string(),
     }

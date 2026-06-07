@@ -1,5 +1,5 @@
 // === ANCHOR: PLANNINGPERSONAS_START ===
-export type PlanningPersonaId = "chloe" | "gio" | "mina";
+export type PlanningPersonaId = "chloe" | "gio" | "mina" | "deepseek";
 
 export interface PlanningPersonaMeta {
   readonly id: string;
@@ -42,6 +42,16 @@ export const PLANNING_PERSONAS = [
     avatarBackground: "#FCEDEA",
     avatarBorder: "#1A1A1A",
     avatarColor: "#8A352D",
+  },
+  {
+    id: "deepseek",
+    label: "딥시기",
+    role: "조교",
+    mention: "@딥시기",
+    initial: "딥",
+    avatarBackground: "#E8ECFB",
+    avatarBorder: "#1A1A1A",
+    avatarColor: "#3A4DBF",
   },
 ] as const satisfies readonly PlanningPersonaMeta[];
 

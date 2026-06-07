@@ -27,7 +27,7 @@ describe("PlanningModes", () => {
     const fallbackMode = resolvePlanningMode("unknown");
 
     // Then
-    expect(PLANNING_MODE_OPTIONS.map((option) => option.id)).toEqual(["instant", "draft", "explore", "full"]);
+    expect(PLANNING_MODE_OPTIONS.map((option) => option.id)).toEqual(["instant", "draft", "explore", "assist", "full"]);
     expect(fullMode.personaIds).toEqual(allPersonaIds);
     expect(fallbackMode).toBe(DEFAULT_PLANNING_MODE);
   });

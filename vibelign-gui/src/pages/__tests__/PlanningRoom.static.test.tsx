@@ -259,7 +259,7 @@ describe("PlanningRoom chat session view", () => {
         }),
       );
     });
-    await waitFor(() => expect(mocks.appendPlanningChatTurnMock).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(mocks.appendPlanningChatTurnMock).toHaveBeenCalledTimes(4));
     expect(mocks.appendPlanningChatTurnMock).toHaveBeenNthCalledWith(1, {
       projectDir: "/tmp/demo",
       sessionId: "chat_1",

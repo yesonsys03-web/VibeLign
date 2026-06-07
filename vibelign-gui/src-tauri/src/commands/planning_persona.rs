@@ -96,6 +96,12 @@ fn persona_spec(persona_id: &str) -> Option<PersonaSpec> {
             executable: "agy",
             args_before_prompt: &["-p"],
         }),
+        "deepseek" => Some(PersonaSpec {
+            name: "딥시기",
+            role: "조교. 다른 페르소나의 설명과 결정을 사용자가 알기 쉽게 풀어 주고, 사용자의 질문에 차분히 답하며 논의를 정리한다.",
+            executable: "opencode",
+            args_before_prompt: &["run", "-m", "opencode/deepseek-v4-flash-free"],
+        }),
         _ => None,
     }
 }
@@ -116,6 +122,7 @@ fn build_persona_prompt(spec: PersonaSpec, lines: &[PlanningChatLine<'_>]) -> St
             ("assistant", Some("chloe")) => "클로이",
             ("assistant", Some("gio")) => "지오",
             ("assistant", Some("mina")) => "미나",
+            ("assistant", Some("deepseek")) => "딥시기",
             ("assistant", Some(_)) => "AI",
             ("assistant", None) => "AI",
             _ => "사용자",
@@ -170,7 +177,7 @@ pub(crate) fn pick_judge_cli(
             }
         }
     }
-    for persona_id in ["chloe", "gio", "mina"] {
+    for persona_id in ["chloe", "gio", "mina", "deepseek"] {
         if let Some(resolved) = resolve_persona_cli(persona_id) {
             return Some(resolved);
         }
@@ -225,6 +232,17 @@ mod tests {
 
         assert_eq!(spec.executable, "agy");
         assert_eq!(spec.args_before_prompt, &["-p"]);
+    }
+
+    #[test]
+    fn persona_spec_maps_deepseek_to_opencode_free_model() {
+        let spec = persona_spec("deepseek").expect("deepseek persona");
+
+        assert_eq!(spec.executable, "opencode");
+        assert_eq!(
+            spec.args_before_prompt,
+            &["run", "-m", "opencode/deepseek-v4-flash-free"]
+        );
     }
 
     #[test]

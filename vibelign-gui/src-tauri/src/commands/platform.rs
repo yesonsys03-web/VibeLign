@@ -62,6 +62,8 @@ pub(crate) fn augmented_vib_path() -> std::ffi::OsString {
         extras.push(PathBuf::from("/usr/bin"));
         if let Some(home) = std::env::var_os("HOME") {
             extras.push(PathBuf::from(&home).join(".cargo").join("bin"));
+            extras.push(PathBuf::from(&home).join(".bun").join("bin"));
+            extras.push(PathBuf::from(&home).join(".local").join("bin"));
         }
     }
 
@@ -71,6 +73,8 @@ pub(crate) fn augmented_vib_path() -> std::ffi::OsString {
         extras.push(PathBuf::from("/usr/bin"));
         if let Some(home) = std::env::var_os("HOME") {
             extras.push(PathBuf::from(&home).join(".cargo").join("bin"));
+            extras.push(PathBuf::from(&home).join(".bun").join("bin"));
+            extras.push(PathBuf::from(&home).join(".local").join("bin"));
         }
     }
 
@@ -80,6 +84,7 @@ pub(crate) fn augmented_vib_path() -> std::ffi::OsString {
             let user = PathBuf::from(&user);
             extras.push(user.join("scoop").join("shims"));
             extras.push(user.join(".cargo").join("bin"));
+            extras.push(user.join(".bun").join("bin"));
         }
         if let Some(local) = std::env::var_os("LOCALAPPDATA") {
             extras.push(

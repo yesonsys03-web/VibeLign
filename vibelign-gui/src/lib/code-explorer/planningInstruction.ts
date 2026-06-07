@@ -22,6 +22,10 @@ const PERSONA_CLI_DETAILS: Record<PlanningWorkPersona, { readonly cliName: strin
     cliName: "Antigravity CLI",
     role: "대안 흐름, 놓친 사용자 시나리오, 탐색 관점을 보강합니다.",
   },
+  deepseek: {
+    cliName: "OpenCode CLI",
+    role: "다른 관점을 쉽게 풀어 설명하고, 막힌 지점과 남은 질문을 정리합니다.",
+  },
 };
 
 // === ANCHOR: PLANNINGINSTRUCTION_BUILDPLANNINGWORKINSTRUCTION_START ===

@@ -27,6 +27,7 @@ const PREVIEW_TARGET_LABELS: Record<PlanningWorkPersona, string> = {
   chloe: `${planningPersonaLabel("chloe")} Claude`,
   gio: `${planningPersonaLabel("gio")} Codex`,
   mina: `${planningPersonaLabel("mina")} Antigravity`,
+  deepseek: `${planningPersonaLabel("deepseek")} OpenCode`,
 };
 
 // === ANCHOR: PLANNINGINSTRUCTIONACTIONS_PLANNINGINSTRUCTIONACTIONS_START ===
