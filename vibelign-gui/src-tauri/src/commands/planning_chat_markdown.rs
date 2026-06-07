@@ -1,4 +1,5 @@
 // === ANCHOR: PLANNING_CHAT_MARKDOWN_START ===
+use super::planning_chat_readiness::{ReadinessReport, ReadinessStatus, RequirementReadiness, Verdict};
 use super::planning_chat_store::StoredPlanningChatSession;
 use super::planning_chat_types::PlanningChatMessage;
 
@@ -20,6 +21,7 @@ pub(crate) fn synthesize_planning_markdown(
     push_section(&mut markdown, &format!("# {title}"));
     push_section(&mut markdown, "## 한 줄 목표");
     push_section(&mut markdown, session.idea.trim());
+    markdown.push_str(&readiness_header(session.readiness.as_ref()));
     push_section(&mut markdown, "## 대상 사용자");
     push_section(
         &mut markdown,
@@ -199,8 +201,136 @@ fn quote_block(content: &str) -> String {
         .join("\n")
 }
 
+fn verdict_icon(verdict: Verdict) -> &'static str {
+    match verdict {
+        Verdict::Green => "🟢",
+        Verdict::Red => "🔴",
+        Verdict::Na => "⚪",
+    }
+}
+
+fn requirement_red_notes(requirement: &RequirementReadiness) -> Vec<(&'static str, &str)> {
+    let checks = &requirement.checks;
+    [
+        ("발동", &checks.trigger),
+        ("데이터", &checks.data),
+        ("판정", &checks.logic),
+        ("수용", &checks.acceptance),
+        ("엣지", &checks.edge),
+        ("플랫폼", &checks.platform),
+    ]
+    .into_iter()
+    .filter(|(_, check)| check.verdict == Verdict::Red)
+    .map(|(label, check)| (label, check.note.as_str()))
+    .collect()
+}
+
+/// report가 있으면 문서 맨 위에 박을 판정 헤더를 만든다. 없으면 빈 문자열.
+pub(crate) fn readiness_header(report: Option<&ReadinessReport>) -> String {
+    let Some(report) = report else {
+        return String::new();
+    };
+    if matches!(report.status, ReadinessStatus::Unavailable) {
+        return "## 구현 준비 상태: 확인 못 함 (활성 AI 없음)\n\n".to_string();
+    }
+    let mut green = 0usize;
+    let mut red = 0usize;
+    let mut core_red_lines = Vec::new();
+    for requirement in &report.requirements {
+        let reds = requirement_red_notes(requirement);
+        if reds.is_empty() {
+            green += 1;
+        } else {
+            red += 1;
+        }
+        if requirement.core {
+            for (label, note) in reds {
+                core_red_lines.push(format!("- 🔴 [핵심] {} {} — {}", requirement.title, label, note));
+            }
+        }
+    }
+    let mut header = format!(
+        "## 구현 준비 상태: 🟢 {green} / 🔴 {red}\n> 이 기획안은 구현 도구가 그대로 읽는 지시서입니다. 🔴 항목은 명세에 없어 도구가 임의로 채웁니다.\n"
+    );
+    for line in &core_red_lines {
+        header.push_str(line);
+        header.push('\n');
+    }
+    header.push('\n');
+    header.push_str("## 요구사항별 명세\n\n");
+    for requirement in &report.requirements {
+        let c = &requirement.checks;
+        header.push_str(&format!(
+            "### {}  (발동{} 데이터{} 판정{} 수용{} 엣지{} 플랫폼{})\n\n",
+            requirement.title,
+            verdict_icon(c.trigger.verdict),
+            verdict_icon(c.data.verdict),
+            verdict_icon(c.logic.verdict),
+            verdict_icon(c.acceptance.verdict),
+            verdict_icon(c.edge.verdict),
+            verdict_icon(c.platform.verdict),
+        ));
+        if !requirement.summary.is_empty() {
+            header.push_str(&format!("{}\n\n", requirement.summary));
+        }
+    }
+    header
+}
+
 fn push_section(markdown: &mut String, section: &str) {
     markdown.push_str(section);
     markdown.push_str("\n\n");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::commands::planning_chat_readiness::{
+        ReadinessChecks, ReadinessCheck, ReadinessReport, ReadinessStatus, RequirementReadiness, Verdict,
+    };
+
+    fn check(v: Verdict) -> ReadinessCheck {
+        ReadinessCheck { verdict: v, note: String::new() }
+    }
+
+    fn judged_report() -> ReadinessReport {
+        ReadinessReport {
+            status: ReadinessStatus::Judged,
+            requirements: vec![RequirementReadiness {
+                title: "카드 발동".to_string(),
+                summary: "결정마다 카드가 뜬다".to_string(),
+                core: true,
+                checks: ReadinessChecks {
+                    trigger: ReadinessCheck { verdict: Verdict::Red, note: "감지 미정".to_string() },
+                    data: check(Verdict::Red),
+                    logic: check(Verdict::Green),
+                    acceptance: check(Verdict::Green),
+                    edge: check(Verdict::Green),
+                    platform: check(Verdict::Na),
+                },
+            }],
+        }
+    }
+
+    #[test]
+    fn header_for_judged_report_shows_counts_and_core_gaps() {
+        let header = readiness_header(Some(&judged_report()));
+        assert!(header.contains("구현 준비 상태"));
+        assert!(header.contains("🔴"));
+        assert!(header.contains("카드 발동"));
+        assert!(header.contains("감지 미정"));
+    }
+
+    #[test]
+    fn header_for_unavailable_is_honest() {
+        let header = readiness_header(Some(&ReadinessReport::unavailable()));
+        assert!(header.contains("확인 못 함"));
+        assert!(!header.contains("🟢"));
+    }
+
+    #[test]
+    fn header_is_empty_when_no_report() {
+        assert_eq!(readiness_header(None), "");
+    }
 }
 // === ANCHOR: PLANNING_CHAT_MARKDOWN_END ===
