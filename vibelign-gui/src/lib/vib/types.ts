@@ -187,6 +187,34 @@ export interface SavePlanningChatPlanRequest {
   targetPath?: string;
 }
 
+export type ReadinessVerdict = "green" | "red" | "na";
+
+export interface ReadinessCheck {
+  verdict: ReadinessVerdict;
+  note: string;
+}
+
+export interface ReadinessChecks {
+  trigger: ReadinessCheck;
+  data: ReadinessCheck;
+  logic: ReadinessCheck;
+  acceptance: ReadinessCheck;
+  edge: ReadinessCheck;
+  platform: ReadinessCheck;
+}
+
+export interface RequirementReadiness {
+  title: string;
+  summary: string;
+  core: boolean;
+  checks: ReadinessChecks;
+}
+
+export interface ReadinessReport {
+  status: "judged" | "unavailable";
+  requirements: readonly RequirementReadiness[];
+}
+
 export interface PlanningChatSessionResponse {
   ok: boolean;
   sessionId?: string | null;
@@ -198,6 +226,7 @@ export interface PlanningChatSessionResponse {
   errorCode?: string | null;
   message?: string | null;
   details?: string | null;
+  readiness?: ReadinessReport | null;
 }
 
 export interface MemorySummaryResult {
