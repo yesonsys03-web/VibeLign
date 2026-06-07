@@ -27,9 +27,18 @@ describe("PlanningModes", () => {
     const fallbackMode = resolvePlanningMode("unknown");
 
     // Then
-    expect(PLANNING_MODE_OPTIONS.map((option) => option.id)).toEqual(["instant", "draft", "full"]);
+    expect(PLANNING_MODE_OPTIONS.map((option) => option.id)).toEqual(["instant", "draft", "explore", "full"]);
     expect(fullMode.personaIds).toEqual(allPersonaIds);
     expect(fallbackMode).toBe(DEFAULT_PLANNING_MODE);
+  });
+
+  test("exposes_mina_as_a_standalone_explore_mode", () => {
+    // When
+    const exploreMode = resolvePlanningMode("explore");
+
+    // Then
+    expect(exploreMode.targetLabel).toBe(planningPersonaLabel("mina"));
+    expect(exploreMode.personaIds).toEqual(["mina"]);
   });
 
   test("derives_single_persona_target_labels_from_planning_persona_metadata", () => {

@@ -2,7 +2,7 @@
 import { allPlanningPersonaIds, planningPersonaLabel } from "./PlanningPersonas";
 
 export interface PlanningModeOption {
-  readonly id: "instant" | "draft" | "full";
+  readonly id: "instant" | "draft" | "explore" | "full";
   readonly label: string;
   readonly targetLabel: string;
   readonly personaIds: readonly string[];
@@ -11,6 +11,7 @@ export interface PlanningModeOption {
 export const PLANNING_MODE_OPTIONS = [
   { id: "instant", label: "Instant", targetLabel: planningPersonaLabel("gio"), personaIds: ["gio"] },
   { id: "draft", label: "초안", targetLabel: planningPersonaLabel("chloe"), personaIds: ["chloe"] },
+  { id: "explore", label: "탐색", targetLabel: planningPersonaLabel("mina"), personaIds: ["mina"] },
   { id: "full", label: "전체", targetLabel: "모두", personaIds: allPlanningPersonaIds() },
 ] as const satisfies readonly PlanningModeOption[];
 
