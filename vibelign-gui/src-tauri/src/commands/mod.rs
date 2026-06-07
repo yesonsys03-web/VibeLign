@@ -5,6 +5,7 @@ pub(crate) mod error_logs;
 pub(crate) mod gui_error;
 pub(crate) mod planning;
 pub(crate) mod planning_chat;
+pub(crate) mod planning_chat_cards;
 pub(crate) mod planning_chat_markdown;
 pub(crate) mod planning_chat_readiness;
 pub(crate) mod planning_chat_store;
