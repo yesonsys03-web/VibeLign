@@ -9,6 +9,7 @@ import type {
   CreatePlanningTemplateRequest,
   CreatePlanningTemplateResponse,
   PlanningChatSessionResponse,
+  PlanningSessionSummary,
   SavePlanningChatPlanRequest,
   UpdateCardRequest,
 } from "./types";
@@ -69,4 +70,13 @@ export function updateCard(request: UpdateCardRequest): Promise<CardUpdateRespon
   return invoke<CardUpdateResponse>("update_card", { request });
 }
 // === ANCHOR: PLANNING_UPDATECARD_END ===
+// === ANCHOR: PLANNING_SESSIONS_START ===
+export function listPlanningChatSessions(projectDir: string): Promise<PlanningSessionSummary[]> {
+  return invoke<PlanningSessionSummary[]>("list_planning_chat_sessions", { projectDir });
+}
+
+export function loadPlanningChatSession(projectDir: string, sessionId: string): Promise<PlanningChatSessionResponse> {
+  return invoke<PlanningChatSessionResponse>("load_planning_chat_session", { projectDir, sessionId });
+}
+// === ANCHOR: PLANNING_SESSIONS_END ===
 // === ANCHOR: PLANNING_END ===

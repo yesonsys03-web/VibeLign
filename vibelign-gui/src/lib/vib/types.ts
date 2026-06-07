@@ -255,6 +255,16 @@ export interface PlanningChatSessionResponse {
   cards?: readonly Card[];
 }
 
+export interface PlanningSessionSummary {
+  sessionId: string;
+  title: string;
+  outputPath?: string | null;
+  saved: boolean;
+  createdAt: string;
+  messageCount: number;
+  cardCount: number;
+}
+
 export interface MemorySummaryResult {
   schemaVersion?: number;
   activeIntent: string;
