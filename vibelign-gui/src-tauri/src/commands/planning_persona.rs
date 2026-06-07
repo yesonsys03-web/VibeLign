@@ -125,6 +125,11 @@ fn build_persona_prompt(spec: PersonaSpec, lines: &[PlanningChatLine<'_>]) -> St
         prompt.push_str(line.content.trim());
         prompt.push('\n');
     }
+    if spec.name == "클로이" {
+        prompt.push_str(
+            "\n[설계 습관] 결정이 설 때, 가끔 '이건 뭐가 발동시키고 어디에 저장되죠?'를 한 번 되물어라(매 턴 X — 흐름을 깨지 않게).\n",
+        );
+    }
     prompt.push_str("\n위 대화의 다음 응답을 ");
     prompt.push_str(spec.name);
     prompt.push_str(" 관점에서 작성해.");
@@ -194,6 +199,13 @@ mod tests {
         assert!(prompt.contains("미나"));
         assert!(prompt.contains("화상회의 번역 앱을 만들고 싶어"));
         assert!(prompt.contains("지오: 회의 플랫폼 범위를 정해야 해요."));
+    }
+
+    #[test]
+    fn chloe_prompt_nudges_for_mechanism() {
+        let spec = persona_spec("chloe").expect("chloe persona");
+        let prompt = build_persona_prompt(spec, &[]);
+        assert!(prompt.contains("발동시키고 어디에 저장"));
     }
 }
 // === ANCHOR: PLANNING_PERSONA_END ===
