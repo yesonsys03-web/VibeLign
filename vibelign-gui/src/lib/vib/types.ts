@@ -215,6 +215,18 @@ export interface ReadinessReport {
   requirements: readonly RequirementReadiness[];
 }
 
+export type CardState = "draft" | "held" | "confirmed";
+
+export interface Card {
+  id: string;
+  title: string;
+  summary: string;
+  reason: string;
+  state: CardState;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PlanningChatSessionResponse {
   ok: boolean;
   sessionId?: string | null;
@@ -227,6 +239,7 @@ export interface PlanningChatSessionResponse {
   message?: string | null;
   details?: string | null;
   readiness?: ReadinessReport | null;
+  cards?: readonly Card[];
 }
 
 export interface MemorySummaryResult {
