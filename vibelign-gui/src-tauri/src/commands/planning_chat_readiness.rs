@@ -1,10 +1,12 @@
 // === ANCHOR: PLANNING_CHAT_READINESS_START ===
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
 
 use serde::{Deserialize, Serialize};
 
 use super::planning_chat_types::PlanningChatMessage;
 use super::planning_persona::{find_executable, persona_cli};
+use super::platform::{augmented_vib_path, hide_console};
 
 /// 판정에 쓸 CLI를 고른다.
 /// 우선순위: 이 세션에서 성공(status=ok)한 페르소나의 도구 → 없으면 설치된 첫 페르소나 도구.
@@ -30,6 +32,77 @@ fn resolve_persona_cli(persona_id: &str) -> Option<(PathBuf, Vec<String>)> {
     let (executable, args) = persona_cli(persona_id)?;
     let path = find_executable(executable)?;
     Some((path, args.iter().map(|arg| arg.to_string()).collect()))
+}
+
+const READINESS_RUBRIC: &str = r#"너는 기획 대화를 읽고 '지금 바로 구현 가능한가'를 판정하는 검토자다.
+합의된 기획을 개별 요구사항으로 나누고, 각 요구사항을 아래 6개 항목으로 채점한다.
+
+- trigger(발동): 무엇이 이 동작을 시작시키는지 정의됐나
+- data(데이터): 무엇이 어디에 저장되는지(필드·상태·위치) 정의됐나
+- logic(판정): 입력/상황을 어떻게 구분하는지 정의됐나
+- acceptance(수용): '됐다'를 어떻게 확인하는지 정의됐나
+- edge(엣지): 끊김·빈 상태·동시 입력 등 실패 순간이 정의됐나
+- platform(플랫폼): 다중 타깃 차이 — 이 프로젝트에 해당될 때만 채점, 무관하면 "na"
+
+각 항목 verdict는 "green"(충족) / "red"(구멍) / "na"(해당 없음) 중 하나.
+red면 note에 한 줄 이유를 적는다. 사소하지 않은 핵심 요구사항은 core: true.
+
+반드시 아래 JSON만 출력한다(설명 금지):
+{
+  "requirements": [
+    { "title": "...", "summary": "...", "core": true,
+      "checks": {
+        "trigger":    {"verdict":"red","note":"..."},
+        "data":       {"verdict":"red","note":"..."},
+        "logic":      {"verdict":"red","note":"..."},
+        "acceptance": {"verdict":"green","note":""},
+        "edge":       {"verdict":"green","note":""},
+        "platform":   {"verdict":"na","note":"..."}
+      } }
+  ]
+}
+"#;
+
+fn build_readiness_prompt(messages: &[PlanningChatMessage]) -> String {
+    let mut prompt = String::from(READINESS_RUBRIC);
+    prompt.push_str("\n지금까지의 대화:\n");
+    for message in messages {
+        if message.status != "ok" {
+            continue;
+        }
+        let speaker = if message.role == "user" { "사용자" } else { "AI" };
+        prompt.push_str(speaker);
+        prompt.push_str(": ");
+        prompt.push_str(message.content.trim());
+        prompt.push('\n');
+    }
+    prompt.push_str("\n위 대화를 채점한 JSON을 출력해.");
+    prompt
+}
+
+pub(crate) fn judge_readiness(
+    project_dir: &std::path::Path,
+    messages: &[PlanningChatMessage],
+) -> ReadinessReport {
+    let Some((executable, args)) = pick_judge_cli(messages) else {
+        return ReadinessReport::unavailable();
+    };
+    let prompt = build_readiness_prompt(messages);
+    let mut cmd = Command::new(executable);
+    cmd.args(&args);
+    cmd.arg(prompt);
+    cmd.current_dir(project_dir);
+    cmd.stdin(Stdio::null());
+    cmd.env("PATH", augmented_vib_path());
+    cmd.env("NO_COLOR", "1");
+    hide_console(&mut cmd);
+    match cmd.output() {
+        Ok(output) if output.status.success() => {
+            let text = String::from_utf8_lossy(&output.stdout);
+            parse_readiness_report(&text)
+        }
+        _ => ReadinessReport::unavailable(),
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
@@ -244,6 +317,23 @@ mod tests {
         let messages = vec![assistant("gio", "failed")];
         // 결과는 환경의 CLI 설치 여부에 의존하므로, 패닉 없이 호출되는 것만 보장.
         let _ = pick_judge_cli(&messages);
+    }
+
+    #[test]
+    fn build_prompt_includes_rubric_and_conversation() {
+        let messages = vec![PlanningChatMessage {
+            id: "m1".to_string(),
+            role: "user".to_string(),
+            persona_id: None,
+            content: "카드가 결정마다 쌓이게 하고 싶어".to_string(),
+            status: "ok".to_string(),
+            created_at: "0".to_string(),
+        }];
+        let prompt = build_readiness_prompt(&messages);
+        assert!(prompt.contains("trigger"));
+        assert!(prompt.contains("platform"));
+        assert!(prompt.contains("JSON"));
+        assert!(prompt.contains("카드가 결정마다 쌓이게 하고 싶어"));
     }
 }
 // === ANCHOR: PLANNING_CHAT_READINESS_END ===
