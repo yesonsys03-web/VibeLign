@@ -4,11 +4,13 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AppendPlanningChatTurnRequest,
   AppendPlanningAgentsRequest,
+  CardUpdateResponse,
   CreatePlanningChatSessionRequest,
   CreatePlanningTemplateRequest,
   CreatePlanningTemplateResponse,
   PlanningChatSessionResponse,
   SavePlanningChatPlanRequest,
+  UpdateCardRequest,
 } from "./types";
 
 // === ANCHOR: PLANNING_CREATEPLANNINGTEMPLATE_START ===
@@ -62,4 +64,9 @@ export function savePlanningChatAsMarkdown(
   return invoke<PlanningChatSessionResponse>("save_planning_chat_as_markdown", { request });
 }
 // === ANCHOR: PLANNING_SAVEPLANNINGCHATASMARKDOWN_END ===
+// === ANCHOR: PLANNING_UPDATECARD_START ===
+export function updateCard(request: UpdateCardRequest): Promise<CardUpdateResponse> {
+  return invoke<CardUpdateResponse>("update_card", { request });
+}
+// === ANCHOR: PLANNING_UPDATECARD_END ===
 // === ANCHOR: PLANNING_END ===

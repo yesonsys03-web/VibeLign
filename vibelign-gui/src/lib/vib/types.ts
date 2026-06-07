@@ -227,6 +227,19 @@ export interface Card {
   updatedAt: string;
 }
 
+export interface UpdateCardRequest {
+  projectDir: string;
+  sessionId: string;
+  cardId: string;
+  action: "confirm" | "hold" | "reject";
+}
+
+export interface CardUpdateResponse {
+  ok: boolean;
+  cards: readonly Card[];
+  error?: string | null;
+}
+
 export interface PlanningChatSessionResponse {
   ok: boolean;
   sessionId?: string | null;
