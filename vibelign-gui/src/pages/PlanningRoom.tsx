@@ -126,7 +126,12 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
             <PlanningPersonaResponseSummary messages={result.messages} />
             <PlanningMessages messages={result.messages} outputPath={result.outputPath ?? null} />
             <PlanningReadinessPanel report={result.readiness} />
-            <PlanningCardsPanel cards={result.cards} />
+            <PlanningCardsPanel
+              cards={result.cards}
+              projectDir={projectDir}
+              sessionId={result.sessionId ?? null}
+              onCardsChange={(cards) => onResultChange({ ...result, cards })}
+            />
             <PlanningPersonaComposer projectDir={projectDir} result={result} sessionId={result.sessionId ?? null} onResultChange={onResultChange} />
             <PlanningActionBar
               canSave={canSave}
