@@ -139,13 +139,14 @@ export function OnboardingClaudeSetup({ topContent }: OnboardingClaudeSetupProps
           display: "flex",
           flexDirection: "column",
           border: "2px solid #1A1A1A",
+          borderTop: "5px solid #F5621E",
           background: "#FFF8E8",
           padding: "12px 16px",
           boxShadow: "4px 4px 0 #1A1A1A",
         }}
       >
         {topContent && (
-          <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "2px solid #1A1A1A" }}>{topContent}</div>
+          <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "2px solid #2D9CDB" }}>{topContent}</div>
         )}
         <div style={{ fontSize: 12, color: "#555" }}>Claude Code 상태를 확인하는 중이에요…</div>
       </div>
@@ -166,15 +167,16 @@ export function OnboardingClaudeSetup({ topContent }: OnboardingClaudeSetupProps
         display: "flex",
         flexDirection: "column",
         border: "2px solid #1A1A1A",
+        borderTop: "5px solid #F5621E",
         background: snapshot.state === "success" ? "#F2FFF7" : "#FFF8E8",
         padding: "12px 16px",
         boxShadow: "4px 4px 0 #1A1A1A",
       }}
     >
       {topContent && (
-        <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "2px solid #1A1A1A" }}>{topContent}</div>
+        <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "2px solid #2D9CDB" }}>{topContent}</div>
       )}
-      <div style={{ fontSize: 10, fontWeight: 800, color: "#666", marginBottom: 5 }}>CLAUDE CODE 설치/관리</div>
+      <div style={{ fontSize: 10, fontWeight: 800, color: "#F5621E", marginBottom: 5 }}>CLAUDE CODE 설치/관리</div>
       <div style={{ fontSize: 14, fontWeight: 800, color: "#1A1A1A", marginBottom: 4 }}>{snapshot.headline}</div>
       {snapshot.detail && (
         <div style={{ fontSize: 11, color: "#555", lineHeight: 1.6, marginBottom: 8 }}>{snapshot.detail}</div>

@@ -170,8 +170,8 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
                   <OnboardingClaudeSetup
                     topContent={
                       <div style={{ display: "grid", gap: 6 }}>
-                        <div style={{ fontSize: 11, color: "#888", fontWeight: 700 }}>
-                          MCP 자동 설정 <span style={{ color: "#aaa", fontWeight: 600 }}>(설치된 도구는 자동 선택돼요)</span>
+                        <div style={{ fontSize: 11, color: "#1E7FB5", fontWeight: 800 }}>
+                          MCP 자동 설정 <span style={{ color: "#7FB2CE", fontWeight: 600 }}>(설치된 도구는 자동 선택돼요)</span>
                         </div>
                         <ToolSetupSelector detected={detectedTools} selected={selectedTools} onChange={setSelectedTools} />
                       </div>

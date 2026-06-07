@@ -50,8 +50,8 @@ export function ToolSetupSelector({ detected, selected, onChange, disabled = fal
               fontSize: 11,
               fontWeight: 700,
               padding: "4px 10px",
-              border: `2px solid ${active ? "#F5621E" : "#333"}`,
-              background: active ? "#F5621E" : "transparent",
+              border: `2px solid ${active ? "#2D9CDB" : "#333"}`,
+              background: active ? "#2D9CDB" : "transparent",
               color: active ? "#fff" : "#888",
               cursor: disabled ? "default" : "pointer",
             }}
