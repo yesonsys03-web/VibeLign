@@ -5,15 +5,37 @@ import { updateCard } from "../../lib/vib";
 import type { Card, CardState } from "../../lib/vib/types";
 
 const STATE_STYLE: Record<CardState, CSSProperties> = {
-  draft: { borderStyle: "dashed", opacity: 0.6 },
-  held: { borderStyle: "dashed", opacity: 0.6, marginLeft: 24 },
-  confirmed: { borderStyle: "solid", opacity: 1 },
+  draft: {
+    border: "2px dashed #B0AC9E",
+    background: "#FAF6E9",
+    opacity: 0.78,
+    boxShadow: "none",
+  },
+  held: {
+    border: "2px dashed #1A1A1A",
+    background: "#FCEDEA",
+    opacity: 0.92,
+    marginLeft: 20,
+    boxShadow: "none",
+  },
+  confirmed: {
+    border: "2.5px solid #1A1A1A",
+    background: "#D6F2E1",
+    opacity: 1,
+    boxShadow: "5px 5px 0 #1A1A1A",
+  },
 };
 
 const STATE_LABEL: Record<CardState, string> = {
   draft: "초안",
-  held: "보류",
-  confirmed: "확정",
+  held: "⏸ 보류",
+  confirmed: "✓ 확정",
+};
+
+const CHIP_STYLE: Record<CardState, CSSProperties> = {
+  draft: { background: "#E6E3D8", color: "#6B6657" },
+  held: { background: "#F4C7BB", color: "#8A352D" },
+  confirmed: { background: "#1E9E5A", color: "#FFFFFF" },
 };
 
 type CardAction = "confirm" | "hold" | "reject";
@@ -70,16 +92,26 @@ function CardItem({
   return (
     <div
       style={{
-        border: "2px solid #1A1A1A",
-        background: "#FEFBF0",
-        padding: "10px 12px",
-        transition: "opacity 0.3s ease, border-style 0.3s ease",
+        padding: "11px 13px",
+        transition: "opacity 0.25s ease, background 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease",
         ...STATE_STYLE[card.state],
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
         <strong style={{ fontSize: 12 }}>{card.title}</strong>
-        <span style={{ fontSize: 10, opacity: 0.7 }}>{STATE_LABEL[card.state]}</span>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 800,
+            letterSpacing: 0.3,
+            padding: "2px 8px",
+            border: "1.5px solid #1A1A1A",
+            whiteSpace: "nowrap",
+            ...CHIP_STYLE[card.state],
+          }}
+        >
+          {STATE_LABEL[card.state]}
+        </span>
       </div>
       {card.summary && <div style={{ fontSize: 11, marginTop: 4 }}>{card.summary}</div>}
       {card.reason && (
