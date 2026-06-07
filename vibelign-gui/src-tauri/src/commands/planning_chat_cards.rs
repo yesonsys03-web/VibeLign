@@ -2,6 +2,8 @@
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
+use super::planning_chat_types::PlanningChatMessage;
+use super::planning_persona::run_active_ai;
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "lowercase")]
@@ -161,6 +163,77 @@ fn set_state(cards: &mut [Card], id: &str, state: CardState, now: &str) {
     }
 }
 
+const CARD_RUBRIC: &str = r#"너는 기획 대화를 읽고 '결정'을 카드로 관리하는 추출기다.
+이번 턴의 대화를 보고, 카드에 가할 연산(ops)만 JSON으로 낸다.
+
+규칙:
+- 결정에만 반응한다. 인사·잡담·질문이면 ops는 빈 배열 [].
+- 새 결정이 생기면 add (흐릿한 초안 카드 생성).
+- 사용자가 직전 흐릿한 카드를 '이어가는 말'로 받으면 그 카드를 confirm.
+- 사용자가 거절('빼줘','아니야')하면 reject, 보류('잠깐','아직')하면 hold.
+- 애매하면 아무 op도 내지 않는다(명확히 앞으로 가겠다고 한 것만).
+- 사용자 한마디는 가장 최근 흐릿한 카드 '한 장'에만 confirm/reject/hold 한다.
+- confirm/reject/hold 의 id 는 아래 '현재 카드'의 id 중 하나여야 한다.
+
+반드시 아래 JSON만 출력한다(설명 금지):
+{ "ops": [
+  { "op": "add", "title": "...", "summary": "...", "reason": "..." },
+  { "op": "confirm", "id": "..." },
+  { "op": "reject", "id": "..." },
+  { "op": "hold", "id": "..." }
+] }
+"#;
+
+fn build_card_prompt(current: &[Card], turn: &[PlanningChatMessage]) -> String {
+    let mut prompt = String::from(CARD_RUBRIC);
+    prompt.push_str("\n현재 카드:\n");
+    if current.is_empty() {
+        prompt.push_str("(없음)\n");
+    } else {
+        for card in current {
+            prompt.push_str(&format!(
+                "- id={} state={:?} 제목={}\n",
+                card.id, card.state, card.title
+            ));
+        }
+    }
+    prompt.push_str("\n이번 턴 대화:\n");
+    for message in turn {
+        if message.status != "ok" {
+            continue;
+        }
+        let speaker = if message.role == "user" { "사용자" } else { "AI" };
+        prompt.push_str(speaker);
+        prompt.push_str(": ");
+        prompt.push_str(message.content.trim());
+        prompt.push('\n');
+    }
+    prompt.push_str("\n위 턴에 대한 ops JSON을 출력해.");
+    prompt
+}
+
+/// cards.json을 읽어 이번 턴으로 갱신하고 갱신된 카드를 반환. AI 없거나 변화 없으면 기존 유지.
+pub(crate) fn extract_and_apply(
+    project_dir: &Path,
+    session_dir: &Path,
+    all_messages: &[PlanningChatMessage],
+    turn: &[PlanningChatMessage],
+    now: &str,
+) -> Vec<Card> {
+    let current = read_cards(session_dir);
+    let prompt = build_card_prompt(&current, turn);
+    let Some(text) = run_active_ai(project_dir, all_messages, &prompt) else {
+        return current;
+    };
+    let ops = parse_card_ops(&text);
+    if ops.is_empty() {
+        return current;
+    }
+    let updated = apply_card_ops(current, &ops, now);
+    let _ = write_cards(session_dir, &updated);
+    updated
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -285,6 +358,24 @@ mod tests {
         let cards = apply_card_ops(start, &ops, "300");
         assert_eq!(cards.len(), 1);
         assert_eq!(cards[0].state, CardState::Draft);
+    }
+
+    #[test]
+    fn build_prompt_includes_rules_current_cards_and_turn() {
+        let current = vec![sample("card_9", CardState::Draft)];
+        let turn = vec![PlanningChatMessage {
+            id: "m".to_string(),
+            role: "user".to_string(),
+            persona_id: None,
+            content: "접기로 하자".to_string(),
+            status: "ok".to_string(),
+            created_at: "0".to_string(),
+        }];
+        let prompt = build_card_prompt(&current, &turn);
+        assert!(prompt.contains("ops"));
+        assert!(prompt.contains("card_9"));
+        assert!(prompt.contains("접기로 하자"));
+        assert!(prompt.contains("confirm"));
     }
 }
 // === ANCHOR: PLANNING_CHAT_CARDS_END ===
