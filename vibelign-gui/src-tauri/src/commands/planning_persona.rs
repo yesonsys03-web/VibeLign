@@ -158,6 +158,55 @@ fn executable_with_extension(_dir: &Path, _name: &str) -> Option<PathBuf> {
     None
 }
 
+pub(crate) fn pick_judge_cli(
+    messages: &[crate::commands::planning_chat_types::PlanningChatMessage],
+) -> Option<(PathBuf, Vec<String>)> {
+    for message in messages.iter().rev() {
+        if message.role == "assistant" && message.status == "ok" {
+            if let Some(persona_id) = message.persona_id.as_deref() {
+                if let Some(resolved) = resolve_persona_cli(persona_id) {
+                    return Some(resolved);
+                }
+            }
+        }
+    }
+    for persona_id in ["chloe", "gio", "mina"] {
+        if let Some(resolved) = resolve_persona_cli(persona_id) {
+            return Some(resolved);
+        }
+    }
+    None
+}
+
+fn resolve_persona_cli(persona_id: &str) -> Option<(PathBuf, Vec<String>)> {
+    let (executable, args) = persona_cli(persona_id)?;
+    let path = find_executable(executable)?;
+    Some((path, args.iter().map(|arg| arg.to_string()).collect()))
+}
+
+/// 활성 CLI를 골라 프롬프트를 1회 실행하고 stdout을 반환. 없거나 실패하면 None.
+pub(crate) fn run_active_ai(
+    project_dir: &Path,
+    messages: &[crate::commands::planning_chat_types::PlanningChatMessage],
+    prompt: &str,
+) -> Option<String> {
+    let (executable, args) = pick_judge_cli(messages)?;
+    let mut cmd = std::process::Command::new(executable);
+    cmd.args(&args);
+    cmd.arg(prompt);
+    cmd.current_dir(project_dir);
+    cmd.stdin(std::process::Stdio::null());
+    cmd.env("PATH", augmented_vib_path());
+    cmd.env("NO_COLOR", "1");
+    hide_console(&mut cmd);
+    match cmd.output() {
+        Ok(output) if output.status.success() => {
+            Some(String::from_utf8_lossy(&output.stdout).to_string())
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{build_persona_prompt, persona_spec, PlanningChatLine};
