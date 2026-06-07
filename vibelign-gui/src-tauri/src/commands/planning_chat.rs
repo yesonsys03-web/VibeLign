@@ -64,6 +64,23 @@ pub(crate) async fn create_planning_chat_session(
     .unwrap_or_else(|error| planning_chat_error(error.to_string()))
 }
 
+fn load_session_from_dir(
+    project_dir: &std::path::Path,
+    session_dir: &std::path::Path,
+) -> PlanningChatSessionResponse {
+    let session = match read_json::<StoredPlanningChatSession>(&session_dir.join("session.json")) {
+        Ok(parsed) => parsed,
+        Err(error) => return planning_chat_error(error),
+    };
+    let messages = match read_json::<Vec<PlanningChatMessage>>(&session_dir.join("messages.json")) {
+        Ok(parsed) => parsed,
+        Err(error) => return planning_chat_error(error),
+    };
+    let markdown = read_saved_markdown(project_dir, &session);
+    let cards = super::planning_chat_cards::read_cards(session_dir);
+    planning_chat_success(session, messages, markdown, cards)
+}
+
 #[tauri::command]
 pub(crate) async fn load_latest_planning_chat_session(
     project_dir: String,
@@ -77,21 +94,34 @@ pub(crate) async fn load_latest_planning_chat_session(
         let Some(session_path) = latest_chat_session_file(&project_dir) else {
             return planning_chat_error("planning chat session not found");
         };
-        let session = match read_json::<StoredPlanningChatSession>(&session_path) {
-            Ok(parsed) => parsed,
-            Err(error) => return planning_chat_error(error),
-        };
-        let messages_path = session_path
+        let session_dir = session_path
             .parent()
-            .map(|path| path.join("messages.json"))
-            .unwrap_or_else(|| PathBuf::from("messages.json"));
-        let messages = match read_json::<Vec<PlanningChatMessage>>(&messages_path) {
-            Ok(parsed) => parsed,
-            Err(error) => return planning_chat_error(error),
-        };
-        let markdown = read_saved_markdown(&project_dir, &session);
-        let cards = read_cards(&session_path.parent().map(|p| p.to_path_buf()).unwrap_or_default());
-        planning_chat_success(session, messages, markdown, cards)
+            .map(|path| path.to_path_buf())
+            .unwrap_or_else(|| project_dir.clone());
+        load_session_from_dir(&project_dir, &session_dir)
+    })
+    .await
+    .unwrap_or_else(|error| planning_chat_error(error.to_string()))
+}
+
+#[tauri::command]
+pub(crate) async fn load_planning_chat_session(
+    project_dir: String,
+    session_id: String,
+) -> PlanningChatSessionResponse {
+    let project_dir = PathBuf::from(project_dir);
+    if !project_dir.is_absolute() {
+        return planning_chat_error("projectDir must be absolute");
+    }
+    if session_id.trim().is_empty() {
+        return planning_chat_error("sessionId is required");
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let session_dir = planning_dir(&project_dir).join(&session_id);
+        if !session_dir.join("session.json").exists() {
+            return planning_chat_error("planning chat session not found");
+        }
+        load_session_from_dir(&project_dir, &session_dir)
     })
     .await
     .unwrap_or_else(|error| planning_chat_error(error.to_string()))
@@ -333,6 +363,22 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("mkdir");
         std::fs::write(dir.join("session.json"), "{}").expect("session");
         assert!(list_sessions(root.path()).is_empty());
+    }
+
+    #[test]
+    fn load_session_from_dir_reads_messages_and_cards() {
+        let root = tempfile::tempdir().expect("root");
+        write_session(root.path(), "chat_9", "복원 테스트", Some("plans/x.md"), 3, 2);
+        let session_dir = root.path().join(".vibelign/planning/chat_9");
+
+        let response = load_session_from_dir(root.path(), &session_dir);
+
+        let json = serde_json::to_value(&response).expect("json");
+        assert_eq!(json["ok"], true);
+        assert_eq!(json["sessionId"], "chat_9");
+        assert_eq!(json["messages"].as_array().expect("messages").len(), 3);
+        assert_eq!(json["cards"].as_array().expect("cards").len(), 2);
+        assert_eq!(json["outputPath"], "plans/x.md");
     }
 }
 // === ANCHOR: PLANNING_CHAT_END ===
