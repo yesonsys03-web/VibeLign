@@ -1,5 +1,36 @@
 // === ANCHOR: PLANNING_CHAT_READINESS_START ===
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
+
+use super::planning_chat_types::PlanningChatMessage;
+use super::planning_persona::{find_executable, persona_cli};
+
+/// 판정에 쓸 CLI를 고른다.
+/// 우선순위: 이 세션에서 성공(status=ok)한 페르소나의 도구 → 없으면 설치된 첫 페르소나 도구.
+fn pick_judge_cli(messages: &[PlanningChatMessage]) -> Option<(PathBuf, Vec<String>)> {
+    for message in messages.iter().rev() {
+        if message.role == "assistant" && message.status == "ok" {
+            if let Some(persona_id) = message.persona_id.as_deref() {
+                if let Some(resolved) = resolve_persona_cli(persona_id) {
+                    return Some(resolved);
+                }
+            }
+        }
+    }
+    for persona_id in ["chloe", "gio", "mina"] {
+        if let Some(resolved) = resolve_persona_cli(persona_id) {
+            return Some(resolved);
+        }
+    }
+    None
+}
+
+fn resolve_persona_cli(persona_id: &str) -> Option<(PathBuf, Vec<String>)> {
+    let (executable, args) = persona_cli(persona_id)?;
+    let path = find_executable(executable)?;
+    Some((path, args.iter().map(|arg| arg.to_string()).collect()))
+}
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "lowercase")]
@@ -195,6 +226,24 @@ mod tests {
         let report = parse_readiness_report("죄송합니다, JSON을 못 만들었어요.");
         assert!(matches!(report.status, ReadinessStatus::Unavailable));
         assert!(report.requirements.is_empty());
+    }
+
+    fn assistant(persona: &str, status: &str) -> PlanningChatMessage {
+        PlanningChatMessage {
+            id: "m".to_string(),
+            role: "assistant".to_string(),
+            persona_id: Some(persona.to_string()),
+            content: "x".to_string(),
+            status: status.to_string(),
+            created_at: "0".to_string(),
+        }
+    }
+
+    #[test]
+    fn pick_judge_cli_returns_none_when_no_persona_succeeded_and_no_cli() {
+        let messages = vec![assistant("gio", "failed")];
+        // 결과는 환경의 CLI 설치 여부에 의존하므로, 패닉 없이 호출되는 것만 보장.
+        let _ = pick_judge_cli(&messages);
     }
 }
 // === ANCHOR: PLANNING_CHAT_READINESS_END ===

@@ -100,6 +100,11 @@ fn persona_spec(persona_id: &str) -> Option<PersonaSpec> {
     }
 }
 
+pub(crate) fn persona_cli(persona_id: &str) -> Option<(&'static str, &'static [&'static str])> {
+    let spec = persona_spec(persona_id)?;
+    Some((spec.executable, spec.args_before_prompt))
+}
+
 fn build_persona_prompt(spec: PersonaSpec, lines: &[PlanningChatLine<'_>]) -> String {
     let mut prompt = format!(
         "너는 VibeLign 기획방의 {name}다.\n역할: {role}\n\n규칙:\n- 한국어로 답한다.\n- 사용자가 이해하기 쉽게 짧고 구체적으로 답한다.\n- 코드를 작성하지 말고, 기획 대화에 필요한 판단과 질문만 한다.\n- patch, CodeSpeak, anchor 같은 내부 구현 용어를 쓰지 않는다.\n\n지금까지의 대화:\n",
@@ -126,7 +131,7 @@ fn build_persona_prompt(spec: PersonaSpec, lines: &[PlanningChatLine<'_>]) -> St
     prompt
 }
 
-fn find_executable(name: &str) -> Option<PathBuf> {
+pub(crate) fn find_executable(name: &str) -> Option<PathBuf> {
     std::env::split_paths(&augmented_vib_path()).find_map(|dir| {
         let candidate = dir.join(name);
         if candidate.is_file() {
