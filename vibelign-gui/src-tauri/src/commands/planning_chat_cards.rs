@@ -130,6 +130,37 @@ pub(crate) fn parse_card_ops(text: &str) -> Vec<CardOp> {
         .collect()
 }
 
+pub(crate) fn apply_card_ops(mut cards: Vec<Card>, ops: &[CardOp], now: &str) -> Vec<Card> {
+    let mut add_index = 0usize;
+    for op in ops {
+        match op {
+            CardOp::Add { title, summary, reason } => {
+                cards.push(Card {
+                    id: format!("card_{now}_{add_index}"),
+                    title: title.clone(),
+                    summary: summary.clone(),
+                    reason: reason.clone(),
+                    state: CardState::Draft,
+                    created_at: now.to_string(),
+                    updated_at: now.to_string(),
+                });
+                add_index += 1;
+            }
+            CardOp::Confirm { id } => set_state(&mut cards, id, CardState::Confirmed, now),
+            CardOp::Hold { id } => set_state(&mut cards, id, CardState::Held, now),
+            CardOp::Reject { id } => cards.retain(|card| &card.id != id),
+        }
+    }
+    cards
+}
+
+fn set_state(cards: &mut [Card], id: &str, state: CardState, now: &str) {
+    if let Some(card) = cards.iter_mut().find(|card| card.id == id) {
+        card.state = state;
+        card.updated_at = now.to_string();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -211,6 +242,49 @@ mod tests {
     fn parse_ops_returns_empty_on_broken_json() {
         assert!(parse_card_ops("미안, JSON 못 만들었어").is_empty());
         assert!(parse_card_ops(r#"{ "nope": 1 }"#).is_empty());
+    }
+
+    #[test]
+    fn apply_add_creates_draft_with_generated_id() {
+        let ops = vec![
+            CardOp::Add { title: "A".to_string(), summary: "a".to_string(), reason: String::new() },
+            CardOp::Add { title: "B".to_string(), summary: "b".to_string(), reason: String::new() },
+        ];
+        let cards = apply_card_ops(Vec::new(), &ops, "100");
+        assert_eq!(cards.len(), 2);
+        assert_eq!(cards[0].id, "card_100_0");
+        assert_eq!(cards[1].id, "card_100_1");
+        assert_eq!(cards[0].state, CardState::Draft);
+        assert_eq!(cards[0].created_at, "100");
+    }
+
+    #[test]
+    fn apply_confirm_hold_reject_change_or_remove() {
+        let start = vec![
+            sample("card_1", CardState::Draft),
+            sample("card_2", CardState::Draft),
+            sample("card_3", CardState::Draft),
+        ];
+        let ops = vec![
+            CardOp::Confirm { id: "card_1".to_string() },
+            CardOp::Hold { id: "card_2".to_string() },
+            CardOp::Reject { id: "card_3".to_string() },
+        ];
+        let cards = apply_card_ops(start, &ops, "200");
+        assert_eq!(cards.len(), 2);
+        assert_eq!(cards[0].state, CardState::Confirmed);
+        assert_eq!(cards[0].updated_at, "200");
+        assert_eq!(cards[1].state, CardState::Held);
+        assert!(cards.iter().all(|c| c.id != "card_3"));
+    }
+
+    #[test]
+    fn apply_ignores_unknown_id() {
+        let start = vec![sample("card_1", CardState::Draft)];
+        let ops = vec![CardOp::Confirm { id: "ghost".to_string() }];
+        let cards = apply_card_ops(start, &ops, "300");
+        assert_eq!(cards.len(), 1);
+        assert_eq!(cards[0].state, CardState::Draft);
     }
 }
 // === ANCHOR: PLANNING_CHAT_CARDS_END ===
