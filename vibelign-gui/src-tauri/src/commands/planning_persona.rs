@@ -266,19 +266,38 @@ fn build_persona_prompt(spec: PersonaSpec, role: (&'static str, &'static str), l
 
 pub(crate) fn find_executable(name: &str) -> Option<PathBuf> {
     std::env::split_paths(&augmented_vib_path()).find_map(|dir| {
-        let candidate = dir.join(name);
-        if candidate.is_file() {
-            Some(candidate)
-        } else {
-            executable_with_extension(&dir, name)
+        // Unix: 무확장 실행파일을 먼저 본다. Windows: 무확장 파일은 git-bash 용 셔임이라
+        // CreateProcess 로 직접 실행할 수 없으므로 건너뛰고 .exe/.cmd/.bat 를 찾는다.
+        #[cfg(not(target_os = "windows"))]
+        {
+            let bare = dir.join(name);
+            if bare.is_file() {
+                return Some(bare);
+            }
         }
+        executable_with_extension(&dir, name)
+    })
+}
+
+// 윈도 실행 확장자 후보를 순서대로 시도하는 순수 코어(exists 주입으로 OS 무관 테스트).
+// npm/winget 셔임은 .cmd 가 흔하다. rustc >= 1.77.2 의 Command 가 .cmd/.bat 를
+// cmd.exe 경유로 안전하게 실행하므로 경로만 찾으면 그대로 실행된다.
+#[cfg(any(target_os = "windows", test))]
+fn windows_executable_candidate(
+    dir: &Path,
+    name: &str,
+    exists: impl Fn(&Path) -> bool,
+) -> Option<PathBuf> {
+    const EXEC_EXTS: &[&str] = &["exe", "cmd", "bat", "com"];
+    EXEC_EXTS.iter().find_map(|ext| {
+        let candidate = dir.join(format!("{name}.{ext}"));
+        exists(&candidate).then_some(candidate)
     })
 }
 
 #[cfg(target_os = "windows")]
 fn executable_with_extension(dir: &Path, name: &str) -> Option<PathBuf> {
-    let candidate = dir.join(format!("{name}.exe"));
-    candidate.is_file().then_some(candidate)
+    windows_executable_candidate(dir, name, |p| p.is_file())
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -371,7 +390,35 @@ pub(crate) fn planning_provider_status() -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_persona_prompt, classify_failure, fallback_provider_used, installed_providers_from, persona_enabled_from_value, persona_role_from_value, persona_spec, provider_spec, provider_try_order, role_spec, PlanningChatLine, INTERNAL_PROVIDER_PRIORITY};
+    use super::{build_persona_prompt, classify_failure, fallback_provider_used, installed_providers_from, persona_enabled_from_value, persona_role_from_value, persona_spec, provider_spec, provider_try_order, role_spec, windows_executable_candidate, PlanningChatLine, INTERNAL_PROVIDER_PRIORITY};
+    use std::path::Path;
+
+    #[test]
+    fn windows_candidate_finds_cmd_shim() {
+        let dir = Path::new("/fake/bin");
+        // claude.cmd 만 존재(npm 셔임)
+        let found = windows_executable_candidate(dir, "claude", |p| {
+            p == Path::new("/fake/bin/claude.cmd")
+        });
+        assert_eq!(found, Some(dir.join("claude.cmd")));
+    }
+
+    #[test]
+    fn windows_candidate_prefers_exe_over_cmd() {
+        let dir = Path::new("/fake/bin");
+        let found = windows_executable_candidate(dir, "codex", |p| {
+            p == Path::new("/fake/bin/codex.exe") || p == Path::new("/fake/bin/codex.cmd")
+        });
+        assert_eq!(found, Some(dir.join("codex.exe")));
+    }
+
+    #[test]
+    fn windows_candidate_none_when_missing() {
+        assert_eq!(
+            windows_executable_candidate(Path::new("/fake"), "nope", |_| false),
+            None
+        );
+    }
 
     #[test]
     fn installed_providers_filters_by_resolver() {
