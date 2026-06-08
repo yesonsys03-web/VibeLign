@@ -19,17 +19,6 @@ fn provider_try_order(preferred: &str) -> Vec<String> {
     order
 }
 
-fn persona_provider_from_value(config: &serde_json::Value, persona_id: &str) -> Option<String> {
-    config
-        .get("planning_personas")?
-        .get("personas")?
-        .get(persona_id)?
-        .get("provider")?
-        .as_str()
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
-}
-
 fn persona_enabled_from_value(config: &serde_json::Value, persona_id: &str) -> bool {
     config
         .get("planning_personas")
@@ -57,12 +46,9 @@ fn read_gui_config_value() -> serde_json::Value {
         .unwrap_or_else(|| serde_json::json!({}))
 }
 
-/// persona 의 1순위 provider(설정 우선, 없으면 기본)로 시도 목록을 만든다.
-fn resolve_provider_order(persona_id: &str, spec: &PersonaSpec) -> Vec<String> {
-    let config = read_gui_config_value();
-    let preferred = persona_provider_from_value(&config, persona_id)
-        .unwrap_or_else(|| spec.default_provider.to_string());
-    provider_try_order(&preferred)
+/// persona 의 기본 provider 로 시도 목록을 만든다.
+fn resolve_provider_order(_persona_id: &str, spec: &PersonaSpec) -> Vec<String> {
+    provider_try_order(spec.default_provider)
 }
 
 pub(crate) struct PersonaRun {
@@ -89,8 +75,8 @@ pub(crate) struct PlanningChatLine<'a> {
 #[derive(Clone, Copy)]
 struct PersonaSpec {
     name: &'static str,
-    role: &'static str,
     default_provider: &'static str,
+    default_role: &'static str,
 }
 
 pub(crate) fn run_persona_response(
@@ -105,7 +91,8 @@ pub(crate) fn run_persona_response(
             provider_used: None,
         };
     };
-    let prompt = build_persona_prompt(spec, lines);
+    let role = resolve_role(persona_id, &spec);
+    let prompt = build_persona_prompt(spec, role, lines);
     let order = resolve_provider_order(persona_id, &spec);
     let preferred = order.first().cloned().unwrap_or_default();
     for provider in order {
@@ -148,26 +135,57 @@ fn persona_spec(persona_id: &str) -> Option<PersonaSpec> {
     match persona_id {
         "chloe" => Some(PersonaSpec {
             name: "클로이",
-            role: "제품 설계자. 사용자의 막연한 아이디어를 기능 흐름과 화면 구조로 구체화한다.",
             default_provider: "claude",
+            default_role: "design",
         }),
         "gio" => Some(PersonaSpec {
             name: "지오",
-            role: "기획 검토자. 빠진 조건, 위험한 가정, 구현 전에 정해야 할 결정을 짚는다.",
             default_provider: "codex",
+            default_role: "review",
         }),
         "mina" => Some(PersonaSpec {
             name: "미나",
-            role: "사용자 탐색자. 실제 사용자가 겪을 상황, 입력 방식, 엣지케이스를 질문한다.",
             default_provider: "agy",
+            default_role: "explore",
         }),
         "deepseek" => Some(PersonaSpec {
             name: "딥시기",
-            role: "조교. 다른 페르소나의 설명과 결정을 사용자가 알기 쉽게 풀어 주고, 사용자의 질문에 차분히 답하며 논의를 정리한다.",
             default_provider: "opencode",
+            default_role: "assist",
         }),
         _ => None,
     }
+}
+
+/// role id -> (라벨, 프롬프트 역할 설명)
+fn role_spec(role_id: &str) -> Option<(&'static str, &'static str)> {
+    match role_id {
+        "design" => Some(("설계", "제품 설계자. 사용자의 막연한 아이디어를 기능 흐름과 화면 구조로 구체화한다.")),
+        "review" => Some(("검토", "기획 검토자. 빠진 조건, 위험한 가정, 구현 전에 정해야 할 결정을 짚는다.")),
+        "explore" => Some(("탐색", "사용자 탐색자. 실제 사용자가 겪을 상황, 입력 방식, 엣지케이스를 질문한다.")),
+        "assist" => Some(("조교", "조교. 다른 페르소나의 설명과 결정을 사용자가 알기 쉽게 풀어 주고, 사용자의 질문에 차분히 답하며 논의를 정리한다.")),
+        _ => None,
+    }
+}
+
+fn persona_role_from_value(config: &serde_json::Value, persona_id: &str) -> Option<String> {
+    config
+        .get("planning_personas")?
+        .get("personas")?
+        .get(persona_id)?
+        .get("role")?
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+}
+
+fn resolve_role(persona_id: &str, spec: &PersonaSpec) -> (&'static str, &'static str) {
+    let config = read_gui_config_value();
+    let role_id = persona_role_from_value(&config, persona_id)
+        .unwrap_or_else(|| spec.default_role.to_string());
+    role_spec(&role_id)
+        .or_else(|| role_spec(spec.default_role))
+        .unwrap_or(("", ""))
 }
 
 fn provider_spec(provider_id: &str) -> Option<(&'static str, &'static [&'static str])> {
@@ -180,11 +198,11 @@ fn provider_spec(provider_id: &str) -> Option<(&'static str, &'static [&'static 
     }
 }
 
-fn build_persona_prompt(spec: PersonaSpec, lines: &[PlanningChatLine<'_>]) -> String {
+fn build_persona_prompt(spec: PersonaSpec, role: (&'static str, &'static str), lines: &[PlanningChatLine<'_>]) -> String {
     let mut prompt = format!(
         "너는 VibeLign 기획방의 {name}다.\n역할: {role}\n\n규칙:\n- 한국어로 답한다.\n- 사용자가 이해하기 쉽게 짧고 구체적으로 답한다.\n- 코드를 작성하지 말고, 기획 대화에 필요한 판단과 질문만 한다.\n- patch, CodeSpeak, anchor 같은 내부 구현 용어를 쓰지 않는다.\n\n지금까지의 대화:\n",
         name = spec.name,
-        role = spec.role
+        role = role.1
     );
     for line in lines {
         let speaker = match (line.role, line.persona_id) {
@@ -201,7 +219,7 @@ fn build_persona_prompt(spec: PersonaSpec, lines: &[PlanningChatLine<'_>]) -> St
         prompt.push_str(line.content.trim());
         prompt.push('\n');
     }
-    if spec.name == "클로이" {
+    if role.0 == "설계" {
         prompt.push_str(
             "\n[설계 습관] 결정이 설 때, 가끔 '이건 뭐가 발동시키고 어디에 저장되죠?'를 한 번 되물어라(매 턴 X — 흐름을 깨지 않게).\n",
         );
@@ -319,7 +337,7 @@ pub(crate) fn planning_provider_status() -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_persona_prompt, fallback_provider_used, installed_providers_from, persona_enabled_from_value, persona_spec, persona_provider_from_value, provider_spec, provider_try_order, PlanningChatLine, INTERNAL_PROVIDER_PRIORITY};
+    use super::{build_persona_prompt, fallback_provider_used, installed_providers_from, persona_enabled_from_value, persona_role_from_value, persona_spec, provider_spec, provider_try_order, role_spec, PlanningChatLine, INTERNAL_PROVIDER_PRIORITY};
 
     #[test]
     fn installed_providers_filters_by_resolver() {
@@ -329,11 +347,27 @@ mod tests {
     }
 
     #[test]
-    fn persona_default_provider_mapping() {
-        assert_eq!(persona_spec("chloe").unwrap().default_provider, "claude");
-        assert_eq!(persona_spec("gio").unwrap().default_provider, "codex");
-        assert_eq!(persona_spec("mina").unwrap().default_provider, "agy");
-        assert_eq!(persona_spec("deepseek").unwrap().default_provider, "opencode");
+    fn role_spec_has_label_and_prompt() {
+        assert_eq!(role_spec("design").unwrap().0, "설계");
+        assert_eq!(role_spec("assist").unwrap().0, "조교");
+        assert!(role_spec("review").unwrap().1.contains("검토자"));
+    }
+
+    #[test]
+    fn persona_role_reads_config_then_default() {
+        let v: serde_json::Value = serde_json::from_str(
+            r#"{"planning_personas":{"personas":{"chloe":{"role":"review"}}}}"#,
+        ).unwrap();
+        assert_eq!(persona_role_from_value(&v, "chloe"), Some("review".to_string()));
+        assert_eq!(persona_role_from_value(&v, "gio"), None);
+    }
+
+    #[test]
+    fn persona_default_role_mapping() {
+        assert_eq!(persona_spec("chloe").unwrap().default_role, "design");
+        assert_eq!(persona_spec("gio").unwrap().default_role, "review");
+        assert_eq!(persona_spec("mina").unwrap().default_role, "explore");
+        assert_eq!(persona_spec("deepseek").unwrap().default_role, "assist");
     }
 
     #[test]
@@ -350,30 +384,22 @@ mod tests {
     #[test]
     fn build_persona_prompt_includes_conversation_when_lines_exist() {
         let spec = persona_spec("mina").expect("mina persona");
+        let role = role_spec("explore").expect("explore role");
         let lines = [
-            PlanningChatLine {
-                role: "user",
-                persona_id: None,
-                content: "화상회의 번역 앱을 만들고 싶어",
-            },
-            PlanningChatLine {
-                role: "assistant",
-                persona_id: Some("gio"),
-                content: "회의 플랫폼 범위를 정해야 해요.",
-            },
+            PlanningChatLine { role: "user", persona_id: None, content: "화상회의 번역 앱을 만들고 싶어" },
+            PlanningChatLine { role: "assistant", persona_id: Some("gio"), content: "회의 플랫폼 범위를 정해야 해요." },
         ];
-
-        let prompt = build_persona_prompt(spec, &lines);
-
+        let prompt = build_persona_prompt(spec, role, &lines);
         assert!(prompt.contains("미나"));
         assert!(prompt.contains("화상회의 번역 앱을 만들고 싶어"));
         assert!(prompt.contains("지오: 회의 플랫폼 범위를 정해야 해요."));
     }
 
     #[test]
-    fn chloe_prompt_nudges_for_mechanism() {
+    fn design_role_nudges_for_mechanism() {
         let spec = persona_spec("chloe").expect("chloe persona");
-        let prompt = build_persona_prompt(spec, &[]);
+        let role = role_spec("design").expect("design role");
+        let prompt = build_persona_prompt(spec, role, &[]);
         assert!(prompt.contains("발동시키고 어디에 저장"));
     }
 
@@ -386,16 +412,6 @@ mod tests {
         for base in INTERNAL_PROVIDER_PRIORITY {
             assert!(order.iter().any(|p| p == base));
         }
-    }
-
-    #[test]
-    fn persona_provider_reads_config_value() {
-        let v: serde_json::Value = serde_json::from_str(
-            r#"{"planning_personas":{"personas":{"chloe":{"enabled":true,"provider":"codex"}}}}"#,
-        )
-        .unwrap();
-        assert_eq!(persona_provider_from_value(&v, "chloe"), Some("codex".to_string()));
-        assert_eq!(persona_provider_from_value(&v, "mina"), None);
     }
 
     #[test]
