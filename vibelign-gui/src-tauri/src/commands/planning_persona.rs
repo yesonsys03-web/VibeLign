@@ -276,9 +276,42 @@ pub(crate) fn run_active_ai(
     }
 }
 
+/// provider 후보 순서(드롭다운/탐지 공용).
+const PLANNING_PROVIDERS: &[&str] = &["claude", "codex", "agy", "opencode"];
+
+/// resolver(실행파일명→설치여부)로 설치된 provider id 만 추린다.
+fn installed_providers_from(resolver: impl Fn(&str) -> bool) -> Vec<String> {
+    PLANNING_PROVIDERS
+        .iter()
+        .filter(|provider| {
+            provider_spec(provider)
+                .map(|(executable, _)| resolver(executable))
+                .unwrap_or(false)
+        })
+        .map(|p| (*p).to_string())
+        .collect()
+}
+
+/// 실제 PATH(augmented)에서 설치된 planning provider 목록.
+pub(crate) fn probe_planning_providers() -> Vec<String> {
+    installed_providers_from(|executable| find_executable(executable).is_some())
+}
+
+#[tauri::command]
+pub(crate) fn planning_provider_status() -> Vec<String> {
+    probe_planning_providers()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{build_persona_prompt, persona_enabled_from_value, persona_spec, persona_provider_from_value, provider_spec, provider_try_order, PlanningChatLine, INTERNAL_PROVIDER_PRIORITY};
+    use super::{build_persona_prompt, installed_providers_from, persona_enabled_from_value, persona_spec, persona_provider_from_value, provider_spec, provider_try_order, PlanningChatLine, INTERNAL_PROVIDER_PRIORITY};
+
+    #[test]
+    fn installed_providers_filters_by_resolver() {
+        let resolver = |name: &str| matches!(name, "codex" | "agy");
+        let installed = installed_providers_from(resolver);
+        assert_eq!(installed, vec!["codex".to_string(), "agy".to_string()]);
+    }
 
     #[test]
     fn persona_default_provider_mapping() {
