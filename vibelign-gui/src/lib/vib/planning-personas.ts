@@ -4,7 +4,7 @@ export type PlanningProviderId = "claude" | "codex" | "agy" | "opencode";
 
 export interface PlanningPersonaConfig {
   enabled: boolean;
-  provider: string;
+  role: string;
 }
 
 /** 페르소나 id → 설정. 비어있는 항목은 호출자가 기본값으로 채운다. */

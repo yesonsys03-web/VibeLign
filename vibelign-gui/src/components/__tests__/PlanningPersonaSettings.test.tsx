@@ -1,24 +1,25 @@
 import { describe, it, expect } from "vitest";
-import {
-  PLANNING_PROVIDER_OPTIONS,
-  applyPersonaChange,
-  effectivePersona,
-} from "../PlanningPersonaSettings";
+import { PLANNING_ROLE_OPTIONS, effectivePersona, applyRoleSwap } from "../PlanningPersonaSettings";
 
-describe("PlanningPersonaSettings logic", () => {
-  it("exposes the four provider options", () => {
-    expect(PLANNING_PROVIDER_OPTIONS).toEqual(["claude", "codex", "agy", "opencode"]);
+describe("PlanningPersonaSettings role swap", () => {
+  it("exposes the four roles in order", () => {
+    expect(PLANNING_ROLE_OPTIONS.map((r) => r.id)).toEqual(["design", "review", "explore", "assist"]);
   });
 
-  it("effectivePersona falls back to default provider and enabled=true", () => {
-    expect(effectivePersona({}, "chloe")).toEqual({ enabled: true, provider: "claude" });
-    expect(effectivePersona({ chloe: { provider: "codex" } }, "chloe")).toEqual({ enabled: true, provider: "codex" });
-    expect(effectivePersona({ gio: { enabled: false } }, "gio")).toEqual({ enabled: false, provider: "codex" });
+  it("effectivePersona falls back to default role + enabled true", () => {
+    expect(effectivePersona({}, "chloe")).toEqual({ enabled: true, role: "design" });
+    expect(effectivePersona({ gio: { role: "design" } }, "gio")).toEqual({ enabled: true, role: "design" });
+    expect(effectivePersona({ mina: { enabled: false } }, "mina")).toEqual({ enabled: false, role: "explore" });
   });
 
-  it("applyPersonaChange writes a full entry without touching others", () => {
-    const next = applyPersonaChange({ mina: { provider: "agy" } }, "chloe", { enabled: false });
-    expect(next.chloe).toEqual({ enabled: false, provider: "claude" });
-    expect(next.mina).toEqual({ provider: "agy" });
+  it("applyRoleSwap swaps with whoever currently holds the target role", () => {
+    // defaults: chloe=design, gio=review. Give chloe 'review' -> gio gets chloe's old 'design'.
+    const next = applyRoleSwap({}, "chloe", "review");
+    expect(next.chloe.role).toBe("review");
+    expect(next.gio.role).toBe("design");
+  });
+
+  it("applyRoleSwap is a no-op when assigning the same role", () => {
+    expect(applyRoleSwap({}, "chloe", "design")).toEqual({});
   });
 });
