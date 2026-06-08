@@ -19,8 +19,7 @@ pub(crate) struct PlanningChatLine<'a> {
 struct PersonaSpec {
     name: &'static str,
     role: &'static str,
-    executable: &'static str,
-    args_before_prompt: &'static [&'static str],
+    default_provider: &'static str,
 }
 
 pub(crate) fn run_persona_response(
@@ -34,7 +33,11 @@ pub(crate) fn run_persona_response(
             status: "failed".to_string(),
         };
     };
-    let Some(executable) = find_executable(spec.executable) else {
+    let (executable_name, args_before_prompt) = match provider_spec(spec.default_provider) {
+        Some(pair) => pair,
+        None => return failed_persona_run(),
+    };
+    let Some(executable) = find_executable(executable_name) else {
         return PersonaRun {
             content: format!(
                 "{} CLI를 찾지 못했어요. 설치 또는 PATH 설정을 확인해 주세요.",
@@ -45,7 +48,7 @@ pub(crate) fn run_persona_response(
     };
     let prompt = build_persona_prompt(spec, lines);
     let mut cmd = Command::new(executable);
-    cmd.args(spec.args_before_prompt);
+    cmd.args(args_before_prompt);
     cmd.arg(prompt);
     cmd.current_dir(project_dir);
     cmd.stdin(Stdio::null());
@@ -81,34 +84,40 @@ fn persona_spec(persona_id: &str) -> Option<PersonaSpec> {
         "chloe" => Some(PersonaSpec {
             name: "클로이",
             role: "제품 설계자. 사용자의 막연한 아이디어를 기능 흐름과 화면 구조로 구체화한다.",
-            executable: "claude",
-            args_before_prompt: &["-p"],
+            default_provider: "claude",
         }),
         "gio" => Some(PersonaSpec {
             name: "지오",
             role: "기획 검토자. 빠진 조건, 위험한 가정, 구현 전에 정해야 할 결정을 짚는다.",
-            executable: "codex",
-            args_before_prompt: &["exec"],
+            default_provider: "codex",
         }),
         "mina" => Some(PersonaSpec {
             name: "미나",
             role: "사용자 탐색자. 실제 사용자가 겪을 상황, 입력 방식, 엣지케이스를 질문한다.",
-            executable: "agy",
-            args_before_prompt: &["-p"],
+            default_provider: "agy",
         }),
         "deepseek" => Some(PersonaSpec {
             name: "딥시기",
             role: "조교. 다른 페르소나의 설명과 결정을 사용자가 알기 쉽게 풀어 주고, 사용자의 질문에 차분히 답하며 논의를 정리한다.",
-            executable: "opencode",
-            args_before_prompt: &["run", "-m", "opencode/deepseek-v4-flash-free"],
+            default_provider: "opencode",
         }),
+        _ => None,
+    }
+}
+
+fn provider_spec(provider_id: &str) -> Option<(&'static str, &'static [&'static str])> {
+    match provider_id {
+        "claude" => Some(("claude", &["-p"])),
+        "codex" => Some(("codex", &["exec"])),
+        "agy" => Some(("agy", &["-p"])),
+        "opencode" => Some(("opencode", &["run", "-m", "opencode/deepseek-v4-flash-free"])),
         _ => None,
     }
 }
 
 pub(crate) fn persona_cli(persona_id: &str) -> Option<(&'static str, &'static [&'static str])> {
     let spec = persona_spec(persona_id)?;
-    Some((spec.executable, spec.args_before_prompt))
+    provider_spec(spec.default_provider)
 }
 
 fn build_persona_prompt(spec: PersonaSpec, lines: &[PlanningChatLine<'_>]) -> String {
@@ -216,32 +225,24 @@ pub(crate) fn run_active_ai(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_persona_prompt, persona_spec, PlanningChatLine};
+    use super::{build_persona_prompt, persona_spec, provider_spec, PlanningChatLine};
 
     #[test]
-    fn persona_spec_maps_gio_to_codex_when_known_persona() {
-        let spec = persona_spec("gio").expect("gio persona");
-
-        assert_eq!(spec.executable, "codex");
-        assert_eq!(spec.args_before_prompt, &["exec"]);
+    fn persona_default_provider_mapping() {
+        assert_eq!(persona_spec("chloe").unwrap().default_provider, "claude");
+        assert_eq!(persona_spec("gio").unwrap().default_provider, "codex");
+        assert_eq!(persona_spec("mina").unwrap().default_provider, "agy");
+        assert_eq!(persona_spec("deepseek").unwrap().default_provider, "opencode");
     }
 
     #[test]
-    fn persona_spec_maps_mina_to_agy_print_mode() {
-        let spec = persona_spec("mina").expect("mina persona");
-
-        assert_eq!(spec.executable, "agy");
-        assert_eq!(spec.args_before_prompt, &["-p"]);
-    }
-
-    #[test]
-    fn persona_spec_maps_deepseek_to_opencode_free_model() {
-        let spec = persona_spec("deepseek").expect("deepseek persona");
-
-        assert_eq!(spec.executable, "opencode");
+    fn provider_spec_returns_executable_and_args() {
+        assert_eq!(provider_spec("codex").unwrap(), ("codex", &["exec"][..]));
+        assert_eq!(provider_spec("claude").unwrap(), ("claude", &["-p"][..]));
+        assert_eq!(provider_spec("agy").unwrap(), ("agy", &["-p"][..]));
         assert_eq!(
-            spec.args_before_prompt,
-            &["run", "-m", "opencode/deepseek-v4-flash-free"]
+            provider_spec("opencode").unwrap(),
+            ("opencode", &["run", "-m", "opencode/deepseek-v4-flash-free"][..])
         );
     }
 
