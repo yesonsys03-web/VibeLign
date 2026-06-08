@@ -166,6 +166,7 @@ export interface PlanningChatMessage {
   content: string;
   status: "pending" | "ok" | "failed" | string;
   createdAt: string;
+  providerUsed?: string | null;
 }
 
 export interface CreatePlanningChatSessionRequest {
