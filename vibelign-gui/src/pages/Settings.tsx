@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { saveProviderApiKey, deleteProviderApiKey, getVibPath, getEnvKeyStatus, getAiEnhancement, setAiEnhancement, getAutoBackupOnCommit, setAutoBackupOnCommit, detectInstalledTools, runVib } from "../lib/vib";
 import { ToolSetupSelector } from "../components/ToolSetupSelector";
+import { PlanningPersonaSettings } from "../components/PlanningPersonaSettings";
 
 const PROVIDER_MODELS: Record<string, string[]> = {
   ANTHROPIC: ["claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"],
@@ -589,6 +590,7 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
           )}
         </div>
 
+        <PlanningPersonaSettings />
       </div>
     </div>
   );
