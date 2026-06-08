@@ -51,10 +51,27 @@ fn resolve_provider_order(_persona_id: &str, spec: &PersonaSpec) -> Vec<String> 
     provider_try_order(spec.default_provider)
 }
 
+/// 실패 출력에서 로그인 문제를 감지. 아니면 "error".
+fn classify_failure(stdout: &str, stderr: &str) -> String {
+    let combined = format!("{stdout}\n{stderr}").to_lowercase();
+    const LOGIN_PATTERNS: &[&str] = &[
+        "not logged in", "not signed in", "please login", "please log in",
+        "log out and sign in", "sign in again", "login required",
+        "authentication required", "auth required", "unauthorized",
+        "token_expired", "token expired", "401",
+    ];
+    if LOGIN_PATTERNS.iter().any(|p| combined.contains(p)) {
+        "not_logged_in".to_string()
+    } else {
+        "error".to_string()
+    }
+}
+
 pub(crate) struct PersonaRun {
     pub(crate) content: String,
     pub(crate) status: String,
     pub(crate) provider_used: Option<String>,
+    pub(crate) fallback_reason: Option<String>,
 }
 
 /// 실제 응답한 provider 가 preferred 와 다르면 Some(used), 같으면 None.
@@ -89,17 +106,22 @@ pub(crate) fn run_persona_response(
             content: "선택한 페르소나를 찾지 못했어요.".to_string(),
             status: "failed".to_string(),
             provider_used: None,
+            fallback_reason: None,
         };
     };
     let role = resolve_role(persona_id, &spec);
     let prompt = build_persona_prompt(spec, role, lines);
     let order = resolve_provider_order(persona_id, &spec);
     let preferred = order.first().cloned().unwrap_or_default();
+    let mut preferred_reason: Option<String> = None;
     for provider in order {
+        let is_preferred = provider == preferred;
         let Some((executable_name, args)) = provider_spec(&provider) else {
+            if is_preferred { preferred_reason = Some("not_installed".to_string()); }
             continue;
         };
         let Some(executable) = find_executable(executable_name) else {
+            if is_preferred { preferred_reason = Some("not_installed".to_string()); }
             continue;
         };
         let mut cmd = Command::new(executable);
@@ -110,24 +132,36 @@ pub(crate) fn run_persona_response(
         cmd.env("PATH", augmented_vib_path());
         cmd.env("NO_COLOR", "1");
         hide_console(&mut cmd);
-        if let Ok(output) = cmd.output() {
-            if output.status.success() {
+        match cmd.output() {
+            Ok(output) if output.status.success() => {
                 let content = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 if !content.is_empty() {
                     return PersonaRun {
                         content,
                         status: "ok".to_string(),
                         provider_used: fallback_provider_used(&preferred, &provider),
+                        fallback_reason: if is_preferred { None } else { preferred_reason.clone() },
                     };
                 }
+                if is_preferred { preferred_reason = Some("error".to_string()); }
+            }
+            Ok(output) => {
+                if is_preferred {
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    preferred_reason = Some(classify_failure(&stdout, &stderr));
+                }
+            }
+            Err(_) => {
+                if is_preferred { preferred_reason = Some("error".to_string()); }
             }
         }
-        // 실패 → 다음 provider 로 폴백
     }
     PersonaRun {
         content: "AI 응답을 가져오지 못했어요. 설치된 AI가 없거나 로그인이 필요할 수 있어요.".to_string(),
         status: "failed".to_string(),
         provider_used: None,
+        fallback_reason: preferred_reason,
     }
 }
 
@@ -337,7 +371,7 @@ pub(crate) fn planning_provider_status() -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_persona_prompt, fallback_provider_used, installed_providers_from, persona_enabled_from_value, persona_role_from_value, persona_spec, provider_spec, provider_try_order, role_spec, PlanningChatLine, INTERNAL_PROVIDER_PRIORITY};
+    use super::{build_persona_prompt, classify_failure, fallback_provider_used, installed_providers_from, persona_enabled_from_value, persona_role_from_value, persona_spec, provider_spec, provider_try_order, role_spec, PlanningChatLine, INTERNAL_PROVIDER_PRIORITY};
 
     #[test]
     fn installed_providers_filters_by_resolver() {
@@ -428,6 +462,17 @@ mod tests {
     fn fallback_provider_used_marks_only_non_preferred() {
         assert_eq!(fallback_provider_used("claude", "claude"), None);
         assert_eq!(fallback_provider_used("claude", "codex"), Some("codex".to_string()));
+    }
+
+    #[test]
+    fn classify_failure_detects_login_from_stderr() {
+        let stderr = "ERROR codex_login: 401 Unauthorized token_expired. Please log out and sign in again.";
+        assert_eq!(classify_failure("", stderr), "not_logged_in");
+    }
+
+    #[test]
+    fn classify_failure_defaults_to_error() {
+        assert_eq!(classify_failure("", "some random crash"), "error");
     }
 }
 // === ANCHOR: PLANNING_PERSONA_END ===
