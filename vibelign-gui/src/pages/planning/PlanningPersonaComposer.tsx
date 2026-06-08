@@ -1,9 +1,7 @@
 // === ANCHOR: PLANNINGPERSONACOMPOSER_START ===
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
-import { appendPlanningChatTurn, getPlanningPersonas, setPlanningPersonas, probePlanningProviders, type PlanningChatSessionResponse, type PlanningPersonaConfigMap } from "../../lib/vib";
-import { applyPersonaChange } from "../../components/PlanningPersonaSettings";
-import { PersonaProviderSelect } from "./PersonaProviderSelect";
+import { appendPlanningChatTurn, type PlanningChatSessionResponse } from "../../lib/vib";
 import { DEFAULT_PLANNING_MODE, type PlanningModeOption } from "./PlanningModes";
 import { PlanningModeSelector } from "./PlanningModeSelector";
 import { allPlanningPersonaIds, PLANNING_PERSONAS } from "./PlanningPersonas";
@@ -29,20 +27,6 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const canSubmit = message.trim().length > 0 && selectedPersonaIds.length > 0 && Boolean(sessionId) && !isSubmitting;
-
-  const [personaMap, setPersonaMap] = useState<PlanningPersonaConfigMap>({});
-  const [installedProviders, setInstalledProviders] = useState<string[] | null>(null);
-
-  useEffect(() => {
-    getPlanningPersonas().then(setPersonaMap).catch(() => setPersonaMap({}));
-    probePlanningProviders().then(setInstalledProviders).catch(() => setInstalledProviders([]));
-  }, []);
-
-  function changeProvider(personaId: string, provider: string) {
-    const next = applyPersonaChange(personaMap, personaId, { provider });
-    setPersonaMap(next);
-    void setPlanningPersonas(next).catch(() => {});
-  }
 
   // === ANCHOR: PLANNINGPERSONACOMPOSER_HANDLESUBMIT_START ===
   async function handleSubmit() {
@@ -93,34 +77,27 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
           }}
         />
         {PLANNING_PERSONAS.map((persona) => (
-          <div key={persona.id} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-            <button
-              type="button"
-              aria-pressed={selectedPersonaIds.includes(persona.id)}
-              onClick={() => {
-                setSelectedPersonaIds(togglePersona(selectedPersonaIds, persona.id));
-                setMessage((current) => appendMention(current, persona.mention));
-              }}
-              style={{
-                border: "2px solid #1A1A1A",
-                background: selectedPersonaIds.includes(persona.id) ? "#1A1A1A" : "#F7F0DF",
-                color: selectedPersonaIds.includes(persona.id) ? "#FFFFFF" : "#1A1A1A",
-                padding: "7px 9px",
-                fontSize: 11,
-                fontWeight: 900,
-                cursor: "pointer",
-              }}
-            >
-              <PlanningPersonaAvatar personaId={persona.id} label={persona.label} decorative size={18} />
-              {persona.label} {persona.role}
-            </button>
-            <PersonaProviderSelect
-              personaId={persona.id}
-              map={personaMap}
-              installed={installedProviders}
-              onChange={(provider) => changeProvider(persona.id, provider)}
-            />
-          </div>
+          <button
+            key={persona.id}
+            type="button"
+            aria-pressed={selectedPersonaIds.includes(persona.id)}
+            onClick={() => {
+              setSelectedPersonaIds(togglePersona(selectedPersonaIds, persona.id));
+              setMessage((current) => appendMention(current, persona.mention));
+            }}
+            style={{
+              border: "2px solid #1A1A1A",
+              background: selectedPersonaIds.includes(persona.id) ? "#1A1A1A" : "#F7F0DF",
+              color: selectedPersonaIds.includes(persona.id) ? "#FFFFFF" : "#1A1A1A",
+              padding: "7px 9px",
+              fontSize: 11,
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            <PlanningPersonaAvatar personaId={persona.id} label={persona.label} decorative size={18} />
+            {persona.label} {persona.role}
+          </button>
         ))}
         <button
           type="button"
