@@ -377,4 +377,56 @@ pub(crate) fn get_env_key_status() -> HashMap<String, bool> {
 pub(crate) fn setup_cli_path() -> Result<String, String> {
     vib_path::install_cli_to_path()
 }
+/// gui_config 값에서 planning_personas.personas 객체를 꺼낸다(부재 시 빈 객체).
+pub(crate) fn read_planning_personas_value(cfg: &serde_json::Value) -> serde_json::Value {
+    cfg.get("planning_personas")
+        .and_then(|s| s.get("personas"))
+        .filter(|p| p.is_object())
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}))
+}
+
+/// personas 업데이트를 gui_config 에 병합한다(다른 키 보존, version 고정).
+pub(crate) fn merge_planning_personas_value(
+    mut cfg: serde_json::Value,
+    personas: serde_json::Value,
+) -> serde_json::Value {
+    if !cfg.is_object() {
+        cfg = serde_json::json!({});
+    }
+    cfg["planning_personas"] = serde_json::json!({"version": 1, "personas": personas});
+    cfg
+}
+
+#[cfg(test)]
+mod planning_personas_tests {
+    use super::{merge_planning_personas_value, read_planning_personas_value};
+
+    #[test]
+    fn read_returns_personas_object() {
+        let cfg = serde_json::json!({
+            "planning_personas": {"version": 1, "personas": {"chloe": {"enabled": false, "provider": "codex"}}}
+        });
+        let personas = read_planning_personas_value(&cfg);
+        assert_eq!(personas["chloe"]["provider"], "codex");
+        assert_eq!(personas["chloe"]["enabled"], false);
+    }
+
+    #[test]
+    fn read_missing_section_is_empty_object() {
+        let cfg = serde_json::json!({"recent_projects": []});
+        assert_eq!(read_planning_personas_value(&cfg), serde_json::json!({}));
+    }
+
+    #[test]
+    fn merge_sets_section_without_dropping_other_keys() {
+        let cfg = serde_json::json!({"recent_projects": ["/a"], "cli_path_installed_version": "9"});
+        let update = serde_json::json!({"chloe": {"enabled": true, "provider": "agy"}});
+        let merged = merge_planning_personas_value(cfg, update);
+        assert_eq!(merged["recent_projects"], serde_json::json!(["/a"]));
+        assert_eq!(merged["cli_path_installed_version"], "9");
+        assert_eq!(merged["planning_personas"]["version"], 1);
+        assert_eq!(merged["planning_personas"]["personas"]["chloe"]["provider"], "agy");
+    }
+}
 // === ANCHOR: SETTINGS_END ===
