@@ -4,6 +4,12 @@ import { PlanningPersonaAvatar } from "./PlanningPersonaAvatar";
 import { planningPersonaLabel } from "./PlanningPersonas";
 import { planningPersonaStatusBackground, planningPersonaStatusColor, planningPersonaStatusDisplay } from "./PlanningPersonaStatusLabel";
 
+// === ANCHOR: PLANNINGMESSAGES_FALLBACKBADGELABEL_START ===
+export function fallbackBadgeLabel(message: PlanningChatMessage): string | null {
+  return message.providerUsed ? `${message.providerUsed}로 대체됨` : null;
+}
+// === ANCHOR: PLANNINGMESSAGES_FALLBACKBADGELABEL_END ===
+
 interface PlanningMessagesProps {
   readonly messages: readonly PlanningChatMessage[];
   readonly outputPath: string | null;
@@ -57,6 +63,25 @@ function PlanningMessageBubble({ message }: { readonly message: PlanningChatMess
           >
             {display.label}
           </span>
+          {(() => {
+            const fb = fallbackBadgeLabel(message);
+            return fb ? (
+              <span
+                title="고른 AI가 없거나 실패해서 다른 AI가 대신 답했어요"
+                style={{
+                  border: "1px solid #8A352D",
+                  background: "#FCEDEA",
+                  color: "#8A352D",
+                  padding: "1px 5px",
+                  fontSize: 10,
+                  fontWeight: 900,
+                  lineHeight: "14px",
+                }}
+              >
+                {fb}
+              </span>
+            ) : null;
+          })()}
         </div>
       )}
       {message.content}
