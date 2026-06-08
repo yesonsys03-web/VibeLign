@@ -4,6 +4,63 @@ use std::process::{Command, Stdio};
 
 use super::platform::{augmented_vib_path, hide_console};
 
+pub(crate) const INTERNAL_PROVIDER_PRIORITY: &[&str] = &["claude", "codex", "agy", "opencode"];
+
+fn provider_try_order(preferred: &str) -> Vec<String> {
+    let mut order: Vec<String> = Vec::new();
+    if !preferred.is_empty() {
+        order.push(preferred.to_string());
+    }
+    for provider in INTERNAL_PROVIDER_PRIORITY {
+        if !order.iter().any(|p| p == provider) {
+            order.push((*provider).to_string());
+        }
+    }
+    order
+}
+
+fn persona_provider_from_value(config: &serde_json::Value, persona_id: &str) -> Option<String> {
+    config
+        .get("planning_personas")?
+        .get("personas")?
+        .get(persona_id)?
+        .get("provider")?
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+}
+
+#[allow(dead_code)] // used by Task 7 (chat enabled filter)
+fn persona_enabled_from_value(config: &serde_json::Value, persona_id: &str) -> bool {
+    config
+        .get("planning_personas")
+        .and_then(|s| s.get("personas"))
+        .and_then(|p| p.get(persona_id))
+        .and_then(|e| e.get("enabled"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true)
+}
+
+/// 전역 gui_config.json 을 읽는다. 부재/손상 시 빈 객체.
+fn read_gui_config_value() -> serde_json::Value {
+    let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) else {
+        return serde_json::json!({});
+    };
+    let path = std::path::PathBuf::from(home).join(".vibelign").join("gui_config.json");
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_else(|| serde_json::json!({}))
+}
+
+/// persona 의 1순위 provider(설정 우선, 없으면 기본)로 시도 목록을 만든다.
+fn resolve_provider_order(persona_id: &str, spec: &PersonaSpec) -> Vec<String> {
+    let config = read_gui_config_value();
+    let preferred = persona_provider_from_value(&config, persona_id)
+        .unwrap_or_else(|| spec.default_provider.to_string());
+    provider_try_order(&preferred)
+}
+
 pub(crate) struct PersonaRun {
     pub(crate) content: String,
     pub(crate) status: String,
@@ -33,48 +90,37 @@ pub(crate) fn run_persona_response(
             status: "failed".to_string(),
         };
     };
-    let (executable_name, args_before_prompt) = match provider_spec(spec.default_provider) {
-        Some(pair) => pair,
-        None => return failed_persona_run(),
-    };
-    let Some(executable) = find_executable(executable_name) else {
-        return PersonaRun {
-            content: format!(
-                "{} CLI를 찾지 못했어요. 설치 또는 PATH 설정을 확인해 주세요.",
-                spec.name
-            ),
-            status: "failed".to_string(),
-        };
-    };
     let prompt = build_persona_prompt(spec, lines);
-    let mut cmd = Command::new(executable);
-    cmd.args(args_before_prompt);
-    cmd.arg(prompt);
-    cmd.current_dir(project_dir);
-    cmd.stdin(Stdio::null());
-    cmd.env("PATH", augmented_vib_path());
-    cmd.env("NO_COLOR", "1");
-    hide_console(&mut cmd);
-
-    match cmd.output() {
-        Ok(output) if output.status.success() => {
-            let content = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if content.is_empty() {
-                failed_persona_run()
-            } else {
-                PersonaRun {
-                    content,
-                    status: "ok".to_string(),
+    for provider in resolve_provider_order(persona_id, &spec) {
+        let Some((executable_name, args)) = provider_spec(&provider) else {
+            continue;
+        };
+        let Some(executable) = find_executable(executable_name) else {
+            continue;
+        };
+        let mut cmd = Command::new(executable);
+        cmd.args(args);
+        cmd.arg(&prompt);
+        cmd.current_dir(project_dir);
+        cmd.stdin(Stdio::null());
+        cmd.env("PATH", augmented_vib_path());
+        cmd.env("NO_COLOR", "1");
+        hide_console(&mut cmd);
+        if let Ok(output) = cmd.output() {
+            if output.status.success() {
+                let content = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !content.is_empty() {
+                    return PersonaRun {
+                        content,
+                        status: "ok".to_string(),
+                    };
                 }
             }
         }
-        Ok(_) | Err(_) => failed_persona_run(),
+        // 실패 → 다음 provider 로 폴백
     }
-}
-
-fn failed_persona_run() -> PersonaRun {
     PersonaRun {
-        content: "AI 응답을 가져오지 못했어요. 로그인 상태나 CLI 설정을 확인해 주세요.".to_string(),
+        content: "AI 응답을 가져오지 못했어요. 설치된 AI가 없거나 로그인이 필요할 수 있어요.".to_string(),
         status: "failed".to_string(),
     }
 }
@@ -113,11 +159,6 @@ fn provider_spec(provider_id: &str) -> Option<(&'static str, &'static [&'static 
         "opencode" => Some(("opencode", &["run", "-m", "opencode/deepseek-v4-flash-free"])),
         _ => None,
     }
-}
-
-pub(crate) fn persona_cli(persona_id: &str) -> Option<(&'static str, &'static [&'static str])> {
-    let spec = persona_spec(persona_id)?;
-    provider_spec(spec.default_provider)
 }
 
 fn build_persona_prompt(spec: PersonaSpec, lines: &[PlanningChatLine<'_>]) -> String {
@@ -195,9 +236,17 @@ pub(crate) fn pick_judge_cli(
 }
 
 fn resolve_persona_cli(persona_id: &str) -> Option<(PathBuf, Vec<String>)> {
-    let (executable, args) = persona_cli(persona_id)?;
-    let path = find_executable(executable)?;
-    Some((path, args.iter().map(|arg| arg.to_string()).collect()))
+    let spec = persona_spec(persona_id)?;
+    for provider in resolve_provider_order(persona_id, &spec) {
+        let (executable, args) = match provider_spec(&provider) {
+            Some(pair) => pair,
+            None => continue,
+        };
+        if let Some(path) = find_executable(executable) {
+            return Some((path, args.iter().map(|a| a.to_string()).collect()));
+        }
+    }
+    None
 }
 
 /// 활성 CLI를 골라 프롬프트를 1회 실행하고 stdout을 반환. 없거나 실패하면 None.
@@ -225,7 +274,7 @@ pub(crate) fn run_active_ai(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_persona_prompt, persona_spec, provider_spec, PlanningChatLine};
+    use super::{build_persona_prompt, persona_spec, persona_provider_from_value, provider_spec, provider_try_order, PlanningChatLine, INTERNAL_PROVIDER_PRIORITY};
 
     #[test]
     fn persona_default_provider_mapping() {
@@ -274,6 +323,27 @@ mod tests {
         let spec = persona_spec("chloe").expect("chloe persona");
         let prompt = build_persona_prompt(spec, &[]);
         assert!(prompt.contains("발동시키고 어디에 저장"));
+    }
+
+    #[test]
+    fn try_order_puts_preferred_first_no_dupes() {
+        let order = provider_try_order("agy");
+        assert_eq!(order[0], "agy");
+        let mut seen = std::collections::HashSet::new();
+        assert!(order.iter().all(|p| seen.insert(p.clone())));
+        for base in INTERNAL_PROVIDER_PRIORITY {
+            assert!(order.iter().any(|p| p == base));
+        }
+    }
+
+    #[test]
+    fn persona_provider_reads_config_value() {
+        let v: serde_json::Value = serde_json::from_str(
+            r#"{"planning_personas":{"personas":{"chloe":{"enabled":true,"provider":"codex"}}}}"#,
+        )
+        .unwrap();
+        assert_eq!(persona_provider_from_value(&v, "chloe"), Some("codex".to_string()));
+        assert_eq!(persona_provider_from_value(&v, "mina"), None);
     }
 }
 // === ANCHOR: PLANNING_PERSONA_END ===
