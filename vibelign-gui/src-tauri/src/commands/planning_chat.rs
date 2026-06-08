@@ -189,7 +189,7 @@ pub(crate) async fn append_planning_chat_turn(
                 content: persona_run.content,
                 status: persona_run.status,
                 created_at: now.clone(),
-                provider_used: None,
+                provider_used: persona_run.provider_used,
             });
         }
         let now = timestamp_ms().to_string();

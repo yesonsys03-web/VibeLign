@@ -68,6 +68,16 @@ fn resolve_provider_order(persona_id: &str, spec: &PersonaSpec) -> Vec<String> {
 pub(crate) struct PersonaRun {
     pub(crate) content: String,
     pub(crate) status: String,
+    pub(crate) provider_used: Option<String>,
+}
+
+/// 실제 응답한 provider 가 preferred 와 다르면 Some(used), 같으면 None.
+fn fallback_provider_used(preferred: &str, used: &str) -> Option<String> {
+    if used == preferred {
+        None
+    } else {
+        Some(used.to_string())
+    }
 }
 
 pub(crate) struct PlanningChatLine<'a> {
@@ -92,10 +102,13 @@ pub(crate) fn run_persona_response(
         return PersonaRun {
             content: "선택한 페르소나를 찾지 못했어요.".to_string(),
             status: "failed".to_string(),
+            provider_used: None,
         };
     };
     let prompt = build_persona_prompt(spec, lines);
-    for provider in resolve_provider_order(persona_id, &spec) {
+    let order = resolve_provider_order(persona_id, &spec);
+    let preferred = order.first().cloned().unwrap_or_default();
+    for provider in order {
         let Some((executable_name, args)) = provider_spec(&provider) else {
             continue;
         };
@@ -117,6 +130,7 @@ pub(crate) fn run_persona_response(
                     return PersonaRun {
                         content,
                         status: "ok".to_string(),
+                        provider_used: fallback_provider_used(&preferred, &provider),
                     };
                 }
             }
@@ -126,6 +140,7 @@ pub(crate) fn run_persona_response(
     PersonaRun {
         content: "AI 응답을 가져오지 못했어요. 설치된 AI가 없거나 로그인이 필요할 수 있어요.".to_string(),
         status: "failed".to_string(),
+        provider_used: None,
     }
 }
 
@@ -304,7 +319,7 @@ pub(crate) fn planning_provider_status() -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_persona_prompt, installed_providers_from, persona_enabled_from_value, persona_spec, persona_provider_from_value, provider_spec, provider_try_order, PlanningChatLine, INTERNAL_PROVIDER_PRIORITY};
+    use super::{build_persona_prompt, fallback_provider_used, installed_providers_from, persona_enabled_from_value, persona_spec, persona_provider_from_value, provider_spec, provider_try_order, PlanningChatLine, INTERNAL_PROVIDER_PRIORITY};
 
     #[test]
     fn installed_providers_filters_by_resolver() {
@@ -391,6 +406,12 @@ mod tests {
         .unwrap();
         assert!(!persona_enabled_from_value(&v, "gio"));
         assert!(persona_enabled_from_value(&v, "chloe")); // 미지정 → true
+    }
+
+    #[test]
+    fn fallback_provider_used_marks_only_non_preferred() {
+        assert_eq!(fallback_provider_used("claude", "claude"), None);
+        assert_eq!(fallback_provider_used("claude", "codex"), Some("codex".to_string()));
     }
 }
 // === ANCHOR: PLANNING_PERSONA_END ===
