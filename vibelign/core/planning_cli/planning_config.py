@@ -39,10 +39,13 @@ def load_persona_config() -> dict[str, PersonaConfig]:
     for persona_id, entry in personas.items():
         if not isinstance(entry, dict):
             continue
-        enabled = entry.get("enabled", True)
+        # Rust 측(as_bool().unwrap_or(true))과 동일하게 명시적 boolean False 일 때만 비활성.
+        # null/0/"" 같은 비-boolean 값은 두 경로 모두 활성(true)으로 본다(파리티 보장).
+        raw_enabled = entry.get("enabled", True)
+        enabled = raw_enabled if isinstance(raw_enabled, bool) else True
         provider = entry.get("provider")
         out[str(persona_id)] = PersonaConfig(
-            enabled=bool(enabled),
+            enabled=enabled,
             provider=str(provider) if isinstance(provider, str) and provider else None,
         )
     return out

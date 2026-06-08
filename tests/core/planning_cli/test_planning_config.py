@@ -53,3 +53,28 @@ def test_partial_entry_defaults(tmp_path, monkeypatch):
     )
     cfg = load_persona_config()
     assert cfg["gio"] == PersonaConfig(enabled=True, provider="claude")
+
+
+def test_non_boolean_enabled_defaults_true_for_rust_parity(tmp_path, monkeypatch):
+    # Rust 측은 as_bool() 이 None 이면 true 로 본다. null/0/"" 같은 비-boolean
+    # enabled 값에서 두 경로가 같은 결과(활성)를 내도록 보장한다.
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    _write_config(
+        tmp_path,
+        {
+            "planning_personas": {
+                "personas": {
+                    "chloe": {"enabled": None},
+                    "gio": {"enabled": 0},
+                    "mina": {"enabled": ""},
+                    "deepseek": {"enabled": False},
+                }
+            }
+        },
+    )
+    cfg = load_persona_config()
+    assert cfg["chloe"].enabled is True
+    assert cfg["gio"].enabled is True
+    assert cfg["mina"].enabled is True
+    # 명시적 boolean False 만 비활성
+    assert cfg["deepseek"].enabled is False
