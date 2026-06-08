@@ -66,7 +66,7 @@ export function PlanningPersonaSettings() {
   // WKWebView 는 컨테이너 padding-bottom 을 스크롤 영역에 안 넣어 테두리·그림자가 잘리므로
   // 카드 자체에 하단 여백을 줘서 전체가 보이게 한다.
   return (
-    <div className="card" style={{ marginTop: 16, marginBottom: 20 }}>
+    <div className="card" style={{ marginTop: 16, marginBottom: 40 }}>
       <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
         기획방 페르소나
       </div>
