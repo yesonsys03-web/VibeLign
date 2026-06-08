@@ -42,6 +42,8 @@ pub struct PlanningChatMessage {
     pub(crate) created_at: String,
     #[serde(default)]
     pub(crate) provider_used: Option<String>,
+    #[serde(default)]
+    pub(crate) fallback_reason: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -127,6 +129,7 @@ mod tests {
             status: "ok".to_string(),
             created_at: "2026-06-02T00:00:00Z".to_string(),
             provider_used: Some("codex".to_string()),
+            fallback_reason: Some("not_logged_in".to_string()),
         };
 
         let json = serde_json::to_string(&message).expect("json");
@@ -134,6 +137,7 @@ mod tests {
         assert!(json.contains("personaId"));
         assert!(json.contains("createdAt"));
         assert!(json.contains("providerUsed"));
+        assert!(json.contains("fallbackReason"));
     }
 }
 // === ANCHOR: PLANNING_CHAT_TYPES_END ===

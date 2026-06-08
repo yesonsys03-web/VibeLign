@@ -267,6 +267,7 @@ mod tests {
             status: "ok".to_string(),
             created_at: "0".to_string(),
             provider_used: None,
+            fallback_reason: None,
         }];
         let prompt = build_readiness_prompt(&messages);
         assert!(prompt.contains("trigger"));

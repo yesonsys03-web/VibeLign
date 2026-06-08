@@ -52,6 +52,7 @@ pub(crate) async fn create_planning_chat_session(
             status: "ok".to_string(),
             created_at: now,
             provider_used: None,
+            fallback_reason: None,
         }];
         if let Err(error) = write_json(session_dir.join("session.json"), &session) {
             return planning_chat_error(error);
@@ -167,6 +168,7 @@ pub(crate) async fn append_planning_chat_turn(
                 status: "ok".to_string(),
                 created_at: now.clone(),
                 provider_used: None,
+                fallback_reason: None,
             });
         }
         for agent in request.agents {
@@ -190,6 +192,7 @@ pub(crate) async fn append_planning_chat_turn(
                 status: persona_run.status,
                 created_at: now.clone(),
                 provider_used: persona_run.provider_used,
+                fallback_reason: persona_run.fallback_reason,
             });
         }
         let now = timestamp_ms().to_string();
