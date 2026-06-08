@@ -152,10 +152,16 @@ def test_orchestrator_updates_session_json_with_agent_metadata(
         lambda adapter: f"/bin/{adapter}",
     )
     long_response = " ".join(["클로이 초안입니다."] * 40)
+    # chloe: claude → ok (1 result)
+    # gio: codex→timeout, claude→timeout, agy→timeout, opencode→timeout (4 results)
+    # fallback exhausts all providers; last adapter recorded is "opencode"
     runner = FakeRunner(
         [
             PlanningCliResult("ok", long_response, "", 0, 10),
             PlanningCliResult("timeout", "지오 일부 응답입니다.", "", None, 10),
+            PlanningCliResult("timeout", "", "", None, 10),
+            PlanningCliResult("timeout", "", "", None, 10),
+            PlanningCliResult("timeout", "", "", None, 10),
         ]
     )
 
@@ -180,7 +186,77 @@ def test_orchestrator_updates_session_json_with_agent_metadata(
     }
     assert session["runs"][1]["run_id"] == "run_gio_002"
     assert session["runs"][1]["turn_id"] == "turn_002"
-    assert session["runs"][1]["cli_id"] == "codex"
+    # Under fallback, gio tries codex→timeout, claude→timeout, agy→timeout, opencode→timeout.
+    # The run metadata captures the last adapter attempted ("opencode") and final status.
+    assert session["runs"][1]["cli_id"] == "opencode"
     assert session["runs"][1]["status"] == "timeout"
     assert len(session["runs"][0]["summary"]) < len(long_response)
     assert long_response not in session_path.read_text(encoding="utf-8")
+
+
+def test_orchestrator_falls_back_when_preferred_not_installed(tmp_path, monkeypatch):
+    # claude 만 미설치, 나머지는 설치된 것으로
+    monkeypatch.setattr(
+        "vibelign.core.planning_cli.cli_adapters.resolve_cli_executable",
+        lambda adapter: None if adapter == "claude" else f"/bin/{adapter}",
+    )
+    runner = FakeRunner([PlanningCliResult("ok", "대체 설계입니다.", "", 0, 10)])
+
+    result = create_planning_with_agents(
+        tmp_path,
+        PlanningInput(idea="@chloe 예약 앱"),
+        runner=runner,
+    )
+
+    # chloe 기본 provider 는 claude(미설치) → 폴백으로 codex 가 답함
+    assert result.agents_used == ("chloe",)
+    assert result.agent_statuses["chloe"] == "ok"
+    assert runner.commands[0][0] == "/bin/codex"
+
+
+def test_orchestrator_falls_back_on_runtime_failure(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "vibelign.core.planning_cli.cli_adapters.resolve_cli_executable",
+        lambda adapter: f"/bin/{adapter}",
+    )
+    # 1순위(claude) 는 로그인 안 됨, 2순위(codex) 는 ok
+    runner = FakeRunner(
+        [
+            PlanningCliResult("not_logged_in", "", "not logged in", 1, 10),
+            PlanningCliResult("ok", "코덱스 설계입니다.", "", 0, 10),
+        ]
+    )
+
+    result = create_planning_with_agents(
+        tmp_path,
+        PlanningInput(idea="@chloe 예약 앱"),
+        runner=runner,
+    )
+
+    assert result.agents_used == ("chloe",)
+    assert result.agent_statuses["chloe"] == "ok"
+    assert runner.commands[0][0] == "/bin/claude"
+    assert runner.commands[1][0] == "/bin/codex"
+
+
+def test_orchestrator_skips_disabled_persona(tmp_path, monkeypatch):
+    from vibelign.core.planning_cli.planning_config import PersonaConfig
+
+    monkeypatch.setattr(
+        "vibelign.core.planning_cli.cli_adapters.resolve_cli_executable",
+        lambda adapter: f"/bin/{adapter}",
+    )
+    monkeypatch.setattr(
+        "vibelign.core.planning_cli.orchestrator.load_persona_config",
+        lambda: {"gio": PersonaConfig(enabled=False, provider=None)},
+    )
+    runner = FakeRunner([PlanningCliResult("ok", "클로이 설계입니다.", "", 0, 10)])
+
+    result = create_planning_with_agents(
+        tmp_path,
+        PlanningInput(idea="@chloe @gio 예약 앱"),
+        runner=runner,
+    )
+
+    assert "gio" not in result.agents_used
+    assert result.agents_used == ("chloe",)

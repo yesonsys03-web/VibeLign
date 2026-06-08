@@ -5,22 +5,14 @@ from pathlib import Path
 from uuid import uuid4
 
 from vibelign.core.planning_cli import cli_adapters
-from vibelign.core.planning_cli.cli_adapters import (
-    PlanningCliRunner,
-    SubprocessPlanningCliRunner,
-)
+from vibelign.core.planning_cli.cli_adapters import PlanningCliRunner, SubprocessPlanningCliRunner
+from vibelign.core.planning_cli.fallback import run_persona_with_fallback as _run_persona_with_fallback
 from vibelign.core.planning_cli.mentions import resolve_persona_mentions
 from vibelign.core.planning_cli.models import PlanningInput, PlanningResult
-from vibelign.core.planning_cli.personas import (
-    PlanningPersona,
-    ordered_personas_for_ids,
-)
-from vibelign.core.planning_cli.prompts import append_persona_section, build_persona_prompt
-from vibelign.core.planning_cli.response_policy import safe_planning_status
-from vibelign.core.planning_cli.session_metadata import (
-    AgentRunMetadata,
-    write_agent_session_metadata,
-)
+from vibelign.core.planning_cli.personas import PlanningPersona, ordered_personas_for_ids
+from vibelign.core.planning_cli.planning_config import load_persona_config
+from vibelign.core.planning_cli.prompts import append_persona_section
+from vibelign.core.planning_cli.session_metadata import AgentRunMetadata, write_agent_session_metadata
 from vibelign.core.planning_cli.storage import create_planning_template
 from vibelign.core.planning_cli.transcripts import write_turn_transcript
 
@@ -114,6 +106,7 @@ def _apply_agents_to_result(
         default_persona_ids or mention_result.persona_ids,
         agents_choice,
     )
+    personas = _filter_enabled_personas(personas)
     adapters = _resolve_adapters(cli_choice, personas)
     active_runner = runner or SubprocessPlanningCliRunner()
     markdown = base.markdown
@@ -122,35 +115,30 @@ def _apply_agents_to_result(
     runs: list[AgentRunMetadata] = []
 
     for turn_index, persona in enumerate(personas, start=1):
-        adapter = adapters[persona.id]
-        command = cli_adapters.build_cli_command(
-            adapter,
-            build_persona_prompt(persona, mention_result.clean_text or message, markdown),
-        )
-        if command is None:
-            statuses[persona.id] = "not_installed"
-            runs.append(AgentRunMetadata(turn_index, persona.id, adapter, "not_installed", ""))
-            continue
-        cli_result = active_runner.run(
-            command,
-            cwd=root,
-            input_text="",
+        preferred = adapters[persona.id]
+        run_result = _run_persona_with_fallback(
+            persona=persona,
+            preferred=preferred,
+            runner=active_runner,
+            root=root,
+            message=mention_result.clean_text or message,
+            markdown=markdown,
             timeout_seconds=timeout_seconds,
         )
-        status = safe_planning_status(cli_result.status, cli_result.stdout)
-        statuses[persona.id] = status
-        runs.append(AgentRunMetadata(turn_index, persona.id, adapter, status, cli_result.stdout))
+        statuses[persona.id] = run_result.status
+        adapters[persona.id] = run_result.adapter
+        runs.append(AgentRunMetadata(turn_index, persona.id, run_result.adapter, run_result.status, run_result.stdout))
         if save_transcript:
             write_turn_transcript(
                 root,
                 session_id=base.session_id,
                 turn_index=turn_index,
-                adapter=adapter,
-                response=cli_result.stdout,
+                adapter=run_result.adapter,
+                response=run_result.stdout,
             )
-        if status != "ok":
+        if run_result.status != "ok":
             continue
-        markdown = append_persona_section(markdown, persona.section_title, cli_result.stdout)
+        markdown = append_persona_section(markdown, persona.section_title, run_result.stdout)
         used_agents.append(persona.id)
 
     output_path = Path(base.absolute_output_path)
@@ -179,11 +167,7 @@ def _resolve_personas(
     agents_choice: str | None,
 # === ANCHOR: ORCHESTRATOR__RESOLVE_PERSONAS_END ===
 ) -> tuple[PlanningPersona, ...]:
-    persona_ids = (
-        _parse_csv(agents_choice)
-        if agents_choice
-        else default_persona_ids
-    )
+    persona_ids = _parse_csv(agents_choice) if agents_choice else default_persona_ids
     return ordered_personas_for_ids(persona_ids)
 
 
@@ -194,19 +178,19 @@ def _resolve_adapters(
 # === ANCHOR: ORCHESTRATOR__RESOLVE_ADAPTERS_END ===
 ) -> dict[str, str]:
     cli_ids = _parse_csv(cli_choice)
-    if not cli_ids or cli_ids == ("auto",):
-        return {persona.id: persona.adapter for persona in personas}
-    if len(cli_ids) == 1:
-        adapter = cli_adapters.select_adapter(cli_ids[0])
-        return {persona.id: adapter for persona in personas}
-    mapped: dict[str, str] = {}
-    for index, persona in enumerate(personas):
-        mapped[persona.id] = (
-            cli_adapters.select_adapter(cli_ids[index])
-            if index < len(cli_ids)
-            else persona.adapter
-        )
-    return mapped
+    if cli_ids and cli_ids != ("auto",):
+        if len(cli_ids) == 1:
+            adapter = cli_adapters.select_adapter(cli_ids[0])
+            return {persona.id: adapter for persona in personas}
+        return {
+            persona.id: cli_adapters.select_adapter(cli_ids[i]) if i < len(cli_ids) else persona.adapter
+            for i, persona in enumerate(personas)
+        }
+    config = load_persona_config()
+    return {
+        persona.id: (config[persona.id].provider if config.get(persona.id) and config[persona.id].provider else persona.adapter)
+        for persona in personas
+    }
 
 
 # === ANCHOR: ORCHESTRATOR__PARSE_CSV_START ===
@@ -215,6 +199,13 @@ def _parse_csv(raw: str | None) -> tuple[str, ...]:
         return ()
     return tuple(item.strip().lower() for item in raw.split(",") if item.strip())
 # === ANCHOR: ORCHESTRATOR__PARSE_CSV_END ===
+
+
+def _filter_enabled_personas(
+    personas: tuple[PlanningPersona, ...],
+) -> tuple[PlanningPersona, ...]:
+    config = load_persona_config()
+    return tuple(p for p in personas if not config.get(p.id) or config[p.id].enabled)
 
 
 # === ANCHOR: ORCHESTRATOR__SAFE_RELATIVE_OUTPUT_PATH_START ===
