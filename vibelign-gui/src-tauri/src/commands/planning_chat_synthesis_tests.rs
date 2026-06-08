@@ -135,6 +135,7 @@ fn test_message(role: &str, persona_id: Option<&str>, content: &str) -> Planning
         content: content.to_string(),
         status: "ok".to_string(),
         created_at: "1".to_string(),
+        provider_used: None,
     }
 }
 // === ANCHOR: PLANNING_CHAT_SYNTHESIS_TESTS_END ===

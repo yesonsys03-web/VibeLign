@@ -40,6 +40,8 @@ pub struct PlanningChatMessage {
     pub(crate) content: String,
     pub(crate) status: String,
     pub(crate) created_at: String,
+    #[serde(default)]
+    pub(crate) provider_used: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -124,12 +126,14 @@ mod tests {
             content: "좋아요.".to_string(),
             status: "ok".to_string(),
             created_at: "2026-06-02T00:00:00Z".to_string(),
+            provider_used: Some("codex".to_string()),
         };
 
         let json = serde_json::to_string(&message).expect("json");
 
         assert!(json.contains("personaId"));
         assert!(json.contains("createdAt"));
+        assert!(json.contains("providerUsed"));
     }
 }
 // === ANCHOR: PLANNING_CHAT_TYPES_END ===

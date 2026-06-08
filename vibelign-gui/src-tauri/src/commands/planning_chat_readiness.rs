@@ -266,6 +266,7 @@ mod tests {
             content: "카드가 결정마다 쌓이게 하고 싶어".to_string(),
             status: "ok".to_string(),
             created_at: "0".to_string(),
+            provider_used: None,
         }];
         let prompt = build_readiness_prompt(&messages);
         assert!(prompt.contains("trigger"));

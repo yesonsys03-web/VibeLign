@@ -445,6 +445,7 @@ mod tests {
             content: "접기로 하자".to_string(),
             status: "ok".to_string(),
             created_at: "0".to_string(),
+            provider_used: None,
         }];
         let prompt = build_card_prompt(&current, &turn);
         assert!(prompt.contains("ops"));
