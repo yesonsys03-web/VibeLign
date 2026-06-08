@@ -12,7 +12,7 @@ use super::planning_chat_types::{
     PlanningSessionSummary, SavePlanningChatPlanRequest,
 };
 use super::planning_chat_cards::{extract_and_apply, read_cards};
-use super::planning_persona::{run_persona_response, PlanningChatLine};
+use super::planning_persona::{is_persona_enabled, run_persona_response, PlanningChatLine};
 
 #[tauri::command]
 pub(crate) async fn create_planning_chat_session(
@@ -168,6 +168,9 @@ pub(crate) async fn append_planning_chat_turn(
             });
         }
         for agent in request.agents {
+            if !is_persona_enabled(&agent) {
+                continue;
+            }
             let lines = messages
                 .iter()
                 .map(|message| PlanningChatLine {

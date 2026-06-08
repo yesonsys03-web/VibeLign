@@ -30,7 +30,6 @@ fn persona_provider_from_value(config: &serde_json::Value, persona_id: &str) -> 
         .map(|s| s.to_string())
 }
 
-#[allow(dead_code)] // used by Task 7 (chat enabled filter)
 fn persona_enabled_from_value(config: &serde_json::Value, persona_id: &str) -> bool {
     config
         .get("planning_personas")
@@ -39,6 +38,11 @@ fn persona_enabled_from_value(config: &serde_json::Value, persona_id: &str) -> b
         .and_then(|e| e.get("enabled"))
         .and_then(|v| v.as_bool())
         .unwrap_or(true)
+}
+
+/// 전역 설정에서 해당 페르소나가 활성인지. 부재 시 true.
+pub(crate) fn is_persona_enabled(persona_id: &str) -> bool {
+    persona_enabled_from_value(&read_gui_config_value(), persona_id)
 }
 
 /// 전역 gui_config.json 을 읽는다. 부재/손상 시 빈 객체.
@@ -274,7 +278,7 @@ pub(crate) fn run_active_ai(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_persona_prompt, persona_spec, persona_provider_from_value, provider_spec, provider_try_order, PlanningChatLine, INTERNAL_PROVIDER_PRIORITY};
+    use super::{build_persona_prompt, persona_enabled_from_value, persona_spec, persona_provider_from_value, provider_spec, provider_try_order, PlanningChatLine, INTERNAL_PROVIDER_PRIORITY};
 
     #[test]
     fn persona_default_provider_mapping() {
@@ -344,6 +348,16 @@ mod tests {
         .unwrap();
         assert_eq!(persona_provider_from_value(&v, "chloe"), Some("codex".to_string()));
         assert_eq!(persona_provider_from_value(&v, "mina"), None);
+    }
+
+    #[test]
+    fn persona_enabled_defaults_true_and_reads_false() {
+        let v: serde_json::Value = serde_json::from_str(
+            r#"{"planning_personas":{"personas":{"gio":{"enabled":false}}}}"#,
+        )
+        .unwrap();
+        assert!(!persona_enabled_from_value(&v, "gio"));
+        assert!(persona_enabled_from_value(&v, "chloe")); // 미지정 → true
     }
 }
 // === ANCHOR: PLANNING_PERSONA_END ===
