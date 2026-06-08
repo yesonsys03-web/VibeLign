@@ -144,6 +144,7 @@ describe("PlanningRoom chat session view", () => {
       prompt: "사용 흐름을 더 구체화해줘",
       agents: ["gio"],
       includeUserMessage: true,
+      extractCards: true,
     });
     expect(onResultChange).toHaveBeenCalled();
   });
@@ -266,6 +267,7 @@ describe("PlanningRoom chat session view", () => {
       prompt: "세 명이 차례로 봐줘",
       agents: ["chloe"],
       includeUserMessage: true,
+      extractCards: false,
     });
     expect(mocks.appendPlanningChatTurnMock).toHaveBeenNthCalledWith(2, {
       projectDir: "/tmp/demo",
@@ -273,6 +275,7 @@ describe("PlanningRoom chat session view", () => {
       prompt: "세 명이 차례로 봐줘",
       agents: ["gio"],
       includeUserMessage: false,
+      extractCards: false,
     });
   });
 

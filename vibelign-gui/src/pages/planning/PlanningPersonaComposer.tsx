@@ -47,6 +47,7 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
         prompt,
         agents: [agent],
         includeUserMessage: index === 0,
+        extractCards: index === agents.length - 1,
       });
       if (!nextResult.ok) {
         onResultChange(nextResult);

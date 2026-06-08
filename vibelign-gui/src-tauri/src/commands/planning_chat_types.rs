@@ -20,6 +20,7 @@ pub struct AppendPlanningChatTurnRequest {
     pub(crate) prompt: String,
     pub(crate) agents: Vec<String>,
     pub(crate) include_user_message: Option<bool>,
+    pub(crate) extract_cards: Option<bool>,
 }
 
 #[derive(Deserialize)]

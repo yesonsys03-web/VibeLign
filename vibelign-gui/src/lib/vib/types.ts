@@ -181,6 +181,7 @@ export interface AppendPlanningChatTurnRequest {
   prompt: string;
   agents: readonly string[];
   includeUserMessage?: boolean;
+  extractCards?: boolean;
 }
 
 export interface SavePlanningChatPlanRequest {

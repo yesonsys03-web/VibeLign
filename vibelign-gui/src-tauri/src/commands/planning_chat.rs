@@ -158,7 +158,6 @@ pub(crate) async fn append_planning_chat_turn(
             Err(error) => return planning_chat_error(error),
         };
         let now = timestamp_ms().to_string();
-        let turn_start = messages.len();
         if request.include_user_message.unwrap_or(true) {
             messages.push(PlanningChatMessage {
                 id: format!("msg_{}", timestamp_ms()),
@@ -196,8 +195,15 @@ pub(crate) async fn append_planning_chat_turn(
             });
         }
         let now = timestamp_ms().to_string();
-        let turn = messages[turn_start..].to_vec();
-        let cards = extract_and_apply(&project_dir, &session_dir, &messages, &turn, &now);
+        // 카드 추출은 CLI를 한 번 더 기동한다. 프론트는 페르소나별로 호출하므로,
+        // 턴의 마지막 페르소나 호출(extract_cards=true)에서만 1회 추출해 콜드스타트를 줄인다.
+        // 그 외 호출은 기존 카드를 그대로 돌려준다(중간 깜빡임 방지).
+        let cards = if request.extract_cards.unwrap_or(true) {
+            let card_turn = messages_since_last_user(&messages);
+            extract_and_apply(&project_dir, &session_dir, &messages, card_turn, &now)
+        } else {
+            read_cards(&session_dir)
+        };
         if let Err(error) = write_json(messages_path, &messages) {
             return planning_chat_error(error);
         }
@@ -319,9 +325,57 @@ fn timestamp_ms() -> u128 {
         .map_or(0, |duration| duration.as_millis())
 }
 
+/// 마지막 사용자 메시지부터 끝까지(= 이번 턴 전체)를 돌려준다.
+/// 카드 추출이 턴당 1회로 미뤄져도 그 턴의 모든 페르소나 응답을 보도록 보장한다.
+fn messages_since_last_user(messages: &[PlanningChatMessage]) -> &[PlanningChatMessage] {
+    let start = messages
+        .iter()
+        .rposition(|message| message.role == "user")
+        .unwrap_or(0);
+    &messages[start..]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn msg(role: &str, persona: Option<&str>) -> PlanningChatMessage {
+        PlanningChatMessage {
+            id: "m".to_string(),
+            role: role.to_string(),
+            persona_id: persona.map(|p| p.to_string()),
+            content: "x".to_string(),
+            status: "ok".to_string(),
+            created_at: "1".to_string(),
+            provider_used: None,
+            fallback_reason: None,
+        }
+    }
+
+    #[test]
+    fn messages_since_last_user_returns_whole_turn() {
+        // 마지막 사용자 메시지 + 그 뒤 모든 페르소나 응답이 카드 추출 대상이어야 한다.
+        let messages = vec![
+            msg("user", None),
+            msg("assistant", Some("chloe")),
+            msg("user", None),
+            msg("assistant", Some("chloe")),
+            msg("assistant", Some("gio")),
+            msg("assistant", Some("mina")),
+            msg("assistant", Some("deepseek")),
+        ];
+        let turn = messages_since_last_user(&messages);
+        assert_eq!(turn.len(), 5); // 두 번째 user + 4개 페르소나
+        assert_eq!(turn[0].role, "user");
+        assert_eq!(turn[4].persona_id.as_deref(), Some("deepseek"));
+    }
+
+    #[test]
+    fn messages_since_last_user_falls_back_to_start_without_user() {
+        let messages = vec![msg("assistant", Some("chloe")), msg("assistant", Some("gio"))];
+        let turn = messages_since_last_user(&messages);
+        assert_eq!(turn.len(), 2);
+    }
 
     fn write_session(root: &std::path::Path, id: &str, idea: &str, output: Option<&str>, msgs: usize, cards: usize) {
         let dir = root.join(".vibelign/planning").join(id);
