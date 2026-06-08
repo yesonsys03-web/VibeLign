@@ -1,5 +1,5 @@
 // === ANCHOR: SCROLLTOTOPBUTTON_START ===
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 const SCROLL_THRESHOLD = 300;
 
@@ -14,27 +14,47 @@ function getActiveScrollContainer(): HTMLElement | null {
 }
 // === ANCHOR: SCROLLTOTOPBUTTON_GETACTIVESCROLLCONTAINER_END ===
 
+// === ANCHOR: SCROLLTOTOPBUTTON_SCROLLNAVVISIBILITY_START ===
+/** 스크롤 위치로 위(↑)·아래(↓) 버튼 표시 여부를 계산하는 순수 함수. */
+export function scrollNavVisibility(
+  scrollTop: number,
+  clientHeight: number,
+  scrollHeight: number,
+  threshold: number = SCROLL_THRESHOLD,
+): { showTop: boolean; showBottom: boolean } {
+  return {
+    showTop: scrollTop > threshold,
+    showBottom: scrollHeight - scrollTop - clientHeight > threshold,
+  };
+}
+// === ANCHOR: SCROLLTOTOPBUTTON_SCROLLNAVVISIBILITY_END ===
+
 export default function ScrollToTopButton() {
-  const [visible, setVisible] = useState(false);
+  const [nav, setNav] = useState({ showTop: false, showBottom: false });
 
   useEffect(() => {
     // === ANCHOR: SCROLLTOTOPBUTTON_UPDATE_START ===
     const update = () => {
       const container = getActiveScrollContainer();
       const scrollTop = container?.scrollTop ?? window.scrollY;
-      setVisible(scrollTop > SCROLL_THRESHOLD);
+      const clientHeight = container?.clientHeight ?? window.innerHeight;
+      const scrollHeight = container?.scrollHeight ?? document.documentElement.scrollHeight;
+      setNav(scrollNavVisibility(scrollTop, clientHeight, scrollHeight));
     };
     // === ANCHOR: SCROLLTOTOPBUTTON_UPDATE_END ===
     update();
     window.addEventListener("scroll", update, { passive: true });
     document.addEventListener("scroll", update, { passive: true, capture: true });
+    // 대화가 길어지면(메시지 추가로 내용 높이 변화) 버튼 표시가 갱신되도록 resize 도 청취.
+    window.addEventListener("resize", update, { passive: true });
     return () => {
       window.removeEventListener("scroll", update);
       document.removeEventListener("scroll", update, { capture: true } as EventListenerOptions);
+      window.removeEventListener("resize", update);
     };
   }, []);
 
-  if (!visible) return null;
+  if (!nav.showTop && !nav.showBottom) return null;
 
   // === ANCHOR: SCROLLTOTOPBUTTON_SCROLLTOTOP_START ===
   const scrollToTop = () => {
@@ -47,34 +67,71 @@ export default function ScrollToTopButton() {
   };
   // === ANCHOR: SCROLLTOTOPBUTTON_SCROLLTOTOP_END ===
 
+  // === ANCHOR: SCROLLTOTOPBUTTON_SCROLLTOBOTTOM_START ===
+  const scrollToBottom = () => {
+    const container = getActiveScrollContainer();
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    } else {
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+    }
+  };
+  // === ANCHOR: SCROLLTOTOPBUTTON_SCROLLTOBOTTOM_END ===
+
+  const buttonStyle: CSSProperties = {
+    width: 48,
+    height: 48,
+    border: "2px solid #1A1A1A",
+    boxShadow: "4px 4px 0 #1A1A1A",
+    background: "#FFE44D",
+    cursor: "pointer",
+    fontSize: 22,
+    fontWeight: 900,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    lineHeight: 1,
+    padding: 0,
+  };
+
+  // 컨테이너를 bottom-right 에 고정해 자식이 아래부터 쌓이게 한다. 둘 중 하나만
+  // 보일 땐 그 버튼이 코너(bottom:24)에 붙어 빈틈이 없고, 둘 다 보이면 ↓ 위 ↑ 아래로
+  // 쌓여 기존 ↑ 위치(코너)가 유지된다.
   return (
-    <button
-      type="button"
-      aria-label="페이지 최상단으로 이동"
-      title="최상단으로"
-      onClick={scrollToTop}
+    <div
       style={{
         position: "fixed",
         right: 24,
         bottom: 24,
-        width: 48,
-        height: 48,
-        border: "2px solid #1A1A1A",
-        boxShadow: "4px 4px 0 #1A1A1A",
-        background: "#FFE44D",
-        cursor: "pointer",
-        fontSize: 22,
-        fontWeight: 900,
         zIndex: 9999,
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        lineHeight: 1,
-        padding: 0,
+        flexDirection: "column",
+        gap: 10,
       }}
     >
-      ↑
-    </button>
+      {nav.showBottom && (
+        <button
+          type="button"
+          aria-label="대화 최하단으로 이동"
+          title="최하단으로"
+          onClick={scrollToBottom}
+          style={buttonStyle}
+        >
+          ↓
+        </button>
+      )}
+      {nav.showTop && (
+        <button
+          type="button"
+          aria-label="페이지 최상단으로 이동"
+          title="최상단으로"
+          onClick={scrollToTop}
+          style={buttonStyle}
+        >
+          ↑
+        </button>
+      )}
+    </div>
   );
 }
 // === ANCHOR: SCROLLTOTOPBUTTON_END ===
