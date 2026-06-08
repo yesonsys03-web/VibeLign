@@ -29,7 +29,7 @@ def test_probe_does_not_read_token_or_session_files(tmp_path: Path) -> None:
     with patch("vibelign.core.planning_cli.cli_adapters.shutil.which", return_value=None):
         candidates = probe_cli_candidates()
 
-    assert [candidate.adapter for candidate in candidates] == ["codex", "claude", "agy"]
+    assert [candidate.adapter for candidate in candidates] == ["codex", "claude", "agy", "opencode"]
     assert all(candidate.executable is None for candidate in candidates)
     assert not (tmp_path / ".claude").exists()
 

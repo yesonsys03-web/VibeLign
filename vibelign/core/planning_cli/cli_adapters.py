@@ -156,7 +156,12 @@ def classify_cli_output(exit_code: int, stdout: str, stderr: str) -> PlanningCli
 
 # === ANCHOR: CLI_ADAPTERS_RESOLVE_CLI_EXECUTABLE_START ===
 def resolve_cli_executable(adapter: str) -> str | None:
-    executable_name = {"codex": "codex", "claude": "claude", "agy": "agy"}.get(adapter)
+    executable_name = {
+        "codex": "codex",
+        "claude": "claude",
+        "agy": "agy",
+        "opencode": "opencode",
+    }.get(adapter)
     if executable_name is None:
         return None
     return shutil.which(executable_name)
@@ -166,7 +171,7 @@ def resolve_cli_executable(adapter: str) -> str | None:
 # === ANCHOR: CLI_ADAPTERS_PROBE_CLI_CANDIDATES_START ===
 def probe_cli_candidates() -> list[PlanningCliCandidate]:
     candidates: list[PlanningCliCandidate] = []
-    for adapter in ("codex", "claude", "agy"):
+    for adapter in ("codex", "claude", "agy", "opencode"):
         executable = resolve_cli_executable(adapter)
         candidates.append(
             PlanningCliCandidate(
@@ -185,7 +190,7 @@ def select_adapter(cli_choice: str) -> str:
     match cli_choice:
         case "" | "auto":
             return "codex"
-        case "codex" | "claude" | "agy":
+        case "codex" | "claude" | "agy" | "opencode":
             return cli_choice
         case _:
             raise ValueError(f"unsupported planning cli: {cli_choice}")
@@ -210,6 +215,8 @@ def build_cli_command(adapter: str, prompt: str) -> list[str] | None:
             return [executable, "-p", prompt]
         case "agy":
             return [executable, "-p", prompt]
+        case "opencode":
+            return [executable, "run", "-m", "opencode/deepseek-v4-flash-free", prompt]
         case _:
             raise ValueError(f"unsupported planning cli: {adapter}")
 # === ANCHOR: CLI_ADAPTERS_BUILD_CLI_COMMAND_END ===
