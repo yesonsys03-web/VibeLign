@@ -377,6 +377,17 @@ pub(crate) fn get_env_key_status() -> HashMap<String, bool> {
 pub(crate) fn setup_cli_path() -> Result<String, String> {
     vib_path::install_cli_to_path()
 }
+#[tauri::command]
+pub(crate) fn get_planning_personas() -> serde_json::Value {
+    read_planning_personas_value(&read_gui_config())
+}
+
+#[tauri::command]
+pub(crate) fn set_planning_personas(personas: serde_json::Value) -> Result<(), String> {
+    let merged = merge_planning_personas_value(read_gui_config(), personas);
+    write_gui_config(&merged)
+}
+
 /// gui_config 값에서 planning_personas.personas 객체를 꺼낸다(부재 시 빈 객체).
 pub(crate) fn read_planning_personas_value(cfg: &serde_json::Value) -> serde_json::Value {
     cfg.get("planning_personas")
