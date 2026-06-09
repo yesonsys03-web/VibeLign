@@ -8,6 +8,7 @@ const FALLBACK_REASON_LABEL: Record<string, string> = {
   not_logged_in: "로그인 필요",
   not_installed: "미설치",
   error: "응답 실패",
+  timeout: "응답 시간 초과",
 };
 
 // === ANCHOR: PLANNINGMESSAGES_FALLBACKBADGELABEL_START ===

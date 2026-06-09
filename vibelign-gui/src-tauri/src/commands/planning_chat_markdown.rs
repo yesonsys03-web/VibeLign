@@ -1,4 +1,5 @@
 // === ANCHOR: PLANNING_CHAT_MARKDOWN_START ===
+use super::planning_chat_cards::{Card, CardState};
 use super::planning_chat_readiness::{ReadinessReport, ReadinessStatus, RequirementReadiness, Verdict};
 use super::planning_chat_store::StoredPlanningChatSession;
 use super::planning_chat_types::PlanningChatMessage;
@@ -14,6 +15,7 @@ struct PlanningSections {
 pub(crate) fn synthesize_planning_markdown(
     session: &StoredPlanningChatSession,
     messages: &[PlanningChatMessage],
+    cards: &[Card],
 ) -> String {
     let title = title_from_idea(&session.idea);
     let sections = PlanningSections::from_messages(messages);
@@ -22,6 +24,8 @@ pub(crate) fn synthesize_planning_markdown(
     push_section(&mut markdown, "## 한 줄 목표");
     push_section(&mut markdown, session.idea.trim());
     markdown.push_str(&readiness_header(session.readiness.as_ref()));
+    push_section(&mut markdown, "## 확정된 결정");
+    push_confirmed_decisions(&mut markdown, cards);
     push_section(&mut markdown, "## 대상 사용자");
     push_section(
         &mut markdown,
@@ -126,6 +130,33 @@ fn push_unique(items: &mut Vec<String>, value: String) {
     if !items.iter().any(|item| item == &value) {
         items.push(value);
     }
+}
+
+/// 사용자가 버튼으로 확정(Confirmed)한 카드를 '확정된 결정' 섹션 불릿으로 박는다.
+/// 확정 카드가 없으면 그 사실을 솔직히 적는다.
+fn push_confirmed_decisions(markdown: &mut String, cards: &[Card]) {
+    let confirmed: Vec<&Card> = cards
+        .iter()
+        .filter(|card| card.state == CardState::Confirmed)
+        .collect();
+    if confirmed.is_empty() {
+        push_section(markdown, "- 아직 버튼으로 확정한 결정이 없습니다.");
+        return;
+    }
+    let bullets = confirmed
+        .iter()
+        .map(|card| {
+            let title = card.title.trim();
+            let summary = card.summary.trim();
+            if summary.is_empty() {
+                format!("- **{title}**")
+            } else {
+                format!("- **{title}** — {summary}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    push_section(markdown, &bullets);
 }
 
 fn push_bullets_or_default(markdown: &mut String, items: &[String], fallback: &str) {

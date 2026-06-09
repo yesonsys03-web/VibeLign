@@ -1,10 +1,58 @@
 // === ANCHOR: PLANNING_PERSONA_START ===
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 use super::platform::{augmented_vib_path, hide_console};
 
 pub(crate) const INTERNAL_PROVIDER_PRIORITY: &[&str] = &["claude", "codex", "agy", "opencode"];
+
+/// 페르소나 CLI 한 번 호출의 상한. 초과하면 자식을 죽이고 timeout 으로 처리한다.
+const PERSONA_TIMEOUT_SECS: u64 = 120;
+
+/// CLI 실행을 timeout 상한으로 감싼다. stdout/stderr 는 별도 스레드로 비워 파이프
+/// 교착을 막고, 상한을 넘기면 자식 프로세스를 죽인 뒤 Ok(None)(=timeout)을 돌려준다.
+fn output_with_timeout(
+    mut cmd: Command,
+    timeout: Duration,
+) -> std::io::Result<Option<std::process::Output>> {
+    use std::io::Read;
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+    let mut child = cmd.spawn()?;
+    let mut stdout = child.stdout.take();
+    let mut stderr = child.stderr.take();
+    let out_handle = std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        if let Some(s) = stdout.as_mut() {
+            let _ = s.read_to_end(&mut buf);
+        }
+        buf
+    });
+    let err_handle = std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        if let Some(s) = stderr.as_mut() {
+            let _ = s.read_to_end(&mut buf);
+        }
+        buf
+    });
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(status) = child.try_wait()? {
+            let stdout = out_handle.join().unwrap_or_default();
+            let stderr = err_handle.join().unwrap_or_default();
+            return Ok(Some(std::process::Output { status, stdout, stderr }));
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = out_handle.join();
+            let _ = err_handle.join();
+            return Ok(None);
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
 
 fn provider_try_order(preferred: &str) -> Vec<String> {
     let mut order: Vec<String> = Vec::new();
@@ -132,8 +180,8 @@ pub(crate) fn run_persona_response(
         cmd.env("PATH", augmented_vib_path());
         cmd.env("NO_COLOR", "1");
         hide_console(&mut cmd);
-        match cmd.output() {
-            Ok(output) if output.status.success() => {
+        match output_with_timeout(cmd, Duration::from_secs(PERSONA_TIMEOUT_SECS)) {
+            Ok(Some(output)) if output.status.success() => {
                 let content = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 if !content.is_empty() {
                     return PersonaRun {
@@ -145,12 +193,16 @@ pub(crate) fn run_persona_response(
                 }
                 if is_preferred { preferred_reason = Some("error".to_string()); }
             }
-            Ok(output) => {
+            Ok(Some(output)) => {
                 if is_preferred {
                     let stdout = String::from_utf8_lossy(&output.stdout);
                     let stderr = String::from_utf8_lossy(&output.stderr);
                     preferred_reason = Some(classify_failure(&stdout, &stderr));
                 }
+            }
+            Ok(None) => {
+                // 상한 초과: 자식은 이미 종료시켰다. 다음 provider 로 폴백한다.
+                if is_preferred { preferred_reason = Some("timeout".to_string()); }
             }
             Err(_) => {
                 if is_preferred { preferred_reason = Some("error".to_string()); }
@@ -354,20 +406,18 @@ pub(crate) fn run_active_ai(
     cmd.env("PATH", augmented_vib_path());
     cmd.env("NO_COLOR", "1");
     hide_console(&mut cmd);
-    match cmd.output() {
-        Ok(output) if output.status.success() => {
+    match output_with_timeout(cmd, Duration::from_secs(PERSONA_TIMEOUT_SECS)) {
+        Ok(Some(output)) if output.status.success() => {
             Some(String::from_utf8_lossy(&output.stdout).to_string())
         }
         _ => None,
     }
 }
 
-/// provider 후보 순서(드롭다운/탐지 공용).
-const PLANNING_PROVIDERS: &[&str] = &["claude", "codex", "agy", "opencode"];
-
 /// resolver(실행파일명→설치여부)로 설치된 provider id 만 추린다.
+/// provider 후보 순서는 INTERNAL_PROVIDER_PRIORITY(드롭다운/탐지 공용)를 재사용한다.
 fn installed_providers_from(resolver: impl Fn(&str) -> bool) -> Vec<String> {
-    PLANNING_PROVIDERS
+    INTERNAL_PROVIDER_PRIORITY
         .iter()
         .filter(|provider| {
             provider_spec(provider)
@@ -520,6 +570,28 @@ mod tests {
     #[test]
     fn classify_failure_defaults_to_error() {
         assert_eq!(classify_failure("", "some random crash"), "error");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn output_with_timeout_returns_output_for_fast_command() {
+        let mut cmd = std::process::Command::new("sh");
+        cmd.args(["-c", "printf hi"]);
+        let out = super::output_with_timeout(cmd, std::time::Duration::from_secs(5))
+            .expect("spawn")
+            .expect("should not time out");
+        assert!(out.status.success());
+        assert_eq!(String::from_utf8_lossy(&out.stdout), "hi");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn output_with_timeout_kills_slow_command() {
+        let mut cmd = std::process::Command::new("sh");
+        cmd.args(["-c", "sleep 5"]);
+        let result =
+            super::output_with_timeout(cmd, std::time::Duration::from_millis(150)).expect("spawn");
+        assert!(result.is_none()); // 상한 초과 → 자식 종료 후 None
     }
 }
 // === ANCHOR: PLANNING_PERSONA_END ===

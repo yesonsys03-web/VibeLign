@@ -241,6 +241,28 @@ describe("PlanningRoom chat session view", () => {
             createdAt: "2026-06-02T00:01:03Z",
           },
         ],
+      })
+      .mockResolvedValueOnce({
+        ...result,
+        messages: [
+          ...result.messages,
+          {
+            id: "msg_2",
+            role: "user",
+            personaId: null,
+            content: "세 명이 차례로 봐줘",
+            status: "ok",
+            createdAt: "2026-06-02T00:01:00Z",
+          },
+          {
+            id: "msg_deepseek",
+            role: "assistant",
+            personaId: "deepseek",
+            content: "딥시기 답변",
+            status: "ok",
+            createdAt: "2026-06-02T00:01:04Z",
+          },
+        ],
       });
     render(<PlanningRoom projectDir="/tmp/demo" result={result} onBack={vi.fn()} onResultChange={onResultChange} />);
 

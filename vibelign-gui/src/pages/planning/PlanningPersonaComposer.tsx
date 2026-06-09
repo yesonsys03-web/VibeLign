@@ -126,7 +126,8 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
           value={message}
           onChange={(event) => setMessage(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
+            // 한글/일본어 IME 조합 중 Enter 는 조합 확정용이므로 전송하지 않는다.
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
               void handleSubmit();
             }

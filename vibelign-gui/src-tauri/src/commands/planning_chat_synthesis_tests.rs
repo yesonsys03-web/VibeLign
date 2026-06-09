@@ -1,5 +1,6 @@
 // === ANCHOR: PLANNING_CHAT_SYNTHESIS_TESTS_START ===
 use super::{plan_slug, safe_relative_target, save_planning_markdown, synthesize_planning_markdown};
+use crate::commands::planning_chat_cards::{Card, CardState};
 use crate::commands::planning_chat_store::StoredPlanningChatSession;
 use crate::commands::planning_chat_types::PlanningChatMessage;
 
@@ -17,7 +18,7 @@ fn synthesized_markdown_includes_persona_conversation() {
         test_message("assistant", Some("chloe"), "핵심 플로우를 먼저 정리해요."),
     ];
 
-    let markdown = synthesize_planning_markdown(&session, &messages);
+    let markdown = synthesize_planning_markdown(&session, &messages, &[]);
 
     assert!(markdown.contains("# 예약 앱 만들고 싶어"));
     assert!(markdown.contains("## 기획방 대화 정리"));
@@ -42,7 +43,7 @@ fn synthesized_markdown_distributes_persona_sections() {
         ),
     ];
 
-    let markdown = synthesize_planning_markdown(&session, &messages);
+    let markdown = synthesize_planning_markdown(&session, &messages, &[]);
 
     assert_section_contains(&markdown, "## 핵심 기능", "- 예약 생성, 일정 변경");
     assert_section_contains(&markdown, "## 사용자 흐름", "- 날짜 선택 후 예약 확정");
@@ -60,12 +61,41 @@ fn synthesized_markdown_distributes_persona_sections() {
 }
 
 #[test]
+fn synthesized_markdown_includes_confirmed_cards_only() {
+    let session = test_session("예약 앱 만들고 싶어");
+    let messages = vec![test_message("user", None, "예약 앱 만들고 싶어")];
+    let cards = vec![
+        test_card("card_1", "결정 카드는 버튼으로 확정", "확정 흐름", CardState::Confirmed),
+        test_card("card_2", "초안 카드는 안 나와야 함", "초안", CardState::Draft),
+    ];
+
+    let markdown = synthesize_planning_markdown(&session, &messages, &cards);
+
+    assert_section_contains(
+        &markdown,
+        "## 확정된 결정",
+        "- **결정 카드는 버튼으로 확정** — 확정 흐름",
+    );
+    assert!(!markdown.contains("초안 카드는 안 나와야 함"));
+}
+
+#[test]
+fn synthesized_markdown_notes_when_no_confirmed_cards() {
+    let session = test_session("예약 앱 만들고 싶어");
+    let messages = vec![test_message("user", None, "예약 앱 만들고 싶어")];
+
+    let markdown = synthesize_planning_markdown(&session, &messages, &[]);
+
+    assert_section_contains(&markdown, "## 확정된 결정", "- 아직 버튼으로 확정한 결정이 없습니다.");
+}
+
+#[test]
 fn save_planning_markdown_writes_unique_plan_file() {
     let root = tempfile::tempdir().expect("temp root");
     let mut session = test_session("예약 앱 만들고 싶어");
     let messages = vec![test_message("user", None, "예약 앱 만들고 싶어")];
 
-    let saved = save_planning_markdown(root.path(), &mut session, &messages, None).expect("save");
+    let saved = save_planning_markdown(root.path(), &mut session, &messages, &[], None).expect("save");
 
     assert_eq!(
         session.output_path.as_deref(),
@@ -85,6 +115,7 @@ fn save_planning_markdown_writes_explicit_target_path() {
         root.path(),
         &mut session,
         &messages,
+        &[],
         Some("docs/spec-foo-review.md"),
     )
     .expect("save");
@@ -124,6 +155,18 @@ fn test_session(idea: &str) -> StoredPlanningChatSession {
         output_path: None,
         absolute_output_path: None,
         readiness: None,
+    }
+}
+
+fn test_card(id: &str, title: &str, summary: &str, state: CardState) -> Card {
+    Card {
+        id: id.to_string(),
+        title: title.to_string(),
+        summary: summary.to_string(),
+        reason: String::new(),
+        state,
+        created_at: "1".to_string(),
+        updated_at: "1".to_string(),
     }
 }
 

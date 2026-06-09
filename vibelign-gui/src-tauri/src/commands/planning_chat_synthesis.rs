@@ -1,6 +1,7 @@
 // === ANCHOR: PLANNING_CHAT_SYNTHESIS_START ===
 use std::path::{Component, Path, PathBuf};
 
+use super::planning_chat_cards::Card;
 use super::planning_chat_markdown::synthesize_planning_markdown;
 use super::planning_chat_store::StoredPlanningChatSession;
 use super::planning_chat_types::PlanningChatMessage;
@@ -13,9 +14,10 @@ pub(crate) fn save_planning_markdown(
     project_dir: &Path,
     session: &mut StoredPlanningChatSession,
     messages: &[PlanningChatMessage],
+    cards: &[Card],
     target_path: Option<&str>,
 ) -> Result<SavedPlanningMarkdown, String> {
-    let markdown = synthesize_planning_markdown(session, messages);
+    let markdown = synthesize_planning_markdown(session, messages, cards);
     let explicit_target = target_path.filter(|rel| !rel.trim().is_empty());
     let (output_path, absolute_path) = match explicit_target {
         Some(rel) => {

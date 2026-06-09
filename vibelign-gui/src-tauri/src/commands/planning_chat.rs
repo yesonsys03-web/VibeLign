@@ -246,10 +246,12 @@ pub(crate) async fn save_planning_chat_as_markdown(
         };
         session.readiness =
             Some(super::planning_chat_readiness::judge_readiness(&project_dir, &messages));
+        let cards = read_cards(&session_dir);
         let saved = match save_planning_markdown(
             &project_dir,
             &mut session,
             &messages,
+            &cards,
             request.target_path.as_deref(),
         ) {
             Ok(saved) => saved,
@@ -258,7 +260,6 @@ pub(crate) async fn save_planning_chat_as_markdown(
         if let Err(error) = write_json(session_path, &session) {
             return planning_chat_error(error);
         }
-        let cards = read_cards(&session_dir);
         planning_chat_success(session, messages, Some(saved.markdown), cards)
     })
     .await
