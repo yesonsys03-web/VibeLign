@@ -4,7 +4,10 @@ import { describe, expect, test } from "vitest";
 import type { PlanningChatSessionResponse } from "../../lib/vib";
 import {
   appendMention,
+  markAgentFailed,
+  markMessagePending,
   pendingAgentMessages,
+  precedingUserPrompt,
   togglePersona,
   withPendingAgents,
   withPendingTurn,
@@ -66,6 +69,59 @@ describe("PlanningPersonaComposerState", () => {
     });
     expect(pending[0]).toMatchObject({ personaId: "chloe", content: "클로이가 답변을 준비하고 있어요." });
     expect(withAgents.messages).toHaveLength(1);
+  });
+
+  test("marks_only_the_pending_bubble_of_the_failed_agent", () => {
+    // Given: chloe 는 정상 답변, gio 는 아직 대기
+    const result: PlanningChatSessionResponse = {
+      ...baseResult,
+      messages: [
+        { id: "u1", role: "user", personaId: null, content: "검토해줘", status: "ok", createdAt: "1" },
+        { id: "a1", role: "assistant", personaId: "chloe", content: "클로이 답", status: "ok", createdAt: "1" },
+        { id: "a2", role: "assistant", personaId: "gio", content: "지오가 답변을 준비하고 있어요.", status: "pending", createdAt: "1" },
+      ],
+    };
+
+    // When
+    const next = markAgentFailed(result, "gio", "2");
+
+    // Then: gio 대기 → 실패, 나머지는 그대로
+    expect(next.messages[1]).toMatchObject({ personaId: "chloe", status: "ok" });
+    expect(next.messages[2]).toMatchObject({ personaId: "gio", status: "failed" });
+    expect(next.messages[2].content).toContain("다시 시도");
+  });
+
+  test("marks_a_specific_message_pending_for_retry", () => {
+    // Given
+    const result: PlanningChatSessionResponse = {
+      ...baseResult,
+      messages: [
+        { id: "a1", role: "assistant", personaId: "gio", content: "지오 호출에 실패했어요.", status: "failed", createdAt: "1" },
+      ],
+    };
+
+    // When
+    const next = markMessagePending(result, "a1");
+
+    // Then
+    expect(next.messages[0]).toMatchObject({ status: "pending" });
+    expect(next.messages[0].content).toContain("준비하고");
+  });
+
+  test("finds_the_preceding_user_prompt_for_a_message", () => {
+    // Given
+    const messages = [
+      { id: "u1", role: "user", personaId: null, content: "첫 질문", status: "ok", createdAt: "1" },
+      { id: "a1", role: "assistant", personaId: "chloe", content: "답", status: "ok", createdAt: "1" },
+      { id: "u2", role: "user", personaId: null, content: "둘째 질문", status: "ok", createdAt: "1" },
+      { id: "a2", role: "assistant", personaId: "gio", content: "실패", status: "failed", createdAt: "1" },
+    ] as const;
+
+    // Then
+    expect(precedingUserPrompt(messages, "a2")).toBe("둘째 질문");
+    expect(precedingUserPrompt(messages, "a1")).toBe("첫 질문");
+    expect(precedingUserPrompt(messages, "ghost")).toBe("둘째 질문"); // 못 찾으면 끝에서부터
+    expect(precedingUserPrompt([], "x")).toBeNull();
   });
 });
 // === ANCHOR: PLANNINGPERSONACOMPOSERSTATE_TEST_END ===

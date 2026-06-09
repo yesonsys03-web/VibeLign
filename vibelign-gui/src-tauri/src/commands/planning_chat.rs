@@ -174,8 +174,11 @@ pub(crate) async fn append_planning_chat_turn(
             if !is_persona_enabled(&agent) {
                 continue;
             }
+            // 실패/대기 메시지는 페르소나 맥락에서 제외한다(에러 문구가 대화로 새는 것 방지).
+            // 사용자 메시지는 status="ok" 이라 그대로 남는다.
             let lines = messages
                 .iter()
+                .filter(|message| message.status == "ok")
                 .map(|message| PlanningChatLine {
                     role: &message.role,
                     persona_id: message.persona_id.as_deref(),

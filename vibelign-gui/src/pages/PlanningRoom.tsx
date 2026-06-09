@@ -1,8 +1,15 @@
 // === ANCHOR: PLANNINGROOM_START ===
 import { useState } from "react";
 
-import { openFolder, savePlanningChatAsMarkdown, type PlanningChatSessionResponse } from "../lib/vib";
+import {
+  openFolder,
+  retryPlanningPersona,
+  savePlanningChatAsMarkdown,
+  type PlanningChatMessage,
+  type PlanningChatSessionResponse,
+} from "../lib/vib";
 import { PlanningActionBar } from "./planning/PlanningActionBar";
+import { markMessagePending } from "./planning/PlanningPersonaComposerState";
 import { PlanningAdvancedDetails } from "./planning/PlanningAdvancedDetails";
 import { PlanningMarkdownView } from "./planning/PlanningMarkdownView";
 import { PlanningMessages } from "./planning/PlanningMessages";
@@ -91,6 +98,23 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
   }
   // === ANCHOR: PLANNINGROOM_HANDLEOPENSAVEDPLAN_END ===
 
+  // === ANCHOR: PLANNINGROOM_HANDLERETRYPERSONA_START ===
+  async function handleRetryPersona(message: PlanningChatMessage) {
+    const sessionId = result.sessionId;
+    if (!sessionId || isPending) {
+      return;
+    }
+    onResultChange(markMessagePending(result, message.id));
+    try {
+      const next = await retryPlanningPersona({ projectDir, sessionId, messageId: message.id });
+      // 백엔드가 실패(ok:false)면 대화를 지우지 말고 이전 상태로 되돌린다.
+      onResultChange(next.ok ? next : result);
+    } catch {
+      onResultChange(result);
+    }
+  }
+  // === ANCHOR: PLANNINGROOM_HANDLERETRYPERSONA_END ===
+
   // === ANCHOR: PLANNINGROOM_HANDLESTARTWORK_START ===
   function handleStartWork() {
     const proceed = onStartWork ?? onBack;
@@ -124,7 +148,7 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
           <>
             <PlanningPersonaProgressSummary messages={result.messages} />
             <PlanningPersonaResponseSummary messages={result.messages} />
-            <PlanningMessages messages={result.messages} outputPath={result.outputPath ?? null} />
+            <PlanningMessages messages={result.messages} outputPath={result.outputPath ?? null} onRetry={(message) => void handleRetryPersona(message)} />
             <PlanningReadinessPanel report={result.readiness} />
             <PlanningCardsPanel
               cards={result.cards}

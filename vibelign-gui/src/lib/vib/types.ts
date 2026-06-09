@@ -190,6 +190,12 @@ export interface SavePlanningChatPlanRequest {
   targetPath?: string;
 }
 
+export interface RetryPersonaRequest {
+  projectDir: string;
+  sessionId: string;
+  messageId: string;
+}
+
 export type ReadinessVerdict = "green" | "red" | "na";
 
 export interface ReadinessCheck {

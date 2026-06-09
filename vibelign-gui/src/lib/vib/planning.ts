@@ -10,6 +10,7 @@ import type {
   CreatePlanningTemplateResponse,
   PlanningChatSessionResponse,
   PlanningSessionSummary,
+  RetryPersonaRequest,
   SavePlanningChatPlanRequest,
   UpdateCardRequest,
 } from "./types";
@@ -65,6 +66,11 @@ export function savePlanningChatAsMarkdown(
   return invoke<PlanningChatSessionResponse>("save_planning_chat_as_markdown", { request });
 }
 // === ANCHOR: PLANNING_SAVEPLANNINGCHATASMARKDOWN_END ===
+// === ANCHOR: PLANNING_RETRYPLANNINGPERSONA_START ===
+export function retryPlanningPersona(request: RetryPersonaRequest): Promise<PlanningChatSessionResponse> {
+  return invoke<PlanningChatSessionResponse>("retry_planning_persona", { request });
+}
+// === ANCHOR: PLANNING_RETRYPLANNINGPERSONA_END ===
 // === ANCHOR: PLANNING_UPDATECARD_START ===
 export function updateCard(request: UpdateCardRequest): Promise<CardUpdateResponse> {
   return invoke<CardUpdateResponse>("update_card", { request });

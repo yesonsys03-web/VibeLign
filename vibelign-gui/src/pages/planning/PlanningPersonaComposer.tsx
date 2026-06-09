@@ -7,6 +7,7 @@ import { PlanningModeSelector } from "./PlanningModeSelector";
 import { allPlanningPersonaIds, PLANNING_PERSONAS } from "./PlanningPersonas";
 import {
   appendMention,
+  markAgentFailed,
   togglePersona,
   withPendingAgents,
   withPendingTurn,
@@ -38,22 +39,29 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
     const createdAt = new Date().toISOString();
     setIsSubmitting(true);
     setMessage("");
-    onResultChange(withPendingTurn(result, prompt, agents, createdAt));
+    let latest = withPendingTurn(result, prompt, agents, createdAt);
+    onResultChange(latest);
 
+    // 한 페르소나가 하드 에러로 실패해도 break 하지 않고 나머지 페르소나를 계속 진행한다.
+    // includeUserMessage 는 "성공해서 사용자 메시지가 실제 저장됐는가"로 판단한다(인덱스 0 고정 금지).
+    let userPersisted = false;
     for (const [index, agent] of agents.entries()) {
       const nextResult = await appendPlanningChatTurn({
         projectDir,
         sessionId,
         prompt,
         agents: [agent],
-        includeUserMessage: index === 0,
+        includeUserMessage: !userPersisted,
         extractCards: index === agents.length - 1,
       });
-      if (!nextResult.ok) {
-        onResultChange(nextResult);
-        break;
+      const remaining = agents.slice(index + 1);
+      if (nextResult.ok) {
+        userPersisted = true;
+        latest = withPendingAgents(nextResult, remaining, createdAt);
+      } else {
+        latest = markAgentFailed(latest, agent, createdAt);
       }
-      onResultChange(withPendingAgents(nextResult, agents.slice(index + 1), createdAt));
+      onResultChange(latest);
     }
     setIsSubmitting(false);
   }

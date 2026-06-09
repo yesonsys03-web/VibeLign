@@ -23,14 +23,15 @@ export function fallbackBadgeLabel(message: PlanningChatMessage): string | null 
 interface PlanningMessagesProps {
   readonly messages: readonly PlanningChatMessage[];
   readonly outputPath: string | null;
+  readonly onRetry?: (message: PlanningChatMessage) => void;
 }
 
 // === ANCHOR: PLANNINGMESSAGES_PLANNINGMESSAGES_START ===
-export function PlanningMessages({ messages, outputPath }: PlanningMessagesProps) {
+export function PlanningMessages({ messages, outputPath, onRetry }: PlanningMessagesProps) {
   return (
     <div style={{ display: "grid", gap: 12 }}>
       {messages.map((message) => (
-        <PlanningMessageBubble key={message.id} message={message} />
+        <PlanningMessageBubble key={message.id} message={message} onRetry={onRetry} />
       ))}
       {outputPath && <div style={{ fontSize: 12, color: "#555", fontWeight: 700 }}>저장 위치: {outputPath}</div>}
     </div>
@@ -39,7 +40,13 @@ export function PlanningMessages({ messages, outputPath }: PlanningMessagesProps
 // === ANCHOR: PLANNINGMESSAGES_PLANNINGMESSAGES_END ===
 
 // === ANCHOR: PLANNINGMESSAGES_PLANNINGMESSAGEBUBBLE_START ===
-function PlanningMessageBubble({ message }: { readonly message: PlanningChatMessage }) {
+function PlanningMessageBubble({
+  message,
+  onRetry,
+}: {
+  readonly message: PlanningChatMessage;
+  readonly onRetry?: (message: PlanningChatMessage) => void;
+}) {
   const isUser = message.role === "user";
   const display = planningPersonaStatusDisplay(message.status, "message");
   return (
@@ -95,6 +102,18 @@ function PlanningMessageBubble({ message }: { readonly message: PlanningChatMess
         </div>
       )}
       {message.content}
+      {message.status === "failed" && onRetry && (
+        <div style={{ marginTop: 8 }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            type="button"
+            onClick={() => onRetry(message)}
+            style={{ fontSize: 11 }}
+          >
+            다시 시도
+          </button>
+        </div>
+      )}
     </div>
   );
 }

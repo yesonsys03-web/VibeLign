@@ -286,11 +286,14 @@ fn provider_spec(provider_id: &str) -> Option<(&'static str, &'static [&'static 
 
 fn build_persona_prompt(spec: PersonaSpec, role: (&'static str, &'static str), lines: &[PlanningChatLine<'_>]) -> String {
     let mut prompt = format!(
-        "너는 VibeLign 기획방의 {name}다.\n역할: {role}\n\n규칙:\n- 한국어로 답한다.\n- 사용자가 이해하기 쉽게 짧고 구체적으로 답한다.\n- 코드를 작성하지 말고, 기획 대화에 필요한 판단과 질문만 한다.\n- patch, CodeSpeak, anchor 같은 내부 구현 용어를 쓰지 않는다.\n\n지금까지의 대화:\n",
+        "너는 VibeLign 기획방의 {name}다.\n역할: {role}\n\n규칙:\n- 한국어로 답한다.\n- 사용자가 이해하기 쉽게 짧고 구체적으로 답한다.\n- 코드를 작성하지 말고, 기획 대화에 필요한 판단과 질문만 한다.\n- patch, CodeSpeak, anchor 같은 내부 구현 용어를 쓰지 않는다.\n- 구체적인 결론을 낼 때는 그 줄을 라벨로 시작해 한 줄씩 적는다: '핵심 기능:', '사용자 흐름:', '제외할 것:', '질문:'. 해당 없으면 생략하고, 매 줄을 라벨로 강제하지는 않는다.\n\n지금까지의 대화:\n",
         name = spec.name,
         role = role.1
     );
-    for line in lines {
+    for line in super::planning_persona_context::recent_lines(
+        lines,
+        super::planning_persona_context::RECENT_CONTEXT_LINES,
+    ) {
         let speaker = match (line.role, line.persona_id) {
             ("assistant", Some("chloe")) => "클로이",
             ("assistant", Some("gio")) => "지오",
@@ -524,6 +527,17 @@ mod tests {
         assert!(prompt.contains("미나"));
         assert!(prompt.contains("화상회의 번역 앱을 만들고 싶어"));
         assert!(prompt.contains("지오: 회의 플랫폼 범위를 정해야 해요."));
+    }
+
+    #[test]
+    fn build_persona_prompt_includes_output_label_rule() {
+        let spec = persona_spec("chloe").expect("chloe persona");
+        let role = role_spec("design").expect("design role");
+        let prompt = build_persona_prompt(spec, role, &[]);
+        assert!(prompt.contains("핵심 기능:"));
+        assert!(prompt.contains("사용자 흐름:"));
+        assert!(prompt.contains("제외할 것:"));
+        assert!(prompt.contains("질문:"));
     }
 
     #[test]
