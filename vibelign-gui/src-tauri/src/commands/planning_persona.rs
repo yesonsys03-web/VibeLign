@@ -46,8 +46,11 @@ fn output_with_timeout(
         if Instant::now() >= deadline {
             let _ = child.kill();
             let _ = child.wait();
-            let _ = out_handle.join();
-            let _ = err_handle.join();
+            // 리더 스레드를 join 하지 않는다: Windows 의 .cmd/.bat 셔임은 cmd.exe 를 죽여도
+            // 손자 프로세스(node 등)가 파이프 쓰기단을 쥐고 있어 read_to_end 가 EOF 를 못 받고
+            // join 이 영원히 막힐 수 있다. timeout 시 출력은 어차피 버리므로 스레드를 분리한다.
+            drop(out_handle);
+            drop(err_handle);
             return Ok(None);
         }
         std::thread::sleep(Duration::from_millis(50));
