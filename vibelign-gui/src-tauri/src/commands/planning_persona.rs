@@ -161,7 +161,8 @@ pub(crate) fn run_persona_response(
         };
     };
     let role = resolve_role(persona_id, &spec);
-    let prompt = build_persona_prompt(spec, role, lines);
+    let capability_map = build_capability_map(project_dir);
+    let prompt = build_persona_prompt(spec, role, lines, capability_map.as_deref());
     let order = resolve_provider_order(persona_id, &spec);
     let preferred = order.first().cloned().unwrap_or_default();
     let mut preferred_reason: Option<String> = None;
@@ -287,12 +288,107 @@ fn provider_spec(provider_id: &str) -> Option<(&'static str, &'static [&'static 
     }
 }
 
-fn build_persona_prompt(spec: PersonaSpec, role: (&'static str, &'static str), lines: &[PlanningChatLine<'_>]) -> String {
+/// 카테고리당 기능지도에 나열할 디렉터리 상한. 파일 전체가 아니라 디렉터리 구성만
+/// 추리므로 큰 프로젝트에서도 출력이 작게 유지된다(토큰 상한 전략은 v2).
+const CAP_MAP_MAX_DIRS_PER_CATEGORY: usize = 20;
+
+/// 기능지도 카테고리 정렬 순위. 미지정 카테고리는 뒤로.
+fn category_rank(category: &str) -> u8 {
+    match category {
+        "ui" => 0,
+        "core" => 1,
+        "entry" => 2,
+        "other" => 3,
+        _ => 4,
+    }
+}
+
+/// 코드맵 카테고리를 기획자 친화 라벨로. 미지정은 원문 그대로.
+fn category_label(category: &str) -> String {
+    match category {
+        "ui" => "화면·UI".to_string(),
+        "core" => "핵심 엔진/로직".to_string(),
+        "entry" => "진입점".to_string(),
+        "other" => "기타(빌드·스크립트 등)".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// 파일 경로의 상위 디렉터리. 루트 파일은 "(루트)".
+fn capability_dir_of(path: &str) -> String {
+    match path.rfind('/') {
+        Some(idx) if idx > 0 => path[..idx].to_string(),
+        _ => "(루트)".to_string(),
+    }
+}
+
+/// project_map.json 의 files 맵을 카테고리 × 디렉터리 구성으로 압축한 '기능지도'.
+/// 파일을 전부 나열하지 않고 카테고리별 대표 디렉터리(+파일 수)만 추려 작게 만든다.
+/// 파일이 하나도 없으면 None.
+fn capability_map_from_files(files: &serde_json::Map<String, serde_json::Value>) -> Option<String> {
+    use std::collections::BTreeMap;
+    let mut by_category: BTreeMap<String, BTreeMap<String, usize>> = BTreeMap::new();
+    for (path, meta) in files {
+        let category = meta
+            .get("category")
+            .and_then(|c| c.as_str())
+            .unwrap_or("other")
+            .to_string();
+        let dir = capability_dir_of(path);
+        *by_category.entry(category).or_default().entry(dir).or_insert(0) += 1;
+    }
+    if by_category.is_empty() {
+        return None;
+    }
+    let mut categories: Vec<String> = by_category.keys().cloned().collect();
+    categories.sort_by(|a, b| category_rank(a).cmp(&category_rank(b)).then_with(|| a.cmp(b)));
+    let mut out = String::new();
+    for category in categories {
+        let Some(dirs) = by_category.get(&category) else {
+            continue;
+        };
+        out.push_str("■ ");
+        out.push_str(&category_label(&category));
+        out.push('\n');
+        let mut entries: Vec<(&String, &usize)> = dirs.iter().collect();
+        entries.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
+        let shown = entries.len().min(CAP_MAP_MAX_DIRS_PER_CATEGORY);
+        for (dir, count) in entries.iter().take(shown) {
+            out.push_str(&format!("  · {dir} ({count}개)\n"));
+        }
+        if entries.len() > shown {
+            out.push_str(&format!("  · …외 {}곳\n", entries.len() - shown));
+        }
+    }
+    Some(out.trim_end().to_string())
+}
+
+/// 프로젝트의 .vibelign/project_map.json 에서 기능지도를 만든다. 없거나 손상되면 None.
+fn build_capability_map(project_dir: &Path) -> Option<String> {
+    let path = project_dir.join(".vibelign").join("project_map.json");
+    let text = std::fs::read_to_string(path).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let files = value.get("files")?.as_object()?;
+    capability_map_from_files(files)
+}
+
+fn build_persona_prompt(
+    spec: PersonaSpec,
+    role: (&'static str, &'static str),
+    lines: &[PlanningChatLine<'_>],
+    capability_map: Option<&str>,
+) -> String {
     let mut prompt = format!(
-        "너는 VibeLign 기획방의 {name}다.\n역할: {role}\n\n규칙:\n- 한국어로 답한다.\n- 사용자가 이해하기 쉽게 짧고 구체적으로 답한다.\n- 코드를 작성하지 말고, 기획 대화에 필요한 판단과 질문만 한다.\n- patch, CodeSpeak, anchor 같은 내부 구현 용어를 쓰지 않는다.\n- 구체적인 결론을 낼 때는 그 줄을 라벨로 시작해 한 줄씩 적는다: '핵심 기능:', '사용자 흐름:', '제외할 것:', '질문:'. 해당 없으면 생략하고, 매 줄을 라벨로 강제하지는 않는다.\n\n지금까지의 대화:\n",
+        "너는 VibeLign 기획방의 {name}다.\n역할: {role}\n\n규칙:\n- 한국어로 답한다.\n- 사용자가 이해하기 쉽게 짧고 구체적으로 답한다.\n- 코드를 작성하지 말고, 기획 대화에 필요한 판단과 질문만 한다.\n- patch, CodeSpeak, anchor 같은 내부 구현 용어를 쓰지 않는다.\n- 구체적인 결론을 낼 때는 그 줄을 라벨로 시작해 한 줄씩 적는다: '핵심 기능:', '사용자 흐름:', '제외할 것:', '질문:'. 해당 없으면 생략하고, 매 줄을 라벨로 강제하지는 않는다.\n",
         name = spec.name,
         role = role.1
     );
+    if let Some(map) = capability_map {
+        prompt.push_str("\n[이 프로젝트의 구성 — 배경 이해용]\n");
+        prompt.push_str(map);
+        prompt.push_str("\n(위는 네 이해를 돕는 배경 정보다. 사용자에게 파일 경로나 내부 용어를 나열하지 말고, 무엇을 만들지 판단하는 데만 참고해라.)\n");
+    }
+    prompt.push_str("\n지금까지의 대화:\n");
     for line in super::planning_persona_context::recent_lines(
         lines,
         super::planning_persona_context::RECENT_CONTEXT_LINES,
@@ -446,7 +542,7 @@ pub(crate) fn planning_provider_status() -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_persona_prompt, classify_failure, fallback_provider_used, installed_providers_from, persona_enabled_from_value, persona_role_from_value, persona_spec, provider_spec, provider_try_order, role_spec, windows_executable_candidate, PlanningChatLine, INTERNAL_PROVIDER_PRIORITY};
+    use super::{build_persona_prompt, capability_map_from_files, classify_failure, fallback_provider_used, installed_providers_from, persona_enabled_from_value, persona_role_from_value, persona_spec, provider_spec, provider_try_order, role_spec, windows_executable_candidate, PlanningChatLine, INTERNAL_PROVIDER_PRIORITY};
     use std::path::Path;
 
     #[test]
@@ -526,7 +622,7 @@ mod tests {
             PlanningChatLine { role: "user", persona_id: None, content: "화상회의 번역 앱을 만들고 싶어" },
             PlanningChatLine { role: "assistant", persona_id: Some("gio"), content: "회의 플랫폼 범위를 정해야 해요." },
         ];
-        let prompt = build_persona_prompt(spec, role, &lines);
+        let prompt = build_persona_prompt(spec, role, &lines, None);
         assert!(prompt.contains("미나"));
         assert!(prompt.contains("화상회의 번역 앱을 만들고 싶어"));
         assert!(prompt.contains("지오: 회의 플랫폼 범위를 정해야 해요."));
@@ -536,7 +632,7 @@ mod tests {
     fn build_persona_prompt_includes_output_label_rule() {
         let spec = persona_spec("chloe").expect("chloe persona");
         let role = role_spec("design").expect("design role");
-        let prompt = build_persona_prompt(spec, role, &[]);
+        let prompt = build_persona_prompt(spec, role, &[], None);
         assert!(prompt.contains("핵심 기능:"));
         assert!(prompt.contains("사용자 흐름:"));
         assert!(prompt.contains("제외할 것:"));
@@ -547,7 +643,7 @@ mod tests {
     fn design_role_nudges_for_mechanism() {
         let spec = persona_spec("chloe").expect("chloe persona");
         let role = role_spec("design").expect("design role");
-        let prompt = build_persona_prompt(spec, role, &[]);
+        let prompt = build_persona_prompt(spec, role, &[], None);
         assert!(prompt.contains("발동시키고 어디에 저장"));
     }
 
@@ -609,6 +705,66 @@ mod tests {
         let result =
             super::output_with_timeout(cmd, std::time::Duration::from_millis(150)).expect("spawn");
         assert!(result.is_none()); // 상한 초과 → 자식 종료 후 None
+    }
+
+    #[test]
+    fn capability_map_groups_by_category_with_dir_counts() {
+        let v: serde_json::Value = serde_json::from_str(
+            r#"{
+                "vibelign-gui/src/pages/Home.tsx": {"category": "ui"},
+                "vibelign-gui/src/pages/Doctor.tsx": {"category": "ui"},
+                "vibelign-core/src/backup/cas.rs": {"category": "core"},
+                "setup.py": {"category": "other"}
+            }"#,
+        )
+        .unwrap();
+        let map = capability_map_from_files(v.as_object().unwrap()).expect("non-empty");
+        assert!(map.contains("화면·UI"));
+        assert!(map.contains("vibelign-gui/src/pages (2개)"));
+        assert!(map.contains("핵심 엔진/로직"));
+        assert!(map.contains("vibelign-core/src/backup (1개)"));
+        assert!(map.contains("(루트)")); // setup.py
+        // ui(rank0) 가 core(rank1) 보다 앞에 온다.
+        assert!(map.find("화면·UI").unwrap() < map.find("핵심 엔진/로직").unwrap());
+    }
+
+    #[test]
+    fn capability_map_none_when_empty() {
+        let empty = serde_json::Map::new();
+        assert!(capability_map_from_files(&empty).is_none());
+    }
+
+    #[test]
+    fn capability_map_caps_dirs_per_category() {
+        // 한 카테고리에 디렉터리 25곳 → 상한 20 + "…외 5곳".
+        let mut obj = serde_json::Map::new();
+        for i in 0..25 {
+            obj.insert(format!("dir{i}/file.rs"), serde_json::json!({"category": "core"}));
+        }
+        let map = capability_map_from_files(&obj).expect("non-empty");
+        assert!(map.contains("…외 5곳"));
+    }
+
+    #[test]
+    fn build_persona_prompt_includes_capability_block_and_leak_rule() {
+        let spec = persona_spec("chloe").expect("chloe persona");
+        let role = role_spec("design").expect("design role");
+        let prompt =
+            build_persona_prompt(spec, role, &[], Some("■ 화면·UI\n  · src/pages (3개)"));
+        assert!(prompt.contains("[이 프로젝트의 구성 — 배경 이해용]"));
+        assert!(prompt.contains("src/pages (3개)"));
+        assert!(prompt.contains("파일 경로나 내부 용어를 나열하지 말"));
+        // 배경 블록은 대화 앞에 온다.
+        assert!(prompt.find("배경 이해용").unwrap() < prompt.find("지금까지의 대화").unwrap());
+    }
+
+    #[test]
+    fn build_persona_prompt_omits_capability_block_when_none() {
+        let spec = persona_spec("gio").expect("gio persona");
+        let role = role_spec("review").expect("review role");
+        let prompt = build_persona_prompt(spec, role, &[], None);
+        assert!(!prompt.contains("배경 이해용"));
+        assert!(prompt.contains("지금까지의 대화"));
     }
 }
 // === ANCHOR: PLANNING_PERSONA_END ===
