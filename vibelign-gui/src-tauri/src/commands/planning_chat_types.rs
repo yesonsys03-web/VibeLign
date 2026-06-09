@@ -30,6 +30,9 @@ pub struct SavePlanningChatPlanRequest {
     pub(crate) session_id: String,
     #[serde(default)]
     pub(crate) target_path: Option<String>,
+    /// 저장 입구 출처 로깅용("button" | "slash"). 누락 시 카운트 안 함.
+    #[serde(default)]
+    pub(crate) source: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]

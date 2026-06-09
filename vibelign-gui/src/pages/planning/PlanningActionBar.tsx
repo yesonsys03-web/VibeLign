@@ -22,7 +22,19 @@ export function PlanningActionBar({
   onToggleMarkdown,
 }: PlanningActionBarProps) {
   return (
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+    // 저장 버튼은 항상 눈에 띄어야 한다 — 긴 세션에서 스크롤로 사라지지 않게 하단 고정.
+    <div
+      style={{
+        display: "flex",
+        gap: 8,
+        flexWrap: "wrap",
+        position: "sticky",
+        bottom: 0,
+        zIndex: 5,
+        background: "var(--bg)",
+        padding: "10px 0",
+      }}
+    >
       <button
         className="btn btn-black"
         type="button"

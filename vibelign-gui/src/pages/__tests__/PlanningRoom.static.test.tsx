@@ -70,6 +70,7 @@ describe("PlanningRoom chat session view", () => {
       expect(mocks.savePlanningChatAsMarkdownMock).toHaveBeenCalledWith({
         projectDir: "/tmp/demo",
         sessionId: "chat_1",
+        source: "button",
       });
     });
     expect(onResultChange).toHaveBeenCalledWith(

@@ -33,6 +33,7 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
   const [showMarkdown, setShowMarkdown] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [pendingSaveSource, setPendingSaveSource] = useState<"button" | "slash">("button");
   const markdown = result.markdown ?? "";
   const isPending = result.messages.some((message) => message.status === "pending");
   const savedPlanOpenPath = getSavedPlanOpenPath(projectDir, result);
@@ -43,7 +44,7 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
   const usesSaveDialog = Boolean(sourcePath) && !result.outputPath;
 
   // === ANCHOR: PLANNINGROOM_HANDLESAVEPLAN_START ===
-  async function savePlan(targetPath?: string) {
+  async function savePlan(targetPath?: string, source: "button" | "slash" = "button") {
     const sessionId = result.sessionId;
     if (!sessionId || !canSave) {
       return;
@@ -51,7 +52,7 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
     setIsSaving(true);
     try {
       const next = await savePlanningChatAsMarkdown(
-        targetPath ? { projectDir, sessionId, targetPath } : { projectDir, sessionId },
+        targetPath ? { projectDir, sessionId, targetPath, source } : { projectDir, sessionId, source },
       );
       onResultChange(next);
       if (next.markdown) {
@@ -71,12 +72,15 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
     }
   }
 
-  function handleSavePlan() {
+  // 버튼·/저장 모두 같은 통제 저장 경로를 타되, 출처(source)만 다르게 기록한다.
+  // 저장 위치를 묻는 세션이면 다이얼로그를 거치며, 그 출처를 보존해 확정 시 함께 넘긴다.
+  function handleSavePlan(source: "button" | "slash" = "button") {
     if (usesSaveDialog) {
+      setPendingSaveSource(source);
       setShowSaveDialog(true);
       return;
     }
-    void savePlan();
+    void savePlan(undefined, source);
   }
   // === ANCHOR: PLANNINGROOM_HANDLESAVEPLAN_END ===
 
@@ -156,14 +160,14 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
               sessionId={result.sessionId ?? null}
               onCardsChange={(cards) => onResultChange({ ...result, cards })}
             />
-            <PlanningPersonaComposer projectDir={projectDir} result={result} sessionId={result.sessionId ?? null} onResultChange={onResultChange} />
+            <PlanningPersonaComposer projectDir={projectDir} result={result} sessionId={result.sessionId ?? null} onResultChange={onResultChange} onSlashSave={() => handleSavePlan("slash")} />
             <PlanningActionBar
               canSave={canSave}
               canView={canView}
               hasSavedPlan={hasSavedPlan}
               isSaving={isSaving}
               onOpenSavedPlan={() => void handleOpenSavedPlan()}
-              onSave={handleSavePlan}
+              onSave={() => handleSavePlan("button")}
               onStartWork={handleStartWork}
               onToggleMarkdown={() => setShowMarkdown((visible) => !visible)}
             />
@@ -186,7 +190,7 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
         onCancel={() => setShowSaveDialog(false)}
         onConfirm={(targetPath) => {
           setShowSaveDialog(false);
-          void savePlan(targetPath);
+          void savePlan(targetPath, pendingSaveSource);
         }}
       />
     )}

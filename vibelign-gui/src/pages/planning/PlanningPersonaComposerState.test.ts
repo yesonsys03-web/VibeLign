@@ -4,8 +4,10 @@ import { describe, expect, test } from "vitest";
 import type { PlanningChatSessionResponse } from "../../lib/vib";
 import {
   appendMention,
+  isSaveCommand,
   markAgentFailed,
   markMessagePending,
+  matchingSlashCommands,
   pendingAgentMessages,
   precedingUserPrompt,
   togglePersona,
@@ -106,6 +108,39 @@ describe("PlanningPersonaComposerState", () => {
     // Then
     expect(next.messages[0]).toMatchObject({ status: "pending" });
     expect(next.messages[0].content).toContain("준비하고");
+  });
+
+  test("detects_only_the_exact_slash_save_command", () => {
+    // 결정적 입구: 정확히 /저장 일 때만 true (오발동 0).
+    expect(isSaveCommand("/저장")).toBe(true);
+    expect(isSaveCommand("   /저장   ")).toBe(true);
+    // macOS 등에서 붙여넣은 NFD 분해형도 동일하게 인식해야 한다(NFC 정규화).
+    expect(isSaveCommand("/저장".normalize("NFD"))).toBe(true);
+
+    // 유사/오타/일반 문장은 트리거하지 않는다.
+    expect(isSaveCommand("/저자")).toBe(false);
+    expect(isSaveCommand("/저장해줘")).toBe(false);
+    expect(isSaveCommand("이거 저장하면 좋겠다")).toBe(false);
+    expect(isSaveCommand("저장")).toBe(false);
+    expect(isSaveCommand("/save")).toBe(false);
+    expect(isSaveCommand("")).toBe(false);
+  });
+
+  test("suggests_slash_commands_by_prefix_for_the_command_hint", () => {
+    // "/" 또는 부분 입력이 커맨드의 prefix 이면 힌트로 제안한다(Tab 자동완성용).
+    expect(matchingSlashCommands("/").map((c) => c.command)).toEqual(["/저장"]);
+    expect(matchingSlashCommands("/저").map((c) => c.command)).toEqual(["/저장"]);
+    expect(matchingSlashCommands("/저장").map((c) => c.command)).toEqual(["/저장"]);
+    expect(matchingSlashCommands("   /저   ").map((c) => c.command)).toEqual(["/저장"]);
+    // NFD 분해형 부분 입력도 동일하게 매칭(NFC 정규화).
+    expect(matchingSlashCommands("/저".normalize("NFD")).map((c) => c.command)).toEqual(["/저장"]);
+
+    // 커맨드를 벗어났거나 슬래시가 아니면 제안 없음.
+    expect(matchingSlashCommands("/저장해줘")).toEqual([]);
+    expect(matchingSlashCommands("/저자")).toEqual([]);
+    expect(matchingSlashCommands("/save")).toEqual([]);
+    expect(matchingSlashCommands("안녕")).toEqual([]);
+    expect(matchingSlashCommands("")).toEqual([]);
   });
 
   test("finds_the_preceding_user_prompt_for_a_message", () => {

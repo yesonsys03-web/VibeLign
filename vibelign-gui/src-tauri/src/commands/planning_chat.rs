@@ -263,6 +263,10 @@ pub(crate) async fn save_planning_chat_as_markdown(
         if let Err(error) = write_json(session_path, &session) {
             return planning_chat_error(error);
         }
+        // 저장이 실제로 끝난 뒤에만 입구 출처를 누적한다(실패 저장은 카운트 X). best-effort.
+        if let Some(source) = request.source.as_deref() {
+            super::planning_chat_store::record_save_source(&project_dir, source);
+        }
         planning_chat_success(session, messages, Some(saved.markdown), cards)
     })
     .await

@@ -54,9 +54,63 @@ pub(crate) fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, 
     serde_json::from_str(&text).map_err(|error| error.to_string())
 }
 
+/// 저장 입구(button|slash) 사용 빈도 누적 카운트.
+#[derive(Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SaveSourceCounts {
+    #[serde(default)]
+    pub(crate) button: u64,
+    #[serde(default)]
+    pub(crate) slash: u64,
+}
+
+/// 저장 호출 출처를 `.vibelign/planning/save-sources.json` 에 누적한다.
+/// 로깅 실패가 저장 자체를 깨면 안 되므로 best-effort(에러 무시)다.
+/// 알 수 없는 source 는 카운트하지 않는다(오염 방지).
+pub(crate) fn record_save_source(project_dir: &Path, source: &str) {
+    let dir = planning_dir(project_dir);
+    let path = dir.join("save-sources.json");
+    let mut counts: SaveSourceCounts = read_json(&path).unwrap_or_default();
+    match source {
+        "button" => counts.button += 1,
+        "slash" => counts.slash += 1,
+        _ => return,
+    }
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = write_json(path, &counts);
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{latest_chat_session_file, StoredPlanningChatSession};
+    use super::{
+        latest_chat_session_file, planning_dir, read_json, record_save_source, SaveSourceCounts,
+        StoredPlanningChatSession,
+    };
+
+    #[test]
+    fn record_save_source_accumulates_per_entry() {
+        let root = tempfile::tempdir().expect("temp root");
+        record_save_source(root.path(), "button");
+        record_save_source(root.path(), "slash");
+        record_save_source(root.path(), "slash");
+
+        let counts: SaveSourceCounts =
+            read_json(&planning_dir(root.path()).join("save-sources.json")).expect("counts");
+        assert_eq!(counts.button, 1);
+        assert_eq!(counts.slash, 2);
+    }
+
+    #[test]
+    fn record_save_source_ignores_unknown_source() {
+        let root = tempfile::tempdir().expect("temp root");
+        record_save_source(root.path(), "button");
+        record_save_source(root.path(), "hacker");
+
+        let counts: SaveSourceCounts =
+            read_json(&planning_dir(root.path()).join("save-sources.json")).expect("counts");
+        assert_eq!(counts.button, 1);
+        assert_eq!(counts.slash, 0);
+    }
 
     #[test]
     fn stored_chat_session_accepts_missing_output_fields() {

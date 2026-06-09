@@ -188,6 +188,8 @@ export interface SavePlanningChatPlanRequest {
   projectDir: string;
   sessionId: string;
   targetPath?: string;
+  /** 저장 입구 출처 로깅용. 누락 시 카운트 안 함. */
+  source?: "button" | "slash";
 }
 
 export interface RetryPersonaRequest {

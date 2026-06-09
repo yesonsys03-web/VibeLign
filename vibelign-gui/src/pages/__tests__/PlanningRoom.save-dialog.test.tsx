@@ -6,6 +6,7 @@ import PlanningRoom from "../PlanningRoom";
 
 const mocks = vi.hoisted(() => ({
   savePlanningChatAsMarkdownMock: vi.fn(),
+  appendPlanningChatTurnMock: vi.fn(),
 }));
 
 vi.mock("../../lib/vib", async () => {
@@ -13,6 +14,7 @@ vi.mock("../../lib/vib", async () => {
   return {
     ...actual,
     savePlanningChatAsMarkdown: mocks.savePlanningChatAsMarkdownMock,
+    appendPlanningChatTurn: mocks.appendPlanningChatTurnMock,
   };
 });
 
@@ -36,6 +38,7 @@ describe("PlanningRoom save dialog for review sessions", () => {
   afterEach(() => {
     cleanup();
     mocks.savePlanningChatAsMarkdownMock.mockReset();
+    mocks.appendPlanningChatTurnMock.mockReset();
   });
 
   test("opens_dialog_and_saves_to_default_review_name_in_source_folder", async () => {
@@ -68,6 +71,7 @@ describe("PlanningRoom save dialog for review sessions", () => {
         projectDir: "/tmp/demo",
         sessionId: "chat_1",
         targetPath: "docs/spec-foo-review.md",
+        source: "button",
       });
     });
     expect(onResultChange).toHaveBeenCalledWith(
@@ -96,6 +100,7 @@ describe("PlanningRoom save dialog for review sessions", () => {
         projectDir: "/tmp/demo",
         sessionId: "chat_1",
         targetPath: "docs/spec-foo.md",
+        source: "button",
       });
     });
   });
@@ -113,6 +118,58 @@ describe("PlanningRoom save dialog for review sessions", () => {
       expect(mocks.savePlanningChatAsMarkdownMock).toHaveBeenCalledWith({
         projectDir: "/tmp/demo",
         sessionId: "chat_1",
+        source: "button",
+      });
+    });
+  });
+
+  test("slash_save_command_triggers_controlled_save_with_slash_source", async () => {
+    // /저장 입력 → 페르소나 호출 없이 통제 저장, 출처는 slash 로 기록.
+    mocks.savePlanningChatAsMarkdownMock.mockResolvedValue({ ...result, outputPath: "plans/foo.md" });
+    render(
+      <PlanningRoom projectDir="/tmp/demo" result={result} onBack={vi.fn()} onResultChange={vi.fn()} />,
+    );
+
+    const textarea = screen.getByPlaceholderText("기획안을 어떻게 더 다듬을까요?");
+    fireEvent.change(textarea, { target: { value: "/저장" } });
+    fireEvent.keyDown(textarea, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(mocks.savePlanningChatAsMarkdownMock).toHaveBeenCalledWith({
+        projectDir: "/tmp/demo",
+        sessionId: "chat_1",
+        source: "slash",
+      });
+    });
+    // AC: /저장은 페르소나 호출 없이 즉시 통제 저장 — 대화 턴이 발생하면 안 된다.
+    expect(mocks.appendPlanningChatTurnMock).not.toHaveBeenCalled();
+  });
+
+  test("slash_prefix_shows_command_hint_and_tab_completes_then_saves", async () => {
+    // "/" 입력 → 커맨드 힌트 노출 → Tab 자동완성 → Enter 통제 저장.
+    mocks.savePlanningChatAsMarkdownMock.mockResolvedValue({ ...result, outputPath: "plans/foo.md" });
+    render(
+      <PlanningRoom projectDir="/tmp/demo" result={result} onBack={vi.fn()} onResultChange={vi.fn()} />,
+    );
+
+    const textarea = screen.getByPlaceholderText("기획안을 어떻게 더 다듬을까요?") as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "/" } });
+
+    // 힌트(커맨드 + 라벨)가 보인다.
+    expect(screen.getByText("/저장")).toBeInTheDocument();
+    expect(screen.getByText("기획안 저장")).toBeInTheDocument();
+
+    // Tab → "/저장" 자동완성.
+    fireEvent.keyDown(textarea, { key: "Tab" });
+    expect(textarea.value).toBe("/저장");
+
+    // Enter → slash 출처로 통제 저장.
+    fireEvent.keyDown(textarea, { key: "Enter" });
+    await waitFor(() => {
+      expect(mocks.savePlanningChatAsMarkdownMock).toHaveBeenCalledWith({
+        projectDir: "/tmp/demo",
+        sessionId: "chat_1",
+        source: "slash",
       });
     });
   });

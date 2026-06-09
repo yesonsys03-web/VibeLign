@@ -2,6 +2,36 @@
 import type { PlanningChatMessage, PlanningChatSessionResponse } from "../../lib/vib";
 import { planningPersonaLabel } from "./PlanningPersonas";
 
+// === ANCHOR: PLANNINGPERSONACOMPOSERSTATE_ISSAVECOMMAND_START ===
+/// `/저장` 슬래시 저장 입구 감지. 결정적 매칭(정확히 "/저장")이라 오발동 0.
+/// NFC 정규화로 NFD 분해형 붙여넣기(특히 macOS産 텍스트)도 동일하게 인식한다.
+export const SLASH_SAVE_COMMAND = "/저장";
+
+export function isSaveCommand(message: string): boolean {
+  return message.trim().normalize("NFC") === SLASH_SAVE_COMMAND;
+}
+
+export interface PlanningSlashCommand {
+  readonly command: string;
+  readonly label: string;
+}
+
+/// 입력란에서 `/` 입력 시 보여줄 커맨드 목록(Tab/클릭 자동완성용).
+export const PLANNING_SLASH_COMMANDS: readonly PlanningSlashCommand[] = [
+  { command: SLASH_SAVE_COMMAND, label: "기획안 저장" },
+];
+
+/// 현재 입력의 prefix 에 매칭되는 슬래시 커맨드 제안. `/` 로 시작할 때만 동작.
+/// NFC 정규화로 NFD 부분 입력도 동일하게 인식한다.
+export function matchingSlashCommands(message: string): readonly PlanningSlashCommand[] {
+  const normalized = message.trim().normalize("NFC");
+  if (!normalized.startsWith("/")) {
+    return [];
+  }
+  return PLANNING_SLASH_COMMANDS.filter((entry) => entry.command.startsWith(normalized));
+}
+// === ANCHOR: PLANNINGPERSONACOMPOSERSTATE_ISSAVECOMMAND_END ===
+
 // === ANCHOR: PLANNINGPERSONACOMPOSERSTATE_TOGGLEPERSONA_START ===
 export function togglePersona(current: readonly string[], personaId: string): readonly string[] {
   if (current.includes(personaId)) {

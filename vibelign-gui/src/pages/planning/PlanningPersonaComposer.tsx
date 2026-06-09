@@ -7,7 +7,9 @@ import { PlanningModeSelector } from "./PlanningModeSelector";
 import { allPlanningPersonaIds, PLANNING_PERSONAS } from "./PlanningPersonas";
 import {
   appendMention,
+  isSaveCommand,
   markAgentFailed,
+  matchingSlashCommands,
   togglePersona,
   withPendingAgents,
   withPendingTurn,
@@ -19,18 +21,30 @@ interface PlanningPersonaComposerProps {
   readonly result: PlanningChatSessionResponse;
   readonly sessionId: string | null;
   readonly onResultChange: (result: PlanningChatSessionResponse) => void;
+  readonly onSlashSave: () => void;
 }
 
 // === ANCHOR: PLANNINGPERSONACOMPOSER_PLANNINGPERSONACOMPOSER_START ===
-export function PlanningPersonaComposer({ projectDir, result, sessionId, onResultChange }: PlanningPersonaComposerProps) {
+export function PlanningPersonaComposer({ projectDir, result, sessionId, onResultChange, onSlashSave }: PlanningPersonaComposerProps) {
   const [selectedModeId, setSelectedModeId] = useState<PlanningModeOption["id"]>(DEFAULT_PLANNING_MODE.id);
   const [selectedPersonaIds, setSelectedPersonaIds] = useState<readonly string[]>(DEFAULT_PLANNING_MODE.personaIds);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const canSubmit = message.trim().length > 0 && selectedPersonaIds.length > 0 && Boolean(sessionId) && !isSubmitting;
+  const slashHints = matchingSlashCommands(message);
 
   // === ANCHOR: PLANNINGPERSONACOMPOSER_HANDLESUBMIT_START ===
   async function handleSubmit() {
+    if (isSubmitting) {
+      return;
+    }
+    // 결정적 저장 입구: 정확히 "/저장"이면 페르소나 호출 없이 통제 저장으로 위임한다.
+    // (canSubmit/페르소나 선택보다 먼저 — 페르소나 미선택이어도 저장은 가능해야 한다.)
+    if (isSaveCommand(message)) {
+      setMessage("");
+      onSlashSave();
+      return;
+    }
     if (!canSubmit || !sessionId) {
       return;
     }
@@ -128,12 +142,55 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
           모두
         </button>
       </div>
+      {slashHints.length > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          {slashHints.map((hint) => (
+            <button
+              key={hint.command}
+              type="button"
+              // onMouseDown + preventDefault: 클릭으로 textarea 포커스가 풀리기 전에 값을 채운다.
+              onMouseDown={(event) => {
+                event.preventDefault();
+                setMessage(hint.command);
+              }}
+              style={{
+                display: "flex",
+                gap: 6,
+                alignItems: "center",
+                border: "2px solid #1A1A1A",
+                background: "#F7F0DF",
+                padding: "4px 8px",
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontFamily: "IBM Plex Mono, monospace" }}>{hint.command}</span>
+              <span style={{ opacity: 0.7 }}>{hint.label}</span>
+            </button>
+          ))}
+          <span style={{ fontSize: 10, opacity: 0.6 }}>Tab 키로 완성</span>
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 72px", gap: 8, alignItems: "end" }}>
         <textarea
           className="input-field"
           value={message}
           onChange={(event) => setMessage(event.target.value)}
           onKeyDown={(event) => {
+            // 슬래시 커맨드 힌트가 떠 있으면 Tab 으로 첫 제안을 자동완성한다.
+            // IME 조합 중(Windows 한글 등)에는 끼어들지 않는다 — 조합 버퍼가 setMessage 와
+            // 충돌해 "/저장저" 같은 깨진 입력이 생기는 걸 막는다. ("/" 단독 발견 경로는 조합이 없어 즉시 동작.)
+            if (
+              event.key === "Tab" &&
+              !event.shiftKey &&
+              !event.nativeEvent.isComposing &&
+              slashHints.length > 0
+            ) {
+              event.preventDefault();
+              setMessage(slashHints[0].command);
+              return;
+            }
             // 한글/일본어 IME 조합 중 Enter 는 조합 확정용이므로 전송하지 않는다.
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
