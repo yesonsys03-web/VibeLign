@@ -22,6 +22,7 @@ import { StageSwitcherBar } from "./components/nav/StageSwitcherBar";
 import { StageSubnav } from "./components/nav/StageSubnav";
 import { StageHubCards } from "./components/nav/StageHubCards";
 import PlanDocView from "./pages/PlanDocView";
+import { HomePlanningStart } from "./components/home/HomePlanningStart";
 import "./styles/brutalism.css";
 import "./App.css";
 
@@ -349,7 +350,18 @@ export default function App() {
                     <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenDoctor={openDoctorFromGuardIssue} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} watchError={watchError} onRetryWatch={() => { void retryWatch(); }} hasCheckpoint={hasCheckpoint} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningPending={planningResult?.messages.some((message) => message.status === "pending") ?? false} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} onOpenPlanningHistory={() => setShowSessionPicker(true)} />
                   </>
                 )}
-                {page === "planning" && planningResult && <PlanningRoom projectDir={projectDir} result={planningResult} sourcePath={reviewSourcePath} onBack={() => setPage("home")} onStartWork={() => setPage("code")} onResultChange={setPlanningResult} />}
+                {page === "planning" && (planningResult ? (
+                  <PlanningRoom projectDir={projectDir} result={planningResult} sourcePath={reviewSourcePath} onBack={() => setPage("home")} onStartWork={() => setPage("code")} onResultChange={setPlanningResult} />
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16, padding: 24 }}>
+                    <div style={{ fontSize: 32 }}>📋</div>
+                    <div style={{ fontSize: 14, color: "#555" }}>무엇을 만들고 싶은지 적으면 기획방이 열립니다.</div>
+                    <div style={{ width: "100%", maxWidth: 520 }}>
+                      <HomePlanningStart onStart={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} />
+                    </div>
+                    <button className="nav-tab" onClick={() => setShowSessionPicker(true)}>이전 기획 불러오기</button>
+                  </div>
+                ))}
                 {page === "plan-doc" && <PlanDocView projectDir={projectDir} activeSessionId={planningResult?.sessionId ?? null} onStart={() => { if (planningResult) navigate("planning"); else setPage("home"); }} onDeleted={(sessionId) => { if (planningResult?.sessionId === sessionId) setPlanningResult(null); }} onEdit={(sessionId) => void resumeSession(sessionId)} />}
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
