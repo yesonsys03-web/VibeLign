@@ -327,6 +327,53 @@ pub(crate) async fn list_planning_chat_sessions(project_dir: String) -> Vec<Plan
         .unwrap_or_default()
 }
 
+/// 기획 세션 1개를 통째로 삭제한다: 세션 디렉터리(.vibelign/planning/{id}) +
+/// 세션이 저장한 기획안 md(output_path, 프로젝트 내부일 때만). 되돌릴 수 없다.
+#[tauri::command]
+pub(crate) async fn delete_planning_chat_session(
+    project_dir: String,
+    session_id: String,
+) -> Result<(), String> {
+    let project_dir = PathBuf::from(project_dir);
+    if !project_dir.is_absolute() {
+        return Err("projectDir must be absolute".to_string());
+    }
+    // 경로 traversal 차단: session_id 는 단일 디렉터리 이름이어야 한다.
+    if session_id.is_empty()
+        || session_id.contains('/')
+        || session_id.contains('\\')
+        || session_id.contains("..")
+    {
+        return Err("invalid sessionId".to_string());
+    }
+    tauri::async_runtime::spawn_blocking(move || delete_session(&project_dir, &session_id))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+fn delete_session(project_dir: &std::path::Path, session_id: &str) -> Result<(), String> {
+    let session_dir = planning_dir(project_dir).join(session_id);
+    if !session_dir.is_dir() {
+        return Err("session not found".to_string());
+    }
+    // 저장된 기획안 md 는 best-effort 로 같이 지운다. canonicalize 로 .. / 심볼릭
+    // 링크 탈출을 막아, 프로젝트 내부의 실제 파일일 때만 제거한다.
+    if let Ok(session) = read_json::<StoredPlanningChatSession>(&session_dir.join("session.json"))
+    {
+        if let Some(output_path) = session.output_path {
+            let candidate = project_dir.join(&output_path);
+            if let (Ok(resolved), Ok(root)) =
+                (candidate.canonicalize(), project_dir.canonicalize())
+            {
+                if resolved.starts_with(&root) && resolved.is_file() {
+                    let _ = std::fs::remove_file(&resolved);
+                }
+            }
+        }
+    }
+    std::fs::remove_dir_all(&session_dir).map_err(|error| error.to_string())
+}
+
 fn timestamp_ms() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

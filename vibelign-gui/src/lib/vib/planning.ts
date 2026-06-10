@@ -84,5 +84,10 @@ export function listPlanningChatSessions(projectDir: string): Promise<PlanningSe
 export function loadPlanningChatSession(projectDir: string, sessionId: string): Promise<PlanningChatSessionResponse> {
   return invoke<PlanningChatSessionResponse>("load_planning_chat_session", { projectDir, sessionId });
 }
+
+/** 기획 세션 1개를 통째로(대화·카드·저장된 기획안 md) 삭제. 되돌릴 수 없음. */
+export function deletePlanningChatSession(projectDir: string, sessionId: string): Promise<void> {
+  return invoke<void>("delete_planning_chat_session", { projectDir, sessionId });
+}
 // === ANCHOR: PLANNING_SESSIONS_END ===
 // === ANCHOR: PLANNING_END ===

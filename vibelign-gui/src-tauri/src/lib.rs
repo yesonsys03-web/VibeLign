@@ -118,6 +118,7 @@ pub fn run() {
             commands::planning_chat::append_planning_chat_turn,
             commands::planning_chat::load_latest_planning_chat_session,
             commands::planning_chat::list_planning_chat_sessions,
+            commands::planning_chat::delete_planning_chat_session,
             commands::planning_chat::load_planning_chat_session,
             commands::planning_chat::save_planning_chat_as_markdown,
             commands::planning_chat_retry::retry_planning_persona,

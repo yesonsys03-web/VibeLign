@@ -381,6 +381,12 @@ export default function App() {
           projectDir={projectDir}
           onSelect={(sessionId) => void resumeSession(sessionId)}
           onClose={() => setShowSessionPicker(false)}
+          onDeleted={(sessionId) => {
+            if (planningResult?.sessionId === sessionId) {
+              setPlanningResult(null);
+              if (page === "planning" || page === "plan-doc") setPage("home");
+            }
+          }}
         />
       )}
       <ScrollToTopButton />
