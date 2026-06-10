@@ -138,9 +138,9 @@ pub(crate) fn restore(project_dir: &Path, session_id: &str) -> Result<(), String
             }
         }
     }
-    // 휴지통 부속 파일 제거 후 세션 디렉터리 복귀.
+    // 메타만 제거하고 세션 디렉터리를 원위치로 옮긴다. md 이동이 실패했더라도 잔여
+    // md 는 디렉터리와 함께 따라가 보존된다(무조건 삭제 금지 = 복구 실패시 데이터 손실 방지).
     let _ = std::fs::remove_file(trash_dir.join(TRASH_META_NAME));
-    let _ = std::fs::remove_file(trash_dir.join(TRASH_PLAN_MD_NAME));
     std::fs::rename(&trash_dir, &dest).map_err(|error| error.to_string())?;
     Ok(())
 }

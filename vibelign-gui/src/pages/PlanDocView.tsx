@@ -167,8 +167,8 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
 
   const trashCount = trashed?.length ?? 0;
 
-  // 저장된 기획안도, 휴지통도 비어 있을 때.
-  if (plans !== null && plans.length === 0 && trashCount === 0) {
+  // 저장된 기획안도, 휴지통도 비어 있을 때(둘 다 로딩 끝난 뒤에만 판단).
+  if (plans !== null && plans.length === 0 && trashed !== null && trashCount === 0) {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, color: "#888" }}>
         <div style={{ fontSize: 32 }}>📋</div>
