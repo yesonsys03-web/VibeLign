@@ -1,5 +1,5 @@
 // === ANCHOR: APP_START ===
-import { useState, useEffect, Component, ReactNode, ErrorInfo } from "react";
+import { useState, useEffect, useRef, Component, ReactNode, ErrorInfo } from "react";
 import CustomTitleBar from "./components/CustomTitleBar";
 import ScrollToTopButton from "./components/ScrollToTopButton";
 import UpdateBanner from "./components/UpdateBanner";
@@ -286,6 +286,18 @@ export default function App() {
     : planningResult.messages.some((m) => m.status === "pending")
       ? "active"
       : "done";
+
+  // 기획 탭에 들어갔는데 활성 세션이 없으면 최근 세션을 자동으로 이어서 연다(resume).
+  // 세션이 하나도 없으면 loadProjectPlanning 이 planningResult 를 null 로 둬 시작 화면이 뜬다.
+  const resumingRef = useRef(false);
+  useEffect(() => {
+    if (page !== "planning" || planningResult || !projectDir || resumingRef.current) return;
+    resumingRef.current = true;
+    void loadProjectPlanning(projectDir).finally(() => {
+      resumingRef.current = false;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, projectDir, planningResult]);
 
   return (
     <div className="app-layout">
