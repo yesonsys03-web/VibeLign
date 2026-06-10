@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>VibeLign 가이드 레이어 목업 — 강 PD 시연용</title>
+<style>
+  /* 실제 앱 다크 테마 근사치 */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #060606; color: #ddd; font-family: "Pretendard", "Apple SD Gothic Neo", sans-serif; font-size: 13px; display: flex; flex-direction: column; height: 100vh; }
+  .titlebar { background: #0A0A0A; padding: 6px 12px; font-size: 11px; color: #666; border-bottom: 1px solid #1A1A1A; display: flex; gap: 8px; align-items: center; }
+  .titlebar .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .tabbar { display: flex; gap: 2px; background: #0A0A0A; padding: 6px 8px 0; border-bottom: 1px solid #1A1A1A; }
+  .tab { padding: 7px 14px; border-radius: 6px 6px 0 0; cursor: pointer; color: #888; font-size: 13px; border: none; background: transparent; }
+  .tab.active { background: #141414; color: #fff; font-weight: 600; }
+  .tab:hover { color: #ccc; }
+  .tab.right { margin-left: auto; }
+  .subnav { display: flex; gap: 2px; background: #0E0E0E; padding: 4px 12px; border-bottom: 1px solid #1A1A1A; min-height: 30px; }
+  .subtab { padding: 3px 10px; font-size: 11px; color: #777; cursor: pointer; border: none; background: transparent; border-radius: 4px; }
+  .subtab.active { color: #FBBF24; background: #1a1813; }
+  /* 가이드 스트립 */
+  .strip { display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 11px; color: #888; background: #0E0E0E; border-bottom: 1px solid #1A1A1A; flex-wrap: wrap; }
+  .strip.thin { padding: 3px 12px; }
+  .strip .guide { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #ccc; flex-wrap: wrap; }
+  .strip .now { color: #FBBF24; font-weight: 700; }
+  .strip .celebrate { color: #4DFF91; font-size: 13px; }
+  .chip { font-size: 12px; padding: 1px 9px; border: 1px solid #2A2A2A; background: #161616; color: #ccc; border-radius: 4px; cursor: pointer; }
+  .chip:hover { border-color: #555; }
+  .chip.amber { color: #FBBF24; }
+  .chip.gray { color: #888; }
+  .chip:disabled { opacity: .35; cursor: default; }
+  .spacer { flex: 1; }
+  .status-ok { color: #aaa; } .status-no { color: #666; }
+  .pending { color: #FBBF24; }
+  /* 콘텐츠 */
+  .content { flex: 1; overflow-y: auto; background: #101010; }
+  .cards { display: flex; gap: 12px; padding: 16px; }
+  .hubcard { flex: 1; text-align: left; padding: 16px; background: #141414; border: 1px solid #2A2A2A; border-radius: 8px; color: #ddd; cursor: pointer; }
+  .hubcard.now { background: #1a1813; border: 2px solid #FBBF24; }
+  .hubcard .icon { font-size: 20px; }
+  .hubcard .name { font-weight: 600; margin-top: 6px; }
+  .badge-now { margin-left: 8px; font-size: 11px; background: #FBBF24; color: #000; padding: 1px 6px; border-radius: 4px; font-weight: 700; }
+  .badge-done { margin-left: 8px; font-size: 11px; color: #4DFF91; }
+  .badge-next { margin-left: 8px; font-size: 11px; color: #666; }
+  .hubcard .desc { font-size: 12px; color: #888; margin-top: 4px; }
+  .hubcard .action { font-size: 12px; color: #FBBF24; margin-top: 6px; }
+  .hubcard .meta { font-size: 12px; color: #aaa; margin-top: 8px; }
+  .panel { margin: 0 16px 14px; padding: 16px; background: #141414; border: 1px solid #2A2A2A; border-radius: 8px; }
+  .panel h3 { font-size: 13px; margin-bottom: 8px; }
+  .panel p { font-size: 12px; color: #999; line-height: 1.8; }
+  .btn { padding: 6px 14px; background: #1f1f1f; border: 1px solid #333; color: #ddd; border-radius: 6px; cursor: pointer; font-size: 12px; margin: 8px 8px 0 0; }
+  .btn:hover { border-color: #666; }
+  .btn.primary { background: #FBBF24; color: #111; font-weight: 700; border: none; }
+  .btn.danger { background: #2a1515; color: #ff8080; border-color: #553333; }
+  .btn:disabled { opacity: .35; cursor: default; }
+  /* 따라하기 아코디언 */
+  .howto-wrap { padding: 16px 20px 4px; }
+  .howto-title { font-weight: 700; font-size: 13px; margin-bottom: 8px; }
+  .acc { border: 1px solid #2A2A2A; background: #141414; border-radius: 6px; margin-bottom: 4px; }
+  .acc.current { border-color: #FBBF24; background: #1a1813; }
+  .acc-head { width: 100%; text-align: left; padding: 8px 12px; background: transparent; border: none; color: #ddd; cursor: pointer; font-size: 13px; }
+  .acc-head .short { color: #888; }
+  .acc-head .arrow { float: right; color: #666; }
+  .acc-body { padding: 0 12px 10px; font-size: 12px; color: #aaa; line-height: 1.9; }
+  .toast { position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%); background: #1a1813; border: 1px solid #FBBF24; color: #FBBF24; padding: 8px 18px; border-radius: 8px; font-size: 12px; opacity: 0; transition: opacity .3s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  /* 데모 컨트롤 */
+  .demobar { background: #0A0A0A; border-top: 2px solid #FBBF24; padding: 10px 14px; }
+  .demobar .label { font-size: 11px; color: #FBBF24; font-weight: 700; margin-bottom: 6px; }
+  .demobar .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .demobar .sig { font-family: "IBM Plex Mono", monospace; font-size: 10px; color: #555; margin-top: 6px; }
+  .demobar .tog { font-size: 11px; color: #999; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 24px; gap: 14px; color: #555; }
+  .empty .big { font-size: 32px; }
+  input[type="text"] { background: #0E0E0E; border: 1px solid #333; color: #ddd; padding: 7px 10px; border-radius: 6px; width: 420px; font-size: 12px; }
+  .filelist { font-family: monospace; font-size: 11px; color: #888; line-height: 1.9; margin-top: 8px; }
+  .filelist .changed { color: #FBBF24; }
+</style>
+</head>
+<body>
+
+<div class="titlebar">
+  <span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span>
+  <span style="margin-left:8px">VibeLign — my-first-app</span>
+  <span style="margin-left:auto;color:#444">목업 v5 · 가이드 레이어 시연</span>
+</div>
+
+<div class="tabbar" id="tabbar"></div>
+<div class="subnav" id="subnav"></div>
+<div id="strip"></div>
+<div class="content" id="content"></div>
+<div class="toast" id="toast"></div>
+
+<div class="demobar">
+  <div class="label">🌍 데모 컨트롤 — 앱 "밖"에서 일어나는 일을 흉내냅니다 (실제 앱에는 없는 영역)</div>
+  <div class="row">
+    <button class="btn" onclick="extAiWork(3)">🤖 외부 AI가 파일 3개를 수정함</button>
+    <button class="btn" onclick="extAiWork(1)">⏸ AI가 중간에 멈춤 (1개만 수정)</button>
+    <label class="tog"><input type="checkbox" id="togGit" onchange="S.isGit=!this.checked;refresh()"> 비-git 프로젝트</label>
+    <label class="tog"><input type="checkbox" id="togTool" onchange="S.aiToolMissing=this.checked;refresh()"> AI 도구 미설치</label>
+    <button class="btn danger" onclick="resetDemo()">↺ 데모 초기화</button>
+  </div>
+  <div class="sig" id="signals"></div>
+</div>
+
+<script>
+// ───────── 여정 정의 (구현계획 v5의 JOURNEY_STEPS 카피 그대로) ─────────
+const STEPS = {
+  1: { icon:"1️⃣", label:"프로젝트 열기", short:"폴더를 고르면 준비 끝 — 감시가 자동으로 켜져요", target:null,
+       howto:["① 첫 화면에서 프로젝트 폴더를 선택해요","② 코드맵과 앵커가 자동으로 준비돼요","③ 감시(watch)가 자동으로 켜져요 — 코드 변경을 지켜보다 위반을 알려줘요 (백업은 아니에요)"] },
+  2: { icon:"2️⃣", label:"기획하기", short:"기획방에서 AI와 대화하며 기획안을 확정하세요", target:"planning",
+       howto:["① 기획 탭(기획방)으로 가요","② \"무엇을 만들고 싶은지\" 한 줄로 적어요","③ AI 페르소나들과 대화하며 생각을 다듬어요","④ 기획안이 마음에 들면 확정(저장)해요"] },
+  3: { icon:"3️⃣", label:"체크포인트 저장", short:"AI에게 시키기 전에 안전 저장 — 망쳐도 되돌아올 수 있게", target:"backups",
+       howto:["① 유지보수 → 백업 탭으로 가요","② \"체크포인트 저장\" 버튼을 눌러요","③ 무슨 작업 전인지 설명을 짧게 적으면 끝!"] },
+  4: { icon:"4️⃣", label:"AI에게 작업 시키기", short:"지시문을 복사해 AI 도구(Claude Code 등)에 붙여넣으세요", target:"code",
+       howto:["① 개발 → 코드탐색 탭으로 가요","② 기획안 기반 지시문을 복사해요","③ Claude Code 같은 AI 도구에 붙여넣어요","④ AI가 코드를 다 쓰면 다음 단계로!","⑤ 아직 AI 도구가 없나요? 설정의 'AI 도구 설정'에서 설치를 도와드려요"] },
+  5: { icon:"5️⃣", label:"결과 검증", short:"홈의 '상태 확인'으로 AI가 약속한 범위만 고쳤는지 확인하세요", target:"home",
+       howto:["① 홈으로 가요","② '상태 확인' 버튼을 눌러요 — AI가 약속한 범위만 고쳤는지 검사해줘요","③ 문제가 있으면 진단으로 안내돼요 — 고치는 길을 알려줘요","④ 결과가 마음에 안 들면? 검사 없이 백업 탭에서 '되돌리기'로 3️⃣ 시점으로 돌아가도 돼요"] },
+  6: { icon:"6️⃣", label:"저장 또는 되돌리기", short:"잘 됐으면 체크포인트 저장, 망쳤으면 되돌리기", target:"backups",
+       howto:["① 결과가 마음에 들면 → 백업에서 체크포인트를 저장해요","② 망쳤으면 → '되돌리기'로 3️⃣ 시점으로 돌아가요 — 없던 일로 만들 수 있어요","③ 다음 작업이 있으면 4️⃣로 돌아가 반복!"] },
+};
+const CARD_STEPS = { planning:[2], develop:[4], maintain:[3,6] }; // 5️⃣은 홈 행동이라 카드 밖
+
+// ───────── 상태 (App.tsx 신호 배선의 미니어처) ─────────
+let S;
+function resetDemo(){
+  S = { page:"home", hasPlanDoc:false, planningPending:false, hasCheckpoint:false,
+        changedFiles:0, guardStatus:null, isGit:true, aiToolMissing:false,
+        guideEnabled:true, override:null, celebrated:false, celebrating:false, backups:0 };
+  document.getElementById("togGit").checked = false;
+  document.getElementById("togTool").checked = false;
+  refresh();
+}
+
+// 구현계획 v5의 inferStep 로직 그대로
+function inferStep(){
+  if(!S.hasPlanDoc || S.planningPending) return 2;
+  if(!S.hasCheckpoint) return 3;
+  let step = 4;
+  const changed = S.isGit ? S.changedFiles : 0; // 비-git → 항상 0으로 읽힘 (null 아님)
+  if(changed > 0) step = (S.guardStatus === "ok") ? 6 : 5;
+  return step;
+}
+function currentStep(){
+  const inf = inferStep();
+  if(S.override && S.override.base === inf) return S.override.step; // override 수명 규칙
+  S.override = null;
+  return inf;
+}
+function setOverride(step){ S.override = { step, base: inferStep() }; refresh(); }
+
+// ───────── 사용자 행동 (앱 안) ─────────
+function confirmPlan(){ S.hasPlanDoc = true; toast("📋 기획안이 확정됐어요"); go("planning"); }
+function saveCheckpoint(){
+  const was6 = currentStep() === 6;
+  S.hasCheckpoint = true; S.backups += 1;
+  S.changedFiles = 0; S.guardStatus = null; // baseline 재캡처 → 변경 0
+  if(was6 && !S.celebrated){ S.celebrated = true; S.celebrating = true; }
+  toast("✅ 체크포인트가 저장됐어요");
+  refresh();
+}
+function runGuard(){
+  const changed = S.isGit ? S.changedFiles : 0;
+  S.guardStatus = "ok"; // 데모: 엔진 status=pass 가정
+  toast(changed > 0 ? "🛡️ 상태 확인: pass — 약속한 범위만 바뀌었어요" : "🛡️ 상태 확인: pass — 바뀐 게 없어요");
+  refresh();
+}
+function undoNow(){ S.changedFiles = 0; S.guardStatus = null; toast("↩ 마지막 체크포인트 시점으로 되돌렸어요"); refresh(); }
+function extAiWork(n){
+  if(currentStep() < 4 && inferStep() < 4){ toast("⚠️ 아직 4️⃣ 전이에요 — 기획·체크포인트부터!"); }
+  const prev = S.changedFiles;
+  S.changedFiles = n;
+  if(n > prev) S.guardStatus = null; // 변경 수 "증가" 시에만 guard 리셋
+  toast(S.isGit ? `📝 파일 ${n}개가 바뀌었어요 (탭 전환 시 감지)` : "📝 파일이 바뀌었지만 비-git이라 자동 감지가 안 돼요");
+  refresh();
+}
+function go(page){ S.page = page; if(page === "manual") S.accOpen = undefined; refresh(); }
+function toggleAcc(i){
+  const step = S.guideEnabled ? currentStep() : null;
+  const open = (S.accOpen === undefined) ? step : S.accOpen;
+  S.accOpen = (open === i) ? 0 : i;
+  refresh();
+}
+function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),2600); }
+
+// ───────── 렌더 ─────────
+const TABS = [ ["home","🏠 홈"], ["plan","📋 기획"], ["dev","⚙️ 개발"], ["maintain","🛡️ 유지보수"] ];
+const PAGE2TAB = { home:"home", manual:"manual", settings:"settings", planning:"plan", "plan-doc":"plan", code:"dev", docs:"dev", doctor:"maintain", backups:"maintain", logs:"maintain" };
+const SUBNAV = { plan:[["planning","기획방"],["plan-doc","기획안"]], dev:[["code","코드탐색"],["docs","문서"]], maintain:[["doctor","진단"],["backups","백업"],["logs","로그"]] };
+const FIRST = { home:"home", plan:"planning", dev:"code", maintain:"doctor", manual:"manual", settings:"settings" };
+
+function refresh(){
+  const step = S.guideEnabled ? currentStep() : null;
+  renderTabs(); renderSubnav(); renderStrip(step); renderContent(step); renderSignals(step);
+}
+
+function renderTabs(){
+  const cur = PAGE2TAB[S.page];
+  let h = TABS.map(([k,l]) => `<button class="tab ${cur===k?"active":""}" onclick="go('${FIRST[k]}')">${l}</button>`).join("");
+  h += `<button class="tab right ${cur==="manual"?"active":""}" onclick="go('manual')">📖 사용법</button>`;
+  h += `<button class="tab ${cur==="settings"?"active":""}" onclick="go('settings')">⚙ 설정</button>`;
+  document.getElementById("tabbar").innerHTML = h;
+}
+function renderSubnav(){
+  const items = SUBNAV[PAGE2TAB[S.page]] || [];
+  document.getElementById("subnav").innerHTML = items.map(([p,l]) =>
+    `<button class="subtab ${S.page===p?"active":""}" onclick="go('${p}')">${l}</button>`).join("");
+}
+
+function renderStrip(step){
+  const el = document.getElementById("strip");
+  if(S.celebrating){
+    el.innerHTML = `<div class="strip"><span class="celebrate">🎉 <b>첫 사이클 완주!</b> 기획부터 저장까지 해냈어요 — 이 흐름 그대로 반복하면 돼요</span>
+      <button class="chip" onclick="S.celebrating=false;refresh()">×</button></div>`;
+    return;
+  }
+  const right = `<div class="spacer"></div>
+    <span class="${S.hasCheckpoint?"status-ok":"status-no"}">${S.hasCheckpoint?"✓ 백업 데이터 있음":"백업 데이터 없음"}</span>
+    ${S.planningPending?'<span class="pending">● 기획 진행 중</span>':""}`;
+  if(!step){ el.innerHTML = `<div class="strip thin">${right}</div>`; return; }
+  const d = STEPS[step];
+  let mid = `<span class="guide">🧭 지금: <span class="now">${d.icon} ${d.label}</span> — ${d.short}`;
+  if(d.target) mid += ` <button class="chip" onclick="go('${d.target}')">${pageLabel(d.target)}으로 이동 →</button>`;
+  if(step===4) mid += ` <button class="chip amber" title="외부 AI 작업이 끝났거나 멈췄으면 확인 단계로" onclick="setOverride(5);go('home')">AI 작업이 끝났거나 멈췄나요? 확인하러 가기 →</button>`;
+  if(step===4 && S.aiToolMissing) mid += ` <button class="chip amber" onclick="go('settings')">AI 도구가 아직 없나요? 설치 도움받기 →</button>`;
+  if(step===4||step===5) mid += ` <button class="chip gray" title="마지막으로 저장한 시점으로 코드를 되돌릴 수 있어요" onclick="go('backups')">잘 안 됐나요? 되돌리기 →</button>`;
+  mid += ` <button class="chip" ${step===2?"disabled":""} onclick="setOverride(${step-1})">‹</button>
+           <button class="chip" ${step===6?"disabled":""} onclick="setOverride(${step+1})">›</button>
+           <button class="chip" title="가이드 끄기 (설정에서 다시 켤 수 있어요)" onclick="S.guideEnabled=false;refresh()">×</button></span>`;
+  el.innerHTML = `<div class="strip">${mid}${right}</div>`;
+}
+function pageLabel(p){ return ({home:"홈",planning:"기획방","plan-doc":"기획안",code:"코드탐색",docs:"문서",doctor:"진단",backups:"백업",logs:"로그"})[p] || p; }
+
+function cardState(stage, step){
+  if(!step) return null;
+  const ss = CARD_STEPS[stage];
+  if(ss.includes(step)) return "now";
+  if(ss.every(x=>x<step)) return "done";
+  return "upcoming";
+}
+
+function renderContent(step){
+  const c = document.getElementById("content");
+  const changed = S.isGit ? S.changedFiles : 0;
+  if(S.page==="home"){
+    const cards = [["planning","📋","기획","아이디어를 기획안으로", S.hasPlanDoc?"완료":"대기"],
+                   ["develop","⚙️","개발","코드 보기·탐색","열기"],
+                   ["maintain","🛡️","유지보수","안전 점검·복원",`백업 ${S.backups}개`]];
+    let h = `<div class="cards">` + cards.map(([k,ic,nm,ds,meta])=>{
+      const st = cardState(k, step);
+      const badge = st==="now"?'<span class="badge-now">지금 할 차례</span>':st==="done"?'<span class="badge-done">✓ 완료</span>':st==="upcoming"?'<span class="badge-next">다음</span>':"";
+      const act = st==="now" && step ? `<div class="action">→ ${STEPS[step].icon} ${STEPS[step].short}</div>` : "";
+      const dest = {planning:"planning",develop:"code",maintain:"doctor"}[k];
+      return `<div class="hubcard ${st==="now"?"now":""}" onclick="go('${dest}')"><div class="icon">${ic}</div><div class="name">${nm}${badge}</div><div class="desc">${ds}</div>${act}<div class="meta">${meta}</div></div>`;
+    }).join("") + `</div>`;
+    h += `<div class="panel"><h3>🛡️ 상태 확인 ${step===5?'<span class="badge-now">지금 할 차례</span>':""}</h3>
+      <p>AI가 약속한 범위만 고쳤는지 검사해요. ${changed>0?`지금 <b style="color:#FBBF24">파일 ${changed}개</b>가 마지막 저장 이후 바뀌어 있어요.`:"마지막 저장 이후 바뀐 파일이 없어요."}</p>
+      <button class="btn ${step===5?"primary":""}" onclick="runGuard()">상태 확인 실행</button>
+      ${S.guardStatus==="ok"?'<p style="color:#4DFF91;margin-top:8px">✓ 검사 통과(pass) — 약속한 범위만 바뀌었어요. 이제 저장하거나 되돌리면 돼요.</p>':""}</div>`;
+    c.innerHTML = h;
+  } else if(S.page==="planning"){
+    c.innerHTML = S.hasPlanDoc
+      ? `<div class="panel" style="margin-top:16px"><h3>📋 기획방</h3><p>확정된 기획안: <b>plan-20260610.md</b> — "할 일 앱에 다크모드 추가"</p><p style="color:#666">AI 페르소나 대화 기록 (생략) …</p></div>`
+      : `<div class="empty"><div class="big">📋</div><div>무엇을 만들고 싶은지 적으면 기획방이 열립니다.</div>
+         <input type="text" value="할 일 앱에 다크모드를 추가하고 싶어" readonly>
+         <div><button class="btn primary" onclick="S.planningPending=true;refresh();setTimeout(()=>{S.planningPending=false;confirmPlan()},1500)">기획 시작 → (데모: 1.5초 뒤 자동 확정)</button></div></div>`;
+  } else if(S.page==="plan-doc"){
+    c.innerHTML = `<div class="panel" style="margin-top:16px"><h3>📄 기획안</h3><p>${S.hasPlanDoc?"plan-20260610.md — 다크모드 토글, 색상 변수 분리, 설정 저장 …":"아직 확정된 기획안이 없어요."}</p></div>`;
+  } else if(S.page==="code"){
+    c.innerHTML = `<div class="panel" style="margin-top:16px"><h3>⚙️ 코드탐색 ${step===4?'<span class="badge-now">지금 할 차례</span>':""}</h3>
+      <p>기획안 기반 지시문을 복사해 외부 AI 도구에 붙여넣으세요.</p>
+      <button class="btn ${step===4?"primary":""}" onclick="toast('📎 지시문이 복사됐어요 — 이제 Claude Code에 붙여넣으세요 (아래 데모 컨트롤로 AI 작업을 흉내내 보세요)')">📎 기획안 지시문 복사</button>
+      <div class="filelist">src/App.tsx${changed>0?' <span class="changed">● 변경됨</span>':""}<br>src/theme.ts${changed>1?' <span class="changed">● 변경됨</span>':""}<br>src/Settings.tsx${changed>2?' <span class="changed">● 변경됨</span>':""}<br>src/index.ts</div></div>`;
+  } else if(S.page==="backups"){
+    c.innerHTML = `<div class="panel" style="margin-top:16px"><h3>🛡️ 백업 ${step===3||step===6?'<span class="badge-now">지금 할 차례</span>':""}</h3>
+      <p>저장된 체크포인트: <b>${S.backups}개</b>${changed>0?` · 마지막 저장 이후 <b style="color:#FBBF24">파일 ${changed}개</b> 변경됨`:""}</p>
+      <button class="btn ${step===3||step===6?"primary":""}" onclick="saveCheckpoint()">📌 체크포인트 저장</button>
+      <button class="btn" ${S.backups===0||changed===0?"disabled":""} onclick="undoNow()">↩ 되돌리기 — 저장했던 그 시점으로</button>
+      <p style="margin-top:10px;color:#666">되돌리기: 체크포인트로 저장했던 상태로 코드를 되돌려요. AI가 코드를 이상하게 바꿔놨을 때 "그냥 없던 일로 해줘!" 할 때 써요.</p></div>`;
+  } else if(S.page==="doctor"){
+    c.innerHTML = `<div class="panel" style="margin-top:16px"><h3>🩺 진단</h3><p>상태 확인(guard)에서 문제가 발견되면 여기로 안내돼요. 지금은 깨끗해요.</p></div>`;
+  } else if(S.page==="manual"){
+    const open = (S.accOpen === undefined) ? step : S.accOpen; // 진입 시 현재 단계 자동 펼침 (spec §3.4)
+    let h = `<div class="howto-wrap"><div class="howto-title">📖 순서대로 따라하기</div>`;
+    for(let i=1;i<=6;i++){
+      const d = STEPS[i]; const isCur = step===i; const isOpen = open===i;
+      h += `<div class="acc ${isCur?"current":""}">
+        <button class="acc-head" onclick="toggleAcc(${i})">
+          ${d.icon} <b>${d.label}</b> — <span class="short">${d.short}</span><span class="arrow">${isOpen?"▾":"▸"}</span></button>
+        ${isOpen?`<div class="acc-body">${d.howto.join("<br>")}${d.target?`<br><button class="chip" onclick="go('${d.target}')">지금 하러 가기 → ${pageLabel(d.target)}</button>`:""}</div>`:""}</div>`;
+    }
+    h += `</div><div class="panel" style="margin-top:10px"><h3>명령어 사전</h3><p>체크포인트 · 되돌리기 · 상태 확인 · 코드맵 · 앵커 … (기존 사전 그대로 이 아래에)</p></div>`;
+    c.innerHTML = h;
+  } else if(S.page==="settings"){
+    c.innerHTML = `<div class="panel" style="margin-top:16px"><h3>초보자 가이드</h3>
+      <p>화면 상단에 "지금 할 일 → 다음 행동"을 안내하는 가이드 줄과 홈 카드의 차례 표시를 보여줍니다. 익숙해지면 꺼도 좋아요.</p>
+      <button class="btn ${S.guideEnabled?"primary":""}" onclick="S.guideEnabled=!S.guideEnabled;refresh()">${S.guideEnabled?"ON":"OFF"}</button></div>
+      <div class="panel"><h3>AI 도구 설정 ${S.aiToolMissing?'<span class="badge-now">설치 필요</span>':""}</h3>
+      <p>${S.aiToolMissing?"설치된 AI 도구가 없어요. Claude Code 설치를 도와드릴게요.":"✓ Claude Code 감지됨"}</p>
+      ${S.aiToolMissing?'<button class="btn primary" onclick="S.aiToolMissing=true;document.getElementById(\'togTool\').checked=true;toast(\'(데모) 실제 앱에선 여기서 설치 마법사가 진행돼요\')">Claude Code 설치 시작</button>':""}</div>`;
+  } else {
+    c.innerHTML = `<div class="panel" style="margin-top:16px"><p>(${S.page} — 목업 생략)</p></div>`;
+  }
+}
+
+function renderSignals(step){
+  const changed = S.isGit ? S.changedFiles : 0;
+  document.getElementById("signals").textContent =
+    `signals → hasPlanDoc:${S.hasPlanDoc} hasCheckpoint:${S.hasCheckpoint} changedSinceCheckpoint:${S.isGit?changed:"0(비-git)"} guard:${S.guardStatus??"null"} | inferStep:${inferStep()} override:${S.override?S.override.step:"없음"} → 표시 단계:${step??"가이드 OFF"}`;
+}
+
+resetDemo();
+</script>
+</body>
+</html>
