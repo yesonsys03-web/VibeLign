@@ -21,6 +21,7 @@ import { type Page } from "./lib/nav/stages";
 import { StageSwitcherBar } from "./components/nav/StageSwitcherBar";
 import { StageSubnav } from "./components/nav/StageSubnav";
 import { StageHubCards } from "./components/nav/StageHubCards";
+import PlanDocView from "./pages/PlanDocView";
 import "./styles/brutalism.css";
 import "./App.css";
 
@@ -349,6 +350,7 @@ export default function App() {
                   </>
                 )}
                 {page === "planning" && planningResult && <PlanningRoom projectDir={projectDir} result={planningResult} sourcePath={reviewSourcePath} onBack={() => setPage("home")} onStartWork={() => setPage("code")} onResultChange={setPlanningResult} />}
+                {page === "plan-doc" && <PlanDocView projectDir={projectDir} outputPath={planningResult?.outputPath ?? null} onStart={() => { if (planningResult) navigate("planning"); else setPage("home"); }} />}
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
                 {page === "code" && <CodeExplorer projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} onReviewInPlanning={(path) => { if (projectDir) void openPlanningRoom(projectDir, buildPlanReviewPrompt(path), path); }} />}

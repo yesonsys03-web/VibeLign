@@ -14,6 +14,9 @@ describe("stageOf", () => {
     expect(stageOf("backups")).toBe("maintain");
     expect(stageOf("logs")).toBe("maintain");
   });
+  it("기획안은 기획 단계", () => {
+    expect(stageOf("plan-doc")).toBe("planning");
+  });
   it("홈·사용법·설정은 단계 없음(null)", () => {
     expect(stageOf("home")).toBeNull();
     expect(stageOf("manual")).toBeNull();
@@ -28,8 +31,8 @@ describe("pagesForStage", () => {
   it("유지보수 단계는 진단·백업·에러로그 순서", () => {
     expect(pagesForStage("maintain")).toEqual(["doctor", "backups", "logs"]);
   });
-  it("기획 단계는 기획방 하나", () => {
-    expect(pagesForStage("planning")).toEqual(["planning"]);
+  it("기획 단계는 기획방·기획안 순서", () => {
+    expect(pagesForStage("planning")).toEqual(["planning", "plan-doc"]);
   });
 });
 
@@ -51,6 +54,7 @@ describe("PAGE_LABELS", () => {
     expect(PAGE_LABELS).toEqual({
       home: "홈",
       planning: "기획방",
+      "plan-doc": "기획안",
       code: "코드탐색",
       docs: "문서",
       doctor: "진단",

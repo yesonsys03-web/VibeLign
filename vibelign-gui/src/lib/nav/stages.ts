@@ -9,7 +9,8 @@ export type Page =
   | "backups"
   | "logs"
   | "settings"
-  | "planning";
+  | "planning"
+  | "plan-doc";
 
 export type Stage = "planning" | "develop" | "maintain";
 
@@ -21,7 +22,7 @@ export interface StageDef {
 }
 
 export const STAGE_DEFS: StageDef[] = [
-  { key: "planning", label: "기획", icon: "📋", pages: ["planning"] },
+  { key: "planning", label: "기획", icon: "📋", pages: ["planning", "plan-doc"] },
   { key: "develop", label: "개발", icon: "⚙️", pages: ["code", "docs"] },
   { key: "maintain", label: "유지보수", icon: "🛡️", pages: ["doctor", "backups", "logs"] },
 ];
@@ -40,6 +41,7 @@ export function pagesForStage(stage: Stage): Page[] {
 export const PAGE_LABELS: Record<Page, string> = {
   home: "홈",
   planning: "기획방",
+  "plan-doc": "기획안",
   code: "코드탐색",
   docs: "문서",
   doctor: "진단",
