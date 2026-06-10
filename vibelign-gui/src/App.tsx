@@ -293,27 +293,27 @@ export default function App() {
                 홈
               </button>
               <button className={`nav-tab ${page === "doctor" ? "active" : ""}`} onClick={openDoctorTab}>
-                Doctor
-              </button>
-              <button className={`nav-tab ${page === "manual" ? "active" : ""}`} onClick={() => setPage("manual")}>
-                메뉴얼
-              </button>
-              <button className="nav-tab" onClick={() => openFolder(projectDir).catch(() => {})}>
-                폴더열기
+                진단
               </button>
               <button className={`nav-tab ${page === "docs" ? "active" : ""}`} onClick={() => setPage("docs")}>
-                DOCS VIEWER
+                문서
               </button>
               <button className={`nav-tab ${page === "code" ? "active" : ""}`} onClick={() => setPage("code")}>
-                CODE EXPLORER
+                코드탐색
               </button>
               <button className={`nav-tab ${page === "backups" ? "active" : ""}`} onClick={() => setPage("backups")}>
-                BACKUPS
+                백업
               </button>
               <button className={`nav-tab ${page === "logs" ? "active" : ""}`} onClick={() => setPage("logs")}>
                 에러로그
               </button>
               <div style={{ flex: 1 }} />
+              <button className={`nav-tab ${page === "manual" ? "active" : ""}`} onClick={() => setPage("manual")}>
+                사용법
+              </button>
+              <button className="nav-tab" onClick={() => openFolder(projectDir).catch(() => {})}>
+                폴더열기
+              </button>
               <button
                 className="nav-tab"
                 style={{
@@ -330,6 +330,26 @@ export default function App() {
               >
                 {projectDir.replace(/\\/g, "/").split("/").filter(Boolean).slice(-1)[0] || projectDir} ↩
               </button>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 16,
+                padding: "3px 12px",
+                fontSize: 11,
+                color: "#888",
+                background: "#0E0E0E",
+                borderBottom: "1px solid #1A1A1A",
+              }}
+            >
+              <span style={{ color: hasCheckpoint ? "#aaa" : "#666" }}>
+                {hasCheckpoint ? "✓ 백업 데이터 있음" : "백업 데이터 없음"}
+              </span>
+              {(planningResult?.messages.some((message) => message.status === "pending") ?? false) && (
+                <span style={{ color: "#FBBF24" }}>● 기획 진행 중</span>
+              )}
             </div>
 
             <div style={{ flex: 1, overflow: "hidden" }}>
