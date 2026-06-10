@@ -28,6 +28,9 @@ describe("pagesForStage", () => {
   it("유지보수 단계는 진단·백업·에러로그 순서", () => {
     expect(pagesForStage("maintain")).toEqual(["doctor", "backups", "logs"]);
   });
+  it("기획 단계는 기획방 하나", () => {
+    expect(pagesForStage("planning")).toEqual(["planning"]);
+  });
 });
 
 describe("STAGE_DEFS", () => {
@@ -43,5 +46,18 @@ describe("PAGE_LABELS", () => {
     expect(PAGE_LABELS.doctor).toBe("진단");
     expect(PAGE_LABELS.backups).toBe("백업");
     expect(PAGE_LABELS.logs).toBe("에러로그");
+  });
+  it("모든 page 라벨 정의", () => {
+    expect(PAGE_LABELS).toEqual({
+      home: "홈",
+      planning: "기획방",
+      code: "코드탐색",
+      docs: "문서",
+      doctor: "진단",
+      backups: "백업",
+      logs: "에러로그",
+      manual: "사용법",
+      settings: "설정",
+    });
   });
 });

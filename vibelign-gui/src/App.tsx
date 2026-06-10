@@ -119,6 +119,7 @@ export default function App() {
   useEffect(() => {
     if (!projectDir) {
       setHasCheckpoint(false);
+      setBackupCount(0);
       return;
     }
     let active = true;
@@ -130,7 +131,10 @@ export default function App() {
         }
       })
       .catch(() => {
-        if (active) setHasCheckpoint(false);
+        if (active) {
+          setHasCheckpoint(false);
+          setBackupCount(0);
+        }
       });
     return () => {
       active = false;
