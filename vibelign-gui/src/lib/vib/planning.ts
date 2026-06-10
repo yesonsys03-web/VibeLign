@@ -10,6 +10,7 @@ import type {
   CreatePlanningTemplateResponse,
   PlanningChatSessionResponse,
   PlanningSessionSummary,
+  TrashedSessionSummary,
   RetryPersonaRequest,
   SavePlanningChatPlanRequest,
   UpdateCardRequest,
@@ -85,9 +86,24 @@ export function loadPlanningChatSession(projectDir: string, sessionId: string): 
   return invoke<PlanningChatSessionResponse>("load_planning_chat_session", { projectDir, sessionId });
 }
 
-/** 기획 세션 1개를 통째로(대화·카드·저장된 기획안 md) 삭제. 되돌릴 수 없음. */
+/** 기획 세션 1개를 휴지통으로(소프트 삭제). 복구·자동정리(30일) 가능. */
 export function deletePlanningChatSession(projectDir: string, sessionId: string): Promise<void> {
   return invoke<void>("delete_planning_chat_session", { projectDir, sessionId });
+}
+
+/** 휴지통의 기획 세션을 원위치로 복구. */
+export function restorePlanningChatSession(projectDir: string, sessionId: string): Promise<void> {
+  return invoke<void>("restore_planning_chat_session", { projectDir, sessionId });
+}
+
+/** 휴지통에 있는 기획안 목록. */
+export function listTrashedPlanningSessions(projectDir: string): Promise<TrashedSessionSummary[]> {
+  return invoke<TrashedSessionSummary[]>("list_trashed_planning_sessions", { projectDir });
+}
+
+/** 휴지통 전체 비우기(영구 삭제). */
+export function emptyPlanningTrash(projectDir: string): Promise<void> {
+  return invoke<void>("empty_planning_trash", { projectDir });
 }
 // === ANCHOR: PLANNING_SESSIONS_END ===
 // === ANCHOR: PLANNING_END ===

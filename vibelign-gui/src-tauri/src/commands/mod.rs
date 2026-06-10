@@ -11,6 +11,7 @@ pub(crate) mod planning_chat_readiness;
 pub(crate) mod planning_chat_retry;
 pub(crate) mod planning_chat_store;
 pub(crate) mod planning_chat_synthesis;
+pub(crate) mod planning_chat_trash;
 pub(crate) mod planning_chat_types;
 pub(crate) mod planning_persona;
 pub(crate) mod planning_persona_context;

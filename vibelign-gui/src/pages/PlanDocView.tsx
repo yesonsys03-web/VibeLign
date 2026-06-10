@@ -2,8 +2,15 @@
 import { useEffect, useState } from "react";
 import DocumentPane from "../components/docs/DocumentPane";
 import { loadDoc } from "../lib/docs";
-import { deletePlanningChatSession, listPlanningChatSessions, type ReadFileResult } from "../lib/vib";
-import type { PlanningSessionSummary } from "../lib/vib/types";
+import {
+  deletePlanningChatSession,
+  emptyPlanningTrash,
+  listPlanningChatSessions,
+  listTrashedPlanningSessions,
+  restorePlanningChatSession,
+  type ReadFileResult,
+} from "../lib/vib";
+import type { PlanningSessionSummary, TrashedSessionSummary } from "../lib/vib/types";
 
 interface PlanDocViewProps {
   projectDir: string;
@@ -24,9 +31,9 @@ function fileName(path: string): string {
 }
 
 /**
- * 기획 단계 '기획안' 서브탭. 저장된 기획안(세션별 outputPath) 전체를 왼쪽 목록으로,
- * 선택한 기획안 본문을 오른쪽에 문서 탭과 동일한 마크다운 렌더로 보여준다.
- * 항목마다 삭제할 수 있어 쌓인 기획안을 이 화면에서 바로 정리한다.
+ * 기획 단계 '기획안' 서브탭. 저장된 기획안 전체를 왼쪽 목록 + 오른쪽 본문(마크다운)으로
+ * 보여주고, 항목마다 수정(기획방 재개)·삭제(휴지통)한다. 사이드바 하단 휴지통에서
+ * 복구/비우기, 삭제 직후엔 실행취소 토스트. 휴지통은 30일 뒤 자동 정리된다.
  */
 export default function PlanDocView({ projectDir, activeSessionId, onStart, onDeleted, onEdit }: PlanDocViewProps) {
   const [plans, setPlans] = useState<PlanningSessionSummary[] | null>(null);
@@ -37,33 +44,46 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [trashed, setTrashed] = useState<TrashedSessionSummary[] | null>(null);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [confirmEmpty, setConfirmEmpty] = useState(false);
+  const [emptying, setEmptying] = useState(false);
+  const [trashError, setTrashError] = useState<string | null>(null);
+  const [undo, setUndo] = useState<{ sessionId: string; title: string } | null>(null);
 
-  // 목록 로드: 저장된(outputPath 있는) 세션만. 기본 선택 = 활성 세션 또는 첫 항목.
-  useEffect(() => {
-    let cancelled = false;
-    listPlanningChatSessions(projectDir)
-      .then((rows) => {
-        if (cancelled) return;
-        const saved = rows.filter((row) => Boolean(row.outputPath));
-        setPlans(saved);
-        setSelectedId((current) => {
-          if (current && saved.some((p) => p.sessionId === current)) return current;
-          if (activeSessionId && saved.some((p) => p.sessionId === activeSessionId)) return activeSessionId;
-          return saved[0]?.sessionId ?? null;
-        });
-      })
-      .catch(() => {
-        if (!cancelled) setPlans([]);
+  async function refreshPlans() {
+    try {
+      const rows = await listPlanningChatSessions(projectDir);
+      const saved = rows.filter((row) => Boolean(row.outputPath));
+      setPlans(saved);
+      setSelectedId((current) => {
+        if (current && saved.some((p) => p.sessionId === current)) return current;
+        if (activeSessionId && saved.some((p) => p.sessionId === activeSessionId)) return activeSessionId;
+        return saved[0]?.sessionId ?? null;
       });
-    return () => {
-      cancelled = true;
-    };
+    } catch {
+      setPlans([]);
+    }
+  }
+
+  async function refreshTrashed() {
+    try {
+      setTrashed(await listTrashedPlanningSessions(projectDir));
+    } catch {
+      setTrashed([]);
+    }
+  }
+
+  useEffect(() => {
+    void refreshPlans();
+    void refreshTrashed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectDir, activeSessionId]);
 
   const selected = plans?.find((p) => p.sessionId === selectedId) ?? null;
   const selectedPath = selected?.outputPath ?? null;
 
-  // 선택한 기획안 본문 로드.
   useEffect(() => {
     if (!selectedPath) {
       setDoc(null);
@@ -91,18 +111,23 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
     };
   }, [projectDir, selectedPath]);
 
-  async function handleDelete(sessionId: string) {
+  // 실행취소 토스트 6초 뒤 자동 사라짐.
+  useEffect(() => {
+    if (!undo) return;
+    const timer = setTimeout(() => setUndo(null), 6000);
+    return () => clearTimeout(timer);
+  }, [undo]);
+
+  async function handleDelete(plan: PlanningSessionSummary) {
     setConfirmingId(null);
     setDeleteError(null);
-    setDeletingId(sessionId);
+    setDeletingId(plan.sessionId);
     try {
-      await deletePlanningChatSession(projectDir, sessionId);
-      const remaining = (plans ?? []).filter((row) => row.sessionId !== sessionId);
-      setPlans(remaining);
-      if (selectedId === sessionId) {
-        setSelectedId(remaining[0]?.sessionId ?? null);
-      }
-      onDeleted?.(sessionId);
+      await deletePlanningChatSession(projectDir, plan.sessionId);
+      await refreshPlans();
+      await refreshTrashed();
+      setUndo({ sessionId: plan.sessionId, title: plan.title || "기획안" });
+      onDeleted?.(plan.sessionId);
     } catch (err: unknown) {
       setDeleteError(err instanceof Error ? err.message : typeof err === "string" ? err : "삭제하지 못했어요.");
     } finally {
@@ -110,8 +135,40 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
     }
   }
 
-  // 저장된 기획안이 하나도 없을 때.
-  if (plans !== null && plans.length === 0) {
+  async function handleRestore(sessionId: string) {
+    setTrashError(null);
+    setRestoringId(sessionId);
+    try {
+      await restorePlanningChatSession(projectDir, sessionId);
+      setUndo((current) => (current?.sessionId === sessionId ? null : current));
+      await refreshPlans();
+      await refreshTrashed();
+    } catch (err: unknown) {
+      setTrashError(err instanceof Error ? err.message : typeof err === "string" ? err : "복구하지 못했어요.");
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
+  async function handleEmpty() {
+    setConfirmEmpty(false);
+    setTrashError(null);
+    setEmptying(true);
+    try {
+      await emptyPlanningTrash(projectDir);
+      setUndo(null);
+      await refreshTrashed();
+    } catch (err: unknown) {
+      setTrashError(err instanceof Error ? err.message : typeof err === "string" ? err : "비우지 못했어요.");
+    } finally {
+      setEmptying(false);
+    }
+  }
+
+  const trashCount = trashed?.length ?? 0;
+
+  // 저장된 기획안도, 휴지통도 비어 있을 때.
+  if (plans !== null && plans.length === 0 && trashCount === 0) {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, color: "#888" }}>
         <div style={{ fontSize: 32 }}>📋</div>
@@ -127,7 +184,7 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
   }
 
   return (
-    <div style={{ height: "100%", display: "flex" }}>
+    <div style={{ height: "100%", display: "flex", position: "relative" }}>
       <div style={{ width: 240, flexShrink: 0, borderRight: "1px solid #1A1A1A", display: "flex", flexDirection: "column", overflow: "auto" }}>
         <div style={{ padding: "6px 10px", fontSize: 11, fontWeight: 700, color: "#888", borderBottom: "1px solid #1A1A1A" }}>
           기획안 {plans ? `(${plans.length})` : ""}
@@ -150,7 +207,7 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
               </button>
               {confirmingId === plan.sessionId ? (
                 <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 2, padding: "0 4px" }}>
-                  <button type="button" onClick={() => void handleDelete(plan.sessionId)} title="이 기획을 영구 삭제" style={{ border: "none", background: "#B91C1C", color: "#fff", fontSize: 10, fontWeight: 800, padding: "2px 6px", cursor: "pointer" }}>삭제</button>
+                  <button type="button" onClick={() => void handleDelete(plan)} title="휴지통으로" style={{ border: "none", background: "#B91C1C", color: "#fff", fontSize: 10, fontWeight: 800, padding: "2px 6px", cursor: "pointer" }}>삭제</button>
                   <button type="button" onClick={() => setConfirmingId(null)} style={{ border: "1px solid #888", background: "#fff", fontSize: 10, padding: "2px 6px", cursor: "pointer" }}>취소</button>
                 </div>
               ) : (
@@ -158,13 +215,53 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
                   {onEdit && (
                     <button type="button" onClick={() => onEdit(plan.sessionId)} disabled={deletingId === plan.sessionId} title="기획방에서 이어서 수정" style={{ border: "none", background: "transparent", color: active ? "#fff" : "#888", fontSize: 11, fontWeight: 700, padding: "0 6px", cursor: "pointer", whiteSpace: "nowrap" }}>수정</button>
                   )}
-                  <button type="button" onClick={() => setConfirmingId(plan.sessionId)} disabled={deletingId === plan.sessionId} title="이 기획안 삭제" style={{ border: "none", background: "transparent", color: active ? "#fff" : "#888", fontSize: 13, padding: "0 8px", cursor: "pointer" }}>🗑</button>
+                  <button type="button" onClick={() => setConfirmingId(plan.sessionId)} disabled={deletingId === plan.sessionId} title="이 기획안 삭제(휴지통)" style={{ border: "none", background: "transparent", color: active ? "#fff" : "#888", fontSize: 13, padding: "0 8px", cursor: "pointer" }}>🗑</button>
                 </div>
               )}
             </div>
           );
         })}
+
+        {/* 휴지통 */}
+        <div style={{ marginTop: "auto", borderTop: "1px solid #1A1A1A" }}>
+          <button
+            type="button"
+            onClick={() => setTrashOpen((open) => !open)}
+            style={{ width: "100%", textAlign: "left", border: "none", background: "transparent", color: "#888", fontSize: 11, fontWeight: 700, padding: "6px 10px", cursor: "pointer" }}
+          >
+            {trashOpen ? "▾" : "▸"} 🗑 휴지통 ({trashCount})
+          </button>
+          {trashOpen && (
+            <div style={{ padding: "0 6px 6px" }}>
+              {trashError && <div style={{ fontSize: 10, color: "#B91C1C", fontWeight: 700, padding: "2px 4px" }}>{trashError}</div>}
+              {trashCount === 0 && <div style={{ fontSize: 10, color: "#888", padding: "2px 4px" }}>비어 있음</div>}
+              {trashed?.map((item) => (
+                <div key={item.sessionId} style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 4px", borderBottom: "1px solid #EEE" }}>
+                  <span style={{ flex: 1, fontSize: 11, color: "#666", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={item.outputPath ?? undefined}>
+                    {item.title || (item.outputPath ? fileName(item.outputPath) : "(제목 없음)")}
+                  </span>
+                  <button type="button" onClick={() => void handleRestore(item.sessionId)} disabled={restoringId === item.sessionId} style={{ border: "1px solid #1A1A1A", background: "#fff", fontSize: 10, fontWeight: 700, padding: "1px 6px", cursor: "pointer", whiteSpace: "nowrap" }}>
+                    {restoringId === item.sessionId ? "복구 중…" : "복구"}
+                  </button>
+                </div>
+              ))}
+              {trashCount > 0 && (
+                confirmEmpty ? (
+                  <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+                    <button type="button" onClick={() => void handleEmpty()} disabled={emptying} style={{ flex: 1, border: "2px solid #B91C1C", background: "#B91C1C", color: "#fff", fontSize: 10, fontWeight: 800, padding: "3px 6px", cursor: "pointer" }}>
+                      {emptying ? "비우는 중…" : "영구 삭제"}
+                    </button>
+                    <button type="button" onClick={() => setConfirmEmpty(false)} style={{ flex: 1, border: "1px solid #888", background: "#fff", fontSize: 10, padding: "3px 6px", cursor: "pointer" }}>취소</button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setConfirmEmpty(true)} style={{ width: "100%", marginTop: 6, border: "1px solid #B91C1C", background: "#fff", color: "#B91C1C", fontSize: 10, fontWeight: 700, padding: "3px 6px", cursor: "pointer" }}>휴지통 비우기</button>
+                )
+              )}
+            </div>
+          )}
+        </div>
       </div>
+
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {selectedPath && (
           <div style={{ padding: "6px 12px", fontSize: 12, color: "#555", borderBottom: "1px solid #1A1A1A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -183,6 +280,13 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
           )}
         </div>
       </div>
+
+      {undo && (
+        <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", background: "#1A1A1A", color: "#fff", padding: "8px 14px", borderRadius: 6, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", zIndex: 50, fontSize: 12 }}>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>휴지통으로 보냈어요 · {undo.title}</span>
+          <button type="button" onClick={() => void handleRestore(undo.sessionId)} style={{ border: "none", background: "transparent", color: "#7DD3FC", fontWeight: 800, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>실행취소</button>
+        </div>
+      )}
     </div>
   );
 }

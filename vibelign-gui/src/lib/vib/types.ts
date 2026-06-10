@@ -276,6 +276,13 @@ export interface PlanningSessionSummary {
   cardCount: number;
 }
 
+export interface TrashedSessionSummary {
+  sessionId: string;
+  title: string;
+  outputPath?: string | null;
+  deletedAtMs: number;
+}
+
 export interface MemorySummaryResult {
   schemaVersion?: number;
   activeIntent: string;
