@@ -13,6 +13,8 @@ interface PlanDocViewProps {
   onStart?: () => void;
   /** 한 기획안(세션)이 삭제된 뒤 호출(예: 활성 세션이면 호출부가 정리). */
   onDeleted?: (sessionId: string) => void;
+  /** 이 기획안을 기획방에서 이어서 수정(세션 재개). */
+  onEdit?: (sessionId: string) => void;
 }
 
 function fileName(path: string): string {
@@ -26,7 +28,7 @@ function fileName(path: string): string {
  * 선택한 기획안 본문을 오른쪽에 문서 탭과 동일한 마크다운 렌더로 보여준다.
  * 항목마다 삭제할 수 있어 쌓인 기획안을 이 화면에서 바로 정리한다.
  */
-export default function PlanDocView({ projectDir, activeSessionId, onStart, onDeleted }: PlanDocViewProps) {
+export default function PlanDocView({ projectDir, activeSessionId, onStart, onDeleted, onEdit }: PlanDocViewProps) {
   const [plans, setPlans] = useState<PlanningSessionSummary[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [doc, setDoc] = useState<ReadFileResult | null>(null);
@@ -152,7 +154,12 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
                   <button type="button" onClick={() => setConfirmingId(null)} style={{ border: "1px solid #888", background: "#fff", fontSize: 10, padding: "2px 6px", cursor: "pointer" }}>취소</button>
                 </div>
               ) : (
-                <button type="button" onClick={() => setConfirmingId(plan.sessionId)} disabled={deletingId === plan.sessionId} title="이 기획안 삭제" style={{ border: "none", background: "transparent", color: active ? "#fff" : "#888", fontSize: 13, padding: "0 8px", cursor: "pointer" }}>🗑</button>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  {onEdit && (
+                    <button type="button" onClick={() => onEdit(plan.sessionId)} disabled={deletingId === plan.sessionId} title="기획방에서 이어서 수정" style={{ border: "none", background: "transparent", color: active ? "#fff" : "#888", fontSize: 11, fontWeight: 700, padding: "0 6px", cursor: "pointer", whiteSpace: "nowrap" }}>수정</button>
+                  )}
+                  <button type="button" onClick={() => setConfirmingId(plan.sessionId)} disabled={deletingId === plan.sessionId} title="이 기획안 삭제" style={{ border: "none", background: "transparent", color: active ? "#fff" : "#888", fontSize: 13, padding: "0 8px", cursor: "pointer" }}>🗑</button>
+                </div>
               )}
             </div>
           );
