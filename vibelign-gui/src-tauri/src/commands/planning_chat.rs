@@ -342,6 +342,7 @@ pub(crate) async fn delete_planning_chat_session(
     if session_id.is_empty()
         || session_id.contains('/')
         || session_id.contains('\\')
+        || session_id.contains('\0')
         || session_id.contains("..")
     {
         return Err("invalid sessionId".to_string());
