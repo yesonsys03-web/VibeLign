@@ -730,5 +730,9 @@ export type ChangeStatus = "modified" | "new";
 export interface ChangedEntry {
   path: string;
   status: ChangeStatus;
+  /** 파일 수정 시각(epoch ms). 메타데이터 조회 실패 시 0. 변경 지문 재료(가이드 레이어 v6). */
+  mtime_ms: number;
+  /** 파일 크기(bytes). 메타데이터 조회 실패 시 0. */
+  size: number;
 }
 // === ANCHOR: TYPES_END ===
