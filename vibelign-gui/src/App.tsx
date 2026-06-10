@@ -17,6 +17,10 @@ import type { DoctorLaunchIntent } from "./pages/doctorFlow";
 import { backupList, createPlanningChatSession, getEnvKeyStatus, getWatchErrors, loadApiKey, loadLatestPlanningChatSession, loadPlanningChatSession, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, startWatch, stopWatch, openFolder, type PlanningChatSessionResponse } from "./lib/vib";
 import { PlanningSessionPicker } from "./pages/planning/PlanningSessionPicker";
 import { installGuiErrorReporter, reportReactError, setErrorReporterProjectDir } from "./lib/errorReporter";
+import { type Page } from "./lib/nav/stages";
+import { StageSwitcherBar } from "./components/nav/StageSwitcherBar";
+import { StageSubnav } from "./components/nav/StageSubnav";
+import { StageHubCards } from "./components/nav/StageHubCards";
 import "./styles/brutalism.css";
 import "./App.css";
 
@@ -61,8 +65,6 @@ class ErrorBoundary extends Component<
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
-type Page = "home" | "manual" | "docs" | "code" | "doctor" | "backups" | "logs" | "settings" | "planning";
-
 export default function App() {
   const [projectDir, setProjectDir] = useState<string | null>(null);
   const [recentDirs, setRecentDirs] = useState<string[]>([]);
@@ -76,6 +78,7 @@ export default function App() {
   const [watchOn, setWatchOn] = useState(false);
   const [watchError, setWatchError] = useState<string | null>(null);
   const [hasCheckpoint, setHasCheckpoint] = useState(false);
+  const [backupCount, setBackupCount] = useState(0);
   const [mapMode, setMapMode] = useState<"manual" | "auto">("manual");
   const [planningPrompt, setPlanningPrompt] = useState("");
   const [planningResult, setPlanningResult] = useState<PlanningChatSessionResponse | null>(null);
@@ -121,7 +124,10 @@ export default function App() {
     let active = true;
     backupList(projectDir)
       .then((result) => {
-        if (active) setHasCheckpoint(result.backups.length > 0);
+        if (active) {
+          setHasCheckpoint(result.backups.length > 0);
+          setBackupCount(result.backups.length);
+        }
       })
       .catch(() => {
         if (active) setHasCheckpoint(false);
@@ -170,6 +176,11 @@ export default function App() {
   function openDoctorTab() {
     setDoctorLaunchIntent(null);
     setPage("doctor");
+  }
+
+  function navigate(next: Page) {
+    if (next === "doctor") { openDoctorTab(); return; }
+    setPage(next);
   }
 
   useEffect(() => {
@@ -264,6 +275,12 @@ export default function App() {
     setPage(hasPlanning ? "planning" : "home");
   }
 
+  const planningStatus: "none" | "active" | "done" = !planningResult
+    ? "none"
+    : planningResult.messages.some((m) => m.status === "pending")
+      ? "active"
+      : "done";
+
   return (
     <div className="app-layout">
       <ErrorBoundary>
@@ -288,49 +305,16 @@ export default function App() {
           />
         ) : (
           <>
-            <div className="nav-tabs" style={{ paddingLeft: 8 }}>
-              <button className={`nav-tab ${page === "home" ? "active" : ""}`} onClick={() => setPage("home")}>
-                홈
-              </button>
-              <button className={`nav-tab ${page === "doctor" ? "active" : ""}`} onClick={openDoctorTab}>
-                진단
-              </button>
-              <button className={`nav-tab ${page === "docs" ? "active" : ""}`} onClick={() => setPage("docs")}>
-                문서
-              </button>
-              <button className={`nav-tab ${page === "code" ? "active" : ""}`} onClick={() => setPage("code")}>
-                코드탐색
-              </button>
-              <button className={`nav-tab ${page === "backups" ? "active" : ""}`} onClick={() => setPage("backups")}>
-                백업
-              </button>
-              <button className={`nav-tab ${page === "logs" ? "active" : ""}`} onClick={() => setPage("logs")}>
-                에러로그
-              </button>
-              <div style={{ flex: 1 }} />
-              <button className={`nav-tab ${page === "manual" ? "active" : ""}`} onClick={() => setPage("manual")}>
-                사용법
-              </button>
-              <button className="nav-tab" onClick={() => openFolder(projectDir).catch(() => {})}>
-                폴더열기
-              </button>
-              <button
-                className="nav-tab"
-                style={{
-                  borderRight: "none",
-                  fontSize: 11,
-                  color: "#777",
-                  maxWidth: 260,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  display: "block",
-                }}
-                title={projectDir}
-                onClick={() => { stopWatch().catch(() => {}); setProjectDir(null); setPlanningResult(null); setReviewSourcePath(null); setPlanningPrompt(""); setPage("home"); }}
-              >
-                {projectDir.replace(/\\/g, "/").split("/").filter(Boolean).slice(-1)[0] || projectDir} ↩
-              </button>
-            </div>
+            <StageSwitcherBar
+              page={page}
+              projectDir={projectDir}
+              onHome={() => setPage("home")}
+              onNavigate={navigate}
+              onOpenManual={() => setPage("manual")}
+              onOpenFolder={() => openFolder(projectDir).catch(() => {})}
+              onExitProject={() => { stopWatch().catch(() => {}); setProjectDir(null); setPlanningResult(null); setReviewSourcePath(null); setPlanningPrompt(""); setPage("home"); }}
+            />
+            <StageSubnav page={page} onNavigate={navigate} />
 
             <div
               style={{
@@ -354,7 +338,12 @@ export default function App() {
 
             <div style={{ flex: 1, overflow: "hidden" }}>
               <ErrorBoundary>
-                {page === "home" && <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenDoctor={openDoctorFromGuardIssue} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} watchError={watchError} onRetryWatch={() => { void retryWatch(); }} hasCheckpoint={hasCheckpoint} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningPending={planningResult?.messages.some((message) => message.status === "pending") ?? false} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} onOpenPlanningHistory={() => setShowSessionPicker(true)} />}
+                {page === "home" && (
+                  <>
+                    <StageHubCards onNavigate={navigate} planningStatus={planningStatus} backupCount={backupCount} />
+                    <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenDoctor={openDoctorFromGuardIssue} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} watchError={watchError} onRetryWatch={() => { void retryWatch(); }} hasCheckpoint={hasCheckpoint} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningPending={planningResult?.messages.some((message) => message.status === "pending") ?? false} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} onOpenPlanningHistory={() => setShowSessionPicker(true)} />
+                  </>
+                )}
                 {page === "planning" && planningResult && <PlanningRoom projectDir={projectDir} result={planningResult} sourcePath={reviewSourcePath} onBack={() => setPage("home")} onStartWork={() => setPage("code")} onResultChange={setPlanningResult} />}
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
