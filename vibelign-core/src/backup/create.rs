@@ -251,21 +251,19 @@ fn insert_checkpoint_files(
 ) -> Result<u64, String> {
     let mut stored_size_bytes = 0_u64;
     for file in files {
-        let object_hash = match &file.kind {
+        let (object_hash, file_hash, file_size) = match &file.kind {
             PlannedFileKind::Reused { object_hash } => {
                 cas::increment_ref(tx, object_hash)?;
-                object_hash.clone()
+                (
+                    object_hash.clone(),
+                    file.snapshot.hash.clone(),
+                    file.snapshot.size,
+                )
             }
             PlannedFileKind::Changed => {
-                let object = cas::store_object(
-                    root,
-                    tx,
-                    &file.snapshot.source_path,
-                    &file.snapshot.hash,
-                    file.snapshot.size,
-                )?;
+                let (object, hash, size) = store_changed_object(root, tx, &file.snapshot)?;
                 stored_size_bytes += object.stored_size;
-                object.hash
+                (object.hash, hash, size)
             }
         };
         tx.execute(
@@ -275,8 +273,8 @@ fn insert_checkpoint_files(
             params![
                 checkpoint_id,
                 file.snapshot.relative_path,
-                file.snapshot.hash,
-                file.snapshot.size as i64,
+                file_hash,
+                file_size as i64,
                 cas::storage_sentinel(&object_hash),
                 object_hash,
             ],
@@ -284,6 +282,33 @@ fn insert_checkpoint_files(
         .map_err(|error| error.to_string())?;
     }
     Ok(stored_size_bytes)
+}
+
+/// 변경 파일을 CAS에 저장한다. 스냅샷 해시 계산과 저장 사이에 파일이 또 바뀌었으면
+/// (AI 도구·로그가 체크포인트 중에도 파일을 쓰는 게 일상 환경) 현재 내용을 다시
+/// 해시해 재시도하고, 실제 저장된 내용의 해시·크기를 돌려준다 — 기록과 내용이
+/// 항상 일치해야 복원이 깨지지 않는다.
+fn store_changed_object(
+    root: &Path,
+    tx: &Transaction<'_>,
+    snapshot: &SnapshotFile,
+) -> Result<(cas::CasObject, String, u64), String> {
+    let mut hash = snapshot.hash.clone();
+    let mut size = snapshot.size;
+    for _ in 0..2 {
+        match cas::store_object(root, tx, &snapshot.source_path, &hash, size) {
+            Ok(object) => return Ok((object, hash, size)),
+            Err(error) if error == cas::SOURCE_CHANGED_ERROR => {
+                let (new_hash, new_size) = cas::hash_source_file(&snapshot.source_path)?;
+                hash = new_hash;
+                size = new_size;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    // 마지막 시도 — 그래도 계속 바뀌는 파일이면(드묾) 에러로 전파한다.
+    cas::store_object(root, tx, &snapshot.source_path, &hash, size)
+        .map(|object| (object, hash, size))
 }
 
 fn update_checkpoint_stored_size(
@@ -309,9 +334,37 @@ fn checkpoint_id_from_time(created_at: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::create_with_metadata;
+    use super::{create_with_metadata, store_changed_object};
     use crate::backup::checkpoint::CheckpointCreateMetadata;
+    use crate::backup::snapshot::SnapshotFile;
+    use crate::db::schema;
     use rusqlite::{params, Connection};
+
+    #[test]
+    fn store_changed_object_rehashes_when_source_changed_after_snapshot() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let file = root.join("churn.bin");
+        std::fs::write(&file, "new-content").unwrap();
+        let mut conn = Connection::open(root.join("cas.db")).unwrap();
+        schema::initialize(&conn).unwrap();
+        let tx = conn.transaction().unwrap();
+        // 스냅샷 해시 계산 후 파일이 바뀐 상황 재현 — 해시는 이전 내용 기준.
+        let snapshot = SnapshotFile {
+            relative_path: "churn.bin".to_string(),
+            hash: blake3::hash(b"old-content").to_hex().to_string(),
+            size: 11,
+            source_path: file.clone(),
+        };
+
+        let (object, hash, size) = store_changed_object(root, &tx, &snapshot).unwrap();
+
+        // 기록되는 해시·크기가 실제 저장된 내용과 일치해야 복원이 깨지지 않는다.
+        let expected = blake3::hash(b"new-content").to_hex().to_string();
+        assert_eq!(hash, expected);
+        assert_eq!(object.hash, expected);
+        assert_eq!(size, 11);
+    }
 
     #[test]
     fn records_incremental_metrics_and_reuses_unchanged_objects() {

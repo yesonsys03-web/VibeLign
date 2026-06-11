@@ -39,6 +39,16 @@ pub fn storage_sentinel(hash: &str) -> String {
     format!("cas:{hash}")
 }
 
+/// 스냅샷 해시 계산과 저장 사이에 원본 파일이 바뀐 경우의 에러 — 호출자(create)가
+/// 현재 내용을 다시 해시해 재시도할 수 있는 신호다. AI 도구·로그가 체크포인트 중에도
+/// 파일을 쓰는 게 이 제품의 일상 환경이라, 이 경우를 치명 에러로 다루면 안 된다.
+pub(crate) const SOURCE_CHANGED_ERROR: &str = "backup source changed while being stored";
+
+/// 원본 파일(비압축)의 blake3 해시와 크기 — 저장 중 변경 감지 후 재시도용.
+pub(crate) fn hash_source_file(path: &Path) -> Result<(String, u64), String> {
+    hash_file_with_compression(path, "none")
+}
+
 pub fn store_object(
     root: &Path,
     conn: &Connection,
@@ -338,9 +348,23 @@ fn write_object_if_missing(
     size: u64,
 ) -> Result<ObjectStorage, String> {
     if destination.exists() {
-        return infer_existing_object_storage(destination, hash, size);
+        match infer_existing_object_storage(destination, hash, size) {
+            Ok(storage) => return Ok(storage),
+            // DB 행 없이 내용도 해시와 다른 객체 파일 — 과거 실패한 저장이 남긴 고아 오염
+            // 객체다. 지금 손에 든 source가 이 해시의 올바른 내용이므로 지우고 새로 쓴다
+            // (자가 치유). 안 지우면 같은 해시가 나올 때마다 체크포인트가 영구 실패한다.
+            Err(_) => {
+                fs::remove_file(destination).map_err(|error| error.to_string())?;
+            }
+        }
     }
     let (temp_path, storage) = create_temp_object_file(source, destination, hash, size)?;
+    // 스냅샷 해시 계산과 복사 사이에 source가 바뀌었을 수 있다 — 오염된 객체가 store에
+    // 들어가 영구 실패의 씨앗이 되기 전에, rename 전 temp 단계에서 거른다.
+    if verify_file_content(&temp_path, hash, size, &storage.compression).is_err() {
+        let _ = fs::remove_file(&temp_path);
+        return Err(SOURCE_CHANGED_ERROR.to_string());
+    }
     match fs::rename(&temp_path, destination) {
         Ok(()) => Ok(storage),
         Err(error) if destination.exists() => {
@@ -755,7 +779,29 @@ mod tests {
 
         let error = store_object(root, &conn, &file, &wrong_hash, 6).unwrap_err();
 
-        assert!(error.contains("hash mismatch"));
+        // 재시도 가능한 "source 변경" 에러로 분류되고, 오염 객체가 store에 남지 않는다.
+        assert_eq!(error, super::SOURCE_CHANGED_ERROR);
+        assert!(!super::object_path(root, &wrong_hash).unwrap().exists());
+    }
+
+    #[test]
+    fn heals_orphan_corrupt_object_left_by_failed_store() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let conn = Connection::open(root.join("cas.db")).unwrap();
+        schema::initialize(&conn).unwrap();
+        let file = root.join("a.bin");
+        std::fs::write(&file, "actual").unwrap();
+        let hash = blake3::hash(b"actual").to_hex().to_string();
+        // 과거 실패가 남긴 고아 오염 객체 재현: DB 행 없이 해시 경로에 엉뚱한 내용.
+        let object_path = super::object_path(root, &hash).unwrap();
+        std::fs::create_dir_all(object_path.parent().unwrap()).unwrap();
+        std::fs::write(&object_path, "corrupt").unwrap();
+
+        let object = store_object(root, &conn, &file, &hash, 6).unwrap();
+
+        assert_eq!(object.ref_count, 1);
+        assert_eq!(std::fs::read(&object_path).unwrap(), b"actual");
     }
 
     #[test]
