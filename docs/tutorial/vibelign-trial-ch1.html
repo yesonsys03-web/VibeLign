@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<!--
+  VibeLign 트라이얼 1장 — 가이드 루프 체험 (standalone)
+  카피 출처: vibelign-gui/src/lib/nav/guide.ts JOURNEY_STEPS · GuideStrip.tsx · SimpleHome.tsx · stages.ts (2026-06-11 기준)
+  ⚠️ 실제 UI 카피가 바뀌면 이 파일을 동기화할 것 (plans/2026-06-11-트라이얼-1장-design.md §6-3)
+  ⚠️ React 18 + Babel standalone CDN 의존 — 오프라인에서는 동작하지 않음
+-->
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VibeLign 트라이얼 — 가이드 루프 체험</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #141414; color: #ccc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; min-height: 100vh; }
+    button { cursor: pointer; border: none; background: none; font-family: inherit; font-size: inherit; }
+    button:disabled { opacity: 0.4; cursor: default; }
+    .nav-tab { background: #1A1A1A; color: #aaa; border: 1px solid #2A2A2A; border-radius: 4px; padding: 2px 10px; font-size: 12px; transition: background 0.15s; }
+    .nav-tab:hover:not(:disabled) { background: #252525; color: #ddd; }
+    .nav-tab.active { background: #2A2A2A; color: #FBBF24; border-color: #FBBF24; }
+    .stage-tab { background: #1A1A1A; color: #888; border: 1px solid #222; border-radius: 4px; padding: 4px 14px; font-size: 12px; }
+    .stage-tab.active { background: #222; color: #FBBF24; border-color: #FBBF24; }
+    .stage-tab:hover:not(:disabled):not(.active) { background: #1E1E1E; color: #bbb; }
+    .btn-purple { background: #7B4DFF; color: #fff; border-radius: 6px; padding: 7px 16px; font-size: 13px; font-weight: 700; }
+    .btn-purple:hover { background: #8B5DFF; }
+    .btn-action { background: #FBBF24; color: #000; border-radius: 6px; padding: 7px 16px; font-size: 13px; font-weight: 700; }
+    .btn-action:hover { background: #FCC944; }
+    .btn-ghost { background: #1A1A1A; color: #aaa; border: 1px solid #2A2A2A; border-radius: 6px; padding: 7px 16px; font-size: 13px; }
+    .btn-ghost:hover { background: #252525; color: #ccc; }
+    .card { background: #141414; border: 1px solid #222; border-radius: 8px; padding: 16px; }
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 13px; z-index: 9999; pointer-events: none; }
+    /* 코치마크 클릭 통로(z-lift): 비상구는 항상 통과 — target·탭바 통로는 Coachmark가 동적 <style>로 주입 */
+    .coachmark-active #strip-escape { position: relative; z-index: 1003; }
+    @media (max-width: 899px) { #mobile-notice { display: flex !important; } #app-root { display: none !important; } }
+  </style>
+</head>
+<body>
+
+<div id="mobile-notice" style="display:none; position:fixed; inset:0; background:#0E0E0E; align-items:center; justify-content:center; z-index:99999; padding:24px; text-align:center;">
+  <div>
+    <div style="font-size:32px; margin-bottom:16px;">🖥️</div>
+    <div style="font-size:18px; font-weight:700; color:#FBBF24; margin-bottom:8px;">PC에서 열어주세요</div>
+    <div style="font-size:14px; color:#888;">이 연습장은 PC 화면 기준이에요 — 모바일에서는 레이아웃이 깨질 수 있어요.</div>
+  </div>
+</div>
+
+<div id="app-root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useReducer, useRef, useCallback } = React;
+
+// ===== COPY: 실제 UI 카피 상수 =====
+// 출처: vibelign-gui/src/lib/nav/guide.ts JOURNEY_STEPS
+
+const COPY = {
+  // 출처: guide.ts JOURNEY_STEPS[1].label / shortAction
+  step2_label: "기획하기",
+  step2_icon: "2️⃣",
+  step2_short: "기획방에서 AI와 대화하며 기획안을 확정하세요",
+
+  // 출처: guide.ts JOURNEY_STEPS[2].label / shortAction
+  step3_label: "체크포인트 저장",
+  step3_icon: "3️⃣",
+  step3_short: "AI에게 시키기 전에 안전 저장 — 망쳐도 되돌아올 수 있게",
+
+  // 출처: guide.ts JOURNEY_STEPS[3].label / shortAction
+  step4_label: "AI에게 작업 시키기",
+  step4_icon: "4️⃣",
+  step4_short: "VibeLign이 만들어준 안전 지시문을 복사해 AI 도구(Claude Code 등)에 붙여넣으세요",
+
+  // 출처: guide.ts JOURNEY_STEPS[4].label / shortAction
+  step5_label: "결과 검증",
+  step5_icon: "5️⃣",
+  step5_short: "홈의 '상태 확인'으로 AI가 약속한 범위만 고쳤는지 확인하세요",
+
+  // 출처: guide.ts JOURNEY_STEPS[5].label / shortAction
+  step6_label: "저장 또는 되돌리기",
+  step6_icon: "6️⃣",
+  step6_short: "잘 됐으면 체크포인트 저장, 망쳤으면 되돌리기",
+
+  // 출처: GuideStrip.tsx line 116 — affordance 버튼
+  affordance: "AI 작업이 끝났거나 멈췄나요? 확인하러 가기 →",
+
+  // 출처: GuideStrip.tsx line 138 — 비상구 버튼
+  escape: "잘 안 됐나요? 되돌리기 →",
+
+  // 출처: GuideStrip.tsx line 58 — 축하 메시지
+  celebrate: "🎉 첫 사이클 완주! 기획부터 저장까지 해냈어요 — 이 흐름 그대로 반복하면 돼요",
+  celebrate_bold: "첫 사이클 완주!",
+
+  // 출처: GuideStrip.tsx — 스트립 형식 "🧭 지금: {icon} {label} — {shortAction}"
+  strip_prefix: "🧭 지금:",
+
+  // 출처: GuideStrip.tsx line 98 — "{PAGE_LABEL}으로 이동 →"
+  nav_suffix: "으로 이동 →",
+
+  // 출처: GuideStrip.tsx line 171-172 — 우측 상태 신호
+  backup_ok: "✓ 백업 데이터 있음",
+  backup_none: "백업 데이터 없음",
+
+  // 출처: GuideStrip.tsx line 173 — 기획 진행 중 신호
+  planning_pending: "● 기획 진행 중",
+
+  // 출처: SimpleHome.tsx line 46 — 홈 3블록 제목
+  home_block1: "프로젝트 안전 상태",
+  home_block2: "지금 할 일",
+  home_block3: "되돌리기",
+
+  // 출처: SimpleHome.tsx line 85 — 상태 확인 버튼
+  guard_btn: "상태 확인하기",
+
+  // 출처: stages.ts PAGE_LABELS
+  page_home: "홈",
+  page_planning: "기획방",
+  page_code: "코드탐색",
+  page_backups: "백업",
+
+  // 출처: stages.ts STAGE_DEFS
+  stage_planning: "기획",
+  stage_develop: "개발",
+  stage_maintain: "유지보수",
+};
+
+// ===== SIM: 실제 guide.ts inferStep의 교육용 미러 =====
+
+const initialSim = {
+  hasPlanDoc: false,
+  hasCheckpoint: false,
+  diskFiles: [],      // 실제 디스크(AI가 고친 것) — [{ path, rev }], rev = 실제 지문(path+status+mtime+size)의 단순화
+  changedFiles: [],   // 앱이 마지막 조회로 아는 것 — setPage(탭 전환)에서 diskFiles와 동기화(재조회 미러, 가이드 v6 spec §4-6)
+  baseline: [],       // 체크포인트 시점 스냅샷
+  guardOk: false,
+  page: "home",
+};
+
+function countChanges(baseline, current) {
+  // 실제 countChangesSinceBaseline의 미러: 경로 대칭차 + 같은 경로 rev 변화도 변경
+  const b = new Map(baseline.map((f) => [f.path, f.rev]));
+  const c = new Map(current.map((f) => [f.path, f.rev]));
+  let n = 0;
+  for (const [p, rev] of c) if (b.get(p) !== rev) n += 1;
+  for (const p of b.keys()) if (!c.has(p)) n += 1;
+  return n;
+}
+
+function inferStep(s) {
+  // 실제 guide.ts inferStep과 동일 규칙(신호 이름도 동일 — 코드가 곧 교보재)
+  let step = !s.hasPlanDoc ? 2 : !s.hasCheckpoint ? 3 : 4;
+  if (s.hasCheckpoint && countChanges(s.baseline, s.changedFiles) > 0) {
+    step = s.guardOk ? 6 : 5;
+  }
+  return step;
+}
+
+function simReducer(state, action) {
+  switch (action.type) {
+    case "confirmPlan":
+      return { ...state, hasPlanDoc: true };
+    case "saveCheckpoint":
+      return {
+        ...state,
+        hasCheckpoint: true,
+        baseline: state.changedFiles.map(f => ({ ...f })),
+        guardOk: false,
+      };
+    case "simAiEdit": {
+      // 디스크만 변경 — 앱(changedFiles)은 아직 모른다. 탭 전환(setPage)에서 알아챈다.
+      const existing = state.diskFiles.map(f => ({ ...f }));
+      const newFiles = [
+        { path: "src/pages/Home.tsx", rev: 1 },
+        { path: "src/lib/api.ts", rev: 1 },
+      ];
+      const merged = [...existing];
+      for (const nf of newFiles) {
+        if (!merged.find(f => f.path === nf.path)) merged.push(nf);
+      }
+      return { ...state, diskFiles: merged };
+    }
+    case "simReEdit": {
+      // 디스크만 변경(rev+1) — guardOk 리셋도 여기서가 아니라 관찰 시점(setPage)에 일어난다(실제 미러).
+      const files = state.diskFiles.map(f => ({ ...f }));
+      if (files.length > 0) {
+        files[0] = { ...files[0], rev: files[0].rev + 1 };
+      }
+      return { ...state, diskFiles: files };
+    }
+    case "runGuard":
+      return { ...state, guardOk: true };
+    case "setPage": {
+      // 탭 전환 = 실제 앱의 changed-set 재조회 미러(가이드 v6 spec §4-6).
+      const synced = state.diskFiles.map(f => ({ ...f }));
+      // 지문(rev) 변화 감지 시 guardOk 리셋 — 검증 시점 지문과 달라지면 stale pass를 남기지 않는 실제 동작의 미러
+      const fingerprintChanged = countChanges(state.changedFiles, synced) > 0;
+      return {
+        ...state,
+        page: action.page,
+        changedFiles: synced,
+        guardOk: fingerprintChanged ? false : state.guardOk,
+      };
+    }
+    case "reset":
+      return { ...initialSim };
+    default:
+      return state;
+  }
+}
+
+// ===== TRIAL: 챕터·말풍선 데이터 =====
+
+const CHAPTERS = [
+  { id: 1, title: "1장 — 가이드 루프 한 바퀴", locked: false },
+  { id: 2, title: "2장 — AI와의 약속(작업 계약)", locked: true, teaser: "기획안이 그냥 문서가 아니라 AI 작업의 약속이 되는 과정을 체험해요" },
+];
+
+// advanceOn: "click:<targetId>" = 가리킨 요소 클릭으로 전진 / "state" = check(sim)이 참이 되면 전진
+const TRIAL_STEPS = [
+  { target: null, text: "환영해요! 여기는 VibeLign 연습장이에요. 진짜 프로젝트는 건드리지 않으니 마음껏 눌러보세요. (연습장이라 일부 화면은 실제 앱보다 간단해요)", advanceOn: "click:trial-start" },
+  { target: "strip-go", text: "맨 위 안내 줄이 '지금 할 일'을 알려줘요. 지금은 2️⃣ 기획 차례 — 안내 줄의 이동 버튼을 눌러보세요.", advanceOn: "click:strip-go" },
+  { target: "btn-confirm-plan", text: "AI와 대화하며 기획을 다듬었다고 치고 — 기획안을 확정해보세요. 이 문서가 다음 단계 AI 작업의 약속(목표·범위)이 돼요.", advanceOn: "click:btn-confirm-plan" },
+  { target: "btn-checkpoint", text: "안내가 3️⃣으로 바뀌었죠? AI에게 시키기 전에 먼저 안전 저장! 백업 탭에서 체크포인트를 저장하세요. 망쳐도 여기로 되돌아올 수 있어요.", advanceOn: "click:btn-checkpoint" },
+  { target: "btn-copy-instruction", text: "이제 4️⃣ — VibeLign이 기획안으로 만들어준 안전 지시문을 복사해서 Claude Code 같은 AI 도구에 붙여넣으면 돼요.", advanceOn: "click:btn-copy-instruction" },
+  { target: "btn-sim-edit", text: "AI가 일하는 동안 기다린다고 치고… (이 보라 버튼은 연습 전용이에요 — 실제 앱에는 없어요!)", advanceOn: "click:btn-sim-edit" },
+  { target: "tabbar", text: "AI가 파일을 고쳤어요. 탭을 아무거나 눌러보세요 — VibeLign이 변경을 알아채고 안내가 5️⃣로 바뀌어요.", advanceOn: "state", check: (sim) => inferStep(sim) === 5 },
+  { target: "btn-run-guard", text: "이제 확인할 차례 — 홈의 '상태 확인하기'로 AI가 약속한 범위만 고쳤는지 검사해요.", advanceOn: "click:btn-run-guard" },
+  { target: "btn-sim-reedit", text: "잠깐, 미션 하나! 만약 AI가 아까 그 파일을 한 번 더 고치면 어떻게 될까요? 보라 버튼을 누르고 탭을 전환해보세요.", advanceOn: "state", check: (sim) => inferStep(sim) === 5 && sim.changedFiles.some((f) => f.rev > 1) },
+  { target: "btn-run-guard", text: "봤죠? 파일 '목록'은 그대로인데도 6️⃣이 5️⃣로 돌아왔어요. VibeLign은 파일의 수정 시각·크기까지 봐서, 낡은 '검증 완료'를 절대 남기지 않아요. 다시 확인하면 돼요.", advanceOn: "click:btn-run-guard" },
+  { target: "btn-checkpoint", text: "검증 끝! 잘 됐으면 체크포인트로 저장하세요 — 루프가 닫히고 다음 작업(4️⃣)으로 돌아가요.", advanceOn: "click:btn-checkpoint" },
+];
+
+// ===== SCREENS: 화면 컴포넌트 =====
+
+// GuideStrip 미러
+function GuideStrip({ sim, dispatch, celebrating, onEscapeClick }) {
+  const step = inferStep(sim);
+  const stepData = {
+    2: { icon: COPY.step2_icon, label: COPY.step2_label, short: COPY.step2_short, targetPage: "planning" },
+    3: { icon: COPY.step3_icon, label: COPY.step3_label, short: COPY.step3_short, targetPage: "backups" },
+    4: { icon: COPY.step4_icon, label: COPY.step4_label, short: COPY.step4_short, targetPage: "code" },
+    5: { icon: COPY.step5_icon, label: COPY.step5_label, short: COPY.step5_short, targetPage: "home" },
+    6: { icon: COPY.step6_icon, label: COPY.step6_label, short: COPY.step6_short, targetPage: "backups" },
+  };
+  const def = stepData[step];
+  const pageLabel = { planning: COPY.page_planning, backups: COPY.page_backups, code: COPY.page_code, home: COPY.page_home };
+
+  if (celebrating) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 12px", fontSize: 13, color: "#4DFF91", background: "#0E0E0E", borderBottom: "1px solid #1A1A1A" }}>
+        <span>🎉 <b>{COPY.celebrate_bold}</b> 기획부터 저장까지 해냈어요 — 이 흐름 그대로 반복하면 돼요</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "6px 12px", fontSize: 11, color: "#888", background: "#0E0E0E", borderBottom: "1px solid #1A1A1A" }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+        <span style={{ color: "#ccc" }}>
+          {COPY.strip_prefix}{" "}
+          <span style={{ color: "#FBBF24", fontWeight: 700 }}>{def.icon} {def.label}</span>
+          {" "}— {def.short}
+        </span>
+        <button
+          id="strip-go"
+          className="nav-tab"
+          style={{ fontSize: 12, padding: "0 8px" }}
+          onClick={() => dispatch({ type: "setPage", page: def.targetPage })}
+        >
+          {pageLabel[def.targetPage]}{COPY.nav_suffix}
+        </button>
+        {step === 4 && (
+          <button
+            className="nav-tab"
+            style={{ fontSize: 12, padding: "0 8px", color: "#FBBF24" }}
+            onClick={() => dispatch({ type: "setPage", page: "home" })}
+          >
+            {COPY.affordance}
+          </button>
+        )}
+        {(step === 4 || step === 5) && (
+          <button
+            id="strip-escape"
+            className="nav-tab"
+            style={{ fontSize: 12, padding: "0 8px", color: "#888" }}
+            onClick={() => { onEscapeClick && onEscapeClick(); dispatch({ type: "setPage", page: "backups" }); }}
+          >
+            {COPY.escape}
+          </button>
+        )}
+      </span>
+      <div style={{ flex: 1 }} />
+      <span style={{ color: sim.hasCheckpoint ? "#aaa" : "#666" }}>
+        {sim.hasCheckpoint ? COPY.backup_ok : COPY.backup_none}
+      </span>
+    </div>
+  );
+}
+
+// 단계 탭바 (STAGE_DEFS 미러)
+function StageTabs({ activePage, dispatch }) {
+  const activeStage = activePage === "planning" ? "planning" : activePage === "code" ? "develop" : (activePage === "backups" || activePage === "doctor") ? "maintain" : null;
+  const stages = [
+    { key: "planning", label: "📋 " + COPY.stage_planning },
+    { key: "develop", label: "⚙️ " + COPY.stage_develop },
+    { key: "maintain", label: "🛡️ " + COPY.stage_maintain },
+  ];
+  return (
+    <div id="tabbar" style={{ display: "flex", gap: 4, padding: "6px 12px", background: "#0E0E0E", borderBottom: "1px solid #1A1A1A" }}>
+      <button className={"stage-tab" + (activePage === "home" ? " active" : "")} onClick={() => dispatch({ type: "setPage", page: "home" })}>{COPY.page_home}</button>
+      {stages.map(s => {
+        const targetPage = s.key === "planning" ? "planning" : s.key === "develop" ? "code" : "backups";
+        return (
+          <button key={s.key} className={"stage-tab" + (activeStage === s.key ? " active" : "")} onClick={() => dispatch({ type: "setPage", page: targetPage })}>
+            {s.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// 페이지 탭바
+function PageTabs({ activePage, dispatch }) {
+  const subPages = {
+    planning: [{ key: "planning", label: COPY.page_planning }],
+    develop: [{ key: "code", label: COPY.page_code }],
+    maintain: [{ key: "backups", label: COPY.page_backups }, { key: "doctor", label: "진단" }],
+  };
+  const stageKey = activePage === "planning" ? "planning" : activePage === "code" ? "develop" : (activePage === "backups" || activePage === "doctor") ? "maintain" : null;
+  if (!stageKey) return null;
+  return (
+    <div id="page-tabbar" style={{ display: "flex", gap: 4, padding: "4px 12px", background: "#0A0A0A", borderBottom: "1px solid #1A1A1A" }}>
+      {(subPages[stageKey] || []).map(p => (
+        <button key={p.key} className={"nav-tab" + (activePage === p.key ? " active" : "")} onClick={() => dispatch({ type: "setPage", page: p.key })}>
+          {p.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// 허브 카드 (cardStepState 규칙 미러: 기획=[2], 개발=[4], 유지보수=[3,6])
+function HubCard({ stage, currentStep, onClick }) {
+  const stageSteps = { planning: [2], develop: [4], maintain: [3, 6] };
+  const stageLabels = { planning: { icon: "📋", label: COPY.stage_planning, desc: "AI와 함께 기획안 확정" }, develop: { icon: "⚙️", label: COPY.stage_develop, desc: "AI 도구에 지시문 전달" }, maintain: { icon: "🛡️", label: COPY.stage_maintain, desc: "체크포인트·되돌리기" } };
+  const steps = stageSteps[stage];
+  let state;
+  if (steps.includes(currentStep)) state = "now";
+  else if (steps.every(s => s < currentStep)) state = "done";
+  else state = "upcoming";
+
+  const info = stageLabels[stage];
+  const borderColor = state === "now" ? "#FBBF24" : state === "done" ? "#4DFF91" : "#2A2A2A";
+  const badge = state === "now" ? { text: "지금 할 차례", bg: "#FBBF24", color: "#000" } : state === "done" ? { text: "✓ 완료", bg: "#1A3A2A", color: "#4DFF91" } : { text: "다음", bg: "#1A1A1A", color: "#666" };
+
+  return (
+    <div onClick={onClick} style={{ background: "#141414", border: `2px solid ${borderColor}`, borderRadius: 8, padding: 16, cursor: "pointer", display: "flex", flexDirection: "column", gap: 8, minHeight: 120 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 20 }}>{info.icon}</span>
+        <span style={{ background: badge.bg, color: badge.color, borderRadius: 4, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>{badge.text}</span>
+      </div>
+      <div style={{ fontWeight: 700, fontSize: 14, color: "#ddd" }}>{info.label}</div>
+      <div style={{ fontSize: 12, color: "#666" }}>{info.desc}</div>
+    </div>
+  );
+}
+
+// 홈 화면 (SimpleHome 3블록 미러)
+function HomeScreen({ sim, dispatch }) {
+  const step = inferStep(sim);
+  const changeCount = countChanges(sim.baseline, sim.changedFiles);
+
+  let safetyTitle = "상태 확인 전";
+  let safetyColor = "#888";
+  let nextTitle = "대기 중";
+  if (sim.guardOk && changeCount === 0) {
+    safetyTitle = "안전장치가 켜져 있어요";
+    safetyColor = "#4DFF91";
+    nextTitle = "체크포인트를 저장해요";
+  } else if (sim.guardOk) {
+    safetyTitle = "확인 완료";
+    safetyColor = "#4DFF91";
+    nextTitle = "잘 됐으면 저장해요";
+  } else if (changeCount > 0) {
+    safetyTitle = `변경 ${changeCount}건 감지`;
+    safetyColor = "#FBBF24";
+    nextTitle = "AI 작업 결과를 확인하세요";
+  }
+
+  return (
+    <div style={{ padding: 16, display: "grid", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
+        {/* 블록 1: 프로젝트 안전 상태 */}
+        <div style={{ background: "#FFFCF2", border: "2px solid #1A1A1A", padding: 14, minHeight: 120, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <span style={{ width: 10, height: 10, background: safetyColor, border: "2px solid #1A1A1A", flexShrink: 0 }} />
+            <h2 style={{ margin: 0, fontSize: 13, fontWeight: 900, color: "#111" }}>{COPY.home_block1}</h2>
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 900, color: "#111", lineHeight: 1.3 }}>{safetyTitle}</div>
+          <div style={{ marginTop: 6, fontSize: 12, color: "#555" }}>
+            {changeCount > 0 && !sim.guardOk ? `변경된 파일 ${changeCount}개` : sim.guardOk ? "약속한 범위 안에서 수정됐어요" : "아직 확인하기 전이에요"}
+          </div>
+        </div>
+
+        {/* 블록 2: 지금 할 일 */}
+        <div style={{ background: "#FFFCF2", border: "2px solid #1A1A1A", padding: 14, minHeight: 120, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <span style={{ width: 10, height: 10, background: "#FBBF24", border: "2px solid #1A1A1A", flexShrink: 0 }} />
+            <h2 style={{ margin: 0, fontSize: 13, fontWeight: 900, color: "#111" }}>{COPY.home_block2}</h2>
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 900, color: "#111", lineHeight: 1.3 }}>{nextTitle}</div>
+          <div style={{ marginTop: 6, fontSize: 12, color: "#555" }}>
+            {changeCount > 0 && !sim.guardOk ? "홈에서 상태 확인을 눌러보세요" : "다음 단계로 진행해요"}
+          </div>
+          {(changeCount > 0 && !sim.guardOk) || step === 5 ? (
+            <button
+              id="btn-run-guard"
+              className="btn-action"
+              style={{ marginTop: 12, fontSize: 12, padding: "6px 12px" }}
+              onClick={() => dispatch({ type: "runGuard" })}
+            >
+              {COPY.guard_btn}
+            </button>
+          ) : null}
+        </div>
+
+        {/* 블록 3: 되돌리기 */}
+        <div style={{ background: "#FFFCF2", border: "2px solid #1A1A1A", padding: 14, minHeight: 120, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <span style={{ width: 10, height: 10, background: "#7B4DFF", border: "2px solid #1A1A1A", flexShrink: 0 }} />
+            <h2 style={{ margin: 0, fontSize: 13, fontWeight: 900, color: "#111" }}>{COPY.home_block3}</h2>
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 900, color: "#111", lineHeight: 1.3 }}>
+            {sim.hasCheckpoint ? "최근 저장 지점이 있어요" : "아직 저장 지점이 없어요"}
+          </div>
+          <div style={{ marginTop: 6, fontSize: 12, color: "#555" }}>
+            {sim.hasCheckpoint ? "필요하면 이전 상태로 돌아갈 수 있어요." : "작업 전 저장 지점을 만들면 되돌리기가 쉬워져요."}
+          </div>
+        </div>
+      </div>
+
+      {/* 허브 카드 3장 */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10, marginTop: 8 }}>
+        <HubCard stage="planning" currentStep={step} onClick={() => dispatch({ type: "setPage", page: "planning" })} />
+        <HubCard stage="develop" currentStep={step} onClick={() => dispatch({ type: "setPage", page: "code" })} />
+        <HubCard stage="maintain" currentStep={step} onClick={() => dispatch({ type: "setPage", page: "backups" })} />
+      </div>
+    </div>
+  );
+}
+
+// 기획방 (간이)
+function PlanningScreen({ sim, dispatch }) {
+  const [idea, setIdea] = useState("");
+  return (
+    <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16, maxWidth: 560 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 700, color: "#ddd" }}>📋 기획방</h2>
+      <p style={{ fontSize: 13, color: "#888", lineHeight: 1.6 }}>AI와 대화하며 기획안을 확정하는 공간이에요. (연습장 간이 버전)</p>
+      <textarea
+        value={idea}
+        onChange={e => setIdea(e.target.value)}
+        placeholder="무엇을 만들고 싶은지 한 줄로 적어보세요..."
+        style={{ background: "#1A1A1A", border: "1px solid #333", borderRadius: 6, color: "#ccc", padding: 10, fontSize: 13, resize: "vertical", minHeight: 80, fontFamily: "inherit" }}
+      />
+      <button
+        id="btn-confirm-plan"
+        className="btn-action"
+        style={{ alignSelf: "flex-start", padding: "8px 20px" }}
+        onClick={() => dispatch({ type: "confirmPlan" })}
+        disabled={sim.hasPlanDoc}
+      >
+        {sim.hasPlanDoc ? "✓ 기획안 확정됨" : "기획안 확정하기"}
+      </button>
+      {sim.hasPlanDoc && (
+        <div style={{ fontSize: 13, color: "#4DFF91", marginTop: 4 }}>기획안이 확정됐어요 — 다음 단계: 안전 저장!</div>
+      )}
+    </div>
+  );
+}
+
+// 백업 (간이)
+function BackupScreen({ sim, dispatch }) {
+  return (
+    <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16, maxWidth: 560 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 700, color: "#ddd" }}>🛡️ {COPY.page_backups}</h2>
+      <p style={{ fontSize: 13, color: "#888", lineHeight: 1.6 }}>AI 작업 전·후 안전 지점을 만들어두는 공간이에요. (연습장 간이 버전)</p>
+      <button
+        id="btn-checkpoint"
+        className="btn-action"
+        style={{ alignSelf: "flex-start", padding: "8px 20px" }}
+        onClick={() => dispatch({ type: "saveCheckpoint" })}
+        disabled={!sim.hasPlanDoc}
+      >
+        체크포인트 저장
+      </button>
+      {!sim.hasPlanDoc && <div style={{ fontSize: 12, color: "#666" }}>기획안을 먼저 확정하세요</div>}
+      {sim.hasCheckpoint && (
+        <div style={{ background: "#1A1A1A", border: "1px solid #2A2A2A", borderRadius: 6, padding: 12, fontSize: 12, color: "#aaa" }}>
+          ✓ 체크포인트 저장됨 — {new Date().toLocaleTimeString("ko-KR")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 코드탐색 (간이) — 연습 전용 버튼 포함
+function CodeScreen({ sim, dispatch, trialStep }) {
+  const [copied, setCopied] = useState(false);
+  const step = inferStep(sim);
+  // 4(작업 시점)·5(검증 전)·6(검증 후 재수정 미션) 모두 노출 — 말풍선 5·8이 이 시점에 걸린다
+  const showSimButtons = step === 4 || step === 5 || step === 6;
+
+  function handleCopy() {
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16, maxWidth: 640 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 700, color: "#ddd" }}>⚙️ {COPY.page_code}</h2>
+      <p style={{ fontSize: 13, color: "#888", lineHeight: 1.6 }}>VibeLign이 기획안 기반으로 만든 안전 지시문을 AI 도구에 붙여넣는 공간이에요. (연습장 간이 버전)</p>
+
+      <div style={{ background: "#1A1A1A", border: "1px solid #333", borderRadius: 6, padding: 14, fontSize: 12, color: "#aaa", fontFamily: "monospace", lineHeight: 1.6 }}>
+        📎 [VibeLign 안전 지시문]<br/>
+        목표: 기획안에 명시된 기능만 구현할 것<br/>
+        범위: src/pages/Home.tsx, src/lib/api.ts<br/>
+        금지: 범위 밖 파일 수정, 테스트 파일 삭제
+      </div>
+
+      <button
+        id="btn-copy-instruction"
+        className="btn-action"
+        style={{ alignSelf: "flex-start", padding: "8px 20px" }}
+        onClick={handleCopy}
+        disabled={!sim.hasCheckpoint}
+      >
+        {copied ? "✓ 복사됨!" : "지시문 복사하기"}
+      </button>
+      {!sim.hasCheckpoint && <div style={{ fontSize: 12, color: "#666" }}>체크포인트를 먼저 저장하세요</div>}
+
+      {/* 연습 전용 버튼 영역 — step 4·5·6에서 노출, btn-sim-reedit는 항상 DOM에 존재(코치마크 타겟) */}
+      <div style={{ marginTop: 16, borderTop: "1px solid #2A2A2A", paddingTop: 16, display: showSimButtons ? "flex" : "none", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontSize: 11, color: "#7B4DFF", fontWeight: 700, letterSpacing: "0.05em" }}>— 연습 전용 (실제 앱에는 없어요) —</div>
+        <button
+          id="btn-sim-edit"
+          className="btn-purple"
+          style={{ alignSelf: "flex-start" }}
+          onClick={() => dispatch({ type: "simAiEdit" })}
+        >
+          ⏩ AI가 파일 2개를 수정했어요
+        </button>
+        {/* btn-sim-reedit: 항상 DOM에 존재해야 코치마크 컷아웃이 getBoundingClientRect로 찾을 수 있음 */}
+        <button
+          id="btn-sim-reedit"
+          className="btn-purple"
+          style={{ alignSelf: "flex-start", visibility: trialStep >= 8 ? "visible" : "hidden" }}
+          onClick={() => dispatch({ type: "simReEdit" })}
+        >
+          ⏩ 같은 파일을 다시 수정했어요
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ===== ENGINE: 코치마크 =====
+
+function Coachmark({ stepIndex, sim, dispatch, onSkip, onComplete, escapeToastVisible }) {
+  const total = TRIAL_STEPS.length;
+  const stepDef = TRIAL_STEPS[stepIndex];
+  const [targetRect, setTargetRect] = useState(null);
+  const bubbleRef = useRef(null);
+
+  // 타겟 요소 rect 계산
+  useEffect(() => {
+    if (!stepDef || !stepDef.target) {
+      setTargetRect(null);
+      return;
+    }
+    function measure() {
+      const el = document.getElementById(stepDef.target);
+      if (el) {
+        const r = el.getBoundingClientRect();
+        setTargetRect({ top: r.top, left: r.left, width: r.width, height: r.height, bottom: r.bottom, right: r.right });
+      } else {
+        setTargetRect(null);
+      }
+    }
+    measure();
+    const id = setInterval(measure, 200);
+    return () => clearInterval(id);
+  }, [stepIndex, stepDef]);
+
+  // state 조건 자동 전진
+  useEffect(() => {
+    if (!stepDef || stepDef.advanceOn !== "state") return;
+    if (stepDef.check && stepDef.check(sim)) {
+      setTimeout(() => onComplete(), 300);
+    }
+  }, [sim, stepIndex]);
+
+  // 클릭 게이트 — target element 클릭 캡처로 전진
+  useEffect(() => {
+    if (!stepDef || !stepDef.target || !stepDef.advanceOn.startsWith("click:")) return;
+    const targetId = stepDef.advanceOn.replace("click:", "");
+    function handleClick(e) {
+      const el = document.getElementById(targetId);
+      if (el && (el === e.target || el.contains(e.target))) {
+        setTimeout(() => onComplete(), 50);
+      }
+    }
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  }, [stepIndex, stepDef]);
+
+  const pad = 4;
+  const cutout = targetRect ? {
+    top: targetRect.top - pad,
+    left: targetRect.left - pad,
+    width: targetRect.width + pad * 2,
+    height: targetRect.height + pad * 2,
+  } : null;
+
+  // 말풍선 위치 계산
+  let bubbleTop = null;
+  let bubbleLeft = null;
+  if (cutout) {
+    const winH = window.innerHeight;
+    const cutBottom = cutout.top + cutout.height;
+    if (cutBottom > winH * 0.65) {
+      bubbleTop = Math.max(8, cutout.top - 180);
+    } else {
+      bubbleTop = cutout.top + cutout.height + 12;
+    }
+    bubbleLeft = Math.min(Math.max(8, cutout.left), window.innerWidth - 340);
+  } else {
+    bubbleTop = "50%";
+    bubbleLeft = "50%";
+  }
+
+  // 클릭 통로 = z-lift 방식(리뷰 Critical 1): 오버레이(z-1000)가 전체를 덮으므로,
+  // 통과시킬 요소를 position:relative + z-index:1003으로 오버레이 위에 올린다.
+  // 통로 목록: 현재 단계 target + 두 탭바(target이 다른 페이지에 있을 때 이동 경로) + 비상구(static CSS).
+  const liftIds = ["tabbar", "page-tabbar"];
+  if (stepDef && stepDef.target && !liftIds.includes(stepDef.target)) liftIds.push(stepDef.target);
+  const liftCss = liftIds
+    .map((id) => `.coachmark-active #${id} { position: relative; z-index: 1003; }`)
+    .join("\n");
+
+  return (
+    <>
+      {/* 통로 z-lift 동적 스타일 */}
+      <style>{liftCss}</style>
+
+      {/* 디밍 오버레이 — 통로(z-lift된 요소) 밖 클릭은 전부 흡수 */}
+      <div
+        style={{
+          position: "fixed", inset: 0, zIndex: 1000,
+          background: "rgba(0,0,0,0.55)",
+          pointerEvents: "auto",
+        }}
+        onClick={e => e.stopPropagation()}
+      />
+
+      {/* 컷아웃 — 타겟 요소 하이라이트 */}
+      {cutout && (
+        <div
+          style={{
+            position: "fixed",
+            top: cutout.top,
+            left: cutout.left,
+            width: cutout.width,
+            height: cutout.height,
+            zIndex: 1001,
+            boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)",
+            border: "2px solid #FBBF24",
+            borderRadius: 6,
+            pointerEvents: "none",
+          }}
+        />
+      )}
+
+      {/* 말풍선 */}
+      <div
+        ref={bubbleRef}
+        style={{
+          position: "fixed",
+          top: typeof bubbleTop === "string" ? bubbleTop : bubbleTop,
+          left: typeof bubbleLeft === "string" ? bubbleLeft : bubbleLeft,
+          transform: (typeof bubbleTop === "string") ? "translate(-50%, -50%)" : "none",
+          width: 320,
+          background: "#FFFCF2",
+          border: "2px solid #1A1A1A",
+          borderRadius: 10,
+          padding: 16,
+          zIndex: 1002,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+          color: "#111",
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+        }}
+      >
+        <div style={{ fontSize: 13, lineHeight: 1.65 }}>{stepDef && stepDef.text}</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 12, color: "#888" }}>{stepIndex + 1} / {total}</span>
+          <button
+            style={{ fontSize: 12, color: "#888", background: "none", border: "none", cursor: "pointer", padding: "2px 8px" }}
+            onClick={onSkip}
+          >
+            건너뛰기
+          </button>
+        </div>
+      </div>
+
+      {/* 비상구 토스트 */}
+      {escapeToastVisible && (
+        <div className="toast" style={{ zIndex: 1100 }}>
+          실수해도 이 출구가 항상 있어요 — 지금은 연습이니 계속 가요!
+        </div>
+      )}
+    </>
+  );
+}
+
+// 시작 환영 화면 — step 0의 말풍선 역할. [시작하기] 클릭이 곧 step 0의 전진 (리뷰 Critical 2)
+function WelcomeOverlay({ onStart }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000 }}>
+      <div style={{ background: "#141414", border: "2px solid #2A2A2A", borderRadius: 12, padding: 36, maxWidth: 480, width: "90%", display: "flex", flexDirection: "column", gap: 20, color: "#ccc" }}>
+        <div style={{ fontSize: 28, textAlign: "center" }}>🎮</div>
+        <h1 style={{ fontSize: 20, fontWeight: 900, color: "#FBBF24", textAlign: "center" }}>{CHAPTERS[0].title}</h1>
+        <p style={{ fontSize: 14, color: "#aaa", lineHeight: 1.7, textAlign: "center" }}>
+          {TRIAL_STEPS[0].text}
+        </p>
+        <button id="trial-start" className="btn-action" style={{ padding: "12px 0", fontSize: 16, fontWeight: 900 }} onClick={onStart}>
+          시작하기 →
+        </button>
+        <p style={{ fontSize: 11, color: "#555", textAlign: "center" }}>1 / {TRIAL_STEPS.length} · 약 5분</p>
+      </div>
+    </div>
+  );
+}
+
+// 완료 화면
+function CompletionOverlay({ onRestart, onClose }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000 }}>
+      <div style={{ background: "#141414", border: "2px solid #2A2A2A", borderRadius: 12, padding: 36, maxWidth: 520, width: "90%", display: "flex", flexDirection: "column", gap: 20, color: "#ccc" }}>
+        <div style={{ fontSize: 36, textAlign: "center" }}>🎉</div>
+        <h1 style={{ fontSize: 22, fontWeight: 900, color: "#4DFF91", textAlign: "center" }}>1장 완주!</h1>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontSize: 14, color: "#aaa", fontWeight: 700, marginBottom: 4 }}>오늘 배운 것</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ fontSize: 13, color: "#ccc", display: "flex", gap: 8 }}><span style={{ color: "#FBBF24" }}>①</span> 기획→저장→AI→검증→저장 루프를 한 바퀴 돌았어요</div>
+            <div style={{ fontSize: 13, color: "#ccc", display: "flex", gap: 8 }}><span style={{ color: "#FBBF24" }}>②</span> 지문이 달라지면 '검증 완료'가 자동으로 리셋돼요 — 낡은 OK가 남지 않아요</div>
+            <div style={{ fontSize: 13, color: "#ccc", display: "flex", gap: 8 }}><span style={{ color: "#FBBF24" }}>③</span> 잘 안 됐으면 '되돌리기'로 3️⃣ 시점으로 돌아올 수 있어요</div>
+          </div>
+        </div>
+
+        {/* 2장 예고 */}
+        <div style={{ background: "#1A1A1A", border: "2px solid #333", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 18 }}>🔒</span>
+            <span style={{ fontSize: 14, fontWeight: 900, color: "#888" }}>{CHAPTERS[1].title}</span>
+          </div>
+          <div style={{ fontSize: 13, color: "#666" }}>{CHAPTERS[1].teaser}</div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          <button className="btn-ghost" style={{ padding: "10px 24px" }} onClick={onRestart}>처음부터 다시</button>
+          <button className="btn-action" style={{ padding: "10px 24px" }} onClick={onClose}>닫기</button>
+        </div>
+        <p style={{ fontSize: 11, color: "#555", textAlign: "center" }}>닫기 → 말풍선 없이 무대를 자유롭게 탐색해요</p>
+      </div>
+    </div>
+  );
+}
+
+// ===== APP: 조립 =====
+
+function App() {
+  const [sim, dispatch] = useReducer(simReducer, initialSim);
+  // welcome | running | celebrating | complete | free
+  const [trialPhase, setTrialPhase] = useState("welcome");
+  // step 0(환영)은 WelcomeOverlay가 담당 — [시작하기]가 곧 step 0의 전진 (리뷰 Critical 2)
+  const [trialStep, setTrialStep] = useState(1);
+  const [celebrating, setCelebrating] = useState(false);
+  const [escapeToastVisible, setEscapeToastVisible] = useState(false);
+  const prevStepRef = useRef(null);
+
+  // 6→4 전환 시 축하 스트립 (실제 shouldCelebrate의 미러)
+  useEffect(() => {
+    const current = inferStep(sim);
+    if (prevStepRef.current === 6 && current === 4) {
+      setCelebrating(true);
+      setTimeout(() => setCelebrating(false), 3000);
+    }
+    prevStepRef.current = current;
+  }, [sim]);
+
+  // celebrating 페이즈: 결정적 1.2초 후 완료 화면 — 레이스 없음 (리뷰 Important 4)
+  useEffect(() => {
+    if (trialPhase !== "celebrating") return;
+    const t = setTimeout(() => setTrialPhase("complete"), 1200);
+    return () => clearTimeout(t);
+  }, [trialPhase]);
+
+  function handleStart() {
+    setTrialStep(1);
+    setTrialPhase("running");
+  }
+
+  function handleCoachmarkComplete() {
+    const next = trialStep + 1;
+    if (next >= TRIAL_STEPS.length) {
+      // 마지막 단계 완료 — 동기적으로 celebrating 전환(축하 스트립 1.2초) 후 완료 화면
+      setTrialPhase("celebrating");
+    } else {
+      setTrialStep(next);
+    }
+  }
+
+  function handleSkip() {
+    // 건너뛰기: 확인 모달 없이 즉시 완료 화면 (spec §5)
+    setTrialPhase("complete");
+  }
+
+  function handleRestart() {
+    // 재시작: simState·트라이얼 인덱스 초기화, localStorage 미사용 (spec §5)
+    dispatch({ type: "reset" });
+    setTrialStep(1);
+    setTrialPhase("welcome");
+    setCelebrating(false);
+  }
+
+  function handleClose() {
+    // 닫기: 오버레이만 닫고 자유 탐색 모드 — 말풍선 없이 무대 조작 가능 (spec Task 3 Step 1)
+    setTrialPhase("free");
+  }
+
+  function handleEscapeClick() {
+    // 비상구 예외: 3초 토스트, 진행 유지 (spec Task 2 Step 2 · Task 3)
+    setEscapeToastVisible(true);
+    setTimeout(() => setEscapeToastVisible(false), 3000);
+  }
+
+  const page = sim.page;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }} className={(trialPhase === "running" || trialPhase === "celebrating") ? "coachmark-active" : ""}>
+      {/* 상단 탭바 (STAGE_DEFS) */}
+      <StageTabs activePage={page} dispatch={dispatch} />
+
+      {/* 페이지 탭바 */}
+      <PageTabs activePage={page} dispatch={dispatch} />
+
+      {/* GuideStrip 미러 */}
+      <GuideStrip sim={sim} dispatch={dispatch} celebrating={celebrating} onEscapeClick={handleEscapeClick} />
+
+      {/* 화면 본문 */}
+      <div style={{ flex: 1, overflow: "auto" }}>
+        {page === "home" && <HomeScreen sim={sim} dispatch={dispatch} />}
+        {page === "planning" && <PlanningScreen sim={sim} dispatch={dispatch} />}
+        {page === "backups" && <BackupScreen sim={sim} dispatch={dispatch} />}
+        {page === "code" && <CodeScreen sim={sim} dispatch={dispatch} trialStep={trialStep} />}
+        {(page === "doctor" || page === "docs" || page === "logs" || page === "settings" || page === "manual") && (
+          <div style={{ padding: 40, color: "#555", fontSize: 14, textAlign: "center" }}>이 화면은 연습장에서 생략됐어요 (실제 앱에는 있어요)</div>
+        )}
+      </div>
+
+      {/* 오버레이 레이어 */}
+      {trialPhase === "welcome" && <WelcomeOverlay onStart={handleStart} />}
+      {(trialPhase === "running") && (
+        <Coachmark
+          stepIndex={trialStep}
+          sim={sim}
+          dispatch={dispatch}
+          onSkip={handleSkip}
+          onComplete={handleCoachmarkComplete}
+          escapeToastVisible={escapeToastVisible}
+        />
+      )}
+      {/* celebrating 페이즈: 코치마크 없이 축하 스트립만 1.2초 노출 후 complete로 전환 */}
+      {trialPhase === "complete" && <CompletionOverlay onRestart={handleRestart} onClose={handleClose} />}
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("app-root"));
+root.render(<App />);
+</script>
+</body>
+</html>
