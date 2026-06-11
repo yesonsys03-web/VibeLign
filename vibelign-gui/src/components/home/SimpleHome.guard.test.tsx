@@ -72,5 +72,51 @@ describe("SimpleHome guard copy", () => {
     expect(screen.getByText("안전장치가 켜져 있어요")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "문제 확인하기" })).not.toBeInTheDocument();
   });
+
+  test("shows_scope_report_with_out_of_scope_paths", () => {
+    render(
+      <SimpleHome
+        guardResult={PASSING_GUARD}
+        watchOn={false}
+        watchError={null}
+        hasCheckpoint={false}
+        guardCheckPending={false}
+        guardCheckError={null}
+        scopeReport={{ inScope: 2, outOfScope: ["src/pages/Settings.tsx"] }}
+        onRetryWatch={() => undefined}
+        onRunGuard={() => undefined}
+        onShowAdvanced={() => undefined}
+        onNavigateBackups={() => undefined}
+        onOpenGuardDetails={() => undefined}
+      />
+    );
+
+    expect(screen.getByText(/약속 범위 안 변경 2건/)).toBeInTheDocument();
+    expect(screen.getByText(/범위 밖 1건/)).toBeInTheDocument();
+    expect(screen.getByText("src/pages/Settings.tsx")).toBeInTheDocument();
+    // 판정 어조 금지 — 안내 문구 확인 (spec §6)
+    expect(screen.getByText(/의도한 작업인지 확인해보세요/)).toBeInTheDocument();
+  });
+
+  test("hides_scope_report_when_absent", () => {
+    render(
+      <SimpleHome
+        guardResult={PASSING_GUARD}
+        watchOn={false}
+        watchError={null}
+        hasCheckpoint={false}
+        guardCheckPending={false}
+        guardCheckError={null}
+        scopeReport={null}
+        onRetryWatch={() => undefined}
+        onRunGuard={() => undefined}
+        onShowAdvanced={() => undefined}
+        onNavigateBackups={() => undefined}
+        onOpenGuardDetails={() => undefined}
+      />
+    );
+
+    expect(screen.queryByText(/약속 범위/)).not.toBeInTheDocument();
+  });
 });
 // === ANCHOR: SIMPLEHOME_GUARD_TEST_END ===
