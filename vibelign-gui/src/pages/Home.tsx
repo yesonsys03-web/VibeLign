@@ -38,11 +38,13 @@ interface HomeProps {
   onOpenPlanning?: () => void;
   onStartPlanning?: (idea: string) => void;
   readonly onOpenPlanningHistory?: () => void;
+  /** guard 실행 결과를 가이드 신호로 올림(spec §3.1). */
+  onGuardResult?: (status: "ok" | "issue") => void;
 }
 
 
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────────
-export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenDoctor, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, watchError = null, onRetryWatch, hasCheckpoint = false, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning, onStartPlanning, onOpenPlanningHistory }: HomeProps) {
+export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenDoctor, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, watchError = null, onRetryWatch, hasCheckpoint = false, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning, onStartPlanning, onOpenPlanningHistory, onGuardResult }: HomeProps) {
   const [view, setView]                   = useState<View>(initialView);
   const [selectedCmd, setSelectedCmd]     = useState<ManualCommand | null>(null);
   const [guardResult, setGuardResult]     = useState<GuardResult | null>(null);
@@ -66,6 +68,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
     try {
       const result = await vibGuard(projectDir);
       setGuardResult(result);
+      onGuardResult?.(result.status === "pass" ? "ok" : "issue");
     } catch (error: unknown) {
       if (error instanceof Error) {
         setGuardCheckError("상태 확인을 끝내지 못했어요. 잠시 뒤 다시 시도해 주세요.");
