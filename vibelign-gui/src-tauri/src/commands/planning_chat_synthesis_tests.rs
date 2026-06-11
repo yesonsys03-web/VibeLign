@@ -18,7 +18,7 @@ fn synthesized_markdown_includes_persona_conversation() {
         test_message("assistant", Some("chloe"), "핵심 플로우를 먼저 정리해요."),
     ];
 
-    let markdown = synthesize_planning_markdown(&session, &messages, &[]);
+    let markdown = synthesize_planning_markdown(&session, &messages, &[], None);
 
     assert!(markdown.contains("# 예약 앱 만들고 싶어"));
     assert!(markdown.contains("## 기획방 대화 정리"));
@@ -43,7 +43,7 @@ fn synthesized_markdown_distributes_persona_sections() {
         ),
     ];
 
-    let markdown = synthesize_planning_markdown(&session, &messages, &[]);
+    let markdown = synthesize_planning_markdown(&session, &messages, &[], None);
 
     assert_section_contains(&markdown, "## 핵심 기능", "- 예약 생성, 일정 변경");
     assert_section_contains(&markdown, "## 사용자 흐름", "- 날짜 선택 후 예약 확정");
@@ -69,7 +69,7 @@ fn synthesized_markdown_includes_confirmed_cards_only() {
         test_card("card_2", "초안 카드는 안 나와야 함", "초안", CardState::Draft),
     ];
 
-    let markdown = synthesize_planning_markdown(&session, &messages, &cards);
+    let markdown = synthesize_planning_markdown(&session, &messages, &cards, None);
 
     assert_section_contains(
         &markdown,
@@ -84,7 +84,7 @@ fn synthesized_markdown_notes_when_no_confirmed_cards() {
     let session = test_session("예약 앱 만들고 싶어");
     let messages = vec![test_message("user", None, "예약 앱 만들고 싶어")];
 
-    let markdown = synthesize_planning_markdown(&session, &messages, &[]);
+    let markdown = synthesize_planning_markdown(&session, &messages, &[], None);
 
     assert_section_contains(&markdown, "## 확정된 결정", "- 아직 버튼으로 확정한 결정이 없습니다.");
 }
@@ -95,7 +95,7 @@ fn save_planning_markdown_writes_unique_plan_file() {
     let mut session = test_session("예약 앱 만들고 싶어");
     let messages = vec![test_message("user", None, "예약 앱 만들고 싶어")];
 
-    let saved = save_planning_markdown(root.path(), &mut session, &messages, &[], None).expect("save");
+    let saved = save_planning_markdown(root.path(), &mut session, &messages, &[], None, None).expect("save");
 
     assert_eq!(
         session.output_path.as_deref(),
@@ -116,6 +116,7 @@ fn save_planning_markdown_writes_explicit_target_path() {
         &mut session,
         &messages,
         &[],
+        None,
         Some("docs/spec-foo-review.md"),
     )
     .expect("save");

@@ -255,6 +255,7 @@ pub(crate) async fn save_planning_chat_as_markdown(
             &mut session,
             &messages,
             &cards,
+            None,
             request.target_path.as_deref(),
         ) {
             Ok(saved) => saved,
