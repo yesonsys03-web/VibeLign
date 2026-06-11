@@ -1,12 +1,14 @@
 // === ANCHOR: CODEEXPLORERPLANNINGCONTEXT_START ===
 import { PlanningInstructionActions } from "./PlanningInstructionActions";
+import type { PlanningContract } from "../../lib/vib/types";
 
 interface CodeExplorerPlanningContextProps {
   readonly prompt: string;
   readonly outputPath: string;
+  readonly contract?: PlanningContract | null;
 }
 
-export default function CodeExplorerPlanningContext({ prompt, outputPath }: CodeExplorerPlanningContextProps) {
+export default function CodeExplorerPlanningContext({ prompt, outputPath, contract }: CodeExplorerPlanningContextProps) {
   return (
     <section
       className="card"
@@ -27,7 +29,7 @@ export default function CodeExplorerPlanningContext({ prompt, outputPath }: Code
         </div>
       </div>
       <div style={{ fontSize: 11, color: "#666", fontWeight: 700, overflowWrap: "anywhere" }}>{outputPath}</div>
-      <PlanningInstructionActions prompt={prompt} outputPath={outputPath} />
+      <PlanningInstructionActions prompt={prompt} outputPath={outputPath} contract={contract} />
     </section>
   );
 }

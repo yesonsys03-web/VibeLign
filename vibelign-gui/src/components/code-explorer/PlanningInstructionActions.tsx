@@ -3,10 +3,12 @@ import { useState } from "react";
 
 import { buildPlanningWorkInstruction, type PlanningWorkPersona } from "../../lib/code-explorer/planningInstruction";
 import { planningPersonaLabel } from "../../pages/planning/PlanningPersonas";
+import type { PlanningContract } from "../../lib/vib/types";
 
 interface PlanningInstructionActionsProps {
   readonly prompt: string;
   readonly outputPath: string;
+  readonly contract?: PlanningContract | null;
 }
 
 type CopyStatus = "idle" | "copied" | "error";
@@ -31,18 +33,18 @@ const PREVIEW_TARGET_LABELS: Record<PlanningWorkPersona, string> = {
 };
 
 // === ANCHOR: PLANNINGINSTRUCTIONACTIONS_PLANNINGINSTRUCTIONACTIONS_START ===
-export function PlanningInstructionActions({ prompt, outputPath }: PlanningInstructionActionsProps) {
+export function PlanningInstructionActions({ prompt, outputPath, contract = null }: PlanningInstructionActionsProps) {
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
   const [fallbackInstruction, setFallbackInstruction] = useState("");
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewPersona, setPreviewPersona] = useState<PlanningWorkPersona | undefined>(undefined);
-  const previewInstruction = fallbackInstruction || buildPlanningWorkInstruction({ prompt, outputPath, persona: previewPersona });
+  const previewInstruction = fallbackInstruction || buildPlanningWorkInstruction({ prompt, outputPath, persona: previewPersona, contract });
   const previewTargetLabel = previewPersona ? PREVIEW_TARGET_LABELS[previewPersona] : "공통";
   const isCommonPreviewSelected = previewPersona === undefined;
 
   // === ANCHOR: PLANNINGINSTRUCTIONACTIONS_HANDLECOPYINSTRUCTION_START ===
   async function handleCopyInstruction(persona?: PlanningWorkPersona) {
-    const instruction = buildPlanningWorkInstruction({ prompt, outputPath, persona });
+    const instruction = buildPlanningWorkInstruction({ prompt, outputPath, persona, contract });
     try {
       await navigator.clipboard.writeText(instruction);
       setCopyStatus("copied");
