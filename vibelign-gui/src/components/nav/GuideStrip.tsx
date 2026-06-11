@@ -1,4 +1,5 @@
 // === ANCHOR: GUIDE_STRIP_START ===
+import { useState } from "react";
 import { journeyStep, type ActiveGuideStep } from "../../lib/nav/guide";
 import { PAGE_LABELS, type Page } from "../../lib/nav/stages";
 
@@ -22,6 +23,22 @@ interface GuideStripProps {
   onCelebrateDismiss?: () => void;
 }
 
+// 접힘 존의 정사각 아이콘 버튼(‹ › ×) — 크기·간격 통일이 정돈의 핵심.
+const iconBtnStyle = {
+  fontSize: 14,
+  width: 26,
+  height: 26,
+  padding: 0,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "#4A4A4A",
+  borderRight: "none",
+};
+
+// 의미 그룹(정보 | 비상구 | 컨트롤) 사이 세로 구분선.
+const dividerStyle = { width: 1, height: 14, background: "rgba(0, 0, 0, 0.25)" };
+
 /**
  * 탭바 아래 안내 줄 — 좌측 가이드(지금 할 일) + 우측 기존 상태 신호. A안 상태 스트립을 대체·통합.
  * 시인성(spec §3.2): 가이드 활성 시 15px·진한 웜 그레이 배경(#CFCABB)에 #7C2D12 강조, off 시 얇은 줄(3px·13px).
@@ -43,6 +60,14 @@ export function GuideStrip({
   onCelebrateDismiss,
 }: GuideStripProps) {
   const def = enabled && step ? journeyStep(step) : null;
+  // 점진적 노출 게이트 — 한 시점에 행동 버튼 하나만. 목적지 탭 밖에선 "~하러 가기"만,
+  // 도착하면 그게 사라지고 후속 버튼("다 했어요" 등)이 나타난다. "복사 완료" 같은 행위
+  // 신호가 아니라 탭 위치 기준인 이유: 행위 감지는 놓치면 다음 버튼이 영영 안 떠서 갇히지만,
+  // 탭 이동은 항상 가능해 갇힘이 구조적으로 불가능하다.
+  const onTarget = def?.targetPage != null && def.targetPage === currentPage;
+  // 유틸리티(되돌리기·‹ › ×·상태 신호) 접힘 — 기본 화면을 "안내문 + 행동 버튼 1개"로 유지.
+  // 비상구(되돌리기)가 접힘 뒤로 숨는 트레이드오프는 토글 라벨("문제 있나요?")이 길 안내를 대신한다.
+  const [utilOpen, setUtilOpen] = useState(false);
   if (celebrating) {
     // 첫 사이클 완주 축하(spec §3.2) — 이 순간만큼은 가이드 줄 대신 완료 마디를 보여준다.
     return (
@@ -76,6 +101,7 @@ export function GuideStrip({
     <div
       style={{
         display: "flex",
+        flexWrap: "wrap",
         alignItems: "center",
         gap: 16,
         padding: def ? "10px 14px" : "3px 12px",
@@ -86,99 +112,130 @@ export function GuideStrip({
       }}
     >
       {def && step && (
-        // flexWrap: 버튼(.nav-tab)은 flex-shrink:0이라 안 줄어든다 — wrap이 없으면 텍스트만
-        // 짜부라져 세로 글자기둥이 된다. 넘치면 안내문이 전체 폭으로 개행되고 버튼이 아랫줄로.
-        <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 10, rowGap: 10, fontSize: 15, minWidth: 0 }}>
+        // 고정 2단 구조 — ①텍스트 행(자연 개행) ②버튼 행. 확대·창 폭에 따라 버튼이 텍스트
+        // 옆/아래로 오가며 배치가 출렁이지 않도록 column으로 고정. 버튼 행만 좁을 때 보조적 wrap.
+        <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8, fontSize: 15, minWidth: 0, flex: "1 1 auto" }}>
+          {/* 머리말(오버라인) 행 — 단계 제목과 분리해 "라벨 → 내용 → 행동" 3단 고정 위계 */}
+          <span style={{ color: "#555", fontSize: 13, fontWeight: 700, letterSpacing: "0.04em" }}>🧭 지금 할 일:</span>
           <span style={{ color: "#1A1A1A", lineHeight: 1.6 }}>
-            🧭 지금:{" "}
             <span style={{ color: "#7C2D12", fontWeight: 700 }}>
               {def.icon} {def.label}
             </span>{" "}
             — {def.shortAction}
           </span>
-          {def.targetPage && def.targetPage !== currentPage && (
+          <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 10, rowGap: 8 }}>
+            {def.targetPage && !onTarget && (
+              <button
+                // 가이드의 주행동 버튼 — 앰버 채움 + 검정 텍스트("지금 할 차례" 배지와 같은 톤)로 최상위 강조.
+                className="nav-tab"
+                style={{ fontSize: 14, padding: "5px 12px", background: "#FBBF24", color: "#1A1A1A", border: "1px solid #1A1A1A", borderRadius: 4 }}
+                onClick={() => onNavigate(def.targetPage as Page)}
+              >
+                {def.goLabel ?? `${PAGE_LABELS[def.targetPage]}으로 이동 →`}
+              </button>
+            )}
+            {step === 4 && onTarget && (
+              <button
+                className="nav-tab"
+                style={{ fontSize: 14, padding: "5px 12px", color: "#7C2D12", background: "transparent", border: "1px solid #7C2D12", borderRadius: 4 }}
+                title="AI 작업이 끝났어도, 중간에 멈췄어도 눌러요 — 확인 단계로 가요"
+                onClick={() => {
+                  // 외부 AI 작업 종료는 신호로 100% 감지 불가, 비-git 프로젝트는 변경이 항상
+                  // 0으로 읽혀 자동 전환이 아예 없음 → 수동 출구(spec §3.2 affordance).
+                  // 라벨은 상태 선언("다 했어요")으로 짧게 — 중도 중단 포용("멈췄어도")은 툴팁이 담당.
+                  // override 후 5️⃣ 목적지로 이동.
+                  onStepChange(5);
+                  const verify = journeyStep(5);
+                  if (verify.targetPage) onNavigate(verify.targetPage as Page);
+                }}
+              >
+                ✓ 다 했어요 — 결과 확인
+              </button>
+            )}
+            {step === 4 && onTarget && aiToolMissing && onOpenSettings && (
+              <button
+                className="nav-tab"
+                style={{ fontSize: 14, padding: "5px 12px", color: "#7C2D12", background: "transparent", border: "1px solid #7C2D12", borderRadius: 4 }}
+                title="설정의 'AI 도구 설정'에서 설치를 도와드려요"
+                onClick={onOpenSettings}
+              >
+                {/* 도구 미보유 입문자 분기(spec §3.2) — 4️⃣는 앱 밖으로 나가는 유일한 지점이라 최대 이탈 절벽 */}
+                AI 도구가 없어요 — 설치 도움받기
+              </button>
+            )}
             <button
-              // 가이드의 주행동 버튼 — 앰버 채움 + 검정 텍스트("지금 할 차례" 배지와 같은 톤)로 최상위 강조.
               className="nav-tab"
-              style={{ fontSize: 14, padding: "5px 12px", background: "#FBBF24", color: "#1A1A1A", border: "1px solid #1A1A1A", borderRadius: 4 }}
-              onClick={() => onNavigate(def.targetPage as Page)}
+              style={{ fontSize: 13, padding: "5px 10px", color: "#4A4A4A", borderRight: "none" }}
+              title="되돌리기·단계 이동·가이드 끄기·백업 상태"
+              aria-expanded={utilOpen}
+              onClick={() => setUtilOpen((v) => !v)}
             >
-              {PAGE_LABELS[def.targetPage]}으로 이동 →
+              {utilOpen ? "접기 ▴" : "문제 있나요? ▾"}
             </button>
-          )}
-          {step === 4 && (
-            <button
-              className="nav-tab"
-              style={{ fontSize: 14, padding: "5px 12px", color: "#7C2D12", background: "transparent", border: "1px solid #7C2D12", borderRadius: 4 }}
-              title="외부 AI 작업이 끝났거나 멈췄으면 확인 단계로"
-              onClick={() => {
-                // 외부 AI 작업 종료는 신호로 100% 감지 불가, 비-git 프로젝트는 변경이 항상
-                // 0으로 읽혀 자동 전환이 아예 없음 → 수동 출구(spec §3.2 affordance).
-                // "끝났거나 멈췄거나" — 중도 중단자도 자기 안내로 느끼게(완주 전제 금지).
-                // override 후 5️⃣ 목적지로 이동.
-                onStepChange(5);
-                const verify = journeyStep(5);
-                if (verify.targetPage) onNavigate(verify.targetPage as Page);
-              }}
-            >
-              AI 작업이 끝났거나 멈췄나요? 확인하러 가기 →
-            </button>
-          )}
-          {step === 4 && aiToolMissing && onOpenSettings && (
-            <button
-              className="nav-tab"
-              style={{ fontSize: 14, padding: "5px 12px", color: "#7C2D12", background: "transparent", border: "1px solid #7C2D12", borderRadius: 4 }}
-              title="설정의 'AI 도구 설정'에서 설치를 도와드려요"
-              onClick={onOpenSettings}
-            >
-              {/* 도구 미보유 입문자 분기(spec §3.2) — 4️⃣는 앱 밖으로 나가는 유일한 지점이라 최대 이탈 절벽 */}
-              AI 도구가 아직 없나요? 설치 도움받기 →
-            </button>
-          )}
-          {(step === 4 || step === 5) && (
-            <button
-              className="nav-tab"
-              style={{ fontSize: 14, padding: "5px 12px", color: "#4A4A4A", borderRight: "none" }}
-              title="마지막으로 저장한 시점으로 코드를 되돌릴 수 있어요"
-              onClick={() => onNavigate("backups")}
-            >
-              {/* 포기 비상구(spec §3.2) — undo 발견이 6️⃣ 뒤에 숨지 않게. 회색톤 = 주행동 방해 금지. */}
-              잘 안 됐나요? 되돌리기 →
-            </button>
-          )}
-          <button
-            className="nav-tab"
-            style={{ fontSize: 14, padding: "5px 10px", color: "#4A4A4A", borderRight: "none" }}
-            title="이전 단계"
-            disabled={step === 2}
-            onClick={() => step > 2 && onStepChange((step - 1) as ActiveGuideStep)}
-          >
-            ‹
-          </button>
-          <button
-            className="nav-tab"
-            style={{ fontSize: 14, padding: "5px 10px", color: "#4A4A4A", borderRight: "none" }}
-            title="다음 단계"
-            disabled={step === 6}
-            onClick={() => step < 6 && onStepChange((step + 1) as ActiveGuideStep)}
-          >
-            ›
-          </button>
-          <button
-            className="nav-tab"
-            style={{ fontSize: 14, padding: "5px 10px", color: "#4A4A4A", borderRight: "none" }}
-            title="가이드 끄기 (설정에서 다시 켤 수 있어요)"
-            onClick={onDisable}
-          >
-            ×
-          </button>
+          </span>
         </span>
       )}
       <div style={{ flex: 1 }} />
-      <span style={{ color: hasCheckpoint ? "#333" : "#666", whiteSpace: "nowrap" }}>
-        {hasCheckpoint ? "✓ 백업 데이터 있음" : "백업 데이터 없음"}
-      </span>
-      {planningPending && <span style={{ color: "#7C2D12", whiteSpace: "nowrap" }}>● 기획 진행 중</span>}
+      {!def && (
+        <>
+          {planningPending && <span style={{ color: "#7C2D12", whiteSpace: "nowrap" }}>● 기획 진행 중</span>}
+          <span style={{ color: hasCheckpoint ? "#333" : "#666", whiteSpace: "nowrap" }}>
+            {hasCheckpoint ? "✓ 백업 데이터 있음" : "백업 데이터 없음"}
+          </span>
+        </>
+      )}
+      {def && step && utilOpen && (
+        // 접힘 존 — "문제 있나요?" 토글이 펼치는 전체 폭 보조 행. 비상구 | ‹ › × | 상태 신호 순.
+        <div style={{ flexBasis: "100%", display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
+          {(step === 4 || step === 5) && (
+            <>
+              <button
+                className="nav-tab"
+                style={{ fontSize: 14, padding: "5px 12px", color: "#4A4A4A", borderRight: "none" }}
+                title="마지막으로 저장한 시점으로 코드를 되돌릴 수 있어요"
+                onClick={() => onNavigate("backups")}
+              >
+                {/* 포기 비상구(spec §3.2) — 접힘 뒤에 있지만 토글 라벨("문제 있나요?")이 입구를 안내한다. */}
+                잘 안 되면: 되돌리기
+              </button>
+              <span style={dividerStyle} />
+            </>
+          )}
+          <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <button
+              className="nav-tab"
+              style={iconBtnStyle}
+              title="이전 단계"
+              disabled={step === 2}
+              onClick={() => step > 2 && onStepChange((step - 1) as ActiveGuideStep)}
+            >
+              ‹
+            </button>
+            <button
+              className="nav-tab"
+              style={iconBtnStyle}
+              title="다음 단계"
+              disabled={step === 6}
+              onClick={() => step < 6 && onStepChange((step + 1) as ActiveGuideStep)}
+            >
+              ›
+            </button>
+            <button
+              className="nav-tab"
+              style={iconBtnStyle}
+              title="가이드 끄기 (설정에서 다시 켤 수 있어요)"
+              onClick={onDisable}
+            >
+              ×
+            </button>
+          </span>
+          <span style={dividerStyle} />
+          <span style={{ color: hasCheckpoint ? "#333" : "#666" }}>
+            {hasCheckpoint ? "✓ 백업 데이터 있음" : "백업 데이터 없음"}
+          </span>
+          {planningPending && <span style={{ color: "#7C2D12" }}>● 기획 진행 중</span>}
+        </div>
+      )}
     </div>
   );
 }

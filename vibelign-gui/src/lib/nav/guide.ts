@@ -17,6 +17,9 @@ export interface JourneyStep {
   howto: string[];
   /** "이동 →" 목적지. 1️⃣은 자동 단계라 null. */
   targetPage: Page | null;
+  /** 스트립 주행동 버튼 라벨 — 목적지 탭 이름("코드탐색으로 이동")이 아니라 안내문의 행동 동사를
+   *  그대로 받는다("지시문 복사하러 가기"). 초보가 내부 탭 이름을 해석할 필요를 없앤다. null=주행동 없음. */
+  goLabel: string | null;
   /** 이 단계가 속한 홈 허브 카드. 1️⃣은 카드 밖(null). */
   cardStage: Stage | null;
 }
@@ -33,6 +36,7 @@ export const JOURNEY_STEPS: JourneyStep[] = [
       "③ 감시(watch)가 자동으로 켜져요 — 코드 변경을 지켜보다 위반을 알려줘요 (백업은 아니에요)",
     ],
     targetPage: null,
+    goLabel: null,
     cardStage: null,
   },
   {
@@ -48,6 +52,7 @@ export const JOURNEY_STEPS: JourneyStep[] = [
       "④ 기획안이 마음에 들면 확정(저장)해요 — 이 문서가 다음 단계 AI 작업의 약속(목표·범위)이 돼요",
     ],
     targetPage: "planning",
+    goLabel: "기획하러 가기 →",
     cardStage: "planning",
   },
   {
@@ -61,6 +66,7 @@ export const JOURNEY_STEPS: JourneyStep[] = [
       "③ 무슨 작업 전인지 설명을 짧게 적으면 끝!",
     ],
     targetPage: "backups",
+    goLabel: "체크포인트 저장하러 가기 →",
     cardStage: "maintain",
   },
   {
@@ -78,6 +84,7 @@ export const JOURNEY_STEPS: JourneyStep[] = [
       "⑤ 아직 AI 도구가 없나요? 설정의 'AI 도구 설정'에서 설치를 도와드려요",
     ],
     targetPage: "code",
+    goLabel: "지시문 복사하러 가기 →",
     cardStage: "develop",
   },
   {
@@ -94,6 +101,7 @@ export const JOURNEY_STEPS: JourneyStep[] = [
     ],
     // guard 버튼은 진단 탭에 없고 홈에만 있다(Home.tsx handleRunGuard) — spec §2 정정.
     targetPage: "home",
+    goLabel: "상태 확인하러 가기 →",
     cardStage: null,
   },
   {
@@ -107,6 +115,7 @@ export const JOURNEY_STEPS: JourneyStep[] = [
       "③ 다음 작업이 있으면 4️⃣로 돌아가 반복!",
     ],
     targetPage: "backups",
+    goLabel: "마무리하러 가기 →",
     cardStage: "maintain",
   },
 ];
