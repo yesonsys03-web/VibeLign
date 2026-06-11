@@ -1,10 +1,13 @@
 // === ANCHOR: STAGE_HUB_CARDS_START ===
 import { STAGE_DEFS, pagesForStage, type Stage, type Page } from "../../lib/nav/stages";
+import { cardStepState, journeyStep, type ActiveGuideStep } from "../../lib/nav/guide";
 
 interface StageHubCardsProps {
   onNavigate: (page: Page) => void;
   planningStatus: "none" | "active" | "done";
   backupCount: number;
+  /** 가이드 현재 단계. null = 가이드 꺼짐/로딩 전(기존 표시 그대로). */
+  currentStep?: ActiveGuideStep | null;
 }
 
 const CARD_DESC: Record<Stage, string> = {
@@ -21,32 +24,49 @@ function badgeText(stage: Stage, planningStatus: StageHubCardsProps["planningSta
   return "열기"; // develop: 기존 신호 없음
 }
 
-export function StageHubCards({ onNavigate, planningStatus, backupCount }: StageHubCardsProps) {
+export function StageHubCards({ onNavigate, planningStatus, backupCount, currentStep = null }: StageHubCardsProps) {
   return (
     <div style={{ display: "flex", gap: 12, padding: 16 }}>
-      {STAGE_DEFS.map((def) => (
-        <button
-          key={def.key}
-          onClick={() => onNavigate(pagesForStage(def.key)[0])}
-          style={{
-            flex: 1,
-            textAlign: "left",
-            padding: 16,
-            background: "#141414",
-            border: "1px solid #2A2A2A",
-            borderRadius: 8,
-            color: "#ddd",
-            cursor: "pointer",
-          }}
-        >
-          <div style={{ fontSize: 20 }}>{def.icon}</div>
-          <div style={{ fontWeight: 600, marginTop: 6 }}>{def.label}</div>
-          <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{CARD_DESC[def.key]}</div>
-          <div style={{ fontSize: 12, color: def.key === "planning" && planningStatus === "active" ? "#FBBF24" : "#aaa", marginTop: 8 }}>
-            {badgeText(def.key, planningStatus, backupCount)}
-          </div>
-        </button>
-      ))}
+      {STAGE_DEFS.map((def) => {
+        const guideState = currentStep ? cardStepState(def.key, currentStep) : null;
+        return (
+          <button
+            key={def.key}
+            onClick={() => onNavigate(pagesForStage(def.key)[0])}
+            style={{
+              flex: 1,
+              textAlign: "left",
+              padding: 16,
+              background: guideState === "now" ? "#1a1813" : "#141414",
+              border: guideState === "now" ? "2px solid #FBBF24" : "1px solid #2A2A2A",
+              borderRadius: 8,
+              color: "#ddd",
+              cursor: "pointer",
+            }}
+          >
+            <div style={{ fontSize: 20 }}>{def.icon}</div>
+            <div style={{ fontWeight: 600, marginTop: 6 }}>
+              {def.label}
+              {guideState === "now" && (
+                <span style={{ marginLeft: 8, fontSize: 11, background: "#FBBF24", color: "#000", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
+                  지금 할 차례
+                </span>
+              )}
+              {guideState === "done" && <span style={{ marginLeft: 8, fontSize: 11, color: "#4DFF91" }}>✓ 완료</span>}
+              {guideState === "upcoming" && <span style={{ marginLeft: 8, fontSize: 11, color: "#666" }}>다음</span>}
+            </div>
+            <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{CARD_DESC[def.key]}</div>
+            {guideState === "now" && currentStep && (
+              <div style={{ fontSize: 12, color: "#FBBF24", marginTop: 6 }}>
+                → {journeyStep(currentStep).icon} {journeyStep(currentStep).shortAction}
+              </div>
+            )}
+            <div style={{ fontSize: 12, color: def.key === "planning" && planningStatus === "active" ? "#FBBF24" : "#aaa", marginTop: 8 }}>
+              {badgeText(def.key, planningStatus, backupCount)}
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }

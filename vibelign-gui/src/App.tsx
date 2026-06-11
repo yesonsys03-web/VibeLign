@@ -508,7 +508,7 @@ export default function App() {
               <ErrorBoundary>
                 {page === "home" && (
                   <>
-                    <StageHubCards onNavigate={navigate} planningStatus={planningStatus} backupCount={backupCount} />
+                    <StageHubCards onNavigate={navigate} planningStatus={planningStatus} backupCount={backupCount} currentStep={guide.enabled ? guide.step : null} />
                     <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenDoctor={openDoctorFromGuardIssue} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} watchError={watchError} onRetryWatch={() => { void retryWatch(); }} hasCheckpoint={hasCheckpoint} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningPending={planningResult?.messages.some((message) => message.status === "pending") ?? false} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} onOpenPlanningHistory={() => setShowSessionPicker(true)} onGuardResult={(status) => {
                         // guard가 검사한 변경 상태의 지문 기록 — 이후 지문이 달라지면 (a)의 effect가 리셋.
                         // 기록되는 지문은 홈 진입 시 조회분이라 "진입~클릭 사이" 변경은 한 박자 늦게(다음
