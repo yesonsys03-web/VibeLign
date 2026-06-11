@@ -147,7 +147,8 @@ function countChanges(baseline, current) {
 }
 
 function inferStep(s) {
-  // 실제 guide.ts inferStep과 동일 규칙(신호 이름도 동일 — 코드가 곧 교보재)
+  // 실제 guide.ts inferStep의 축소 미러(신호 이름 동일 — 코드가 곧 교보재).
+  // planningPending 신호만 생략 — 연습장에는 AI 대화 지연 상태가 없다.
   let step = !s.hasPlanDoc ? 2 : !s.hasCheckpoint ? 3 : 4;
   if (s.hasCheckpoint && countChanges(s.baseline, s.changedFiles) > 0) {
     step = s.guardOk ? 6 : 5;

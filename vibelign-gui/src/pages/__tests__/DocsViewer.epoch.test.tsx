@@ -183,7 +183,8 @@ describe("DocsViewer generation epoch", () => {
 
     const frame = await screen.findByTitle("Doc A HTML Canvas");
     expect(frame).toBeInTheDocument();
-    expect(frame).toHaveAttribute("sandbox", "");
+    // content-aware 높이 측정용 allow-same-origin (681e035) — scripts/forms 등은 여전히 차단.
+    expect(frame).toHaveAttribute("sandbox", "allow-same-origin");
     expect(frame).toHaveStyle({ height: "2550px" });
     expect(frame).toHaveAttribute("srcdoc", expect.stringContaining("HTML Canvas"));
     expect(frame).toHaveAttribute("srcdoc", expect.stringContaining("data-diagram-visual=\"mindmap\""));
@@ -278,7 +279,8 @@ describe("DocsViewer generation epoch", () => {
 
     const frame = await screen.findByTitle("Doc A Raw HTML Canvas");
     const srcdoc = frame.getAttribute("srcdoc") ?? "";
-    expect(frame).toHaveAttribute("sandbox", "");
+    // content-aware 높이 측정용 allow-same-origin (681e035) — scripts/forms 등은 여전히 차단.
+    expect(frame).toHaveAttribute("sandbox", "allow-same-origin");
     expect(frame).toHaveStyle({ height: "1426px" });
     expect(srcdoc).toContain("<script>window.parent.hacked=true</script>");
     expect(srcdoc).toContain("Content-Security-Policy");

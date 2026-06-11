@@ -42,8 +42,8 @@
     "runtime": null
   },
   "build": {
-    "buildCommand": "rtk tsc --noEmit 2>&1 | tail -2 && rtk vitest --reporter=default 2>&1 | tail -3",
-    "testCommand": "tail -25 \"$HOME/Library/Application Support/rtk/tee/1781183123_vitest_run.log\" | grep -E \"Test Files|Tests|passed|failed\"",
+    "buildCommand": "rtk tsc --noEmit 2>&1 | tail -1 && rtk vitest --reporter=default 2>&1 | tail -2",
+    "testCommand": "rtk tsc --noEmit 2>&1 | tail -1 && rtk vitest --reporter=default 2>&1 | tail -2",
     "lintCommand": null,
     "devCommand": "npm run dev",
     "scripts": {
