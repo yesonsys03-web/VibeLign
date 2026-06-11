@@ -28,9 +28,11 @@ interface SettingsProps {
   onKeysUpdated: () => void | Promise<void>;
   projectDir?: string | null;
   notice?: string | null;
+  guideEnabled: boolean;
+  onGuideEnabledChange: (on: boolean) => void;
 }
 
-export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysUpdated, projectDir, notice }: SettingsProps) {
+export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysUpdated, projectDir, notice, guideEnabled, onGuideEnabledChange }: SettingsProps) {
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
@@ -554,6 +556,34 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
               </span>
             </div>
           )}
+        </div>
+
+        {/* 초보자 가이드 토글 섹션 */}
+        <div className="card" style={{ marginTop: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
+            초보자 가이드
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 10 }}>
+            화면 상단에 "지금 할 일 → 다음 행동"을 안내하는 가이드 줄과 홈 카드의 차례 표시를 보여줍니다.
+            익숙해지면 꺼도 좋아요. (가이드 줄의 × 버튼으로도 끌 수 있어요)
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button
+              className="btn btn-sm"
+              onClick={() => onGuideEnabledChange(!guideEnabled)}
+              style={{
+                background: guideEnabled ? "#4DFF91" : "#1A1A1A",
+                color: guideEnabled ? "#1A1A1A" : "#888",
+                border: "2px solid #1A1A1A",
+                fontWeight: 700,
+              }}
+            >
+              {guideEnabled ? "ON" : "OFF"}
+            </button>
+            <span style={{ fontSize: 11, color: "#888", fontFamily: "IBM Plex Mono, monospace" }}>
+              guide_enabled: {guideEnabled ? "true" : "false"}
+            </span>
+          </div>
         </div>
 
         {/* AI 도구 설정 (설치 후 추가 등록) 섹션 */}

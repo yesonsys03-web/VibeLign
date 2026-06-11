@@ -12,6 +12,10 @@ pub enum ChangeStatus {
 pub struct ChangedEntry {
     pub path: String,
     pub status: ChangeStatus,
+    /// 파일 수정 시각(epoch ms). 메타데이터 조회 실패 시 0. 변경 지문 재료(가이드 레이어 v6).
+    pub mtime_ms: u64,
+    /// 파일 크기(bytes). 메타데이터 조회 실패 시 0.
+    pub size: u64,
 }
 
 /// git status 기반 변경 경로 집합. 비-git 디렉토리는 빈 Vec (에러 아님).
@@ -109,7 +113,20 @@ pub(crate) fn list_changed_paths(root: &Path) -> Result<Vec<ChangedEntry>, Strin
             Some(r) => r,
             None => continue,
         };
-        entries.push(ChangedEntry { path: rel, status });
+        let meta = std::fs::metadata(root.join(&rel)).ok();
+        let mtime_ms = meta
+            .as_ref()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        let size = meta.map(|m| m.len()).unwrap_or(0);
+        entries.push(ChangedEntry {
+            path: rel,
+            status,
+            mtime_ms,
+            size,
+        });
     }
     Ok(entries)
 }
@@ -276,6 +293,37 @@ mod tests {
             changed.iter().all(|e| e.path != "src/old.ts"),
             "old path absent"
         );
+    }
+
+    #[test]
+    fn entries_carry_mtime_and_size_fingerprint() {
+        if !git_available() {
+            return;
+        }
+        let root = TempDir::new().unwrap();
+        init_repo(root.path());
+        write(root.path(), "src/main.ts", b"old\n");
+        run(root.path(), &["add", "."]);
+        run(root.path(), &["commit", "-q", "-m", "init"]);
+        write(root.path(), "src/main.ts", b"first edit\n"); // dirty 상태 진입
+
+        let before = list_changed_paths(root.path()).expect("ok");
+        let b = before
+            .iter()
+            .find(|e| e.path == "src/main.ts")
+            .expect("found");
+        assert!(b.size > 0, "size 채워짐");
+        assert!(b.mtime_ms > 0, "mtime 채워짐");
+
+        // 이미 dirty인 파일의 재수정 — 경로 집합은 그대로지만 지문은 달라져야 한다(외부 리뷰 H1).
+        // 두 write가 같은 ms에 떨어져도 내용 길이가 달라 size로 반드시 갈린다(테스트 안정성).
+        write(root.path(), "src/main.ts", b"second edit, much longer content\n");
+        let after = list_changed_paths(root.path()).expect("ok");
+        let a = after
+            .iter()
+            .find(|e| e.path == "src/main.ts")
+            .expect("found");
+        assert_ne!((b.mtime_ms, b.size), (a.mtime_ms, a.size), "재수정이 지문에 반영");
     }
 }
 // === ANCHOR: GIT_STATUS_END ===

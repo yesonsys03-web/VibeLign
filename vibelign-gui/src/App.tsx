@@ -14,7 +14,20 @@ import ErrorLogs from "./pages/ErrorLogs";
 import Settings from "./pages/Settings";
 import { buildGuardDoctorLaunchIntent } from "./pages/doctorFlow";
 import type { DoctorLaunchIntent } from "./pages/doctorFlow";
-import { backupList, createPlanningChatSession, getEnvKeyStatus, getWatchErrors, loadApiKey, loadLatestPlanningChatSession, loadPlanningChatSession, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, startWatch, stopWatch, openFolder, type PlanningChatSessionResponse } from "./lib/vib";
+import { backupList, createPlanningChatSession, detectInstalledTools, getEnvKeyStatus, getWatchErrors, listChangedFiles, loadApiKey, loadLatestPlanningChatSession, loadPlanningChatSession, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, startWatch, stopWatch, openFolder, type PlanningChatSessionResponse } from "./lib/vib";
+import { GuideStrip } from "./components/nav/GuideStrip";
+import { useGuide } from "./lib/nav/useGuide";
+import {
+  changedSetFingerprint,
+  countChangesSinceBaseline,
+  guideBaselineKey,
+  guideCelebratedKey,
+  guideRelevantEntries,
+  latestCheckpointId,
+  shouldCelebrate,
+  type ActiveGuideStep,
+  type GuideBaseline,
+} from "./lib/nav/guide";
 import { PlanningSessionPicker } from "./pages/planning/PlanningSessionPicker";
 import { installGuiErrorReporter, reportReactError, setErrorReporterProjectDir } from "./lib/errorReporter";
 import { type Page } from "./lib/nav/stages";
@@ -81,6 +94,8 @@ export default function App() {
   const [watchError, setWatchError] = useState<string | null>(null);
   const [hasCheckpoint, setHasCheckpoint] = useState(false);
   const [backupCount, setBackupCount] = useState(0);
+  const [backupLoaded, setBackupLoaded] = useState(false);
+  const [latestBackupId, setLatestBackupId] = useState<string | null>(null);
   const [mapMode, setMapMode] = useState<"manual" | "auto">("manual");
   const [planningPrompt, setPlanningPrompt] = useState("");
   const [planningResult, setPlanningResult] = useState<PlanningChatSessionResponse | null>(null);
@@ -118,10 +133,17 @@ export default function App() {
     setErrorReporterProjectDir(projectDir);
   }, [projectDir]);
 
+  // 프로젝트가 바뀌면 신호 로딩 상태부터 리셋 — 아래 조회 effect보다 먼저 선언할 것.
+  useEffect(() => {
+    setBackupLoaded(false);
+  }, [projectDir]);
+
   useEffect(() => {
     if (!projectDir) {
       setHasCheckpoint(false);
       setBackupCount(0);
+      setLatestBackupId(null);
+      setBackupLoaded(false);
       return;
     }
     let active = true;
@@ -130,17 +152,92 @@ export default function App() {
         if (active) {
           setHasCheckpoint(result.backups.length > 0);
           setBackupCount(result.backups.length);
+          setLatestBackupId(latestCheckpointId(result.backups));
         }
       })
       .catch(() => {
         if (active) {
           setHasCheckpoint(false);
           setBackupCount(0);
+          setLatestBackupId(null);
+        }
+      })
+      .finally(() => {
+        if (active) setBackupLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [projectDir, page]);
+
+  // 체크포인트 이후 변경 감지(spec §3.1) — git changed-set을 체크포인트 시점 baseline과
+  // "변경 지문(path+status+mtime_ms+size)" 단위로 비교(v6 외부 리뷰 H1). 경로 집합 비교는
+  // 이미 dirty였던 파일의 재수정(커밋 안 하는 초보자의 2사이클차부터 일상)을 못 본다.
+  // null은 조회가 예외로 실패한 경우만. 비-git 프로젝트는 git_status가 빈 목록을 반환(에러 아님)해
+  // 항상 0으로 읽힌다 — 자동 5️⃣ 전환 없음, 4️⃣ affordance가 유일한 출구(spec §4-5, critic 재리뷰 C1).
+  const [changedFileCount, setChangedFileCount] = useState<number | null>(null);
+  // 현재 changed-set의 지문 — guard 결과 stale 판정의 기준(Step 4, 외부 리뷰 H2).
+  const [changedFingerprint, setChangedFingerprint] = useState<string | null>(null);
+  useEffect(() => {
+    if (!projectDir || !backupLoaded || !latestBackupId) {
+      // 체크포인트가 없으면 기준점도 없음 — 3️⃣ 안내 단계라 변경 신호 자체가 불필요.
+      setChangedFileCount(null);
+      setChangedFingerprint(null);
+      return;
+    }
+    let active = true;
+    listChangedFiles(projectDir)
+      .then((entries) => {
+        if (!active) return;
+        const current = guideRelevantEntries(entries);
+        const key = guideBaselineKey(projectDir);
+        let baseline: GuideBaseline | null = null;
+        try {
+          const parsed = JSON.parse(localStorage.getItem(key) ?? "null") as GuideBaseline | null;
+          // entries 배열이 없으면(미래의 스키마 변경·손상 대비) 기준점 없음으로 보고 재캡처.
+          baseline = parsed && Array.isArray(parsed.entries) ? parsed : null;
+        } catch {
+          baseline = null;
+        }
+        if (!baseline || baseline.checkpointId !== latestBackupId) {
+          // 새 최신 체크포인트를 알아챈 순간의 changed-set이 새 기준점(spec §4-7) — 6️⃣ 저장 후 4️⃣ 복귀가 여기서 일어난다.
+          localStorage.setItem(key, JSON.stringify({ checkpointId: latestBackupId, entries: current }));
+          setChangedFileCount(0);
+          setChangedFingerprint(changedSetFingerprint(current));
+          return;
+        }
+        setChangedFileCount(countChangesSinceBaseline(baseline.entries, current));
+        setChangedFingerprint(changedSetFingerprint(current));
+      })
+      .catch(() => {
+        if (active) {
+          setChangedFileCount(null);
+          setChangedFingerprint(null);
         }
       });
     return () => {
       active = false;
     };
+  }, [projectDir, page, latestBackupId, backupLoaded]);
+
+  const [guardStatus, setGuardStatus] = useState<"ok" | "issue" | null>(null);
+  // guard가 "어떤 변경 상태"를 검사했는지 지문으로 기억(spec §3.1, v6 외부 리뷰 H2).
+  // 리셋 기준은 "검사 시점 지문 ≠ 현재 지문" — 이전 기준(변경 수 증가)은 같은 파일 재수정·
+  // 동수 집합 교체(A/B→C/D)에서 stale pass(거짓 6️⃣)를 남겼다. 무변경 재조회(탭 전환)는
+  // 지문이 같아 리셋되지 않으므로, critic 재리뷰 M1이 막으려던 오리셋도 그대로 없다.
+  // 부분 undo도 지문이 달라져 리셋(=5️⃣ 재검증 안내) — 변경 상태가 달라졌으면 옳은 방향(의도된 강화).
+  const guardCheckedFingerprintRef = useRef<string | null>(null); // useRef는 App.tsx에 이미 import됨(resumingRef)
+  useEffect(() => {
+    // 조회 실패(null)는 판단 불가라 보류 — 그 동안 changedFileCount도 null이라 추론이 이미 4️⃣로 보수적.
+    if (guardStatus === null || changedFingerprint === null) return;
+    if (changedFingerprint !== guardCheckedFingerprintRef.current) {
+      setGuardStatus(null);
+      guardCheckedFingerprintRef.current = null;
+    }
+  }, [changedFingerprint, guardStatus]);
+  useEffect(() => {
+    setGuardStatus(null);
+    guardCheckedFingerprintRef.current = null;
   }, [projectDir]);
 
   useEffect(() => {
@@ -287,6 +384,65 @@ export default function App() {
       ? "active"
       : "done";
 
+  const planningPendingNow = planningResult?.messages.some((m) => m.status === "pending") ?? false;
+  // 가이드 레이어 — 신호 전부 배선(v2): 기획안·기획진행·체크포인트·체크포인트 이후 변경·guard.
+  const guide = useGuide(
+    projectDir,
+    {
+      hasPlanDoc: Boolean(planningResult?.outputPath),
+      planningPending: planningPendingNow,
+      hasCheckpoint,
+      changedFileCount,
+      guardStatus,
+    },
+    backupLoaded,
+  );
+
+  // 4️⃣ 도구 미보유 분기(spec §3.2) — 0개 "확정 탐지"일 때만 true. 탐지 실패는 기존 값 유지(추측 안내 금지).
+  const [aiToolMissing, setAiToolMissing] = useState(false);
+  const prevPageForToolsRef = useRef<Page | null>(null);
+  useEffect(() => {
+    const prev = prevPageForToolsRef.current;
+    prevPageForToolsRef.current = page;
+    // 마운트 1회(prev=null) + 설정 이탈(prev="settings") 시에만 탐지 — 그 외 탭 전환엔 침묵.
+    if (prev !== null && !(prev === "settings" && page !== "settings")) return;
+    let active = true;
+    detectInstalledTools()
+      .then((tools) => {
+        if (active) setAiToolMissing(tools.length === 0);
+      })
+      .catch(() => {
+        // 탐지 실패 → 기존 값 유지(추측 안내 금지)
+      });
+    return () => {
+      active = false;
+    };
+  }, [page]);
+
+  // 첫 사이클 완주 축하(spec §3.2) — 6️⃣→4️⃣ 전환(저장으로 루프 닫힘)에 프로젝트당 1회.
+  // guide.enabled 게이트(v6 외부 리뷰 M1): useGuide는 OFF여도 step을 계산하므로, 게이트 없이는
+  // 가이드를 끈 사용자에게 축하가 튀어나온다. 게이트는 여기(발화 effect)에 — GuideStrip prop에서
+  // 막으면 OFF 중에 1회성 플래그만 소모돼, 나중에 켠 사용자가 축하를 영영 못 받는다.
+  const [celebrating, setCelebrating] = useState(false);
+  const prevGuideStepRef = useRef<ActiveGuideStep | null>(null);
+  useEffect(() => {
+    if (!projectDir || !guide.enabled) return;
+    // ref 전진은 게이트 뒤 — OFF 중 전환을 ref가 소모하면(6을 지나쳐 전진) 재활성 사용자가
+    // 축하를 영영 못 받는다. ref는 "마지막으로 관찰한 단계"에 머문다(품질 리뷰 반영).
+    const prev = prevGuideStepRef.current;
+    prevGuideStepRef.current = guide.step;
+    const already = localStorage.getItem(guideCelebratedKey(projectDir)) === "1";
+    if (shouldCelebrate(prev, guide.step, already)) {
+      localStorage.setItem(guideCelebratedKey(projectDir), "1");
+      setCelebrating(true);
+    }
+  }, [guide.step, guide.enabled, projectDir]);
+  useEffect(() => {
+    // 프로젝트 전환 시 축하 상태·전환 추적 리셋
+    setCelebrating(false);
+    prevGuideStepRef.current = null;
+  }, [projectDir]);
+
   // 기획 탭에 들어갔는데 활성 세션이 없으면 최근 세션을 자동으로 이어서 연다(resume).
   // 세션이 하나도 없으면 loadProjectPlanning 이 planningResult 를 null 로 둬 시작 화면이 뜬다.
   const resumingRef = useRef(false);
@@ -334,32 +490,32 @@ export default function App() {
             />
             <StageSubnav page={page} onNavigate={navigate} />
 
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 16,
-                padding: "3px 12px",
-                fontSize: 11,
-                color: "#888",
-                background: "#0E0E0E",
-                borderBottom: "1px solid #1A1A1A",
-              }}
-            >
-              <span style={{ color: hasCheckpoint ? "#aaa" : "#666" }}>
-                {hasCheckpoint ? "✓ 백업 데이터 있음" : "백업 데이터 없음"}
-              </span>
-              {(planningResult?.messages.some((message) => message.status === "pending") ?? false) && (
-                <span style={{ color: "#FBBF24" }}>● 기획 진행 중</span>
-              )}
-            </div>
+            <GuideStrip
+              enabled={guide.enabled}
+              step={guide.step}
+              hasCheckpoint={hasCheckpoint}
+              planningPending={planningPendingNow}
+              aiToolMissing={aiToolMissing}
+              celebrating={celebrating}
+              onNavigate={navigate}
+              onStepChange={guide.setStep}
+              onDisable={() => guide.setEnabled(false)}
+              onOpenSettings={() => openSettings()}
+              onCelebrateDismiss={() => setCelebrating(false)}
+            />
 
             <div style={{ flex: 1, overflow: "hidden" }}>
               <ErrorBoundary>
                 {page === "home" && (
                   <>
-                    <StageHubCards onNavigate={navigate} planningStatus={planningStatus} backupCount={backupCount} />
-                    <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenDoctor={openDoctorFromGuardIssue} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} watchError={watchError} onRetryWatch={() => { void retryWatch(); }} hasCheckpoint={hasCheckpoint} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningPending={planningResult?.messages.some((message) => message.status === "pending") ?? false} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} onOpenPlanningHistory={() => setShowSessionPicker(true)} />
+                    <StageHubCards onNavigate={navigate} planningStatus={planningStatus} backupCount={backupCount} currentStep={guide.enabled ? guide.step : null} />
+                    <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenDoctor={openDoctorFromGuardIssue} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} watchError={watchError} onRetryWatch={() => { void retryWatch(); }} hasCheckpoint={hasCheckpoint} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningPending={planningResult?.messages.some((message) => message.status === "pending") ?? false} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} onOpenPlanningHistory={() => setShowSessionPicker(true)} onGuardResult={(status) => {
+                        // guard가 검사한 변경 상태의 지문 기록 — 이후 지문이 달라지면 (a)의 effect가 리셋.
+                        // 기록되는 지문은 홈 진입 시 조회분이라 "진입~클릭 사이" 변경은 한 박자 늦게(다음
+                        // 재조회에서 지문 불일치로) 리셋된다 — baseline과 같은 좁은 경쟁 구간 허용(spec §4-7).
+                        guardCheckedFingerprintRef.current = changedFingerprint;
+                        setGuardStatus(status);
+                      }} />
                   </>
                 )}
                 {page === "planning" && (planningResult ? (
@@ -375,7 +531,7 @@ export default function App() {
                   </div>
                 ))}
                 {page === "plan-doc" && <PlanDocView projectDir={projectDir} activeSessionId={planningResult?.sessionId ?? null} onStart={() => { if (planningResult) navigate("planning"); else setPage("home"); }} onDeleted={(sessionId) => { if (planningResult?.sessionId === sessionId) setPlanningResult(null); }} onEdit={(sessionId) => void resumeSession(sessionId)} />}
-                {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} />}
+                {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={navigate} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} guideStep={guide.enabled ? guide.step : null} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
                 {page === "code" && <CodeExplorer projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} onReviewInPlanning={(path) => { if (projectDir) void openPlanningRoom(projectDir, buildPlanReviewPrompt(path), path); }} />}
                 {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} launchIntent={doctorLaunchIntent} />}
@@ -392,7 +548,7 @@ export default function App() {
                         ← 뒤로
                       </button>
                     </div>
-                    <Settings apiKey={apiKey} onApiKeyChange={setApiKey} providerKeys={providerKeys} onKeysUpdated={refreshAiKeys} projectDir={projectDir} notice={settingsNotice} />
+                    <Settings apiKey={apiKey} onApiKeyChange={setApiKey} providerKeys={providerKeys} onKeysUpdated={refreshAiKeys} projectDir={projectDir} notice={settingsNotice} guideEnabled={guide.enabled} onGuideEnabledChange={guide.setEnabled} />
                   </>
                 )}
               </ErrorBoundary>

@@ -290,6 +290,8 @@ html, body {
   flex-shrink: 0;
 }
 .nav-tab:hover  { background: var(--gray); }
+.nav-tab:disabled { opacity: 0.35; cursor: default; }
+.nav-tab:disabled:hover { background: transparent; }
 .nav-tab.active { background: var(--primary); color: var(--white); }
 
 /* ─── 스코어 뱃지 ────────────────────────────────────────────────────────────── */

@@ -16,6 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { GuardResult } from "../../lib/vib";
+import type { Page } from "../../lib/nav/stages";
 import UndoCard from "../cards/backup/UndoCard";
 import HistoryCard from "../cards/backup/HistoryCard";
 import CheckpointCard from "../cards/backup/CheckpointCard";
@@ -39,7 +40,7 @@ interface AdvancedHomeCardsProps {
   readonly aiKeyStatusLoaded: boolean;
   readonly cardOrder: readonly string[];
   readonly onCardOrderChange: (cardOrder: readonly string[]) => void;
-  readonly onNavigate: (page: "backups") => void;
+  readonly onNavigate: (page: Page) => void;
   readonly onOpenSettings?: (reason?: string) => void;
   readonly watchOn: boolean;
   readonly onWatchChange: (watchOn: boolean) => void;
