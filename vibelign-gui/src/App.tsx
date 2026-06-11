@@ -548,7 +548,7 @@ export default function App() {
                         ← 뒤로
                       </button>
                     </div>
-                    <Settings apiKey={apiKey} onApiKeyChange={setApiKey} providerKeys={providerKeys} onKeysUpdated={refreshAiKeys} projectDir={projectDir} notice={settingsNotice} />
+                    <Settings apiKey={apiKey} onApiKeyChange={setApiKey} providerKeys={providerKeys} onKeysUpdated={refreshAiKeys} projectDir={projectDir} notice={settingsNotice} guideEnabled={guide.enabled} onGuideEnabledChange={guide.setEnabled} />
                   </>
                 )}
               </ErrorBoundary>
