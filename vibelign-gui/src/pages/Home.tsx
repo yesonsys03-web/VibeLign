@@ -11,6 +11,9 @@ import { ManualCommandDetail } from "../components/home/ManualCommandDetail";
 import type { ManualCommand } from "../components/home/ManualCommandList";
 import { ManualCommandList } from "../components/home/ManualCommandList";
 import { SimpleHome } from "../components/home/SimpleHome";
+import { JourneyHowto } from "../components/nav/JourneyHowto";
+import type { ActiveGuideStep } from "../lib/nav/guide";
+import type { Page } from "../lib/nav/stages";
 import pkg from "../../package.json";
 
 type View = "home" | "manual_list" | "manual_detail";
@@ -21,7 +24,7 @@ interface HomeProps {
   providerKeys?: Record<string, string>;
   hasAnyAiKey?: boolean;
   aiKeyStatusLoaded?: boolean;
-  onNavigate: (page: "backups") => void;
+  onNavigate: (page: Page) => void;
   onOpenDoctor?: () => void;
   onOpenSettings?: (reason?: string) => void;
   initialView?: View;
@@ -40,11 +43,13 @@ interface HomeProps {
   readonly onOpenPlanningHistory?: () => void;
   /** guard 실행 결과를 가이드 신호로 올림(spec §3.1). */
   onGuardResult?: (status: "ok" | "issue") => void;
+  /** 가이드 현재 단계 — 사용법 따라하기 아코디언 강조용. */
+  guideStep?: ActiveGuideStep | null;
 }
 
 
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────────
-export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenDoctor, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, watchError = null, onRetryWatch, hasCheckpoint = false, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning, onStartPlanning, onOpenPlanningHistory, onGuardResult }: HomeProps) {
+export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenDoctor, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, watchError = null, onRetryWatch, hasCheckpoint = false, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning, onStartPlanning, onOpenPlanningHistory, onGuardResult, guideStep = null }: HomeProps) {
   const [view, setView]                   = useState<View>(initialView);
   const [selectedCmd, setSelectedCmd]     = useState<ManualCommand | null>(null);
   const [guardResult, setGuardResult]     = useState<GuardResult | null>(null);
@@ -88,13 +93,20 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
   // ── 메뉴얼 커맨드 목록 뷰 ────────────────────────────────────────────────────
   if (view === "manual_list") {
     return (
-      <ManualCommandList
-        onBack={() => setView("home")}
-        onSelectCommand={(command) => {
-          setSelectedCmd(command);
-          setView("manual_detail");
-        }}
-      />
+      <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        <div style={{ flexShrink: 0 }}>
+          <JourneyHowto currentStep={guideStep} onNavigate={onNavigate} />
+        </div>
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <ManualCommandList
+            onBack={() => setView("home")}
+            onSelectCommand={(command) => {
+              setSelectedCmd(command);
+              setView("manual_detail");
+            }}
+          />
+        </div>
+      </div>
     );
   }
 
