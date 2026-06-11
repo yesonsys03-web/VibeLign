@@ -771,18 +771,29 @@ function CompletionOverlay({ onRestart, onClose }) {
 
 function App() {
   const [sim, dispatch] = useReducer(simReducer, initialSim);
-  const [trialPhase, setTrialPhase] = useState("welcome"); // welcome | running | complete | free
+  // welcome | running | celebrating | complete | free
+  const [trialPhase, setTrialPhase] = useState("welcome");
   const [trialStep, setTrialStep] = useState(0);
   const [celebrating, setCelebrating] = useState(false);
   const [escapeToastVisible, setEscapeToastVisible] = useState(false);
   const prevStepRef = useRef(null);
+  // 마지막 단계(index 10) 완료 후 6→4 축하를 기다리는 플래그
+  const awaitingCelebrateRef = useRef(false);
 
-  // 6→4 전환 시 축하
+  // 6→4 전환 시 축하 — trialPhase가 running이고 마지막 단계 완료 대기 중이면 complete로 전환
   useEffect(() => {
     const current = inferStep(sim);
-    if (prevStepRef.current === 6 && current === 4) {
+    const prev = prevStepRef.current;
+    if (prev === 6 && current === 4) {
       setCelebrating(true);
-      setTimeout(() => setCelebrating(false), 3000);
+      const delay = awaitingCelebrateRef.current ? 1200 : 3000;
+      setTimeout(() => {
+        setCelebrating(false);
+        if (awaitingCelebrateRef.current) {
+          awaitingCelebrateRef.current = false;
+          setTrialPhase("complete");
+        }
+      }, delay);
     }
     prevStepRef.current = current;
   }, [sim]);
@@ -795,28 +806,43 @@ function App() {
   function handleCoachmarkComplete() {
     const next = trialStep + 1;
     if (next >= TRIAL_STEPS.length) {
-      setTrialPhase("complete");
+      // 마지막 단계 완료 — 6→4 축하 전환을 기다린 후 complete 화면 표시 (spec Task 3 Step 1)
+      awaitingCelebrateRef.current = true;
+      setTrialPhase("celebrating");
+      // 축하 전환이 5초 안에 안 오면(sim 상태 미전환) 바로 complete로 폴백
+      setTimeout(() => {
+        if (awaitingCelebrateRef.current) {
+          awaitingCelebrateRef.current = false;
+          setTrialPhase("complete");
+        }
+      }, 5000);
     } else {
       setTrialStep(next);
     }
   }
 
   function handleSkip() {
+    // 건너뛰기: 확인 모달 없이 즉시 완료 화면 (spec §5)
+    awaitingCelebrateRef.current = false;
     setTrialPhase("complete");
   }
 
   function handleRestart() {
+    // 재시작: simState·트라이얼 인덱스 초기화, localStorage 미사용 (spec §5)
     dispatch({ type: "reset" });
     setTrialStep(0);
     setTrialPhase("welcome");
     setCelebrating(false);
+    awaitingCelebrateRef.current = false;
   }
 
   function handleClose() {
+    // 닫기: 오버레이만 닫고 자유 탐색 모드 — 말풍선 없이 무대 조작 가능 (spec Task 3 Step 1)
     setTrialPhase("free");
   }
 
   function handleEscapeClick() {
+    // 비상구 예외: 3초 토스트, 진행 유지 (spec Task 2 Step 2 · Task 3)
     setEscapeToastVisible(true);
     setTimeout(() => setEscapeToastVisible(false), 3000);
   }
@@ -824,7 +850,7 @@ function App() {
   const page = sim.page;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }} className={trialPhase === "running" ? "coachmark-active" : ""}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }} className={(trialPhase === "running" || trialPhase === "celebrating") ? "coachmark-active" : ""}>
       {/* 상단 탭바 (STAGE_DEFS) */}
       <StageTabs activePage={page} dispatch={dispatch} />
 
@@ -847,7 +873,7 @@ function App() {
 
       {/* 오버레이 레이어 */}
       {trialPhase === "welcome" && <WelcomeOverlay onStart={handleStart} />}
-      {trialPhase === "running" && (
+      {(trialPhase === "running") && (
         <Coachmark
           stepIndex={trialStep}
           sim={sim}
@@ -856,6 +882,10 @@ function App() {
           onComplete={handleCoachmarkComplete}
           escapeToastVisible={escapeToastVisible}
         />
+      )}
+      {/* celebrating: 코치마크 없이 축하 스트립만 보여주며 1.2초 후 complete로 전환 */}
+      {trialPhase === "celebrating" && escapeToastVisible && (
+        <div className="toast">실수해도 이 출구가 항상 있어요 — 지금은 연습이니 계속 가요!</div>
       )}
       {trialPhase === "complete" && <CompletionOverlay onRestart={handleRestart} onClose={handleClose} />}
     </div>
