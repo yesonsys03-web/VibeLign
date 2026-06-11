@@ -109,7 +109,9 @@ def combine_guard(doctor: DoctorLike, explain: ExplainLike) -> GuardReport:
         doctor.score,
         explain.risk_level,
         blocked,
-        f"프로젝트 기본 상태는 {_doctor_level_label(doctor.level)}이고 점수는 {doctor.score}점입니다. 최근 바뀐 내용의 위험도는 {_risk_label(explain.risk_level)}이고, 전체 판단은 '{_overall_label(overall)}' 입니다.",
+        # doctor.score는 감점 누계(클수록 나쁨)라 헤더의 0~100 점수와 단위가 달라 혼동을
+        # 일으킨다("0/100인데 379점?") — 사용자 요약에는 등급 라벨만 노출한다.
+        f"프로젝트 기본 상태는 {_doctor_level_label(doctor.level)}입니다. 최근 바뀐 내용의 위험도는 {_risk_label(explain.risk_level)}이고, 전체 판단은 '{_overall_label(overall)}' 입니다.",
         recs,
         dict(doctor.to_dict()),
         dict(explain.to_dict()),

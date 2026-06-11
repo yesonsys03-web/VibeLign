@@ -599,6 +599,43 @@ class ExtraSourceIndexTest(unittest.TestCase):
             self.assertEqual(title, "broken name")
             self.assertTrue(any("docs title fallback" in item for item in stderr))
 
+    def test_read_title_uses_filename_for_json(self):
+        docs_cache = self._get_docs_cache()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "opencode.json"
+            target.write_text('{\n  "model": "x"\n}\n', encoding="utf-8")
+
+            # JSON 첫 줄("{")이 제목으로 새지 않아야 한다.
+            self.assertEqual(docs_cache._read_title(target), "opencode")
+
+    def test_read_title_skips_html_comment_block(self):
+        docs_cache = self._get_docs_cache()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "CLAUDE.md"
+            target.write_text(
+                "<!-- VibeLign Rules (vib export claude) -->\n\n# VibeLign 규칙 요약\n본문\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(docs_cache._read_title(target), "VibeLign 규칙 요약")
+
+    def test_read_title_skips_multiline_html_comment(self):
+        docs_cache = self._get_docs_cache()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "noted.md"
+            target.write_text(
+                "<!--\n여러 줄 주석\n-->\n첫 본문 줄\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(docs_cache._read_title(target), "첫 본문 줄")
+
 
 class Phase3CacheParityTest(unittest.TestCase):
     """Phase 3: docs_index cache allowlist/fingerprint parity 테스트."""

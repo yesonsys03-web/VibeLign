@@ -82,9 +82,11 @@ class GuardNoneFieldsTest(unittest.TestCase):
         self.assertEqual(result.overall_level, "HIGH")
         self.assertTrue(result.blocked)
 
-    def test_summary_contains_score(self):
+    def test_summary_omits_raw_penalty_score(self):
+        """감점 누계(클수록 나쁨)는 헤더의 0~100 점수와 단위가 달라 요약에 노출하지 않는다."""
         result = combine_guard(FakeDoctorReport(score=7), FakeExplainReport("LOW"))
-        self.assertIn("7", result.summary)
+        self.assertNotIn("7", result.summary)
+        self.assertIn("프로젝트 기본 상태", result.summary)
 
 
 if __name__ == "__main__":

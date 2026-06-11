@@ -167,13 +167,27 @@ def compute_source_hash(path: Path) -> str:
 
 # === ANCHOR: DOCS_CACHE__READ_TITLE_START ===
 def _read_title(path: Path) -> str:
+    fallback = path.stem.replace("-", " ").replace("_", " ").strip() or path.name
     try:
-        if path.suffix.lower() in TEXT_DOC_EXTENSIONS | {".json", ".csv"}:
+        if path.suffix.lower() == ".json":
+            # JSON 첫 줄은 "{" 같은 구조 문자라 제목이 아니다 — 파일명 기반 제목 사용.
+            return fallback
+        if path.suffix.lower() in TEXT_DOC_EXTENSIONS | {".csv"}:
             text = path.read_text(encoding="utf-8-sig").replace("\r\n", "\n").replace("\r", "\n")
         else:
             text = read_document_text(path)
+        in_comment = False
         for line in text.splitlines():
             stripped = line.strip()
+            if in_comment:
+                if "-->" in stripped:
+                    in_comment = False
+                continue
+            if stripped.startswith("<!--"):
+                # HTML 주석(vib export 마커 등)은 제목이 아니다 — 블록 끝까지 건너뛴다.
+                if "-->" not in stripped:
+                    in_comment = True
+                continue
             if stripped.startswith("#"):
                 return stripped.lstrip("#").strip() or path.stem
             if stripped:
@@ -182,7 +196,7 @@ def _read_title(path: Path) -> str:
         print(f"[WARN] docs title fallback for {path}: {exc}", file=sys.stderr)
     except ValueError as exc:
         print(f"[WARN] docs title fallback for {path}: {exc}", file=sys.stderr)
-    return path.stem.replace("-", " ").replace("_", " ").strip() or path.name
+    return fallback
 # === ANCHOR: DOCS_CACHE__READ_TITLE_END ===
 
 

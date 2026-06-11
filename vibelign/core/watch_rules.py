@@ -155,7 +155,9 @@ def classify_event(
             "hash_utils.py나 backup_worker.py처럼 역할이 명확한 이름으로 바꾸세요.",
         )
 
-    if new_lines > anchor_limit and "=== ANCHOR:" not in text:
+    # 명세·문서 파일(기획안 markdown 등)은 코드가 아니라 앵커가 필요 없다 — 경고 제외.
+    is_doc_file = path.suffix.lower() in {".md", ".markdown", ".rst", ".txt"}
+    if new_lines > anchor_limit and "=== ANCHOR:" not in text and not is_doc_file:
         add(
             "WARN",
             f"{name}에 앵커가 없습니다",

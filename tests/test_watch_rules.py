@@ -43,6 +43,21 @@ class WatchRulesGenericGrowthTest(unittest.TestCase):
         messages = " ".join(w["message"] for w in warns)
         self.assertIn("mcp_server.py", messages)
 
+    def test_markdown_doc_skips_anchor_warning(self) -> None:
+        # 기획안 등 명세 문서는 코드가 아니다 — 앵커 없음 경고를 내면 안 된다.
+        path = Path("plans/알람앱-만들기.md")
+        text = "본문 줄\n" * 200
+        warns = classify_event(path, text, old_lines=None, new_lines=200, strict=False)
+        messages = " ".join(w["message"] for w in warns)
+        self.assertNotIn("앵커가 없습니다", messages)
+
+    def test_code_file_still_gets_anchor_warning(self) -> None:
+        path = Path("service.py")
+        text = "x = 1\n" * 200
+        warns = classify_event(path, text, old_lines=None, new_lines=200, strict=False)
+        messages = " ".join(w["message"] for w in warns)
+        self.assertIn("앵커가 없습니다", messages)
+
 
 if __name__ == "__main__":
     _ = unittest.main()
