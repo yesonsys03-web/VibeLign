@@ -23,6 +23,7 @@ import {
   guideBaselineKey,
   guideCelebratedKey,
   guideRelevantEntries,
+  hasManualCheckpoint,
   latestCheckpointId,
   shouldCelebrate,
   type ActiveGuideStep,
@@ -93,8 +94,14 @@ export default function App() {
   const [watchOn, setWatchOn] = useState(false);
   const [watchError, setWatchError] = useState<string | null>(null);
   const [hasCheckpoint, setHasCheckpoint] = useState(false);
+  // 가이드 3️⃣ 신호 전용 — vib start 자동 초기 저장 제외(사용자가 만든 체크포인트만).
+  // hasCheckpoint(되돌리기 가능 여부, Home 전달)와 의미가 달라 분리한다.
+  const [hasUserCheckpoint, setHasUserCheckpoint] = useState(false);
   const [backupCount, setBackupCount] = useState(0);
   const [backupLoaded, setBackupLoaded] = useState(false);
+  // 백업 탭 안에서 저장/복원하면 page가 안 바뀌어 backupList effect가 재실행되지 않는다 —
+  // 콜백으로 버전을 올려 같은 페이지에서도 가이드 신호(3️⃣→4️⃣ 전환)를 즉시 갱신한다.
+  const [backupsVersion, setBackupsVersion] = useState(0);
   const [latestBackupId, setLatestBackupId] = useState<string | null>(null);
   const [mapMode, setMapMode] = useState<"manual" | "auto">("manual");
   const [planningPrompt, setPlanningPrompt] = useState("");
@@ -141,6 +148,7 @@ export default function App() {
   useEffect(() => {
     if (!projectDir) {
       setHasCheckpoint(false);
+      setHasUserCheckpoint(false);
       setBackupCount(0);
       setLatestBackupId(null);
       setBackupLoaded(false);
@@ -151,6 +159,7 @@ export default function App() {
       .then((result) => {
         if (active) {
           setHasCheckpoint(result.backups.length > 0);
+          setHasUserCheckpoint(hasManualCheckpoint(result.backups));
           setBackupCount(result.backups.length);
           setLatestBackupId(latestCheckpointId(result.backups));
         }
@@ -158,6 +167,7 @@ export default function App() {
       .catch(() => {
         if (active) {
           setHasCheckpoint(false);
+          setHasUserCheckpoint(false);
           setBackupCount(0);
           setLatestBackupId(null);
         }
@@ -168,7 +178,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [projectDir, page]);
+  }, [projectDir, page, backupsVersion]);
 
   // 체크포인트 이후 변경 감지(spec §3.1) — git changed-set을 체크포인트 시점 baseline과
   // "변경 지문(path+status+mtime_ms+size)" 단위로 비교(v6 외부 리뷰 H1). 경로 집합 비교는
@@ -218,7 +228,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [projectDir, page, latestBackupId, backupLoaded]);
+  }, [projectDir, page, latestBackupId, backupLoaded, backupsVersion]);
 
   const [guardStatus, setGuardStatus] = useState<"ok" | "issue" | null>(null);
   // guard가 "어떤 변경 상태"를 검사했는지 지문으로 기억(spec §3.1, v6 외부 리뷰 H2).
@@ -391,7 +401,7 @@ export default function App() {
     {
       hasPlanDoc: Boolean(planningResult?.outputPath),
       planningPending: planningPendingNow,
-      hasCheckpoint,
+      hasCheckpoint: hasUserCheckpoint,
       changedFileCount,
       guardStatus,
     },
@@ -493,6 +503,7 @@ export default function App() {
             <GuideStrip
               enabled={guide.enabled}
               step={guide.step}
+              currentPage={page}
               hasCheckpoint={hasCheckpoint}
               planningPending={planningPendingNow}
               aiToolMissing={aiToolMissing}
@@ -533,9 +544,9 @@ export default function App() {
                 {page === "plan-doc" && <PlanDocView projectDir={projectDir} activeSessionId={planningResult?.sessionId ?? null} onStart={() => { if (planningResult) navigate("planning"); else setPage("home"); }} onDeleted={(sessionId) => { if (planningResult?.sessionId === sessionId) setPlanningResult(null); }} onEdit={(sessionId) => void resumeSession(sessionId)} />}
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={navigate} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} guideStep={guide.enabled ? guide.step : null} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
-                {page === "code" && <CodeExplorer projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} onReviewInPlanning={(path) => { if (projectDir) void openPlanningRoom(projectDir, buildPlanReviewPrompt(path), path); }} />}
+                {page === "code" && <CodeExplorer projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} planningDocStale={planningResult?.docStale ?? false} onReviewInPlanning={(path) => { if (projectDir) void openPlanningRoom(projectDir, buildPlanReviewPrompt(path), path); }} />}
                 {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} launchIntent={doctorLaunchIntent} />}
-                {page === "backups" && <BackupDashboardPage projectDir={projectDir} />}
+                {page === "backups" && <BackupDashboardPage projectDir={projectDir} onBackupsChanged={() => setBackupsVersion((v) => v + 1)} />}
                 {page === "logs" && <ErrorLogs projectDir={projectDir} />}
                 {page === "settings" && (
                   <>

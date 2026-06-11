@@ -146,6 +146,19 @@ fn assert_section_contains(markdown: &str, heading: &str, expected: &str) {
     );
 }
 
+#[test]
+fn save_planning_markdown_resets_doc_stale() {
+    let root = tempfile::tempdir().expect("temp root");
+    let mut session = test_session("예약 앱");
+    session.output_path = Some("plans/a.md".to_string());
+    session.doc_stale = true;
+
+    save_planning_markdown(root.path(), &mut session, &[], &[], None, None).expect("save");
+
+    assert!(!session.doc_stale); // 저장 직후엔 문서가 대화와 동기화 상태
+    assert_eq!(session.output_path.as_deref(), Some("plans/a.md"));
+}
+
 fn test_session(idea: &str) -> StoredPlanningChatSession {
     StoredPlanningChatSession {
         schema_version: 1,
@@ -155,6 +168,7 @@ fn test_session(idea: &str) -> StoredPlanningChatSession {
         created_at: "1".to_string(),
         output_path: None,
         absolute_output_path: None,
+        doc_stale: false,
         readiness: None,
     }
 }

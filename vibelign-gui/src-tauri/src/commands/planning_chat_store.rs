@@ -14,6 +14,10 @@ pub(crate) struct StoredPlanningChatSession {
     pub(crate) created_at: String,
     pub(crate) output_path: Option<String>,
     pub(crate) absolute_output_path: Option<String>,
+    /// 저장된 기획안보다 대화가 더 진행됐는지 — 저장 시 false, 저장 후 새 턴에서 true.
+    /// output_path 를 지우는 대신 이 플래그로 표시한다(지우면 기획안 탭에서 문서가 사라져 보임).
+    #[serde(default)]
+    pub(crate) doc_stale: bool,
     #[serde(default)]
     pub(crate) readiness: Option<ReadinessReport>,
 }
@@ -127,6 +131,7 @@ mod tests {
 
         assert_eq!(session.output_path, None);
         assert_eq!(session.absolute_output_path, None);
+        assert!(!session.doc_stale);
         assert!(session.readiness.is_none());
     }
 

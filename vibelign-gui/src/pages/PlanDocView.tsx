@@ -202,7 +202,14 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
                 title={plan.outputPath ?? undefined}
                 style={{ flex: 1, textAlign: "left", border: "none", background: "transparent", color: active ? "#fff" : "#333", padding: "8px 10px", cursor: "pointer", overflow: "hidden", opacity: deletingId === plan.sessionId ? 0.5 : 1 }}
               >
-                <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{plan.title || "(제목 없음)"}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {plan.title || "(제목 없음)"}
+                  {plan.docStale && (
+                    <span title="저장 후 대화가 더 진행됐어요. 기획방에서 다시 저장하면 반영됩니다." style={{ marginLeft: 6, fontSize: 9, fontWeight: 800, color: "#B45309", background: "#FEF3C7", padding: "1px 4px", borderRadius: 3, verticalAlign: "middle" }}>
+                      다시 저장 필요
+                    </span>
+                  )}
+                </div>
                 <div style={{ fontSize: 10, opacity: 0.7, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{plan.outputPath ? fileName(plan.outputPath) : ""}</div>
               </button>
               {confirmingId === plan.sessionId ? (
@@ -266,6 +273,11 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
         {selectedPath && (
           <div style={{ padding: "6px 12px", fontSize: 12, color: "#555", borderBottom: "1px solid #1A1A1A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {selectedPath}
+          </div>
+        )}
+        {selected?.docStale && (
+          <div style={{ padding: "6px 12px", fontSize: 11, color: "#B45309", background: "#FEF3C7", borderBottom: "1px solid #1A1A1A" }}>
+            저장 후 기획방 대화가 더 진행됐어요 — {onEdit ? "‘수정’으로 들어가 다시 저장하면" : "기획방에서 다시 저장하면"} 최신 내용이 반영됩니다.
           </div>
         )}
         <div style={{ flex: 1, overflow: "hidden" }}>

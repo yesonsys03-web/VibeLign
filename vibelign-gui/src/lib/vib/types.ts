@@ -278,6 +278,8 @@ export interface PlanningChatSessionResponse {
   messages: readonly PlanningChatMessage[];
   outputPath?: string | null;
   absoluteOutputPath?: string | null;
+  /** 저장된 기획안보다 대화가 더 진행됨 — 다시 저장하면 해제. */
+  docStale?: boolean;
   markdown?: string | null;
   errorCode?: string | null;
   message?: string | null;
@@ -292,6 +294,8 @@ export interface PlanningSessionSummary {
   title: string;
   outputPath?: string | null;
   saved: boolean;
+  /** 저장 후 대화가 더 진행됨 — 기획안 탭 "다시 저장 필요" 배지용. */
+  docStale?: boolean;
   createdAt: string;
   messageCount: number;
   cardCount: number;

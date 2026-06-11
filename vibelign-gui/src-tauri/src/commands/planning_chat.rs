@@ -42,6 +42,7 @@ pub(crate) async fn create_planning_chat_session(
             created_at: now.clone(),
             output_path: None,
             absolute_output_path: None,
+            doc_stale: false,
             readiness: None,
         };
         let messages = vec![PlanningChatMessage {
@@ -210,9 +211,9 @@ pub(crate) async fn append_planning_chat_turn(
         if let Err(error) = write_json(messages_path, &messages) {
             return planning_chat_error(error);
         }
-        if session.output_path.is_some() || session.absolute_output_path.is_some() {
-            session.output_path = None;
-            session.absolute_output_path = None;
+        // 저장된 기획안이 있는데 대화가 더 진행됐다 — 포인터(output_path)는 지우지 않고
+        // stale 로만 표시한다. 지우면 기획안 탭에서 저장된 문서가 사라져 보인다(파일은 그대로인데).
+        if mark_doc_stale(&mut session) {
             if let Err(error) = write_json(session_path, &session) {
                 return planning_chat_error(error);
             }
@@ -293,6 +294,15 @@ pub(crate) async fn save_planning_chat_as_markdown(
     .unwrap_or_else(|error| planning_chat_error(error.to_string()))
 }
 
+/// 저장본이 있고 아직 stale 이 아니면 stale 로 표시. 변경이 있었는지 돌려준다(있을 때만 디스크 기록).
+fn mark_doc_stale(session: &mut StoredPlanningChatSession) -> bool {
+    if session.output_path.is_some() && !session.doc_stale {
+        session.doc_stale = true;
+        return true;
+    }
+    false
+}
+
 fn summary_title(idea: &str) -> String {
     idea.lines().next().unwrap_or("").trim().chars().take(60).collect()
 }
@@ -324,6 +334,7 @@ fn list_sessions(project_dir: &std::path::Path) -> Vec<PlanningSessionSummary> {
             PlanningSessionSummary {
                 title: summary_title(&session.idea),
                 saved: session.output_path.is_some(),
+                doc_stale: session.doc_stale,
                 output_path: session.output_path.clone(),
                 created_at: session.created_at.clone(),
                 message_count: messages.len(),
@@ -489,6 +500,64 @@ mod tests {
         assert_eq!(json["messages"].as_array().expect("messages").len(), 3);
         assert_eq!(json["cards"].as_array().expect("cards").len(), 2);
         assert_eq!(json["outputPath"], "plans/x.md");
+    }
+
+    #[test]
+    fn mark_doc_stale_marks_saved_session_once_and_keeps_path() {
+        let mut session = StoredPlanningChatSession {
+            schema_version: 1,
+            session_id: "chat_1".to_string(),
+            idea: "예약 앱".to_string(),
+            mode: "chat".to_string(),
+            created_at: "1".to_string(),
+            output_path: Some("plans/a.md".to_string()),
+            absolute_output_path: Some("/p/plans/a.md".to_string()),
+            doc_stale: false,
+            readiness: None,
+        };
+
+        assert!(mark_doc_stale(&mut session)); // 첫 턴 — 기록 필요
+        assert!(session.doc_stale);
+        assert_eq!(session.output_path.as_deref(), Some("plans/a.md")); // 포인터는 유지
+        assert!(!mark_doc_stale(&mut session)); // 이미 stale — 재기록 불필요
+    }
+
+    #[test]
+    fn mark_doc_stale_ignores_unsaved_session() {
+        let mut session = StoredPlanningChatSession {
+            schema_version: 1,
+            session_id: "chat_2".to_string(),
+            idea: "예약 앱".to_string(),
+            mode: "chat".to_string(),
+            created_at: "1".to_string(),
+            output_path: None,
+            absolute_output_path: None,
+            doc_stale: false,
+            readiness: None,
+        };
+
+        assert!(!mark_doc_stale(&mut session));
+        assert!(!session.doc_stale);
+    }
+
+    #[test]
+    fn list_sessions_exposes_doc_stale_flag() {
+        let root = tempfile::tempdir().expect("root");
+        let dir = root.path().join(".vibelign/planning/chat_s");
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        std::fs::write(
+            dir.join("session.json"),
+            "{\"schema_version\":1,\"session_id\":\"chat_s\",\"idea\":\"알람앱\",\"mode\":\"chat\",\"created_at\":\"1\",\"output_path\":\"plans/알람앱.md\",\"absolute_output_path\":null,\"doc_stale\":true}",
+        )
+        .expect("session");
+        std::fs::write(dir.join("messages.json"), "[]").expect("messages");
+
+        let summaries = list_sessions(root.path());
+
+        assert_eq!(summaries.len(), 1);
+        assert!(summaries[0].saved);
+        assert!(summaries[0].doc_stale);
+        assert_eq!(summaries[0].output_path.as_deref(), Some("plans/알람앱.md"));
     }
 }
 // === ANCHOR: PLANNING_CHAT_END ===

@@ -1,6 +1,6 @@
 // === ANCHOR: STAGE_HUB_CARDS_START ===
 import { STAGE_DEFS, pagesForStage, type Stage, type Page } from "../../lib/nav/stages";
-import { cardStepState, journeyStep, type ActiveGuideStep } from "../../lib/nav/guide";
+import { cardStepState, hubCardTarget, journeyStep, type ActiveGuideStep } from "../../lib/nav/guide";
 
 interface StageHubCardsProps {
   onNavigate: (page: Page) => void;
@@ -32,7 +32,8 @@ export function StageHubCards({ onNavigate, planningStatus, backupCount, current
         return (
           <button
             key={def.key}
-            onClick={() => onNavigate(pagesForStage(def.key)[0])}
+            // "지금 할 차례" 카드는 현재 가이드 단계의 목적지로(예: 3️⃣ → 백업 탭), 평상시엔 첫 탭.
+            onClick={() => onNavigate(hubCardTarget(def.key, currentStep, pagesForStage(def.key)[0]))}
             style={{
               flex: 1,
               textAlign: "left",

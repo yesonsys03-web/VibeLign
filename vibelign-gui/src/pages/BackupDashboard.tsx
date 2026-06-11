@@ -6,9 +6,11 @@ import { backupCreate, backupList, backupRestore, getCachedBackupList } from "..
 
 interface BackupDashboardPageProps {
   projectDir: string;
+  /** 저장본 생성·복원 직후 호출 — App이 가이드 신호(체크포인트·변경 수)를 즉시 재조회한다. */
+  onBackupsChanged?: () => void;
 }
 
-export default function BackupDashboardPage({ projectDir }: BackupDashboardPageProps) {
+export default function BackupDashboardPage({ projectDir, onBackupsChanged }: BackupDashboardPageProps) {
   const cached = getCachedBackupList(projectDir);
   const [entries, setEntries] = useState<BackupEntry[]>(cached?.backups ?? []);
   const [loading, setLoading] = useState(!cached);
@@ -52,6 +54,7 @@ export default function BackupDashboardPage({ projectDir }: BackupDashboardPageP
       setNotice("새 저장본을 만들었어요.");
       setSelectedId(null);
       await load(true);
+      onBackupsChanged?.();
     } catch (err) {
       setError(String(err));
     } finally {
@@ -67,6 +70,7 @@ export default function BackupDashboardPage({ projectDir }: BackupDashboardPageP
       await backupRestore(projectDir, id);
       setNotice("선택한 저장본으로 되돌렸어요.");
       await load(true);
+      onBackupsChanged?.();
     } catch (err) {
       setError(String(err));
     } finally {

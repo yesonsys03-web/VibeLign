@@ -12,6 +12,9 @@ import {
   changedSetFingerprint,
   countChangesSinceBaseline,
   guideRelevantEntries,
+  hasManualCheckpoint,
+  hubCardTarget,
+  isAutoInitBackup,
   shouldCelebrate,
   type GuideChangedEntry,
   type GuideSignals,
@@ -185,6 +188,61 @@ describe("guideRelevantEntries", () => {
         ent("src/app.ts"),
       ]).map((e) => e.path),
     ).toEqual(["src/app.ts"]);
+  });
+
+  it("기획 산출물·OS 메타 제외 — 기획안 저장이 '개발 완료' 신호(4️⃣→5️⃣)로 오인되지 않게", () => {
+    expect(
+      guideRelevantEntries([
+        ent("plans/알람앱-만들기.md"),
+        ent("vibelign_exports/claude/RULES.md"),
+        ent(".DS_Store"),
+        ent("src/.DS_Store"),
+        ent("src/app.ts"),
+      ]).map((e) => e.path),
+    ).toEqual(["src/app.ts"]);
+  });
+});
+
+describe("hubCardTarget", () => {
+  it("'지금 할 차례' 카드는 단계 목적지로 — 3️⃣ 유지보수 카드는 진단이 아니라 백업", () => {
+    expect(hubCardTarget("maintain", 3, "doctor")).toBe("backups");
+    expect(hubCardTarget("maintain", 6, "doctor")).toBe("backups");
+  });
+
+  it("now가 아닌 카드는 fallback(단계 첫 탭) 그대로", () => {
+    expect(hubCardTarget("maintain", 4, "doctor")).toBe("doctor"); // 4️⃣은 개발 카드 차례
+    expect(hubCardTarget("develop", 3, "code")).toBe("code");
+    expect(hubCardTarget("maintain", null, "doctor")).toBe("doctor"); // 가이드 꺼짐/로딩 전
+  });
+
+  it("now인 카드의 목적지가 단계 페이지와 같으면 동작 불변 — 2️⃣ 기획, 4️⃣ 개발", () => {
+    expect(hubCardTarget("planning", 2, "planning")).toBe("planning");
+    expect(hubCardTarget("develop", 4, "code")).toBe("code");
+  });
+});
+
+describe("hasManualCheckpoint", () => {
+  it("vib start 자동 초기 저장만 있으면 false — 프로젝트 열기만으로 3️⃣ 완료 처리 금지", () => {
+    expect(
+      hasManualCheckpoint([{ note: "vibelign: checkpoint - vib start 초기 저장 (2026-06-11 11:05)" }]),
+    ).toBe(false);
+    expect(hasManualCheckpoint([])).toBe(false);
+  });
+
+  it("사용자 체크포인트가 하나라도 있으면 true (note 누락도 사용자 저장으로 취급)", () => {
+    expect(
+      hasManualCheckpoint([
+        { note: "vibelign: checkpoint - vib start 초기 저장 (2026-06-11 11:05)" },
+        { note: "vibelign: checkpoint - AI 작업 전" },
+      ]),
+    ).toBe(true);
+    expect(hasManualCheckpoint([{ note: undefined }])).toBe(true);
+  });
+
+  it("isAutoInitBackup은 CLI 마커 부분 문자열로 판별", () => {
+    expect(isAutoInitBackup("vibelign: checkpoint - vib start 초기 저장 (x)")).toBe(true);
+    expect(isAutoInitBackup("내 저장")).toBe(false);
+    expect(isAutoInitBackup(undefined)).toBe(false);
   });
 });
 

@@ -172,6 +172,17 @@ export function cardStepState(stage: Stage, currentStep: ActiveGuideStep): CardS
   return "upcoming";
 }
 
+/** 홈 허브 카드 클릭 목적지 — "지금 할 차례" 카드는 현재 단계의 목적지로 보낸다
+ *  (예: 3️⃣ 체크포인트 저장에서 유지보수 카드 → 진단이 아니라 백업 탭).
+ *  평상시(now 아님)엔 fallback(단계 첫 탭) 그대로. */
+export function hubCardTarget(stage: Stage, currentStep: ActiveGuideStep | null, fallback: Page): Page {
+  if (currentStep && cardStepState(stage, currentStep) === "now") {
+    const target = journeyStep(currentStep).targetPage;
+    if (target) return target;
+  }
+  return fallback;
+}
+
 // ── 신호 배선 보조 (App.tsx가 사용, 순수) ──────────────────────────────────
 
 /** backupList 결과에서 최신 체크포인트 id. 응답 정렬 순서를 가정하지 않는다. */
@@ -222,11 +233,32 @@ export function countChangesSinceBaseline(
   return n;
 }
 
-const GUIDE_IGNORED_PREFIXES = [".vibelign/", ".omc/", ".git/"];
+const GUIDE_IGNORED_PREFIXES = [".vibelign/", ".omc/", ".git/", "plans/", "vibelign_exports/"];
 
-/** 도구 메타데이터 경로 제외 — guard 리포트·체크포인트 메타 churn을 코드 변경으로 오인하지 않게. */
+/** 도구 메타데이터·기획 산출물 경로 제외 — guard 리포트·체크포인트 메타 churn은 물론, 기획안 저장
+ *  (plans/*.md)·규칙 내보내기(vibelign_exports/)를 "AI가 코드를 고침"(4️⃣→5️⃣ 신호)으로 오인하지 않게.
+ *  .DS_Store는 어느 폴더에나 생기는 OS 메타라 prefix가 아니라 파일명으로 거른다. */
 export function guideRelevantEntries<T extends { path: string }>(entries: T[]): T[] {
-  return entries.filter((e) => !GUIDE_IGNORED_PREFIXES.some((pre) => e.path.startsWith(pre)));
+  return entries.filter(
+    (e) =>
+      !GUIDE_IGNORED_PREFIXES.some((pre) => e.path.startsWith(pre)) &&
+      !e.path.endsWith(".DS_Store"),
+  );
+}
+
+/** vib start가 자동 생성하는 초기 체크포인트의 note 마커 — CLI(hook_setup.py)가 중복 방지 검사에
+ *  쓰는 문자열과 동일해야 한다. */
+const AUTO_INIT_BACKUP_MARKER = "vib start 초기 저장";
+
+export function isAutoInitBackup(note: string | undefined): boolean {
+  return (note ?? "").includes(AUTO_INIT_BACKUP_MARKER);
+}
+
+/** 가이드 3️⃣(AI 작업 전 수동 체크포인트) 신호 — vib start 자동 초기 저장은 사용자가 만든 안전
+ *  저장이 아니므로 제외한다. 이걸 세면 프로젝트를 열기만 해도 3️⃣이 완료 처리되고, 기획안 파일
+ *  생성과 결합해 개발(4️⃣)까지 "완료"로 건너뛰는 오표시가 난다. */
+export function hasManualCheckpoint(backups: Array<{ note?: string }>): boolean {
+  return backups.some((b) => !isAutoInitBackup(b.note));
 }
 
 /** 가이드 ON/OFF — 전역 1개 (숙련도는 프로젝트와 무관, spec §4) */

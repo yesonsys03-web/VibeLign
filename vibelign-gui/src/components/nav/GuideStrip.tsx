@@ -6,6 +6,8 @@ interface GuideStripProps {
   enabled: boolean;
   /** null = 신호 로딩 전 — 가이드 부분 미렌더(spec §4-4) */
   step: ActiveGuideStep | null;
+  /** 현재 탭 — 이미 단계 목적지에 있으면 "~으로 이동 →" 버튼을 숨긴다. */
+  currentPage?: Page | null;
   hasCheckpoint: boolean;
   planningPending: boolean;
   /** AI 도구 0개 "확정 탐지" 시에만 true — 탐지 실패·미완은 false(분기 미노출, spec §3.2) */
@@ -28,6 +30,7 @@ interface GuideStripProps {
 export function GuideStrip({
   enabled,
   step,
+  currentPage = null,
   hasCheckpoint,
   planningPending,
   aiToolMissing = false,
@@ -89,10 +92,11 @@ export function GuideStrip({
             </span>{" "}
             — {def.shortAction}
           </span>
-          {def.targetPage && (
+          {def.targetPage && def.targetPage !== currentPage && (
             <button
-              className="nav-tab"
-              style={{ fontSize: 12, padding: "0 8px" }}
+              // 가이드의 주행동 버튼 — 강조색은 guide-accent(hover 포함), 테두리로 버튼임을 드러낸다.
+              className="nav-tab guide-accent"
+              style={{ fontSize: 12, padding: "1px 8px", border: "1px solid #FBBF24", borderRadius: 4 }}
               onClick={() => onNavigate(def.targetPage as Page)}
             >
               {PAGE_LABELS[def.targetPage]}으로 이동 →
@@ -100,8 +104,8 @@ export function GuideStrip({
           )}
           {step === 4 && (
             <button
-              className="nav-tab"
-              style={{ fontSize: 12, padding: "0 8px", color: "#FBBF24" }}
+              className="nav-tab guide-accent"
+              style={{ fontSize: 12, padding: "0 8px" }}
               title="외부 AI 작업이 끝났거나 멈췄으면 확인 단계로"
               onClick={() => {
                 // 외부 AI 작업 종료는 신호로 100% 감지 불가, 비-git 프로젝트는 변경이 항상
@@ -118,8 +122,8 @@ export function GuideStrip({
           )}
           {step === 4 && aiToolMissing && onOpenSettings && (
             <button
-              className="nav-tab"
-              style={{ fontSize: 12, padding: "0 8px", color: "#FBBF24" }}
+              className="nav-tab guide-accent"
+              style={{ fontSize: 12, padding: "0 8px" }}
               title="설정의 'AI 도구 설정'에서 설치를 도와드려요"
               onClick={onOpenSettings}
             >

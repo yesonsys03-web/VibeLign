@@ -42,6 +42,8 @@ pub(crate) fn save_planning_markdown(
     let absolute_output_path = absolute_path.to_string_lossy().into_owned();
     session.output_path = Some(output_path.clone());
     session.absolute_output_path = Some(absolute_output_path.clone());
+    // 방금 저장했으니 문서는 대화와 동기화 상태 — stale 해제.
+    session.doc_stale = false;
     Ok(SavedPlanningMarkdown { markdown })
 }
 

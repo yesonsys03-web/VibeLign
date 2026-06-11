@@ -293,6 +293,10 @@ html, body {
 .nav-tab:disabled { opacity: 0.35; cursor: default; }
 .nav-tab:disabled:hover { background: transparent; }
 .nav-tab.active { background: var(--primary); color: var(--white); }
+/* 가이드 줄(어두운 #0E0E0E 배경) 전용 — nav-tab 기본색(--black)과 기본 hover(--gray 밝은 배경)는
+   어두운 줄 위에서 글자를 숨긴다. 기본 상태부터 보이는 강조색 + 어두운 배경용 hover. */
+.nav-tab.guide-accent { color: #FBBF24; }
+.nav-tab.guide-accent:hover { background: rgba(251, 191, 36, 0.15); }
 
 /* ─── 스코어 뱃지 ────────────────────────────────────────────────────────────── */
 .score-badge {

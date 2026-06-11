@@ -122,6 +122,15 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
   // === ANCHOR: PLANNINGROOM_HANDLESTARTWORK_START ===
   function handleStartWork() {
     const proceed = onStartWork ?? onBack;
+    // 저장 이후 대화가 더 진행됐으면 기획안·계약이 구버전 — 그대로 시작하면 지시문이 옛 기준이 된다.
+    if (result.docStale && hasSavedPlan) {
+      const ok = window.confirm(
+        "저장된 기획안·작업 계약이 마지막 대화를 반영하지 않았어요.\n'기획안 다시 저장'을 먼저 누르는 걸 권장합니다.\n저장하지 않고 작업을 시작할까요?",
+      );
+      if (!ok) {
+        return;
+      }
+    }
     const summary = readinessSummary(result.readiness);
     if (!summary.canStartWork) {
       const ok = window.confirm(
@@ -161,6 +170,11 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
               onCardsChange={(cards) => onResultChange({ ...result, cards })}
             />
             <PlanningPersonaComposer projectDir={projectDir} result={result} sessionId={result.sessionId ?? null} onResultChange={onResultChange} onSlashSave={() => handleSavePlan("slash")} />
+            {result.docStale && hasSavedPlan && !isPending && (
+              <div style={{ fontSize: 12, color: "#B45309", background: "#FEF3C7", border: "1px solid #FDE68A", borderRadius: 6, padding: "8px 12px" }}>
+                저장된 기획안 이후 대화가 더 진행됐어요 — ‘기획안 다시 저장’을 누르면 최신 내용이 반영됩니다.
+              </div>
+            )}
             <PlanningActionBar
               canSave={canSave}
               canView={canView}

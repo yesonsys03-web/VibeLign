@@ -60,6 +60,8 @@ pub struct PlanningChatSessionResponse {
     messages: Vec<PlanningChatMessage>,
     output_path: Option<String>,
     absolute_output_path: Option<String>,
+    #[serde(default)]
+    doc_stale: bool,
     markdown: Option<String>,
     error_code: Option<String>,
     message: Option<String>,
@@ -76,6 +78,8 @@ pub(crate) struct PlanningSessionSummary {
     pub(crate) title: String,
     pub(crate) output_path: Option<String>,
     pub(crate) saved: bool,
+    /// 저장 후 대화가 더 진행됨 — 기획안 탭에서 "다시 저장 필요" 표시용.
+    pub(crate) doc_stale: bool,
     pub(crate) created_at: String,
     pub(crate) message_count: usize,
     pub(crate) card_count: usize,
@@ -89,6 +93,7 @@ pub(crate) fn planning_chat_error(details: impl Into<String>) -> PlanningChatSes
         messages: Vec::new(),
         output_path: None,
         absolute_output_path: None,
+        doc_stale: false,
         markdown: None,
         error_code: Some("PLANNING_CHAT_FAILED".to_string()),
         message: Some("기획방 대화를 준비하지 못했어요.".to_string()),
@@ -112,6 +117,7 @@ pub(crate) fn planning_chat_success(
         session_id: Some(session.session_id),
         prompt: Some(session.idea),
         messages,
+        doc_stale: session.doc_stale,
         output_path: session.output_path,
         absolute_output_path: session.absolute_output_path,
         markdown,
