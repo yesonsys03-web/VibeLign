@@ -8,15 +8,17 @@ import CodeFileTree from "../components/code-explorer/CodeFileTree";
 import CodeFileViewer from "../components/code-explorer/CodeFileViewer";
 import { filterCodeFiles } from "../lib/code-explorer/filters";
 import { listCodeFiles, readCodeFile, readCodeFileDiff, listChangedFiles, type CodeFileEntry, type CodeFileReadResult, type CodeFileDiffResult, type ChangeStatus, type ChangedEntry } from "../lib/vib";
+import type { PlanningContract } from "../lib/vib/types";
 
 interface CodeExplorerProps {
   projectDir: string;
   planningPrompt?: string;
   planningOutputPath?: string | null;
+  planningContract?: PlanningContract | null;
   onReviewInPlanning?: (path: string) => void;
 }
 
-export default function CodeExplorer({ projectDir, planningPrompt = "", planningOutputPath = null, onReviewInPlanning }: CodeExplorerProps) {
+export default function CodeExplorer({ projectDir, planningPrompt = "", planningOutputPath = null, planningContract = null, onReviewInPlanning }: CodeExplorerProps) {
   const [files, setFiles] = useState<CodeFileEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<CodeFileReadResult | null>(null);
@@ -117,7 +119,7 @@ export default function CodeExplorer({ projectDir, planningPrompt = "", planning
 
   return (
     <CodeExplorerLayout
-      planningContext={planningOutputPath ? <CodeExplorerPlanningContext prompt={planningPrompt} outputPath={planningOutputPath} /> : undefined}
+      planningContext={planningOutputPath ? <CodeExplorerPlanningContext prompt={planningPrompt} outputPath={planningOutputPath} contract={planningContract} /> : undefined}
       toolbar={<CodeExplorerToolbar query={query} fileCount={filteredFiles.length} isRefreshing={isRefreshing} onQueryChange={setQuery} onRefresh={() => void refreshFiles()} />}
       tree={<CodeFileTree files={filteredFiles} selectedPath={selectedPath} onSelect={setSelectedPath} autoExpandAll={query.trim().length > 0} changes={changes} onReviewInPlanning={onReviewInPlanning} />}
       viewer={<CodeFileViewer

@@ -1,6 +1,8 @@
 // === ANCHOR: HOME_START ===
 import { useState } from "react";
-import { GuardResult, vibGuard } from "../lib/vib";
+import { GuardResult, vibGuard, listChangedFiles } from "../lib/vib";
+import { scopeReport, type ScopeReportResult } from "../lib/home/scopeReport";
+import type { PlanningContract } from "../lib/vib";
 import { useCardOrder } from "../hooks/useCardOrder";
 import { AdvancedHomeCards } from "../components/home/AdvancedHomeCards";
 import { GuardResultModal } from "../components/home/GuardResultModal";
@@ -45,11 +47,13 @@ interface HomeProps {
   onGuardResult?: (status: "ok" | "issue") => void;
   /** 가이드 현재 단계 — 사용법 따라하기 아코디언 강조용. */
   guideStep?: ActiveGuideStep | null;
+  /** 활성 작업 계약 — 범위 비교 리포트용(없으면 리포트 미노출). */
+  planningContract?: PlanningContract | null;
 }
 
 
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────────
-export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenDoctor, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, watchError = null, onRetryWatch, hasCheckpoint = false, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning, onStartPlanning, onOpenPlanningHistory, onGuardResult, guideStep = null }: HomeProps) {
+export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenDoctor, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, watchError = null, onRetryWatch, hasCheckpoint = false, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning, onStartPlanning, onOpenPlanningHistory, onGuardResult, guideStep = null, planningContract = null }: HomeProps) {
   const [view, setView]                   = useState<View>(initialView);
   const [selectedCmd, setSelectedCmd]     = useState<ManualCommand | null>(null);
   const [guardResult, setGuardResult]     = useState<GuardResult | null>(null);
@@ -58,6 +62,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
   const [guardCheckError, setGuardCheckError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showNewPlanning, setShowNewPlanning] = useState(false);
+  const [scopeReportResult, setScopeReportResult] = useState<ScopeReportResult | null>(null);
   const [watchOnLocal, setWatchOnLocal]   = useState(watchOnProp ?? false);
   const watchOn = watchOnProp ?? watchOnLocal;
   const setWatchOn = (v: boolean) => { setWatchOnLocal(v); setWatchOnProp?.(v); };
@@ -67,6 +72,22 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
 
   const { cardOrder, setCardOrder, resetOrder } = useCardOrder();
 
+  // 계약 범위 비교(spec §6) — guard와 같은 순간의 changed-set을 직접 조회.
+  // 체크포인트 유무·가이드 v6 구현 여부와 무관(설계 §6 직접 조회 결정).
+  // 심플·고급 양 guard 경로 모두에서 호출(stale 방지). 표시는 v1 SimpleHome만(고급 카드 안 표시는 후속).
+  async function refreshScopeReport() {
+    if (projectDir && planningContract && planningContract.scope.length > 0) {
+      try {
+        const entries = await listChangedFiles(projectDir);
+        setScopeReportResult(scopeReport(planningContract.scope, entries.map((e) => e.path)));
+        return;
+      } catch {
+        // 조회 실패 = 리포트 생략(추측 안내 금지) — 아래 공통 null로
+      }
+    }
+    setScopeReportResult(null);
+  }
+
   async function handleRunGuard() {
     setGuardCheckPending(true);
     setGuardCheckError(null);
@@ -74,6 +95,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
       const result = await vibGuard(projectDir);
       setGuardResult(result);
       onGuardResult?.(result.status === "pass" ? "ok" : "issue");
+      await refreshScopeReport();
     } catch (error: unknown) {
       if (error instanceof Error) {
         setGuardCheckError("상태 확인을 끝내지 못했어요. 잠시 뒤 다시 시도해 주세요.");
@@ -169,6 +191,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
             hasCheckpoint={hasCheckpoint}
             guardCheckPending={guardCheckPending}
             guardCheckError={guardCheckError}
+            scopeReport={scopeReportResult}
             onRetryWatch={() => {
               onRetryWatch?.();
             }}
@@ -198,6 +221,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
             onGuardResult={(result) => {
               setGuardResult(result);
               setGuardModal(true);
+              void refreshScopeReport();
             }}
           />
         )}

@@ -1,6 +1,7 @@
 // === ANCHOR: SIMPLEHOME_START ===
 import type { ReactNode } from "react";
 import type { GuardResult } from "../../lib/vib";
+import type { ScopeReportResult } from "../../lib/home/scopeReport";
 import { guardNextActionCopy, guardSafetyCopy } from "./GuardHomeCopy";
 import { SafetyAutomationNotice } from "./SafetyAutomationNotice";
 
@@ -11,6 +12,7 @@ interface SimpleHomeProps {
   readonly hasCheckpoint: boolean;
   readonly guardCheckPending: boolean;
   readonly guardCheckError: string | null;
+  readonly scopeReport?: ScopeReportResult | null;
   readonly onRetryWatch: () => void;
   readonly onRunGuard: () => void;
   readonly onShowAdvanced: () => void;
@@ -26,6 +28,7 @@ export function SimpleHome({
   hasCheckpoint,
   guardCheckPending,
   guardCheckError,
+  scopeReport = null,
   onRetryWatch,
   onRunGuard,
   onShowAdvanced,
@@ -43,6 +46,22 @@ export function SimpleHome({
         <HomeStatusBlock title="프로젝트 안전 상태" accent={safety.accent}>
           <div style={{ fontSize: 16, fontWeight: 900, lineHeight: 1.35 }}>{safety.title}</div>
           <div style={{ marginTop: 6, fontSize: 12, color: "#555", lineHeight: 1.55 }}>{safety.detail}</div>
+          {scopeReport ? (
+            <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.55, color: scopeReport.outOfScope.length > 0 ? "#A63A00" : "#555" }}>
+              <div>
+                약속 범위 안 변경 {scopeReport.inScope}건
+                {scopeReport.outOfScope.length > 0 ? ` · 범위 밖 ${scopeReport.outOfScope.length}건` : ""}
+              </div>
+              {scopeReport.outOfScope.length > 0 ? (
+                <details style={{ marginTop: 4 }}>
+                  <summary style={{ cursor: "pointer" }}>범위 밖 변경이 있어요 — 의도한 작업인지 확인해보세요</summary>
+                  {scopeReport.outOfScope.map((path) => (
+                    <div key={path} style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11 }}>{path}</div>
+                  ))}
+                </details>
+              ) : null}
+            </div>
+          ) : null}
           {hasGuardProblemDetails ? (
             <button className="btn btn-ghost btn-sm" type="button" onClick={onOpenGuardDetails} style={{ marginTop: 12, fontSize: 11 }}>
               문제 확인하기

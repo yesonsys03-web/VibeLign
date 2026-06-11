@@ -1,10 +1,12 @@
 // === ANCHOR: PLANNINGINSTRUCTION_START ===
 import { planningPersonaRoleLabel, type PlanningPersonaId } from "../../pages/planning/PlanningPersonas";
+import type { PlanningContract } from "../vib/types";
 
 interface PlanningWorkInstructionInput {
   readonly prompt: string;
   readonly outputPath: string;
   readonly persona?: PlanningWorkPersona;
+  readonly contract?: PlanningContract | null;
 }
 
 export type PlanningWorkPersona = PlanningPersonaId;
@@ -29,7 +31,7 @@ const PERSONA_CLI_DETAILS: Record<PlanningWorkPersona, { readonly cliName: strin
 };
 
 // === ANCHOR: PLANNINGINSTRUCTION_BUILDPLANNINGWORKINSTRUCTION_START ===
-export function buildPlanningWorkInstruction({ prompt, outputPath, persona }: PlanningWorkInstructionInput): string {
+export function buildPlanningWorkInstruction({ prompt, outputPath, persona, contract }: PlanningWorkInstructionInput): string {
   const trimmedPrompt = prompt.trim() || "저장된 기획안을 기준으로 구현 범위를 정리하세요.";
   const personaDetails = persona ? PERSONA_CLI_DETAILS[persona] : null;
   return [
@@ -46,6 +48,18 @@ export function buildPlanningWorkInstruction({ prompt, outputPath, persona }: Pl
     `저장된 기획안: ${outputPath}`,
     `요청 요약: ${trimmedPrompt}`,
     "",
+    ...(contract
+      ? [
+          "이번 작업의 계약(기획안에서 추출):",
+          `- 목표: ${contract.goal}`,
+          ...(contract.scope.length > 0
+            ? [`- 손댈 범위(이 밖은 건드리기 전에 사용자에게 확인): ${contract.scope.map((s) => s.path).join(", ")}`]
+            : []),
+          ...contract.exclusions.map((item) => `- 건드리지 말 것: ${item}`),
+          ...contract.doneCriteria.map((item) => `- 완료 기준: ${item}`),
+          "",
+        ]
+      : []),
     "작업 기준:",
     "- 먼저 저장된 Markdown 기획안을 읽고 구현 범위, 제외할 것, 아직 결정이 필요한 질문을 확인하세요.",
     "- 기존 코드 구조를 읽고 컴포넌트/모듈 단위로 작게 나눠 작업하세요.",

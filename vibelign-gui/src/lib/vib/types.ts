@@ -251,6 +251,26 @@ export interface CardUpdateResponse {
   error?: string | null;
 }
 
+export type ContractScopeKind = "file" | "dir";
+
+export interface ContractScopeEntry {
+  path: string;
+  kind: ContractScopeKind;
+  /** 초보자 노출 한국어 한 줄. */
+  reason: string;
+}
+
+/** 작업 계약 — 기획안 확정 시 추출(plans/2026-06-11-계약트랙-design.md §3). */
+export interface PlanningContract {
+  version: number;
+  /** epoch ms 문자열(메시지 createdAt 관례와 동일). */
+  extractedAt: string;
+  goal: string;
+  scope: ContractScopeEntry[];
+  exclusions: string[];
+  doneCriteria: string[];
+}
+
 export interface PlanningChatSessionResponse {
   ok: boolean;
   sessionId?: string | null;
@@ -264,6 +284,7 @@ export interface PlanningChatSessionResponse {
   details?: string | null;
   readiness?: ReadinessReport | null;
   cards?: readonly Card[];
+  contract?: PlanningContract | null;
 }
 
 export interface PlanningSessionSummary {

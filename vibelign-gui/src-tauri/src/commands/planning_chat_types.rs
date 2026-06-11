@@ -2,6 +2,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::planning_chat_cards::Card;
+use super::planning_chat_contract::PlanningContract;
 use super::planning_chat_readiness::ReadinessReport;
 use super::planning_chat_store::StoredPlanningChatSession;
 
@@ -65,6 +66,7 @@ pub struct PlanningChatSessionResponse {
     details: Option<String>,
     readiness: Option<ReadinessReport>,
     cards: Vec<Card>,
+    contract: Option<PlanningContract>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -93,6 +95,7 @@ pub(crate) fn planning_chat_error(details: impl Into<String>) -> PlanningChatSes
         details: Some(details.into()),
         readiness: None,
         cards: Vec::new(),
+        contract: None,
     }
 }
 
@@ -101,6 +104,7 @@ pub(crate) fn planning_chat_success(
     messages: Vec<PlanningChatMessage>,
     markdown: Option<String>,
     cards: Vec<Card>,
+    contract: Option<PlanningContract>,
 ) -> PlanningChatSessionResponse {
     let readiness = session.readiness.clone();
     PlanningChatSessionResponse {
@@ -116,6 +120,7 @@ pub(crate) fn planning_chat_success(
         details: None,
         readiness,
         cards,
+        contract,
     }
 }
 

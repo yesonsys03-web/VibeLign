@@ -80,7 +80,7 @@ pub(crate) async fn retry_planning_persona(
             return planning_chat_error(error);
         }
         let cards = read_cards(&session_dir);
-        planning_chat_success(session, messages, None, cards)
+        planning_chat_success(session, messages, None, cards, super::planning_chat_contract::read_contract(&session_dir))
     })
     .await
     .unwrap_or_else(|error| planning_chat_error(error.to_string()))

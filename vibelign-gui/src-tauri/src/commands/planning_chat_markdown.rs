@@ -1,5 +1,6 @@
 // === ANCHOR: PLANNING_CHAT_MARKDOWN_START ===
 use super::planning_chat_cards::{Card, CardState};
+use super::planning_chat_contract::PlanningContract;
 use super::planning_chat_readiness::{ReadinessReport, ReadinessStatus, RequirementReadiness, Verdict};
 use super::planning_chat_store::StoredPlanningChatSession;
 use super::planning_chat_types::PlanningChatMessage;
@@ -16,6 +17,7 @@ pub(crate) fn synthesize_planning_markdown(
     session: &StoredPlanningChatSession,
     messages: &[PlanningChatMessage],
     cards: &[Card],
+    contract: Option<&PlanningContract>,
 ) -> String {
     let title = title_from_idea(&session.idea);
     let sections = PlanningSections::from_messages(messages);
@@ -24,6 +26,7 @@ pub(crate) fn synthesize_planning_markdown(
     push_section(&mut markdown, "## 한 줄 목표");
     push_section(&mut markdown, session.idea.trim());
     markdown.push_str(&readiness_header(session.readiness.as_ref()));
+    markdown.push_str(&contract_section(contract));
     push_section(&mut markdown, "## 확정된 결정");
     push_confirmed_decisions(&mut markdown, cards);
     push_section(&mut markdown, "## 대상 사용자");
@@ -309,6 +312,38 @@ pub(crate) fn readiness_header(report: Option<&ReadinessReport>) -> String {
     header
 }
 
+/// 작업 계약 섹션 — 읽기 전용 노출(spec §1 Q3). 실패 카피는 원인 중립(외부 리뷰 M1):
+/// AI 미설정·CLI 실패·파싱 실패를 사용자에게 구분해 보일 수 없으므로 원인을 단정하지 않는다.
+pub(crate) fn contract_section(contract: Option<&PlanningContract>) -> String {
+    let Some(contract) = contract else {
+        return "## 작업 계약: 이번 저장에서는 추출하지 못했어요\n\n".to_string();
+    };
+    let mut out = String::from(
+        "## 작업 계약\n> 이 블록은 외부 AI 도구에게 주는 지시문에 그대로 들어갑니다.\n\n",
+    );
+    out.push_str(&format!("- 목표: {}\n", contract.goal));
+    if contract.scope.is_empty() {
+        out.push_str("- 손댈 범위: 추출하지 못함 — 작업 도구가 코드를 읽고 스스로 정합니다\n");
+    } else {
+        out.push_str("- 손댈 범위 후보:\n");
+        for entry in &contract.scope {
+            if entry.reason.is_empty() {
+                out.push_str(&format!("  - `{}`\n", entry.path));
+            } else {
+                out.push_str(&format!("  - `{}` — {}\n", entry.path, entry.reason));
+            }
+        }
+    }
+    for exclusion in &contract.exclusions {
+        out.push_str(&format!("- 건드리지 말 것: {exclusion}\n"));
+    }
+    for criteria in &contract.done_criteria {
+        out.push_str(&format!("- 완료 기준: {criteria}\n"));
+    }
+    out.push('\n');
+    out
+}
+
 fn push_section(markdown: &mut String, section: &str) {
     markdown.push_str(section);
     markdown.push_str("\n\n");
@@ -317,9 +352,45 @@ fn push_section(markdown: &mut String, section: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::planning_chat_contract::{PlanningContract, ScopeEntry, ScopeKind};
     use crate::commands::planning_chat_readiness::{
         ReadinessChecks, ReadinessCheck, ReadinessReport, ReadinessStatus, RequirementReadiness, Verdict,
     };
+
+    fn sample_contract() -> PlanningContract {
+        PlanningContract {
+            version: 1,
+            extracted_at: "1".to_string(),
+            goal: "예약 화면을 만든다".to_string(),
+            scope: vec![ScopeEntry {
+                path: "src/pages/".to_string(),
+                kind: ScopeKind::Dir,
+                reason: "화면이 모인 곳".to_string(),
+            }],
+            exclusions: vec!["결제는 건드리지 않음".to_string()],
+            done_criteria: vec!["예약 버튼이 동작한다".to_string()],
+        }
+    }
+
+    #[test]
+    fn contract_section_renders_all_fields() {
+        let section = contract_section(Some(&sample_contract()));
+        assert!(section.contains("## 작업 계약"));
+        assert!(section.contains("목표: 예약 화면을 만든다"));
+        assert!(section.contains("`src/pages/` — 화면이 모인 곳"));
+        assert!(section.contains("건드리지 말 것: 결제는 건드리지 않음"));
+        assert!(section.contains("완료 기준: 예약 버튼이 동작한다"));
+    }
+
+    #[test]
+    fn contract_section_is_honest_when_missing_or_scopeless() {
+        // 원인 중립 카피(외부 리뷰 M1) — "활성 AI 없음" 같은 원인 단정 금지.
+        assert!(contract_section(None).contains("이번 저장에서는 추출하지 못했어요"));
+        assert!(!contract_section(None).contains("활성 AI 없음"));
+        let mut scopeless = sample_contract();
+        scopeless.scope.clear();
+        assert!(contract_section(Some(&scopeless)).contains("추출하지 못함"));
+    }
 
     fn check(v: Verdict) -> ReadinessCheck {
         ReadinessCheck { verdict: v, note: String::new() }

@@ -129,7 +129,7 @@ fn normalize_verdict(raw: Option<&str>) -> Verdict {
 }
 
 /// 텍스트에서 첫 '{' ~ 마지막 '}' 구간을 JSON 후보로 추출(코드펜스 무시).
-fn extract_json(text: &str) -> Option<&str> {
+pub(crate) fn extract_json(text: &str) -> Option<&str> {
     let start = text.find('{')?;
     let end = text.rfind('}')?;
     if end > start {
