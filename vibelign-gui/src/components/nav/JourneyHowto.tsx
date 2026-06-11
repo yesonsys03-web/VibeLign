@@ -15,7 +15,7 @@ export function JourneyHowto({ currentStep, onNavigate }: JourneyHowtoProps) {
   useEffect(() => setOpen(currentStep), [currentStep]);
   return (
     <div style={{ padding: "16px 20px 4px" }}>
-      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>📖 순서대로 따라하기</div>
+      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>📖 순서대로 따라하기</div>
       {JOURNEY_STEPS.map((def) => {
         const isOpen = open === def.step;
         const isCurrent = currentStep === def.step;
@@ -39,21 +39,21 @@ export function JourneyHowto({ currentStep, onNavigate }: JourneyHowtoProps) {
                 border: "none",
                 color: "#ddd",
                 cursor: "pointer",
-                fontSize: 13,
+                fontSize: 15,
               }}
             >
               {def.icon} <b>{def.label}</b> — <span style={{ color: "#888" }}>{def.shortAction}</span>
               <span style={{ float: "right", color: "#666" }}>{isOpen ? "▾" : "▸"}</span>
             </button>
             {isOpen && (
-              <div style={{ padding: "0 12px 10px", fontSize: 12, color: "#aaa", lineHeight: 1.8 }}>
+              <div style={{ padding: "0 12px 10px", fontSize: 14, color: "#aaa", lineHeight: 1.8 }}>
                 {def.howto.map((line) => (
                   <div key={line}>{line}</div>
                 ))}
                 {def.targetPage && (
                   <button
                     className="nav-tab"
-                    style={{ fontSize: 12, marginTop: 6 }}
+                    style={{ fontSize: 14, marginTop: 6 }}
                     onClick={() => onNavigate(def.targetPage as Page)}
                   >
                     지금 하러 가기 → {PAGE_LABELS[def.targetPage]}

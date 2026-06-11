@@ -49,20 +49,20 @@ export function StageHubCards({ onNavigate, planningStatus, backupCount, current
             <div style={{ fontWeight: 600, marginTop: 6 }}>
               {def.label}
               {guideState === "now" && (
-                <span style={{ marginLeft: 8, fontSize: 11, background: "#FBBF24", color: "#000", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
+                <span style={{ marginLeft: 8, fontSize: 13, background: "#FBBF24", color: "#000", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
                   지금 할 차례
                 </span>
               )}
-              {guideState === "done" && <span style={{ marginLeft: 8, fontSize: 11, color: "#4DFF91" }}>✓ 완료</span>}
-              {guideState === "upcoming" && <span style={{ marginLeft: 8, fontSize: 11, color: "#666" }}>다음</span>}
+              {guideState === "done" && <span style={{ marginLeft: 8, fontSize: 13, color: "#4DFF91" }}>✓ 완료</span>}
+              {guideState === "upcoming" && <span style={{ marginLeft: 8, fontSize: 13, color: "#666" }}>다음</span>}
             </div>
-            <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{CARD_DESC[def.key]}</div>
+            <div style={{ fontSize: 14, color: "#888", marginTop: 4 }}>{CARD_DESC[def.key]}</div>
             {guideState === "now" && currentStep && (
-              <div style={{ fontSize: 12, color: "#FBBF24", marginTop: 6 }}>
+              <div style={{ fontSize: 14, color: "#FBBF24", marginTop: 6 }}>
                 → {journeyStep(currentStep).icon} {journeyStep(currentStep).shortAction}
               </div>
             )}
-            <div style={{ fontSize: 12, color: def.key === "planning" && planningStatus === "active" ? "#FBBF24" : "#aaa", marginTop: 8 }}>
+            <div style={{ fontSize: 14, color: def.key === "planning" && planningStatus === "active" ? "#FBBF24" : "#aaa", marginTop: 8 }}>
               {badgeText(def.key, planningStatus, backupCount)}
             </div>
           </button>

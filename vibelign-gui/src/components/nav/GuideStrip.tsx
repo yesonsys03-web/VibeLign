@@ -24,7 +24,8 @@ interface GuideStripProps {
 
 /**
  * 탭바 아래 안내 줄 — 좌측 가이드(지금 할 일) + 우측 기존 상태 신호. A안 상태 스트립을 대체·통합.
- * 시인성(spec §3.2): 가이드 활성 시 13px + #FBBF24 강조·세로 패딩 6px, off 시 기존 얇은 줄(3px·11px).
+ * 시인성(spec §3.2): 가이드 활성 시 15px·진한 웜 그레이 배경(#CFCABB)에 #7C2D12 강조, off 시 얇은 줄(3px·13px).
+ * 배경을 다크가 아닌 라이트 톤으로 두는 이유 — 앱 전체가 크림(#FEFBF0) 테마라 블랙 스트립은 이질적 섬이 된다.
  * 작업 탭 안에서 초보자에게 보이는 유일한 안내 표면이라 두 탭바 아래에서 묻히면 안 된다.
  */
 export function GuideStrip({
@@ -48,13 +49,14 @@ export function GuideStrip({
       <div
         style={{
           display: "flex",
+          flexWrap: "wrap",
           alignItems: "center",
           gap: 12,
-          padding: "6px 12px",
-          fontSize: 13,
-          color: "#4DFF91",
-          background: "#0E0E0E",
-          borderBottom: "1px solid #1A1A1A",
+          padding: "10px 14px",
+          fontSize: 15,
+          color: "#166534",
+          background: "#E8F6EC",
+          borderBottom: "2px solid #1A1A1A",
         }}
       >
         <span>
@@ -62,7 +64,7 @@ export function GuideStrip({
         </span>
         <button
           className="nav-tab"
-          style={{ fontSize: 12, padding: "0 6px", color: "#888" }}
+          style={{ fontSize: 14, padding: "5px 10px", color: "#4A4A4A", borderRight: "none" }}
           onClick={() => onCelebrateDismiss?.()}
         >
           ×
@@ -76,27 +78,29 @@ export function GuideStrip({
         display: "flex",
         alignItems: "center",
         gap: 16,
-        padding: def ? "6px 12px" : "3px 12px",
-        fontSize: 11,
-        color: "#888",
-        background: "#0E0E0E",
-        borderBottom: "1px solid #1A1A1A",
+        padding: def ? "10px 14px" : "3px 12px",
+        fontSize: 13,
+        color: "#555",
+        background: def ? "#CFCABB" : "var(--gray)",
+        borderBottom: "2px solid #1A1A1A",
       }}
     >
       {def && step && (
-        <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-          <span style={{ color: "#ccc" }}>
+        // flexWrap: 버튼(.nav-tab)은 flex-shrink:0이라 안 줄어든다 — wrap이 없으면 텍스트만
+        // 짜부라져 세로 글자기둥이 된다. 넘치면 안내문이 전체 폭으로 개행되고 버튼이 아랫줄로.
+        <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 10, rowGap: 10, fontSize: 15, minWidth: 0 }}>
+          <span style={{ color: "#1A1A1A", lineHeight: 1.6 }}>
             🧭 지금:{" "}
-            <span style={{ color: "#FBBF24", fontWeight: 700 }}>
+            <span style={{ color: "#7C2D12", fontWeight: 700 }}>
               {def.icon} {def.label}
             </span>{" "}
             — {def.shortAction}
           </span>
           {def.targetPage && def.targetPage !== currentPage && (
             <button
-              // 가이드의 주행동 버튼 — 강조색은 guide-accent(hover 포함), 테두리로 버튼임을 드러낸다.
-              className="nav-tab guide-accent"
-              style={{ fontSize: 12, padding: "1px 8px", border: "1px solid #FBBF24", borderRadius: 4 }}
+              // 가이드의 주행동 버튼 — 앰버 채움 + 검정 텍스트("지금 할 차례" 배지와 같은 톤)로 최상위 강조.
+              className="nav-tab"
+              style={{ fontSize: 14, padding: "5px 12px", background: "#FBBF24", color: "#1A1A1A", border: "1px solid #1A1A1A", borderRadius: 4 }}
               onClick={() => onNavigate(def.targetPage as Page)}
             >
               {PAGE_LABELS[def.targetPage]}으로 이동 →
@@ -104,8 +108,8 @@ export function GuideStrip({
           )}
           {step === 4 && (
             <button
-              className="nav-tab guide-accent"
-              style={{ fontSize: 12, padding: "0 8px" }}
+              className="nav-tab"
+              style={{ fontSize: 14, padding: "5px 12px", color: "#7C2D12", background: "transparent", border: "1px solid #7C2D12", borderRadius: 4 }}
               title="외부 AI 작업이 끝났거나 멈췄으면 확인 단계로"
               onClick={() => {
                 // 외부 AI 작업 종료는 신호로 100% 감지 불가, 비-git 프로젝트는 변경이 항상
@@ -122,8 +126,8 @@ export function GuideStrip({
           )}
           {step === 4 && aiToolMissing && onOpenSettings && (
             <button
-              className="nav-tab guide-accent"
-              style={{ fontSize: 12, padding: "0 8px" }}
+              className="nav-tab"
+              style={{ fontSize: 14, padding: "5px 12px", color: "#7C2D12", background: "transparent", border: "1px solid #7C2D12", borderRadius: 4 }}
               title="설정의 'AI 도구 설정'에서 설치를 도와드려요"
               onClick={onOpenSettings}
             >
@@ -134,7 +138,7 @@ export function GuideStrip({
           {(step === 4 || step === 5) && (
             <button
               className="nav-tab"
-              style={{ fontSize: 12, padding: "0 8px", color: "#888" }}
+              style={{ fontSize: 14, padding: "5px 12px", color: "#4A4A4A", borderRight: "none" }}
               title="마지막으로 저장한 시점으로 코드를 되돌릴 수 있어요"
               onClick={() => onNavigate("backups")}
             >
@@ -144,7 +148,7 @@ export function GuideStrip({
           )}
           <button
             className="nav-tab"
-            style={{ fontSize: 12, padding: "0 6px", color: "#888" }}
+            style={{ fontSize: 14, padding: "5px 10px", color: "#4A4A4A", borderRight: "none" }}
             title="이전 단계"
             disabled={step === 2}
             onClick={() => step > 2 && onStepChange((step - 1) as ActiveGuideStep)}
@@ -153,7 +157,7 @@ export function GuideStrip({
           </button>
           <button
             className="nav-tab"
-            style={{ fontSize: 12, padding: "0 6px", color: "#888" }}
+            style={{ fontSize: 14, padding: "5px 10px", color: "#4A4A4A", borderRight: "none" }}
             title="다음 단계"
             disabled={step === 6}
             onClick={() => step < 6 && onStepChange((step + 1) as ActiveGuideStep)}
@@ -162,7 +166,7 @@ export function GuideStrip({
           </button>
           <button
             className="nav-tab"
-            style={{ fontSize: 12, padding: "0 6px", color: "#888" }}
+            style={{ fontSize: 14, padding: "5px 10px", color: "#4A4A4A", borderRight: "none" }}
             title="가이드 끄기 (설정에서 다시 켤 수 있어요)"
             onClick={onDisable}
           >
@@ -171,10 +175,10 @@ export function GuideStrip({
         </span>
       )}
       <div style={{ flex: 1 }} />
-      <span style={{ color: hasCheckpoint ? "#aaa" : "#666" }}>
+      <span style={{ color: hasCheckpoint ? "#333" : "#666", whiteSpace: "nowrap" }}>
         {hasCheckpoint ? "✓ 백업 데이터 있음" : "백업 데이터 없음"}
       </span>
-      {planningPending && <span style={{ color: "#FBBF24" }}>● 기획 진행 중</span>}
+      {planningPending && <span style={{ color: "#7C2D12", whiteSpace: "nowrap" }}>● 기획 진행 중</span>}
     </div>
   );
 }

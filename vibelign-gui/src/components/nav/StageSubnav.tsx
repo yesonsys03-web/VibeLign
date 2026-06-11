@@ -18,7 +18,7 @@ export function StageSubnav({ page, onNavigate }: StageSubnavProps) {
         <button
           key={p}
           className={`nav-tab ${page === p ? "active" : ""}`}
-          style={{ fontSize: 12, padding: "2px 10px" }}
+          style={{ fontSize: 14, padding: "2px 10px" }}
           onClick={() => onNavigate(p)}
         >
           {PAGE_LABELS[p]}

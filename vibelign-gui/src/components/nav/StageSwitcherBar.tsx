@@ -46,7 +46,7 @@ export function StageSwitcherBar({
         className="nav-tab"
         style={{
           borderRight: "none",
-          fontSize: 11,
+          fontSize: 13,
           color: "#777",
           maxWidth: 260,
           overflow: "hidden",
