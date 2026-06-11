@@ -32,7 +32,7 @@
     .btn-ghost:hover { background: #252525; color: #ccc; }
     .card { background: #141414; border: 1px solid #222; border-radius: 8px; padding: 16px; }
     .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 13px; z-index: 9999; pointer-events: none; }
-    /* 코치마크 활성 시 비상구 버튼이 디밍 오버레이(z-index:1000) 위로 올라와야 함 */
+    /* 코치마크 클릭 통로(z-lift): 비상구는 항상 통과 — target·탭바 통로는 Coachmark가 동적 <style>로 주입 */
     .coachmark-active #strip-escape { position: relative; z-index: 1003; }
     @media (max-width: 899px) { #mobile-notice { display: flex !important; } #app-root { display: none !important; } }
   </style>
@@ -129,7 +129,8 @@ const COPY = {
 const initialSim = {
   hasPlanDoc: false,
   hasCheckpoint: false,
-  changedFiles: [],   // [{ path, rev }] — rev = 실제 지문(path+status+mtime+size)의 단순화
+  diskFiles: [],      // 실제 디스크(AI가 고친 것) — [{ path, rev }], rev = 실제 지문(path+status+mtime+size)의 단순화
+  changedFiles: [],   // 앱이 마지막 조회로 아는 것 — setPage(탭 전환)에서 diskFiles와 동기화(재조회 미러, 가이드 v6 spec §4-6)
   baseline: [],       // 체크포인트 시점 스냅샷
   guardOk: false,
   page: "home",
@@ -166,7 +167,8 @@ function simReducer(state, action) {
         guardOk: false,
       };
     case "simAiEdit": {
-      const existing = state.changedFiles.map(f => ({ ...f }));
+      // 디스크만 변경 — 앱(changedFiles)은 아직 모른다. 탭 전환(setPage)에서 알아챈다.
+      const existing = state.diskFiles.map(f => ({ ...f }));
       const newFiles = [
         { path: "src/pages/Home.tsx", rev: 1 },
         { path: "src/lib/api.ts", rev: 1 },
@@ -175,20 +177,30 @@ function simReducer(state, action) {
       for (const nf of newFiles) {
         if (!merged.find(f => f.path === nf.path)) merged.push(nf);
       }
-      return { ...state, changedFiles: merged };
+      return { ...state, diskFiles: merged };
     }
     case "simReEdit": {
-      const files = state.changedFiles.map(f => ({ ...f }));
+      // 디스크만 변경(rev+1) — guardOk 리셋도 여기서가 아니라 관찰 시점(setPage)에 일어난다(실제 미러).
+      const files = state.diskFiles.map(f => ({ ...f }));
       if (files.length > 0) {
         files[0] = { ...files[0], rev: files[0].rev + 1 };
       }
-      // guardOk 리셋 — 지문 리셋 규칙의 미러
-      return { ...state, changedFiles: files, guardOk: false };
+      return { ...state, diskFiles: files };
     }
     case "runGuard":
       return { ...state, guardOk: true };
-    case "setPage":
-      return { ...state, page: action.page };
+    case "setPage": {
+      // 탭 전환 = 실제 앱의 changed-set 재조회 미러(가이드 v6 spec §4-6).
+      const synced = state.diskFiles.map(f => ({ ...f }));
+      // 지문(rev) 변화 감지 시 guardOk 리셋 — 검증 시점 지문과 달라지면 stale pass를 남기지 않는 실제 동작의 미러
+      const fingerprintChanged = countChanges(state.changedFiles, synced) > 0;
+      return {
+        ...state,
+        page: action.page,
+        changedFiles: synced,
+        guardOk: fingerprintChanged ? false : state.guardOk,
+      };
+    }
     case "reset":
       return { ...initialSim };
     default:
@@ -318,7 +330,7 @@ function PageTabs({ activePage, dispatch }) {
   const stageKey = activePage === "planning" ? "planning" : activePage === "code" ? "develop" : (activePage === "backups" || activePage === "doctor") ? "maintain" : null;
   if (!stageKey) return null;
   return (
-    <div style={{ display: "flex", gap: 4, padding: "4px 12px", background: "#0A0A0A", borderBottom: "1px solid #1A1A1A" }}>
+    <div id="page-tabbar" style={{ display: "flex", gap: 4, padding: "4px 12px", background: "#0A0A0A", borderBottom: "1px solid #1A1A1A" }}>
       {(subPages[stageKey] || []).map(p => (
         <button key={p.key} className={"nav-tab" + (activePage === p.key ? " active" : "")} onClick={() => dispatch({ type: "setPage", page: p.key })}>
           {p.label}
@@ -496,12 +508,12 @@ function BackupScreen({ sim, dispatch }) {
 function CodeScreen({ sim, dispatch, trialStep }) {
   const [copied, setCopied] = useState(false);
   const step = inferStep(sim);
-  const showSimButtons = step === 4 || step === 5;
+  // 4(작업 시점)·5(검증 전)·6(검증 후 재수정 미션) 모두 노출 — 말풍선 5·8이 이 시점에 걸린다
+  const showSimButtons = step === 4 || step === 5 || step === 6;
 
   function handleCopy() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    dispatch({ type: "setPage", page: "code" }); // stay on page, just feedback
   }
 
   return (
@@ -527,7 +539,7 @@ function CodeScreen({ sim, dispatch, trialStep }) {
       </button>
       {!sim.hasCheckpoint && <div style={{ fontSize: 12, color: "#666" }}>체크포인트를 먼저 저장하세요</div>}
 
-      {/* 연습 전용 버튼 영역 — step 4·5에서만 노출, btn-sim-reedit는 항상 DOM에 존재(코치마크 타겟) */}
+      {/* 연습 전용 버튼 영역 — step 4·5·6에서 노출, btn-sim-reedit는 항상 DOM에 존재(코치마크 타겟) */}
       <div style={{ marginTop: 16, borderTop: "1px solid #2A2A2A", paddingTop: 16, display: showSimButtons ? "flex" : "none", flexDirection: "column", gap: 10 }}>
         <div style={{ fontSize: 11, color: "#7B4DFF", fontWeight: 700, letterSpacing: "0.05em" }}>— 연습 전용 (실제 앱에는 없어요) —</div>
         <button
@@ -627,28 +639,28 @@ function Coachmark({ stepIndex, sim, dispatch, onSkip, onComplete, escapeToastVi
     bubbleLeft = "50%";
   }
 
-  const isTabbarTarget = stepDef && stepDef.target === "tabbar";
+  // 클릭 통로 = z-lift 방식(리뷰 Critical 1): 오버레이(z-1000)가 전체를 덮으므로,
+  // 통과시킬 요소를 position:relative + z-index:1003으로 오버레이 위에 올린다.
+  // 통로 목록: 현재 단계 target + 두 탭바(target이 다른 페이지에 있을 때 이동 경로) + 비상구(static CSS).
+  const liftIds = ["tabbar", "page-tabbar"];
+  if (stepDef && stepDef.target && !liftIds.includes(stepDef.target)) liftIds.push(stepDef.target);
+  const liftCss = liftIds
+    .map((id) => `.coachmark-active #${id} { position: relative; z-index: 1003; }`)
+    .join("\n");
 
   return (
     <>
-      {/* 디밍 오버레이 */}
+      {/* 통로 z-lift 동적 스타일 */}
+      <style>{liftCss}</style>
+
+      {/* 디밍 오버레이 — 통로(z-lift된 요소) 밖 클릭은 전부 흡수 */}
       <div
         style={{
           position: "fixed", inset: 0, zIndex: 1000,
           background: "rgba(0,0,0,0.55)",
           pointerEvents: "auto",
         }}
-        onClick={e => {
-          // 비상구 버튼은 통과
-          const escEl = document.getElementById("strip-escape");
-          if (escEl && (escEl === e.target || escEl.contains(e.target))) return;
-          // 페이지 탭바는 통과 (tabbar 타겟 단계에서)
-          if (isTabbarTarget) {
-            const tabEl = document.getElementById("tabbar");
-            if (tabEl && (tabEl === e.target || tabEl.contains(e.target))) return;
-          }
-          e.stopPropagation();
-        }}
+        onClick={e => e.stopPropagation()}
       />
 
       {/* 컷아웃 — 타겟 요소 하이라이트 */}
@@ -712,21 +724,20 @@ function Coachmark({ stepIndex, sim, dispatch, onSkip, onComplete, escapeToastVi
   );
 }
 
-// 시작 환영 화면
+// 시작 환영 화면 — step 0의 말풍선 역할. [시작하기] 클릭이 곧 step 0의 전진 (리뷰 Critical 2)
 function WelcomeOverlay({ onStart }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000 }}>
       <div style={{ background: "#141414", border: "2px solid #2A2A2A", borderRadius: 12, padding: 36, maxWidth: 480, width: "90%", display: "flex", flexDirection: "column", gap: 20, color: "#ccc" }}>
         <div style={{ fontSize: 28, textAlign: "center" }}>🎮</div>
-        <h1 style={{ fontSize: 20, fontWeight: 900, color: "#FBBF24", textAlign: "center" }}>VibeLign 트라이얼 — 1장</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 900, color: "#FBBF24", textAlign: "center" }}>{CHAPTERS[0].title}</h1>
         <p style={{ fontSize: 14, color: "#aaa", lineHeight: 1.7, textAlign: "center" }}>
-          가이드 루프(2️⃣→3️⃣→4️⃣→5️⃣→6️⃣)를 말풍선 따라 직접 눌러보는 연습장이에요.<br/>
-          진짜 프로젝트는 건드리지 않으니 마음껏 눌러보세요!
+          {TRIAL_STEPS[0].text}
         </p>
         <button id="trial-start" className="btn-action" style={{ padding: "12px 0", fontSize: 16, fontWeight: 900 }} onClick={onStart}>
           시작하기 →
         </button>
-        <p style={{ fontSize: 11, color: "#555", textAlign: "center" }}>11단계 · 약 5분</p>
+        <p style={{ fontSize: 11, color: "#555", textAlign: "center" }}>1 / {TRIAL_STEPS.length} · 약 5분</p>
       </div>
     </div>
   );
@@ -773,49 +784,39 @@ function App() {
   const [sim, dispatch] = useReducer(simReducer, initialSim);
   // welcome | running | celebrating | complete | free
   const [trialPhase, setTrialPhase] = useState("welcome");
-  const [trialStep, setTrialStep] = useState(0);
+  // step 0(환영)은 WelcomeOverlay가 담당 — [시작하기]가 곧 step 0의 전진 (리뷰 Critical 2)
+  const [trialStep, setTrialStep] = useState(1);
   const [celebrating, setCelebrating] = useState(false);
   const [escapeToastVisible, setEscapeToastVisible] = useState(false);
   const prevStepRef = useRef(null);
-  // 마지막 단계(index 10) 완료 후 6→4 축하를 기다리는 플래그
-  const awaitingCelebrateRef = useRef(false);
 
-  // 6→4 전환 시 축하 — trialPhase가 running이고 마지막 단계 완료 대기 중이면 complete로 전환
+  // 6→4 전환 시 축하 스트립 (실제 shouldCelebrate의 미러)
   useEffect(() => {
     const current = inferStep(sim);
-    const prev = prevStepRef.current;
-    if (prev === 6 && current === 4) {
+    if (prevStepRef.current === 6 && current === 4) {
       setCelebrating(true);
-      const delay = awaitingCelebrateRef.current ? 1200 : 3000;
-      setTimeout(() => {
-        setCelebrating(false);
-        if (awaitingCelebrateRef.current) {
-          awaitingCelebrateRef.current = false;
-          setTrialPhase("complete");
-        }
-      }, delay);
+      setTimeout(() => setCelebrating(false), 3000);
     }
     prevStepRef.current = current;
   }, [sim]);
 
+  // celebrating 페이즈: 결정적 1.2초 후 완료 화면 — 레이스 없음 (리뷰 Important 4)
+  useEffect(() => {
+    if (trialPhase !== "celebrating") return;
+    const t = setTimeout(() => setTrialPhase("complete"), 1200);
+    return () => clearTimeout(t);
+  }, [trialPhase]);
+
   function handleStart() {
+    setTrialStep(1);
     setTrialPhase("running");
-    setTrialStep(0);
   }
 
   function handleCoachmarkComplete() {
     const next = trialStep + 1;
     if (next >= TRIAL_STEPS.length) {
-      // 마지막 단계 완료 — 6→4 축하 전환을 기다린 후 complete 화면 표시 (spec Task 3 Step 1)
-      awaitingCelebrateRef.current = true;
+      // 마지막 단계 완료 — 동기적으로 celebrating 전환(축하 스트립 1.2초) 후 완료 화면
       setTrialPhase("celebrating");
-      // 축하 전환이 5초 안에 안 오면(sim 상태 미전환) 바로 complete로 폴백
-      setTimeout(() => {
-        if (awaitingCelebrateRef.current) {
-          awaitingCelebrateRef.current = false;
-          setTrialPhase("complete");
-        }
-      }, 5000);
     } else {
       setTrialStep(next);
     }
@@ -823,17 +824,15 @@ function App() {
 
   function handleSkip() {
     // 건너뛰기: 확인 모달 없이 즉시 완료 화면 (spec §5)
-    awaitingCelebrateRef.current = false;
     setTrialPhase("complete");
   }
 
   function handleRestart() {
     // 재시작: simState·트라이얼 인덱스 초기화, localStorage 미사용 (spec §5)
     dispatch({ type: "reset" });
-    setTrialStep(0);
+    setTrialStep(1);
     setTrialPhase("welcome");
     setCelebrating(false);
-    awaitingCelebrateRef.current = false;
   }
 
   function handleClose() {
@@ -883,10 +882,7 @@ function App() {
           escapeToastVisible={escapeToastVisible}
         />
       )}
-      {/* celebrating: 코치마크 없이 축하 스트립만 보여주며 1.2초 후 complete로 전환 */}
-      {trialPhase === "celebrating" && escapeToastVisible && (
-        <div className="toast">실수해도 이 출구가 항상 있어요 — 지금은 연습이니 계속 가요!</div>
-      )}
+      {/* celebrating 페이즈: 코치마크 없이 축하 스트립만 1.2초 노출 후 complete로 전환 */}
       {trialPhase === "complete" && <CompletionOverlay onRestart={handleRestart} onClose={handleClose} />}
     </div>
   );
