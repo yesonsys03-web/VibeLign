@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use super::planning_chat_readiness::extract_json;
+use super::planning_chat_types::PlanningChatMessage;
+use super::planning_persona::run_active_ai;
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "lowercase")]
@@ -158,6 +160,89 @@ pub(crate) fn validate_scope(project_dir: &Path, scope: Vec<ScopeEntry>) -> Vec<
         .collect()
 }
 
+const CONTRACT_RUBRIC: &str = r#"너는 확정된 기획 대화를 읽고 'AI 작업 계약'을 추출하는 정리자다.
+계약은 외부 AI 코딩 도구에게 줄 작업의 목표·손댈 범위·금지·완료 기준이다.
+
+규칙:
+- goal: 기획의 한 줄 목표. 사용자가 처음 말한 목표를 대화에서 합의된 형태로 다듬는다.
+- scope: 이 작업에서 손댈 파일/디렉터리 후보. 반드시 아래 '프로젝트 파일 목록'에 있는 경로만 쓴다.
+  목록에 없는 경로는 절대 만들어내지 않는다. 확신이 없으면 파일 대신 디렉터리 단위로 적는다
+  (kind를 "dir"로, 경로 끝에 '/'). 어디를 고칠지 모르겠으면 빈 배열 []로 둔다.
+  reason은 초보자가 읽는 한국어 한 줄이다. 영문 용어를 쓰지 않는다.
+- exclusions: 대화에서 '하지 않기로 한 것'. 없으면 [].
+- doneCriteria: 사용자가 '됐다'를 확인하는 방법. 대화에 수용 기준이 있으면 그걸 쓴다. 없으면 [].
+
+반드시 아래 JSON만 출력한다(설명 금지):
+{
+  "goal": "...",
+  "scope": [ { "path": "src/...", "kind": "file", "reason": "..." } ],
+  "exclusions": ["..."],
+  "doneCriteria": ["..."]
+}
+"#;
+
+fn build_contract_prompt(
+    messages: &[PlanningChatMessage],
+    map_lines: &[String],
+    map_truncated: bool,
+) -> String {
+    let mut prompt = String::from(CONTRACT_RUBRIC);
+    prompt.push_str("\n프로젝트 파일 목록");
+    if map_truncated {
+        prompt.push_str(" (일부만 표시 — 핵심 파일 우선, 디렉터리 단위로 적는 게 안전)");
+    }
+    prompt.push_str(":\n");
+    if map_lines.is_empty() {
+        prompt.push_str("(목록 없음 — scope는 빈 배열로 둘 것)\n");
+    }
+    for line in map_lines {
+        prompt.push_str(line);
+        prompt.push('\n');
+    }
+    prompt.push_str("\n지금까지의 대화:\n");
+    for message in messages {
+        if message.status != "ok" {
+            continue;
+        }
+        let speaker = if message.role == "user" { "사용자" } else { "AI" };
+        prompt.push_str(speaker);
+        prompt.push_str(": ");
+        prompt.push_str(message.content.trim());
+        prompt.push('\n');
+    }
+    prompt.push_str("\n위 대화의 작업 계약 JSON을 출력해.");
+    prompt
+}
+
+/// 확정 시점 1회 추출. AI 없음·실패·파싱 실패 = None — 원인 중립 폴백(퇴행 0, 외부 리뷰 M1).
+pub(crate) fn extract_contract(
+    project_dir: &Path,
+    messages: &[PlanningChatMessage],
+    now: &str,
+) -> Option<PlanningContract> {
+    let (map_lines, map_truncated) = project_map_summary(project_dir);
+    let prompt = build_contract_prompt(messages, &map_lines, map_truncated);
+    let text = run_active_ai(project_dir, messages, &prompt)?;
+    let mut contract = parse_contract(&text, now)?;
+    contract.scope = validate_scope(project_dir, contract.scope);
+    Some(contract)
+}
+
+fn contract_path(session_dir: &Path) -> PathBuf {
+    session_dir.join("contract.json")
+}
+
+/// cards.json 관례 — 파일 없음/깨짐 = None(계약 없음으로 강등).
+pub(crate) fn read_contract(session_dir: &Path) -> Option<PlanningContract> {
+    let raw = std::fs::read_to_string(contract_path(session_dir)).ok()?;
+    serde_json::from_str::<PlanningContract>(&raw).ok()
+}
+
+pub(crate) fn write_contract(session_dir: &Path, contract: &PlanningContract) -> Result<(), String> {
+    let json = serde_json::to_string_pretty(contract).map_err(|error| error.to_string())?;
+    std::fs::write(contract_path(session_dir), json).map_err(|error| error.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -271,6 +356,48 @@ mod tests {
         );
         let paths: Vec<&str> = validated.iter().map(|e| e.path.as_str()).collect();
         assert_eq!(paths, vec!["src/pages/Home.tsx", "src/pages/"]);
+    }
+
+    #[test]
+    fn build_prompt_includes_rubric_map_and_conversation() {
+        let messages = vec![PlanningChatMessage {
+            id: "m1".to_string(),
+            role: "user".to_string(),
+            persona_id: None,
+            content: "예약 앱 만들고 싶어".to_string(),
+            status: "ok".to_string(),
+            created_at: "0".to_string(),
+            provider_used: None,
+            fallback_reason: None,
+        }];
+        let prompt = build_contract_prompt(&messages, &["src/a.ts (core)".to_string()], true);
+        assert!(prompt.contains("작업 계약"));
+        assert!(prompt.contains("src/a.ts (core)"));
+        assert!(prompt.contains("일부만 표시"));
+        assert!(prompt.contains("예약 앱 만들고 싶어"));
+    }
+
+    #[test]
+    fn contract_roundtrips_through_file() {
+        let dir = TempDir::new().unwrap();
+        let contract = PlanningContract {
+            version: 1,
+            extracted_at: "1".to_string(),
+            goal: "g".to_string(),
+            scope: vec![entry("src/", ScopeKind::Dir)],
+            exclusions: vec!["x".to_string()],
+            done_criteria: vec!["d".to_string()],
+        };
+        write_contract(dir.path(), &contract).expect("write");
+        assert_eq!(read_contract(dir.path()), Some(contract));
+    }
+
+    #[test]
+    fn read_contract_is_none_when_missing_or_broken() {
+        let dir = TempDir::new().unwrap();
+        assert_eq!(read_contract(dir.path()), None);
+        std::fs::write(dir.path().join("contract.json"), "깨진 json").unwrap();
+        assert_eq!(read_contract(dir.path()), None);
     }
 }
 // === ANCHOR: PLANNING_CHAT_CONTRACT_END ===
