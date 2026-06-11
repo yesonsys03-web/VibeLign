@@ -135,6 +135,16 @@ pub(crate) fn validate_scope(project_dir: &Path, scope: Vec<ScopeEntry>) -> Vec<
         .filter_map(|mut entry| {
             let normalized = entry.path.replace('\\', "/");
             entry.path = normalized.trim_start_matches("./").to_string();
+            // 프로젝트 밖 탈출 차단(safe_relative_target과 동일 기준): 절대경로·상위 참조는
+            // LLM 환각이며, join()이 base를 버리거나 ..를 따라가 외부 파일을 실존 판정할 수 있다.
+            let candidate = std::path::Path::new(&entry.path);
+            if candidate.is_absolute()
+                || candidate
+                    .components()
+                    .any(|component| matches!(component, std::path::Component::ParentDir))
+            {
+                return None;
+            }
             match entry.kind {
                 ScopeKind::File => {
                     if project_dir.join(&entry.path).is_file() {
@@ -352,6 +362,8 @@ mod tests {
                 entry("src/ghost.tsx", ScopeKind::File),   // 실존 안 함 → 버림
                 entry("imaginary/", ScopeKind::Dir),       // 실존 안 함 → 버림
                 entry("/", ScopeKind::Dir),                // 루트 → 버림
+                entry("../outside.ts", ScopeKind::File),   // 상위 참조 → 차단
+                entry("/etc/passwd", ScopeKind::File),     // 절대경로 → 차단
             ],
         );
         let paths: Vec<&str> = validated.iter().map(|e| e.path.as_str()).collect();
