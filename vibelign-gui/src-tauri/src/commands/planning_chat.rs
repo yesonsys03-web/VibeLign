@@ -305,6 +305,28 @@ fn enrich_input_hash(messages: &[PlanningChatMessage]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
+/// 준비상태 판정·계약 추출 — 각각 CLI(LLM) 1회, 병렬 실행으로 ~1회분 지연.
+/// enrich(저장 후 보강)와 prewarm(턴 종료 선행 분석)이 공유하는 무거운 분석부.
+fn run_enrich_analysis(
+    project_dir: &std::path::Path,
+    messages: &[PlanningChatMessage],
+    now: &str,
+) -> (
+    super::planning_chat_readiness::ReadinessReport,
+    Option<super::planning_chat_contract::PlanningContract>,
+) {
+    let readiness_dir = project_dir.to_path_buf();
+    let readiness_messages = messages.to_vec();
+    let readiness_handle = std::thread::spawn(move || {
+        super::planning_chat_readiness::judge_readiness(&readiness_dir, &readiness_messages)
+    });
+    let contract = super::planning_chat_contract::extract_contract(project_dir, messages, now);
+    let readiness = readiness_handle
+        .join()
+        .unwrap_or_else(|_| super::planning_chat_readiness::ReadinessReport::unavailable());
+    (readiness, contract)
+}
+
 /// 기획안 저장 후 백그라운드 보강 — 준비상태 판정·계약 추출(각 CLI 1회, 병렬)을 돌려 같은
 /// 파일에 재저장한다. save 를 즉시화하면서 분리한 무거운 AI 분석부(저장 딜레이의 정체).
 /// App 이 소유해 await 하므로 PlanningRoom 을 떠나도 완료된다 — 작업방 지시문이 쓰는 contract 보장.
@@ -351,20 +373,8 @@ pub(crate) async fn enrich_planning_chat_plan(
                 return planning_chat_success(session, messages, markdown, cards, contract);
             }
         }
-        // 준비상태 판정·계약 추출은 각각 CLI 1회 — 병렬 실행으로 ~1회분 지연(구 save 와 동일).
         let now = timestamp_ms().to_string();
-        let (readiness, contract) = {
-            let readiness_dir = project_dir.clone();
-            let readiness_messages = messages.clone();
-            let readiness_handle = std::thread::spawn(move || {
-                super::planning_chat_readiness::judge_readiness(&readiness_dir, &readiness_messages)
-            });
-            let contract = super::planning_chat_contract::extract_contract(&project_dir, &messages, &now);
-            let readiness = readiness_handle
-                .join()
-                .unwrap_or_else(|_| super::planning_chat_readiness::ReadinessReport::unavailable());
-            (readiness, contract)
-        };
+        let (readiness, contract) = run_enrich_analysis(&project_dir, &messages, &now);
         session.readiness = Some(readiness);
         if let Some(ref parsed) = contract {
             let _ = super::planning_chat_contract::write_contract(&session_dir, parsed);
@@ -400,6 +410,66 @@ pub(crate) async fn enrich_planning_chat_plan(
     })
     .await
     .unwrap_or_else(|error| planning_chat_error(error.to_string()))
+}
+
+/// 턴 종료 직후 선행 분석(프리웜) — 판정·계약을 미리 돌려 enrich 캐시를 채운다.
+/// 사용자가 페르소나 응답을 읽는 동안 분석이 끝나므로, 저장 시 enrich 가 캐시 히트로
+/// 즉시 끝난다. enrich 와 달리 기획안 파일을 절대 저장하지 않는다(미저장 세션에
+/// plans/*.md 가 생기면 안 됨). best-effort — 실패·미완이면 저장 흐름이 알아서 재분석한다.
+#[tauri::command]
+pub(crate) async fn prewarm_planning_enrich(
+    project_dir: String,
+    session_id: String,
+) -> Result<(), String> {
+    let project_dir = PathBuf::from(project_dir);
+    if !project_dir.is_absolute() {
+        return Err("projectDir must be absolute".to_string());
+    }
+    if session_id.trim().is_empty() {
+        return Err("sessionId is required".to_string());
+    }
+    tauri::async_runtime::spawn_blocking(move || prewarm_planning_enrich_blocking(&project_dir, &session_id))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+/// prewarm 의 블로킹 본문 — 캐시 히트 경로(LLM 0회)를 테스트할 수 있게 분리.
+fn prewarm_planning_enrich_blocking(
+    project_dir: &std::path::Path,
+    session_id: &str,
+) -> Result<(), String> {
+    let session_dir = planning_dir(project_dir).join(session_id);
+    let session_path = session_dir.join("session.json");
+    if !session_path.exists() {
+        return Err("planning chat session not found".to_string());
+    }
+    let messages = read_json::<Vec<PlanningChatMessage>>(&session_dir.join("messages.json"))?;
+    let input_hash = enrich_input_hash(&messages);
+    let cache_path = session_dir.join("enrich.json");
+    // 이미 이 대화의 온전한 분석이 캐시돼 있으면 할 일 없음(중복 LLM 호출 방지).
+    let cache_hit = read_json::<EnrichCache>(&cache_path)
+        .map(|cache| cache.schema_version == 1 && cache.messages_hash == input_hash)
+        .unwrap_or(false);
+    if cache_hit {
+        return Ok(());
+    }
+    let now = timestamp_ms().to_string();
+    let (readiness, contract) = run_enrich_analysis(project_dir, &messages, &now);
+    // 분석이 온전(판정 Judged + 계약 성공)할 때만 산출물·캐시를 기록 — 미완이면
+    // 아무것도 남기지 않아 다음 enrich/프리웜이 재시도한다.
+    if !matches!(readiness.status, super::planning_chat_readiness::ReadinessStatus::Judged) {
+        return Ok(());
+    }
+    let Some(ref parsed) = contract else {
+        return Ok(());
+    };
+    super::planning_chat_contract::write_contract(&session_dir, parsed)?;
+    // 분석(수십 초) 동안 session.json 이 바뀌었을 수 있다(저장이 output_path 설정 등) —
+    // 최신본을 다시 읽어 readiness 만 갱신한다. 스냅샷으로 덮으면 저장 포인터가 날아간다.
+    let mut session = read_json::<StoredPlanningChatSession>(&session_path)?;
+    session.readiness = Some(readiness);
+    write_json(session_path, &session)?;
+    write_json(cache_path, &EnrichCache { schema_version: 1, messages_hash: input_hash })
 }
 
 /// 저장본이 있고 아직 stale 이 아니면 stale 로 표시. 변경이 있었는지 돌려준다(있을 때만 디스크 기록).
@@ -541,6 +611,38 @@ mod tests {
         // 메시지가 추가되면(새 턴) 해시가 바뀐다.
         let extended = vec![msg("user", None), msg("assistant", Some("chloe")), msg("user", None)];
         assert_ne!(enrich_input_hash(&base), enrich_input_hash(&extended));
+    }
+
+    #[test]
+    fn prewarm_skips_without_writes_on_cache_hit() {
+        let root = tempfile::tempdir().expect("root");
+        write_session(root.path(), "chat_p", "프리웜", None, 2, 0);
+        let session_dir = root.path().join(".vibelign/planning/chat_p");
+        let messages: Vec<PlanningChatMessage> =
+            read_json(&session_dir.join("messages.json")).expect("messages");
+        write_json(
+            session_dir.join("enrich.json"),
+            &EnrichCache { schema_version: 1, messages_hash: enrich_input_hash(&messages) },
+        )
+        .expect("cache");
+        let session_before =
+            std::fs::read_to_string(session_dir.join("session.json")).expect("session");
+
+        let result = prewarm_planning_enrich_blocking(root.path(), "chat_p");
+
+        // 캐시 히트 = LLM 0회, 산출물 무변경(세션 그대로, 계약 파일 생성 안 함).
+        assert!(result.is_ok());
+        let session_after =
+            std::fs::read_to_string(session_dir.join("session.json")).expect("session");
+        assert_eq!(session_before, session_after);
+        assert!(!session_dir.join("contract.json").exists());
+    }
+
+    #[test]
+    fn prewarm_errors_on_missing_session() {
+        let root = tempfile::tempdir().expect("root");
+        let result = prewarm_planning_enrich_blocking(root.path(), "chat_none");
+        assert_eq!(result.unwrap_err(), "planning chat session not found");
     }
 
     #[test]

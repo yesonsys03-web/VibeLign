@@ -73,6 +73,11 @@ export function enrichPlanningChatPlan(
 ): Promise<PlanningChatSessionResponse> {
   return invoke<PlanningChatSessionResponse>("enrich_planning_chat_plan", { request });
 }
+
+/** 턴 종료 직후 선행 분석(프리웜) — 미리 분석해 두면 저장 시 enrich 가 캐시 히트로 즉시 끝난다. */
+export function prewarmPlanningEnrich(projectDir: string, sessionId: string): Promise<void> {
+  return invoke<void>("prewarm_planning_enrich", { projectDir, sessionId });
+}
 // === ANCHOR: PLANNING_SAVEPLANNINGCHATASMARKDOWN_END ===
 // === ANCHOR: PLANNING_RETRYPLANNINGPERSONA_START ===
 export function retryPlanningPersona(request: RetryPersonaRequest): Promise<PlanningChatSessionResponse> {

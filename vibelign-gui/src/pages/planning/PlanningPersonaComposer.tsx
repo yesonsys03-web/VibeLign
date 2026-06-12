@@ -1,7 +1,7 @@
 // === ANCHOR: PLANNINGPERSONACOMPOSER_START ===
 import { useState } from "react";
 
-import { appendPlanningChatTurn, type PlanningChatSessionResponse } from "../../lib/vib";
+import { appendPlanningChatTurn, prewarmPlanningEnrich, type PlanningChatSessionResponse } from "../../lib/vib";
 import { DEFAULT_PLANNING_MODE, type PlanningModeOption } from "./PlanningModes";
 import { PlanningModeSelector } from "./PlanningModeSelector";
 import { allPlanningPersonaIds, PLANNING_PERSONAS } from "./PlanningPersonas";
@@ -76,6 +76,12 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
         latest = markAgentFailed(latest, agent, createdAt);
       }
       onResultChange(latest);
+    }
+    // 턴이 실제로 진행됐으면 판정·계약 분석을 미리 돌려둔다(프리웜) — 사용자가 응답을
+    // 읽는 동안 끝나서, 저장 시 enrich 가 캐시 히트로 즉시 완료된다. best-effort 라
+    // 실패해도 저장 흐름이 알아서 재분석한다(따라서 await 하지 않고 에러도 삼킨다).
+    if (userPersisted) {
+      prewarmPlanningEnrich(projectDir, sessionId).catch(() => {});
     }
     setIsSubmitting(false);
   }
