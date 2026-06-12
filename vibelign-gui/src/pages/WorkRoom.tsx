@@ -348,9 +348,11 @@ export default function WorkRoom({
   const guardSafe = guardVerdict === "pass" || guardVerdict === "prepare";
 
   return (
-    // App 의 페이지 영역은 overflow:hidden — 다른 페이지들처럼 page-content 가 스크롤을
-    // 소유해야 결과 화면+출력 패널이 길어져도 하단이 잘리지 않는다(알람앱 트라이얼 발견).
-    <div className="page-content">
+    // App 페이지 영역(App.tsx)은 overflow:hidden 인데 display:flex 가 없어서 page-content
+    // 의 flex:1 이 높이를 못 받는다 → height:100% 로 부모(flex item, definite height) 높이를
+    // 직접 받아 overflow-y:auto 스크롤을 살린다. 전역 box-sizing:border-box 라 padding 포함.
+    // 이게 없으면 긴 결과/지난 실행 보고서가 잘리고 스크롤도 안 된다(알람앱 트라이얼 발견).
+    <div className="page-content" style={{ height: "100%" }}>
       <div style={{ display: "grid", gap: 12, maxWidth: 860 }}>
       <div className="page-header" style={{ marginBottom: 0 }}>
         <div className="page-title">작업방</div>
