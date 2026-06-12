@@ -64,6 +64,8 @@ export default function RunPanel({ projectDir, onNavigate, onRequestWorkHandoff 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [improveOpen, setImproveOpen] = useState(false);
+  const [improveText, setImproveText] = useState("");
   const activeRunIdRef = useRef<number | null>(null);
   const outputRef = useRef<HTMLDivElement | null>(null);
 
@@ -251,6 +253,40 @@ export default function RunPanel({ projectDir, onNavigate, onRequestWorkHandoff 
           {electronRunning && (
             <div style={{ fontSize: 12, color: "#444", lineHeight: 1.6 }}>
               앱 창이 열렸어요 — 별도 창에서 직접 확인해 보세요. 닫으려면 아래 <b>중지</b>를 누르세요.
+            </div>
+          )}
+
+          {status === "running" && onRequestWorkHandoff && (
+            <div style={{ display: "grid", gap: 6 }}>
+              {!improveOpen ? (
+                <button className="btn btn-ghost btn-sm" style={{ justifySelf: "start" }} onClick={() => setImproveOpen(true)}>
+                  ✏ 뭔가 부족해요 — 고치고 싶어요
+                </button>
+              ) : (
+                <div style={{ display: "grid", gap: 6 }}>
+                  <textarea
+                    value={improveText}
+                    onChange={(e) => setImproveText(e.target.value)}
+                    placeholder="써보니 어떤 점이 부족했나요? (예: 버튼이 너무 작아요 / 로그인 후 화면이 비어요)"
+                    style={{ width: "100%", minHeight: 64, fontSize: 13, padding: 8, border: "2px solid #1A1A1A", borderRadius: 4, fontFamily: "inherit", boxSizing: "border-box" }}
+                  />
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <button
+                      className="btn"
+                      disabled={improveText.trim().length === 0}
+                      onClick={() => onRequestWorkHandoff({ kind: "improve", text: improveText.trim() })}
+                    >
+                      작업방에서 개선하기 →
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("planning")} style={{ fontSize: 11 }}>
+                      큰 방향을 바꿀래요 → 기획방
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => { setImproveOpen(false); setImproveText(""); }} style={{ fontSize: 11 }}>
+                      닫기
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
