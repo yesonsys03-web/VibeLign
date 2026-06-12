@@ -21,4 +21,5 @@ pub(crate) mod project_summary;
 pub(crate) mod settings;
 pub(crate) mod vib_bridge;
 pub(crate) mod watch;
+pub(crate) mod work_room;
 // === ANCHOR: MOD_END ===

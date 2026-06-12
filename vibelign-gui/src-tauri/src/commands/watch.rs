@@ -183,7 +183,9 @@ fn spawn_watch_error_thread<R: Read + Send + 'static>(
     });
 }
 
-fn kill_watch_child(child: &mut std::process::Child) {
+/// 프로세스 트리 전체 kill — Unix 는 프로세스 그룹(killpg), Windows 는 taskkill /T.
+/// work_room 도 재사용한다(.cmd 셔임 손자 생존 문제의 단일 해법, 작업방 기획안 §10 P0).
+pub(crate) fn kill_watch_child(child: &mut std::process::Child) {
     #[cfg(unix)]
     unsafe {
         let pgid = child.id() as i32;

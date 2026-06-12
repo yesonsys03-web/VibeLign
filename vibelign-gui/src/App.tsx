@@ -9,6 +9,7 @@ import Doctor from "./pages/Doctor";
 import Home from "./pages/Home";
 import DocsViewer from "./pages/DocsViewer";
 import CodeExplorer from "./pages/CodeExplorer";
+import WorkRoom from "./pages/WorkRoom";
 import BackupDashboardPage from "./pages/BackupDashboard";
 import ErrorLogs from "./pages/ErrorLogs";
 import Settings from "./pages/Settings";
@@ -462,7 +463,6 @@ export default function App() {
     void loadProjectPlanning(projectDir).finally(() => {
       resumingRef.current = false;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, projectDir, planningResult]);
 
   return (
@@ -545,6 +545,7 @@ export default function App() {
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={navigate} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} guideStep={guide.enabled ? guide.step : null} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
                 {page === "code" && <CodeExplorer projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} planningDocStale={planningResult?.docStale ?? false} onReviewInPlanning={(path) => { if (projectDir) void openPlanningRoom(projectDir, buildPlanReviewPrompt(path), path); }} />}
+                {page === "work" && <WorkRoom projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} planningDocStale={planningResult?.docStale ?? false} onNavigate={navigate} onOpenSettings={() => openSettings()} />}
                 {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} launchIntent={doctorLaunchIntent} />}
                 {page === "backups" && <BackupDashboardPage projectDir={projectDir} onBackupsChanged={() => setBackupsVersion((v) => v + 1)} />}
                 {page === "logs" && <ErrorLogs projectDir={projectDir} />}

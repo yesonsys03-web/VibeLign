@@ -25,8 +25,8 @@ describe("stageOf", () => {
 });
 
 describe("pagesForStage", () => {
-  it("개발 단계는 코드탐색·문서 순서", () => {
-    expect(pagesForStage("develop")).toEqual(["code", "docs"]);
+  it("개발 단계는 코드탐색·문서·작업방 순서", () => {
+    expect(pagesForStage("develop")).toEqual(["code", "docs", "work"]);
   });
   it("유지보수 단계는 진단·백업·에러로그 순서", () => {
     expect(pagesForStage("maintain")).toEqual(["doctor", "backups", "logs"]);
@@ -57,6 +57,7 @@ describe("PAGE_LABELS", () => {
       "plan-doc": "기획안",
       code: "코드탐색",
       docs: "문서",
+      work: "작업방",
       doctor: "진단",
       backups: "백업",
       logs: "에러로그",
