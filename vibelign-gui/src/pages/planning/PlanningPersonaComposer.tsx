@@ -103,6 +103,7 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
           <button
             key={persona.id}
             type="button"
+            title={persona.description}
             aria-pressed={selectedPersonaIds.includes(persona.id)}
             onClick={() => {
               setSelectedPersonaIds(togglePersona(selectedPersonaIds, persona.id));
@@ -124,6 +125,7 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
         ))}
         <button
           type="button"
+          title="네 도우미 모두에게 한 번에 물어봐요"
           aria-pressed={selectedPersonaIds.length === PLANNING_PERSONAS.length}
           onClick={() => {
             setSelectedPersonaIds(allPlanningPersonaIds());
@@ -141,6 +143,9 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
         >
           모두
         </button>
+      </div>
+      <div style={{ fontSize: 12, color: "#666", fontWeight: 700, lineHeight: 1.5 }}>
+        🛈 관점이 다른 AI 도우미들이에요 — 버튼에 마우스를 올리면 각자 뭘 하는지 보여줘요. <b>모두</b>는 넷 다에게 한 번에 물어봐요.
       </div>
       {slashHints.length > 0 && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>

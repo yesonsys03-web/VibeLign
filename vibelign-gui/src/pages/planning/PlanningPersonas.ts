@@ -5,6 +5,8 @@ export interface PlanningPersonaMeta {
   readonly id: string;
   readonly label: string;
   readonly role: string;
+  /** 초보용 한 줄 설명(말풍선) — 이 도우미가 뭘 하는지 + 어떤 AI인지. */
+  readonly description: string;
   readonly mention: string;
   readonly initial: string;
   readonly avatarBackground: string;
@@ -17,6 +19,7 @@ export const PLANNING_PERSONAS = [
     id: "chloe",
     label: "클로이",
     role: "설계",
+    description: "구현 구조를 먼저 짜주는 도우미예요 (Claude)",
     mention: "@클로이",
     initial: "클",
     avatarBackground: "#F7F0DF",
@@ -27,6 +30,7 @@ export const PLANNING_PERSONAS = [
     id: "gio",
     label: "지오",
     role: "검토",
+    description: "위험한 곳·테스트를 점검해주는 도우미예요 (Codex)",
     mention: "@지오",
     initial: "지",
     avatarBackground: "#EAF5ED",
@@ -37,6 +41,7 @@ export const PLANNING_PERSONAS = [
     id: "mina",
     label: "미나",
     role: "탐색",
+    description: "놓친 점·다른 방법을 찾아주는 도우미예요 (Antigravity)",
     mention: "@미나",
     initial: "미",
     avatarBackground: "#FCEDEA",
@@ -47,6 +52,7 @@ export const PLANNING_PERSONAS = [
     id: "deepseek",
     label: "딥시기",
     role: "조교",
+    description: "어려운 내용을 쉽게 풀어주는 도우미예요 (OpenCode)",
     mention: "@딥시기",
     initial: "딥",
     avatarBackground: "#E8ECFB",
@@ -72,6 +78,7 @@ export function planningPersonaMeta(personaId: string, fallbackLabel?: string): 
     id: personaId,
     label,
     role: "",
+    description: "",
     mention: "",
     initial: label.slice(0, 1) || "?",
     avatarBackground: "#FFFFFF",

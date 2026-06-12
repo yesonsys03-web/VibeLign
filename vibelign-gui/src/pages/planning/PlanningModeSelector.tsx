@@ -9,7 +9,10 @@ interface PlanningModeSelectorProps {
 // === ANCHOR: PLANNINGMODESELECTOR_PLANNINGMODESELECTOR_START ===
 export function PlanningModeSelector({ value, onChange }: PlanningModeSelectorProps) {
   return (
-    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 900 }}>
+    <div
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 900 }}
+      title="AI 도우미가 어떻게 답할지 정해요 (한 명씩 바로 / 여럿이 함께 등)"
+    >
       <label htmlFor="planning-response-mode">응답 모드</label>
       <select
         id="planning-response-mode"
