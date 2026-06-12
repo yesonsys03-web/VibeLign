@@ -17,7 +17,7 @@ import ErrorLogs from "./pages/ErrorLogs";
 import Settings from "./pages/Settings";
 import { buildGuardDoctorLaunchIntent } from "./pages/doctorFlow";
 import type { DoctorLaunchIntent } from "./pages/doctorFlow";
-import { backupList, createPlanningChatSession, detectInstalledTools, getEnvKeyStatus, getWatchErrors, listChangedFiles, loadApiKey, loadLatestPlanningChatSession, loadPlanningChatSession, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, startWatch, stopWatch, openFolder, type PlanningChatSessionResponse } from "./lib/vib";
+import { backupList, createPlanningChatSession, detectInstalledTools, getEnvKeyStatus, getWatchErrors, listChangedFiles, listPlanningChatSessions, loadApiKey, loadLatestPlanningChatSession, loadPlanningChatSession, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, startWatch, stopWatch, openFolder, type PlanningChatSessionResponse } from "./lib/vib";
 import { GuideStrip } from "./components/nav/GuideStrip";
 import { useGuide } from "./lib/nav/useGuide";
 import {
@@ -115,6 +115,8 @@ export default function App() {
   const [reviewSourcePath, setReviewSourcePath] = useState<string | null>(null);
   const [doctorLaunchIntent, setDoctorLaunchIntent] = useState<DoctorLaunchIntent | null>(null);
   const [showSessionPicker, setShowSessionPicker] = useState(false);
+  // 다중 기획안 요약(홈 허브 배지) — 저장(완료)/미저장(진행중)/갱신필요 집계. 홈 진입 시 새로고침.
+  const [planningSummary, setPlanningSummary] = useState({ total: 0, saved: 0, draft: 0, stale: 0 });
 
 
   async function refreshAiKeys() {
@@ -417,6 +419,24 @@ export default function App() {
       : "done";
 
   const planningPendingNow = planningResult?.messages.some((m) => m.status === "pending") ?? false;
+
+  // 홈 진입·기획안 변경 시 전체 기획안 현황 집계(다중 기획안 요약 배지). saved=완료(저장된
+  // 기획안), 미저장=진행중, docStale=저장됐지만 갱신 필요.
+  useEffect(() => {
+    if (page !== "home" || !projectDir) return;
+    let alive = true;
+    void listPlanningChatSessions(projectDir)
+      .then((rows) => {
+        if (!alive) return;
+        const saved = rows.filter((r) => r.saved).length;
+        const stale = rows.filter((r) => r.saved && r.docStale).length;
+        setPlanningSummary({ total: rows.length, saved, draft: rows.length - saved, stale });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [page, projectDir, planningResult]);
   // 가이드 레이어 — 신호 전부 배선(v2): 기획안·기획진행·체크포인트·체크포인트 이후 변경·guard.
   const guide = useGuide(
     projectDir,
@@ -540,7 +560,7 @@ export default function App() {
               <ErrorBoundary>
                 {page === "home" && (
                   <>
-                    <StageHubCards onNavigate={navigate} planningStatus={planningStatus} backupCount={backupCount} currentStep={guide.enabled ? guide.step : null} />
+                    <StageHubCards onNavigate={navigate} planningStatus={planningStatus} planningSummary={planningSummary} backupCount={backupCount} currentStep={guide.enabled ? guide.step : null} />
                     <Home key="home" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={setPage} onOpenDoctor={openDoctorFromGuardIssue} onOpenSettings={openSettings} watchOn={watchOn} setWatchOn={setWatchOn} watchError={watchError} onRetryWatch={() => { void retryWatch(); }} hasCheckpoint={hasCheckpoint} mapMode={mapMode} setMapMode={setMapMode} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningPending={planningResult?.messages.some((message) => message.status === "pending") ?? false} onOpenPlanning={planningResult ? () => setPage("planning") : undefined} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} onOpenPlanningHistory={() => setShowSessionPicker(true)} planningContract={planningResult?.contract ?? null} onGuardResult={(status) => {
                         // guard가 검사한 변경 상태의 지문 기록 — 이후 지문이 달라지면 (a)의 effect가 리셋.
                         // 기록되는 지문은 홈 진입 시 조회분이라 "진입~클릭 사이" 변경은 한 박자 늦게(다음

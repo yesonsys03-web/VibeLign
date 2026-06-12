@@ -2,9 +2,21 @@
 import { STAGE_DEFS, pagesForStage, type Stage, type Page } from "../../lib/nav/stages";
 import { cardStepState, hubCardTarget, journeyStep, type ActiveGuideStep } from "../../lib/nav/guide";
 
+export interface PlanningSummary {
+  total: number;
+  /** 저장된 기획안(완료/확정) 수. */
+  saved: number;
+  /** 미저장(진행중) 수. */
+  draft: number;
+  /** 저장됐지만 대화가 더 진행돼 갱신 필요한 수(saved 부분집합). */
+  stale: number;
+}
+
 interface StageHubCardsProps {
   onNavigate: (page: Page) => void;
   planningStatus: "none" | "active" | "done";
+  /** 다중 기획안 현황 — total>0 이면 단일 상태 대신 집계 배지를 보인다. */
+  planningSummary?: PlanningSummary;
   backupCount: number;
   /** 가이드 현재 단계. null = 가이드 꺼짐/로딩 전(기존 표시 그대로). */
   currentStep?: ActiveGuideStep | null;
@@ -16,15 +28,25 @@ const CARD_DESC: Record<Stage, string> = {
   maintain: "안전 점검·복원",
 };
 
-function badgeText(stage: Stage, planningStatus: StageHubCardsProps["planningStatus"], backupCount: number): string {
+function badgeText(
+  stage: Stage,
+  planningStatus: StageHubCardsProps["planningStatus"],
+  backupCount: number,
+  planningSummary?: PlanningSummary,
+): string {
   if (stage === "planning") {
+    if (planningSummary && planningSummary.total > 0) {
+      let text = `기획안 ${planningSummary.total}개 · ${planningSummary.saved} 완료 · ${planningSummary.draft} 진행중`;
+      if (planningSummary.stale > 0) text += ` · ${planningSummary.stale} 갱신필요`;
+      return text;
+    }
     return planningStatus === "active" ? "● 진행 중" : planningStatus === "done" ? "완료" : "대기";
   }
   if (stage === "maintain") return `백업 ${backupCount}개`;
   return "열기"; // develop: 기존 신호 없음
 }
 
-export function StageHubCards({ onNavigate, planningStatus, backupCount, currentStep = null }: StageHubCardsProps) {
+export function StageHubCards({ onNavigate, planningStatus, planningSummary, backupCount, currentStep = null }: StageHubCardsProps) {
   return (
     <div style={{ display: "flex", gap: 12, padding: 16 }}>
       {STAGE_DEFS.map((def) => {
@@ -33,7 +55,12 @@ export function StageHubCards({ onNavigate, planningStatus, backupCount, current
           <button
             key={def.key}
             // "지금 할 차례" 카드는 현재 가이드 단계의 목적지로(예: 3️⃣ → 백업 탭), 평상시엔 첫 탭.
-            onClick={() => onNavigate(hubCardTarget(def.key, currentStep, pagesForStage(def.key)[0]))}
+            // 단 기획안이 1개 이상이면 기획 카드는 기획안 목록(plan-doc)으로 — 다중 기획안 관리 진입.
+            onClick={() => {
+              const fallback =
+                def.key === "planning" && (planningSummary?.total ?? 0) > 0 ? "plan-doc" : pagesForStage(def.key)[0];
+              onNavigate(hubCardTarget(def.key, currentStep, fallback));
+            }}
             style={{
               flex: 1,
               textAlign: "left",
@@ -62,8 +89,18 @@ export function StageHubCards({ onNavigate, planningStatus, backupCount, current
                 → {journeyStep(currentStep).icon} {journeyStep(currentStep).shortAction}
               </div>
             )}
-            <div style={{ fontSize: 14, color: def.key === "planning" && planningStatus === "active" ? "#FBBF24" : "#aaa", marginTop: 8 }}>
-              {badgeText(def.key, planningStatus, backupCount)}
+            <div
+              style={{
+                fontSize: 14,
+                color:
+                  def.key === "planning" &&
+                  (planningStatus === "active" || (planningSummary?.draft ?? 0) > 0 || (planningSummary?.stale ?? 0) > 0)
+                    ? "#FBBF24"
+                    : "#aaa",
+                marginTop: 8,
+              }}
+            >
+              {badgeText(def.key, planningStatus, backupCount, planningSummary)}
             </div>
           </button>
         );
