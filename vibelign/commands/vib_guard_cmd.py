@@ -19,7 +19,7 @@ from vibelign.core.change_explainer import (
 )
 from vibelign.core.doctor_v2 import analyze_project_v2
 from vibelign.core.guard_report import GuardReport
-from vibelign.core.guard_report import _overall_label, _risk_label, combine_guard
+from vibelign.core.guard_report import _risk_label, combine_guard
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_map import enrich_change_kind, load_project_map
 from vibelign.core.project_root import resolve_project_root
@@ -54,6 +54,8 @@ class GuardExplainData(TypedDict):
 
 class GuardData(TypedDict):
     status: str
+    # 사람용 3단 판정(pass|prepare|stop) — status/blocked 는 기계 게이트로 의미 유지(2026-06-12)
+    verdict: str
     strict: bool
     blocked: bool
     project_score: int
@@ -508,14 +510,50 @@ def _envelope_summary(
 
     헤더의 점수·상태는 doctor v2(예: Safe·90점)인데 요약의 '기본 상태'는 legacy v1
     level("위험")을 서술해 한 화면에서 서로 모순됐다. 기본 상태는 헤더와 같은 v2
-    기준으로 맞추고, 위험도·전체 판단은 차단 로직의 실제 근거인 legacy_guard 를
-    유지한다(멈춤의 행동 사유는 recommendations 가 담당).
+    기준으로 맞춘다. 판단("멈춤/준비/통과")은 _verdict_lead 가 첫 줄로 말하므로
+    여기서는 사실만 서술한다.
     """
     return (
-        f"프로젝트 기본 상태는 {doctor_v2_status}({doctor_v2_score}점)입니다. "
-        f"최근 바뀐 내용의 위험도는 {_risk_label(legacy_guard.change_risk_level)}이고, "
-        f"전체 판단은 '{_overall_label(legacy_guard.overall_level)}' 입니다."
+        f"프로젝트 기본 상태는 {doctor_v2_status}({doctor_v2_score}점), "
+        f"최근 바뀐 내용의 위험도는 {_risk_label(legacy_guard.change_risk_level)}입니다."
     )
+
+
+def _verdict_tier(
+    protected_violations: list[str],
+    anchor_violations: list[str],
+    change_risk_level: str,
+    planning_level: str,
+    status: str,
+) -> str:
+    """사람용 3단 판정 — 위반 채널과 위생 채널의 분리(2026-06-12 결정).
+
+    배경: legacy v1 감점은 위생 항목(앵커 미설정 2점/파일 등)을 상한 없이 합산해
+    임계만 넘으면 사고와 같은 '중지'로 승격한다 — 새 파일 14개면 28점, 멀쩡한
+    프로젝트가 첫날부터 경보를 받는다. 오경보가 반복되면 진짜 사고 때 경고의
+    권위가 소진된다(양치기 소년). 그래서 위반이 0이면 어떤 위생 누적으로도
+    stop 이 되지 않는다. 기계 게이트(status·blocked·exit code)는 기존 의미를
+    유지한다 — 바뀌는 것은 사람에게 보여주는 층(리포트 라벨·홈·작업방)뿐이다.
+    """
+    if (
+        protected_violations
+        or anchor_violations
+        or change_risk_level == "HIGH"
+        or planning_level == "fail"
+    ):
+        return "stop"
+    if status != "pass":
+        return "prepare"
+    return "pass"
+
+
+def _verdict_lead(verdict: str) -> str:
+    """요약 첫 줄 — 잘된 것을 먼저, 남은 것을 준비로 말한다(공포 어휘는 stop 전용)."""
+    return {
+        "stop": "멈출 사유를 찾았어요 — 아래 항목을 먼저 해결하세요. 백업에서 되돌릴 수 있어요.",
+        "prepare": "이번 변경은 약속 범위 안입니다 ✓ — 다음 AI 작업 전에 준비하면 좋은 항목이 있어요.",
+        "pass": "이상 없음 — 약속 범위 안에서 작업했어요.",
+    }.get(verdict, "")
 
 
 # === ANCHOR: VIB_GUARD_CMD__BUILD_GUARD_ENVELOPE_START ===
@@ -549,6 +587,7 @@ def _build_guard_envelope(
     }
     data: GuardData = {
         "status": status,
+        "verdict": "pass",  # 자리값 — planning·anchor 병합이 끝난 envelope 말미에서 확정
         "strict": strict,
         "blocked": legacy_guard.blocked or (strict and status == "fail"),
         "project_score": doctor_v2.project_score,
@@ -600,6 +639,21 @@ def _build_guard_envelope(
         if _ANCHOR_REQUIRED_RECOMMENDATION not in recommendations:
             recommendations.append(_ANCHOR_REQUIRED_RECOMMENDATION)
         data["recommendations"] = recommendations
+    # 사람용 3단 판정 확정 — status/blocked 병합(planning·anchor)이 모두 끝난 뒤에 계산한다.
+    verdict = _verdict_tier(
+        violations,
+        anchor_violations,
+        explain_report.risk_level,
+        str(planning_level),
+        str(data["status"]),
+    )
+    data["verdict"] = verdict
+    data["summary"] = f"{_verdict_lead(verdict)}\n{data['summary']}"
+    if verdict != "stop":
+        # 위반이 없는데 "멈추세요"가 첫 권고로 나오면 판정 첫 줄과 모순 — 공포 어휘는 stop 전용.
+        data["recommendations"] = [
+            r for r in data["recommendations"] if "멈추세요" not in r
+        ]
     return {"ok": True, "error": None, "data": data}
 
 
@@ -609,16 +663,21 @@ def build_guard_envelope(root: Path, strict: bool, since_minutes: int) -> GuardE
 
 # === ANCHOR: VIB_GUARD_CMD__RENDER_MARKDOWN_START ===
 def _render_markdown(data: GuardData) -> str:
+    # 사람용 라벨은 3단 verdict 기준 — 구버전 데이터(verdict 부재)는 status 에서 보수적으로 유도.
+    verdict = str(
+        data.get("verdict")
+        or {"pass": "pass", "warn": "prepare"}.get(str(data["status"]), "stop")
+    )
     status_label = {
         "pass": "통과",
-        "warn": "주의",
-        "fail": "중지",
-    }.get(str(data["status"]), str(data["status"]))
+        "prepare": "준비 필요",
+        "stop": "멈춤",
+    }.get(verdict, verdict)
     status_hint = {
         "pass": "지금은 큰 위험이 없어 보여요. 다음 단계로 넘어가도 됩니다.",
-        "warn": "바로 멈출 정도는 아니지만, 먼저 한 번 더 확인하는 게 좋아요.",
-        "fail": "지금은 다음 작업으로 넘어가기보다, 먼저 문제를 해결하는 게 좋아요.",
-    }.get(str(data["status"]), "현재 상태를 먼저 확인해보세요.")
+        "prepare": "이번 변경은 문제 없어요. 다음 AI 작업 전에 아래 권장 항목을 준비하면 더 안전해져요.",
+        "stop": "발견된 문제를 먼저 해결하는 게 좋아요. 백업에서 되돌릴 수 있어요.",
+    }.get(verdict, "현재 상태를 먼저 확인해보세요.")
     lines = [
         "# VibeLign 가드 리포트",
         "",

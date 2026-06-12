@@ -8,10 +8,11 @@ interface GuardResultModalProps {
 }
 
 // === ANCHOR: GUARDRESULTMODAL_GUARDSTATUSCOLOR_START ===
-function guardStatusColor(status: GuardResult["status"]) {
-  if (status === "pass") return "#4DFF91";
-  if (status === "warn") return "#FFD166";
-  return "#FF4D4D";
+// 배지는 사람용 3단 verdict 기준(2026-06-12) — 위생 누적(prepare)이 빨강으로 보이지 않게.
+function guardVerdictBadge(verdict: GuardResult["verdict"]): { label: string; color: string } {
+  if (verdict === "pass") return { label: "통과", color: "#4DFF91" };
+  if (verdict === "prepare") return { label: "준비 필요", color: "#FFD166" };
+  return { label: "멈춤", color: "#FF4D4D" };
 }
 // === ANCHOR: GUARDRESULTMODAL_GUARDSTATUSCOLOR_END ===
 
@@ -38,8 +39,8 @@ export function GuardResultModal({ guardResult, onClose, onOpenDoctor }: GuardRe
         <div style={{ background: "#1A1A1A", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontFamily: "IBM Plex Mono, monospace", fontWeight: 700, fontSize: 14, color: "#fff", letterSpacing: 2 }}>GUARD 결과</span>
-            <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", background: guardStatusColor(guardResult.status), color: "#1A1A1A", border: "1px solid #555" }}>
-              {guardResult.status.toUpperCase()}
+            <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", background: guardVerdictBadge(guardResult.verdict).color, color: "#1A1A1A", border: "1px solid #555" }}>
+              {guardVerdictBadge(guardResult.verdict).label}
             </span>
           </div>
           <button aria-label="모달 닫기" onClick={onClose} style={{ background: "transparent", border: "1px solid #555", color: "#aaa", cursor: "pointer", padding: "2px 8px", fontSize: 14, fontWeight: 700 }} type="button">

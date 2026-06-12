@@ -30,6 +30,7 @@ describe("Simple Home", () => {
     mocks.vibGuardMock.mockReset();
     mocks.vibGuardMock.mockResolvedValue({
       status: "pass",
+      verdict: "pass",
       summary: "ok",
       recommendations: [],
       issues: [],
@@ -137,6 +138,7 @@ describe("Simple Home", () => {
     const openDoctor = vi.fn();
     mocks.vibGuardMock.mockResolvedValueOnce({
       status: "warn",
+      verdict: "prepare",
       summary: "문제가 있어요",
       recommendations: ["Doctor로 해결안을 만들 수 있어요."],
       issues: [{ found: "앵커 누락", next_step: "Doctor 플랜 확인", path: "src/App.tsx" }],

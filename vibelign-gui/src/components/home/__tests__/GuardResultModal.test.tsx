@@ -7,6 +7,7 @@ import { GuardResultModal } from "../GuardResultModal";
 
 const WARN_GUARD = {
   status: "warn",
+  verdict: "prepare",
   summary: "안전 검사에서 확인할 항목을 찾았어요.",
   recommendations: ["권장 조치 1"],
   issues: [{ found: "문제 파일", next_step: "다음 행동" }],
@@ -21,7 +22,8 @@ describe("GuardResultModal", () => {
     render(<GuardResultModal guardResult={WARN_GUARD} onClose={() => undefined} />);
 
     expect(screen.getByText("GUARD 결과")).toBeInTheDocument();
-    expect(screen.getByText("WARN")).toBeInTheDocument();
+    // 배지는 사람용 3단 verdict 라벨(2026-06-12) — 기계 status(WARN)를 그대로 노출하지 않는다
+    expect(screen.getByText("준비 필요")).toBeInTheDocument();
     expect(screen.getByText("안전 검사에서 확인할 항목을 찾았어요.")).toBeInTheDocument();
     expect(screen.getByText("권장 액션")).toBeInTheDocument();
     expect(screen.getByText("권장 조치 1")).toBeInTheDocument();

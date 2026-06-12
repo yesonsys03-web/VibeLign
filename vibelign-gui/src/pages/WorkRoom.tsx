@@ -226,7 +226,8 @@ export default function WorkRoom({
     try {
       const result = await vibGuard(projectDir, { strict: true });
       setGuardResult(result);
-      onGuardResult?.(result.status === "pass" ? "ok" : "issue");
+      // 가이드 신호는 3단 verdict 기준 — 위생 누적(prepare)은 사이클 진행을 막지 않는다.
+      onGuardResult?.(result.verdict === "stop" ? "issue" : "ok");
     } catch {
       setGuardError("자동 검사를 끝내지 못했어요 — 홈의 '상태 확인'으로 직접 검사해 주세요.");
     } finally {
@@ -301,7 +302,10 @@ export default function WorkRoom({
   );
   const showRestored = phase !== "running" && visibleItems.length === 0 && restoredLines.length > 0;
   const displayLines: WorkDisplayLine[] = showRestored ? restoredLines : visibleItems.map((i) => i.line);
-  const guardPassed = guardResult?.status === "pass";
+  // 3단 verdict(2026-06-12): pass(통과)·prepare(범위 안 + 준비 항목)·stop(실제 위반).
+  // prepare 는 위반이 없으므로 완료 체크포인트 저장을 막지 않는다.
+  const guardVerdict = guardResult?.verdict ?? null;
+  const guardSafe = guardVerdict === "pass" || guardVerdict === "prepare";
 
   return (
     // App 의 페이지 영역은 overflow:hidden — 다른 페이지들처럼 page-content 가 스크롤을
@@ -473,24 +477,34 @@ export default function WorkRoom({
                 style={{
                   border: "1px solid #1A1A1A",
                   padding: "8px 10px",
-                  background: guardPassed ? "#E8F6EC" : "#FEF3C7",
+                  background: guardVerdict === "pass" ? "#E8F6EC" : guardVerdict === "prepare" ? "#FEF3C7" : "#FDECEA",
                   display: "grid",
                   gap: 6,
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 800, color: guardPassed ? "#166534" : "#92400E" }}>
-                  {guardPassed ? "🛡 검사 통과 — AI가 약속 범위 안에서 작업했어요" : `🛡 검사에서 확인할 점이 있어요 — ${guardResult.summary}`}
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 800,
+                    color: guardVerdict === "pass" ? "#166534" : guardVerdict === "prepare" ? "#92400E" : "#b42318",
+                  }}
+                >
+                  {guardVerdict === "pass"
+                    ? "🛡 검사 통과 — AI가 약속 범위 안에서 작업했어요"
+                    : guardVerdict === "prepare"
+                      ? "🛡 이번 작업은 약속 범위 안 ✓ — 다음 실행 전에 준비하면 좋은 항목이 있어요"
+                      : "🛡 멈출 사유를 찾았어요 — 아래 항목을 먼저 확인하세요"}
                 </div>
-                {!guardPassed &&
+                {guardVerdict === "stop" &&
                   guardResult.issues.slice(0, 3).map((issue, idx) => (
                     <div key={idx} style={{ fontSize: 12, color: "#444", lineHeight: 1.5 }}>
                       · {issue.found} <span style={{ color: "#888" }}>→ {issue.next_step}</span>
                     </div>
                   ))}
-                {/* 위반 0건인데 중지인 경우(예: 새 프로젝트의 앵커 미설정) — 행동 사유는
-                    recommendations 가 담고 있다. 빈 화면 대신 다음 행동을 보여준다. */}
-                {!guardPassed &&
-                  guardResult.issues.length === 0 &&
+                {/* prepare 의 행동 항목, 그리고 stop 인데 이슈 목록이 빈 경우의 폴백은
+                    recommendations 가 담고 있다 — 빈 화면 대신 다음 행동을 보여준다. */}
+                {guardVerdict !== "pass" &&
+                  (guardVerdict === "prepare" || guardResult.issues.length === 0) &&
                   guardResult.recommendations.slice(0, 3).map((rec, idx) => (
                     <div key={idx} style={{ fontSize: 12, color: "#444", lineHeight: 1.5 }}>
                       · {rec}
@@ -505,7 +519,7 @@ export default function WorkRoom({
             )}
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {guardPassed && saveState !== "saved" && (
+              {guardSafe && saveState !== "saved" && (
                 <button className="btn btn-sm" disabled={saveState === "saving"} onClick={() => void saveFinalCheckpoint()}>
                   {saveState === "saving" ? "저장 중…" : "✓ 이 상태를 체크포인트로 저장"}
                 </button>
@@ -516,7 +530,7 @@ export default function WorkRoom({
               {saveState === "error" && (
                 <span style={{ fontSize: 12, fontWeight: 800, color: "#b42318", alignSelf: "center" }}>저장 실패 — 백업 탭에서 시도해 주세요</span>
               )}
-              {!guardPassed && (
+              {guardVerdict === "stop" && (
                 <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("backups")} style={{ fontSize: 11 }}>
                   백업에서 되돌리기 →
                 </button>

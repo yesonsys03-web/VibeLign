@@ -13,6 +13,24 @@ from vibelign.commands.vib_guard_cmd import GuardArgs, run_vib_guard
 _render_markdown = importlib.import_module(
     "vibelign.commands.vib_guard_cmd"
 )._render_markdown
+_verdict_tier = importlib.import_module("vibelign.commands.vib_guard_cmd")._verdict_tier
+
+
+class VerdictTierTest(unittest.TestCase):
+    """위반 채널과 위생 채널의 분리(2026-06-12) — 위반 0이면 위생 누적만으로 stop 금지."""
+
+    def test_hygiene_only_fail_is_prepare_not_stop(self):
+        # 알람앱 케이스: 새 파일 앵커 미설정 감점 누적으로 status=fail 이지만 위반 0
+        self.assertEqual(_verdict_tier([], [], "LOW", "pass", "fail"), "prepare")
+
+    def test_clean_project_passes(self):
+        self.assertEqual(_verdict_tier([], [], "LOW", "pass", "pass"), "pass")
+
+    def test_any_violation_is_stop(self):
+        self.assertEqual(_verdict_tier(["src/a.py"], [], "LOW", "pass", "fail"), "stop")
+        self.assertEqual(_verdict_tier([], ["src/b.py"], "LOW", "pass", "warn"), "stop")
+        self.assertEqual(_verdict_tier([], [], "HIGH", "pass", "pass"), "stop")
+        self.assertEqual(_verdict_tier([], [], "LOW", "fail", "fail"), "stop")
 
 
 class VibGuardRenderTest(unittest.TestCase):
@@ -43,8 +61,9 @@ class VibGuardRenderTest(unittest.TestCase):
                 },
             }
         )
-        self.assertIn("전체 상태: 주의", markdown)
-        self.assertIn("먼저 한 번 더 확인하는 게 좋아요", markdown)
+        # verdict 부재(구버전 데이터) → status 에서 보수적 유도: warn → prepare
+        self.assertIn("전체 상태: 준비 필요", markdown)
+        self.assertIn("다음 AI 작업 전에 아래 권장 항목을 준비하면 더 안전해져요", markdown)
         self.assertIn("## 다음에 하면 좋은 일", markdown)
         self.assertIn("구조 위험이 조금 있습니다.", markdown)
         self.assertIn("`app.py`", markdown)

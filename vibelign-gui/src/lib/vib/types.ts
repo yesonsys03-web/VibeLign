@@ -693,7 +693,10 @@ export interface BackupListResult {
 export interface GuardIssue { found: string; next_step: string; path: string }
 
 export interface GuardResult {
+  /** 기계 게이트(pass|warn|fail) — strict 승격·exit code 와 짝. 사람 표시는 verdict 사용. */
   status: string;
+  /** 사람용 3단 판정(pass|prepare|stop) — 위반 채널과 위생 채널 분리(2026-06-12). */
+  verdict: string;
   summary: string;
   recommendations: string[];
   issues: GuardIssue[];

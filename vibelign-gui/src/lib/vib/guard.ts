@@ -86,9 +86,13 @@ export async function vibGuard(cwd: string, opts?: { strict?: boolean; sinceMinu
   // === ANCHOR: GUARD_DATA_END ===
   const doctor = (data.doctor && typeof data.doctor === "object" ? data.doctor as Record<string, unknown> : {});
   // === ANCHOR: GUARD_DOCTOR_END ===
+  const status = _toStr(data.status) || "unknown";
   return {
 // === ANCHOR: GUARD_VIBGUARD_END ===
-    status: _toStr(data.status) || "unknown",
+    status,
+    // 구버전 CLI(verdict 부재)는 status 에서 보수적으로 유도 — fail 은 stop 으로 본다.
+    verdict:
+      _toStr(data.verdict) || (status === "pass" ? "pass" : status === "warn" ? "prepare" : "stop"),
     summary: _toStr(data.summary),
     recommendations: _toStringArray(data.recommendations),
     issues: _toGuardIssues(doctor.issues),

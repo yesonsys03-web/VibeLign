@@ -94,7 +94,8 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
     try {
       const result = await vibGuard(projectDir);
       setGuardResult(result);
-      onGuardResult?.(result.status === "pass" ? "ok" : "issue");
+      // 가이드 신호도 3단 verdict 기준 — 위생 누적(prepare)은 사이클 진행을 막지 않는다.
+      onGuardResult?.(result.verdict === "stop" ? "issue" : "ok");
       await refreshScopeReport();
     } catch (error: unknown) {
       if (error instanceof Error) {

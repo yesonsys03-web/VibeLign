@@ -78,7 +78,6 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
   useEffect(() => {
     void refreshPlans();
     void refreshTrashed();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectDir, activeSessionId]);
 
   const selected = plans?.find((p) => p.sessionId === selectedId) ?? null;

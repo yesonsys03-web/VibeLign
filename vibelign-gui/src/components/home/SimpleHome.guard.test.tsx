@@ -7,6 +7,7 @@ import { SimpleHome } from "./SimpleHome";
 
 const GUARD_WITH_RAW_COMMAND = {
   status: "warn",
+  verdict: "prepare",
   summary: "guard found 1 issue",
   recommendations: ["Run vib guard --strict and vib anchor --auto"],
   issues: [],
@@ -14,6 +15,7 @@ const GUARD_WITH_RAW_COMMAND = {
 
 const PASSING_GUARD = {
   status: "pass",
+  verdict: "pass",
   summary: "guard passed",
   recommendations: [],
   issues: [],
@@ -43,8 +45,9 @@ describe("SimpleHome guard copy", () => {
       />
     );
 
-    expect(screen.getByText("안전 검사 결과를 확인하세요")).toBeInTheDocument();
-    expect(screen.getByText("문제가 있는 파일과 다음 행동을 쉬운 목록으로 확인할 수 있어요.")).toBeInTheDocument();
+    // 3단 verdict(2026-06-12): 위생 누적(prepare)은 공포 어휘 대신 '준비' 프레임으로 안내
+    expect(screen.getByText("다음 작업 전 준비 항목을 확인하세요")).toBeInTheDocument();
+    expect(screen.getByText("앵커 설정 같은 준비를 마치면 다음 AI 작업이 더 안전해져요.")).toBeInTheDocument();
     expect(screen.queryByText(/vib guard/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/vib anchor/i)).not.toBeInTheDocument();
 
