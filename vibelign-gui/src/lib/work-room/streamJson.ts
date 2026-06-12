@@ -86,9 +86,9 @@ export function formatWorkOutputLine(line: string): WorkDisplayLine[] {
       if (isError) {
         return [{ kind: "error", text: resultText ? `❌ ${resultText}` : "❌ 작업이 실패했어요" }];
       }
-      const cost =
-        typeof obj.total_cost_usd === "number" ? ` (비용 ~$${obj.total_cost_usd.toFixed(2)})` : "";
-      return [{ kind: "result", text: `✅ 작업 완료${cost}${resultText ? `\n${resultText}` : ""}` }];
+      // 비용($) 미표시: 작업방 주 사용자는 정액 구독자라 total_cost_usd 는 실제 청구가
+      // 아니다 — 숫자가 오히려 "방금 돈 나갔나?" 불안을 준다(2026-06-12 사용자 피드백).
+      return [{ kind: "result", text: `✅ 작업 완료${resultText ? `\n${resultText}` : ""}` }];
     }
     // ── Codex(`codex exec --json`) JSONL — claude 와 type 네임스페이스가 달라 충돌 없음 ──
     case "thread.started":

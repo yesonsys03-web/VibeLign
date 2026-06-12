@@ -47,7 +47,8 @@ describe("formatWorkOutputLine", () => {
     expect(formatWorkOutputLine(failed)[0].kind).toBe("error");
   });
 
-  it("renders_success_result_with_cost", () => {
+  it("renders_success_result_without_cost", () => {
+    // 정액 구독자에겐 비용($)이 실제 청구가 아니라 오해를 부른다 — 미표시(2026-06-12).
     const line = JSON.stringify({
       type: "result",
       subtype: "success",
@@ -57,7 +58,8 @@ describe("formatWorkOutputLine", () => {
     const [item] = formatWorkOutputLine(line);
     expect(item.kind).toBe("result");
     expect(item.text).toContain("✅ 작업 완료");
-    expect(item.text).toContain("$0.12");
+    expect(item.text).not.toContain("$");
+    expect(item.text).not.toContain("비용");
     expect(item.text).toContain("끝");
   });
 
