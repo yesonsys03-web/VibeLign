@@ -17,7 +17,7 @@ import ErrorLogs from "./pages/ErrorLogs";
 import Settings from "./pages/Settings";
 import { buildGuardDoctorLaunchIntent } from "./pages/doctorFlow";
 import type { DoctorLaunchIntent } from "./pages/doctorFlow";
-import { backupList, createPlanningChatSession, detectInstalledTools, getEnvKeyStatus, getWatchErrors, listChangedFiles, listPlanningChatSessions, loadApiKey, loadLatestPlanningChatSession, loadPlanningChatSession, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, startWatch, stopWatch, openFolder, type PlanningChatSessionResponse } from "./lib/vib";
+import { backupList, createPlanningChatSession, detectInstalledTools, enrichPlanningChatPlan, getEnvKeyStatus, getWatchErrors, listChangedFiles, listPlanningChatSessions, loadApiKey, loadLatestPlanningChatSession, loadPlanningChatSession, loadProviderApiKeys, loadRecentProjects, saveRecentProjects, startWatch, stopWatch, openFolder, type PlanningChatSessionResponse } from "./lib/vib";
 import { GuideStrip } from "./components/nav/GuideStrip";
 import { useGuide } from "./lib/nav/useGuide";
 import {
@@ -117,6 +117,21 @@ export default function App() {
   const [showSessionPicker, setShowSessionPicker] = useState(false);
   // 다중 기획안 요약(홈 허브 배지) — 저장(완료)/미저장(진행중)/갱신필요 집계. 홈 진입 시 새로고침.
   const [planningSummary, setPlanningSummary] = useState({ total: 0, saved: 0, draft: 0, stale: 0 });
+  // 기획안 저장 후 백그라운드 보강(준비상태·계약 AI 분석) 진행 중인 세션 — "분석 중" 표시용.
+  // App(루트) 이 소유해 PlanningRoom 을 떠나도 완료되고 contract 가 planningResult 로 흘러든다.
+  const [enrichingSessionId, setEnrichingSessionId] = useState<string | null>(null);
+  function enrichPlanAfterSave(sessionId: string) {
+    if (!projectDir) return;
+    setEnrichingSessionId(sessionId);
+    void enrichPlanningChatPlan({ projectDir, sessionId })
+      .then((enriched) => {
+        if (!enriched.ok) return;
+        // 활성 세션이 그대로일 때만 적용(다른 세션으로 전환됐으면 무시).
+        setPlanningResult((prev) => (prev && prev.sessionId === enriched.sessionId ? enriched : prev));
+      })
+      .catch(() => {})
+      .finally(() => setEnrichingSessionId((cur) => (cur === sessionId ? null : cur)));
+  }
 
 
   async function refreshAiKeys() {
@@ -572,7 +587,7 @@ export default function App() {
                   </>
                 )}
                 {page === "planning" && (planningResult ? (
-                  <PlanningRoom projectDir={projectDir} result={planningResult} sourcePath={reviewSourcePath} onBack={() => setPage("home")} onStartWork={() => setPage("code")} onResultChange={setPlanningResult} />
+                  <PlanningRoom projectDir={projectDir} result={planningResult} sourcePath={reviewSourcePath} onBack={() => setPage("home")} onStartWork={() => setPage("code")} onResultChange={setPlanningResult} isEnriching={enrichingSessionId !== null && enrichingSessionId === planningResult.sessionId} onEnrich={enrichPlanAfterSave} />
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16, padding: 24 }}>
                     <div style={{ fontSize: 32 }}>📋</div>

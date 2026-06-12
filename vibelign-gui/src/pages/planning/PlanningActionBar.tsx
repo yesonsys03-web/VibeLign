@@ -4,6 +4,8 @@ interface PlanningActionBarProps {
   readonly canView: boolean;
   readonly hasSavedPlan: boolean;
   readonly isSaving: boolean;
+  /** 저장 후 백그라운드로 준비상태·계약을 분석 중 — "분석 중" 표시. */
+  readonly isEnriching?: boolean;
   readonly onOpenSavedPlan: () => void;
   readonly onSave: () => void;
   readonly onStartWork: () => void;
@@ -16,6 +18,7 @@ export function PlanningActionBar({
   canView,
   hasSavedPlan,
   isSaving,
+  isEnriching = false,
   onOpenSavedPlan,
   onSave,
   onStartWork,
@@ -62,6 +65,11 @@ export function PlanningActionBar({
         <button className="btn btn-black" type="button" onClick={onStartWork} style={{ fontSize: 12 }}>
           AI 작업 시작
         </button>
+      )}
+      {isEnriching && (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#92400E" }}>
+          <span className="spinner" /> 준비 상태·작업 계약 분석 중… (잠시 뒤 문서에 반영돼요)
+        </span>
       )}
     </div>
   );

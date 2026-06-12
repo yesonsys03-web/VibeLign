@@ -66,6 +66,13 @@ export function savePlanningChatAsMarkdown(
 ): Promise<PlanningChatSessionResponse> {
   return invoke<PlanningChatSessionResponse>("save_planning_chat_as_markdown", { request });
 }
+
+/** 저장 후 백그라운드 보강(준비상태·계약 AI 분석) — 저장을 즉시화하면서 분리한 무거운 부분. */
+export function enrichPlanningChatPlan(
+  request: SavePlanningChatPlanRequest,
+): Promise<PlanningChatSessionResponse> {
+  return invoke<PlanningChatSessionResponse>("enrich_planning_chat_plan", { request });
+}
 // === ANCHOR: PLANNING_SAVEPLANNINGCHATASMARKDOWN_END ===
 // === ANCHOR: PLANNING_RETRYPLANNINGPERSONA_START ===
 export function retryPlanningPersona(request: RetryPersonaRequest): Promise<PlanningChatSessionResponse> {

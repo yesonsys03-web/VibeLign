@@ -27,9 +27,13 @@ interface PlanningRoomProps {
   readonly onBack: () => void;
   readonly onStartWork?: () => void;
   readonly onResultChange: (result: PlanningChatSessionResponse) => void;
+  /** 저장 후 백그라운드 보강(준비상태·계약 분석) 진행 중 — "분석 중" 표시(App 소유). */
+  readonly isEnriching?: boolean;
+  /** 즉시 저장 직후 백그라운드 보강을 시작시킨다(App 이 navigation 너머까지 소유). */
+  readonly onEnrich?: (sessionId: string) => void;
 }
 
-export default function PlanningRoom({ projectDir, result, sourcePath, onBack, onStartWork, onResultChange }: PlanningRoomProps) {
+export default function PlanningRoom({ projectDir, result, sourcePath, onBack, onStartWork, onResultChange, isEnriching = false, onEnrich }: PlanningRoomProps) {
   const [showMarkdown, setShowMarkdown] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -57,6 +61,10 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
       onResultChange(next);
       if (next.markdown) {
         setShowMarkdown(true);
+      }
+      // 즉시 저장은 끝 — 준비상태·계약 AI 분석은 백그라운드로(App 소유, navigation 생존).
+      if (next.ok && next.sessionId) {
+        onEnrich?.(next.sessionId);
       }
     } catch (error) {
       onResultChange({
@@ -180,6 +188,7 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
               canView={canView}
               hasSavedPlan={hasSavedPlan}
               isSaving={isSaving}
+              isEnriching={isEnriching}
               onOpenSavedPlan={() => void handleOpenSavedPlan()}
               onSave={() => handleSavePlan("button")}
               onStartWork={handleStartWork}

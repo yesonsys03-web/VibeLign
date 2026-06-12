@@ -248,27 +248,10 @@ pub(crate) async fn save_planning_chat_as_markdown(
             Ok(parsed) => parsed,
             Err(error) => return planning_chat_error(error),
         };
-        // readiness 판정과 계약 추출은 각각 CLI 1회(spec §4) — 병렬 실행으로 저장 지연을 ~1회분으로 유지.
-        // 루브릭은 서로 격리(병합 안 함) — 기존 readiness 품질 보호. 병합(호출 1회화)은 후속 검토.
-        let now = timestamp_ms().to_string();
-        let (readiness, contract) = {
-            let readiness_dir = project_dir.clone();
-            let readiness_messages = messages.clone();
-            let readiness_handle = std::thread::spawn(move || {
-                super::planning_chat_readiness::judge_readiness(&readiness_dir, &readiness_messages)
-            });
-            // 계약 추출은 현재 스레드에서 — 두 CLI 프로세스가 동시에 돈다.
-            let contract = super::planning_chat_contract::extract_contract(&project_dir, &messages, &now);
-            let readiness = readiness_handle
-                .join()
-                .unwrap_or_else(|_| super::planning_chat_readiness::ReadinessReport::unavailable());
-            (readiness, contract)
-        };
-        session.readiness = Some(readiness);
-        if let Some(ref parsed) = contract {
-            // 저장 실패는 응답을 막지 않는다(best-effort) — 응답에는 추출본이 그대로 실린다.
-            let _ = super::planning_chat_contract::write_contract(&session_dir, parsed);
-        }
+        // 즉시 저장(딜레이 제거) — 준비상태 판정·계약 추출의 CLI(LLM) 2회는 저장을 막던 주범이라
+        // enrich_planning_chat_plan 이 백그라운드로 처리한다. 여기선 디스크에 캐시된 계약과 세션에
+        // 저장돼 있던 readiness 로 즉시 파일을 쓴다(첫 저장이면 비어 있고, 직후 enrich 가 채운다).
+        let contract = super::planning_chat_contract::read_contract(&session_dir);
         let cards = read_cards(&session_dir);
         let saved = match save_planning_markdown(
             &project_dir,
@@ -287,6 +270,73 @@ pub(crate) async fn save_planning_chat_as_markdown(
         // 저장이 실제로 끝난 뒤에만 입구 출처를 누적한다(실패 저장은 카운트 X). best-effort.
         if let Some(source) = request.source.as_deref() {
             super::planning_chat_store::record_save_source(&project_dir, source);
+        }
+        planning_chat_success(session, messages, Some(saved.markdown), cards, contract)
+    })
+    .await
+    .unwrap_or_else(|error| planning_chat_error(error.to_string()))
+}
+
+/// 기획안 저장 후 백그라운드 보강 — 준비상태 판정·계약 추출(각 CLI 1회, 병렬)을 돌려 같은
+/// 파일에 재저장한다. save 를 즉시화하면서 분리한 무거운 AI 분석부(저장 딜레이의 정체).
+/// App 이 소유해 await 하므로 PlanningRoom 을 떠나도 완료된다 — 작업방 지시문이 쓰는 contract 보장.
+#[tauri::command]
+pub(crate) async fn enrich_planning_chat_plan(
+    request: SavePlanningChatPlanRequest,
+) -> PlanningChatSessionResponse {
+    let project_dir = PathBuf::from(&request.project_dir);
+    if !project_dir.is_absolute() {
+        return planning_chat_error("projectDir must be absolute");
+    }
+    if request.session_id.trim().is_empty() {
+        return planning_chat_error("sessionId is required");
+    }
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let session_dir = planning_dir(&project_dir).join(&request.session_id);
+        let session_path = session_dir.join("session.json");
+        let messages_path = session_dir.join("messages.json");
+        let mut session = match read_json::<StoredPlanningChatSession>(&session_path) {
+            Ok(parsed) => parsed,
+            Err(error) => return planning_chat_error(error),
+        };
+        let messages = match read_json::<Vec<PlanningChatMessage>>(&messages_path) {
+            Ok(parsed) => parsed,
+            Err(error) => return planning_chat_error(error),
+        };
+        // 준비상태 판정·계약 추출은 각각 CLI 1회 — 병렬 실행으로 ~1회분 지연(구 save 와 동일).
+        let now = timestamp_ms().to_string();
+        let (readiness, contract) = {
+            let readiness_dir = project_dir.clone();
+            let readiness_messages = messages.clone();
+            let readiness_handle = std::thread::spawn(move || {
+                super::planning_chat_readiness::judge_readiness(&readiness_dir, &readiness_messages)
+            });
+            let contract = super::planning_chat_contract::extract_contract(&project_dir, &messages, &now);
+            let readiness = readiness_handle
+                .join()
+                .unwrap_or_else(|_| super::planning_chat_readiness::ReadinessReport::unavailable());
+            (readiness, contract)
+        };
+        session.readiness = Some(readiness);
+        if let Some(ref parsed) = contract {
+            let _ = super::planning_chat_contract::write_contract(&session_dir, parsed);
+        }
+        let cards = read_cards(&session_dir);
+        // 즉시저장이 set 한 output_path 로 재저장(target 미지정 → 기존 경로 그대로).
+        let saved = match save_planning_markdown(
+            &project_dir,
+            &mut session,
+            &messages,
+            &cards,
+            contract.as_ref(),
+            None,
+        ) {
+            Ok(saved) => saved,
+            Err(error) => return planning_chat_error(error),
+        };
+        if let Err(error) = write_json(session_path, &session) {
+            return planning_chat_error(error);
         }
         planning_chat_success(session, messages, Some(saved.markdown), cards, contract)
     })
