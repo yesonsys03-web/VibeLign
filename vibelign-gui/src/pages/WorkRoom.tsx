@@ -633,7 +633,17 @@ export default function WorkRoom({
           )}
           <div
             ref={outputRef}
-            style={{ maxHeight: 380, overflowY: "auto", display: "grid", gap: 6, border: "1px solid #D6D2C4", padding: 10, background: "#fff" }}
+            // 실행 중엔 뷰포트 비례 높이 + 내부 스크롤로 최신 라인을 자동 추적하고,
+            // 완료·복원 표시 땐 박스를 풀어 자연 높이로 흐르게 한다 — 긴 보고서를 380px
+            // 안에 가두지 않고 바깥 page-content 스크롤로 전체를 본다(트라이얼 발견).
+            style={{
+              ...(phase === "running" ? { maxHeight: "55vh", overflowY: "auto" as const } : {}),
+              display: "grid",
+              gap: 6,
+              border: "1px solid #D6D2C4",
+              padding: 10,
+              background: "#fff",
+            }}
           >
             {displayLines.length === 0 && <div style={{ fontSize: 12, color: "#888" }}>출력을 기다리는 중…</div>}
             {displayLines.map((line, idx) => (
