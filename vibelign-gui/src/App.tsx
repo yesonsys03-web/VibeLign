@@ -420,17 +420,18 @@ export default function App() {
 
   const planningPendingNow = planningResult?.messages.some((m) => m.status === "pending") ?? false;
 
-  // 홈 진입·기획안 변경 시 전체 기획안 현황 집계(다중 기획안 요약 배지). saved=완료(저장된
-  // 기획안), 미저장=진행중, docStale=저장됐지만 갱신 필요.
+  // 홈 진입·기획안 변경 시 기획안 현황 집계(다중 기획안 요약 배지). "기획안"의 정의는
+  // 기획안 탭(PlanDocView)과 동일하게 outputPath 보유 = 저장된 plan doc 으로 맞춘다 —
+  // 그래야 탭(목록)과 홈 배지가 어긋나지 않는다. outputPath 없는 행은 미저장 "초안".
   useEffect(() => {
     if (page !== "home" || !projectDir) return;
     let alive = true;
     void listPlanningChatSessions(projectDir)
       .then((rows) => {
         if (!alive) return;
-        const saved = rows.filter((r) => r.saved).length;
-        const stale = rows.filter((r) => r.saved && r.docStale).length;
-        setPlanningSummary({ total: rows.length, saved, draft: rows.length - saved, stale });
+        const docs = rows.filter((r) => Boolean(r.outputPath));
+        const stale = docs.filter((r) => r.docStale).length;
+        setPlanningSummary({ total: rows.length, saved: docs.length, draft: rows.length - docs.length, stale });
       })
       .catch(() => {});
     return () => {

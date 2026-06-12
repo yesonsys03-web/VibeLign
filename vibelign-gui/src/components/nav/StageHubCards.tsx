@@ -28,18 +28,25 @@ const CARD_DESC: Record<Stage, string> = {
   maintain: "안전 점검·복원",
 };
 
-function badgeText(
+export function badgeText(
   stage: Stage,
   planningStatus: StageHubCardsProps["planningStatus"],
   backupCount: number,
   planningSummary?: PlanningSummary,
 ): string {
-  if (stage === "planning") {
-    if (planningSummary && planningSummary.total > 0) {
-      let text = `기획안 ${planningSummary.total}개 · ${planningSummary.saved} 완료 · ${planningSummary.draft} 진행중`;
-      if (planningSummary.stale > 0) text += ` · ${planningSummary.stale} 갱신필요`;
+  if (stage === "planning" && planningSummary) {
+    const { saved, draft, stale } = planningSummary;
+    // "기획안" = 저장된 plan doc(기획안 탭과 동일 정의). 저장본이 있을 때만 "기획안 N개".
+    if (saved > 0) {
+      let text = `기획안 ${saved}개`;
+      if (stale > 0) text += ` · ${stale} 갱신필요`;
+      if (draft > 0) text += ` · 초안 ${draft}개`;
       return text;
     }
+    // 저장본 없음 — 미저장 초안만 있으면 "기획안"이라 부르지 않는다(탭이 비어 있으므로).
+    if (draft > 0) return `기획 초안 ${draft}개`;
+  }
+  if (stage === "planning") {
     return planningStatus === "active" ? "● 진행 중" : planningStatus === "done" ? "완료" : "대기";
   }
   if (stage === "maintain") return `백업 ${backupCount}개`;
@@ -58,7 +65,7 @@ export function StageHubCards({ onNavigate, planningStatus, planningSummary, bac
             // 단 기획안이 1개 이상이면 기획 카드는 기획안 목록(plan-doc)으로 — 다중 기획안 관리 진입.
             onClick={() => {
               const fallback =
-                def.key === "planning" && (planningSummary?.total ?? 0) > 0 ? "plan-doc" : pagesForStage(def.key)[0];
+                def.key === "planning" && (planningSummary?.saved ?? 0) > 0 ? "plan-doc" : pagesForStage(def.key)[0];
               onNavigate(hubCardTarget(def.key, currentStep, fallback));
             }}
             style={{
