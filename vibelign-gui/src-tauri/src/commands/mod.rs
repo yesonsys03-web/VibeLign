@@ -18,6 +18,7 @@ pub(crate) mod planning_persona;
 pub(crate) mod planning_persona_context;
 pub(crate) mod platform;
 pub(crate) mod project_summary;
+pub(crate) mod run_preview;
 pub(crate) mod settings;
 pub(crate) mod vib_bridge;
 pub(crate) mod watch;

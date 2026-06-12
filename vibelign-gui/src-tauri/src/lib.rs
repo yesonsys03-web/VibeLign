@@ -22,6 +22,7 @@ pub use onboarding::testing;
 pub fn run() {
     let (watch_state, watch_shutdown) = commands::watch::new_state_pair();
     let (work_state, work_shutdown) = commands::work_room::new_state_pair();
+    let (run_state, run_shutdown) = commands::run_preview::new_state_pair();
     let gui_error_state = commands::gui_error::GuiErrorState::new();
     let onboarding_inner: Arc<Mutex<OnboardingRuntime>> = Arc::new(Mutex::new(OnboardingRuntime {
         snapshot: Some(onboarding::build_initial_onboarding_snapshot()),
@@ -97,6 +98,7 @@ pub fn run() {
         })
         .manage(watch_state)
         .manage(work_state)
+        .manage(run_state)
         .manage(gui_error_state)
         .manage(OnboardingState(onboarding_inner))
         .invoke_handler(tauri::generate_handler![
@@ -147,6 +149,10 @@ pub fn run() {
             commands::work_room::work_cancel,
             commands::work_room::work_status,
             commands::work_room::work_last_log,
+            commands::run_preview::run_detect,
+            commands::run_preview::run_start,
+            commands::run_preview::run_stop,
+            commands::run_preview::run_status,
             commands::platform::open_folder,
             commands::code::read_code_file,
             commands::code::read_code_file_diff,
@@ -178,6 +184,7 @@ pub fn run() {
             tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. } => {
                 commands::watch::stop_for_exit(&watch_shutdown);
                 commands::work_room::stop_for_exit(&work_shutdown);
+                commands::run_preview::stop_for_exit(&run_shutdown);
             }
             _ => {}
         });

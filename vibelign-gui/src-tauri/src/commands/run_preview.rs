@@ -1,0 +1,779 @@
+// === ANCHOR: RUN_PREVIEW_START ===
+//! 실행해보기 (Run & Preview) — 마일스톤 1: 감지 + 러너
+//! (plans/2026-06-12-실행해보기-run-preview-design.md §3·§4·§5).
+//!
+//! "빌드해서 배포"가 아니라 "실행해서 확인" — package.json 만으로 dev 실행 레시피를
+//! 감지(detect_run_recipe, 순수)하고, watch.rs/work_room.rs 의 장기 프로세스 수명주기
+//! (프로세스 그룹·트리 kill·앱종료 정리)를 복제해 자동 install → dev 실행을 돌린다.
+//!
+//! 설계 불변식 (기획안 §4·§5·§9 P0):
+//! - 실행 명령은 **감지된 고정 셋**만 — 러너가 임의 명령 문자열을 받지 않는다(주입 표면 0).
+//! - 자동 install 은 1회성 — node_modules 존재 시 건너뛴다(매번 install 금지).
+//! - 취소·중지·앱종료는 반드시 **프로세스 트리 전체** kill — dev 서버는 npm → node 손자를
+//!   만들어 plain kill 은 손자가 포트를 쥔 채 생존한다(재실행 충돌).
+//! - 동시 1개 — 포트 충돌·자원 경쟁 방지. run_id 가 occupancy 토큰이다.
+//!
+//! M2 seam: 출력 라인에서 localhost:PORT 감지 → "run-preview-ready" 이벤트 → webview.
+//! M3 seam: 작업방과의 동시 1개(§5) — 두 표면이 만나는 곳에서 상호배제 추가.
+
+use std::io::{BufRead, BufReader};
+use std::path::Path;
+use std::sync::{Arc, Mutex};
+
+use serde::Serialize;
+use tauri::Emitter;
+
+use super::planning_persona::find_executable;
+use super::platform::{augmented_vib_path, hide_console};
+use super::watch::kill_watch_child as kill_child_tree;
+
+// ─── 타입 감지 (순수 코어, 테스트 우선) ─────────────────────────────────────────
+
+/// 프로젝트 타입 — 미리보기 방식의 분기 축.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum ProjectKind {
+    /// electron — 자체 OS 창(프로세스 본체가 화면).
+    Electron,
+    /// web — dev 서버가 포트를 열고, 앱 내 webview 로 미리보기(M2).
+    Web,
+    /// unknown — scripts.start 만 있어 타입을 못 좁힘. 로그만, 포트 감지되면 webview.
+    Unknown,
+}
+
+/// 실행 프로그램 — npm 서브커맨드 또는 npx(electron 폴백). 임의 문자열이 아니라
+/// 감지가 만든 고정 셋만 들어온다(§4).
+#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+#[serde(rename_all = "camelCase", tag = "program", content = "args")]
+pub(crate) enum RunProgram {
+    /// npm 서브커맨드. ["start"] → `npm start`, ["run","dev"] → `npm run dev`.
+    Npm(Vec<String>),
+    /// npx 직접 실행. ["electron","."] → `npx electron .` (start 스크립트 없는 electron 폴백).
+    Npx(Vec<String>),
+}
+
+impl RunProgram {
+    fn npm_script(script: &str) -> Self {
+        if script == "start" {
+            RunProgram::Npm(vec!["start".into()])
+        } else {
+            RunProgram::Npm(vec!["run".into(), script.into()])
+        }
+    }
+
+    /// 실행 바이너리 이름 — find_executable 로 .cmd/.exe 까지 해석된다.
+    fn executable(&self) -> &'static str {
+        match self {
+            RunProgram::Npm(_) => "npm",
+            RunProgram::Npx(_) => "npx",
+        }
+    }
+
+    fn args(&self) -> &[String] {
+        match self {
+            RunProgram::Npm(a) | RunProgram::Npx(a) => a,
+        }
+    }
+
+    /// 사용자 표시용 라벨 — "npm run dev", "npm start", "npx electron .".
+    fn label(&self) -> String {
+        format!("{} {}", self.executable(), self.args().join(" "))
+    }
+}
+
+/// 미리보기 방식.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum PreviewKind {
+    /// electron — 외부 OS 창(프로세스 자체).
+    ExternalWindow,
+    /// web — 출력에서 포트 감지 → webview. default_port 는 감지 전 추정(next/CRA=3000).
+    Webview { default_port: Option<u16> },
+    /// unknown — 로그만. 단 포트가 감지되면 webview 로 승격(런타임 판단).
+    LogOnly,
+}
+
+/// 감지 결과 — UI 표시(label/kind)와 spawn 의도(program)를 함께 싣는다.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RunRecipe {
+    kind: ProjectKind,
+    program: RunProgram,
+    command_label: String,
+    preview: PreviewKind,
+}
+
+impl RunRecipe {
+    fn new(kind: ProjectKind, program: RunProgram, preview: PreviewKind) -> Self {
+        let command_label = program.label();
+        Self { kind, program, command_label, preview }
+    }
+}
+
+/// dependencies + devDependencies 어디든 키가 있으면 true.
+/// vite 는 거의 devDependencies 에 산다 — 한쪽만 보면 vite 프로젝트를 놓친다.
+fn dep_present(pkg: &serde_json::Value, name: &str) -> bool {
+    ["dependencies", "devDependencies"].iter().any(|section| {
+        pkg.get(section).and_then(|d| d.get(name)).is_some()
+    })
+}
+
+fn script_present(pkg: &serde_json::Value, name: &str) -> bool {
+    pkg.get("scripts").and_then(|s| s.get(name)).is_some()
+}
+
+/// package.json 본문 → 실행 레시피. **표는 우선순위 순**(§4) — 위에서부터 처음 맞는 행.
+/// electron 이 있으면 scripts.dev 가 있어도 electron 으로 판정한다.
+/// 순수 함수 — 파일 I/O 없음(테스트 용이).
+pub(crate) fn detect_run_recipe(package_json: &str) -> Option<RunRecipe> {
+    let pkg: serde_json::Value = serde_json::from_str(package_json).ok()?;
+
+    // 1) electron — start 스크립트 있으면 npm start, 없으면 npx electron . 폴백.
+    if dep_present(&pkg, "electron") {
+        let program = if script_present(&pkg, "start") {
+            RunProgram::npm_script("start")
+        } else {
+            RunProgram::Npx(vec!["electron".into(), ".".into()])
+        };
+        return Some(RunRecipe::new(ProjectKind::Electron, program, PreviewKind::ExternalWindow));
+    }
+
+    // 2) vite — npm run dev, 포트 감지(고정 기본 포트 없음, vite 는 5173 가 흔하나 가변).
+    if dep_present(&pkg, "vite") {
+        return Some(RunRecipe::new(
+            ProjectKind::Web,
+            RunProgram::npm_script("dev"),
+            PreviewKind::Webview { default_port: None },
+        ));
+    }
+
+    // 3) next — npm run dev, 기본 :3000.
+    if dep_present(&pkg, "next") {
+        return Some(RunRecipe::new(
+            ProjectKind::Web,
+            RunProgram::npm_script("dev"),
+            PreviewKind::Webview { default_port: Some(3000) },
+        ));
+    }
+
+    // 4) react-scripts(CRA) — npm start, 기본 :3000.
+    if dep_present(&pkg, "react-scripts") {
+        return Some(RunRecipe::new(
+            ProjectKind::Web,
+            RunProgram::npm_script("start"),
+            PreviewKind::Webview { default_port: Some(3000) },
+        ));
+    }
+
+    // 5) scripts.dev 존재 — web 기본, npm run dev.
+    if script_present(&pkg, "dev") {
+        return Some(RunRecipe::new(
+            ProjectKind::Web,
+            RunProgram::npm_script("dev"),
+            PreviewKind::Webview { default_port: None },
+        ));
+    }
+
+    // 6) scripts.start 만 — unknown, npm start, 로그만(포트 감지되면 webview).
+    if script_present(&pkg, "start") {
+        return Some(RunRecipe::new(
+            ProjectKind::Unknown,
+            RunProgram::npm_script("start"),
+            PreviewKind::LogOnly,
+        ));
+    }
+
+    // 7) 감지 실패.
+    None
+}
+
+// ─── 러너 (watch/work_room 수명주기 복제) ───────────────────────────────────────
+
+struct RunRuntime {
+    child: Option<std::process::Child>,
+    /// 단조 증가 실행 id — 점유(occupancy) 토큰. 오케스트레이터는 run_id 가 바뀌면 즉시 물러난다.
+    run_id: u64,
+    /// 실행 생명주기가 슬롯을 점유 중인지 — install→run 핸드오프의 child=None 틈에도 유지된다
+    /// (child.is_some() 만으로는 그 틈에 두 번째 실행이 끼어든다, advisor 지적).
+    active: bool,
+    /// 취소 요청 — 오케스트레이터가 stopped 로 보고하게 한다.
+    cancelled: bool,
+}
+
+impl RunRuntime {
+    fn new() -> Self {
+        Self { child: None, run_id: 0, active: false, cancelled: false }
+    }
+}
+
+pub(crate) struct RunState(Arc<Mutex<RunRuntime>>);
+
+pub(crate) struct RunShutdownHandle(Arc<Mutex<RunRuntime>>);
+
+pub(crate) fn new_state_pair() -> (RunState, RunShutdownHandle) {
+    let inner = Arc::new(Mutex::new(RunRuntime::new()));
+    (RunState(Arc::clone(&inner)), RunShutdownHandle(inner))
+}
+
+/// 앱 종료 공통 정리 — 확인 다이얼로그가 못 뜨는 종료에서도 고아 dev 서버가 남지 않게
+/// 무조건 트리 kill 만은 보장한다(작업방 §10 P1 동형).
+pub(crate) fn stop_for_exit(handle: &RunShutdownHandle) {
+    if let Ok(mut guard) = handle.0.lock() {
+        if let Some(mut child) = guard.child.take() {
+            kill_child_tree(&mut child);
+        }
+    }
+}
+
+impl Drop for RunState {
+    fn drop(&mut self) {
+        if let Ok(mut guard) = self.0.lock() {
+            if let Some(mut child) = guard.child.take() {
+                kill_child_tree(&mut child);
+            }
+        }
+    }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RunOutputEvent {
+    run_id: u64,
+    /// "install" | "run" — UI 가 "준비 중…"/"실행 중" 단계를 구분한다.
+    phase: &'static str,
+    stream: &'static str,
+    line: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RunStatusEvent {
+    run_id: u64,
+    /// "installing" | "running" | "done" | "failed" | "stopped".
+    status: &'static str,
+    exit_code: Option<i32>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RunStatusInfo {
+    running: bool,
+    run_id: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RunStartInfo {
+    run_id: u64,
+    command_label: String,
+    kind: ProjectKind,
+    needs_install: bool,
+}
+
+/// 공통 Command 빌더 — install·run 양쪽이 같은 환경/플래그로 spawn 한다.
+/// NO_COLOR·FORCE_COLOR: ANSI 색코드 섞임 차단(§9 P1, 포트 정규식·Win cp949 깨짐 예방).
+/// Unix setpgid: kill_child_tree 의 killpg 가 npm→node 손자까지 닿게 한다(§9 P0).
+fn build_command(exe: &Path, args: &[String], cwd: &Path) -> std::process::Command {
+    let mut cmd = std::process::Command::new(exe);
+    cmd.args(args);
+    cmd.current_dir(cwd);
+    cmd.stdin(std::process::Stdio::null());
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
+    cmd.env("PATH", augmented_vib_path());
+    cmd.env("NO_COLOR", "1");
+    cmd.env("FORCE_COLOR", "0");
+    hide_console(&mut cmd);
+    #[cfg(unix)]
+    unsafe {
+        use std::os::unix::process::CommandExt;
+        cmd.pre_exec(|| {
+            libc::setpgid(0, 0);
+            Ok(())
+        });
+    }
+    cmd
+}
+
+fn spawn_output_thread<R: std::io::Read + Send + 'static>(
+    reader: R,
+    app: tauri::AppHandle,
+    run_id: u64,
+    phase: &'static str,
+    stream: &'static str,
+) {
+    std::thread::spawn(move || {
+        for line in BufReader::new(reader).lines() {
+            let Ok(line) = line else { break };
+            let line = line.trim_end_matches('\r').to_string();
+            if line.is_empty() {
+                continue;
+            }
+            let _ = app.emit("run-output", RunOutputEvent { run_id, phase, stream, line });
+        }
+    });
+}
+
+enum Registered {
+    Ok,
+    /// 새 실행으로 교체됐거나 취소가 먼저 들어옴 — child 는 이미 트리 kill 됨.
+    Aborted,
+    SpawnFailed(String),
+}
+
+/// 자식 spawn → (취소 확인 · 점유 토큰 확인 · child 저장)을 **단일 critical section** 으로.
+/// 확인과 저장을 두 lock 으로 쪼개면 그 틈의 취소가 추적 불가한 dev 서버를 남긴다(advisor 지적).
+fn spawn_and_register(
+    app: &tauri::AppHandle,
+    shared: &Arc<Mutex<RunRuntime>>,
+    cwd: &Path,
+    exe: &Path,
+    args: &[String],
+    run_id: u64,
+    phase: &'static str,
+) -> Registered {
+    let mut child = match build_command(exe, args, cwd).spawn() {
+        Ok(c) => c,
+        Err(e) => return Registered::SpawnFailed(e.to_string()),
+    };
+    // stdout/stderr 는 child 를 mutex 로 옮기기 전에 빼둔다.
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    {
+        let Ok(mut guard) = shared.lock() else {
+            kill_child_tree(&mut child);
+            return Registered::Aborted;
+        };
+        if guard.run_id != run_id || guard.cancelled {
+            kill_child_tree(&mut child);
+            return Registered::Aborted;
+        }
+        guard.child = Some(child);
+    }
+    if let Some(out) = stdout {
+        spawn_output_thread(out, app.clone(), run_id, phase, "stdout");
+    }
+    if let Some(err) = stderr {
+        spawn_output_thread(err, app.clone(), run_id, phase, "stderr");
+    }
+    Registered::Ok
+}
+
+enum Polled {
+    /// (exit_code, success).
+    Exited(Option<i32>, bool),
+    /// try_wait 에러 — 종료로 간주.
+    Failed,
+    /// run_id 가 바뀜(새 실행 점유) — 이 오케스트레이터는 종료 보고 없이 물러난다.
+    Superseded,
+}
+
+/// child 를 mutex 안에 둔 채 try_wait 폴링 — 취소가 같은 자리에서 kill_child_tree 할 수
+/// 있어야 하므로 wait() 로 들고 나가지 않는다(work_room waiter 동형).
+fn poll_until_exit(shared: &Arc<Mutex<RunRuntime>>, run_id: u64) -> Polled {
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let Ok(mut guard) = shared.lock() else { return Polled::Superseded };
+        if guard.run_id != run_id {
+            return Polled::Superseded;
+        }
+        let Some(child) = guard.child.as_mut() else {
+            return Polled::Failed;
+        };
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                guard.child = None;
+                return Polled::Exited(status.code(), status.success());
+            }
+            Ok(None) => {}
+            Err(_) => {
+                guard.child = None;
+                return Polled::Failed;
+            }
+        }
+    }
+}
+
+fn is_cancelled(shared: &Arc<Mutex<RunRuntime>>) -> bool {
+    shared.lock().map(|g| g.cancelled).unwrap_or(true)
+}
+
+/// 종료 보고 + 슬롯 해제 — 내 실행(run_id 일치)일 때만 active/child 를 비운다
+/// (이미 새 실행이 점유했으면 건드리지 않는다).
+fn finish(
+    app: &tauri::AppHandle,
+    shared: &Arc<Mutex<RunRuntime>>,
+    run_id: u64,
+    status: &'static str,
+    exit_code: Option<i32>,
+) {
+    if let Ok(mut guard) = shared.lock() {
+        if guard.run_id == run_id {
+            guard.active = false;
+            guard.child = None;
+        }
+    }
+    let _ = app.emit("run-status", RunStatusEvent { run_id, status, exit_code });
+}
+
+#[allow(clippy::too_many_arguments)]
+fn spawn_orchestrator(
+    app: tauri::AppHandle,
+    shared: Arc<Mutex<RunRuntime>>,
+    cwd: std::path::PathBuf,
+    npm: std::path::PathBuf,
+    run_exe: std::path::PathBuf,
+    run_args: Vec<String>,
+    run_id: u64,
+    needs_install: bool,
+) {
+    std::thread::spawn(move || {
+        // ── INSTALL 단계 (node_modules 없을 때 1회) ──
+        if needs_install {
+            let _ = app.emit(
+                "run-status",
+                RunStatusEvent { run_id, status: "installing", exit_code: None },
+            );
+            match spawn_and_register(&app, &shared, &cwd, &npm, &["install".into()], run_id, "install") {
+                Registered::Ok => {}
+                Registered::Aborted => {
+                    finish(&app, &shared, run_id, "stopped", None);
+                    return;
+                }
+                Registered::SpawnFailed(e) => {
+                    let _ = app.emit(
+                        "run-output",
+                        RunOutputEvent {
+                            run_id,
+                            phase: "install",
+                            stream: "stderr",
+                            line: format!("[vibelign] 설치를 시작하지 못했어요: {e}"),
+                        },
+                    );
+                    finish(&app, &shared, run_id, "failed", None);
+                    return;
+                }
+            }
+            match poll_until_exit(&shared, run_id) {
+                Polled::Exited(_, true) => {}
+                Polled::Exited(code, false) => {
+                    if is_cancelled(&shared) {
+                        finish(&app, &shared, run_id, "stopped", None);
+                    } else {
+                        finish(&app, &shared, run_id, "failed", code);
+                    }
+                    return;
+                }
+                Polled::Failed => {
+                    finish(&app, &shared, run_id, "failed", None);
+                    return;
+                }
+                Polled::Superseded => return,
+            }
+            // 설치 중 취소가 들어왔으면 실행 단계로 넘어가지 않는다.
+            if is_cancelled(&shared) {
+                finish(&app, &shared, run_id, "stopped", None);
+                return;
+            }
+        }
+
+        // ── RUN 단계 (장기 dev 프로세스) ──
+        match spawn_and_register(&app, &shared, &cwd, &run_exe, &run_args, run_id, "run") {
+            Registered::Ok => {
+                let _ = app.emit(
+                    "run-status",
+                    RunStatusEvent { run_id, status: "running", exit_code: None },
+                );
+            }
+            Registered::Aborted => {
+                finish(&app, &shared, run_id, "stopped", None);
+                return;
+            }
+            Registered::SpawnFailed(e) => {
+                let _ = app.emit(
+                    "run-output",
+                    RunOutputEvent {
+                        run_id,
+                        phase: "run",
+                        stream: "stderr",
+                        line: format!("[vibelign] 실행을 시작하지 못했어요: {e}"),
+                    },
+                );
+                finish(&app, &shared, run_id, "failed", None);
+                return;
+            }
+        }
+        match poll_until_exit(&shared, run_id) {
+            Polled::Exited(code, success) => {
+                if is_cancelled(&shared) {
+                    finish(&app, &shared, run_id, "stopped", None);
+                } else if success {
+                    // dev 서버가 0 으로 정상 종료(electron 창 닫음 등).
+                    finish(&app, &shared, run_id, "done", code);
+                } else {
+                    // 비정상 종료 — 보통 시작 실패(포트 점유·문법 에러). M3 가 작업방으로 넘긴다.
+                    finish(&app, &shared, run_id, "failed", code);
+                }
+            }
+            Polled::Failed => finish(&app, &shared, run_id, "failed", None),
+            Polled::Superseded => {}
+        }
+    });
+}
+
+/// package.json → 실행 레시피(파일 I/O 래퍼). UI 가 실행 전 타입을 보여줄 때 쓴다.
+#[tauri::command]
+pub(crate) fn run_detect(cwd: String) -> Option<RunRecipe> {
+    let content = std::fs::read_to_string(Path::new(&cwd).join("package.json")).ok()?;
+    detect_run_recipe(&content)
+}
+
+#[tauri::command]
+pub(crate) fn run_start(
+    app: tauri::AppHandle,
+    state: tauri::State<RunState>,
+    cwd: String,
+) -> Result<RunStartInfo, String> {
+    let cwd_path = std::path::PathBuf::from(&cwd);
+    let content = std::fs::read_to_string(cwd_path.join("package.json"))
+        .map_err(|_| "package.json 을 찾을 수 없어요. Node 프로젝트 폴더인지 확인해 주세요.".to_string())?;
+    let recipe = detect_run_recipe(&content).ok_or_else(|| {
+        "실행 방법을 못 찾았어요. package.json 에 dev/start 스크립트가 필요해요.".to_string()
+    })?;
+
+    // npm 은 install·npm 실행 양쪽에 필요. 미설치 시 온보딩으로 안내(§9 P1).
+    let npm = find_executable("npm")
+        .ok_or_else(|| "Node.js(npm)가 필요해요. 온보딩에서 Node 를 먼저 설치해 주세요.".to_string())?;
+    let run_exe = match &recipe.program {
+        RunProgram::Npm(_) => npm.clone(),
+        RunProgram::Npx(_) => find_executable("npx")
+            .ok_or_else(|| "npx 를 찾을 수 없어요. Node.js 설치를 확인해 주세요.".to_string())?,
+    };
+    let run_args = recipe.program.args().to_vec();
+
+    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
+    if guard.active {
+        return Err("이미 실행 중이에요. 중지한 뒤 다시 시작해 주세요.".into());
+    }
+    let run_id = guard.run_id + 1;
+    guard.run_id = run_id;
+    guard.cancelled = false;
+    guard.active = true;
+    guard.child = None;
+    drop(guard);
+
+    let needs_install = !cwd_path.join("node_modules").is_dir();
+    spawn_orchestrator(
+        app,
+        Arc::clone(&state.0),
+        cwd_path,
+        npm,
+        run_exe,
+        run_args,
+        run_id,
+        needs_install,
+    );
+    Ok(RunStartInfo {
+        run_id,
+        command_label: recipe.command_label,
+        kind: recipe.kind,
+        needs_install,
+    })
+}
+
+/// 취소 코어 — child 를 자리에 둔 채 트리 kill 만 한다. stopped 보고는 오케스트레이터가
+/// poll 로 회수하며 일원화한다(work_room cancel_current 동형). 반환: 점유 중이었는지.
+fn cancel_current(runtime: &Arc<Mutex<RunRuntime>>) -> bool {
+    let Ok(mut guard) = runtime.lock() else { return false };
+    if !guard.active {
+        return false;
+    }
+    guard.cancelled = true;
+    if let Some(child) = guard.child.as_mut() {
+        kill_child_tree(child);
+    }
+    true
+}
+
+#[tauri::command]
+pub(crate) fn run_stop(state: tauri::State<RunState>) -> bool {
+    cancel_current(&state.0)
+}
+
+#[tauri::command]
+pub(crate) fn run_status(state: tauri::State<RunState>) -> RunStatusInfo {
+    state
+        .0
+        .lock()
+        .map(|g| RunStatusInfo { running: g.active, run_id: g.run_id })
+        .unwrap_or(RunStatusInfo { running: false, run_id: 0 })
+}
+
+#[cfg(test)]
+mod runner_tests {
+    use super::{cancel_current, new_state_pair, stop_for_exit};
+
+    #[test]
+    fn state_pair_shares_runtime_between_managed_state_and_exit_handle() {
+        let (state, shutdown) = new_state_pair();
+        {
+            let mut guard = state.0.lock().expect("run state lock");
+            guard.run_id = 7;
+            guard.active = true;
+        }
+        let guard = shutdown.0.lock().expect("run shutdown lock");
+        assert_eq!(guard.run_id, 7);
+        assert!(guard.active);
+    }
+
+    #[test]
+    fn cancel_without_active_run_reports_false() {
+        let (state, _shutdown) = new_state_pair();
+        assert!(!cancel_current(&state.0));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cancel_kills_running_child_and_marks_cancelled() {
+        let (state, _shutdown) = new_state_pair();
+        let child = std::process::Command::new("sleep").arg("30").spawn().expect("spawn sleep");
+        {
+            let mut guard = state.0.lock().expect("run state lock");
+            guard.active = true;
+            guard.child = Some(child);
+        }
+        assert!(cancel_current(&state.0));
+        let mut guard = state.0.lock().expect("run state lock");
+        assert!(guard.cancelled);
+        let status = guard
+            .child
+            .as_mut()
+            .expect("child stays until poll reaps")
+            .try_wait()
+            .expect("try_wait after kill");
+        assert!(status.is_some(), "child must be dead after cancel");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stop_for_exit_kills_child_registered_in_shared_runtime() {
+        let (state, shutdown) = new_state_pair();
+        let child = std::process::Command::new("sleep").arg("30").spawn().expect("spawn sleep");
+        {
+            let mut guard = state.0.lock().expect("run state lock");
+            guard.child = Some(child);
+        }
+        stop_for_exit(&shutdown);
+        let guard = state.0.lock().expect("run state lock");
+        assert!(guard.child.is_none());
+    }
+}
+
+#[cfg(test)]
+mod detect_tests {
+    use super::*;
+
+    fn recipe(json: &str) -> RunRecipe {
+        detect_run_recipe(json).expect("recipe")
+    }
+
+    #[test]
+    fn electron_with_start_script_uses_npm_start_external_window() {
+        let r = recipe(r#"{"dependencies":{"electron":"^30"},"scripts":{"start":"electron ."}}"#);
+        assert_eq!(r.kind, ProjectKind::Electron);
+        assert_eq!(r.program, RunProgram::Npm(vec!["start".into()]));
+        assert_eq!(r.command_label, "npm start");
+        assert_eq!(r.preview, PreviewKind::ExternalWindow);
+    }
+
+    #[test]
+    fn electron_without_start_script_falls_back_to_npx_electron_dot() {
+        let r = recipe(r#"{"devDependencies":{"electron":"^30"}}"#);
+        assert_eq!(r.kind, ProjectKind::Electron);
+        assert_eq!(r.program, RunProgram::Npx(vec!["electron".into(), ".".into()]));
+        assert_eq!(r.command_label, "npx electron .");
+    }
+
+    #[test]
+    fn electron_wins_over_vite_and_dev_script() {
+        // 우선순위: electron 의존성이 있으면 scripts.dev·vite 가 있어도 electron(§4).
+        let r = recipe(
+            r#"{"dependencies":{"electron":"^30"},"devDependencies":{"vite":"^5"},"scripts":{"dev":"vite","start":"electron ."}}"#,
+        );
+        assert_eq!(r.kind, ProjectKind::Electron);
+    }
+
+    #[test]
+    fn vite_in_dev_dependencies_is_detected_as_web_npm_run_dev() {
+        // vite 는 거의 devDependencies — dep_present 가 양쪽을 봐야 한다(핵심 회귀).
+        let r = recipe(r#"{"devDependencies":{"vite":"^5"},"scripts":{"dev":"vite"}}"#);
+        assert_eq!(r.kind, ProjectKind::Web);
+        assert_eq!(r.program, RunProgram::Npm(vec!["run".into(), "dev".into()]));
+        assert_eq!(r.command_label, "npm run dev");
+        assert_eq!(r.preview, PreviewKind::Webview { default_port: None });
+    }
+
+    #[test]
+    fn next_detected_with_default_port_3000() {
+        let r = recipe(r#"{"dependencies":{"next":"^14"},"scripts":{"dev":"next dev"}}"#);
+        assert_eq!(r.kind, ProjectKind::Web);
+        assert_eq!(r.program, RunProgram::Npm(vec!["run".into(), "dev".into()]));
+        assert_eq!(r.preview, PreviewKind::Webview { default_port: Some(3000) });
+    }
+
+    #[test]
+    fn react_scripts_detected_as_npm_start_port_3000() {
+        let r = recipe(r#"{"dependencies":{"react-scripts":"5"},"scripts":{"start":"react-scripts start"}}"#);
+        assert_eq!(r.kind, ProjectKind::Web);
+        assert_eq!(r.program, RunProgram::Npm(vec!["start".into()]));
+        assert_eq!(r.preview, PreviewKind::Webview { default_port: Some(3000) });
+    }
+
+    #[test]
+    fn next_takes_priority_over_react_scripts() {
+        let r = recipe(r#"{"dependencies":{"next":"^14","react-scripts":"5"},"scripts":{"dev":"next dev","start":"x"}}"#);
+        // next 가 표에서 위 — npm run dev 여야 한다.
+        assert_eq!(r.program, RunProgram::Npm(vec!["run".into(), "dev".into()]));
+    }
+
+    #[test]
+    fn generic_dev_script_without_known_framework_is_web() {
+        let r = recipe(r#"{"scripts":{"dev":"node server.js"}}"#);
+        assert_eq!(r.kind, ProjectKind::Web);
+        assert_eq!(r.program, RunProgram::Npm(vec!["run".into(), "dev".into()]));
+        assert_eq!(r.preview, PreviewKind::Webview { default_port: None });
+    }
+
+    #[test]
+    fn only_start_script_is_unknown_log_only() {
+        let r = recipe(r#"{"scripts":{"start":"node index.js"}}"#);
+        assert_eq!(r.kind, ProjectKind::Unknown);
+        assert_eq!(r.program, RunProgram::Npm(vec!["start".into()]));
+        assert_eq!(r.preview, PreviewKind::LogOnly);
+    }
+
+    #[test]
+    fn dev_script_beats_start_only_branch() {
+        // dev 와 start 둘 다 있으면 dev(웹) 가 먼저(§4 5행 > 6행).
+        let r = recipe(r#"{"scripts":{"dev":"vite","start":"serve"}}"#);
+        assert_eq!(r.kind, ProjectKind::Web);
+        assert_eq!(r.program, RunProgram::Npm(vec!["run".into(), "dev".into()]));
+    }
+
+    #[test]
+    fn no_deps_no_scripts_returns_none() {
+        assert!(detect_run_recipe(r#"{"name":"x","version":"1.0.0"}"#).is_none());
+    }
+
+    #[test]
+    fn empty_scripts_object_returns_none() {
+        assert!(detect_run_recipe(r#"{"scripts":{}}"#).is_none());
+    }
+
+    #[test]
+    fn invalid_json_returns_none() {
+        assert!(detect_run_recipe("{ not json").is_none());
+        assert!(detect_run_recipe("").is_none());
+    }
+}
+// === ANCHOR: RUN_PREVIEW_END ===
