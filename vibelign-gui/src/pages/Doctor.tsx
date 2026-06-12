@@ -219,7 +219,7 @@ export default function Doctor({ projectDir, apiKey, providerKeys, launchIntent 
                 {report.project_score}
               </span>
               <span style={{
-                fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                fontSize: 12, fontWeight: 700, textTransform: "uppercase",
                 padding: "2px 8px",
                 border: "1px solid #1A1A1A",
                 ...statusBadgeStyle(report.status),
@@ -233,7 +233,7 @@ export default function Doctor({ projectDir, apiKey, providerKeys, launchIntent 
           <button
             className="btn btn-ghost btn-sm"
             style={{
-              fontSize: 10, padding: "2px 8px",
+              fontSize: 12, padding: "2px 8px",
               background: strict ? "#1A1A1A" : "transparent",
               color: strict ? "#FF4D8B" : "#888",
               border: strict ? "2px solid #FF4D8B" : "2px solid #ccc",
@@ -252,7 +252,7 @@ export default function Doctor({ projectDir, apiKey, providerKeys, launchIntent 
             title="체크 시 이번 apply 에서만 AI aliases 보강까지 실행합니다 (기본값은 Settings 의 ai_enhancement)."
             style={{
               display: "flex", alignItems: "center", gap: 4,
-              fontSize: 10, fontWeight: 700, color: useWithAi ? "#4DFF91" : "#888",
+              fontSize: 12, fontWeight: 700, color: useWithAi ? "#4DFF91" : "#888",
               cursor: "pointer", userSelect: "none",
               border: "2px solid #1A1A1A",
               background: useWithAi ? "#1E2216" : "transparent",
@@ -296,7 +296,7 @@ export default function Doctor({ projectDir, apiKey, providerKeys, launchIntent 
                   height: "100%", background: "#4DFF91", transition: "width 0.2s ease",
                 }} />
               </div>
-              <span style={{ fontSize: 11, color: "#555", minWidth: 60, textAlign: "right" }}>
+              <span style={{ fontSize: 12, color: "#555", minWidth: 60, textAlign: "right" }}>
                 {aiProgress.done}/{aiProgress.total} 배치
               </span>
             </div>
@@ -310,7 +310,7 @@ export default function Doctor({ projectDir, apiKey, providerKeys, launchIntent 
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontWeight: 700, fontSize: 12 }}>⚠ 배치 경고 {aiErrors.length}건</span>
-            <button className="btn btn-ghost btn-sm" style={{ fontSize: 10, padding: "2px 8px" }} onClick={() => setAiErrors([])}>닫기</button>
+            <button className="btn btn-ghost btn-sm" style={{ fontSize: 12, padding: "2px 8px" }} onClick={() => setAiErrors([])}>닫기</button>
           </div>
           {aiErrors.slice(-6).map((e, i) => (
             <div key={i} style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 10 }}>{e}</div>
@@ -322,14 +322,14 @@ export default function Doctor({ projectDir, apiKey, providerKeys, launchIntent 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
             <button
               className="btn btn-ghost btn-sm"
-              style={{ fontSize: 10, padding: "2px 8px", border: "1px solid #888" }}
+              style={{ fontSize: 12, padding: "2px 8px", border: "1px solid #888" }}
               onClick={() => setShowStderrLog((v) => !v)}
             >
               {showStderrLog ? "stderr 로그 숨기기" : `stderr 로그 보기 (${aiStderrLog.split("\n").length} 줄)`}
             </button>
             <button
               className="btn btn-ghost btn-sm"
-              style={{ fontSize: 10, padding: "2px 8px" }}
+              style={{ fontSize: 12, padding: "2px 8px" }}
               onClick={() => { setAiStderrLog(null); setShowStderrLog(false); }}
             >
               닫기
@@ -388,17 +388,17 @@ export default function Doctor({ projectDir, apiKey, providerKeys, launchIntent 
                     </div>
                     {issue.path && <code style={{ fontSize: 10, color: "#888" }}>{issue.path}</code>}
                     {issue.why_it_matters && (
-                      <div style={{ fontSize: 11, marginTop: 3, color: "#666" }}>{issue.why_it_matters}</div>
+                      <div style={{ fontSize: 12, marginTop: 3, color: "#666" }}>{issue.why_it_matters}</div>
                     )}
                     {issue.next_step && (
-                      <div style={{ fontSize: 11, marginTop: 3, color: "#666" }}>다음 단계: {issue.next_step}</div>
+                      <div style={{ fontSize: 12, marginTop: 3, color: "#666" }}>다음 단계: {issue.next_step}</div>
                     )}
                     {issue.recommended_command && (
                       <code style={{ display: "block", fontSize: 10, color: "#888", marginTop: 4 }}>
                         {issue.recommended_command}
                       </code>
                     )}
-                    <div style={{ fontSize: 10, marginTop: 4, color: issue.can_auto_fix ? "#0a7" : "#888" }}>
+                    <div style={{ fontSize: 12, marginTop: 4, color: issue.can_auto_fix ? "#0a7" : "#888" }}>
                       {issue.can_auto_fix
                         ? `자동 수정 가능${issue.auto_fix_label ? ` · ${issue.auto_fix_label}` : ""}`
                         : "자동 수정 불가"}

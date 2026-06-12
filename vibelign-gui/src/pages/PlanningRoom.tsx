@@ -149,7 +149,7 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
     <main className="page-content" style={{ height: "100%", overflow: "auto", background: "var(--bg)", padding: 0 }}>
       <div style={{ width: "min(920px, calc(100% - 32px))", margin: "0 auto", padding: "28px 0", display: "grid", gap: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button className="btn btn-ghost btn-sm" type="button" onClick={onBack} style={{ fontSize: 11 }}>
+          <button className="btn btn-ghost btn-sm" type="button" onClick={onBack} style={{ fontSize: 12 }}>
             ← 홈
           </button>
           <h1 className="heading-xl" style={{ fontSize: 22, margin: 0 }}>

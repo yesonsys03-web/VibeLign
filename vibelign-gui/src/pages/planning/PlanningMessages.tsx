@@ -73,7 +73,7 @@ function PlanningMessageBubble({
               background: planningPersonaStatusBackground(display.tone),
               color: planningPersonaStatusColor(display.tone),
               padding: "1px 5px",
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: 900,
               lineHeight: "14px",
             }}
@@ -90,7 +90,7 @@ function PlanningMessageBubble({
                   background: "#FCEDEA",
                   color: "#8A352D",
                   padding: "1px 5px",
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: 900,
                   lineHeight: "14px",
                 }}
@@ -108,7 +108,7 @@ function PlanningMessageBubble({
             className="btn btn-ghost btn-sm"
             type="button"
             onClick={() => onRetry(message)}
-            style={{ fontSize: 11 }}
+            style={{ fontSize: 12 }}
           >
             다시 시도
           </button>

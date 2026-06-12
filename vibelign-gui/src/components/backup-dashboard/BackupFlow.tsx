@@ -22,7 +22,7 @@ export default function BackupFlow({ entries }: BackupFlowProps) {
           <span style={{ fontSize: 18 }}>{entry.sourceKind === "auto" ? "🤖" : "✍️"}</span>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cleanBackupNote(entry)}</div>
-            <div style={{ fontSize: 11, color: "#666" }}>{formatSavedAt(entry.createdAt)}</div>
+            <div style={{ fontSize: 12, color: "#666" }}>{formatSavedAt(entry.createdAt)}</div>
           </div>
         </div>
       ))}

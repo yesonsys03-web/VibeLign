@@ -46,7 +46,7 @@ export default function BackupDbRowList({ rows, selectedId, onSelect }: BackupDb
           >
             <span style={{ minWidth: 0 }}>
               <strong style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.displayName}</strong>
-              <span style={{ fontSize: 11, color: "#666" }}>{row.triggerLabel} · {formatSavedAt(row.createdAt)} · {row.fileCount}개 파일</span>
+              <span style={{ fontSize: 12, color: "#666" }}>{row.triggerLabel} · {formatSavedAt(row.createdAt)} · {row.fileCount}개 파일</span>
             </span>
             <span>{formatBytes(row.storedSizeBytes || row.totalSizeBytes)}</span>
             <span style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -56,7 +56,7 @@ export default function BackupDbRowList({ rows, selectedId, onSelect }: BackupDb
         ))}
       </div>
       {rows.length > PAGE_SIZE && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, gap: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, gap: 8 }}>
           <button type="button" className="btn btn-ghost btn-sm" disabled={!canPrev} onClick={() => setPage((p) => Math.max(0, p - 1))}>← 이전</button>
           <span style={{ color: "#666" }}>{safePage + 1} / {totalPages} 페이지 · {start + 1}–{Math.min(start + PAGE_SIZE, rows.length)} / {rows.length}</span>
           <button type="button" className="btn btn-ghost btn-sm" disabled={!canNext} onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}>다음 →</button>

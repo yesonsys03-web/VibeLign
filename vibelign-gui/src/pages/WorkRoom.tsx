@@ -410,13 +410,13 @@ export default function WorkRoom({
         </section>
       ) : instruction ? (
         <section className="card" style={{ display: "grid", gap: 6, padding: 12, background: "#F5F1E3" }}>
-          <div style={{ fontSize: 12, fontWeight: 900 }}>작업 기준 기획안</div>
-          <div style={{ fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div style={{ fontSize: 13, fontWeight: 900 }}>작업 기준 기획안</div>
+          <div style={{ fontSize: 14, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {planningPrompt}
           </div>
-          <div style={{ fontSize: 11, color: "#666", fontWeight: 700, overflowWrap: "anywhere" }}>{planningOutputPath}</div>
+          <div style={{ fontSize: 13, color: "#666", fontWeight: 700, overflowWrap: "anywhere" }}>{planningOutputPath}</div>
           {planningDocStale && (
-            <div style={{ fontSize: 11, color: "#B45309", background: "#FEF3C7", border: "1px solid #FDE68A", borderRadius: 4, padding: "6px 8px", fontWeight: 700 }}>
+            <div style={{ fontSize: 13, color: "#B45309", background: "#FEF3C7", border: "1px solid #FDE68A", borderRadius: 4, padding: "6px 8px", fontWeight: 700 }}>
               ⚠ 기획방 대화가 이 기획안 저장 이후 더 진행됐어요 — 기획방에서 다시 저장한 뒤 실행하는 걸 권장해요.
             </div>
           )}
@@ -453,7 +453,7 @@ export default function WorkRoom({
                   aria-pressed={selected}
                   onClick={() => setSelectedProvider(def.id)}
                   style={{
-                    fontSize: 11,
+                    fontSize: 12,
                     border: "2px solid #1A1A1A",
                     background: selected ? "#1A1A1A" : undefined,
                     color: selected ? "#fff" : undefined,
@@ -467,7 +467,7 @@ export default function WorkRoom({
               );
             })}
           {providers !== null && !anyDetected && (
-            <button className="btn btn-ghost btn-sm" onClick={onOpenSettings} style={{ fontSize: 11 }}>
+            <button className="btn btn-ghost btn-sm" onClick={onOpenSettings} style={{ fontSize: 12 }}>
               AI 도구 설치 도움받기 →
             </button>
           )}
@@ -478,7 +478,7 @@ export default function WorkRoom({
             <button className="btn" disabled={!effectiveInstruction || !ready} onClick={() => setPhase("confirm")}>
               {handoff != null ? (handoff.kind === "error" ? "이 에러 고치기" : "이 개선 작업하기") : "AI에게 작업 시키기"}
             </button>
-            <span style={{ fontSize: 11, color: "#888", fontWeight: 700 }}>
+            <span style={{ fontSize: 13, color: "#666", fontWeight: 700 }}>
               체크포인트 저장 → 실행 → 검사가 자동으로 이어져요 · 외부 도구는 코드탐색의 "작업 지시 복사"
             </span>
           </div>
@@ -524,13 +524,13 @@ export default function WorkRoom({
               {"\n"}안전 저장 없이 실행하면 잘못됐을 때 되돌릴 지점이 없어요.
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("backups")} style={{ fontSize: 11 }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("backups")} style={{ fontSize: 12 }}>
                 백업 탭에서 확인 →
               </button>
-              <button className="btn btn-danger btn-sm" onClick={() => void launchRun()} style={{ fontSize: 11 }}>
+              <button className="btn btn-danger btn-sm" onClick={() => void launchRun()} style={{ fontSize: 12 }}>
                 위험을 알고 그래도 실행
               </button>
-              <button className="btn btn-ghost btn-sm" onClick={resetForNextRun} style={{ fontSize: 11 }}>
+              <button className="btn btn-ghost btn-sm" onClick={resetForNextRun} style={{ fontSize: 12 }}>
                 취소
               </button>
             </div>
@@ -648,7 +648,7 @@ export default function WorkRoom({
                 <span style={{ fontSize: 12, fontWeight: 800, color: "#b42318", alignSelf: "center" }}>저장 실패 — 백업 탭에서 시도해 주세요</span>
               )}
               {guardVerdict === "stop" && (
-                <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("backups")} style={{ fontSize: 11 }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("backups")} style={{ fontSize: 12 }}>
                   백업에서 되돌리기 →
                 </button>
               )}
@@ -657,10 +657,10 @@ export default function WorkRoom({
                   ▶ 실행해보기 →
                 </button>
               )}
-              <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("home")} style={{ fontSize: 11 }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("home")} style={{ fontSize: 12 }}>
                 홈에서 상태 확인 →
               </button>
-              <button className="btn btn-ghost btn-sm" onClick={resetForNextRun} style={{ fontSize: 11 }}>
+              <button className="btn btn-ghost btn-sm" onClick={resetForNextRun} style={{ fontSize: 12 }}>
                 다시 실행 준비
               </button>
             </div>
@@ -679,7 +679,7 @@ export default function WorkRoom({
             {showRestored ? "지난 실행 기록" : "진행 내용"}
           </div>
           {showRestored && lastLog && (
-            <div style={{ fontSize: 11, color: "#777", fontWeight: 700, marginBottom: 6 }}>
+            <div style={{ fontSize: 12, color: "#777", fontWeight: 700, marginBottom: 6 }}>
               {lastLog.finishedAt ? new Date(lastLog.finishedAt * 1000).toLocaleString() : ""}
               {lastLog.provider
                 ? ` · ${PROVIDER_DEFS.find((d) => d.id === lastLog.provider)?.label ?? lastLog.provider}`

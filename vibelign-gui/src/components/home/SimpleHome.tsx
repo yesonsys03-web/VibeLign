@@ -63,7 +63,7 @@ export function SimpleHome({
             </div>
           ) : null}
           {hasGuardProblemDetails ? (
-            <button className="btn btn-ghost btn-sm" type="button" onClick={onOpenGuardDetails} style={{ marginTop: 12, fontSize: 11 }}>
+            <button className="btn btn-ghost btn-sm" type="button" onClick={onOpenGuardDetails} style={{ marginTop: 12, fontSize: 12 }}>
               문제 확인하기
             </button>
           ) : null}
@@ -73,15 +73,15 @@ export function SimpleHome({
           <div style={{ fontSize: 16, fontWeight: 900, lineHeight: 1.35 }}>{nextAction.title}</div>
           <div style={{ marginTop: 6, fontSize: 12, color: "#555", lineHeight: 1.55 }}>{nextAction.detail}</div>
           {guardCheckError ? (
-            <div style={{ marginTop: 8, fontSize: 11, color: "#A63A00", fontWeight: 800, lineHeight: 1.45 }}>{guardCheckError}</div>
+            <div style={{ marginTop: 8, fontSize: 12, color: "#A63A00", fontWeight: 800, lineHeight: 1.45 }}>{guardCheckError}</div>
           ) : null}
           {nextAction.needsAction ? (
-            <button className="btn btn-black btn-sm" type="button" onClick={onOpenGuardDetails} style={{ marginTop: 12, fontSize: 11 }}>
+            <button className="btn btn-black btn-sm" type="button" onClick={onOpenGuardDetails} style={{ marginTop: 12, fontSize: 12 }}>
               확인하기
             </button>
           ) : null}
           {canRunGuard ? (
-            <button className="btn btn-black btn-sm" type="button" disabled={guardCheckPending} onClick={onRunGuard} style={{ marginTop: 12, fontSize: 11 }}>
+            <button className="btn btn-black btn-sm" type="button" disabled={guardCheckPending} onClick={onRunGuard} style={{ marginTop: 12, fontSize: 12 }}>
               {guardCheckPending ? "확인 중..." : "상태 확인하기"}
             </button>
           ) : null}
@@ -94,7 +94,7 @@ export function SimpleHome({
           <div style={{ marginTop: 6, fontSize: 12, color: "#555", lineHeight: 1.55 }}>
             {hasCheckpoint ? "필요하면 이전 상태 후보를 확인할 수 있어요." : "작업 전 저장 지점을 만들면 되돌리기가 쉬워져요."}
           </div>
-          <button className="btn btn-ghost btn-sm" type="button" onClick={onNavigateBackups} style={{ marginTop: 12, fontSize: 11 }}>
+          <button className="btn btn-ghost btn-sm" type="button" onClick={onNavigateBackups} style={{ marginTop: 12, fontSize: 12 }}>
             {hasCheckpoint ? "이전 상태로 돌아가기" : "저장 기록 확인하기"}
           </button>
         </HomeStatusBlock>

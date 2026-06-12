@@ -52,7 +52,7 @@ function PersonaChip({ persona, status }: { readonly persona: PlanningPersonaMet
         border: "2px solid #1A1A1A",
         background: status === "ok" ? "#FFFFFF" : "#F7F0DF",
         padding: "6px 8px",
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: 800,
         display: "inline-flex",
         gap: 6,

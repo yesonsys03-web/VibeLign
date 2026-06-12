@@ -83,7 +83,7 @@ export default function BackupDashboardPage({ projectDir, onBackupsChanged }: Ba
       <div className="page-header">
         <span className="page-title">BACKUPS</span>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input className="input-field" value={newNote} onChange={(event) => setNewNote(event.target.value)} onKeyDown={(event) => event.key === "Enter" && handleSave()} placeholder="저장 메모" style={{ width: 220, fontSize: 11 }} />
+          <input className="input-field" value={newNote} onChange={(event) => setNewNote(event.target.value)} onKeyDown={(event) => event.key === "Enter" && handleSave()} placeholder="저장 메모" style={{ width: 220, fontSize: 12 }} />
           <button className="btn btn-sm" onClick={handleSave} disabled={saving}>{saving ? <span className="spinner" /> : "지금 저장"}</button>
         </div>
       </div>

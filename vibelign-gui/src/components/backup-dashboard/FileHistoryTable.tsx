@@ -52,8 +52,8 @@ export default function FileHistoryTable({ entries, query, selectedId, onQueryCh
       bodyStyle={{ display: "grid", gap: 8 }}
       actions={
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <span style={{ fontSize: 11, fontWeight: 800, whiteSpace: "nowrap" }}>{visible.length}/{entries.length}</span>
-          <input className="input-field" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="검색어" style={{ width: 160, fontSize: 11 }} />
+          <span style={{ fontSize: 12, fontWeight: 800, whiteSpace: "nowrap" }}>{visible.length}/{entries.length}</span>
+          <input className="input-field" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="검색어" style={{ width: 160, fontSize: 12 }} />
         </div>
       }
     >
@@ -68,7 +68,7 @@ export default function FileHistoryTable({ entries, query, selectedId, onQueryCh
         {paged.length === 0 && <div style={{ fontSize: 12, color: "#666" }}>찾은 내용이 없어요.</div>}
       </div>
       {visible.length > PAGE_SIZE && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, gap: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, gap: 8 }}>
           <button type="button" className="btn btn-ghost btn-sm" disabled={!canPrev} onClick={() => setPage((p) => Math.max(0, p - 1))}>← 이전</button>
           <span style={{ color: "#666" }}>{safePage + 1} / {totalPages} 페이지 · {start + 1}–{Math.min(start + PAGE_SIZE, visible.length)} / {visible.length}</span>
           <button type="button" className="btn btn-ghost btn-sm" disabled={!canNext} onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}>다음 →</button>

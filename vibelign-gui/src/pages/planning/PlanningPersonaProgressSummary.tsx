@@ -24,7 +24,7 @@ export function PlanningPersonaProgressSummary({ messages }: PlanningPersonaProg
         alignItems: "center",
       }}
     >
-      <span style={{ fontSize: 11, fontWeight: 900 }}>페르소나 진행</span>
+      <span style={{ fontSize: 12, fontWeight: 900 }}>페르소나 진행</span>
       {PLANNING_PERSONAS.map((persona) => {
         const status = personaProgressStatus(messages, persona.id);
         const display = planningPersonaStatusDisplay(status);
@@ -40,7 +40,7 @@ export function PlanningPersonaProgressSummary({ messages }: PlanningPersonaProg
               display: "inline-flex",
               gap: 5,
               alignItems: "center",
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 900,
             }}
           >

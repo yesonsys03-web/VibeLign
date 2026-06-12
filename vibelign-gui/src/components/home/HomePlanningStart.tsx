@@ -24,8 +24,8 @@ export function HomePlanningStart({ onStart }: HomePlanningStartProps) {
         marginBottom: 12,
       }}
     >
-      <div style={{ fontSize: 11, fontWeight: 900, marginBottom: 3 }}>기획방 시작하기</div>
-      <div style={{ fontSize: 10, color: "#666", fontWeight: 700, marginBottom: 8 }}>
+      <div style={{ fontSize: 12, fontWeight: 900, marginBottom: 3 }}>기획방 시작하기</div>
+      <div style={{ fontSize: 12, color: "#666", fontWeight: 700, marginBottom: 8 }}>
         아이디어를 입력하면 기획방에서 구체화할 수 있어요.
       </div>
       <textarea
@@ -42,7 +42,7 @@ export function HomePlanningStart({ onStart }: HomePlanningStartProps) {
         style={{ width: "100%", boxSizing: "border-box", resize: "vertical", fontSize: 12, padding: 8, border: "2px solid #1A1A1A", background: "#fff" }}
       />
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-        <button className="btn btn-black btn-sm" type="button" onClick={submit} style={{ fontSize: 11 }}>
+        <button className="btn btn-black btn-sm" type="button" onClick={submit} style={{ fontSize: 12 }}>
           시작
         </button>
       </div>

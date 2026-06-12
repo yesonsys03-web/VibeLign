@@ -33,7 +33,7 @@ export function PlanningPersonaResponseSummary({ messages }: PlanningPersonaResp
         gap: 8,
       }}
     >
-      <div style={{ fontSize: 11, fontWeight: 900 }}>페르소나 응답 요약</div>
+      <div style={{ fontSize: 12, fontWeight: 900 }}>페르소나 응답 요약</div>
       <div style={{ display: "grid", gap: 6 }}>
         {summaries.map((summary) => (
           <PersonaSummaryCard key={summary.personaId} summary={summary} />
@@ -57,7 +57,7 @@ function PersonaSummaryCard({ summary }: { readonly summary: PersonaSummary }) {
         gap: 4,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 900 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 900 }}>
         <PlanningPersonaAvatar personaId={summary.personaId} label={summary.name} decorative size={18} />
         <span>
           {summary.name} {display.label}

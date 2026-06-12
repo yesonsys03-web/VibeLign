@@ -9,7 +9,7 @@ interface PlanningModeSelectorProps {
 // === ANCHOR: PLANNINGMODESELECTOR_PLANNINGMODESELECTOR_START ===
 export function PlanningModeSelector({ value, onChange }: PlanningModeSelectorProps) {
   return (
-    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 900 }}>
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 900 }}>
       <label htmlFor="planning-response-mode">응답 모드</label>
       <select
         id="planning-response-mode"
@@ -20,7 +20,7 @@ export function PlanningModeSelector({ value, onChange }: PlanningModeSelectorPr
           background: "#FFFFFF",
           color: "#1A1A1A",
           padding: "6px 26px 6px 8px",
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: 900,
         }}
       >

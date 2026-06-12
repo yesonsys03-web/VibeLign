@@ -24,9 +24,9 @@ export default function BackupDbSummaryCards({ report }: BackupDbSummaryCardsPro
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
       {cards.map((card) => (
         <div key={card.label} className="feature-card" style={{ cursor: "default", padding: 12 }}>
-          <div style={{ fontSize: 11, color: "#555", fontWeight: 800 }}>{card.label}</div>
+          <div style={{ fontSize: 12, color: "#555", fontWeight: 800 }}>{card.label}</div>
           <div style={{ fontSize: 20, fontWeight: 900, marginTop: 4 }}>{card.value}</div>
-          <div style={{ fontSize: 11, color: "#666", marginTop: 4 }}>{card.detail}</div>
+          <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>{card.detail}</div>
         </div>
       ))}
     </div>

@@ -272,7 +272,7 @@ export default function RunPanel({ projectDir, onNavigate, onRequestWorkHandoff,
                   ? "🎉 안전·작동 둘 다 확인했어요 — 한 사이클 완주!"
                   : "✓ 작동 확인 완료 — 안전도 확인해볼까요?"}
                 {guardStatus !== "ok" && (
-                  <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, marginLeft: 6 }} onClick={() => onNavigate("home")}>
+                  <button className="btn btn-ghost btn-sm" style={{ fontSize: 12, marginLeft: 6 }} onClick={() => onNavigate("home")}>
                     상태 확인 →
                   </button>
                 )}
@@ -282,7 +282,7 @@ export default function RunPanel({ projectDir, onNavigate, onRequestWorkHandoff,
                 <button className="btn btn-sm" onClick={() => onRunVerified()}>
                   ✓ 잘 돼요 — 작동 확인 완료
                 </button>
-                <span style={{ fontSize: 11, color: "#888", fontWeight: 700 }}>
+                <span style={{ fontSize: 12, color: "#888", fontWeight: 700 }}>
                   미리보기에서 직접 써보고 잘 되면 눌러주세요
                 </span>
               </div>
@@ -311,10 +311,10 @@ export default function RunPanel({ projectDir, onNavigate, onRequestWorkHandoff,
                     >
                       작업방에서 개선하기 →
                     </button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("planning")} style={{ fontSize: 11 }}>
+                    <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("planning")} style={{ fontSize: 12 }}>
                       큰 방향을 바꿀래요 → 기획방
                     </button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => { setImproveOpen(false); setImproveText(""); }} style={{ fontSize: 11 }}>
+                    <button className="btn btn-ghost btn-sm" onClick={() => { setImproveOpen(false); setImproveText(""); }} style={{ fontSize: 12 }}>
                       닫기
                     </button>
                   </div>
@@ -328,7 +328,7 @@ export default function RunPanel({ projectDir, onNavigate, onRequestWorkHandoff,
               <button className="btn" onClick={() => onRequestWorkHandoff({ kind: "error", text: collectErrorTail(lines) })}>
                 이 에러 고쳐줘 → 작업방
               </button>
-              <span style={{ fontSize: 11, color: "#888", fontWeight: 700 }}>
+              <span style={{ fontSize: 12, color: "#888", fontWeight: 700 }}>
                 실행 출력을 작업방으로 넘겨 AI가 원인을 찾아 고쳐요
               </span>
             </div>
@@ -380,11 +380,11 @@ export default function RunPanel({ projectDir, onNavigate, onRequestWorkHandoff,
         )}
 
         {/* 5️⃣ 가이드 — 실행은 검증의 한 축(작동). guard(안전)와 짝. */}
-        <div style={{ fontSize: 11, color: "#888", fontWeight: 700, lineHeight: 1.6 }}>
+        <div style={{ fontSize: 12, color: "#888", fontWeight: 700, lineHeight: 1.6 }}>
           실행해보기는 "진짜 작동하나"를 확인하는 단계예요. 코드가 약속 범위를 지켰는지(안전)는
           <button
             className="btn btn-ghost btn-sm"
-            style={{ fontSize: 11, marginLeft: 6 }}
+            style={{ fontSize: 12, marginLeft: 6 }}
             onClick={() => onNavigate("home")}
           >
             홈 상태 확인 →

@@ -162,12 +162,12 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
             />
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
               {onStartPlanning && (
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowNewPlanning((v) => !v)} style={{ fontSize: 11 }}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowNewPlanning((v) => !v)} style={{ fontSize: 12 }}>
                   + 새 기획
                 </button>
               )}
               {onOpenPlanningHistory && (
-                <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenPlanningHistory} style={{ fontSize: 11 }}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenPlanningHistory} style={{ fontSize: 12 }}>
                   이전 기획 불러오기
                 </button>
               )}
@@ -178,7 +178,7 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
           <>
             {onStartPlanning && <HomePlanningStart onStart={onStartPlanning} />}
             {onOpenPlanningHistory && (
-              <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenPlanningHistory} style={{ fontSize: 11 }}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenPlanningHistory} style={{ fontSize: 12 }}>
                 이전 기획 불러오기
               </button>
             )}

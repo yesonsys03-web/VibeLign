@@ -101,7 +101,7 @@ function CardItem({
         <strong style={{ fontSize: 12 }}>{card.title}</strong>
         <span
           style={{
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: 800,
             letterSpacing: 0.3,
             padding: "2px 8px",
@@ -113,17 +113,17 @@ function CardItem({
           {STATE_LABEL[card.state]}
         </span>
       </div>
-      {card.summary && <div style={{ fontSize: 11, marginTop: 4 }}>{card.summary}</div>}
+      {card.summary && <div style={{ fontSize: 12, marginTop: 4 }}>{card.summary}</div>}
       {card.reason && (
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
-          style={{ fontSize: 10, marginTop: 6, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}
+          style={{ fontSize: 12, marginTop: 6, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}
         >
           {open ? "이유 접기" : "이유 보기"}
         </button>
       )}
-      {open && card.reason && <div style={{ fontSize: 11, marginTop: 4, opacity: 0.85 }}>{card.reason}</div>}
+      {open && card.reason && <div style={{ fontSize: 12, marginTop: 4, opacity: 0.85 }}>{card.reason}</div>}
       {showButtons && (
         <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
           <button type="button" disabled={busy} onClick={() => onAction(card.id, "confirm")} style={cardBtnStyle}>✓ 동의</button>
@@ -136,7 +136,7 @@ function CardItem({
 }
 
 const cardBtnStyle: CSSProperties = {
-  fontSize: 10,
+  fontSize: 12,
   fontWeight: 700,
   border: "1.5px solid #1A1A1A",
   background: "#fff",

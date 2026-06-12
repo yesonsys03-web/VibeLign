@@ -67,7 +67,7 @@ export function PlanningSessionPicker({ projectDir, onSelect, onClose, onDeleted
           {sessions !== null && sessions.length === 0 && (
             <div style={{ fontSize: 12, opacity: 0.7 }}>아직 저장된 기획이 없어요.</div>
           )}
-          {error && <div style={{ fontSize: 11, color: "#B91C1C", fontWeight: 700 }}>삭제 오류: {error}</div>}
+          {error && <div style={{ fontSize: 12, color: "#B91C1C", fontWeight: 700 }}>삭제 오류: {error}</div>}
           {sessions?.map((session) => (
             <div key={session.sessionId} style={{ display: "flex", alignItems: "stretch", gap: 6 }}>
               <button
@@ -80,7 +80,7 @@ export function PlanningSessionPicker({ projectDir, onSelect, onClose, onDeleted
                   <strong style={{ fontSize: 12 }}>{session.title || "(제목 없음)"}</strong>
                   <span
                     style={{
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: 800,
                       padding: "2px 8px",
                       border: "1.5px solid #1A1A1A",
@@ -92,15 +92,15 @@ export function PlanningSessionPicker({ projectDir, onSelect, onClose, onDeleted
                     {session.saved ? "✓ 저장됨" : "작성중"}
                   </span>
                 </div>
-                <div style={{ fontSize: 11, opacity: 0.75 }}>
+                <div style={{ fontSize: 12, opacity: 0.75 }}>
                   {session.outputPath ? `${fileName(session.outputPath)} · ` : ""}
                   대화 {session.messageCount} · 카드 {session.cardCount}
                 </div>
               </button>
               {confirmingId === session.sessionId ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, justifyContent: "center" }}>
-                  <button type="button" onClick={() => void handleDelete(session.sessionId)} title="이 기획을 영구 삭제" style={{ border: "2px solid #B91C1C", background: "#B91C1C", color: "#fff", fontSize: 11, fontWeight: 800, padding: "2px 8px", cursor: "pointer", whiteSpace: "nowrap" }}>삭제</button>
-                  <button type="button" onClick={() => setConfirmingId(null)} style={{ border: "2px solid #1A1A1A", background: "#fff", fontSize: 11, padding: "2px 8px", cursor: "pointer" }}>취소</button>
+                  <button type="button" onClick={() => void handleDelete(session.sessionId)} title="이 기획을 영구 삭제" style={{ border: "2px solid #B91C1C", background: "#B91C1C", color: "#fff", fontSize: 12, fontWeight: 800, padding: "2px 8px", cursor: "pointer", whiteSpace: "nowrap" }}>삭제</button>
+                  <button type="button" onClick={() => setConfirmingId(null)} style={{ border: "2px solid #1A1A1A", background: "#fff", fontSize: 12, padding: "2px 8px", cursor: "pointer" }}>취소</button>
                 </div>
               ) : (
                 <button type="button" onClick={() => setConfirmingId(session.sessionId)} disabled={deletingId === session.sessionId} title="이 기획 삭제" style={{ border: "2px solid #1A1A1A", background: "#fff", fontSize: 14, padding: "0 10px", cursor: "pointer" }}>🗑</button>

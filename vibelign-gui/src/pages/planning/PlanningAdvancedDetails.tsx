@@ -28,14 +28,14 @@ export function PlanningAdvancedDetails({ details }: PlanningAdvancedDetailsProp
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
         <div style={{ display: "grid", gap: 2 }}>
           <div style={{ fontSize: 12, fontWeight: 900 }}>고급 상세</div>
-          <div style={{ fontSize: 11, color: "#555", fontWeight: 700 }}>문제 원인을 확인할 때만 펼쳐보세요.</div>
+          <div style={{ fontSize: 12, color: "#555", fontWeight: 700 }}>문제 원인을 확인할 때만 펼쳐보세요.</div>
         </div>
         <button
           className="btn btn-ghost btn-sm"
           type="button"
           aria-expanded={isExpanded}
           onClick={() => setIsExpanded((expanded) => !expanded)}
-          style={{ fontSize: 11 }}
+          style={{ fontSize: 12 }}
         >
           {isExpanded ? "고급 상세 숨기기" : "고급 상세 보기"}
         </button>

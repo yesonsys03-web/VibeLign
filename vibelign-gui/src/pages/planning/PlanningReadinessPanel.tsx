@@ -24,7 +24,7 @@ export function PlanningReadinessPanel({ report }: PlanningReadinessPanelProps) 
     return (
       <div style={panelStyle}>
         <strong style={{ fontSize: 12 }}>구현 준비 상태: 확인 못 함</strong>
-        <p style={{ fontSize: 11, margin: "6px 0 0", opacity: 0.8 }}>
+        <p style={{ fontSize: 12, margin: "6px 0 0", opacity: 0.8 }}>
           활성 AI(claude/codex/agy)를 찾지 못해 판정하지 못했어요. 저장은 정상 완료됐어요.
         </p>
       </div>
@@ -39,7 +39,7 @@ export function PlanningReadinessPanel({ report }: PlanningReadinessPanelProps) 
       </strong>
       <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
         {report.requirements.map((requirement, index) => (
-          <div key={`${requirement.title}-${index}`} style={{ fontSize: 11, borderTop: "1px solid #1A1A1A22", paddingTop: 6 }}>
+          <div key={`${requirement.title}-${index}`} style={{ fontSize: 12, borderTop: "1px solid #1A1A1A22", paddingTop: 6 }}>
             <div style={{ fontWeight: 700 }}>
               {requirement.core ? "★ " : ""}
               {requirement.title || "(제목 없음)"}

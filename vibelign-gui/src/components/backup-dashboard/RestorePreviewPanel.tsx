@@ -10,7 +10,7 @@ const chipBase: CSSProperties = {
   gap: 4,
   padding: "3px 9px",
   borderRadius: 999,
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: 600,
   border: "1px solid #1A1A1A",
   background: "#fff",

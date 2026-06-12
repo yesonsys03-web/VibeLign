@@ -185,10 +185,10 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
   return (
     <div style={{ height: "100%", display: "flex", position: "relative" }}>
       <div style={{ width: 240, flexShrink: 0, borderRight: "1px solid #1A1A1A", display: "flex", flexDirection: "column", overflow: "auto" }}>
-        <div style={{ padding: "6px 10px", fontSize: 11, fontWeight: 700, color: "#888", borderBottom: "1px solid #1A1A1A" }}>
+        <div style={{ padding: "6px 10px", fontSize: 12, fontWeight: 700, color: "#888", borderBottom: "1px solid #1A1A1A" }}>
           기획안 {plans ? `(${plans.length})` : ""}
         </div>
-        {deleteError && <div style={{ padding: "4px 10px", fontSize: 11, color: "#B91C1C", fontWeight: 700 }}>삭제 오류: {deleteError}</div>}
+        {deleteError && <div style={{ padding: "4px 10px", fontSize: 12, color: "#B91C1C", fontWeight: 700 }}>삭제 오류: {deleteError}</div>}
         {plans === null && <div style={{ padding: 10, fontSize: 12, color: "#888" }}>불러오는 중…</div>}
         {plans?.map((plan) => {
           const active = plan.sessionId === selectedId;
@@ -204,22 +204,22 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
                 <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {plan.title || "(제목 없음)"}
                   {plan.docStale && (
-                    <span title="저장 후 대화가 더 진행됐어요. 기획방에서 다시 저장하면 반영됩니다." style={{ marginLeft: 6, fontSize: 9, fontWeight: 800, color: "#B45309", background: "#FEF3C7", padding: "1px 4px", borderRadius: 3, verticalAlign: "middle" }}>
+                    <span title="저장 후 대화가 더 진행됐어요. 기획방에서 다시 저장하면 반영됩니다." style={{ marginLeft: 6, fontSize: 12, fontWeight: 800, color: "#B45309", background: "#FEF3C7", padding: "1px 4px", borderRadius: 3, verticalAlign: "middle" }}>
                       다시 저장 필요
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 10, opacity: 0.7, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{plan.outputPath ? fileName(plan.outputPath) : ""}</div>
+                <div style={{ fontSize: 12, opacity: 0.7, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{plan.outputPath ? fileName(plan.outputPath) : ""}</div>
               </button>
               {confirmingId === plan.sessionId ? (
                 <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 2, padding: "0 4px" }}>
-                  <button type="button" onClick={() => void handleDelete(plan)} title="휴지통으로" style={{ border: "none", background: "#B91C1C", color: "#fff", fontSize: 10, fontWeight: 800, padding: "2px 6px", cursor: "pointer" }}>삭제</button>
-                  <button type="button" onClick={() => setConfirmingId(null)} style={{ border: "1px solid #888", background: "#fff", fontSize: 10, padding: "2px 6px", cursor: "pointer" }}>취소</button>
+                  <button type="button" onClick={() => void handleDelete(plan)} title="휴지통으로" style={{ border: "none", background: "#B91C1C", color: "#fff", fontSize: 12, fontWeight: 800, padding: "2px 6px", cursor: "pointer" }}>삭제</button>
+                  <button type="button" onClick={() => setConfirmingId(null)} style={{ border: "1px solid #888", background: "#fff", fontSize: 12, padding: "2px 6px", cursor: "pointer" }}>취소</button>
                 </div>
               ) : (
                 <div style={{ display: "flex", alignItems: "center" }}>
                   {onEdit && (
-                    <button type="button" onClick={() => onEdit(plan.sessionId)} disabled={deletingId === plan.sessionId} title="기획방에서 이어서 수정" style={{ border: "none", background: "transparent", color: active ? "#fff" : "#888", fontSize: 11, fontWeight: 700, padding: "0 6px", cursor: "pointer", whiteSpace: "nowrap" }}>수정</button>
+                    <button type="button" onClick={() => onEdit(plan.sessionId)} disabled={deletingId === plan.sessionId} title="기획방에서 이어서 수정" style={{ border: "none", background: "transparent", color: active ? "#fff" : "#888", fontSize: 12, fontWeight: 700, padding: "0 6px", cursor: "pointer", whiteSpace: "nowrap" }}>수정</button>
                   )}
                   <button type="button" onClick={() => setConfirmingId(plan.sessionId)} disabled={deletingId === plan.sessionId} title="이 기획안 삭제(휴지통)" style={{ border: "none", background: "transparent", color: active ? "#fff" : "#888", fontSize: 13, padding: "0 8px", cursor: "pointer" }}>🗑</button>
                 </div>
@@ -233,20 +233,20 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
           <button
             type="button"
             onClick={() => setTrashOpen((open) => !open)}
-            style={{ width: "100%", textAlign: "left", border: "none", background: "transparent", color: "#888", fontSize: 11, fontWeight: 700, padding: "6px 10px", cursor: "pointer" }}
+            style={{ width: "100%", textAlign: "left", border: "none", background: "transparent", color: "#888", fontSize: 12, fontWeight: 700, padding: "6px 10px", cursor: "pointer" }}
           >
             {trashOpen ? "▾" : "▸"} 🗑 휴지통 ({trashCount})
           </button>
           {trashOpen && (
             <div style={{ padding: "0 6px 6px" }}>
-              {trashError && <div style={{ fontSize: 10, color: "#B91C1C", fontWeight: 700, padding: "2px 4px" }}>{trashError}</div>}
-              {trashCount === 0 && <div style={{ fontSize: 10, color: "#888", padding: "2px 4px" }}>비어 있음</div>}
+              {trashError && <div style={{ fontSize: 12, color: "#B91C1C", fontWeight: 700, padding: "2px 4px" }}>{trashError}</div>}
+              {trashCount === 0 && <div style={{ fontSize: 12, color: "#888", padding: "2px 4px" }}>비어 있음</div>}
               {trashed?.map((item) => (
                 <div key={item.sessionId} style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 4px", borderBottom: "1px solid #EEE" }}>
-                  <span style={{ flex: 1, fontSize: 11, color: "#666", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={item.outputPath ?? undefined}>
+                  <span style={{ flex: 1, fontSize: 12, color: "#666", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={item.outputPath ?? undefined}>
                     {item.title || (item.outputPath ? fileName(item.outputPath) : "(제목 없음)")}
                   </span>
-                  <button type="button" onClick={() => void handleRestore(item.sessionId)} disabled={restoringId === item.sessionId} style={{ border: "1px solid #1A1A1A", background: "#fff", fontSize: 10, fontWeight: 700, padding: "1px 6px", cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <button type="button" onClick={() => void handleRestore(item.sessionId)} disabled={restoringId === item.sessionId} style={{ border: "1px solid #1A1A1A", background: "#fff", fontSize: 12, fontWeight: 700, padding: "1px 6px", cursor: "pointer", whiteSpace: "nowrap" }}>
                     {restoringId === item.sessionId ? "복구 중…" : "복구"}
                   </button>
                 </div>
@@ -254,13 +254,13 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
               {trashCount > 0 && (
                 confirmEmpty ? (
                   <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
-                    <button type="button" onClick={() => void handleEmpty()} disabled={emptying} style={{ flex: 1, border: "2px solid #B91C1C", background: "#B91C1C", color: "#fff", fontSize: 10, fontWeight: 800, padding: "3px 6px", cursor: "pointer" }}>
+                    <button type="button" onClick={() => void handleEmpty()} disabled={emptying} style={{ flex: 1, border: "2px solid #B91C1C", background: "#B91C1C", color: "#fff", fontSize: 12, fontWeight: 800, padding: "3px 6px", cursor: "pointer" }}>
                       {emptying ? "비우는 중…" : "영구 삭제"}
                     </button>
-                    <button type="button" onClick={() => setConfirmEmpty(false)} style={{ flex: 1, border: "1px solid #888", background: "#fff", fontSize: 10, padding: "3px 6px", cursor: "pointer" }}>취소</button>
+                    <button type="button" onClick={() => setConfirmEmpty(false)} style={{ flex: 1, border: "1px solid #888", background: "#fff", fontSize: 12, padding: "3px 6px", cursor: "pointer" }}>취소</button>
                   </div>
                 ) : (
-                  <button type="button" onClick={() => setConfirmEmpty(true)} style={{ width: "100%", marginTop: 6, border: "1px solid #B91C1C", background: "#fff", color: "#B91C1C", fontSize: 10, fontWeight: 700, padding: "3px 6px", cursor: "pointer" }}>휴지통 비우기</button>
+                  <button type="button" onClick={() => setConfirmEmpty(true)} style={{ width: "100%", marginTop: 6, border: "1px solid #B91C1C", background: "#fff", color: "#B91C1C", fontSize: 12, fontWeight: 700, padding: "3px 6px", cursor: "pointer" }}>휴지통 비우기</button>
                 )
               )}
             </div>
@@ -275,7 +275,7 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
           </div>
         )}
         {selected?.docStale && (
-          <div style={{ padding: "6px 12px", fontSize: 11, color: "#B45309", background: "#FEF3C7", borderBottom: "1px solid #1A1A1A" }}>
+          <div style={{ padding: "6px 12px", fontSize: 12, color: "#B45309", background: "#FEF3C7", borderBottom: "1px solid #1A1A1A" }}>
             저장 후 기획방 대화가 더 진행됐어요 — {onEdit ? "‘수정’으로 들어가 다시 저장하면" : "기획방에서 다시 저장하면"} 최신 내용이 반영됩니다.
           </div>
         )}

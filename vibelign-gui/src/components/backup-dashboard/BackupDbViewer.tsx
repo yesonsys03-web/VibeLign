@@ -182,7 +182,7 @@ export default function BackupDbViewer({ projectDir }: BackupDbViewerProps) {
         bodyStyle={{ display: "grid", gap: 8 }}
         actions={
           <>
-            <input className="input-field" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="DB row 검색" style={{ width: 160, fontSize: 11 }} />
+            <input className="input-field" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="DB row 검색" style={{ width: 160, fontSize: 12 }} />
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => load(true)} disabled={loading}>{loading ? <span className="spinner" /> : "새로고침"}</button>
           </>
         }

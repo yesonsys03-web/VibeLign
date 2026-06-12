@@ -113,7 +113,7 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
               background: selectedPersonaIds.includes(persona.id) ? "#1A1A1A" : "#F7F0DF",
               color: selectedPersonaIds.includes(persona.id) ? "#FFFFFF" : "#1A1A1A",
               padding: "7px 9px",
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 900,
               cursor: "pointer",
             }}
@@ -134,7 +134,7 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
             background: selectedPersonaIds.length === PLANNING_PERSONAS.length ? "#1A1A1A" : "#FFFFFF",
             color: selectedPersonaIds.length === PLANNING_PERSONAS.length ? "#FFFFFF" : "#1A1A1A",
             padding: "7px 9px",
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: 900,
             cursor: "pointer",
           }}
@@ -160,7 +160,7 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
                 border: "2px solid #1A1A1A",
                 background: "#F7F0DF",
                 padding: "4px 8px",
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 800,
                 cursor: "pointer",
               }}
@@ -169,7 +169,7 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
               <span style={{ opacity: 0.7 }}>{hint.label}</span>
             </button>
           ))}
-          <span style={{ fontSize: 10, opacity: 0.6 }}>Tab 키로 완성</span>
+          <span style={{ fontSize: 12, opacity: 0.6 }}>Tab 키로 완성</span>
         </div>
       )}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 72px", gap: 8, alignItems: "end" }}>
