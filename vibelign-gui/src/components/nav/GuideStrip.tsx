@@ -39,6 +39,24 @@ const iconBtnStyle = {
 // 의미 그룹(정보 | 비상구 | 컨트롤) 사이 세로 구분선.
 const dividerStyle = { width: 1, height: 14, background: "rgba(0, 0, 0, 0.25)" };
 
+// 접힘 선호는 전역 UI 설정(프로젝트 무관) — 한 번 접으면 계속 접힌 채 유지(답답함 해소).
+const GUIDE_COLLAPSED_KEY = "vibelign:guide-collapsed";
+function readCollapsed(): boolean {
+  try {
+    const v = localStorage.getItem(GUIDE_COLLAPSED_KEY);
+    return v === null ? true : v === "1"; // 기본은 컴팩트(한 줄) — 저장된 선호가 있으면 따른다
+  } catch {
+    return true;
+  }
+}
+function writeCollapsed(v: boolean) {
+  try {
+    localStorage.setItem(GUIDE_COLLAPSED_KEY, v ? "1" : "0");
+  } catch {
+    /* localStorage 불가 환경 — 세션 내 상태만 유지 */
+  }
+}
+
 /**
  * 탭바 아래 안내 줄 — 좌측 가이드(지금 할 일) + 우측 기존 상태 신호. A안 상태 스트립을 대체·통합.
  * 시인성(spec §3.2): 가이드 활성 시 15px·진한 웜 그레이 배경(#CFCABB)에 #7C2D12 강조, off 시 얇은 줄(3px·13px).
@@ -68,6 +86,13 @@ export function GuideStrip({
   // 유틸리티(되돌리기·‹ › ×·상태 신호) 접힘 — 기본 화면을 "안내문 + 행동 버튼 1개"로 유지.
   // 비상구(되돌리기)가 접힘 뒤로 숨는 트레이드오프는 토글 라벨("문제 있나요?")이 길 안내를 대신한다.
   const [utilOpen, setUtilOpen] = useState(false);
+  // 접힘(컴팩트 한 줄) 토글 — 기본 컴팩트, ▾자세히로 펼침. 답답함 해소(2026-06-12 사용자 요청).
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const toggleCollapsed = () =>
+    setCollapsed((v) => {
+      writeCollapsed(!v);
+      return !v;
+    });
   if (celebrating) {
     // 첫 사이클 완주 축하(spec §3.2) — 이 순간만큼은 가이드 줄 대신 완료 마디를 보여준다.
     return (
@@ -93,6 +118,46 @@ export function GuideStrip({
           onClick={() => onCelebrateDismiss?.()}
         >
           ×
+        </button>
+      </div>
+    );
+  }
+  if (def && step && collapsed) {
+    // 컴팩트(기본) — 한 줄: 단계 라벨 + 주행동 버튼 + ▾자세히. 안내 기능은 유지하되 높이를 줄인다.
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: 10,
+          padding: "6px 14px",
+          fontSize: 14,
+          background: "#CFCABB",
+          borderBottom: "2px solid #1A1A1A",
+        }}
+      >
+        <span style={{ color: "#7C2D12", fontWeight: 700 }}>
+          🧭 {def.icon} {def.label}
+        </span>
+        {def.targetPage && !onTarget && (
+          <button
+            className="nav-tab"
+            style={{ fontSize: 13, padding: "4px 10px", background: "#FBBF24", color: "#1A1A1A", border: "1px solid #1A1A1A", borderRadius: 4 }}
+            onClick={() => onNavigate(def.targetPage as Page)}
+          >
+            {def.goLabel ?? `${PAGE_LABELS[def.targetPage]}으로 이동 →`}
+          </button>
+        )}
+        <div style={{ flex: 1 }} />
+        <button
+          className="nav-tab"
+          style={{ fontSize: 13, padding: "4px 10px", color: "#4A4A4A", borderRight: "none" }}
+          title="안내 자세히 보기"
+          aria-expanded={false}
+          onClick={toggleCollapsed}
+        >
+          ▾ 자세히
         </button>
       </div>
     );
@@ -174,6 +239,14 @@ export function GuideStrip({
               onClick={() => setUtilOpen((v) => !v)}
             >
               {utilOpen ? "접기 ▴" : "문제 있나요? ▾"}
+            </button>
+            <button
+              className="nav-tab"
+              style={{ fontSize: 13, padding: "5px 10px", color: "#4A4A4A", borderRight: "none" }}
+              title="가이드를 한 줄로 접기"
+              onClick={toggleCollapsed}
+            >
+              ▴ 한 줄로
             </button>
           </span>
         </span>
