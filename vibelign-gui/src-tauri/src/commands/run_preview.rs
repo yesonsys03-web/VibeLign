@@ -258,11 +258,22 @@ struct RunRuntime {
     /// 감지된 미리보기 URL — run-preview-ready 는 fire-once 라, 탭 이탈 후 복귀(run_status)
     /// 에서 [미리보기 열기]를 복원하려면 여기 들고 있어야 한다(advisor 지적).
     preview_url: Option<String>,
+    /// 마지막 run-status 라벨("installing"/"running") — active 만으로는 install 갭과 실행을
+    /// 구분 못 해, 탭 복귀 시 install 중인데 "실행 중"으로 오표시된다(M3a 리뷰 P2). run_status
+    /// 가 이 값을 돌려줘 복원이 진짜 단계를 보여준다.
+    status_label: Option<&'static str>,
 }
 
 impl RunRuntime {
     fn new() -> Self {
-        Self { child: None, run_id: 0, active: false, cancelled: false, preview_url: None }
+        Self {
+            child: None,
+            run_id: 0,
+            active: false,
+            cancelled: false,
+            preview_url: None,
+            status_label: None,
+        }
     }
 }
 
@@ -329,6 +340,8 @@ pub(crate) struct RunStatusInfo {
     run_id: u64,
     /// 탭 복귀 시 [미리보기 열기] 복원용 — 감지됐으면 Some.
     preview_url: Option<String>,
+    /// 현재 단계("installing"/"running") — 복원이 진짜 단계를 보이게(install 갭 오표시 방지).
+    status: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -494,6 +507,15 @@ fn is_cancelled(shared: &Arc<Mutex<RunRuntime>>) -> bool {
     shared.lock().map(|g| g.cancelled).unwrap_or(true)
 }
 
+/// 진행 단계 라벨 기록 — 내 실행일 때만(run_status 복원이 진짜 단계를 보이게).
+fn set_status_label(shared: &Arc<Mutex<RunRuntime>>, run_id: u64, label: &'static str) {
+    if let Ok(mut g) = shared.lock() {
+        if g.run_id == run_id {
+            g.status_label = Some(label);
+        }
+    }
+}
+
 /// 종료 보고 + 슬롯 해제 — 내 실행(run_id 일치)일 때만 active/child 를 비운다
 /// (이미 새 실행이 점유했으면 건드리지 않는다).
 fn finish(
@@ -509,6 +531,7 @@ fn finish(
             guard.active = false;
             guard.child = None;
             guard.preview_url = None;
+            guard.status_label = None;
             owned = true;
         }
     }
@@ -535,6 +558,7 @@ fn spawn_orchestrator(
     std::thread::spawn(move || {
         // ── INSTALL 단계 (node_modules 없을 때 1회) ──
         if needs_install {
+            set_status_label(&shared, run_id, "installing");
             let _ = app.emit(
                 "run-status",
                 RunStatusEvent { run_id, status: "installing", exit_code: None },
@@ -587,6 +611,7 @@ fn spawn_orchestrator(
         let port_ready = detect_port.then(|| Arc::new(AtomicBool::new(false)));
         match spawn_and_register(&app, &shared, &cwd, &run_exe, &run_args, run_id, "run", port_ready) {
             Registered::Ok => {
+                set_status_label(&shared, run_id, "running");
                 let _ = app.emit(
                     "run-status",
                     RunStatusEvent { run_id, status: "running", exit_code: None },
@@ -675,6 +700,7 @@ pub(crate) fn run_start(
     guard.active = true;
     guard.child = None;
     guard.preview_url = None;
+    guard.status_label = None;
     drop(guard);
 
     let needs_install = !cwd_path.join("node_modules").is_dir();
@@ -727,8 +753,9 @@ pub(crate) fn run_status(state: tauri::State<RunState>) -> RunStatusInfo {
             running: g.active,
             run_id: g.run_id,
             preview_url: g.preview_url.clone(),
+            status: g.status_label.map(|s| s.to_string()),
         })
-        .unwrap_or(RunStatusInfo { running: false, run_id: 0, preview_url: None })
+        .unwrap_or(RunStatusInfo { running: false, run_id: 0, preview_url: None, status: None })
 }
 
 /// 러너가 점유 중인지 — 작업방과의 §5 상호배제용(work_run 이 시작 전 읽는다).

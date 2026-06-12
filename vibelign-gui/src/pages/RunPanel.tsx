@@ -75,7 +75,8 @@ export default function RunPanel({ projectDir, onNavigate }: RunPanelProps) {
       .then((s) => {
         if (!alive || !s.running) return;
         activeRunIdRef.current = s.runId;
-        setStatus("running");
+        // 진짜 단계로 복원 — install 중 탭 복귀 시 "실행 중" 오표시 방지(M3a 리뷰 P2).
+        setStatus(s.status ?? "running");
         if (s.previewUrl) setPreviewUrl(s.previewUrl);
       })
       .catch(() => {});
@@ -126,6 +127,9 @@ export default function RunPanel({ projectDir, onNavigate }: RunPanelProps) {
     setStartError(null);
     setLines([]);
     setPreviewUrl(null);
+    // 새 실행 시작 전 옛 run_id 해제 — 응답 전 도착한 새 실행 이벤트가 옛 id 로 걸러지지
+    // 않게(첫 실행의 null pass-through 와 동일 의미로 맞춘다, M3a 리뷰 P3).
+    activeRunIdRef.current = null;
     setStarting(true);
     setStatus("starting");
     try {

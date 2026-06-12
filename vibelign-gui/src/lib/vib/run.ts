@@ -23,6 +23,8 @@ export interface RunStatusInfo {
   runId: number;
   /** 탭 복귀 시 [미리보기 열기] 복원용(run-preview-ready 는 fire-once). */
   previewUrl: string | null;
+  /** 현재 단계("installing"/"running") — 복원이 install/실행을 구분해 표시. */
+  status: RunStatusKind | null;
 }
 
 export type RunPhase = "install" | "run";
