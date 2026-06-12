@@ -42,7 +42,8 @@ describe("JOURNEY_STEPS", () => {
   });
   it("journeyStep은 step 번호로 조회", () => {
     expect(journeyStep(3).label).toBe("체크포인트 저장");
-    expect(journeyStep(4).targetPage).toBe("code");
+    // 4️⃣ 목적지는 작업방 — 체크포인트→실행→guard 자동 시퀀스 동선(작업방 기획안 §2)
+    expect(journeyStep(4).targetPage).toBe("work");
   });
   it("5️⃣ 목적지는 홈 — guard 버튼은 진단 탭에 없음 (spec §2 정정)", () => {
     expect(journeyStep(5).targetPage).toBe("home");
@@ -215,9 +216,9 @@ describe("hubCardTarget", () => {
     expect(hubCardTarget("maintain", null, "doctor")).toBe("doctor"); // 가이드 꺼짐/로딩 전
   });
 
-  it("now인 카드의 목적지가 단계 페이지와 같으면 동작 불변 — 2️⃣ 기획, 4️⃣ 개발", () => {
+  it("now인 카드는 단계 목적지로 — 2️⃣ 기획방, 4️⃣은 fallback(코드탐색) 대신 작업방", () => {
     expect(hubCardTarget("planning", 2, "planning")).toBe("planning");
-    expect(hubCardTarget("develop", 4, "code")).toBe("code");
+    expect(hubCardTarget("develop", 4, "code")).toBe("work");
   });
 });
 

@@ -73,18 +73,17 @@ export const JOURNEY_STEPS: JourneyStep[] = [
     step: 4,
     icon: "4️⃣",
     label: "AI에게 작업 시키기",
-    // v6 카피 보강: 지시문은 사용자가 쓰는 게 아니라 VibeLign이 기획안 기반으로 생성한다 —
-    // 이미 구현된 사실(buildPlanningWorkInstruction, planningInstruction.ts)의 명시이지 과장이 아님.
-    shortAction: "VibeLign이 만들어준 안전 지시문을 복사해 AI 도구(Claude Code 등)에 붙여넣으세요",
+    // 작업방 Tier 1(plans/2026-06-12-작업방-tier1-design.md §2): 기본 동선은 앱 내 작업방 —
+    // 체크포인트→실행→guard 가 자동으로 이어진다. 외부 도구 복사 동선은 폴백으로 유지.
+    shortAction: "작업방에서 AI에게 시키세요 — 체크포인트 저장과 검사가 자동으로 따라붙어요",
     howto: [
-      "① 개발 → 코드탐색 탭으로 가요",
-      "② VibeLign이 기획안을 바탕으로 안전 지시문을 만들어줘요 — 복사만 하면 돼요",
-      "③ Claude Code 같은 AI 도구에 붙여넣어요",
-      "④ AI가 코드를 다 쓰면 다음 단계로!",
-      "⑤ 아직 AI 도구가 없나요? 설정의 'AI 도구 설정'에서 설치를 도와드려요",
+      "① 개발 → 작업방 탭으로 가요",
+      "② 'AI에게 작업 시키기'를 누르면 체크포인트 저장 → AI 실행 → 자동 검사가 한 번에 이어져요",
+      "③ 외부 도구(터미널)를 쓰고 싶다면? 코드탐색의 '작업 지시 복사'로 붙여넣어 실행해도 돼요",
+      "④ 아직 AI 도구가 없나요? 설정의 'AI 도구 설정'에서 설치를 도와드려요",
     ],
-    targetPage: "code",
-    goLabel: "지시문 복사하러 가기 →",
+    targetPage: "work",
+    goLabel: "작업방에서 시키기 →",
     cardStage: "develop",
   },
   {

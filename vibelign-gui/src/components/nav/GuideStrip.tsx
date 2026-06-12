@@ -134,7 +134,9 @@ export function GuideStrip({
                 {def.goLabel ?? `${PAGE_LABELS[def.targetPage]}으로 이동 →`}
               </button>
             )}
-            {step === 4 && onTarget && (
+            {/* 수동 출구는 외부 도구 폴백(코드탐색에서 복사) 전용 — 작업방 경유는 종료 감지가
+                자동으로 검사·전환하므로 이 버튼이 필요 없다(작업방 기획안 §2). */}
+            {step === 4 && currentPage === "code" && (
               <button
                 className="nav-tab"
                 style={{ fontSize: 14, padding: "5px 12px", color: "#7C2D12", background: "transparent", border: "1px solid #7C2D12", borderRadius: 4 }}
@@ -152,7 +154,8 @@ export function GuideStrip({
                 ✓ 다 했어요 — 결과 확인
               </button>
             )}
-            {step === 4 && onTarget && aiToolMissing && onOpenSettings && (
+            {/* 도구 미보유 분기도 폴백 동선에서만 — 작업방 화면은 자체 설치 안내 버튼을 가진다. */}
+            {step === 4 && currentPage === "code" && aiToolMissing && onOpenSettings && (
               <button
                 className="nav-tab"
                 style={{ fontSize: 14, padding: "5px 12px", color: "#7C2D12", background: "transparent", border: "1px solid #7C2D12", borderRadius: 4 }}
