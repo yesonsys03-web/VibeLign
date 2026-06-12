@@ -19,7 +19,7 @@ from vibelign.core.change_explainer import (
 )
 from vibelign.core.doctor_v2 import analyze_project_v2
 from vibelign.core.guard_report import GuardReport
-from vibelign.core.guard_report import combine_guard
+from vibelign.core.guard_report import _overall_label, _risk_label, combine_guard
 from vibelign.core.meta_paths import MetaPaths
 from vibelign.core.project_map import enrich_change_kind, load_project_map
 from vibelign.core.project_root import resolve_project_root
@@ -501,6 +501,23 @@ def _protected_violations(
 # === ANCHOR: VIB_GUARD_CMD__PROTECTED_VIOLATIONS_END ===
 
 
+def _envelope_summary(
+    doctor_v2_status: str, doctor_v2_score: int, legacy_guard: GuardReport
+) -> str:
+    """guard 요약 모순 수정(2026-06-12, 알람앱 트라이얼에서 발견).
+
+    헤더의 점수·상태는 doctor v2(예: Safe·90점)인데 요약의 '기본 상태'는 legacy v1
+    level("위험")을 서술해 한 화면에서 서로 모순됐다. 기본 상태는 헤더와 같은 v2
+    기준으로 맞추고, 위험도·전체 판단은 차단 로직의 실제 근거인 legacy_guard 를
+    유지한다(멈춤의 행동 사유는 recommendations 가 담당).
+    """
+    return (
+        f"프로젝트 기본 상태는 {doctor_v2_status}({doctor_v2_score}점)입니다. "
+        f"최근 바뀐 내용의 위험도는 {_risk_label(legacy_guard.change_risk_level)}이고, "
+        f"전체 판단은 '{_overall_label(legacy_guard.overall_level)}' 입니다."
+    )
+
+
 # === ANCHOR: VIB_GUARD_CMD__BUILD_GUARD_ENVELOPE_START ===
 def _build_guard_envelope(
     root: Path,
@@ -537,7 +554,7 @@ def _build_guard_envelope(
         "project_score": doctor_v2.project_score,
         "project_status": doctor_v2.status,
         "change_risk_level": legacy_guard.change_risk_level,
-        "summary": legacy_guard.summary,
+        "summary": _envelope_summary(doctor_v2.status, doctor_v2.project_score, legacy_guard),
         "recommendations": _rewrite_recommendations(legacy_guard.recommendations),
         "protected_violations": violations,
         "anchor_violations": anchor_violations,
