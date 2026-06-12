@@ -144,6 +144,9 @@ export default function RunPanel({ projectDir, onNavigate, onRequestWorkHandoff,
     setStartError(null);
     setLines([]);
     setPreviewUrl(null);
+    // 새 실행마다 개선 입력 초기화 — 이전 실행의 입력이 stale 하게 남지 않게(M3 최종 리뷰 P2).
+    setImproveOpen(false);
+    setImproveText("");
     // 새 실행 시작 전 옛 run_id 해제 — 응답 전 도착한 새 실행 이벤트가 옛 id 로 걸러지지
     // 않게(첫 실행의 null pass-through 와 동일 의미로 맞춘다, M3a 리뷰 P3).
     activeRunIdRef.current = null;
