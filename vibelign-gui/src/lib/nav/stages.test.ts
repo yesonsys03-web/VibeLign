@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { stageOf, pagesForStage, STAGE_DEFS, PAGE_LABELS } from "./stages";
+import {
+  stageOf,
+  pagesForStage,
+  STAGE_DEFS,
+  PAGE_LABELS,
+  PAGE_DESCRIPTIONS,
+  STAGE_DESCRIPTIONS,
+} from "./stages";
 
 describe("stageOf", () => {
   it("기획방은 기획 단계", () => {
@@ -65,5 +72,27 @@ describe("PAGE_LABELS", () => {
       manual: "사용법",
       settings: "설정",
     });
+  });
+});
+
+describe("PAGE_DESCRIPTIONS / STAGE_DESCRIPTIONS (말풍선)", () => {
+  const len = (s: string) => s.replace(/\s/g, "").length; // 공백 제외 글자 수
+
+  it("모든 page 에 말풍선이 있고 비어있지 않다", () => {
+    for (const page of Object.keys(PAGE_LABELS) as (keyof typeof PAGE_LABELS)[]) {
+      expect(PAGE_DESCRIPTIONS[page]?.length ?? 0).toBeGreaterThan(0);
+    }
+  });
+
+  it("모든 page 말풍선은 10자 이내", () => {
+    for (const [page, desc] of Object.entries(PAGE_DESCRIPTIONS)) {
+      expect(len(desc), `${page}: "${desc}"`).toBeLessThanOrEqual(10);
+    }
+  });
+
+  it("모든 단계 말풍선은 10자 이내", () => {
+    for (const [stage, desc] of Object.entries(STAGE_DESCRIPTIONS)) {
+      expect(len(desc), `${stage}: "${desc}"`).toBeLessThanOrEqual(10);
+    }
   });
 });

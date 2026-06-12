@@ -54,4 +54,27 @@ export const PAGE_LABELS: Record<Page, string> = {
   manual: "사용법",
   settings: "설정",
 };
+
+/** 메뉴 말풍선(hover title) — 초보용 한 줄, 모두 10자 이내로 통일. */
+export const PAGE_DESCRIPTIONS: Record<Page, string> = {
+  home: "처음 화면",
+  planning: "AI와 계획 짜기",
+  "plan-doc": "계획 문서",
+  code: "코드 둘러보기",
+  docs: "설명 문서",
+  work: "AI에게 시키기",
+  run: "직접 켜보기",
+  doctor: "문제 검사",
+  backups: "되돌릴 시점",
+  logs: "오류 기록",
+  manual: "사용 설명서",
+  settings: "환경 설정",
+};
+
+/** 단계 탭 말풍선 — 10자 이내. */
+export const STAGE_DESCRIPTIONS: Record<Stage, string> = {
+  planning: "계획 세우기",
+  develop: "코드 만들기",
+  maintain: "점검과 저장",
+};
 // === ANCHOR: NAV_STAGES_END ===

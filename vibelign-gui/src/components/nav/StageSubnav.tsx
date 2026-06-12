@@ -1,5 +1,5 @@
 // === ANCHOR: STAGE_SUBNAV_START ===
-import { stageOf, pagesForStage, PAGE_LABELS, type Page } from "../../lib/nav/stages";
+import { stageOf, pagesForStage, PAGE_LABELS, PAGE_DESCRIPTIONS, type Page } from "../../lib/nav/stages";
 
 interface StageSubnavProps {
   page: Page;
@@ -19,6 +19,7 @@ export function StageSubnav({ page, onNavigate }: StageSubnavProps) {
           key={p}
           className={`nav-tab ${page === p ? "active" : ""}`}
           style={{ fontSize: 14, padding: "2px 10px" }}
+          title={PAGE_DESCRIPTIONS[p]}
           onClick={() => onNavigate(p)}
         >
           {PAGE_LABELS[p]}
