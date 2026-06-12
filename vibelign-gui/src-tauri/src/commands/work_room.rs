@@ -29,11 +29,13 @@ struct WorkRoomRuntime {
     cancelled: bool,
     /// 실행별 임시 MCP 설정 파일 — waiter 가 종료 시 정리한다.
     mcp_config: Option<std::path::PathBuf>,
+    /// 실행 로그 파일 핸들 — waiter 가 종료 메타를 적고 닫는다.
+    run_log: Option<Arc<Mutex<std::fs::File>>>,
 }
 
 impl WorkRoomRuntime {
     fn new() -> Self {
-        Self { child: None, run_id: 0, cancelled: false, mcp_config: None }
+        Self { child: None, run_id: 0, cancelled: false, mcp_config: None, run_log: None }
     }
 }
 
@@ -96,6 +98,121 @@ fn work_adapter(provider: &str) -> Option<WorkAdapter> {
         }),
         _ => None,
     }
+}
+
+// ─── 실행 로그 영속 ─────────────────────────────────────────────────────────────
+// 앱 재시작 후에도 "지난 실행"을 볼 수 있게 raw 라인을 프로젝트의
+// .vibelign/logs/work-room-last.jsonl 에 남긴다(마지막 1회분 — 알람앱 트라이얼 요구).
+// raw 보존 이유: 해석(streamJson.ts)은 프런트 몫이라 파서가 좋아져도 과거 로그에 적용된다.
+// .vibelign/ 은 guard·가이드 신호의 무시 prefix 라 변경 감지를 오염시키지 않는다.
+
+const RUN_LOG_FILE: &str = "work-room-last.jsonl";
+/// 복원 시 읽는 라인 상한 — 긴 실행에서도 UI·메모리를 보호한다(앞부분부터 버림).
+const RUN_LOG_READ_CAP: usize = 2000;
+
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+fn run_log_path(cwd: &std::path::Path) -> std::path::PathBuf {
+    cwd.join(".vibelign").join("logs").join(RUN_LOG_FILE)
+}
+
+fn open_run_log(cwd: &std::path::Path, provider: &str) -> Option<Arc<Mutex<std::fs::File>>> {
+    use std::io::Write;
+    let path = run_log_path(cwd);
+    std::fs::create_dir_all(path.parent()?).ok()?;
+    let mut file = std::fs::File::create(&path).ok()?;
+    let meta = serde_json::json!({ "meta": { "provider": provider, "startedAt": unix_now() } });
+    writeln!(file, "{meta}").ok()?;
+    Some(Arc::new(Mutex::new(file)))
+}
+
+fn append_log_line(log: &Option<Arc<Mutex<std::fs::File>>>, stream: &str, line: &str) {
+    use std::io::Write;
+    if let Some(log) = log {
+        if let Ok(mut f) = log.lock() {
+            let _ = writeln!(f, "{}", serde_json::json!({ "stream": stream, "line": line }));
+        }
+    }
+}
+
+fn append_log_meta(log: Option<Arc<Mutex<std::fs::File>>>, status: &str, exit_code: Option<i32>) {
+    use std::io::Write;
+    if let Some(log) = log {
+        if let Ok(mut f) = log.lock() {
+            let meta = serde_json::json!({
+                "meta": { "status": status, "exitCode": exit_code, "finishedAt": unix_now() }
+            });
+            let _ = writeln!(f, "{meta}");
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct WorkLastLogLine {
+    stream: String,
+    line: String,
+}
+
+#[derive(Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct WorkLastLog {
+    provider: Option<String>,
+    started_at: Option<u64>,
+    finished_at: Option<u64>,
+    status: Option<String>,
+    exit_code: Option<i32>,
+    lines: Vec<WorkLastLogLine>,
+}
+
+fn read_last_log(cwd: &std::path::Path) -> Option<WorkLastLog> {
+    let text = std::fs::read_to_string(run_log_path(cwd)).ok()?;
+    let mut out = WorkLastLog::default();
+    let mut lines: std::collections::VecDeque<WorkLastLogLine> =
+        std::collections::VecDeque::with_capacity(RUN_LOG_READ_CAP);
+    for raw in text.lines() {
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) else { continue };
+        if let Some(meta) = value.get("meta") {
+            if let Some(p) = meta.get("provider").and_then(|v| v.as_str()) {
+                out.provider = Some(p.to_string());
+            }
+            if let Some(t) = meta.get("startedAt").and_then(|v| v.as_u64()) {
+                out.started_at = Some(t);
+            }
+            if let Some(t) = meta.get("finishedAt").and_then(|v| v.as_u64()) {
+                out.finished_at = Some(t);
+            }
+            if let Some(s) = meta.get("status").and_then(|v| v.as_str()) {
+                out.status = Some(s.to_string());
+            }
+            if let Some(c) = meta.get("exitCode").and_then(|v| v.as_i64()) {
+                out.exit_code = Some(c as i32);
+            }
+            continue;
+        }
+        let (Some(stream), Some(line)) = (
+            value.get("stream").and_then(|v| v.as_str()),
+            value.get("line").and_then(|v| v.as_str()),
+        ) else {
+            continue;
+        };
+        if lines.len() >= RUN_LOG_READ_CAP {
+            let _ = lines.pop_front();
+        }
+        lines.push_back(WorkLastLogLine { stream: stream.to_string(), line: line.to_string() });
+    }
+    out.lines = lines.into_iter().collect();
+    Some(out)
+}
+
+#[tauri::command]
+pub(crate) fn work_last_log(cwd: String) -> Option<WorkLastLog> {
+    read_last_log(std::path::Path::new(&cwd))
 }
 
 // ─── MCP 자동 주입 (기획안 §9 확정·§10 P0) ─────────────────────────────────────
@@ -173,6 +290,7 @@ fn spawn_output_thread<R: std::io::Read + Send + 'static>(
     app: tauri::AppHandle,
     run_id: u64,
     stream: &'static str,
+    log: Option<Arc<Mutex<std::fs::File>>>,
 ) {
     std::thread::spawn(move || {
         for line in BufReader::new(reader).lines() {
@@ -181,6 +299,7 @@ fn spawn_output_thread<R: std::io::Read + Send + 'static>(
             if line.is_empty() {
                 continue;
             }
+            append_log_line(&log, stream, &line);
             let _ = app.emit("work-output", WorkOutputEvent { run_id, stream, line });
         }
     });
@@ -209,6 +328,7 @@ fn spawn_waiter_thread(app: tauri::AppHandle, state: Arc<Mutex<WorkRoomRuntime>>
                 } else {
                     "failed"
                 };
+                append_log_meta(guard.run_log.take(), label, status.code());
                 let _ = app.emit(
                     "work-status",
                     WorkStatusEvent { run_id, status: label, exit_code: status.code() },
@@ -221,6 +341,7 @@ fn spawn_waiter_thread(app: tauri::AppHandle, state: Arc<Mutex<WorkRoomRuntime>>
                 if let Some(cfg) = guard.mcp_config.take() {
                     let _ = std::fs::remove_file(cfg);
                 }
+                append_log_meta(guard.run_log.take(), "failed", None);
                 let _ = app.emit(
                     "work-status",
                     WorkStatusEvent { run_id, status: "failed", exit_code: None },
@@ -252,6 +373,7 @@ pub(crate) fn work_run(
     let run_id = guard.run_id + 1;
 
     let mcp_config = if adapter.mcp_injection { prepare_mcp_injection(run_id) } else { None };
+    let run_log = open_run_log(std::path::Path::new(&cwd), &provider);
 
     let mut cmd = std::process::Command::new(&executable);
     cmd.args(adapter.args);
@@ -305,6 +427,7 @@ pub(crate) fn work_run(
     guard.cancelled = false;
     let injected = mcp_config.is_some();
     guard.mcp_config = mcp_config;
+    guard.run_log = run_log.clone();
     guard.child = Some(child);
     let shared = Arc::clone(&state.0);
     drop(guard);
@@ -323,10 +446,10 @@ pub(crate) fn work_run(
     }
 
     if let Some(out) = stdout {
-        spawn_output_thread(out, app.clone(), run_id, "stdout");
+        spawn_output_thread(out, app.clone(), run_id, "stdout", run_log.clone());
     }
     if let Some(err) = stderr {
-        spawn_output_thread(err, app.clone(), run_id, "stderr");
+        spawn_output_thread(err, app.clone(), run_id, "stderr", run_log);
     }
     spawn_waiter_thread(app, shared, run_id);
     Ok(run_id)
@@ -389,6 +512,24 @@ mod tests {
     fn unknown_provider_has_no_adapter() {
         assert!(work_adapter("opencode").is_none());
         assert!(work_adapter("").is_none());
+    }
+
+    #[test]
+    fn run_log_round_trip_persists_meta_and_lines() {
+        use std::sync::Arc;
+        let dir = tempfile::tempdir().expect("tempdir");
+        let log = super::open_run_log(dir.path(), "claude").expect("open log");
+        super::append_log_line(&Some(Arc::clone(&log)), "stdout", "{\"type\":\"assistant\"}");
+        super::append_log_meta(Some(log), "done", Some(0));
+
+        let parsed = super::read_last_log(dir.path()).expect("read log");
+        assert_eq!(parsed.provider.as_deref(), Some("claude"));
+        assert_eq!(parsed.status.as_deref(), Some("done"));
+        assert_eq!(parsed.exit_code, Some(0));
+        assert!(parsed.started_at.is_some() && parsed.finished_at.is_some());
+        assert_eq!(parsed.lines.len(), 1);
+        assert_eq!(parsed.lines[0].stream, "stdout");
+        assert_eq!(parsed.lines[0].line, "{\"type\":\"assistant\"}");
     }
 
     #[test]

@@ -146,6 +146,7 @@ pub fn run() {
             commands::work_room::work_run,
             commands::work_room::work_cancel,
             commands::work_room::work_status,
+            commands::work_room::work_last_log,
             commands::platform::open_folder,
             commands::code::read_code_file,
             commands::code::read_code_file_diff,

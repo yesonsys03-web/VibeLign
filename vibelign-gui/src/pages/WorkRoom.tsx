@@ -2,7 +2,7 @@
 // 작업방 Tier 1 (plans/2026-06-12-작업방-tier1-design.md §4·§5) — 기획안 기반 지시문을
 // 사용자의 코딩 CLI(BYO, MVP=Claude Code)로 헤드리스 실행. M3: 체크포인트→실행→guard
 // 안전 시퀀스를 자동으로 잇는다 — 이 시퀀스 강제가 외부 도구 대비 작업방의 존재 이유다.
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
@@ -51,6 +51,27 @@ interface WorkRoomStatusPayload {
   running: boolean;
   runId: number;
 }
+
+/** 러너가 .vibelign/logs/work-room-last.jsonl 에 영속한 지난 실행 기록(work_last_log). */
+interface WorkLastLogLine {
+  stream: "stdout" | "stderr";
+  line: string;
+}
+
+interface WorkLastLog {
+  provider: string | null;
+  startedAt: number | null;
+  finishedAt: number | null;
+  status: string | null;
+  exitCode: number | null;
+  lines: WorkLastLogLine[];
+}
+
+const RESTORED_STATUS_LABEL: Record<string, string> = {
+  done: "완료",
+  failed: "실패",
+  cancelled: "취소",
+};
 
 const LINE_STYLE: Record<WorkDisplayLine["kind"], CSSProperties> = {
   info: { fontFamily: "IBM Plex Mono, monospace", fontSize: 12, color: "#777" },
@@ -101,6 +122,7 @@ export default function WorkRoom({
   const lastOutputAtRef = useRef<number>(Date.now());
   const [runOutcome, setRunOutcome] = useState<RunOutcome | null>(null);
   const [items, setItems] = useState<{ runId: number; line: WorkDisplayLine }[]>([]);
+  const [lastLog, setLastLog] = useState<WorkLastLog | null>(null);
   const [activeRunId, setActiveRunId] = useState<number | null>(null);
   const activeRunIdRef = useRef<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -126,6 +148,15 @@ export default function WorkRoom({
       })
       .catch(() => setProviders([]));
   }, []);
+
+  // 지난 실행 기록 복원 — 앱 재시작 후에도 직전 실행을 볼 수 있게(알람앱 트라이얼 요구).
+  useEffect(() => {
+    void invoke<WorkLastLog | null>("work_last_log", { cwd: projectDir })
+      .then((log) => {
+        if (log && log.lines.length > 0) setLastLog(log);
+      })
+      .catch(() => {});
+  }, [projectDir]);
 
   // idle 경고 — "출력 무변화 + 실행 중" 기준(§10 P1). 슬립 복귀 직후 오탐이 가능하지만
   // 파괴적 동작 없는 힌트라 수용. 새 출력이 오면 리스너가 끈다.
@@ -223,6 +254,7 @@ export default function WorkRoom({
     if (!instruction) return;
     setErrorMsg(null);
     setItems([]);
+    setLastLog(null);
     setRunOutcome(null);
     setGuardResult(null);
     setGuardError(null);
@@ -263,6 +295,12 @@ export default function WorkRoom({
   }
 
   const visibleItems = items.filter((i) => activeRunId === null || i.runId === activeRunId);
+  const restoredLines = useMemo(
+    () => (lastLog ? lastLog.lines.flatMap((l) => formatWorkOutputLine(l.line)) : []),
+    [lastLog],
+  );
+  const showRestored = phase !== "running" && visibleItems.length === 0 && restoredLines.length > 0;
+  const displayLines: WorkDisplayLine[] = showRestored ? restoredLines : visibleItems.map((i) => i.line);
   const guardPassed = guardResult?.status === "pass";
 
   return (
@@ -498,18 +536,29 @@ export default function WorkRoom({
         )}
       </section>
 
-      {/* 스트리밍 출력 */}
-      {(visibleItems.length > 0 || phase === "running") && (
+      {/* 스트리밍 출력 — 실행 중엔 라이브, 그 외엔 영속된 지난 실행 기록을 복원 표시 */}
+      {(displayLines.length > 0 || phase === "running") && (
         <section className="card" style={{ padding: 12 }}>
-          <div style={{ fontSize: 12, fontWeight: 900, marginBottom: 8 }}>진행 내용</div>
+          <div style={{ fontSize: 12, fontWeight: 900, marginBottom: 8 }}>
+            {showRestored ? "지난 실행 기록" : "진행 내용"}
+          </div>
+          {showRestored && lastLog && (
+            <div style={{ fontSize: 11, color: "#777", fontWeight: 700, marginBottom: 6 }}>
+              {lastLog.finishedAt ? new Date(lastLog.finishedAt * 1000).toLocaleString() : ""}
+              {lastLog.provider
+                ? ` · ${PROVIDER_DEFS.find((d) => d.id === lastLog.provider)?.label ?? lastLog.provider}`
+                : ""}
+              {lastLog.status ? ` · ${RESTORED_STATUS_LABEL[lastLog.status] ?? lastLog.status}` : ""}
+            </div>
+          )}
           <div
             ref={outputRef}
             style={{ maxHeight: 380, overflowY: "auto", display: "grid", gap: 6, border: "1px solid #D6D2C4", padding: 10, background: "#fff" }}
           >
-            {visibleItems.length === 0 && <div style={{ fontSize: 12, color: "#888" }}>출력을 기다리는 중…</div>}
-            {visibleItems.map((item, idx) => (
-              <div key={idx} style={LINE_STYLE[item.line.kind]}>
-                {item.line.text}
+            {displayLines.length === 0 && <div style={{ fontSize: 12, color: "#888" }}>출력을 기다리는 중…</div>}
+            {displayLines.map((line, idx) => (
+              <div key={idx} style={LINE_STYLE[line.kind]}>
+                {line.text}
               </div>
             ))}
           </div>
