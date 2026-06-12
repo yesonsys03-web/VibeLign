@@ -76,6 +76,10 @@ struct WorkAdapter {
     /// --mcp-config 류 주입 인자를 이해하는 CLI 만 true — codex 는 설정 체계(-c TOML)가
     /// 달라 MVP 미주입. 사후 guard(M3)가 안전망이고, 어댑터별 주입은 후속.
     mcp_injection: bool,
+    /// 테스트 실행 화이트리스트(2026-06-12 결정) — acceptEdits 는 편집만 자동 승인이라
+    /// 헤드리스에서 에이전트가 자기 코드를 테스트하지 못했다("코드는 썼지만 실행 검증
+    /// 불가"). 정확히 테스트 명령만 허용 — 그 외 셸 명령은 여전히 차단된다.
+    test_allowlist: &'static [&'static str],
 }
 
 fn work_adapter(provider: &str) -> Option<WorkAdapter> {
@@ -87,14 +91,24 @@ fn work_adapter(provider: &str) -> Option<WorkAdapter> {
             executable: "claude",
             args: &["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"],
             mcp_injection: true,
+            // 정확형 + 접두형(:* = 인자 허용) 쌍 — npm test / node --test 만.
+            test_allowlist: &[
+                "Bash(npm test)",
+                "Bash(npm test:*)",
+                "Bash(node --test)",
+                "Bash(node --test:*)",
+            ],
         }),
         // exec 는 stdin 지시문을 공식 지원(2026-06-12 실검증, codex-cli 0.139).
         // workspace-write: 워크스페이스 한정 쓰기. skip-git-repo-check: 비-git 프로젝트
         // 지원(가이드 스펙 §3.1 정합). --json: JSONL 이벤트(streamJson.ts 가 해석).
+        // codex 는 자체 샌드박스(workspace-write)가 명령 실행을 워크스페이스 한정으로
+        // 이미 허용·격리한다 — 별도 화이트리스트 불필요.
         "codex" => Some(WorkAdapter {
             executable: "codex",
             args: &["exec", "--json", "--sandbox", "workspace-write", "--skip-git-repo-check"],
             mcp_injection: false,
+            test_allowlist: &[],
         }),
         _ => None,
     }
@@ -253,18 +267,29 @@ fn prepare_mcp_injection(run_id: u64) -> Option<std::path::PathBuf> {
     Some(path)
 }
 
-/// 주입 시 CLI 인자 — allowedTools 로 vibelign 서버 도구를 헤드리스에서 승인한다
-/// (acceptEdits 는 편집만 자동 승인하므로 MCP 도구는 별도 허용이 필요).
-/// strict: 사용자 전역 MCP 서버(메일 등)를 헤드리스 실행에 끌어들이지 않는다 —
-/// 결정론·소음 차단(2026-06-12 실검증: 미지정 시 전역 서버가 함께 로드됨).
+/// 주입 시 CLI 인자 — strict: 사용자 전역 MCP 서버(메일 등)를 헤드리스 실행에
+/// 끌어들이지 않는다(2026-06-12 실검증: 미지정 시 전역 서버가 함께 로드됨).
+/// 도구 승인(--allowedTools)은 테스트 화이트리스트와 합쳐 한 번만 내보낸다.
 fn injection_args(config: &std::path::Path) -> Vec<String> {
     vec![
         "--mcp-config".to_string(),
         config.to_string_lossy().to_string(),
         "--strict-mcp-config".to_string(),
-        "--allowedTools".to_string(),
-        "mcp__vibelign".to_string(),
     ]
+}
+
+/// --allowedTools 값 조립 — 테스트 화이트리스트 + (주입 성공 시) vibelign MCP.
+/// 쉼표 결합 단일 플래그: 플래그를 두 번 주면 CLI 파서가 덮어쓸 수 있다.
+fn allowed_tools_value(test_allowlist: &[&str], mcp_injected: bool) -> Option<String> {
+    let mut allowed: Vec<&str> = test_allowlist.to_vec();
+    if mcp_injected {
+        allowed.push("mcp__vibelign");
+    }
+    if allowed.is_empty() {
+        None
+    } else {
+        Some(allowed.join(","))
+    }
 }
 
 /// 주입 성공 시 지시문 뒤에 붙는 안내 — 러너가 stdin 페이로드에 합류시킨다
@@ -391,6 +416,10 @@ pub(crate) fn work_run(
     cmd.args(adapter.args);
     if let Some(cfg) = mcp_config.as_deref() {
         cmd.args(injection_args(cfg));
+    }
+    if let Some(allowed) = allowed_tools_value(adapter.test_allowlist, mcp_config.is_some()) {
+        cmd.arg("--allowedTools");
+        cmd.arg(allowed);
     }
     cmd.current_dir(std::path::PathBuf::from(&cwd));
     cmd.stdin(std::process::Stdio::piped());
@@ -561,12 +590,33 @@ mod tests {
     }
 
     #[test]
-    fn injection_args_use_mcp_config_and_server_level_allow() {
+    fn injection_args_use_strict_mcp_config() {
         let args = super::injection_args(std::path::Path::new("/tmp/cfg.json"));
-        assert_eq!(
-            args,
-            vec!["--mcp-config", "/tmp/cfg.json", "--strict-mcp-config", "--allowedTools", "mcp__vibelign"]
-        );
+        assert_eq!(args, vec!["--mcp-config", "/tmp/cfg.json", "--strict-mcp-config"]);
+    }
+
+    #[test]
+    fn allowed_tools_combine_test_allowlist_and_mcp_in_single_value() {
+        // 화이트리스트 + MCP 를 쉼표 결합 단일 값으로 — 플래그 중복 시 파서가 덮어쓸 수 있다.
+        let adapter = work_adapter("claude").expect("claude adapter");
+        let value = super::allowed_tools_value(adapter.test_allowlist, true).expect("value");
+        assert!(value.contains("Bash(npm test:*)"));
+        assert!(value.contains("Bash(node --test:*)"));
+        assert!(value.ends_with("mcp__vibelign"));
+        // 테스트 명령 외 임의 셸 허용이 끼어들지 않게 — 전부 Bash(테스트…) 또는 mcp 네임스페이스.
+        for tool in value.split(',') {
+            assert!(
+                tool.starts_with("Bash(npm test") || tool.starts_with("Bash(node --test") || tool == "mcp__vibelign",
+                "unexpected allowed tool: {tool}"
+            );
+        }
+        // 주입 실패 시에도 테스트 화이트리스트는 유지된다.
+        let fallback = super::allowed_tools_value(adapter.test_allowlist, false).expect("value");
+        assert!(!fallback.contains("mcp__vibelign"));
+        assert!(fallback.contains("Bash(npm test)"));
+        // codex 는 자체 샌드박스 — 화이트리스트 없음 → 플래그 미발행.
+        let codex = work_adapter("codex").expect("codex adapter");
+        assert!(super::allowed_tools_value(codex.test_allowlist, false).is_none());
     }
 
     #[test]
