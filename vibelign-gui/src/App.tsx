@@ -256,6 +256,22 @@ export default function App() {
     guardCheckedFingerprintRef.current = null;
   }, [projectDir]);
 
+  // 작동 검증(써봤다 ✓) 신호 — guardStatus 와 짝이되 inferStep 게이팅은 안 건드린다(추가 축).
+  // 리셋 규칙도 guardStatus 동형: 검증 시점 지문 ≠ 현재 지문이면 stale → 무효화(코드 또 고치면 재검증).
+  const [runVerified, setRunVerified] = useState(false);
+  const runVerifiedFingerprintRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!runVerified || changedFingerprint === null) return;
+    if (changedFingerprint !== runVerifiedFingerprintRef.current) {
+      setRunVerified(false);
+      runVerifiedFingerprintRef.current = null;
+    }
+  }, [changedFingerprint, runVerified]);
+  useEffect(() => {
+    setRunVerified(false);
+    runVerifiedFingerprintRef.current = null;
+  }, [projectDir]);
+
   useEffect(() => {
     if (!projectDir) {
       setWatchError(null);
@@ -555,7 +571,7 @@ export default function App() {
                   guardCheckedFingerprintRef.current = changedFingerprint;
                   setGuardStatus(status);
                 }} />}
-                {page === "run" && <RunPanel projectDir={projectDir} onNavigate={navigate} onRequestWorkHandoff={(h) => { setWorkHandoff(h); navigate("work"); }} />}
+                {page === "run" && <RunPanel projectDir={projectDir} onNavigate={navigate} guardStatus={guardStatus} runVerified={runVerified} onRunVerified={() => { runVerifiedFingerprintRef.current = changedFingerprint; setRunVerified(true); }} onRequestWorkHandoff={(h) => { setWorkHandoff(h); navigate("work"); }} />}
                 {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} launchIntent={doctorLaunchIntent} />}
                 {page === "backups" && <BackupDashboardPage projectDir={projectDir} onBackupsChanged={() => setBackupsVersion((v) => v + 1)} />}
                 {page === "logs" && <ErrorLogs projectDir={projectDir} />}

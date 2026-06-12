@@ -35,6 +35,12 @@ interface RunPanelProps {
   onNavigate: (page: Page) => void;
   /** 실행해보기 → 작업방 핸드오프(§4·§6): error(실패 고치기)·improve(개선 요청). */
   onRequestWorkHandoff?: (handoff: WorkHandoff) => void;
+  /** 안전 축 상태(가이드 신호) — 완주 🎉·교차 nudge 표시용. */
+  guardStatus?: "ok" | "issue" | null;
+  /** 작동 축 — 사용자가 "✓ 잘 돼요"로 확인했는지. */
+  runVerified?: boolean;
+  /** 작동 검증 보고 — guardStatus 동형 채널(App). */
+  onRunVerified?: () => void;
 }
 
 type PanelStatus = RunStatusKind | "starting" | null;
@@ -56,7 +62,7 @@ const TONE_COLOR: Record<RunTone, string> = {
   error: "#b42318",
 };
 
-export default function RunPanel({ projectDir, onNavigate, onRequestWorkHandoff }: RunPanelProps) {
+export default function RunPanel({ projectDir, onNavigate, onRequestWorkHandoff, guardStatus, runVerified, onRunVerified }: RunPanelProps) {
   const [recipe, setRecipe] = useState<RunRecipe | null>(null);
   const [detectState, setDetectState] = useState<"loading" | "ready" | "none">("loading");
   const [status, setStatus] = useState<PanelStatus>(null);
@@ -254,6 +260,30 @@ export default function RunPanel({ projectDir, onNavigate, onRequestWorkHandoff 
             <div style={{ fontSize: 12, color: "#444", lineHeight: 1.6 }}>
               앱 창이 열렸어요 — 별도 창에서 직접 확인해 보세요. 닫으려면 아래 <b>중지</b>를 누르세요.
             </div>
+          )}
+
+          {status === "running" && onRunVerified && (
+            runVerified ? (
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#166534" }}>
+                {guardStatus === "ok"
+                  ? "🎉 안전·작동 둘 다 확인했어요 — 한 사이클 완주!"
+                  : "✓ 작동 확인 완료 — 안전도 확인해볼까요?"}
+                {guardStatus !== "ok" && (
+                  <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, marginLeft: 6 }} onClick={() => onNavigate("home")}>
+                    상태 확인 →
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <button className="btn btn-sm" onClick={() => onRunVerified()}>
+                  ✓ 잘 돼요 — 작동 확인 완료
+                </button>
+                <span style={{ fontSize: 11, color: "#888", fontWeight: 700 }}>
+                  미리보기에서 직접 써보고 잘 되면 눌러주세요
+                </span>
+              </div>
+            )
           )}
 
           {status === "running" && onRequestWorkHandoff && (
