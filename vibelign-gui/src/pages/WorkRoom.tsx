@@ -266,7 +266,10 @@ export default function WorkRoom({
   const guardPassed = guardResult?.status === "pass";
 
   return (
-    <div style={{ display: "grid", gap: 12, maxWidth: 860 }}>
+    // App 의 페이지 영역은 overflow:hidden — 다른 페이지들처럼 page-content 가 스크롤을
+    // 소유해야 결과 화면+출력 패널이 길어져도 하단이 잘리지 않는다(알람앱 트라이얼 발견).
+    <div className="page-content">
+      <div style={{ display: "grid", gap: 12, maxWidth: 860 }}>
       <div className="page-header" style={{ marginBottom: 0 }}>
         <div className="page-title">작업방</div>
       </div>
@@ -446,6 +449,15 @@ export default function WorkRoom({
                       · {issue.found} <span style={{ color: "#888" }}>→ {issue.next_step}</span>
                     </div>
                   ))}
+                {/* 위반 0건인데 중지인 경우(예: 새 프로젝트의 앵커 미설정) — 행동 사유는
+                    recommendations 가 담고 있다. 빈 화면 대신 다음 행동을 보여준다. */}
+                {!guardPassed &&
+                  guardResult.issues.length === 0 &&
+                  guardResult.recommendations.slice(0, 3).map((rec, idx) => (
+                    <div key={idx} style={{ fontSize: 12, color: "#444", lineHeight: 1.5 }}>
+                      · {rec}
+                    </div>
+                  ))}
               </div>
             )}
             {guardError && (
@@ -503,6 +515,7 @@ export default function WorkRoom({
           </div>
         </section>
       )}
+      </div>
     </div>
   );
 }
