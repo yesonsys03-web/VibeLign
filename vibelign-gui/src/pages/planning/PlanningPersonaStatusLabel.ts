@@ -73,4 +73,23 @@ export function planningPersonaStatusColor(tone: PlanningPersonaStatusTone): str
   }
 }
 // === ANCHOR: PLANNINGPERSONASTATUSLABEL_PLANNINGPERSONASTATUSCOLOR_END ===
+
+// === ANCHOR: PLANNINGPERSONASTATUSLABEL_FALLBACKREASONLABEL_START ===
+/** fallback 사유→배지 라벨. 상태 라벨과 같은 파일에 둔다 — 새 실패 사유를 추가할 때
+ *  두 표면(상태 표시·대체 배지)을 한 화면에서 같이 챙기게(리뷰 #10). */
+export function fallbackReasonLabel(reason: string): string | undefined {
+  switch (reason) {
+    case "not_logged_in":
+      return "로그인 필요";
+    case "not_installed":
+      return "미설치";
+    case "error":
+      return "응답 실패";
+    case "timeout":
+      return "응답 시간 초과";
+    default:
+      return undefined;
+  }
+}
+// === ANCHOR: PLANNINGPERSONASTATUSLABEL_FALLBACKREASONLABEL_END ===
 // === ANCHOR: PLANNINGPERSONASTATUSLABEL_END ===

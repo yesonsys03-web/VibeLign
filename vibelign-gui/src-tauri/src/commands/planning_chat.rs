@@ -305,6 +305,20 @@ fn enrich_input_hash(messages: &[PlanningChatMessage]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
+/// enrich 캐시 조회 — (입력 해시, 캐시 경로, 히트 여부). enrich 와 prewarm 이 캐시 키
+/// 의미(schema_version + 대화 해시)를 반드시 같이 바꿔야 하므로 단일 진입점으로 묶는다.
+fn enrich_cache_probe(
+    session_dir: &std::path::Path,
+    messages: &[PlanningChatMessage],
+) -> (String, PathBuf, bool) {
+    let input_hash = enrich_input_hash(messages);
+    let cache_path = session_dir.join("enrich.json");
+    let hit = read_json::<EnrichCache>(&cache_path)
+        .map(|cache| cache.schema_version == 1 && cache.messages_hash == input_hash)
+        .unwrap_or(false);
+    (input_hash, cache_path, hit)
+}
+
 /// 준비상태 판정·계약 추출 — 각각 CLI(LLM) 1회, 병렬 실행으로 ~1회분 지연.
 /// enrich(저장 후 보강)와 prewarm(턴 종료 선행 분석)이 공유하는 무거운 분석부.
 fn run_enrich_analysis(
@@ -357,11 +371,7 @@ pub(crate) async fn enrich_planning_chat_plan(
         // 대화가 마지막 온전한 분석 이후 그대로면 LLM 2회를 건너뛴다 — 재저장이 즉시 끝난다.
         // 캐시는 분석이 온전히 성공했을 때만 기록되므로, 해시 일치 + 산출물 존재 = 디스크의
         // readiness·contract 가 이 대화의 유효한 분석 결과다(미완이었으면 여기서 재시도).
-        let input_hash = enrich_input_hash(&messages);
-        let cache_path = session_dir.join("enrich.json");
-        let cache_hit = read_json::<EnrichCache>(&cache_path)
-            .map(|cache| cache.schema_version == 1 && cache.messages_hash == input_hash)
-            .unwrap_or(false);
+        let (input_hash, cache_path, cache_hit) = enrich_cache_probe(&session_dir, &messages);
         if cache_hit {
             let contract = super::planning_chat_contract::read_contract(&session_dir);
             let readiness_judged = session.readiness.as_ref().is_some_and(|report| {
@@ -444,12 +454,8 @@ fn prewarm_planning_enrich_blocking(
         return Err("planning chat session not found".to_string());
     }
     let messages = read_json::<Vec<PlanningChatMessage>>(&session_dir.join("messages.json"))?;
-    let input_hash = enrich_input_hash(&messages);
-    let cache_path = session_dir.join("enrich.json");
     // 이미 이 대화의 온전한 분석이 캐시돼 있으면 할 일 없음(중복 LLM 호출 방지).
-    let cache_hit = read_json::<EnrichCache>(&cache_path)
-        .map(|cache| cache.schema_version == 1 && cache.messages_hash == input_hash)
-        .unwrap_or(false);
+    let (input_hash, cache_path, cache_hit) = enrich_cache_probe(&session_dir, &messages);
     if cache_hit {
         return Ok(());
     }

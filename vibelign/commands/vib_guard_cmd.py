@@ -77,6 +77,8 @@ class PlanningData(TypedDict):
     summary: str
     changed_files: list[str]
     required_reasons: list[str]
+    # 계획 제약 강제(forbidden rules·앵커 범위 검증)는 가드 유연화(2026-06, 3단 판정)로
+    # 의도적으로 제거됐다 — 이 필드는 항상 빈 값이며 JSON 스키마 호환을 위해서만 남긴다.
     deviations: list[str]
     exempt_reasons: list[str]
 

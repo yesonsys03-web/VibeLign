@@ -347,6 +347,23 @@ fn spawn_output_thread<R: std::io::Read + Send + 'static>(
     });
 }
 
+/// 실행 종료 공통 정리 — child 해제, mcp 임시 설정 삭제, 로그 메타 기록, 종료 이벤트 발신.
+/// 정상 종료/에러 두 경로가 같은 순서를 타야 임시 파일 잔존이 안 생긴다(리뷰 #7).
+fn finish_run(
+    app: &tauri::AppHandle,
+    guard: &mut WorkRoomRuntime,
+    run_id: u64,
+    label: &'static str,
+    exit_code: Option<i32>,
+) {
+    guard.child = None;
+    if let Some(cfg) = guard.mcp_config.take() {
+        let _ = std::fs::remove_file(cfg);
+    }
+    append_log_meta(guard.run_log.take(), label, exit_code);
+    let _ = app.emit("work-status", WorkStatusEvent { run_id, status: label, exit_code });
+}
+
 /// 종료 감시 — try_wait 폴링으로 child 소유권을 Mutex 안에 유지한다(취소가 같은
 /// 자리에서 kill 할 수 있어야 하므로 wait() 로 들고 나가면 안 된다).
 fn spawn_waiter_thread(app: tauri::AppHandle, state: Arc<Mutex<WorkRoomRuntime>>, run_id: u64) {
@@ -359,10 +376,6 @@ fn spawn_waiter_thread(app: tauri::AppHandle, state: Arc<Mutex<WorkRoomRuntime>>
         let Some(child) = guard.child.as_mut() else { return };
         match child.try_wait() {
             Ok(Some(status)) => {
-                guard.child = None;
-                if let Some(cfg) = guard.mcp_config.take() {
-                    let _ = std::fs::remove_file(cfg);
-                }
                 let label = if guard.cancelled {
                     "cancelled"
                 } else if status.success() {
@@ -370,24 +383,12 @@ fn spawn_waiter_thread(app: tauri::AppHandle, state: Arc<Mutex<WorkRoomRuntime>>
                 } else {
                     "failed"
                 };
-                append_log_meta(guard.run_log.take(), label, status.code());
-                let _ = app.emit(
-                    "work-status",
-                    WorkStatusEvent { run_id, status: label, exit_code: status.code() },
-                );
+                finish_run(&app, &mut guard, run_id, label, status.code());
                 return;
             }
             Ok(None) => {}
             Err(_) => {
-                guard.child = None;
-                if let Some(cfg) = guard.mcp_config.take() {
-                    let _ = std::fs::remove_file(cfg);
-                }
-                append_log_meta(guard.run_log.take(), "failed", None);
-                let _ = app.emit(
-                    "work-status",
-                    WorkStatusEvent { run_id, status: "failed", exit_code: None },
-                );
+                finish_run(&app, &mut guard, run_id, "failed", None);
                 return;
             }
         }

@@ -55,6 +55,35 @@ describe("SimpleHome guard copy", () => {
     expect(openGuardDetails).toHaveBeenCalledOnce();
   });
 
+  test("shows_problem_details_button_from_verdict_even_without_legacy_status", () => {
+    // 위생 재분류(92358a9) 후엔 status 가 pass 여도 verdict 가 prepare 일 수 있다 —
+    // 버튼은 verdict 기준으로 떠야 한다(리뷰 #1 회귀 방지).
+    const prepareOnlyVerdict = {
+      status: "pass",
+      verdict: "prepare",
+      summary: "anchor prep needed",
+      recommendations: [],
+      issues: [],
+    } satisfies GuardResult;
+    render(
+      <SimpleHome
+        guardResult={prepareOnlyVerdict}
+        watchOn={false}
+        watchError={null}
+        hasCheckpoint={false}
+        guardCheckPending={false}
+        guardCheckError={null}
+        onRetryWatch={() => undefined}
+        onRunGuard={() => undefined}
+        onShowAdvanced={() => undefined}
+        onNavigateBackups={() => undefined}
+        onOpenGuardDetails={() => undefined}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "문제 확인하기" })).toBeInTheDocument();
+  });
+
   test("hides_problem_details_button_when_guard_passes_without_issues", () => {
     render(
       <SimpleHome

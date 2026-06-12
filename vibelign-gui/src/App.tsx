@@ -559,7 +559,7 @@ export default function App() {
               onNavigate={navigate}
               onOpenManual={() => setPage("manual")}
               onOpenFolder={() => openFolder(projectDir).catch(() => {})}
-              onExitProject={() => { stopWatch().catch(() => {}); setProjectDir(null); setPlanningResult(null); setReviewSourcePath(null); setPlanningPrompt(""); setPage("home"); }}
+              onExitProject={() => { stopWatch().catch(() => {}); setProjectDir(null); setPlanningResult(null); setReviewSourcePath(null); setPlanningPrompt(""); setWorkHandoff(null); setPage("home"); }}
             />
             <StageSubnav page={page} onNavigate={navigate} />
 

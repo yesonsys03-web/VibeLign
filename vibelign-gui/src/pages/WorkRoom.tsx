@@ -106,6 +106,14 @@ const OUTCOME_LABEL: Record<RunOutcome, { text: string; color: string }> = {
   cancelled: { text: "✋ 작업을 취소했어요 — 이미 바뀐 파일이 있을 수 있어요", color: "#92400E" },
 };
 
+/** verdict→표현(배경·글자색·제목) 단일 매핑 — 색·문구가 갈라지지 않게 한 곳에서(리뷰 #8).
+ *  미지의 verdict 값은 보수적으로 stop 표현을 쓴다. 키를 3값으로 좁혀 오타를 컴파일에서 잡는다. */
+const VERDICT_VIEW: Record<"pass" | "prepare" | "stop", { bg: string; fg: string; title: string }> = {
+  pass: { bg: "#E8F6EC", fg: "#166534", title: "🛡 검사 통과 — AI가 약속 범위 안에서 작업했어요" },
+  prepare: { bg: "#FEF3C7", fg: "#92400E", title: "🛡 이번 작업은 약속 범위 안 ✓ — 다음 실행 전에 준비하면 좋은 항목이 있어요" },
+  stop: { bg: "#FDECEA", fg: "#b42318", title: "🛡 멈출 사유를 찾았어요 — 아래 항목을 먼저 확인하세요" },
+};
+
 /** 체크포인트 설명용 요약 — 기획 요청 앞부분만. */
 function noteSummary(prompt: string): string {
   const trimmed = prompt.trim().replace(/\s+/g, " ");
@@ -592,28 +600,21 @@ export default function WorkRoom({
               {OUTCOME_LABEL[runOutcome].text}
             </div>
 
-            {guardResult && (
+            {guardResult && (() => {
+              const view =
+                guardVerdict === "pass" || guardVerdict === "prepare" ? VERDICT_VIEW[guardVerdict] : VERDICT_VIEW.stop;
+              return (
               <div
                 style={{
                   border: "1px solid #1A1A1A",
                   padding: "8px 10px",
-                  background: guardVerdict === "pass" ? "#E8F6EC" : guardVerdict === "prepare" ? "#FEF3C7" : "#FDECEA",
+                  background: view.bg,
                   display: "grid",
                   gap: 6,
                 }}
               >
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 800,
-                    color: guardVerdict === "pass" ? "#166534" : guardVerdict === "prepare" ? "#92400E" : "#b42318",
-                  }}
-                >
-                  {guardVerdict === "pass"
-                    ? "🛡 검사 통과 — AI가 약속 범위 안에서 작업했어요"
-                    : guardVerdict === "prepare"
-                      ? "🛡 이번 작업은 약속 범위 안 ✓ — 다음 실행 전에 준비하면 좋은 항목이 있어요"
-                      : "🛡 멈출 사유를 찾았어요 — 아래 항목을 먼저 확인하세요"}
+                <div style={{ fontSize: 13, fontWeight: 800, color: view.fg }}>
+                  {view.title}
                 </div>
                 {anchorAutoApplied && (
                   <div style={{ fontSize: 12, color: "#166534", fontWeight: 700 }}>
@@ -636,7 +637,8 @@ export default function WorkRoom({
                     </div>
                   ))}
               </div>
-            )}
+              );
+            })()}
             {guardError && (
               <div style={{ fontSize: 12, color: "#92400E", fontWeight: 700, background: "#FFF3D0", border: "1px solid #1A1A1A", padding: "8px 10px" }}>
                 {guardError}

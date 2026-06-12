@@ -2,20 +2,13 @@
 import type { PlanningChatMessage } from "../../lib/vib";
 import { PlanningPersonaAvatar } from "./PlanningPersonaAvatar";
 import { planningPersonaLabel } from "./PlanningPersonas";
-import { planningPersonaStatusBackground, planningPersonaStatusColor, planningPersonaStatusDisplay } from "./PlanningPersonaStatusLabel";
-
-const FALLBACK_REASON_LABEL: Record<string, string> = {
-  not_logged_in: "로그인 필요",
-  not_installed: "미설치",
-  error: "응답 실패",
-  timeout: "응답 시간 초과",
-};
+import { fallbackReasonLabel, planningPersonaStatusBackground, planningPersonaStatusColor, planningPersonaStatusDisplay } from "./PlanningPersonaStatusLabel";
 
 // === ANCHOR: PLANNINGMESSAGES_FALLBACKBADGELABEL_START ===
 export function fallbackBadgeLabel(message: PlanningChatMessage): string | null {
   if (!message.providerUsed) return null;
   const base = `${message.providerUsed}로 대체됨`;
-  const reason = message.fallbackReason ? FALLBACK_REASON_LABEL[message.fallbackReason] : undefined;
+  const reason = message.fallbackReason ? fallbackReasonLabel(message.fallbackReason) : undefined;
   return reason ? `${base} · ${reason}` : base;
 }
 // === ANCHOR: PLANNINGMESSAGES_FALLBACKBADGELABEL_END ===

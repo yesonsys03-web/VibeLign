@@ -38,7 +38,9 @@ export function SimpleHome({
   const safety = guardSafetyCopy(guardResult, watchOn);
   const nextAction = guardNextActionCopy(guardResult, watchOn);
   const canRunGuard = !nextAction.needsAction && !watchOn;
-  const hasGuardProblemDetails = guardResult?.status === "fail" || guardResult?.status === "warn";
+  // 3단 verdict(ee86b90) 기준 — 위반(stop)·준비(prepare) 모두 상세 진입을 연다.
+  // status(fail/warn)는 구 기계 게이트라 위생 재분류(92358a9) 후 prepare 를 못 잡는다.
+  const hasGuardProblemDetails = guardResult?.verdict === "stop" || guardResult?.verdict === "prepare";
   return (
     <section style={{ display: "grid", gap: 10 }}>
       <SafetyAutomationNotice rawError={watchError} onRetry={onRetryWatch} />
