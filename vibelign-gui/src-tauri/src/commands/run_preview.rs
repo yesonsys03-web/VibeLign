@@ -18,6 +18,7 @@
 
 use std::io::{BufRead, BufReader};
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
@@ -187,6 +188,61 @@ pub(crate) fn detect_run_recipe(package_json: &str) -> Option<RunRecipe> {
     None
 }
 
+// ─── 포트 감지 (순수 코어, 테스트 우선) ─────────────────────────────────────────
+
+/// 미리보기로 띄울 수 있는 로컬 호스트 — 0.0.0.0/127.0.0.1 은 webview 로딩을 위해
+/// localhost 로 정규화한다.
+const LOCAL_HOSTS: [&str; 3] = ["localhost", "127.0.0.1", "0.0.0.0"];
+
+/// dev 서버 출력 한 줄에서 로컬 미리보기 URL 을 추출 → `http://localhost:PORT`.
+/// vite(`➜ Local: http://localhost:5173/`)·next·CRA·일반 서버 출력의 다중 형식을
+/// 커버한다(§9 P1). 네트워크 주소(192.168.x.x)는 건너뛰고 로컬만 — NO_COLOR 로
+/// ANSI 가 이미 제거돼 있다고 가정한다. 순수 함수(테스트 용이).
+pub(crate) fn detect_preview_url(line: &str) -> Option<String> {
+    // http 를 https 보다 먼저 — dev 서버는 http 가 기본이고, 한 줄에 둘이 섞여도
+    // 로컬 http 를 우선한다.
+    for scheme in ["http://", "https://"] {
+        let mut from = 0usize;
+        while let Some(rel) = line[from..].find(scheme) {
+            let host_start = from + rel + scheme.len();
+            let rest = &line[host_start..];
+            // 호스트 = ':' / '/' / 공백 전까지.
+            let host_end = rest
+                .find(|c: char| c == ':' || c == '/' || c.is_whitespace())
+                .unwrap_or(rest.len());
+            let host = &rest[..host_end];
+            if LOCAL_HOSTS.contains(&host) && rest[host_end..].starts_with(':') {
+                let port: String =
+                    rest[host_end + 1..].chars().take_while(|c| c.is_ascii_digit()).collect();
+                if let Ok(port) = port.parse::<u16>() {
+                    if port > 0 {
+                        return Some(format!("{scheme}localhost:{port}"));
+                    }
+                }
+            }
+            from = host_start;
+        }
+    }
+    None
+}
+
+/// 미리보기 webview 창의 고정 라벨 — 한 실행당 하나(재사용·정리 대상).
+const PREVIEW_LABEL: &str = "run-preview";
+
+/// 미리보기로 허용되는 주소인지 — 로컬 http(s) 만. detect_preview_url 가 만든 주소를
+/// 프런트가 그대로 돌려보내지만, 임의 외부 URL 로딩을 막는 방어선이다.
+fn validate_local_url(url: &str) -> Result<tauri::Url, String> {
+    let parsed = tauri::Url::parse(url).map_err(|_| "잘못된 미리보기 주소예요.".to_string())?;
+    let scheme_ok = matches!(parsed.scheme(), "http" | "https");
+    let host_ok =
+        matches!(parsed.host_str(), Some("localhost") | Some("127.0.0.1") | Some("0.0.0.0"));
+    if scheme_ok && host_ok {
+        Ok(parsed)
+    } else {
+        Err("로컬 미리보기 주소만 열 수 있어요.".into())
+    }
+}
+
 // ─── 러너 (watch/work_room 수명주기 복제) ───────────────────────────────────────
 
 struct RunRuntime {
@@ -254,6 +310,14 @@ struct RunStatusEvent {
     exit_code: Option<i32>,
 }
 
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RunPreviewReadyEvent {
+    run_id: u64,
+    /// `http://localhost:PORT` — 프런트가 [미리보기 열기] 버튼으로 open_preview 에 돌려준다.
+    url: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RunStatusInfo {
@@ -295,12 +359,15 @@ fn build_command(exe: &Path, args: &[String], cwd: &Path) -> std::process::Comma
     cmd
 }
 
+/// port_ready Some(flag) 인 스트림(run 단계·웹/unknown)에서만 포트를 감지한다.
+/// flag 는 stdout/stderr 스레드가 공유 — compare_exchange 로 첫 감지 1회만 emit 한다.
 fn spawn_output_thread<R: std::io::Read + Send + 'static>(
     reader: R,
     app: tauri::AppHandle,
     run_id: u64,
     phase: &'static str,
     stream: &'static str,
+    port_ready: Option<Arc<AtomicBool>>,
 ) {
     std::thread::spawn(move || {
         for line in BufReader::new(reader).lines() {
@@ -308,6 +375,19 @@ fn spawn_output_thread<R: std::io::Read + Send + 'static>(
             let line = line.trim_end_matches('\r').to_string();
             if line.is_empty() {
                 continue;
+            }
+            if let Some(flag) = port_ready.as_ref() {
+                if !flag.load(Ordering::Relaxed) {
+                    if let Some(url) = detect_preview_url(&line) {
+                        // 첫 감지만 — 두 스트림이 동시에 잡아도 한 번만 발화.
+                        if flag
+                            .compare_exchange(false, true, Ordering::SeqCst, Ordering::Relaxed)
+                            .is_ok()
+                        {
+                            let _ = app.emit("run-preview-ready", RunPreviewReadyEvent { run_id, url });
+                        }
+                    }
+                }
             }
             let _ = app.emit("run-output", RunOutputEvent { run_id, phase, stream, line });
         }
@@ -323,6 +403,7 @@ enum Registered {
 
 /// 자식 spawn → (취소 확인 · 점유 토큰 확인 · child 저장)을 **단일 critical section** 으로.
 /// 확인과 저장을 두 lock 으로 쪼개면 그 틈의 취소가 추적 불가한 dev 서버를 남긴다(advisor 지적).
+#[allow(clippy::too_many_arguments)]
 fn spawn_and_register(
     app: &tauri::AppHandle,
     shared: &Arc<Mutex<RunRuntime>>,
@@ -331,6 +412,7 @@ fn spawn_and_register(
     args: &[String],
     run_id: u64,
     phase: &'static str,
+    port_ready: Option<Arc<AtomicBool>>,
 ) -> Registered {
     let mut child = match build_command(exe, args, cwd).spawn() {
         Ok(c) => c,
@@ -351,10 +433,10 @@ fn spawn_and_register(
         guard.child = Some(child);
     }
     if let Some(out) = stdout {
-        spawn_output_thread(out, app.clone(), run_id, phase, "stdout");
+        spawn_output_thread(out, app.clone(), run_id, phase, "stdout", port_ready.clone());
     }
     if let Some(err) = stderr {
-        spawn_output_thread(err, app.clone(), run_id, phase, "stderr");
+        spawn_output_thread(err, app.clone(), run_id, phase, "stderr", port_ready);
     }
     Registered::Ok
 }
@@ -407,11 +489,18 @@ fn finish(
     status: &'static str,
     exit_code: Option<i32>,
 ) {
+    let mut owned = false;
     if let Ok(mut guard) = shared.lock() {
         if guard.run_id == run_id {
             guard.active = false;
             guard.child = None;
+            owned = true;
         }
+    }
+    // dev 서버가 떠난 미리보기 창은 stale — 내 실행의 종료일 때만 정리한다(새 실행이
+    // 점유한 슬롯이면 그 실행의 미리보기를 닫지 않는다).
+    if owned {
+        close_preview_window(app);
     }
     let _ = app.emit("run-status", RunStatusEvent { run_id, status, exit_code });
 }
@@ -426,6 +515,7 @@ fn spawn_orchestrator(
     run_args: Vec<String>,
     run_id: u64,
     needs_install: bool,
+    detect_port: bool,
 ) {
     std::thread::spawn(move || {
         // ── INSTALL 단계 (node_modules 없을 때 1회) ──
@@ -434,7 +524,7 @@ fn spawn_orchestrator(
                 "run-status",
                 RunStatusEvent { run_id, status: "installing", exit_code: None },
             );
-            match spawn_and_register(&app, &shared, &cwd, &npm, &["install".into()], run_id, "install") {
+            match spawn_and_register(&app, &shared, &cwd, &npm, &["install".into()], run_id, "install", None) {
                 Registered::Ok => {}
                 Registered::Aborted => {
                     finish(&app, &shared, run_id, "stopped", None);
@@ -478,7 +568,9 @@ fn spawn_orchestrator(
         }
 
         // ── RUN 단계 (장기 dev 프로세스) ──
-        match spawn_and_register(&app, &shared, &cwd, &run_exe, &run_args, run_id, "run") {
+        // 웹/unknown 만 포트 감지 — electron 은 자체 OS 창이라 webview 불필요.
+        let port_ready = detect_port.then(|| Arc::new(AtomicBool::new(false)));
+        match spawn_and_register(&app, &shared, &cwd, &run_exe, &run_args, run_id, "run", port_ready) {
             Registered::Ok => {
                 let _ = app.emit(
                     "run-status",
@@ -563,6 +655,8 @@ pub(crate) fn run_start(
     drop(guard);
 
     let needs_install = !cwd_path.join("node_modules").is_dir();
+    // electron 은 자체 OS 창 — webview 포트 감지 대상이 아니다(§4·§5).
+    let detect_port = recipe.kind != ProjectKind::Electron;
     spawn_orchestrator(
         app,
         Arc::clone(&state.0),
@@ -572,6 +666,7 @@ pub(crate) fn run_start(
         run_args,
         run_id,
         needs_install,
+        detect_port,
     );
     Ok(RunStartInfo {
         run_id,
@@ -607,6 +702,51 @@ pub(crate) fn run_status(state: tauri::State<RunState>) -> RunStatusInfo {
         .lock()
         .map(|g| RunStatusInfo { running: g.active, run_id: g.run_id })
         .unwrap_or(RunStatusInfo { running: false, run_id: 0 })
+}
+
+// ─── 미리보기 webview (Tauri v2 별도 창, §5) ────────────────────────────────────
+
+fn close_preview_window(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    if let Some(win) = app.get_webview_window(PREVIEW_LABEL) {
+        let _ = win.close();
+    }
+}
+
+/// 미리보기 창 열기/포커스 — 프런트의 [미리보기 열기] 버튼이 run-preview-ready 의 url 로
+/// 호출한다. 이미 있으면 그 창을 해당 url 로 이동·포커스(중복 창 방지). 메인 앱과
+/// 생명주기를 분리한 별도 창이라 사용자가 따로 옮기거나 닫을 수 있다(§5).
+#[tauri::command]
+pub(crate) fn open_preview(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    use tauri::Manager;
+    let parsed = validate_local_url(&url)?;
+    if let Some(win) = app.get_webview_window(PREVIEW_LABEL) {
+        win.navigate(parsed).map_err(|e| e.to_string())?;
+        let _ = win.set_focus();
+        return Ok(());
+    }
+    tauri::WebviewWindowBuilder::new(&app, PREVIEW_LABEL, tauri::WebviewUrl::External(parsed))
+        .title("미리보기 — VibeLign")
+        .inner_size(1100.0, 800.0)
+        // 방어심층: dev 페이지(사용자 임의 코드)가 localhost 밖 외부 origin 으로 스스로
+        // 이동하는 것을 막는다. 초기 URL 은 이미 로컬이라 통과하고, HMR 의 ws:// 는
+        // navigation 이 아니라 영향 없다. capability 가 이미 이 창에 백엔드 권한을 안 주지만
+        // 한 겹 더 — 안전 도구 정체성(§8).
+        .on_navigation(|url| {
+            matches!(url.scheme(), "http" | "https")
+                && matches!(
+                    url.host_str(),
+                    Some("localhost") | Some("127.0.0.1") | Some("0.0.0.0")
+                )
+        })
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn close_preview(app: tauri::AppHandle) {
+    close_preview_window(&app);
 }
 
 #[cfg(test)]
@@ -774,6 +914,81 @@ mod detect_tests {
     fn invalid_json_returns_none() {
         assert!(detect_run_recipe("{ not json").is_none());
         assert!(detect_run_recipe("").is_none());
+    }
+
+    // ─── 포트 감지 ──────────────────────────────────────────────────────────────
+
+    #[test]
+    fn vite_local_line_detected() {
+        assert_eq!(
+            detect_preview_url("  ➜  Local:   http://localhost:5173/"),
+            Some("http://localhost:5173".to_string())
+        );
+    }
+
+    #[test]
+    fn next_local_line_detected() {
+        assert_eq!(
+            detect_preview_url("   - Local:        http://localhost:3000"),
+            Some("http://localhost:3000".to_string())
+        );
+    }
+
+    #[test]
+    fn cra_local_line_detected() {
+        assert_eq!(
+            detect_preview_url("  Local:            http://localhost:3000"),
+            Some("http://localhost:3000".to_string())
+        );
+    }
+
+    #[test]
+    fn loopback_ip_normalized_to_localhost() {
+        assert_eq!(
+            detect_preview_url("Server running at http://127.0.0.1:8080/"),
+            Some("http://localhost:8080".to_string())
+        );
+    }
+
+    #[test]
+    fn any_interface_address_normalized_to_localhost() {
+        assert_eq!(
+            detect_preview_url("App listening on http://0.0.0.0:4000"),
+            Some("http://localhost:4000".to_string())
+        );
+    }
+
+    #[test]
+    fn local_preferred_over_network_address() {
+        // vite 는 Local 과 Network 을 같은 블록에 찍는다 — 한 줄에 섞여도 로컬을 고른다.
+        assert_eq!(
+            detect_preview_url("Local: http://localhost:5173/  Network: http://192.168.0.5:5173/"),
+            Some("http://localhost:5173".to_string())
+        );
+    }
+
+    #[test]
+    fn network_only_line_is_ignored() {
+        assert!(detect_preview_url("  ➜  Network: http://192.168.0.5:5173/").is_none());
+    }
+
+    #[test]
+    fn line_without_url_is_none() {
+        assert!(detect_preview_url("VITE v5.0.0  ready in 320 ms").is_none());
+    }
+
+    #[test]
+    fn localhost_without_port_is_none() {
+        assert!(detect_preview_url("open http://localhost/ now").is_none());
+    }
+
+    #[test]
+    fn validate_local_url_accepts_localhost_rejects_external() {
+        assert!(validate_local_url("http://localhost:5173").is_ok());
+        assert!(validate_local_url("http://127.0.0.1:3000").is_ok());
+        assert!(validate_local_url("https://evil.example.com").is_err());
+        assert!(validate_local_url("file:///etc/passwd").is_err());
+        assert!(validate_local_url("not a url").is_err());
     }
 }
 // === ANCHOR: RUN_PREVIEW_END ===

@@ -153,6 +153,8 @@ pub fn run() {
             commands::run_preview::run_start,
             commands::run_preview::run_stop,
             commands::run_preview::run_status,
+            commands::run_preview::open_preview,
+            commands::run_preview::close_preview,
             commands::platform::open_folder,
             commands::code::read_code_file,
             commands::code::read_code_file_diff,
