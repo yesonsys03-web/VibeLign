@@ -11,6 +11,7 @@ import DocsViewer from "./pages/DocsViewer";
 import CodeExplorer from "./pages/CodeExplorer";
 import WorkRoom from "./pages/WorkRoom";
 import RunPanel from "./pages/RunPanel";
+import type { WorkHandoff } from "./lib/run-preview/workHandoff";
 import BackupDashboardPage from "./pages/BackupDashboard";
 import ErrorLogs from "./pages/ErrorLogs";
 import Settings from "./pages/Settings";
@@ -92,9 +93,9 @@ export default function App() {
   const [envKeyStatus, setEnvKeyStatus] = useState<Record<string, boolean>>({});
   const [envKeyStatusLoaded, setEnvKeyStatusLoaded] = useState(false);
   const [prevPage, setPrevPage] = useState<Page>("home");
-  // 실행해보기 실패 → 작업방 핸드오프(루프 닫기 §6). RunPanel 이 에러 tail 을 싣고,
-  // WorkRoom 이 마운트 시 consume-once 로 받아 비운다.
-  const [runErrorFix, setRunErrorFix] = useState<string | null>(null);
+  // 실행해보기 → 작업방 핸드오프(§4·§6): error(시작 실패 고치기)·improve(써보니 다듬기).
+  // RunPanel 이 싣고, WorkRoom 이 마운트 시 consume-once 로 받아 비운다.
+  const [workHandoff, setWorkHandoff] = useState<WorkHandoff | null>(null);
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const [watchOn, setWatchOn] = useState(false);
   const [watchError, setWatchError] = useState<string | null>(null);
@@ -549,12 +550,12 @@ export default function App() {
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={navigate} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} guideStep={guide.enabled ? guide.step : null} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
                 {page === "code" && <CodeExplorer projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} planningDocStale={planningResult?.docStale ?? false} onReviewInPlanning={(path) => { if (projectDir) void openPlanningRoom(projectDir, buildPlanReviewPrompt(path), path); }} />}
-                {page === "work" && <WorkRoom projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} planningDocStale={planningResult?.docStale ?? false} runErrorFix={runErrorFix} onErrorFixConsumed={() => setRunErrorFix(null)} onNavigate={navigate} onOpenSettings={() => openSettings()} onGuardResult={(status) => {
+                {page === "work" && <WorkRoom projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} planningDocStale={planningResult?.docStale ?? false} workHandoff={workHandoff} onWorkHandoffConsumed={() => setWorkHandoff(null)} onNavigate={navigate} onOpenSettings={() => openSettings()} onGuardResult={(status) => {
                   // 작업방 자동 검사도 홈 '상태 확인'과 같은 가이드 신호 채널로 보고(spec §4-7와 동일 지문 기록).
                   guardCheckedFingerprintRef.current = changedFingerprint;
                   setGuardStatus(status);
                 }} />}
-                {page === "run" && <RunPanel projectDir={projectDir} onNavigate={navigate} onRequestErrorFix={(text) => { setRunErrorFix(text); navigate("work"); }} />}
+                {page === "run" && <RunPanel projectDir={projectDir} onNavigate={navigate} onRequestWorkHandoff={(h) => { setWorkHandoff(h); navigate("work"); }} />}
                 {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} launchIntent={doctorLaunchIntent} />}
                 {page === "backups" && <BackupDashboardPage projectDir={projectDir} onBackupsChanged={() => setBackupsVersion((v) => v + 1)} />}
                 {page === "logs" && <ErrorLogs projectDir={projectDir} />}
