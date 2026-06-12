@@ -132,6 +132,7 @@ export default function WorkRoom({
   const [guardError, setGuardError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [anchorFixState, setAnchorFixState] = useState<"idle" | "running" | "error">("idle");
+  const [anchorAutoApplied, setAnchorAutoApplied] = useState(false);
   const outputRef = useRef<HTMLDivElement | null>(null);
 
   const isDetected = (id: ProviderId) => providers?.includes(id) ?? false;
@@ -222,11 +223,31 @@ export default function WorkRoom({
     outputRef.current?.scrollTo({ top: outputRef.current.scrollHeight });
   }, [items, phase]);
 
+  /** 앵커 권고 포함 여부 — 자동 처리 대상 식별. */
+  function hasAnchorRecommendation(recommendations: string[]): boolean {
+    return recommendations.some((r) => r.includes("앵커") || r.toLowerCase().includes("anchor"));
+  }
+
   async function verifyAfterRun() {
     setGuardResult(null);
     setGuardError(null);
+    setAnchorAutoApplied(false);
     try {
-      const result = await vibGuard(projectDir, { strict: true });
+      let result = await vibGuard(projectDir, { strict: true });
+      // 앵커 부재는 기계적으로 해결 가능한 준비 항목 — 사용자에게 시키지 않고 시퀀스가
+      // 자동 처리한다(2026-06-12 피드백: "초보에겐 자동이 더 좋다"). 실행 전 체크포인트가
+      // 안전망이고, 적용 사실은 결과 화면에 명시한다. 실패 시 기존 prepare + 수동 버튼 폴백.
+      if (result.verdict === "prepare" && hasAnchorRecommendation(result.recommendations)) {
+        try {
+          const fix = await runVib(["anchor", "--auto"], projectDir);
+          if (fix.ok) {
+            setAnchorAutoApplied(true);
+            result = await vibGuard(projectDir, { strict: true });
+          }
+        } catch {
+          /* 자동 앵커 실패 — 첫 guard 결과 유지, 수동 버튼이 폴백 */
+        }
+      }
       setGuardResult(result);
       // 가이드 신호는 3단 verdict 기준 — 위생 누적(prepare)은 사이클 진행을 막지 않는다.
       onGuardResult?.(result.verdict === "stop" ? "issue" : "ok");
@@ -310,6 +331,8 @@ export default function WorkRoom({
     setErrorMsg(null);
     setCheckpointError(null);
     setSaveState("idle");
+    setAnchorFixState("idle");
+    setAnchorAutoApplied(false);
   }
 
   const visibleItems = items.filter((i) => activeRunId === null || i.runId === activeRunId);
@@ -518,6 +541,11 @@ export default function WorkRoom({
                       ? "🛡 이번 작업은 약속 범위 안 ✓ — 다음 실행 전에 준비하면 좋은 항목이 있어요"
                       : "🛡 멈출 사유를 찾았어요 — 아래 항목을 먼저 확인하세요"}
                 </div>
+                {anchorAutoApplied && (
+                  <div style={{ fontSize: 12, color: "#166534", fontWeight: 700 }}>
+                    🛡 안전 구역(앵커)을 자동으로 추가해뒀어요 — 다음 AI 작업부터 더 안전하게 적용돼요
+                  </div>
+                )}
                 {guardVerdict === "stop" &&
                   guardResult.issues.slice(0, 3).map((issue, idx) => (
                     <div key={idx} style={{ fontSize: 12, color: "#444", lineHeight: 1.5 }}>
