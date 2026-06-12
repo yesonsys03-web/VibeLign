@@ -12,6 +12,7 @@ import { formatWorkOutputLine, type WorkDisplayLine } from "../lib/work-room/str
 import { checkpointCreate, runVib, vibGuard } from "../lib/vib";
 import type { GuardResult, PlanningContract } from "../lib/vib/types";
 import type { Page } from "../lib/nav/stages";
+import { planCardCollapsed, setPlanCardCollapsed, collapseToggleStyle } from "../lib/nav/collapse";
 
 interface WorkRoomProps {
   projectDir: string;
@@ -136,6 +137,13 @@ export default function WorkRoom({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // 실행해보기 핸드오프(§4) — 있으면 실행 지시문을 핸드오프(error/improve)용으로 바꾼다.
   const [handoff, setHandoff] = useState<WorkHandoff | null>(null);
+  // "작업 기준 기획안" 카드 접기 — 코드탐색 카드와 공유 선호(2026-06-12 사용자 요청).
+  const [planCollapsed, setPlanCollapsed] = useState(planCardCollapsed);
+  const togglePlanCard = () =>
+    setPlanCollapsed((v) => {
+      setPlanCardCollapsed(!v);
+      return !v;
+    });
   const [checkpointError, setCheckpointError] = useState<string | null>(null);
   const [guardResult, setGuardResult] = useState<GuardResult | null>(null);
   const [guardError, setGuardError] = useState<string | null>(null);
@@ -410,15 +418,30 @@ export default function WorkRoom({
         </section>
       ) : instruction ? (
         <section className="card" style={{ display: "grid", gap: 6, padding: 12, background: "#F5F1E3" }}>
-          <div style={{ fontSize: 13, fontWeight: 900 }}>작업 기준 기획안</div>
-          <div style={{ fontSize: 14, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {planningPrompt}
-          </div>
-          <div style={{ fontSize: 13, color: "#666", fontWeight: 700, overflowWrap: "anywhere" }}>{planningOutputPath}</div>
-          {planningDocStale && (
-            <div style={{ fontSize: 13, color: "#B45309", background: "#FEF3C7", border: "1px solid #FDE68A", borderRadius: 4, padding: "6px 8px", fontWeight: 700 }}>
-              ⚠ 기획방 대화가 이 기획안 저장 이후 더 진행됐어요 — 기획방에서 다시 저장한 뒤 실행하는 걸 권장해요.
+          <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
+            <button
+              type="button"
+              style={collapseToggleStyle}
+              title={planCollapsed ? "기획안 카드 펼치기" : "기획안 카드 접기"}
+              aria-expanded={!planCollapsed}
+              onClick={togglePlanCard}
+            >
+              {planCollapsed ? "▸" : "▾"}
+            </button>
+            <div style={{ fontSize: 13, fontWeight: 900, flexShrink: 0 }}>작업 기준 기획안</div>
+            <div style={{ fontSize: 14, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {planningPrompt}
             </div>
+          </div>
+          {!planCollapsed && (
+            <>
+              <div style={{ fontSize: 13, color: "#666", fontWeight: 700, overflowWrap: "anywhere" }}>{planningOutputPath}</div>
+              {planningDocStale && (
+                <div style={{ fontSize: 13, color: "#B45309", background: "#FEF3C7", border: "1px solid #FDE68A", borderRadius: 4, padding: "6px 8px", fontWeight: 700 }}>
+                  ⚠ 기획방 대화가 이 기획안 저장 이후 더 진행됐어요 — 기획방에서 다시 저장한 뒤 실행하는 걸 권장해요.
+                </div>
+              )}
+            </>
           )}
         </section>
       ) : (

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { journeyStep, type ActiveGuideStep } from "../../lib/nav/guide";
 import { PAGE_LABELS, type Page } from "../../lib/nav/stages";
+import { collapseToggleStyle } from "../../lib/nav/collapse";
 
 interface GuideStripProps {
   enabled: boolean;
@@ -137,6 +138,15 @@ export function GuideStrip({
           borderBottom: "2px solid #1A1A1A",
         }}
       >
+        <button
+          type="button"
+          style={collapseToggleStyle}
+          title="안내 자세히 보기"
+          aria-expanded={false}
+          onClick={toggleCollapsed}
+        >
+          ▸
+        </button>
         <span style={{ color: "#7C2D12", fontWeight: 700 }}>
           🧭 {def.icon} {def.label}
         </span>
@@ -149,16 +159,6 @@ export function GuideStrip({
             {def.goLabel ?? `${PAGE_LABELS[def.targetPage]}으로 이동 →`}
           </button>
         )}
-        <div style={{ flex: 1 }} />
-        <button
-          className="nav-tab"
-          style={{ fontSize: 13, padding: "4px 10px", color: "#4A4A4A", borderRight: "none" }}
-          title="안내 자세히 보기"
-          aria-expanded={false}
-          onClick={toggleCollapsed}
-        >
-          ▾ 자세히
-        </button>
       </div>
     );
   }
@@ -180,8 +180,20 @@ export function GuideStrip({
         // 고정 2단 구조 — ①텍스트 행(자연 개행) ②버튼 행. 확대·창 폭에 따라 버튼이 텍스트
         // 옆/아래로 오가며 배치가 출렁이지 않도록 column으로 고정. 버튼 행만 좁을 때 보조적 wrap.
         <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8, fontSize: 15, minWidth: 0, flex: "1 1 auto" }}>
-          {/* 머리말(오버라인) 행 — 단계 제목과 분리해 "라벨 → 내용 → 행동" 3단 고정 위계 */}
-          <span style={{ color: "#555", fontSize: 13, fontWeight: 700, letterSpacing: "0.04em" }}>🧭 지금 할 일:</span>
+          {/* 머리말(오버라인) 행 — 단계 제목과 분리해 "라벨 → 내용 → 행동" 3단 고정 위계.
+              제목 앞 ▾ 칩으로 한 줄 접기(기획안 카드와 통일). */}
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <button
+              type="button"
+              style={collapseToggleStyle}
+              title="한 줄로 접기"
+              aria-expanded={true}
+              onClick={toggleCollapsed}
+            >
+              ▾
+            </button>
+            <span style={{ color: "#555", fontSize: 13, fontWeight: 700, letterSpacing: "0.04em" }}>🧭 지금 할 일:</span>
+          </span>
           <span style={{ color: "#1A1A1A", lineHeight: 1.6 }}>
             <span style={{ color: "#7C2D12", fontWeight: 700 }}>
               {def.icon} {def.label}
@@ -239,14 +251,6 @@ export function GuideStrip({
               onClick={() => setUtilOpen((v) => !v)}
             >
               {utilOpen ? "접기 ▴" : "문제 있나요? ▾"}
-            </button>
-            <button
-              className="nav-tab"
-              style={{ fontSize: 13, padding: "5px 10px", color: "#4A4A4A", borderRight: "none" }}
-              title="가이드를 한 줄로 접기"
-              onClick={toggleCollapsed}
-            >
-              ▴ 한 줄로
             </button>
           </span>
         </span>
