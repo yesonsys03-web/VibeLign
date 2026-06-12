@@ -27,6 +27,7 @@ use tauri::Emitter;
 use super::planning_persona::find_executable;
 use super::platform::{augmented_vib_path, hide_console};
 use super::watch::kill_watch_child as kill_child_tree;
+use super::work_room;
 
 // ─── 타입 감지 (순수 코어, 테스트 우선) ─────────────────────────────────────────
 
@@ -254,11 +255,14 @@ struct RunRuntime {
     active: bool,
     /// 취소 요청 — 오케스트레이터가 stopped 로 보고하게 한다.
     cancelled: bool,
+    /// 감지된 미리보기 URL — run-preview-ready 는 fire-once 라, 탭 이탈 후 복귀(run_status)
+    /// 에서 [미리보기 열기]를 복원하려면 여기 들고 있어야 한다(advisor 지적).
+    preview_url: Option<String>,
 }
 
 impl RunRuntime {
     fn new() -> Self {
-        Self { child: None, run_id: 0, active: false, cancelled: false }
+        Self { child: None, run_id: 0, active: false, cancelled: false, preview_url: None }
     }
 }
 
@@ -323,6 +327,8 @@ struct RunPreviewReadyEvent {
 pub(crate) struct RunStatusInfo {
     running: bool,
     run_id: u64,
+    /// 탭 복귀 시 [미리보기 열기] 복원용 — 감지됐으면 Some.
+    preview_url: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -361,9 +367,11 @@ fn build_command(exe: &Path, args: &[String], cwd: &Path) -> std::process::Comma
 
 /// port_ready Some(flag) 인 스트림(run 단계·웹/unknown)에서만 포트를 감지한다.
 /// flag 는 stdout/stderr 스레드가 공유 — compare_exchange 로 첫 감지 1회만 emit 한다.
+/// 감지 시 url 을 shared.preview_url 에도 적어, 탭 이탈 후 run_status 로 복원 가능하게 한다.
 fn spawn_output_thread<R: std::io::Read + Send + 'static>(
     reader: R,
     app: tauri::AppHandle,
+    shared: Arc<Mutex<RunRuntime>>,
     run_id: u64,
     phase: &'static str,
     stream: &'static str,
@@ -384,6 +392,12 @@ fn spawn_output_thread<R: std::io::Read + Send + 'static>(
                             .compare_exchange(false, true, Ordering::SeqCst, Ordering::Relaxed)
                             .is_ok()
                         {
+                            // 내 실행일 때만 상태에 저장(새 실행이 점유한 슬롯을 덮지 않게).
+                            if let Ok(mut guard) = shared.lock() {
+                                if guard.run_id == run_id {
+                                    guard.preview_url = Some(url.clone());
+                                }
+                            }
                             let _ = app.emit("run-preview-ready", RunPreviewReadyEvent { run_id, url });
                         }
                     }
@@ -433,10 +447,10 @@ fn spawn_and_register(
         guard.child = Some(child);
     }
     if let Some(out) = stdout {
-        spawn_output_thread(out, app.clone(), run_id, phase, "stdout", port_ready.clone());
+        spawn_output_thread(out, app.clone(), Arc::clone(shared), run_id, phase, "stdout", port_ready.clone());
     }
     if let Some(err) = stderr {
-        spawn_output_thread(err, app.clone(), run_id, phase, "stderr", port_ready);
+        spawn_output_thread(err, app.clone(), Arc::clone(shared), run_id, phase, "stderr", port_ready);
     }
     Registered::Ok
 }
@@ -494,6 +508,7 @@ fn finish(
         if guard.run_id == run_id {
             guard.active = false;
             guard.child = None;
+            guard.preview_url = None;
             owned = true;
         }
     }
@@ -624,8 +639,15 @@ pub(crate) fn run_detect(cwd: String) -> Option<RunRecipe> {
 pub(crate) fn run_start(
     app: tauri::AppHandle,
     state: tauri::State<RunState>,
+    work: tauri::State<work_room::WorkRoomState>,
     cwd: String,
 ) -> Result<RunStartInfo, String> {
+    // §5 상호배제(best-effort) — 작업방 AI 가 같은 워킹트리를 고치는 중이면 실행을 막는다.
+    // 두 상태가 별도 락이라 동시 클릭의 microsecond TOCTOU 는 못 막지만(단일 사용자 GUI 라
+    // 사실상 도달 불가, 실패해도 프로세스 2개일 뿐 손상 아님), 사용자 흐름상의 충돌은 막는다.
+    if work_room::is_busy(&work) {
+        return Err("작업방에서 AI가 작업 중이에요. 끝난 뒤 실행해 주세요.".into());
+    }
     let cwd_path = std::path::PathBuf::from(&cwd);
     let content = std::fs::read_to_string(cwd_path.join("package.json"))
         .map_err(|_| "package.json 을 찾을 수 없어요. Node 프로젝트 폴더인지 확인해 주세요.".to_string())?;
@@ -652,6 +674,7 @@ pub(crate) fn run_start(
     guard.cancelled = false;
     guard.active = true;
     guard.child = None;
+    guard.preview_url = None;
     drop(guard);
 
     let needs_install = !cwd_path.join("node_modules").is_dir();
@@ -700,8 +723,17 @@ pub(crate) fn run_status(state: tauri::State<RunState>) -> RunStatusInfo {
     state
         .0
         .lock()
-        .map(|g| RunStatusInfo { running: g.active, run_id: g.run_id })
-        .unwrap_or(RunStatusInfo { running: false, run_id: 0 })
+        .map(|g| RunStatusInfo {
+            running: g.active,
+            run_id: g.run_id,
+            preview_url: g.preview_url.clone(),
+        })
+        .unwrap_or(RunStatusInfo { running: false, run_id: 0, preview_url: None })
+}
+
+/// 러너가 점유 중인지 — 작업방과의 §5 상호배제용(work_run 이 시작 전 읽는다).
+pub(crate) fn is_busy(state: &RunState) -> bool {
+    state.0.lock().map(|g| g.active).unwrap_or(false)
 }
 
 // ─── 미리보기 webview (Tauri v2 별도 창, §5) ────────────────────────────────────

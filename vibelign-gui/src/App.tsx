@@ -10,6 +10,7 @@ import Home from "./pages/Home";
 import DocsViewer from "./pages/DocsViewer";
 import CodeExplorer from "./pages/CodeExplorer";
 import WorkRoom from "./pages/WorkRoom";
+import RunPanel from "./pages/RunPanel";
 import BackupDashboardPage from "./pages/BackupDashboard";
 import ErrorLogs from "./pages/ErrorLogs";
 import Settings from "./pages/Settings";
@@ -550,6 +551,7 @@ export default function App() {
                   guardCheckedFingerprintRef.current = changedFingerprint;
                   setGuardStatus(status);
                 }} />}
+                {page === "run" && <RunPanel projectDir={projectDir} onNavigate={navigate} />}
                 {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} launchIntent={doctorLaunchIntent} />}
                 {page === "backups" && <BackupDashboardPage projectDir={projectDir} onBackupsChanged={() => setBackupsVersion((v) => v + 1)} />}
                 {page === "logs" && <ErrorLogs projectDir={projectDir} />}

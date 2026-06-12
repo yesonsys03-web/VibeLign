@@ -19,6 +19,7 @@ use tauri::Emitter;
 
 use super::planning_persona::find_executable;
 use super::platform::{augmented_vib_path, hide_console};
+use super::run_preview;
 use super::watch::kill_watch_child as kill_child_tree;
 
 struct WorkRoomRuntime {
@@ -46,6 +47,11 @@ pub(crate) struct WorkRoomShutdownHandle(Arc<Mutex<WorkRoomRuntime>>);
 pub(crate) fn new_state_pair() -> (WorkRoomState, WorkRoomShutdownHandle) {
     let inner = Arc::new(Mutex::new(WorkRoomRuntime::new()));
     (WorkRoomState(Arc::clone(&inner)), WorkRoomShutdownHandle(inner))
+}
+
+/// 작업방이 실행 중인지 — 실행해보기 러너와의 §5 상호배제용(run_start 가 시작 전 읽는다).
+pub(crate) fn is_busy(state: &WorkRoomState) -> bool {
+    state.0.lock().map(|g| g.child.is_some()).unwrap_or(false)
 }
 
 /// 앱 종료 경로 공통 정리 — 확인 다이얼로그가 못 뜨는 종료(로그오프 등)에서도
@@ -392,11 +398,17 @@ fn spawn_waiter_thread(app: tauri::AppHandle, state: Arc<Mutex<WorkRoomRuntime>>
 pub(crate) fn work_run(
     app: tauri::AppHandle,
     state: tauri::State<WorkRoomState>,
+    run: tauri::State<run_preview::RunState>,
     provider: String,
     instruction: String,
     cwd: String,
     plan_path: Option<String>,
 ) -> Result<u64, String> {
+    // §5 상호배제(best-effort) — 실행해보기가 같은 워킹트리에서 도는 중이면 작업을 막는다
+    // (run_start 의 반대 방향. 별도 락 TOCTOU 는 run_preview 쪽 주석 참조).
+    if run_preview::is_busy(&run) {
+        return Err("실행해보기가 도는 중이에요. 중지한 뒤 작업해 주세요.".into());
+    }
     let adapter =
         work_adapter(&provider).ok_or_else(|| format!("지원하지 않는 프로바이더입니다: {provider}"))?;
     let executable = find_executable(adapter.executable).ok_or_else(|| {

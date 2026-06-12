@@ -9,6 +9,7 @@ export { checkGitInstalled, checkXcodeClt, getVibPath, loadRecentProjects, openF
 export { clearErrorLogs, readErrorLogs } from "./errorLogs";
 export { addClaudeToUserPath, detectInstalledTools, getOnboardingLogs, getOnboardingSnapshot, listenOnboardingProgress, retryOnboardingVerification, startNativeInstall, startOnboardingLoginProbe, startWslInstall, uninstallClaudeCode } from "./onboarding";
 export { getWatchErrors, getWatchLogs, startWatch, stopWatch, watchStatus } from "./watch";
+export { closePreview, openPreview, runDetect, runStart, runStatus, runStop, type RunOutputEvent, type RunPreviewReadyEvent, type RunProjectKind, type RunRecipe, type RunStartInfo, type RunStatusEvent, type RunStatusInfo, type RunStatusKind } from "./run";
 export { anchorAutoIntent, anchorAutoIntentJson, anchorListMeta, anchorSetIntent } from "./anchor";
 export { acceptHandoffDraftField, createHandoffDraft, dismissHandoffDraftField, memorySummary, vibTransfer } from "./memory";
 export { recoveryPreview, recoveryRecommend } from "./recovery";
