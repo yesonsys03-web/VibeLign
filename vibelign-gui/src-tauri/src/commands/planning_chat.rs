@@ -613,6 +613,115 @@ mod tests {
         assert_ne!(enrich_input_hash(&base), enrich_input_hash(&extended));
     }
 
+    /// 실측 E2E(수동 전용): 프리웜→저장→enrich 타이밍 검증. 실제 claude CLI(opus)를
+    /// 호출하므로 로그인·네트워크 필요 — 평소 suite 에서 제외(#[ignore]).
+    /// 실행: cargo test e2e_save_timing -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn e2e_save_timing_with_prewarm() {
+        use std::time::Instant;
+        fn chat(role: &str, persona: Option<&str>, content: &str) -> PlanningChatMessage {
+            let mut message = msg(role, persona);
+            message.content = content.to_string();
+            message
+        }
+        fn save_request(project_dir: &std::path::Path, session_id: &str) -> SavePlanningChatPlanRequest {
+            SavePlanningChatPlanRequest {
+                project_dir: project_dir.to_string_lossy().into_owned(),
+                session_id: session_id.to_string(),
+                target_path: None,
+                source: None,
+            }
+        }
+        fn assert_ok(label: &str, response: &PlanningChatSessionResponse) {
+            let json = serde_json::to_value(response).expect("json");
+            assert_eq!(json["ok"], true, "{label} failed: {json}");
+        }
+
+        let root = tempfile::tempdir().expect("root");
+        let project_dir = root.path().to_path_buf();
+        let session_id = "chat_e2e_1";
+        let session_dir = planning_dir(&project_dir).join(session_id);
+        std::fs::create_dir_all(&session_dir).expect("mkdir");
+        let session = StoredPlanningChatSession {
+            schema_version: 1,
+            session_id: session_id.to_string(),
+            idea: "혼자 쓰는 할 일 앱 — 마감일 알림이 핵심".to_string(),
+            mode: "chat".to_string(),
+            created_at: "1".to_string(),
+            output_path: None,
+            absolute_output_path: None,
+            doc_stale: false,
+            readiness: None,
+        };
+        let mut messages = vec![
+            chat("user", None, "혼자 쓰는 할 일 앱을 만들고 싶어. 마감일이 가까워지면 알려주는 게 핵심이야."),
+            chat("assistant", Some("chloe"), "핵심 기능: 할 일 추가와 완료 체크\n핵심 기능: 마감 24시간 전 데스크톱 알림\n사용자 흐름: 홈 목록 → '+' 버튼 → 제목·마감일 입력 → 저장 → 마감 임박 시 알림\n질문: 알림 시점을 사용자가 바꿀 수 있어야 하나요?"),
+            chat("user", None, "알림 시점은 24시간 전 고정으로 가자. 다른 사람과 공유하는 기능은 빼줘."),
+            chat("assistant", Some("chloe"), "결정: 알림 시점 24시간 전 고정\n제외할 것: 공유·협업 기능\n질문: 마감일이 지난 할 일은 목록에서 어떻게 보여줄까요?"),
+        ];
+        write_json(session_dir.join("session.json"), &session).expect("session");
+        write_json(session_dir.join("messages.json"), &messages).expect("messages");
+
+        // ── A. 신규 기획안: 턴 종료 프리웜 → 저장 → enrich(캐시 히트 기대) ──
+        let t = Instant::now();
+        prewarm_planning_enrich_blocking(&project_dir, session_id).expect("prewarm A");
+        let prewarm_a = t.elapsed();
+        assert!(session_dir.join("enrich.json").exists(), "prewarm A 가 캐시를 못 채움(분석 미완)");
+        assert!(session_dir.join("contract.json").exists(), "prewarm A 가 계약을 못 씀");
+
+        let t = Instant::now();
+        let saved = tauri::async_runtime::block_on(save_planning_chat_as_markdown(save_request(&project_dir, session_id)));
+        let save_a = t.elapsed();
+        assert_ok("save A", &saved);
+
+        let t = Instant::now();
+        let enriched = tauri::async_runtime::block_on(enrich_planning_chat_plan(save_request(&project_dir, session_id)));
+        let enrich_a = t.elapsed();
+        assert_ok("enrich A", &enriched);
+
+        // ── B. 기획안 수정(새 턴) → 프리웜 → 다시 저장 → enrich(캐시 히트 기대) ──
+        messages.push(chat("user", None, "마감 지난 할 일은 빨간색으로 표시하고 목록 맨 위로 올려줘."));
+        messages.push(chat("assistant", Some("chloe"), "결정: 마감 경과 항목은 빨간 강조 + 목록 상단 고정\n핵심 기능: 마감 경과 항목 상단 고정 표시"));
+        write_json(session_dir.join("messages.json"), &messages).expect("messages B");
+
+        let t = Instant::now();
+        prewarm_planning_enrich_blocking(&project_dir, session_id).expect("prewarm B");
+        let prewarm_b = t.elapsed();
+
+        let t = Instant::now();
+        let saved = tauri::async_runtime::block_on(save_planning_chat_as_markdown(save_request(&project_dir, session_id)));
+        let save_b = t.elapsed();
+        assert_ok("save B", &saved);
+
+        let t = Instant::now();
+        let enriched = tauri::async_runtime::block_on(enrich_planning_chat_plan(save_request(&project_dir, session_id)));
+        let enrich_b = t.elapsed();
+        assert_ok("enrich B", &enriched);
+
+        // ── C. 비교 베이스라인: 수정 후 프리웜 '없이' 저장 → enrich(캐시 미스 = 구 동작 비용) ──
+        messages.push(chat("user", None, "할 일에 메모도 한 줄 붙일 수 있으면 좋겠어."));
+        messages.push(chat("assistant", Some("chloe"), "핵심 기능: 할 일별 한 줄 메모\n결정: 메모는 목록에선 숨기고 상세에서만 표시"));
+        write_json(session_dir.join("messages.json"), &messages).expect("messages C");
+
+        let t = Instant::now();
+        let saved = tauri::async_runtime::block_on(save_planning_chat_as_markdown(save_request(&project_dir, session_id)));
+        let save_c = t.elapsed();
+        assert_ok("save C", &saved);
+
+        let t = Instant::now();
+        let enriched = tauri::async_runtime::block_on(enrich_planning_chat_plan(save_request(&project_dir, session_id)));
+        let enrich_c = t.elapsed();
+        assert_ok("enrich C", &enriched);
+
+        println!("\n===== E2E 타이밍 =====");
+        println!("A(신규): prewarm(opus×2 병렬)={prewarm_a:?}  save={save_a:?}  enrich={enrich_a:?}");
+        println!("B(수정+프리웜): prewarm={prewarm_b:?}  save={save_b:?}  enrich={enrich_b:?}");
+        println!("C(수정, 프리웜 없음=구 동작): save={save_c:?}  enrich(분석 포함)={enrich_c:?}");
+        let doc = std::fs::read_to_string(project_dir.join(serde_json::to_value(&enriched).expect("json")["outputPath"].as_str().expect("outputPath"))).expect("doc");
+        println!("최종 문서 {}자, 준비상태 헤더 포함: {}", doc.chars().count(), doc.contains("구현 준비 상태"));
+    }
+
     #[test]
     fn prewarm_skips_without_writes_on_cache_hit() {
         let root = tempfile::tempdir().expect("root");
