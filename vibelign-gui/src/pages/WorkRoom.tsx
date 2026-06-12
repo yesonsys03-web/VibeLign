@@ -61,6 +61,17 @@ const LINE_STYLE: Record<WorkDisplayLine["kind"], CSSProperties> = {
   raw: { fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: "#888", whiteSpace: "pre-wrap", wordBreak: "break-word" },
 };
 
+/** MVP 프로바이더 — 코딩 에이전트로 검증된 CLI 만(기획안 §1). 러너 work_adapter 와 짝. */
+const PROVIDER_DEFS: { id: "claude" | "codex"; label: string }[] = [
+  { id: "claude", label: "Claude Code" },
+  { id: "codex", label: "Codex" },
+];
+
+type ProviderId = (typeof PROVIDER_DEFS)[number]["id"];
+
+/** 출력 무변화 경고 임계 — 첫 spawn 지연(Defender 등)을 덮을 만큼 넉넉하게(§10). */
+const IDLE_HINT_MS = 90_000;
+
 const OUTCOME_LABEL: Record<RunOutcome, { text: string; color: string }> = {
   done: { text: "✅ AI 작업이 끝났어요", color: "#166534" },
   failed: { text: "❌ AI 작업이 실패했어요 — 출력 끝부분을 확인하세요", color: "#b42318" },
@@ -84,7 +95,10 @@ export default function WorkRoom({
   onGuardResult,
 }: WorkRoomProps) {
   const [providers, setProviders] = useState<string[] | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<ProviderId | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
+  const [idleHint, setIdleHint] = useState(false);
+  const lastOutputAtRef = useRef<number>(Date.now());
   const [runOutcome, setRunOutcome] = useState<RunOutcome | null>(null);
   const [items, setItems] = useState<{ runId: number; line: WorkDisplayLine }[]>([]);
   const [activeRunId, setActiveRunId] = useState<number | null>(null);
@@ -96,16 +110,36 @@ export default function WorkRoom({
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const outputRef = useRef<HTMLDivElement | null>(null);
 
-  const claudeReady = providers?.includes("claude") ?? false;
+  const isDetected = (id: ProviderId) => providers?.includes(id) ?? false;
+  const ready = selectedProvider !== null && isDetected(selectedProvider);
+  const anyDetected = PROVIDER_DEFS.some((d) => isDetected(d.id));
   const instruction = planningOutputPath
     ? buildPlanningWorkInstruction({ prompt: planningPrompt, outputPath: planningOutputPath, contract: planningContract })
     : null;
 
   useEffect(() => {
     void invoke<string[]>("planning_provider_status")
-      .then(setProviders)
+      .then((list) => {
+        setProviders(list);
+        // 탐지된 첫 지원 CLI 를 기본 선택 — 없으면 null(실행 잠금 + 설치 안내).
+        setSelectedProvider((cur) => cur ?? PROVIDER_DEFS.find((d) => list.includes(d.id))?.id ?? null);
+      })
       .catch(() => setProviders([]));
   }, []);
+
+  // idle 경고 — "출력 무변화 + 실행 중" 기준(§10 P1). 슬립 복귀 직후 오탐이 가능하지만
+  // 파괴적 동작 없는 힌트라 수용. 새 출력이 오면 리스너가 끈다.
+  useEffect(() => {
+    if (phase !== "running") {
+      setIdleHint(false);
+      return;
+    }
+    lastOutputAtRef.current = Date.now();
+    const timer = window.setInterval(() => {
+      if (Date.now() - lastOutputAtRef.current > IDLE_HINT_MS) setIdleHint(true);
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [phase]);
 
   // 탭 이탈 후 복귀 — 백그라운드에서 계속 도는 작업의 상태만 복원한다.
   // (이탈 중 흘러간 라인의 백버퍼는 후속 — 지금은 "실행 중" 표시와 취소만 보장)
@@ -125,6 +159,8 @@ export default function WorkRoom({
     let unOut: UnlistenFn | null = null;
     let unStatus: UnlistenFn | null = null;
     void listen<WorkOutputEvent>("work-output", (ev) => {
+      lastOutputAtRef.current = Date.now();
+      setIdleHint(false);
       const lines = formatWorkOutputLine(ev.payload.line);
       if (lines.length > 0) {
         setItems((prev) => [...prev, ...lines.map((line) => ({ runId: ev.payload.runId, line }))]);
@@ -194,7 +230,7 @@ export default function WorkRoom({
     setPhase("running");
     try {
       const runId = await invoke<number>("work_run", {
-        provider: "claude",
+        provider: selectedProvider,
         instruction,
         cwd: projectDir,
       });
@@ -265,12 +301,36 @@ export default function WorkRoom({
 
       {/* 실행 카드 — 체크포인트 → 실행 → 자동 검사 시퀀스 */}
       <section className="card" style={{ display: "grid", gap: 10, padding: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 12, fontWeight: 900 }}>실행 CLI</span>
-          <span style={{ fontSize: 13, fontWeight: 700 }}>
-            Claude Code {providers === null ? "(확인 중…)" : claudeReady ? "✓ 사용 가능" : "— 찾지 못했어요"}
-          </span>
-          {providers !== null && !claudeReady && (
+          {providers === null && <span style={{ fontSize: 13, fontWeight: 700 }}>확인 중…</span>}
+          {providers !== null &&
+            PROVIDER_DEFS.map((def) => {
+              const detected = isDetected(def.id);
+              const selected = selectedProvider === def.id;
+              return (
+                <button
+                  key={def.id}
+                  className="btn btn-ghost btn-sm"
+                  type="button"
+                  disabled={!detected || phase !== "idle"}
+                  aria-pressed={selected}
+                  onClick={() => setSelectedProvider(def.id)}
+                  style={{
+                    fontSize: 11,
+                    border: "2px solid #1A1A1A",
+                    background: selected ? "#1A1A1A" : undefined,
+                    color: selected ? "#fff" : undefined,
+                    opacity: detected ? 1 : 0.4,
+                  }}
+                  title={detected ? undefined : "설치돼 있지 않거나 찾지 못했어요"}
+                >
+                  {def.label}
+                  {detected ? " ✓" : ""}
+                </button>
+              );
+            })}
+          {providers !== null && !anyDetected && (
             <button className="btn btn-ghost btn-sm" onClick={onOpenSettings} style={{ fontSize: 11 }}>
               AI 도구 설치 도움받기 →
             </button>
@@ -279,7 +339,7 @@ export default function WorkRoom({
 
         {phase === "idle" && (
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <button className="btn" disabled={!instruction || !claudeReady} onClick={() => setPhase("confirm")}>
+            <button className="btn" disabled={!instruction || !ready} onClick={() => setPhase("confirm")}>
               AI에게 작업 시키기
             </button>
             <span style={{ fontSize: 11, color: "#888", fontWeight: 700 }}>
@@ -293,7 +353,7 @@ export default function WorkRoom({
             <div style={{ fontSize: 13, fontWeight: 800 }}>실행 전 확인</div>
             <div style={{ fontSize: 12, color: "#444", lineHeight: 1.7 }}>
               · 실행하면 <b>① 체크포인트 자동 저장 → ② AI 실행 → ③ 끝나면 자동 검사</b>로 이어집니다
-              <br />· 사용자 본인의 <b>Claude Code 계정·요금제</b>로 실행됩니다 (토큰이 소모돼요)
+              <br />· 사용자 본인의 <b>{PROVIDER_DEFS.find((d) => d.id === selectedProvider)?.label ?? "AI CLI"} 계정·요금제</b>로 실행됩니다 (토큰이 소모돼요)
               <br />· 에이전트가 이 프로젝트의 파일을 실제로 수정해요 — 잘못되면 ①의 체크포인트로 되돌릴 수 있어요
             </div>
             <div style={{ display: "flex", gap: 8 }}>
@@ -336,12 +396,19 @@ export default function WorkRoom({
         )}
 
         {phase === "running" && (
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <span className="spinner" />
-            <span style={{ fontSize: 13, fontWeight: 800 }}>AI가 작업 중이에요…</span>
-            <button className="btn btn-danger btn-sm" onClick={() => void invoke<boolean>("work_cancel")}>
-              작업 취소
-            </button>
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <span className="spinner" />
+              <span style={{ fontSize: 13, fontWeight: 800 }}>AI가 작업 중이에요…</span>
+              <button className="btn btn-danger btn-sm" onClick={() => void invoke<boolean>("work_cancel")}>
+                작업 취소
+              </button>
+            </div>
+            {idleHint && (
+              <div style={{ fontSize: 12, color: "#92400E", fontWeight: 700, background: "#FFF3D0", border: "1px solid #1A1A1A", padding: "6px 8px" }}>
+                한동안 출력이 없어요 — 큰 작업 중일 수도 있지만, 멈춘 것 같으면 취소 후 다시 시도하세요.
+              </div>
+            )}
           </div>
         )}
 

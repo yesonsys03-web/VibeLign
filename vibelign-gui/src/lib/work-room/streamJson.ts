@@ -19,6 +19,15 @@ interface ContentItem {
   is_error?: boolean;
 }
 
+/** codex exec --json 의 item 구조 (2026-06-12 실캡처 기준). */
+interface CodexItem {
+  type?: string;
+  text?: string;
+  command?: string;
+  changes?: { path?: string }[];
+  message?: string;
+}
+
 /** 도구 호출 한 줄 요약 — 초보가 "지금 뭘 하는지" 알 수 있는 최소 단서(파일·명령). */
 function toolSummary(name: string, input: Record<string, unknown> | undefined): string {
   const target =
@@ -80,6 +89,37 @@ export function formatWorkOutputLine(line: string): WorkDisplayLine[] {
       const cost =
         typeof obj.total_cost_usd === "number" ? ` (비용 ~$${obj.total_cost_usd.toFixed(2)})` : "";
       return [{ kind: "result", text: `✅ 작업 완료${cost}${resultText ? `\n${resultText}` : ""}` }];
+    }
+    // ── Codex(`codex exec --json`) JSONL — claude 와 type 네임스페이스가 달라 충돌 없음 ──
+    case "thread.started":
+      return [{ kind: "info", text: "세션 시작 — Codex" }];
+    case "item.started": {
+      const item = obj.item as CodexItem | undefined;
+      if (item?.type === "command_execution" && typeof item.command === "string") {
+        return [{ kind: "tool", text: `🔧 명령 실행 — ${item.command}` }];
+      }
+      return [];
+    }
+    case "item.completed": {
+      const item = obj.item as CodexItem | undefined;
+      if (!item) return [];
+      if (item.type === "agent_message" && typeof item.text === "string" && item.text.trim()) {
+        return [{ kind: "text", text: item.text.trim() }];
+      }
+      if (item.type === "file_change") {
+        const first = Array.isArray(item.changes) && typeof item.changes[0]?.path === "string" ? ` — ${item.changes[0].path}` : "";
+        return [{ kind: "tool", text: `🔧 파일 수정${first}` }];
+      }
+      if (item.type === "error" && typeof item.message === "string") {
+        return [{ kind: "error", text: `❌ ${item.message}` }];
+      }
+      return [];
+    }
+    case "turn.completed":
+      return [{ kind: "result", text: "✅ 작업 완료" }];
+    case "turn.failed": {
+      const err = (obj.error as { message?: string } | undefined)?.message;
+      return [{ kind: "error", text: err ? `❌ ${err}` : "❌ 작업이 실패했어요" }];
     }
     default:
       return [];

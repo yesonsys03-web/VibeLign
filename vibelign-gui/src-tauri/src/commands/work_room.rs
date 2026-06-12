@@ -66,18 +66,34 @@ impl Drop for WorkRoomState {
     }
 }
 
-/// 프로바이더별 헤드리스 어댑터 — (실행파일명, 고정 인자). 지시문은 stdin 으로 들어간다.
-/// MVP 는 코딩 에이전트로 검증된 CLI 만 연다(기획안 §1) — Codex 는 마일스톤 5 에서 추가.
-/// MCP 주입(--mcp-config)은 마일스톤 4 에서 이 인자 빌더에 합류한다.
-fn work_adapter(provider: &str) -> Option<(&'static str, &'static [&'static str])> {
+/// 프로바이더별 헤드리스 어댑터. 지시문은 모든 CLI 공통으로 stdin 으로 들어간다(§10 P0).
+/// MVP 는 코딩 에이전트로 검증된 CLI 만 연다(기획안 §1). 위험 플래그 금지(기획안 §3).
+struct WorkAdapter {
+    executable: &'static str,
+    args: &'static [&'static str],
+    /// --mcp-config 류 주입 인자를 이해하는 CLI 만 true — codex 는 설정 체계(-c TOML)가
+    /// 달라 MVP 미주입. 사후 guard(M3)가 안전망이고, 어댑터별 주입은 후속.
+    mcp_injection: bool,
+}
+
+fn work_adapter(provider: &str) -> Option<WorkAdapter> {
     match provider {
         // claude -p 는 인자 프롬프트가 없으면 stdin 을 읽는다(EOF 필요).
         // stream-json 은 print 모드에서 --verbose 가 있어야 동작하는 CLI 제약.
-        // acceptEdits: 워크스페이스 내 편집만 자동 승인 — 위험 플래그 금지(기획안 §3).
-        "claude" => Some((
-            "claude",
-            &["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"],
-        )),
+        // acceptEdits: 워크스페이스 내 편집만 자동 승인.
+        "claude" => Some(WorkAdapter {
+            executable: "claude",
+            args: &["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"],
+            mcp_injection: true,
+        }),
+        // exec 는 stdin 지시문을 공식 지원(2026-06-12 실검증, codex-cli 0.139).
+        // workspace-write: 워크스페이스 한정 쓰기. skip-git-repo-check: 비-git 프로젝트
+        // 지원(가이드 스펙 §3.1 정합). --json: JSONL 이벤트(streamJson.ts 가 해석).
+        "codex" => Some(WorkAdapter {
+            executable: "codex",
+            args: &["exec", "--json", "--sandbox", "workspace-write", "--skip-git-repo-check"],
+            mcp_injection: false,
+        }),
         _ => None,
     }
 }
@@ -223,10 +239,10 @@ pub(crate) fn work_run(
     instruction: String,
     cwd: String,
 ) -> Result<u64, String> {
-    let (executable_name, args) =
+    let adapter =
         work_adapter(&provider).ok_or_else(|| format!("지원하지 않는 프로바이더입니다: {provider}"))?;
-    let executable = find_executable(executable_name).ok_or_else(|| {
-        format!("{executable_name} CLI를 찾을 수 없습니다. 설치·로그인 후 다시 시도해 주세요.")
+    let executable = find_executable(adapter.executable).ok_or_else(|| {
+        format!("{} CLI를 찾을 수 없습니다. 설치·로그인 후 다시 시도해 주세요.", adapter.executable)
     })?;
 
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
@@ -235,10 +251,10 @@ pub(crate) fn work_run(
     }
     let run_id = guard.run_id + 1;
 
-    let mcp_config = prepare_mcp_injection(run_id);
+    let mcp_config = if adapter.mcp_injection { prepare_mcp_injection(run_id) } else { None };
 
     let mut cmd = std::process::Command::new(&executable);
-    cmd.args(args);
+    cmd.args(adapter.args);
     if let Some(cfg) = mcp_config.as_deref() {
         cmd.args(injection_args(cfg));
     }
@@ -293,7 +309,9 @@ pub(crate) fn work_run(
     let shared = Arc::clone(&state.0);
     drop(guard);
 
-    if !injected {
+    // 주입을 기대하는 프로바이더(claude)에서 실패했을 때만 알린다 — codex 는 설계상
+    // 미주입이라 매 실행 알림은 소음이다. 사후 guard(M3)는 양쪽 모두 동일하게 돈다.
+    if adapter.mcp_injection && !injected {
         let _ = app.emit(
             "work-output",
             WorkOutputEvent {
@@ -348,12 +366,23 @@ mod tests {
 
     #[test]
     fn claude_adapter_uses_stream_json_and_accept_edits_without_danger_flags() {
-        let (executable, args) = work_adapter("claude").expect("claude adapter");
-        assert_eq!(executable, "claude");
-        assert!(args.contains(&"stream-json"));
-        assert!(args.contains(&"acceptEdits"));
+        let adapter = work_adapter("claude").expect("claude adapter");
+        assert_eq!(adapter.executable, "claude");
+        assert!(adapter.args.contains(&"stream-json"));
+        assert!(adapter.args.contains(&"acceptEdits"));
+        assert!(adapter.mcp_injection);
         // 위험 권한 플래그 금지(기획안 §3) — 어댑터 차원에서 회귀 방지
-        assert!(!args.iter().any(|a| a.contains("dangerously")));
+        assert!(!adapter.args.iter().any(|a| a.contains("dangerously")));
+    }
+
+    #[test]
+    fn codex_adapter_is_workspace_sandboxed_without_injection_or_danger_flags() {
+        let adapter = work_adapter("codex").expect("codex adapter");
+        assert_eq!(adapter.executable, "codex");
+        assert!(adapter.args.contains(&"workspace-write"));
+        assert!(adapter.args.contains(&"--skip-git-repo-check"));
+        assert!(!adapter.mcp_injection);
+        assert!(!adapter.args.iter().any(|a| a.contains("dangerously")));
     }
 
     #[test]
