@@ -150,10 +150,10 @@ export default function WorkRoom({
   const instruction = planningOutputPath
     ? buildPlanningWorkInstruction({ prompt: planningPrompt, outputPath: planningOutputPath, contract: planningContract })
     : null;
-  // 에러-수정 모드면 실행 지시문을 에러 tail 기반으로 교체(기획 표시는 instruction 그대로 유지).
-  // plan-less 도 동작 — planPath 없으면 에러만으로 고친다(§6).
+  // 핸드오프(error/improve) 모드면 실행 지시문을 핸드오프 text 기반으로 교체(기획 표시는
+  // instruction 그대로 유지). plan-less 도 동작 — planPath 없으면 text 만으로 작업(§4·§6).
   // != null 로 — 핸드오프 text 가 빈 문자열이어도 핸드오프 모드다(즉시 실패/빈 요청).
-  // 빈 text 는 각 builder 가 "출력/요청 없음"으로 degrade.
+  // 빈 text 는 각 builder(buildRunErrorFixInstruction/buildImproveInstruction)가 degrade.
   const effectiveInstruction =
     handoff != null ? buildHandoffInstruction(handoff, planningOutputPath) : instruction;
 
@@ -204,13 +204,13 @@ export default function WorkRoom({
       .catch(() => {});
   }, []);
 
-  // 실행해보기 실패 핸드오프 캡처(consume-once) — App 의 workHandoff 가 실리면 로컬로 받아
-  // 에러-수정 모드로 진입하고, onWorkHandoffConsumed 로 App 상태를 비운다(다음 렌더에 null →
+  // 실행해보기 핸드오프 캡처(consume-once) — App 의 workHandoff(error/improve)가 실리면 로컬로
+  // 받아 핸드오프 모드로 진입하고, onWorkHandoffConsumed 로 App 상태를 비운다(다음 렌더에 null →
   // 조기 return 으로 1회만). resetForNextRun 을 먼저, setHandoff 를 마지막에 둬 reset 이
   // 방금 받은 값을 지우지 않게 한다(advisor).
   useEffect(() => {
-    // == null 로 검사 — 즉시 실패(출력 0줄)면 에러 tail 이 빈 문자열("")로 와도 핸드오프는
-    // 유효하다(buildRunErrorFixInstruction 이 "출력 없음"으로 degrade). !workHandoff 면 ""를
+    // == null 로 검사 — 즉시 실패(출력 0줄)·빈 개선요청이면 text 가 빈 문자열("")로 와도
+    // 핸드오프는 유효하다(builder 가 "출력/요청 없음"으로 degrade). !workHandoff 면 ""를
     // 삼켜 사용자가 작업방에서 막힌다(M3b 리뷰 HIGH).
     if (workHandoff == null) return;
     resetForNextRun();
@@ -390,7 +390,7 @@ export default function WorkRoom({
       </div>
 
       {/* 기준 기획안 — 자유 요청은 MVP 비허용(기획안 §9): guard 의 약속 범위 기준점 유지.
-          단 실행해보기 실패 핸드오프(errorFix)면 에러-수정 배너가 이 자리를 대체한다(§6). */}
+          단 실행해보기 핸드오프(workHandoff: error/improve)면 핸드오프 배너가 이 자리를 대체한다(§4·§6). */}
       {handoff != null ? (
         <section className="card" style={{ display: "grid", gap: 6, padding: 12, background: "#FDECEA", border: "2px solid #1A1A1A" }}>
           <div style={{ fontSize: 12, fontWeight: 900, color: "#b42318" }}>
