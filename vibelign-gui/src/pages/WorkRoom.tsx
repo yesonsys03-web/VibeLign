@@ -7,6 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 import { buildPlanningWorkInstruction } from "../lib/code-explorer/planningInstruction";
+import { buildRunErrorFixInstruction } from "../lib/run-preview/errorFixInstruction";
 import { formatWorkOutputLine, type WorkDisplayLine } from "../lib/work-room/streamJson";
 import { checkpointCreate, runVib, vibGuard } from "../lib/vib";
 import type { GuardResult, PlanningContract } from "../lib/vib/types";
@@ -18,6 +19,10 @@ interface WorkRoomProps {
   planningOutputPath: string | null;
   planningContract: PlanningContract | null;
   planningDocStale: boolean;
+  /** 실행해보기 실패 핸드오프(§6) — 에러 tail. 마운트 시 consume-once 로 받는다. */
+  runErrorFix?: string | null;
+  /** 핸드오프 소비 완료 신호 — App 의 runErrorFix 를 비워 재진입 시 재발동 방지. */
+  onErrorFixConsumed?: () => void;
   onNavigate: (page: Page) => void;
   onOpenSettings: () => void;
   /** guard 자동 검사 결과를 가이드 신호(App guardStatus)로 보고 — 홈 '상태 확인'과 동일 채널 */
@@ -112,6 +117,8 @@ export default function WorkRoom({
   planningOutputPath,
   planningContract,
   planningDocStale,
+  runErrorFix,
+  onErrorFixConsumed,
   onNavigate,
   onOpenSettings,
   onGuardResult,
@@ -127,6 +134,8 @@ export default function WorkRoom({
   const [activeRunId, setActiveRunId] = useState<number | null>(null);
   const activeRunIdRef = useRef<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // 실행해보기 실패 핸드오프로 받은 에러 tail(§6) — 있으면 실행 지시문을 에러-수정용으로 바꾼다.
+  const [errorFix, setErrorFix] = useState<string | null>(null);
   const [checkpointError, setCheckpointError] = useState<string | null>(null);
   const [guardResult, setGuardResult] = useState<GuardResult | null>(null);
   const [guardError, setGuardError] = useState<string | null>(null);
@@ -141,6 +150,11 @@ export default function WorkRoom({
   const instruction = planningOutputPath
     ? buildPlanningWorkInstruction({ prompt: planningPrompt, outputPath: planningOutputPath, contract: planningContract })
     : null;
+  // 에러-수정 모드면 실행 지시문을 에러 tail 기반으로 교체(기획 표시는 instruction 그대로 유지).
+  // plan-less 도 동작 — planPath 없으면 에러만으로 고친다(§6).
+  const effectiveInstruction = errorFix
+    ? buildRunErrorFixInstruction({ errorText: errorFix, planPath: planningOutputPath })
+    : instruction;
 
   useEffect(() => {
     void invoke<string[]>("planning_provider_status")
@@ -188,6 +202,18 @@ export default function WorkRoom({
       })
       .catch(() => {});
   }, []);
+
+  // 실행해보기 실패 핸드오프 캡처(consume-once) — App 의 runErrorFix 가 실리면 로컬로 받아
+  // 에러-수정 모드로 진입하고, onErrorFixConsumed 로 App 상태를 비운다(다음 렌더에 null →
+  // 조기 return 으로 1회만). resetForNextRun 을 먼저, setErrorFix 를 마지막에 둬 reset 이
+  // 방금 받은 값을 지우지 않게 한다(advisor).
+  useEffect(() => {
+    if (!runErrorFix) return;
+    resetForNextRun();
+    setErrorFix(runErrorFix);
+    onErrorFixConsumed?.();
+    // runErrorFix 변화에만 반응 — reset/consumed 는 안정 함수(매 렌더 새로 만들어져도 의미 동일).
+  }, [runErrorFix]);
 
   useEffect(() => {
     let unOut: UnlistenFn | null = null;
@@ -275,7 +301,7 @@ export default function WorkRoom({
 
   /** 시퀀스 2단계: CLI 헤드리스 실행. */
   async function launchRun() {
-    if (!instruction) return;
+    if (!effectiveInstruction) return;
     setErrorMsg(null);
     setItems([]);
     setLastLog(null);
@@ -287,7 +313,7 @@ export default function WorkRoom({
     try {
       const runId = await invoke<number>("work_run", {
         provider: selectedProvider,
-        instruction,
+        instruction: effectiveInstruction,
         cwd: projectDir,
         planPath: planningOutputPath,
       });
@@ -333,6 +359,7 @@ export default function WorkRoom({
     setSaveState("idle");
     setAnchorFixState("idle");
     setAnchorAutoApplied(false);
+    setErrorFix(null);
   }
 
   const visibleItems = items.filter((i) => activeRunId === null || i.runId === activeRunId);
@@ -358,8 +385,20 @@ export default function WorkRoom({
         <div className="page-title">작업방</div>
       </div>
 
-      {/* 기준 기획안 — 자유 요청은 MVP 비허용(기획안 §9): guard 의 약속 범위 기준점 유지 */}
-      {instruction ? (
+      {/* 기준 기획안 — 자유 요청은 MVP 비허용(기획안 §9): guard 의 약속 범위 기준점 유지.
+          단 실행해보기 실패 핸드오프(errorFix)면 에러-수정 배너가 이 자리를 대체한다(§6). */}
+      {errorFix ? (
+        <section className="card" style={{ display: "grid", gap: 6, padding: 12, background: "#FDECEA", border: "2px solid #1A1A1A" }}>
+          <div style={{ fontSize: 12, fontWeight: 900, color: "#b42318" }}>실행 에러를 고칠게요</div>
+          <div style={{ fontSize: 12, color: "#444", lineHeight: 1.6 }}>
+            실행해보기에서 앱이 켜지지 않았어요 — 아래 실행 출력을 AI 에게 넘겨 원인을 찾아 고칩니다.
+            {planningOutputPath ? " 기획안 범위 안에서 고쳐요." : ""}
+          </div>
+          <pre style={{ margin: 0, maxHeight: 140, overflowY: "auto", background: "#1A1A1A", color: "#FCA5A5", padding: 8, borderRadius: 4, fontFamily: "IBM Plex Mono, monospace", fontSize: 11, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+            {errorFix}
+          </pre>
+        </section>
+      ) : instruction ? (
         <section className="card" style={{ display: "grid", gap: 6, padding: 12, background: "#F5F1E3" }}>
           <div style={{ fontSize: 12, fontWeight: 900 }}>작업 기준 기획안</div>
           <div style={{ fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -426,8 +465,8 @@ export default function WorkRoom({
 
         {phase === "idle" && (
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <button className="btn" disabled={!instruction || !ready} onClick={() => setPhase("confirm")}>
-              AI에게 작업 시키기
+            <button className="btn" disabled={!effectiveInstruction || !ready} onClick={() => setPhase("confirm")}>
+              {errorFix ? "이 에러 고치기" : "AI에게 작업 시키기"}
             </button>
             <span style={{ fontSize: 11, color: "#888", fontWeight: 700 }}>
               체크포인트 저장 → 실행 → 검사가 자동으로 이어져요 · 외부 도구는 코드탐색의 "작업 지시 복사"
@@ -601,6 +640,11 @@ export default function WorkRoom({
               {guardVerdict === "stop" && (
                 <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("backups")} style={{ fontSize: 11 }}>
                   백업에서 되돌리기 →
+                </button>
+              )}
+              {guardSafe && (
+                <button className="btn btn-sm" onClick={() => onNavigate("run")}>
+                  ▶ 실행해보기 →
                 </button>
               )}
               <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("home")} style={{ fontSize: 11 }}>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isFixable, isTerminal, kindLabel, phaseLabel, statusView } from "./runView";
+import { collectErrorTail, isFixable, isTerminal, kindLabel, phaseLabel, statusView } from "./runView";
 
 describe("kindLabel", () => {
   it("maps each project kind to a Korean label", () => {
@@ -54,5 +54,33 @@ describe("isFixable", () => {
     expect(isFixable("stopped")).toBe(false);
     expect(isFixable("done")).toBe(false);
     expect(isFixable("running")).toBe(false);
+  });
+});
+
+describe("collectErrorTail", () => {
+  it("includes both stdout and stderr (vite/next print errors to stdout)", () => {
+    const out = collectErrorTail([
+      { stream: "stdout", text: "SyntaxError: Unexpected token" },
+      { stream: "stderr", text: "exit code 1" },
+    ]);
+    expect(out).toContain("SyntaxError: Unexpected token");
+    expect(out).toContain("exit code 1");
+  });
+
+  it("marks stderr lines with a prefix", () => {
+    expect(collectErrorTail([{ stream: "stderr", text: "boom" }])).toBe("! boom");
+    expect(collectErrorTail([{ stream: "stdout", text: "info" }])).toBe("info");
+  });
+
+  it("keeps only the last `max` lines", () => {
+    const many = Array.from({ length: 100 }, (_, i) => ({ stream: "stdout" as const, text: `line ${i}` }));
+    const out = collectErrorTail(many, 5);
+    expect(out.split("\n")).toHaveLength(5);
+    expect(out).toContain("line 99");
+    expect(out).not.toContain("line 94");
+  });
+
+  it("returns empty string for no lines", () => {
+    expect(collectErrorTail([])).toBe("");
   });
 });

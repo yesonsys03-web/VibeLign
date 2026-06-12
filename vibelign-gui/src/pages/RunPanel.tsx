@@ -20,12 +20,21 @@ import {
   type RunStatusEvent,
   type RunStatusKind,
 } from "../lib/vib/run";
-import { isTerminal, kindLabel, statusView, type RunTone } from "../lib/run-preview/runView";
+import {
+  collectErrorTail,
+  isFixable,
+  isTerminal,
+  kindLabel,
+  statusView,
+  type RunTone,
+} from "../lib/run-preview/runView";
 import type { Page } from "../lib/nav/stages";
 
 interface RunPanelProps {
   projectDir: string;
   onNavigate: (page: Page) => void;
+  /** 실행 실패 시 "이 에러 고쳐줘 →" — 에러 tail 을 작업방 핸드오프로(루프 닫기 §6). */
+  onRequestErrorFix?: (errorText: string) => void;
 }
 
 type PanelStatus = RunStatusKind | "starting" | null;
@@ -47,7 +56,7 @@ const TONE_COLOR: Record<RunTone, string> = {
   error: "#b42318",
 };
 
-export default function RunPanel({ projectDir, onNavigate }: RunPanelProps) {
+export default function RunPanel({ projectDir, onNavigate, onRequestErrorFix }: RunPanelProps) {
   const [recipe, setRecipe] = useState<RunRecipe | null>(null);
   const [detectState, setDetectState] = useState<"loading" | "ready" | "none">("loading");
   const [status, setStatus] = useState<PanelStatus>(null);
@@ -242,6 +251,17 @@ export default function RunPanel({ projectDir, onNavigate }: RunPanelProps) {
           {electronRunning && (
             <div style={{ fontSize: 12, color: "#444", lineHeight: 1.6 }}>
               앱 창이 열렸어요 — 별도 창에서 직접 확인해 보세요. 닫으려면 아래 <b>중지</b>를 누르세요.
+            </div>
+          )}
+
+          {status === "failed" && isFixable(status) && onRequestErrorFix && (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button className="btn" onClick={() => onRequestErrorFix(collectErrorTail(lines))}>
+                이 에러 고쳐줘 → 작업방
+              </button>
+              <span style={{ fontSize: 11, color: "#888", fontWeight: 700 }}>
+                실행 출력을 작업방으로 넘겨 AI가 원인을 찾아 고쳐요
+              </span>
             </div>
           )}
 

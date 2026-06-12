@@ -52,4 +52,16 @@ export function isTerminal(status: RunStatusKind): boolean {
 export function isFixable(status: RunStatusKind): boolean {
   return status === "failed";
 }
+
+/** 작업방 핸드오프용 출력 tail. stdout+stderr 를 함께 — vite/next 는 시작 에러를
+ * stdout 에 찍어서 stderr 만 거르면 빈 페이로드가 된다(advisor). stderr 는 표시 표식. */
+export function collectErrorTail(
+  lines: ReadonlyArray<{ stream: "stdout" | "stderr"; text: string }>,
+  max = 40,
+): string {
+  return lines
+    .slice(-max)
+    .map((l) => (l.stream === "stderr" ? `! ${l.text}` : l.text))
+    .join("\n");
+}
 // === ANCHOR: RUN_VIEW_END ===
