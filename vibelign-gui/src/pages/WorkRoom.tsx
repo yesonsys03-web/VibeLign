@@ -8,7 +8,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 import { buildPlanningWorkInstruction } from "../lib/code-explorer/planningInstruction";
 import { formatWorkOutputLine, type WorkDisplayLine } from "../lib/work-room/streamJson";
-import { checkpointCreate, vibGuard } from "../lib/vib";
+import { checkpointCreate, runVib, vibGuard } from "../lib/vib";
 import type { GuardResult, PlanningContract } from "../lib/vib/types";
 import type { Page } from "../lib/nav/stages";
 
@@ -60,6 +60,7 @@ interface WorkLastLogLine {
 
 interface WorkLastLog {
   provider: string | null;
+  planPath: string | null;
   startedAt: number | null;
   finishedAt: number | null;
   status: string | null;
@@ -130,6 +131,7 @@ export default function WorkRoom({
   const [guardResult, setGuardResult] = useState<GuardResult | null>(null);
   const [guardError, setGuardError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [anchorFixState, setAnchorFixState] = useState<"idle" | "running" | "error">("idle");
   const outputRef = useRef<HTMLDivElement | null>(null);
 
   const isDetected = (id: ProviderId) => providers?.includes(id) ?? false;
@@ -266,12 +268,27 @@ export default function WorkRoom({
         provider: selectedProvider,
         instruction,
         cwd: projectDir,
+        planPath: planningOutputPath,
       });
       setActiveRunId(runId);
       activeRunIdRef.current = runId;
     } catch (e: unknown) {
       setPhase("idle");
       setErrorMsg(String(e));
+    }
+  }
+
+  /** 준비 항목(앵커 부재)을 그 자리에서 해결 — 사용자 추가 행동을 원클릭으로(2026-06-12 피드백). */
+  async function autoFixAnchors() {
+    setAnchorFixState("running");
+    try {
+      const res = await runVib(["anchor", "--auto"], projectDir);
+      if (!res.ok) throw new Error(res.stderr || `exit ${res.exit_code}`);
+      setAnchorFixState("idle");
+      setPhase("verifying");
+      await verifyAfterRun(); // 재검사 — 앵커가 채워지면 verdict 가 pass 로 올라간다
+    } catch {
+      setAnchorFixState("error");
     }
   }
 
@@ -396,6 +413,12 @@ export default function WorkRoom({
         {phase === "confirm" && (
           <div style={{ display: "grid", gap: 8, border: "2px solid #1A1A1A", padding: 12, background: "#FFF3D0" }}>
             <div style={{ fontSize: 13, fontWeight: 800 }}>실행 전 확인</div>
+            {lastLog?.status === "done" && lastLog.planPath !== null && lastLog.planPath === planningOutputPath && (
+              <div style={{ fontSize: 12, color: "#92400E", fontWeight: 700, background: "#FEF3C7", border: "1px solid #FDE68A", borderRadius: 4, padding: "6px 8px", lineHeight: 1.6 }}>
+                ℹ 이 기획안은 이미 실행을 마쳤어요 — 다시 실행하면 같은 내용을 검토부터 다시 합니다(토큰 소모).
+                새 작업이라면 기획방에서 기획안을 갱신한 뒤 실행하는 걸 권장해요.
+              </div>
+            )}
             <div style={{ fontSize: 12, color: "#444", lineHeight: 1.7 }}>
               · 실행하면 <b>① 체크포인트 자동 저장 → ② AI 실행 → ③ 끝나면 자동 검사</b>로 이어집니다
               <br />· 사용자 본인의 <b>{PROVIDER_DEFS.find((d) => d.id === selectedProvider)?.label ?? "AI CLI"} 계정·요금제</b>로 실행됩니다 (토큰이 소모돼요)
@@ -519,6 +542,21 @@ export default function WorkRoom({
             )}
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {guardVerdict === "prepare" &&
+                guardResult?.recommendations.some((r) => r.includes("앵커") || r.toLowerCase().includes("anchor")) && (
+                  <button
+                    className="btn btn-sm"
+                    disabled={anchorFixState === "running"}
+                    onClick={() => void autoFixAnchors()}
+                  >
+                    {anchorFixState === "running" ? "앵커 추가 중…" : "🛡 앵커 자동 추가하고 다시 검사"}
+                  </button>
+                )}
+              {anchorFixState === "error" && (
+                <span style={{ fontSize: 12, fontWeight: 800, color: "#b42318", alignSelf: "center" }}>
+                  앵커 추가 실패 — 코드탐색에서 직접 시도해 주세요
+                </span>
+              )}
               {guardSafe && saveState !== "saved" && (
                 <button className="btn btn-sm" disabled={saveState === "saving"} onClick={() => void saveFinalCheckpoint()}>
                   {saveState === "saving" ? "저장 중…" : "✓ 이 상태를 체크포인트로 저장"}

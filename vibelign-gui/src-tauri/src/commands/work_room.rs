@@ -121,12 +121,19 @@ fn run_log_path(cwd: &std::path::Path) -> std::path::PathBuf {
     cwd.join(".vibelign").join("logs").join(RUN_LOG_FILE)
 }
 
-fn open_run_log(cwd: &std::path::Path, provider: &str) -> Option<Arc<Mutex<std::fs::File>>> {
+fn open_run_log(
+    cwd: &std::path::Path,
+    provider: &str,
+    plan_path: Option<&str>,
+) -> Option<Arc<Mutex<std::fs::File>>> {
     use std::io::Write;
     let path = run_log_path(cwd);
     std::fs::create_dir_all(path.parent()?).ok()?;
     let mut file = std::fs::File::create(&path).ok()?;
-    let meta = serde_json::json!({ "meta": { "provider": provider, "startedAt": unix_now() } });
+    // planPath: "이 기획안은 이미 실행 완료" 재실행 안내의 매칭 키(불필요 토큰 소모 방지).
+    let meta = serde_json::json!({
+        "meta": { "provider": provider, "startedAt": unix_now(), "planPath": plan_path }
+    });
     writeln!(file, "{meta}").ok()?;
     Some(Arc::new(Mutex::new(file)))
 }
@@ -163,6 +170,7 @@ pub(crate) struct WorkLastLogLine {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct WorkLastLog {
     provider: Option<String>,
+    plan_path: Option<String>,
     started_at: Option<u64>,
     finished_at: Option<u64>,
     status: Option<String>,
@@ -180,6 +188,9 @@ fn read_last_log(cwd: &std::path::Path) -> Option<WorkLastLog> {
         if let Some(meta) = value.get("meta") {
             if let Some(p) = meta.get("provider").and_then(|v| v.as_str()) {
                 out.provider = Some(p.to_string());
+            }
+            if let Some(p) = meta.get("planPath").and_then(|v| v.as_str()) {
+                out.plan_path = Some(p.to_string());
             }
             if let Some(t) = meta.get("startedAt").and_then(|v| v.as_u64()) {
                 out.started_at = Some(t);
@@ -359,6 +370,7 @@ pub(crate) fn work_run(
     provider: String,
     instruction: String,
     cwd: String,
+    plan_path: Option<String>,
 ) -> Result<u64, String> {
     let adapter =
         work_adapter(&provider).ok_or_else(|| format!("지원하지 않는 프로바이더입니다: {provider}"))?;
@@ -373,7 +385,7 @@ pub(crate) fn work_run(
     let run_id = guard.run_id + 1;
 
     let mcp_config = if adapter.mcp_injection { prepare_mcp_injection(run_id) } else { None };
-    let run_log = open_run_log(std::path::Path::new(&cwd), &provider);
+    let run_log = open_run_log(std::path::Path::new(&cwd), &provider, plan_path.as_deref());
 
     let mut cmd = std::process::Command::new(&executable);
     cmd.args(adapter.args);
@@ -518,12 +530,14 @@ mod tests {
     fn run_log_round_trip_persists_meta_and_lines() {
         use std::sync::Arc;
         let dir = tempfile::tempdir().expect("tempdir");
-        let log = super::open_run_log(dir.path(), "claude").expect("open log");
+        let log =
+            super::open_run_log(dir.path(), "claude", Some("plans/알람앱.md")).expect("open log");
         super::append_log_line(&Some(Arc::clone(&log)), "stdout", "{\"type\":\"assistant\"}");
         super::append_log_meta(Some(log), "done", Some(0));
 
         let parsed = super::read_last_log(dir.path()).expect("read log");
         assert_eq!(parsed.provider.as_deref(), Some("claude"));
+        assert_eq!(parsed.plan_path.as_deref(), Some("plans/알람앱.md"));
         assert_eq!(parsed.status.as_deref(), Some("done"));
         assert_eq!(parsed.exit_code, Some(0));
         assert!(parsed.started_at.is_some() && parsed.finished_at.is_some());

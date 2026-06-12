@@ -26,11 +26,16 @@ class VerdictTierTest(unittest.TestCase):
     def test_clean_project_passes(self):
         self.assertEqual(_verdict_tier([], [], "LOW", "pass", "pass"), "pass")
 
-    def test_any_violation_is_stop(self):
+    def test_real_violations_are_stop(self):
         self.assertEqual(_verdict_tier(["src/a.py"], [], "LOW", "pass", "fail"), "stop")
-        self.assertEqual(_verdict_tier([], ["src/b.py"], "LOW", "pass", "warn"), "stop")
         self.assertEqual(_verdict_tier([], [], "HIGH", "pass", "pass"), "stop")
         self.assertEqual(_verdict_tier([], [], "LOW", "fail", "fail"), "stop")
+
+    def test_anchor_absence_is_prepare_not_stop(self):
+        # 신규 파일 앵커 부재는 위생 — 진행을 막지 않고 '준비'로 유도(2026-06-12 사용자 피드백).
+        # status 가 pass 여도 앵커 부재가 있으면 prepare 로 내려가지 않게 명시 인자 유지.
+        self.assertEqual(_verdict_tier([], ["src/b.py"], "LOW", "pass", "warn"), "prepare")
+        self.assertEqual(_verdict_tier([], ["src/b.py"], "LOW", "pass", "pass"), "prepare")
 
 
 class VibGuardRenderTest(unittest.TestCase):

@@ -534,15 +534,15 @@ def _verdict_tier(
     권위가 소진된다(양치기 소년). 그래서 위반이 0이면 어떤 위생 누적으로도
     stop 이 되지 않는다. 기계 게이트(status·blocked·exit code)는 기존 의미를
     유지한다 — 바뀌는 것은 사람에게 보여주는 층(리포트 라벨·홈·작업방)뿐이다.
+
+    앵커 '부재'(_anchor_violations = 신규 소스 파일에 앵커 없음)는 위생이다 —
+    경계 침범이 아니라 다음 작업을 위한 준비 항목이므로 진행을 막지 않고
+    prepare 로 유도한다(2026-06-12 사용자 피드백: "일단 진행시키고 나중에
+    앵커를 추가하도록 유도").
     """
-    if (
-        protected_violations
-        or anchor_violations
-        or change_risk_level == "HIGH"
-        or planning_level == "fail"
-    ):
+    if protected_violations or change_risk_level == "HIGH" or planning_level == "fail":
         return "stop"
-    if status != "pass":
+    if status != "pass" or anchor_violations:
         return "prepare"
     return "pass"
 
