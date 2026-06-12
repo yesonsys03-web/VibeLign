@@ -27,11 +27,13 @@ struct WorkRoomRuntime {
     run_id: u64,
     /// 취소 요청 여부 — waiter 가 종료 상태를 cancelled 로 보고하게 한다.
     cancelled: bool,
+    /// 실행별 임시 MCP 설정 파일 — waiter 가 종료 시 정리한다.
+    mcp_config: Option<std::path::PathBuf>,
 }
 
 impl WorkRoomRuntime {
     fn new() -> Self {
-        Self { child: None, run_id: 0, cancelled: false }
+        Self { child: None, run_id: 0, cancelled: false, mcp_config: None }
     }
 }
 
@@ -79,6 +81,51 @@ fn work_adapter(provider: &str) -> Option<(&'static str, &'static [&'static str]
         _ => None,
     }
 }
+
+// ─── MCP 자동 주입 (기획안 §9 확정·§10 P0) ─────────────────────────────────────
+// 실행별 임시 mcp-config 를 만들어 CLI에 붙인다 — 사용자 전역 설정 불변.
+// 절대경로 필수: claude 가 MCP 서버를 spawn 할 때 GUI 의 augmented PATH 를 상속받지
+// 못한다. 서버 미설치(번들 vib-runtime 에는 vibelign-mcp 가 없음)·쓰기 실패 시 None
+// → 사후 guard 폴백(M3 시퀀스가 그대로 안전망).
+
+/// mcp-config 본문 — serde 직렬화가 공백·한글 경로의 JSON 이스케이프를 보장한다.
+fn mcp_config_body(server: &std::path::Path) -> Vec<u8> {
+    let config = serde_json::json!({
+        "mcpServers": {
+            "vibelign": { "command": server.to_string_lossy() }
+        }
+    });
+    serde_json::to_vec_pretty(&config).unwrap_or_default()
+}
+
+fn prepare_mcp_injection(run_id: u64) -> Option<std::path::PathBuf> {
+    let server = find_executable("vibelign-mcp")?;
+    let path = std::env::temp_dir().join(format!("vibelign-workroom-mcp-{run_id}.json"));
+    let body = mcp_config_body(&server);
+    if body.is_empty() {
+        return None;
+    }
+    std::fs::write(&path, body).ok()?;
+    Some(path)
+}
+
+/// 주입 시 CLI 인자 — allowedTools 로 vibelign 서버 도구를 헤드리스에서 승인한다
+/// (acceptEdits 는 편집만 자동 승인하므로 MCP 도구는 별도 허용이 필요).
+/// strict: 사용자 전역 MCP 서버(메일 등)를 헤드리스 실행에 끌어들이지 않는다 —
+/// 결정론·소음 차단(2026-06-12 실검증: 미지정 시 전역 서버가 함께 로드됨).
+fn injection_args(config: &std::path::Path) -> Vec<String> {
+    vec![
+        "--mcp-config".to_string(),
+        config.to_string_lossy().to_string(),
+        "--strict-mcp-config".to_string(),
+        "--allowedTools".to_string(),
+        "mcp__vibelign".to_string(),
+    ]
+}
+
+/// 주입 성공 시 지시문 뒤에 붙는 안내 — 러너가 stdin 페이로드에 합류시킨다
+/// (주입 실패 폴백에서 없는 도구를 지시문이 언급하지 않게 러너 쪽에서 결합).
+const MCP_INSTRUCTION_SUFFIX: &str = "\n\n[VibeLign MCP 도구 안내]\nvibelign MCP 도구가 연결되어 있습니다. 파일을 수정하기 전 anchor_list·anchor_read_content 로 앵커 경계를 확인하고, 작업을 마치면 guard_check 로 약속 범위를 자체 검증하세요.";
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -136,6 +183,9 @@ fn spawn_waiter_thread(app: tauri::AppHandle, state: Arc<Mutex<WorkRoomRuntime>>
         match child.try_wait() {
             Ok(Some(status)) => {
                 guard.child = None;
+                if let Some(cfg) = guard.mcp_config.take() {
+                    let _ = std::fs::remove_file(cfg);
+                }
                 let label = if guard.cancelled {
                     "cancelled"
                 } else if status.success() {
@@ -152,6 +202,9 @@ fn spawn_waiter_thread(app: tauri::AppHandle, state: Arc<Mutex<WorkRoomRuntime>>
             Ok(None) => {}
             Err(_) => {
                 guard.child = None;
+                if let Some(cfg) = guard.mcp_config.take() {
+                    let _ = std::fs::remove_file(cfg);
+                }
                 let _ = app.emit(
                     "work-status",
                     WorkStatusEvent { run_id, status: "failed", exit_code: None },
@@ -180,9 +233,15 @@ pub(crate) fn work_run(
     if guard.child.is_some() {
         return Err("이미 작업이 실행 중입니다. 끝나기를 기다리거나 취소해 주세요.".into());
     }
+    let run_id = guard.run_id + 1;
+
+    let mcp_config = prepare_mcp_injection(run_id);
 
     let mut cmd = std::process::Command::new(&executable);
     cmd.args(args);
+    if let Some(cfg) = mcp_config.as_deref() {
+        cmd.args(injection_args(cfg));
+    }
     cmd.current_dir(std::path::PathBuf::from(&cwd));
     cmd.stdin(std::process::Stdio::piped());
     cmd.stdout(std::process::Stdio::piped());
@@ -200,24 +259,50 @@ pub(crate) fn work_run(
         });
     }
 
-    let mut child = cmd.spawn().map_err(|e| e.to_string())?;
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            if let Some(cfg) = mcp_config.as_deref() {
+                let _ = std::fs::remove_file(cfg);
+            }
+            return Err(e.to_string());
+        }
+    };
 
     // 지시문 stdin 주입 — 파이프 버퍼보다 긴 지시문이 write 에서 막혀도 커맨드 스레드가
     // 잠기지 않도록 별도 스레드에서 쓰고, drop 으로 닫아 EOF 를 보낸다(claude -p 시작 조건).
+    // MCP 안내는 주입 성공시에만 합류 — 폴백에서 없는 도구를 지시문이 언급하지 않게.
+    let payload = if mcp_config.is_some() {
+        format!("{instruction}{MCP_INSTRUCTION_SUFFIX}")
+    } else {
+        instruction
+    };
     if let Some(mut stdin) = child.stdin.take() {
         std::thread::spawn(move || {
-            let _ = stdin.write_all(instruction.as_bytes());
+            let _ = stdin.write_all(payload.as_bytes());
         });
     }
 
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
-    guard.run_id += 1;
+    guard.run_id = run_id;
     guard.cancelled = false;
-    let run_id = guard.run_id;
+    let injected = mcp_config.is_some();
+    guard.mcp_config = mcp_config;
     guard.child = Some(child);
     let shared = Arc::clone(&state.0);
     drop(guard);
+
+    if !injected {
+        let _ = app.emit(
+            "work-output",
+            WorkOutputEvent {
+                run_id,
+                stream: "stderr",
+                line: "[vibelign] 검증 도구(MCP) 없이 실행합니다 — 종료 후 자동 검사만 적용돼요".to_string(),
+            },
+        );
+    }
 
     if let Some(out) = stdout {
         spawn_output_thread(out, app.clone(), run_id, "stdout");
@@ -275,6 +360,29 @@ mod tests {
     fn unknown_provider_has_no_adapter() {
         assert!(work_adapter("opencode").is_none());
         assert!(work_adapter("").is_none());
+    }
+
+    #[test]
+    fn mcp_config_escapes_space_and_korean_paths() {
+        // §10 P0 — 한글 사용자명·공백("Application Support") 경로가 JSON 에서 깨지면
+        // claude 가 MCP 서버를 못 찾는다. serde 직렬화 보장을 회귀 테스트로 고정.
+        let body = super::mcp_config_body(std::path::Path::new(
+            "/Users/홍길동/Application Support/vibelign-mcp",
+        ));
+        let parsed: serde_json::Value = serde_json::from_slice(&body).expect("valid json");
+        assert_eq!(
+            parsed["mcpServers"]["vibelign"]["command"],
+            "/Users/홍길동/Application Support/vibelign-mcp"
+        );
+    }
+
+    #[test]
+    fn injection_args_use_mcp_config_and_server_level_allow() {
+        let args = super::injection_args(std::path::Path::new("/tmp/cfg.json"));
+        assert_eq!(
+            args,
+            vec!["--mcp-config", "/tmp/cfg.json", "--strict-mcp-config", "--allowedTools", "mcp__vibelign"]
+        );
     }
 
     #[test]
