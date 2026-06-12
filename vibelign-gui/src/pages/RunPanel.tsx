@@ -22,7 +22,6 @@ import {
 } from "../lib/vib/run";
 import {
   collectErrorTail,
-  isFixable,
   isTerminal,
   kindLabel,
   statusView,
@@ -254,7 +253,7 @@ export default function RunPanel({ projectDir, onNavigate, onRequestErrorFix }: 
             </div>
           )}
 
-          {status === "failed" && isFixable(status) && onRequestErrorFix && (
+          {status === "failed" && onRequestErrorFix && (
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <button className="btn" onClick={() => onRequestErrorFix(collectErrorTail(lines))}>
                 이 에러 고쳐줘 → 작업방

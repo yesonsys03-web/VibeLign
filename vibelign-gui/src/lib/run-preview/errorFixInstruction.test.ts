@@ -23,7 +23,8 @@ describe("buildRunErrorFixInstruction", () => {
   });
 
   it("degrades gracefully when no output was captured", () => {
-    const out = buildRunErrorFixInstruction({ errorText: "   ", planPath: null });
-    expect(out).toContain("캡처된 출력이 없어요");
+    // 즉시 실패(출력 0줄)면 collectErrorTail 이 정확히 "" 를 낸다 — 실제 producer 값.
+    expect(buildRunErrorFixInstruction({ errorText: "", planPath: null })).toContain("캡처된 출력이 없어요");
+    expect(buildRunErrorFixInstruction({ errorText: "   ", planPath: null })).toContain("캡처된 출력이 없어요");
   });
 });
