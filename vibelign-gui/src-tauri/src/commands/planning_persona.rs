@@ -466,20 +466,20 @@ pub(crate) fn pick_judge_cli(
         if message.role == "assistant" && message.status == "ok" {
             if let Some(persona_id) = message.persona_id.as_deref() {
                 if let Some(resolved) = resolve_persona_cli(persona_id) {
-                    return Some(resolved);
+                    return Some(judge_cli_args(resolved));
                 }
             }
         }
     }
     for persona_id in ["chloe", "gio", "mina", "deepseek"] {
         if let Some(resolved) = resolve_persona_cli(persona_id) {
-            return Some(resolved);
+            return Some(judge_cli_args(resolved));
         }
     }
     None
 }
 
-fn resolve_persona_cli(persona_id: &str) -> Option<(PathBuf, Vec<String>)> {
+fn resolve_persona_cli(persona_id: &str) -> Option<(PathBuf, Vec<String>, String)> {
     let spec = persona_spec(persona_id)?;
     for provider in resolve_provider_order(persona_id, &spec) {
         let (executable, args) = match provider_spec(&provider) {
@@ -487,10 +487,25 @@ fn resolve_persona_cli(persona_id: &str) -> Option<(PathBuf, Vec<String>)> {
             None => continue,
         };
         if let Some(path) = find_executable(executable) {
-            return Some((path, args.iter().map(|a| a.to_string()).collect()));
+            return Some((path, args.iter().map(|a| a.to_string()).collect(), provider));
         }
     }
     None
+}
+
+/// 판정·추출(readiness/contract/cards)은 작업 시작 경고·계약의 근거라 정밀도 우선 —
+/// claude 는 opus 로 고정한다(사용자 결정: 속도는 모델 강등이 아니라 캐시·선행 분석으로 푼다).
+/// 다른 provider 는 모델 플래그를 검증하지 못해 기본 그대로 둔다(opencode 는 이미 flash 고정).
+fn judge_cli_args(
+    (path, args, provider): (PathBuf, Vec<String>, String),
+) -> (PathBuf, Vec<String>) {
+    match provider.as_str() {
+        "claude" => (
+            path,
+            ["-p", "--model", "opus"].iter().map(|a| a.to_string()).collect(),
+        ),
+        _ => (path, args),
+    }
 }
 
 /// 활성 CLI를 골라 프롬프트를 1회 실행하고 stdout을 반환. 없거나 실패하면 None.
@@ -544,6 +559,27 @@ pub(crate) fn planning_provider_status() -> Vec<String> {
 mod tests {
     use super::{build_persona_prompt, capability_map_from_files, classify_failure, fallback_provider_used, installed_providers_from, persona_enabled_from_value, persona_role_from_value, persona_spec, provider_spec, provider_try_order, role_spec, windows_executable_candidate, PlanningChatLine, INTERNAL_PROVIDER_PRIORITY};
     use std::path::Path;
+
+    #[test]
+    fn judge_cli_args_pins_opus_for_claude_only() {
+        use std::path::PathBuf;
+        let (path, args) = super::judge_cli_args((
+            PathBuf::from("/bin/claude"),
+            vec!["-p".to_string()],
+            "claude".to_string(),
+        ));
+        assert_eq!(path, PathBuf::from("/bin/claude"));
+        assert!(args.windows(2).any(|w| w[0] == "--model" && w[1] == "opus"));
+        assert_eq!(args.first().map(String::as_str), Some("-p")); // 프롬프트 모드 유지
+
+        // 다른 provider 는 기본 인자 그대로 — 검증 안 된 모델 플래그를 붙이지 않는다.
+        let (_, codex_args) = super::judge_cli_args((
+            PathBuf::from("/bin/codex"),
+            vec!["exec".to_string()],
+            "codex".to_string(),
+        ));
+        assert_eq!(codex_args, vec!["exec".to_string()]);
+    }
 
     #[test]
     fn windows_candidate_finds_cmd_shim() {

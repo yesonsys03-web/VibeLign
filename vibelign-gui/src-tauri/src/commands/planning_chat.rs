@@ -277,6 +277,34 @@ pub(crate) async fn save_planning_chat_as_markdown(
     .unwrap_or_else(|error| planning_chat_error(error.to_string()))
 }
 
+/// enrich 캐시 — 마지막 '온전한' 분석(판정 Judged + 계약 추출 성공) 시점의 대화 해시.
+/// 대화가 그대로면 다음 enrich 가 LLM 재호출을 건너뛴다.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EnrichCache {
+    schema_version: u32,
+    messages_hash: String,
+}
+
+/// LLM 분석 입력(status=ok 메시지의 화자·내용)을 해시한다. 실패/대기 메시지는
+/// 판정·계약 프롬프트에 들어가지 않으므로 제외 — 무관한 변화로 캐시가 깨지지 않게.
+fn enrich_input_hash(messages: &[PlanningChatMessage]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    for message in messages {
+        if message.status != "ok" {
+            continue;
+        }
+        hasher.update(message.role.as_bytes());
+        hasher.update([0x1f]);
+        hasher.update(message.persona_id.as_deref().unwrap_or("").as_bytes());
+        hasher.update([0x1f]);
+        hasher.update(message.content.as_bytes());
+        hasher.update([0x1e]);
+    }
+    format!("{:x}", hasher.finalize())
+}
+
 /// 기획안 저장 후 백그라운드 보강 — 준비상태 판정·계약 추출(각 CLI 1회, 병렬)을 돌려 같은
 /// 파일에 재저장한다. save 를 즉시화하면서 분리한 무거운 AI 분석부(저장 딜레이의 정체).
 /// App 이 소유해 await 하므로 PlanningRoom 을 떠나도 완료된다 — 작업방 지시문이 쓰는 contract 보장.
@@ -304,6 +332,25 @@ pub(crate) async fn enrich_planning_chat_plan(
             Ok(parsed) => parsed,
             Err(error) => return planning_chat_error(error),
         };
+        // 대화가 마지막 온전한 분석 이후 그대로면 LLM 2회를 건너뛴다 — 재저장이 즉시 끝난다.
+        // 캐시는 분석이 온전히 성공했을 때만 기록되므로, 해시 일치 + 산출물 존재 = 디스크의
+        // readiness·contract 가 이 대화의 유효한 분석 결과다(미완이었으면 여기서 재시도).
+        let input_hash = enrich_input_hash(&messages);
+        let cache_path = session_dir.join("enrich.json");
+        let cache_hit = read_json::<EnrichCache>(&cache_path)
+            .map(|cache| cache.schema_version == 1 && cache.messages_hash == input_hash)
+            .unwrap_or(false);
+        if cache_hit {
+            let contract = super::planning_chat_contract::read_contract(&session_dir);
+            let readiness_judged = session.readiness.as_ref().is_some_and(|report| {
+                matches!(report.status, super::planning_chat_readiness::ReadinessStatus::Judged)
+            });
+            if readiness_judged && contract.is_some() {
+                let markdown = read_saved_markdown(&project_dir, &session);
+                let cards = read_cards(&session_dir);
+                return planning_chat_success(session, messages, markdown, cards, contract);
+            }
+        }
         // 준비상태 판정·계약 추출은 각각 CLI 1회 — 병렬 실행으로 ~1회분 지연(구 save 와 동일).
         let now = timestamp_ms().to_string();
         let (readiness, contract) = {
@@ -340,6 +387,14 @@ pub(crate) async fn enrich_planning_chat_plan(
         };
         if let Err(error) = write_json(session_path, &session) {
             return planning_chat_error(error);
+        }
+        // 분석이 온전(판정 Judged + 계약 추출 성공)할 때만 입력 해시를 기록한다 — 다음
+        // 재저장 스킵용. 미완이면 기록하지 않아 다음 enrich 가 재시도한다. best-effort.
+        let analysis_complete = session.readiness.as_ref().is_some_and(|report| {
+            matches!(report.status, super::planning_chat_readiness::ReadinessStatus::Judged)
+        }) && contract.is_some();
+        if analysis_complete {
+            let _ = write_json(cache_path, &EnrichCache { schema_version: 1, messages_hash: input_hash });
         }
         planning_chat_success(session, messages, Some(saved.markdown), cards, contract)
     })
@@ -461,6 +516,31 @@ mod tests {
             provider_used: None,
             fallback_reason: None,
         }
+    }
+
+    #[test]
+    fn enrich_input_hash_is_stable_and_ignores_non_ok_messages() {
+        let base = vec![msg("user", None), msg("assistant", Some("chloe"))];
+        let same = vec![msg("user", None), msg("assistant", Some("chloe"))];
+        assert_eq!(enrich_input_hash(&base), enrich_input_hash(&same));
+
+        // 실패/대기 메시지는 판정 프롬프트에 안 들어가므로 해시도 안 바뀌어야 한다.
+        let mut failed = msg("assistant", Some("gio"));
+        failed.status = "failed".to_string();
+        let mut with_failed = vec![msg("user", None), msg("assistant", Some("chloe"))];
+        with_failed.push(failed);
+        assert_eq!(enrich_input_hash(&base), enrich_input_hash(&with_failed));
+
+        // 내용·화자가 바뀌면 해시가 바뀐다.
+        let mut changed = vec![msg("user", None), msg("assistant", Some("chloe"))];
+        changed[0].content = "다른 내용".to_string();
+        assert_ne!(enrich_input_hash(&base), enrich_input_hash(&changed));
+        let other_persona = vec![msg("user", None), msg("assistant", Some("mina"))];
+        assert_ne!(enrich_input_hash(&base), enrich_input_hash(&other_persona));
+
+        // 메시지가 추가되면(새 턴) 해시가 바뀐다.
+        let extended = vec![msg("user", None), msg("assistant", Some("chloe")), msg("user", None)];
+        assert_ne!(enrich_input_hash(&base), enrich_input_hash(&extended));
     }
 
     #[test]
