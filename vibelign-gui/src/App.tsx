@@ -126,8 +126,14 @@ export default function App() {
     void enrichPlanningChatPlan({ projectDir, sessionId })
       .then((enriched) => {
         if (!enriched.ok) return;
-        // 활성 세션이 그대로일 때만 적용(다른 세션으로 전환됐으면 무시).
-        setPlanningResult((prev) => (prev && prev.sessionId === enriched.sessionId ? enriched : prev));
+        // 활성 세션이 그대로일 때만, enrich 가 소유한 필드(분석 결과)만 병합한다 — enrich 창
+        // 동안 사용자가 같은 세션에 더한 대화·카드(messages/cards)를 통째 교체로 되돌리지 않게
+        // (M3 enrich 리뷰 P2). contract 는 작업방 지시문이 쓰는 핵심.
+        setPlanningResult((prev) =>
+          prev && prev.sessionId === enriched.sessionId
+            ? { ...prev, contract: enriched.contract, readiness: enriched.readiness, markdown: enriched.markdown }
+            : prev,
+        );
       })
       .catch(() => {})
       .finally(() => setEnrichingSessionId((cur) => (cur === sessionId ? null : cur)));

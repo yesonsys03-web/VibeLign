@@ -322,6 +322,9 @@ pub(crate) async fn enrich_planning_chat_plan(
         if let Some(ref parsed) = contract {
             let _ = super::planning_chat_contract::write_contract(&session_dir, parsed);
         }
+        // LLM 분석(수십 초) 동안 같은 세션에 새 대화가 붙었을 수 있다 — 최종 문서·응답은 최신
+        // messages·cards 로 합성해 누락 없이(읽기 실패 시 분석 시점 스냅샷 유지, M3 enrich 리뷰 P2).
+        let messages = read_json::<Vec<PlanningChatMessage>>(&messages_path).unwrap_or(messages);
         let cards = read_cards(&session_dir);
         // 즉시저장이 set 한 output_path 로 재저장(target 미지정 → 기존 경로 그대로).
         let saved = match save_planning_markdown(
