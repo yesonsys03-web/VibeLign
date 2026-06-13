@@ -1,5 +1,8 @@
 // === ANCHOR: MOD_START ===
 pub(crate) mod code;
+pub(crate) mod design_preview;
+#[cfg(test)]
+mod design_preview_tests;
 pub(crate) mod docs;
 pub(crate) mod error_logs;
 pub(crate) mod gui_error;
