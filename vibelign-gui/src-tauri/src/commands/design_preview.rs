@@ -123,6 +123,7 @@ pub(crate) fn build_mockup_prompt(
 ) -> String {
     let mut out = String::new();
     out.push_str("당신은 웹 UI 디자이너입니다. 아래 기획안을 단 하나의 자기완결 HTML 문서로 된 고충실 컬러 목업으로 만드세요.\n\n");
+    out.push_str("중요: 파일을 저장하거나 Write/Edit/Bash 등 어떤 도구도 절대 사용하지 마세요. 완성된 HTML 문서 전체를 당신의 응답 본문(텍스트)으로만 출력하세요.\n\n");
     out.push_str("[기획안]\n");
     out.push_str(spec_md);
     out.push_str("\n\n[디자인 스타일]\n");
@@ -131,7 +132,7 @@ pub(crate) fn build_mockup_prompt(
     out.push_str("\n\n[고정 디자인 토큰 — 그대로 <style>에 포함하고, 색·폰트·모서리·그림자는 반드시 이 변수만 사용]\n");
     out.push_str(css_vars);
     out.push_str("\n\n[규칙]\n");
-    out.push_str("- 출력은 <!doctype html>로 시작하는 단일 HTML 문서 하나. 설명·마크다운 펜스 금지.\n");
+    out.push_str("- 응답은 <!doctype html>로 시작하는 단일 HTML 문서 하나뿐. 설명·인사·마크다운 펜스·도구 사용 금지.\n");
     out.push_str("- 위 :root 블록을 <style>에 그대로 넣고, 색/폰트/모서리/그림자는 var(--bg) 등 변수로만 참조.\n");
     out.push_str("- 외부 리소스(CDN·폰트·이미지 URL)·자바스크립트·인라인 이벤트 핸들러 금지. 인라인 CSS만.\n");
     out.push_str("- 기획안의 화면/구역을 실제 콘텐츠 예시로 채워 한 화면으로 배치.\n");

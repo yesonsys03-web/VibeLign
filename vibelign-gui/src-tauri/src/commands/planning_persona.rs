@@ -609,8 +609,14 @@ fn capture_with_stdin_timeout(
 
 /// 디자인 목업 생성 1-shot. opus 미고정, 프롬프트는 stdin 전달.
 pub(crate) fn run_design_generation(project_dir: &Path, prompt: &str) -> Option<String> {
-    let (executable, args) = pick_generation_cli(&[])?;
-    let mut cmd = Command::new(executable);
+    let (executable, mut args) = pick_generation_cli(&[])?;
+    // claude(-p)는 에이전트라 "목업 만들어"를 받으면 Write 도구로 파일 저장을 시도하고
+    // stdout 으로 HTML 을 주지 않는다(검증 2026-06-13). 도구를 막아 순수 텍스트(HTML) 응답을 강제.
+    if executable.file_stem().and_then(|s| s.to_str()) == Some("claude") {
+        args.push("--disallowedTools".to_string());
+        args.push("Write,Edit,Bash,Read,Glob,Grep".to_string());
+    }
+    let mut cmd = Command::new(&executable);
     cmd.args(&args); // 프롬프트는 argv 가 아니라 stdin
     cmd.current_dir(project_dir);
     cmd.env("PATH", augmented_vib_path());

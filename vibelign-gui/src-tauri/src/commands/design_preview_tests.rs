@@ -70,6 +70,8 @@ fn prompt_embeds_spec_css_recipe_constraints() {
     assert!(p.contains("버튼은 굵은 테두리"));
     assert!(p.contains("<!doctype html"));
     assert!(p.contains("var(--"));
+    // 에이전트 CLI 가 파일 저장 대신 HTML 을 텍스트로 출력하도록 강제하는 지시(2026-06-13 검증)
+    assert!(p.contains("도구"));
 }
 #[test]
 fn prompt_includes_feedback_and_previous() {
