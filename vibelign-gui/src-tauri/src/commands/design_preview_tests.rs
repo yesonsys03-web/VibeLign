@@ -75,6 +75,8 @@ fn style_css_vars_includes_motion_when_present() {
     assert!(css.contains("--dur:80ms"));     // 모션 토큰 추가
     assert!(css.contains("--ease:cubic-bezier(.2,0,0,1)"));
     assert!(css.trim_end().ends_with('}'));  // :root{} 블록 닫힘 유지
+    // 모션 토큰이 닫는 } 안쪽에 위치(블록 밖 append 회귀 방지).
+    assert!(css.ends_with("--dur:80ms;--ease:cubic-bezier(.2,0,0,1);}"));
 }
 
 #[test]

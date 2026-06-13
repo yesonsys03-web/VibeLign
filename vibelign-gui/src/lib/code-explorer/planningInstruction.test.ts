@@ -126,6 +126,7 @@ describe("buildPlanningWorkInstruction", () => {
     });
     expect(out).toContain("딱딱하게 즉각");
     expect(out).toContain("--dur:80ms");
+    expect(out).toContain("--ease:ease");
     expect(out).toContain("prefers-reduced-motion");
   });
   test("design.motion이 없으면 모션 가이드 없음", () => {
@@ -138,6 +139,7 @@ describe("buildPlanningWorkInstruction", () => {
       },
     });
     expect(out).not.toContain("모션 가이드");
+    expect(out).not.toContain("--dur");
   });
 });
 // === ANCHOR: PLANNINGINSTRUCTION_TEST_END ===
