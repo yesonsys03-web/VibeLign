@@ -96,3 +96,27 @@ fn cache_roundtrip_and_prune_keeps_newest() {
     }).count();
     assert!(count <= 3);
 }
+
+#[test]
+fn load_plan_reads_internal_relative_only() {
+    let root = tempfile::tempdir().expect("temp");
+    std::fs::create_dir_all(root.path().join("plans")).unwrap();
+    std::fs::write(root.path().join("plans/x.md"), "# 본문").unwrap();
+    assert!(load_plan_markdown(root.path(), "plans/x.md").unwrap().contains("본문"));
+    assert!(load_plan_markdown(root.path(), "../x").is_err()); // 탈출 거부
+}
+#[test]
+fn save_mockup_validates_and_returns_slash_path() {
+    let root = tempfile::tempdir().expect("temp");
+    let rel = save_mockup_file(root.path(), "neo-brutalism", "<!doctype html><b>m</b>").expect("save");
+    assert!(rel.starts_with(".vibelign/design_preview/"));
+    assert!(!rel.contains('\\')); // slash 정규화
+    assert!(root.path().join(&rel).exists());
+    assert!(save_mockup_file(root.path(), "../evil", "<!doctype html>").is_err()); // style_id 거부
+    assert!(save_mockup_file(root.path(), "neo", "<script>").is_err());            // HTML 거부
+}
+#[test]
+fn strip_code_fences_removes_html_fence() {
+    assert_eq!(strip_code_fences("```html\n<!doctype html>\n```"), "<!doctype html>");
+    assert_eq!(strip_code_fences("<!doctype html>"), "<!doctype html>");
+}

@@ -175,6 +175,8 @@ pub fn run() {
             commands::settings::get_planning_personas,
             commands::settings::set_planning_personas,
             commands::planning_persona::planning_provider_status,
+            commands::design_preview::generate_design_mockup,
+            commands::design_preview::save_design_mockup,
             commands::project_summary::read_project_summary,
             commands::gui_error::record_gui_error,
             onboarding::check_git_installed,

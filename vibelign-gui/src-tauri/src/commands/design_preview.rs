@@ -191,4 +191,90 @@ pub(crate) fn prune_design_cache(project_dir: &Path, keep: usize) {
         let _ = std::fs::remove_file(path);
     }
 }
+
+use crate::commands::planning_persona;
+
+pub(crate) fn strip_code_fences(s: &str) -> String {
+    let t = s.trim();
+    let t = t.strip_prefix("```html").or_else(|| t.strip_prefix("```")).unwrap_or(t);
+    let t = t.strip_suffix("```").unwrap_or(t);
+    t.trim().to_string()
+}
+
+pub(crate) fn load_plan_markdown(project_dir: &Path, plan_path: &str) -> Result<String, String> {
+    validate_plan_path(plan_path)?;
+    let full = project_dir.join(plan_path);
+    // 심볼릭/조작 경로 방어: 정규화 후 프로젝트 내부 확인
+    let canon_root = std::fs::canonicalize(project_dir).map_err(|e| e.to_string())?;
+    let canon_full = std::fs::canonicalize(&full).map_err(|e| format!("기획안 읽기 실패({plan_path}): {e}"))?;
+    if !canon_full.starts_with(&canon_root) {
+        return Err("기획안 경로가 프로젝트 밖을 가리킵니다".into());
+    }
+    std::fs::read_to_string(&canon_full).map_err(|e| format!("기획안 읽기 실패({plan_path}): {e}"))
+}
+
+pub(crate) fn save_mockup_file(project_dir: &Path, style_id: &str, html: &str) -> Result<String, String> {
+    if !is_safe_style_id(style_id) {
+        return Err("스타일 id 형식이 올바르지 않습니다".into());
+    }
+    validate_mockup_html(html)?;
+    let key = design_cache_key(&format!("{style_id}:{html}"));
+    let rel = format!(".vibelign/design_preview/mockup-{style_id}-{}.html", &key[..12]);
+    let full = project_dir.join(&rel);
+    if let Some(parent) = full.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&full, html).map_err(|e| e.to_string())?;
+    Ok(rel) // 이미 슬래시 리터럴로 구성됨
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct DesignMockupResult {
+    pub html: String,
+    pub cached: bool,
+}
+
+#[tauri::command]
+pub(crate) fn generate_design_mockup(
+    project_dir: String,
+    plan_path: String,
+    style: StyleSpec,
+    feedback: Option<String>,
+    previous_html: Option<String>,
+) -> Result<DesignMockupResult, String> {
+    let dir = Path::new(&project_dir);
+    if !dir.is_absolute() {
+        return Err("projectDir must be absolute".into());
+    }
+    if !is_safe_style_id(&style.id) {
+        return Err("스타일 id 형식이 올바르지 않습니다".into());
+    }
+    let spec_md = load_plan_markdown(dir, &plan_path)?;
+    let css = tokens_to_css_vars(&style.tokens);
+    let prompt = build_mockup_prompt(&spec_md, &style, &css, feedback.as_deref(), previous_html.as_deref());
+    let key = design_cache_key(&prompt);
+    if let Some(html) = read_design_cache(dir, &key) {
+        return Ok(DesignMockupResult { html, cached: true });
+    }
+    let raw = planning_persona::run_design_generation(dir, &prompt)
+        .ok_or_else(|| "디자인 목업 생성에 실패했습니다 (CLI 미설치/로그인/타임아웃)".to_string())?;
+    let html = strip_code_fences(&raw);
+    validate_mockup_html(&html)?; // 저장 전 검증
+    write_design_cache(dir, &key, &html)?;
+    prune_design_cache(dir, 50);
+    Ok(DesignMockupResult { html, cached: false })
+}
+
+#[tauri::command]
+pub(crate) fn save_design_mockup(
+    project_dir: String,
+    style_id: String,
+    html: String,
+) -> Result<String, String> {
+    let dir = Path::new(&project_dir);
+    if !dir.is_absolute() {
+        return Err("projectDir must be absolute".into());
+    }
+    save_mockup_file(dir, &style_id, &html)
+}
 // ANCHOR: DESIGN_PREVIEW_END
