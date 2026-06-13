@@ -49,3 +49,29 @@ fn css_vars_deterministic_and_complete() {
     assert!(css.contains("--shadow:6px 6px 0 #111111"));
     assert_eq!(tokens_to_css_vars(&sample_tokens()), css);
 }
+
+fn sample_style() -> StyleSpec {
+    StyleSpec {
+        id: "neo-brutalism".into(), name: "네오브루탈리즘".into(),
+        description: "두꺼운 테두리".into(), tokens: sample_tokens(),
+        recipe: "버튼은 굵은 테두리.".into(),
+    }
+}
+#[test]
+fn prompt_embeds_spec_css_recipe_constraints() {
+    let css = tokens_to_css_vars(&sample_tokens());
+    let p = build_mockup_prompt("# 예약 앱\n핵심: 캘린더", &sample_style(), &css, None, None);
+    assert!(p.contains("예약 앱"));
+    assert!(p.contains(":root{"));
+    assert!(p.contains("버튼은 굵은 테두리"));
+    assert!(p.contains("<!doctype html"));
+    assert!(p.contains("var(--"));
+}
+#[test]
+fn prompt_includes_feedback_and_previous() {
+    let css = tokens_to_css_vars(&sample_tokens());
+    let p = build_mockup_prompt("# 앱", &sample_style(), &css, Some("버튼 더 크게"), Some("<!doctype html><b>이전</b>"));
+    assert!(p.contains("버튼 더 크게"));
+    assert!(p.contains("이전")); // 직전 목업 포함
+    assert!(p.contains("아래 현재 목업을 기준"));
+}

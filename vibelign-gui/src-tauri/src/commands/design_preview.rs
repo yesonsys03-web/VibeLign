@@ -112,4 +112,38 @@ pub(crate) fn tokens_to_css_vars(t: &DesignTokens) -> String {
         t.bg, t.surface, t.text, t.primary, t.accent, t.border, t.font_family, t.radius, t.shadow
     )
 }
+
+pub(crate) fn build_mockup_prompt(
+    spec_md: &str,
+    style: &StyleSpec,
+    css_vars: &str,
+    feedback: Option<&str>,
+    previous_html: Option<&str>,
+) -> String {
+    let mut out = String::new();
+    out.push_str("당신은 웹 UI 디자이너입니다. 아래 기획안을 단 하나의 자기완결 HTML 문서로 된 고충실 컬러 목업으로 만드세요.\n\n");
+    out.push_str("[기획안]\n");
+    out.push_str(spec_md);
+    out.push_str("\n\n[디자인 스타일]\n");
+    out.push_str(&format!("{} — {}\n", style.name, style.description));
+    out.push_str(&style.recipe);
+    out.push_str("\n\n[고정 디자인 토큰 — 그대로 <style>에 포함하고, 색·폰트·모서리·그림자는 반드시 이 변수만 사용]\n");
+    out.push_str(css_vars);
+    out.push_str("\n\n[규칙]\n");
+    out.push_str("- 출력은 <!doctype html>로 시작하는 단일 HTML 문서 하나. 설명·마크다운 펜스 금지.\n");
+    out.push_str("- 위 :root 블록을 <style>에 그대로 넣고, 색/폰트/모서리/그림자는 var(--bg) 등 변수로만 참조.\n");
+    out.push_str("- 외부 리소스(CDN·폰트·이미지 URL)·자바스크립트·인라인 이벤트 핸들러 금지. 인라인 CSS만.\n");
+    out.push_str("- 기획안의 화면/구역을 실제 콘텐츠 예시로 채워 한 화면으로 배치.\n");
+    if let Some(prev) = previous_html {
+        out.push_str("\n[아래 현재 목업을 기준으로, 다음 수정 요청만 반영해 전체 HTML을 다시 출력]\n");
+        out.push_str(prev);
+        out.push('\n');
+    }
+    if let Some(fb) = feedback {
+        out.push_str("\n[수정 요청 — 우선 반영]\n");
+        out.push_str(fb);
+        out.push('\n');
+    }
+    out
+}
 // ANCHOR: DESIGN_PREVIEW_END
