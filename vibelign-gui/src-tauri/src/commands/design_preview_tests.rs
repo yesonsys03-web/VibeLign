@@ -115,6 +115,38 @@ fn prompt_includes_feedback_and_previous() {
 }
 
 #[test]
+fn prompt_includes_motion_section_when_present() {
+    let css = tokens_to_css_vars(&sample_tokens());
+    let mut style = sample_style();
+    style.motion = Some(MotionSpec {
+        tokens: MotionTokens { duration: "80ms".into(), easing: "ease".into() },
+        recipe: "딱딱하게 즉각".into(),
+    });
+    let p = build_mockup_prompt("# 앱", &style, &css, None, None);
+    assert!(p.contains("딱딱하게 즉각"));               // recipe
+    assert!(p.contains("CSS 전환"));                    // CSS-only 제약
+    assert!(p.contains("자바스크립트 금지"));
+    assert!(p.contains("prefers-reduced-motion"));      // 접근성
+    assert!(p.contains("var(--dur)"));
+}
+
+#[test]
+fn prompt_omits_motion_section_when_absent() {
+    let css = tokens_to_css_vars(&sample_tokens());
+    let p = build_mockup_prompt("# 앱", &sample_style(), &css, None, None); // motion None
+    assert!(!p.contains("[모션 —"));
+}
+
+#[test]
+fn validator_allows_css_motion() {
+    // CSS 전환·@keyframes·:hover·@media 는 스크립트가 아니므로 통과해야 한다(회귀 가드).
+    let html = "<!doctype html><style>@keyframes pop{from{transform:scale(.96)}to{transform:scale(1)}}\
+.a{transition:transform var(--dur) var(--ease)}.b:hover{box-shadow:var(--shadow)}\
+@media (prefers-reduced-motion: reduce){.a{transition:none}}</style><div class=\"a\"></div>";
+    assert!(validate_mockup_html(html).is_ok());
+}
+
+#[test]
 fn cache_key_stable_sha256() {
     let a = design_cache_key("p");
     assert_eq!(a, design_cache_key("p"));

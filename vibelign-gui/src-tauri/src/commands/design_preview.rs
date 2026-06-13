@@ -160,6 +160,13 @@ pub(crate) fn build_mockup_prompt(
     out.push_str("- 위 :root 블록을 <style>에 그대로 넣고, 색/폰트/모서리/그림자는 var(--bg) 등 변수로만 참조.\n");
     out.push_str("- 외부 리소스(CDN·폰트·이미지 URL)·자바스크립트·인라인 이벤트 핸들러 금지. 인라인 CSS만.\n");
     out.push_str("- 기획안의 화면/구역을 실제 콘텐츠 예시로 채워 한 화면으로 배치.\n");
+    if let Some(m) = &style.motion {
+        out.push_str("\n[모션 — 이 스타일의 움직임 성격]\n");
+        out.push_str(&m.recipe);
+        out.push_str("\n- 목업에선 CSS 전환(transition)·@keyframes·:hover 로만 표현. 자바스크립트 금지.\n");
+        out.push_str("- 지속·이징은 var(--dur)·var(--ease) 변수만 사용.\n");
+        out.push_str("- @media (prefers-reduced-motion: reduce) 에서 모션을 비활성/축소.\n");
+    }
     if let Some(prev) = previous_html {
         out.push_str("\n[아래 현재 목업을 기준으로, 다음 수정 요청만 반영해 전체 HTML을 다시 출력]\n");
         out.push_str(prev);
@@ -283,7 +290,7 @@ pub(crate) fn generate_design_mockup(
         return Err("스타일 id 형식이 올바르지 않습니다".into());
     }
     let spec_md = load_plan_markdown(dir, &plan_path)?;
-    let css = tokens_to_css_vars(&style.tokens);
+    let css = style_to_css_vars(&style);
     let prompt = build_mockup_prompt(&spec_md, &style, &css, feedback.as_deref(), previous_html.as_deref());
     let key = design_cache_key(&prompt);
     if let Some(html) = read_design_cache(dir, &key) {
