@@ -59,7 +59,39 @@ fn sample_style() -> StyleSpec {
         id: "neo-brutalism".into(), name: "네오브루탈리즘".into(),
         description: "두꺼운 테두리".into(), tokens: sample_tokens(),
         recipe: "버튼은 굵은 테두리.".into(),
+        motion: None,
     }
+}
+
+#[test]
+fn style_css_vars_includes_motion_when_present() {
+    let mut style = sample_style(); // 기존 헬퍼 (tokens=sample_tokens)
+    style.motion = Some(MotionSpec {
+        tokens: MotionTokens { duration: "80ms".into(), easing: "cubic-bezier(.2,0,0,1)".into() },
+        recipe: "딱딱하게".into(),
+    });
+    let css = style_to_css_vars(&style);
+    assert!(css.contains("--bg:#FFFDF5"));   // 색 토큰 유지
+    assert!(css.contains("--dur:80ms"));     // 모션 토큰 추가
+    assert!(css.contains("--ease:cubic-bezier(.2,0,0,1)"));
+    assert!(css.trim_end().ends_with('}'));  // :root{} 블록 닫힘 유지
+}
+
+#[test]
+fn style_css_vars_omits_motion_when_absent() {
+    let style = sample_style(); // motion 없음
+    let css = style_to_css_vars(&style);
+    assert!(!css.contains("--dur"));
+}
+
+#[test]
+fn style_spec_deserializes_without_motion_field() {
+    let json = r##"{"id":"x","name":"X","description":"d",
+      "tokens":{"bg":"#000","surface":"#000","text":"#000","primary":"#000","accent":"#000",
+        "border":"1px","fontFamily":"sans","radius":"0","shadow":"none"},
+      "recipe":"r"}"##;
+    let s: StyleSpec = serde_json::from_str(json).expect("deserialize without motion");
+    assert!(s.motion.is_none());
 }
 #[test]
 fn prompt_embeds_spec_css_recipe_constraints() {

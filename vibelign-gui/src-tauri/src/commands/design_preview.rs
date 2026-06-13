@@ -99,12 +99,25 @@ pub(crate) struct DesignTokens {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub(crate) struct MotionTokens {
+    pub duration: String,
+    pub easing: String,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub(crate) struct MotionSpec {
+    pub tokens: MotionTokens,
+    pub recipe: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub(crate) struct StyleSpec {
     pub id: String,
     pub name: String,
     pub description: String,
     pub tokens: DesignTokens,
     pub recipe: String,
+    #[serde(default)]
+    pub motion: Option<MotionSpec>,
 }
 
 pub(crate) fn tokens_to_css_vars(t: &DesignTokens) -> String {
@@ -112,6 +125,17 @@ pub(crate) fn tokens_to_css_vars(t: &DesignTokens) -> String {
         ":root{{--bg:{};--surface:{};--text:{};--primary:{};--accent:{};--border:{};--font:{};--radius:{};--shadow:{};}}",
         t.bg, t.surface, t.text, t.primary, t.accent, t.border, t.font_family, t.radius, t.shadow
     )
+}
+
+/// 색 토큰 :root 블록에 motion 토큰(--dur/--ease)을 합류. motion 없으면 색 토큰만.
+pub(crate) fn style_to_css_vars(style: &StyleSpec) -> String {
+    let mut s = tokens_to_css_vars(&style.tokens);
+    if let Some(m) = &style.motion {
+        if let Some(pos) = s.rfind('}') {
+            s.insert_str(pos, &format!("--dur:{};--ease:{};", m.tokens.duration, m.tokens.easing));
+        }
+    }
+    s
 }
 
 pub(crate) fn build_mockup_prompt(
