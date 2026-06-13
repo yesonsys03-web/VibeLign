@@ -2,86 +2,201 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>VibeLign 가이드 레이어 목업 — 강 PD 시연용</title>
+<title>VibeLign 가이드 레이어 목업 v6 — 초보자 따라하기 (현행 버전 반영)</title>
+<!--
+  v6.1 (2026-06-13) — 온보딩 화면 추가: 데모가 실제 앱처럼 1️⃣ 온보딩에서 시작.
+  · 폴더 선택(+) → 기획 한 줄 입력 → ● 전송 → vib start 진행 표시 → 기획방 직행 (Onboarding.tsx 동선)
+  · "▸ AI 도구 · 설치 · 시스템 상태" 패널: MCP 자동 설정(설치된 도구 자동 선택) ·
+    CLAUDE CODE 설치/관리 · 시스템 상태 배지 · 최근 프로젝트(클릭=이어서 열기, ×=목록 제거)
+  · vib start 초기 저장(자동)은 가이드 3️⃣ 완료로 치지 않음 (guide.ts hasManualCheckpoint 동일)
+
+  v6 (2026-06-13) — 실제 출시 버전에 맞춰 재구성. v5 대비 변경:
+  · 테마: 다크 → 실제 앱의 크림(#FEFBF0) 네오브루탈 테마
+  · 4️⃣ AI에게 작업 시키기: 외부 복붙 → "작업방" 내장 실행 (체크포인트→AI 실행→자동 검사 한 번에)
+    외부 도구 복붙은 코드탐색의 폴백으로 강등 (✓ 다 했어요 affordance는 코드탐색에서만)
+  · 5️⃣ 결과 검증: 안전(홈 '상태 확인') + 작동(개발→실행해보기 ▶ 실행 + 미리보기) 두 축
+  · 실행해보기 → 작업방 "개선 요청" 핸드오프 (이건 아닌데 → 지시문 교체 → 재실행 루프)
+  · 개발 서브탭 4개: 코드탐색·문서·작업방·실행해보기 / 유지보수: 진단·백업·에러로그
+  · 가이드 스트립: 컴팩트(한 줄) 기본 + ▸펼침 + "문제 있나요?" 보조 행 (현행 GuideStrip.tsx 동일)
+  · STEPS 텍스트는 src/lib/nav/guide.ts JOURNEY_STEPS 카피 그대로
+-->
 <style>
-  /* 실제 앱 다크 테마 근사치 */
+  /* 실제 앱 크림 테마 근사치 (GuideStrip.tsx 색상 기준) */
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #060606; color: #ddd; font-family: "Pretendard", "Apple SD Gothic Neo", sans-serif; font-size: 13px; display: flex; flex-direction: column; height: 100vh; }
-  .titlebar { background: #0A0A0A; padding: 6px 12px; font-size: 11px; color: #666; border-bottom: 1px solid #1A1A1A; display: flex; gap: 8px; align-items: center; }
-  .titlebar .dot { width: 10px; height: 10px; border-radius: 50%; }
-  .tabbar { display: flex; gap: 2px; background: #0A0A0A; padding: 6px 8px 0; border-bottom: 1px solid #1A1A1A; }
-  .tab { padding: 7px 14px; border-radius: 6px 6px 0 0; cursor: pointer; color: #888; font-size: 13px; border: none; background: transparent; }
-  .tab.active { background: #141414; color: #fff; font-weight: 600; }
-  .tab:hover { color: #ccc; }
+  body { background: #FEFBF0; color: #1A1A1A; font-family: "Pretendard", "Apple SD Gothic Neo", sans-serif; font-size: 14px; display: flex; flex-direction: column; height: 100vh; }
+  .titlebar { background: #F3EEDF; padding: 6px 12px; font-size: 12px; color: #6B6B6B; border-bottom: 2px solid #1A1A1A; display: flex; gap: 8px; align-items: center; }
+  .titlebar .dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,.25); }
+  .tabbar { display: flex; gap: 0; background: #FEFBF0; padding: 6px 10px 0; border-bottom: 2px solid #1A1A1A; align-items: flex-end; }
+  .tab { padding: 8px 16px; cursor: pointer; color: #555; font-size: 14px; border: 2px solid transparent; border-bottom: none; background: transparent; border-radius: 6px 6px 0 0; }
+  .tab.active { background: #1A1A1A; color: #FEFBF0; font-weight: 700; }
+  .tab:hover { color: #1A1A1A; }
   .tab.right { margin-left: auto; }
-  .subnav { display: flex; gap: 2px; background: #0E0E0E; padding: 4px 12px; border-bottom: 1px solid #1A1A1A; min-height: 30px; }
-  .subtab { padding: 3px 10px; font-size: 11px; color: #777; cursor: pointer; border: none; background: transparent; border-radius: 4px; }
-  .subtab.active { color: #FBBF24; background: #1a1813; }
-  /* 가이드 스트립 */
-  .strip { display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 11px; color: #888; background: #0E0E0E; border-bottom: 1px solid #1A1A1A; flex-wrap: wrap; }
-  .strip.thin { padding: 3px 12px; }
-  .strip .guide { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #ccc; flex-wrap: wrap; }
-  .strip .now { color: #FBBF24; font-weight: 700; }
-  .strip .celebrate { color: #4DFF91; font-size: 13px; }
-  .chip { font-size: 12px; padding: 1px 9px; border: 1px solid #2A2A2A; background: #161616; color: #ccc; border-radius: 4px; cursor: pointer; }
-  .chip:hover { border-color: #555; }
-  .chip.amber { color: #FBBF24; }
-  .chip.gray { color: #888; }
+  .subnav { display: flex; gap: 4px; background: #F3EEDF; padding: 5px 14px; border-bottom: 2px solid #1A1A1A; min-height: 32px; align-items: center; }
+  .subtab { padding: 3px 12px; font-size: 13px; color: #666; cursor: pointer; border: none; background: transparent; border-radius: 4px; }
+  .subtab.active { color: #7C2D12; background: #FBBF24; font-weight: 700; border: 1px solid #1A1A1A; }
+  /* 가이드 스트립 (현행: 컴팩트 기본, #CFCABB 배경, #7C2D12 강조) */
+  .strip { display: flex; align-items: center; gap: 10px; padding: 6px 14px; font-size: 14px; background: #CFCABB; border-bottom: 2px solid #1A1A1A; flex-wrap: wrap; }
+  .strip.thin { padding: 3px 12px; background: #E8E3D4; font-size: 13px; color: #555; }
+  .strip.celebrate { background: #E8F6EC; color: #166534; font-size: 15px; padding: 10px 14px; }
+  .strip .now { color: #7C2D12; font-weight: 700; }
+  .strip .overline { color: #555; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+  .strip .col { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; flex: 1 1 auto; min-width: 0; }
+  .strip .row { display: flex; flex-wrap: wrap; align-items: center; column-gap: 10px; row-gap: 8px; }
+  .strip .util { flex-basis: 100%; display: flex; align-items: center; gap: 8px; padding-top: 6px; }
+  .strip .divider { width: 1px; height: 14px; background: rgba(0,0,0,.25); }
+  /* 가이드 스트립 = 온보딩과 같은 말풍선 톤: 말하는 마스코트(🧭) + 크림 말풍선(꼬리 왼쪽) */
+  .mascot { width: 34px; height: 34px; flex-shrink: 0; border: 2.5px solid #1A1A1A; border-radius: 50%; background: #FBBF24; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 2px 2px 0 #1A1A1A; }
+  .mascot.pop { animation: popbubble .4s cubic-bezier(.18,1.5,.4,1) both; }
+  .gbubble { position: relative; background: #FFF6DC; border: 2.5px solid #1A1A1A; border-radius: 14px; padding: 8px 12px; box-shadow: 2px 2px 0 #1A1A1A; }
+  .gbubble::before { content: ""; position: absolute; right: 100%; top: 12px; border: 8px solid transparent; border-right-color: #1A1A1A; }
+  .gbubble::after  { content: ""; position: absolute; right: 100%; top: 12px; margin-right: -3px; border: 6px solid transparent; border-right-color: #FFF6DC; }
+  .gbubble.pop { animation: popbubble .42s cubic-bezier(.18,1.5,.4,1) both; transform-origin: left center; }
+  .gbubble .now { color: #7C2D12; font-weight: 700; }
+  .gbubble .overline { color: #555; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+  .chip { font-size: 13px; padding: 4px 10px; border: 1px solid #1A1A1A; background: #FEFBF0; color: #1A1A1A; border-radius: 4px; cursor: pointer; }
+  .chip:hover { background: #fff; }
+  .chip.amber { background: #FBBF24; font-weight: 600; }
+  .chip.outline { background: transparent; color: #7C2D12; border-color: #7C2D12; }
+  .chip.ghost { border-color: transparent; background: transparent; color: #4A4A4A; }
   .chip:disabled { opacity: .35; cursor: default; }
+  .chip.sq { width: 26px; height: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
   .spacer { flex: 1; }
-  .status-ok { color: #aaa; } .status-no { color: #666; }
-  .pending { color: #FBBF24; }
+  .status-ok { color: #333; } .status-no { color: #777; }
+  .pending { color: #7C2D12; }
   /* 콘텐츠 */
-  .content { flex: 1; overflow-y: auto; background: #101010; }
+  .content { flex: 1; overflow-y: auto; background: #FEFBF0; }
   .cards { display: flex; gap: 12px; padding: 16px; }
-  .hubcard { flex: 1; text-align: left; padding: 16px; background: #141414; border: 1px solid #2A2A2A; border-radius: 8px; color: #ddd; cursor: pointer; }
-  .hubcard.now { background: #1a1813; border: 2px solid #FBBF24; }
+  .hubcard { flex: 1; text-align: left; padding: 16px; background: #FFFDF6; border: 2px solid #1A1A1A; border-radius: 8px; cursor: pointer; box-shadow: 3px 3px 0 #1A1A1A; }
+  .hubcard.now { background: #FFF6DC; border-color: #7C2D12; box-shadow: 3px 3px 0 #7C2D12; }
   .hubcard .icon { font-size: 20px; }
-  .hubcard .name { font-weight: 600; margin-top: 6px; }
-  .badge-now { margin-left: 8px; font-size: 11px; background: #FBBF24; color: #000; padding: 1px 6px; border-radius: 4px; font-weight: 700; }
-  .badge-done { margin-left: 8px; font-size: 11px; color: #4DFF91; }
-  .badge-next { margin-left: 8px; font-size: 11px; color: #666; }
-  .hubcard .desc { font-size: 12px; color: #888; margin-top: 4px; }
-  .hubcard .action { font-size: 12px; color: #FBBF24; margin-top: 6px; }
-  .hubcard .meta { font-size: 12px; color: #aaa; margin-top: 8px; }
-  .panel { margin: 0 16px 14px; padding: 16px; background: #141414; border: 1px solid #2A2A2A; border-radius: 8px; }
-  .panel h3 { font-size: 13px; margin-bottom: 8px; }
-  .panel p { font-size: 12px; color: #999; line-height: 1.8; }
-  .btn { padding: 6px 14px; background: #1f1f1f; border: 1px solid #333; color: #ddd; border-radius: 6px; cursor: pointer; font-size: 12px; margin: 8px 8px 0 0; }
-  .btn:hover { border-color: #666; }
-  .btn.primary { background: #FBBF24; color: #111; font-weight: 700; border: none; }
-  .btn.danger { background: #2a1515; color: #ff8080; border-color: #553333; }
+  .hubcard .name { font-weight: 700; margin-top: 6px; }
+  .badge-now { margin-left: 8px; font-size: 11px; background: #FBBF24; color: #1A1A1A; padding: 1px 7px; border-radius: 4px; font-weight: 700; border: 1px solid #1A1A1A; }
+  .badge-done { margin-left: 8px; font-size: 11px; color: #166534; }
+  .badge-next { margin-left: 8px; font-size: 11px; color: #999; }
+  .hubcard .desc { font-size: 12px; color: #777; margin-top: 4px; }
+  .hubcard .action { font-size: 12px; color: #7C2D12; margin-top: 6px; font-weight: 600; }
+  .hubcard .meta { font-size: 12px; color: #555; margin-top: 8px; }
+  .panel { margin: 0 16px 14px; padding: 16px; background: #FFFDF6; border: 2px solid #1A1A1A; border-radius: 8px; box-shadow: 3px 3px 0 rgba(26,26,26,.6); }
+  .panel.first { margin-top: 16px; }
+  .panel h3 { font-size: 14px; margin-bottom: 8px; }
+  .panel p { font-size: 13px; color: #555; line-height: 1.8; }
+  .panel .ok { color: #166534; }
+  .panel .warn { color: #B45309; }
+  .btn { padding: 7px 16px; background: #FEFBF0; border: 2px solid #1A1A1A; color: #1A1A1A; border-radius: 6px; cursor: pointer; font-size: 13px; margin: 8px 8px 0 0; }
+  .btn:hover { background: #fff; }
+  .btn.primary { background: #FBBF24; font-weight: 700; }
+  .btn.danger { background: #FDECEC; color: #B91C1C; border-color: #B91C1C; }
   .btn:disabled { opacity: .35; cursor: default; }
+  /* 작업방 실행 출력 */
+  .term { font-family: "IBM Plex Mono", monospace; font-size: 12px; background: #1A1A1A; color: #E8E3D4; border-radius: 6px; padding: 10px 12px; margin-top: 10px; line-height: 1.8; }
+  .term .ok { color: #4DFF91; }
+  .phases { display: flex; gap: 8px; margin-top: 10px; font-size: 12px; flex-wrap: wrap; }
+  .phase { padding: 3px 10px; border: 1px solid #1A1A1A; border-radius: 999px; background: #FEFBF0; color: #999; }
+  .phase.on { background: #FBBF24; color: #1A1A1A; font-weight: 700; }
+  .phase.done { background: #E8F6EC; color: #166534; }
+  /* 실행해보기 미리보기 */
+  .preview { border: 2px solid #1A1A1A; border-radius: 8px; margin-top: 10px; overflow: hidden; max-width: 420px; }
+  .preview .bar { background: #E8E3D4; padding: 4px 10px; font-size: 11px; color: #555; border-bottom: 1px solid #1A1A1A; }
+  .preview .app { padding: 16px; background: #fff; }
+  .preview .app.dark { background: #14141B; color: #eee; }
   /* 따라하기 아코디언 */
   .howto-wrap { padding: 16px 20px 4px; }
-  .howto-title { font-weight: 700; font-size: 13px; margin-bottom: 8px; }
-  .acc { border: 1px solid #2A2A2A; background: #141414; border-radius: 6px; margin-bottom: 4px; }
-  .acc.current { border-color: #FBBF24; background: #1a1813; }
-  .acc-head { width: 100%; text-align: left; padding: 8px 12px; background: transparent; border: none; color: #ddd; cursor: pointer; font-size: 13px; }
-  .acc-head .short { color: #888; }
-  .acc-head .arrow { float: right; color: #666; }
-  .acc-body { padding: 0 12px 10px; font-size: 12px; color: #aaa; line-height: 1.9; }
-  .toast { position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%); background: #1a1813; border: 1px solid #FBBF24; color: #FBBF24; padding: 8px 18px; border-radius: 8px; font-size: 12px; opacity: 0; transition: opacity .3s; pointer-events: none; }
+  .howto-title { font-weight: 700; font-size: 14px; margin-bottom: 8px; }
+  .acc { border: 2px solid #1A1A1A; background: #FFFDF6; border-radius: 6px; margin-bottom: 6px; }
+  .acc.current { border-color: #7C2D12; background: #FFF6DC; }
+  .acc-head { width: 100%; text-align: left; padding: 9px 12px; background: transparent; border: none; color: #1A1A1A; cursor: pointer; font-size: 14px; }
+  .acc-head .short { color: #777; }
+  .acc-head .arrow { float: right; color: #999; }
+  .acc-body { padding: 0 12px 10px; font-size: 13px; color: #555; line-height: 1.9; }
+  .toast { position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%); background: #1A1A1A; border: 2px solid #FBBF24; color: #FBBF24; padding: 9px 18px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 9; max-width: 80vw; }
   .toast.show { opacity: 1; }
   /* 데모 컨트롤 */
-  .demobar { background: #0A0A0A; border-top: 2px solid #FBBF24; padding: 10px 14px; }
+  .demobar { background: #1A1A1A; border-top: 3px solid #FBBF24; padding: 10px 14px; }
   .demobar .label { font-size: 11px; color: #FBBF24; font-weight: 700; margin-bottom: 6px; }
   .demobar .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .demobar .sig { font-family: "IBM Plex Mono", monospace; font-size: 10px; color: #555; margin-top: 6px; }
-  .demobar .tog { font-size: 11px; color: #999; display: flex; align-items: center; gap: 4px; cursor: pointer; }
-  .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 24px; gap: 14px; color: #555; }
+  .demobar .btn { background: #2A2A2A; color: #ddd; border-color: #555; margin: 0; }
+  .demobar .btn.danger { background: #3a1d1d; color: #ff9a9a; border-color: #774444; }
+  .demobar .sig { font-family: "IBM Plex Mono", monospace; font-size: 10px; color: #888; margin-top: 6px; }
+  .demobar .tog { font-size: 11px; color: #bbb; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 24px; gap: 14px; color: #777; }
   .empty .big { font-size: 32px; }
-  input[type="text"] { background: #0E0E0E; border: 1px solid #333; color: #ddd; padding: 7px 10px; border-radius: 6px; width: 420px; font-size: 12px; }
-  .filelist { font-family: monospace; font-size: 11px; color: #888; line-height: 1.9; margin-top: 8px; }
-  .filelist .changed { color: #FBBF24; }
+  input[type="text"] { background: #fff; border: 2px solid #1A1A1A; color: #1A1A1A; padding: 8px 10px; border-radius: 6px; width: 420px; font-size: 13px; }
+  .filelist { font-family: monospace; font-size: 12px; color: #666; line-height: 1.9; margin-top: 8px; }
+  .filelist .changed { color: #B45309; font-weight: 700; }
+  /* 온보딩 (Onboarding.tsx 근사치) */
+  .onb { max-width: 860px; margin: 0 auto; padding: 64px 16px 28px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .onb h1 { font-size: 24px; text-align: center; }
+  .onb .sub { color: #666; font-size: 14px; font-weight: 600; text-align: center; }
+  /* 온보딩 환영 인사 — 가이드 스트립과 같은 마스코트(🧭)+말풍선 톤 */
+  .onb-welcome { display: flex; align-items: flex-start; gap: 11px; max-width: 560px; margin: 2px 0 4px; }
+  .mascot.big { width: 46px; height: 46px; font-size: 24px; box-shadow: 3px 3px 0 #1A1A1A; }
+  .onb-welcome .gbubble { font-size: 13.5px; font-weight: 700; line-height: 1.6; padding: 11px 15px; }
+  .onb-welcome .gbubble::before { top: 16px; }
+  .onb-welcome .gbubble::after  { top: 16px; }
+  .onb-welcome .em { font-size: 15px; }
+  .onb-bar { position: relative; display: grid; grid-template-columns: 44px minmax(0,1fr) auto 44px; align-items: center; gap: 8px; border: 2px solid #1A1A1A; background: #fff; padding: 8px; box-shadow: 4px 4px 0 #1A1A1A; width: min(720px, 100%); }
+  /* 코치 말풍선이 바 "위 빈 공간"에 들어가도록 여백 확보 — 안내문(sub)과 겹침 방지 */
+  .onb-bar.coach-on { margin-top: 100px; }
+  .onb-bar input[type="text"] { border: none; width: 100%; padding: 7px 4px; font-size: 13px; outline: none; }
+  .onb-plus-wrap { position: relative; }
+  .onb-plus { width: 34px; height: 34px; border: 2px solid #1A1A1A; background: #fff; font-size: 20px; font-weight: 900; cursor: pointer; }
+  /* + 끌어당김(코치 1단계): 펄스링 + 살짝 들썩 */
+  @keyframes pulsering { 0%{box-shadow:0 0 0 0 rgba(245,98,30,.55)} 70%{box-shadow:0 0 0 13px rgba(245,98,30,0)} 100%{box-shadow:0 0 0 0 rgba(245,98,30,0)} }
+  @keyframes nudge { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+  .onb-plus.attract { animation: pulsering 1.6s infinite, nudge 1.2s ease-in-out infinite; border-color:#F5621E; color:#F5621E; }
+  /* 웹툰 말풍선 — "뽁" 하고 튀어나오는 팝 (오버슈트 바운스) */
+  @keyframes popbubble { 0%{transform:scale(0) rotate(-7deg);opacity:0} 55%{transform:scale(1.14) rotate(2deg);opacity:1} 78%{transform:scale(.95) rotate(-1deg)} 100%{transform:scale(1) rotate(0)} }
+  @keyframes floaty { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+  .bubble { position:absolute; bottom:calc(100% + 16px); max-width:300px; background:#FFF6DC; border:2.5px solid #1A1A1A; border-radius:16px; padding:10px 30px 10px 14px; font-size:13px; font-weight:700; color:#1A1A1A; line-height:1.55; box-shadow:3px 3px 0 #1A1A1A; z-index:20; animation:popbubble .42s cubic-bezier(.18,1.5,.4,1) both, floaty 2.6s ease-in-out .5s infinite; }
+  .bubble::before { content:""; position:absolute; top:100%; left:var(--tailx,26px); border:11px solid transparent; border-top-color:#1A1A1A; }
+  .bubble::after  { content:""; position:absolute; top:100%; left:calc(var(--tailx,26px) + 2.5px); border:8px solid transparent; border-top-color:#FFF6DC; }
+  .bubble .x { position:absolute; top:5px; right:7px; border:none; background:transparent; font-size:13px; font-weight:900; color:#999; cursor:pointer; line-height:1; }
+  .bubble .x:hover { color:#1A1A1A; }
+  .bubble .em { font-size:15px; }
+  /* + 호버 시 뽁 튀어나오는 캐주얼 팁 — ＋의 "왼쪽 아래"에 떠서 위 코치 말풍선과 겹치지 않게 */
+  .hovertip { position:absolute; top:calc(100% + 12px); left:-6px; width:max-content; max-width:220px; background:#1A1A1A; color:#FFF6DC; border:2px solid #1A1A1A; border-radius:14px; padding:7px 11px; font-size:12px; font-weight:700; line-height:1.5; box-shadow:3px 3px 0 rgba(0,0,0,.35); z-index:21; display:none; }
+  .hovertip::before { content:""; position:absolute; bottom:100%; left:18px; border:9px solid transparent; border-bottom-color:#1A1A1A; }
+  .onb-plus-wrap:hover .hovertip { display:block; animation:popbubble .34s cubic-bezier(.18,1.5,.4,1) both; }
+  .onb-instant { border: 1px solid #DDD; background: #F7F7F7; font-size: 11px; font-weight: 800; padding: 7px 10px; color: #333; }
+  .onb-send { width: 34px; height: 34px; border: 2px solid #1A1A1A; border-radius: 999px; background: #1A1A1A; color: #fff; font-size: 12px; font-weight: 900; cursor: pointer; }
+  .onb .hint { color: #A14B00; font-size: 12px; font-weight: 700; }
+  .onb .dirname { font-size: 11px; font-weight: 700; }
+  .onb .progress { width: min(720px,100%); display: grid; gap: 6px; font-size: 12px; font-weight: 800; }
+  .onb-toggle { border: 2px solid #1A1A1A; background: #FFFDF6; color: #1A1A1A; font-size: 14px; font-weight: 800; cursor: pointer; padding: 7px 14px; border-radius: 6px; }
+  .onb-toggle:hover { background: #FFF6DC; }
+  .onb-grid { width: min(860px,100%); display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch; }
+  .onb-card { border: 2px solid #1A1A1A; background: #FFF8E8; padding: 12px 16px; box-shadow: 4px 4px 0 #1A1A1A; font-size: 12px; display: flex; flex-direction: column; }
+  .onb-card.orange { border-top: 5px solid #F5621E; }
+  .onb-card.green { border-top: 5px solid #27AE60; background: #fff; }
+  .onb-card h4 { font-size: 13px; margin-bottom: 8px; }
+  .onb-card .cap { font-size: 11px; color: #1E7FB5; font-weight: 800; margin-bottom: 6px; }
+  .onb-card .cap .dim { color: #7FB2CE; font-weight: 600; }
+  .onb-card .sect { font-size: 10px; font-weight: 800; color: #F5621E; margin: 12px 0 5px; }
+  .toolchips { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 10px; border-bottom: 2px solid #2D9CDB; }
+  .toolchip { font-size: 11px; font-weight: 700; padding: 4px 10px; border: 2px solid #333; background: transparent; color: #888; cursor: pointer; }
+  .toolchip.on { border-color: #2D9CDB; background: #2D9CDB; color: #fff; }
+  .toolchip.all { border-color: #333; }
+  .toolchip.all.on { border-color: #4DFF91; background: #4DFF91; color: #1A1A1A; }
+  /* MCP 설명 말풍선 — '전체 선택' 클릭 시 뽁 (인라인, 마스코트 톤) */
+  .tip-bubble { display: flex; align-items: flex-start; gap: 9px; margin: 10px 0 2px; position: relative; background: #FFF6DC; border: 2.5px solid #1A1A1A; border-radius: 14px; padding: 10px 30px 10px 12px; box-shadow: 2px 2px 0 #1A1A1A; font-size: 12.5px; line-height: 1.65; color: #1A1A1A; animation: popbubble .4s cubic-bezier(.18,1.5,.4,1) both; }
+  .tip-bubble .ic { font-size: 18px; flex-shrink: 0; }
+  .tip-bubble .x { position: absolute; top: 5px; right: 8px; border: none; background: transparent; font-size: 13px; font-weight: 900; color: #999; cursor: pointer; line-height: 1; }
+  .tip-bubble .x:hover { color: #1A1A1A; }
+  .sysbadge { font-size: 10px; font-weight: 800; background: #FF4D8B; color: #fff; padding: 2px 8px; border-radius: 3px; }
+  .recent-row { display: flex; align-items: center; gap: 8px; border: 1px solid #DDD; padding: 6px 8px; background: #fff; }
+  .recent-row .open { border: none; background: transparent; font-weight: 800; cursor: pointer; text-align: left; flex: 1; font-size: 12px; }
+  .recent-row .rm { border: 1px solid #999; background: #fff; cursor: pointer; }
+  .msg { display: flex; gap: 8px; margin-top: 10px; font-size: 13px; line-height: 1.7; }
+  .msg .who { flex-shrink: 0; font-weight: 700; color: #7C2D12; }
+  .handoff { background: #FFF6DC; border: 2px dashed #B45309; border-radius: 6px; padding: 10px 12px; margin-top: 10px; font-size: 13px; color: #7C2D12; }
 </style>
 </head>
 <body>
 
 <div class="titlebar">
   <span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span>
-  <span style="margin-left:8px">VibeLign — my-first-app</span>
-  <span style="margin-left:auto;color:#444">목업 v5 · 가이드 레이어 시연</span>
+  <span style="margin-left:8px;color:#1A1A1A;font-weight:600" id="tbProj">VibeLign — 시작하기</span>
+  <span style="margin-left:auto">목업 v6 · 현행 버전(작업방·실행해보기) 반영</span>
 </div>
 
 <div class="tabbar" id="tabbar"></div>
@@ -91,31 +206,31 @@
 <div class="toast" id="toast"></div>
 
 <div class="demobar">
-  <div class="label">🌍 데모 컨트롤 — 앱 "밖"에서 일어나는 일을 흉내냅니다 (실제 앱에는 없는 영역)</div>
+  <div class="label">🌍 데모 컨트롤 — 앱 "밖"에서 일어나는 일을 흉내냅니다 (실제 앱에는 없는 영역) · 기본 동선은 앱 안 작업방 ▶ 버튼!</div>
   <div class="row">
-    <button class="btn" onclick="extAiWork(3)">🤖 외부 AI가 파일 3개를 수정함</button>
-    <button class="btn" onclick="extAiWork(1)">⏸ AI가 중간에 멈춤 (1개만 수정)</button>
+    <button class="btn" onclick="extAiWork(3)">🖥 외부 터미널로 작업한 척 (파일 3개 수정, 검사 없음)</button>
+    <button class="btn" onclick="extAiWork(1)">⏸ 외부 작업이 중간에 멈춤 (1개만 수정)</button>
     <label class="tog"><input type="checkbox" id="togGit" onchange="S.isGit=!this.checked;refresh()"> 비-git 프로젝트</label>
-    <label class="tog"><input type="checkbox" id="togTool" onchange="S.aiToolMissing=this.checked;refresh()"> AI 도구 미설치</label>
+    <label class="tog"><input type="checkbox" id="togTool" onchange="S.aiToolMissing=this.checked;S.selTools=null;refresh()"> AI 도구 미설치</label>
     <button class="btn danger" onclick="resetDemo()">↺ 데모 초기화</button>
   </div>
   <div class="sig" id="signals"></div>
 </div>
 
 <script>
-// ───────── 여정 정의 (구현계획 v5의 JOURNEY_STEPS 카피 그대로) ─────────
+// ───────── 여정 정의 (src/lib/nav/guide.ts JOURNEY_STEPS 카피 그대로) ─────────
 const STEPS = {
-  1: { icon:"1️⃣", label:"프로젝트 열기", short:"폴더를 고르면 준비 끝 — 감시가 자동으로 켜져요", target:null,
+  1: { icon:"1️⃣", label:"프로젝트 열기", short:"폴더를 고르면 준비 끝 — 감시가 자동으로 켜져요", target:null, go:null,
        howto:["① 첫 화면에서 프로젝트 폴더를 선택해요","② 코드맵과 앵커가 자동으로 준비돼요","③ 감시(watch)가 자동으로 켜져요 — 코드 변경을 지켜보다 위반을 알려줘요 (백업은 아니에요)"] },
-  2: { icon:"2️⃣", label:"기획하기", short:"기획방에서 AI와 대화하며 기획안을 확정하세요", target:"planning",
-       howto:["① 기획 탭(기획방)으로 가요","② \"무엇을 만들고 싶은지\" 한 줄로 적어요","③ AI 페르소나들과 대화하며 생각을 다듬어요","④ 기획안이 마음에 들면 확정(저장)해요"] },
-  3: { icon:"3️⃣", label:"체크포인트 저장", short:"AI에게 시키기 전에 안전 저장 — 망쳐도 되돌아올 수 있게", target:"backups",
+  2: { icon:"2️⃣", label:"기획하기", short:"기획방에서 AI와 대화하며 기획안을 확정하세요", target:"planning", go:"기획하러 가기 →",
+       howto:["① 기획 탭(기획방)으로 가요","② \"무엇을 만들고 싶은지\" 한 줄로 적어요","③ AI 페르소나들과 대화하며 생각을 다듬어요","④ 기획안이 마음에 들면 확정(저장)해요 — 이 문서가 다음 단계 AI 작업의 약속(목표·범위)이 돼요"] },
+  3: { icon:"3️⃣", label:"체크포인트 저장", short:"AI에게 시키기 전에 안전 저장 — 망쳐도 되돌아올 수 있게", target:"backups", go:"체크포인트 저장하러 가기 →",
        howto:["① 유지보수 → 백업 탭으로 가요","② \"체크포인트 저장\" 버튼을 눌러요","③ 무슨 작업 전인지 설명을 짧게 적으면 끝!"] },
-  4: { icon:"4️⃣", label:"AI에게 작업 시키기", short:"지시문을 복사해 AI 도구(Claude Code 등)에 붙여넣으세요", target:"code",
-       howto:["① 개발 → 코드탐색 탭으로 가요","② 기획안 기반 지시문을 복사해요","③ Claude Code 같은 AI 도구에 붙여넣어요","④ AI가 코드를 다 쓰면 다음 단계로!","⑤ 아직 AI 도구가 없나요? 설정의 'AI 도구 설정'에서 설치를 도와드려요"] },
-  5: { icon:"5️⃣", label:"결과 검증", short:"홈의 '상태 확인'으로 AI가 약속한 범위만 고쳤는지 확인하세요", target:"home",
-       howto:["① 홈으로 가요","② '상태 확인' 버튼을 눌러요 — AI가 약속한 범위만 고쳤는지 검사해줘요","③ 문제가 있으면 진단으로 안내돼요 — 고치는 길을 알려줘요","④ 결과가 마음에 안 들면? 검사 없이 백업 탭에서 '되돌리기'로 3️⃣ 시점으로 돌아가도 돼요"] },
-  6: { icon:"6️⃣", label:"저장 또는 되돌리기", short:"잘 됐으면 체크포인트 저장, 망쳤으면 되돌리기", target:"backups",
+  4: { icon:"4️⃣", label:"AI에게 작업 시키기", short:"작업방에서 AI에게 시키세요 — 체크포인트 저장과 검사가 자동으로 따라붙어요", target:"work", go:"작업방에서 시키기 →",
+       howto:["① 개발 → 작업방 탭으로 가요","② 'AI에게 작업 시키기'를 누르면 체크포인트 저장 → AI 실행 → 자동 검사가 한 번에 이어져요","③ 외부 도구(터미널)를 쓰고 싶다면? 코드탐색의 '작업 지시 복사'로 붙여넣어 실행해도 돼요","④ 아직 AI 도구가 없나요? 설정의 'AI 도구 설정'에서 설치를 도와드려요"] },
+  5: { icon:"5️⃣", label:"결과 검증", short:"'상태 확인'으로 약속 범위를(안전), '실행해보기'로 진짜 작동을(작동) 확인하세요", target:"home", go:"상태 확인하러 가기 →",
+       howto:["① 홈에서 '상태 확인' — AI가 약속한 범위만 고쳤는지 검사해줘요(안전)","② 개발 → 실행해보기에서 ▶ 실행 — 진짜 켜지는지 미리보기로 직접 써봐요(작동)","③ 문제가 있으면 진단으로 안내돼요 — 고치는 길을 알려줘요","④ 결과가 마음에 안 들면? 백업 탭에서 '되돌리기'로 3️⃣ 시점으로 돌아가도 돼요"] },
+  6: { icon:"6️⃣", label:"저장 또는 되돌리기", short:"잘 됐으면 체크포인트 저장, 망쳤으면 되돌리기", target:"backups", go:"마무리하러 가기 →",
        howto:["① 결과가 마음에 들면 → 백업에서 체크포인트를 저장해요","② 망쳤으면 → '되돌리기'로 3️⃣ 시점으로 돌아가요 — 없던 일로 만들 수 있어요","③ 다음 작업이 있으면 4️⃣로 돌아가 반복!"] },
 };
 const CARD_STEPS = { planning:[2], develop:[4], maintain:[3,6] }; // 5️⃣은 홈 행동이라 카드 밖
@@ -123,21 +238,93 @@ const CARD_STEPS = { planning:[2], develop:[4], maintain:[3,6] }; // 5️⃣은 
 // ───────── 상태 (App.tsx 신호 배선의 미니어처) ─────────
 let S;
 function resetDemo(){
-  S = { page:"home", hasPlanDoc:false, planningPending:false, hasCheckpoint:false,
-        changedFiles:0, guardStatus:null, isGit:true, aiToolMissing:false,
-        guideEnabled:true, override:null, celebrated:false, celebrating:false, backups:0 };
+  S = { page:"onboard", projName:"my-first-app", hasPlanDoc:false, planningPending:false, planMsgs:0, enrich:null,
+        planTopic:"할 일 앱에 다크모드를 추가하고 싶어",
+        hasCheckpoint:false, changedFiles:0, guardStatus:null, isGit:true, aiToolMissing:false,
+        guideEnabled:true, override:null, celebrated:false, celebrating:false, backups:0, autoInit:false, backupList:[],
+        collapsed:true, utilOpen:false, accOpen:undefined,
+        workRun:null, handoff:null, runStarted:false, runReady:false, runVerified:false,
+        // 온보딩 상태 (Onboarding.tsx 미니어처)
+        dirPicked:false, folderHint:null, setupOpen:false, startLines:[], starting:false,
+        coach:"folder", // 코치마크 말풍선 단계: "folder"→"prompt"→null (게임형 단계 인도)
+        onbGreeted:false, // 온보딩 환영 말풍선 — 진입 시 1회만 "뽁"
+        mcpTip:false, // MCP '전체 선택' 클릭 시 뜨는 설명 말풍선
+        promptText:"할 일 앱에 다크모드를 추가하고 싶어",
+        selTools:null, // null = 탐지 결과로 초기화 전 (설치된 도구 자동 선택)
+        recent:["~/Documents/coding/portfolio-site","~/Desktop/family-album"] };
   document.getElementById("togGit").checked = false;
   document.getElementById("togTool").checked = false;
   refresh();
 }
 
-// 구현계획 v5의 inferStep 로직 그대로
+// ───────── 사용자 행동: 온보딩 (1️⃣ 프로젝트 열기) ─────────
+const SETUP_TOOLS = [["claude","Claude Code"],["claude_desktop","Claude Desktop"],["cursor","Cursor"],["codex","Codex"],["opencode","OpenCode"],["antigravity","Antigravity"]];
+function detectedTools(){ return S.aiToolMissing ? ["cursor"] : ["claude","cursor"]; } // 데모: 도구 미설치 토글이면 Claude Code 빠짐
+function toolSel(){ if(S.selTools===null) S.selTools = new Set(detectedTools()); return S.selTools; } // 설치된 도구 자동 선택
+function toggleTool(k){ const s=toolSel(); s.has(k)?s.delete(k):s.add(k); refresh(); }
+function toggleAllTools(){ const s=toolSel(); const all = s.size===SETUP_TOOLS.length; S.selTools = all ? new Set() : new Set(SETUP_TOOLS.map(t=>t[0])); S.mcpTip = !all; refresh(); } // 전체 선택 시 설명 말풍선, 전체 해제 시 숨김
+function pickFolder(){ S.dirPicked = true; S.folderHint = null; if(S.coach==="folder") S.coach = "prompt"; toast("📁 프로젝트 폴더를 선택했어요: my-first-app"); refresh(); }
+function dismissCoach(){ S.coach = null; refresh(); }
+function syncPrompt(el){ S.promptText = el.value; } // 재렌더에도 입력 유지 (refresh 호출 안 함)
+function startApp(){
+  if(S.starting) return;
+  if(!S.dirPicked){ S.folderHint = "먼저 프로젝트 폴더를 선택해 주세요."; refresh(); return; }
+  S.folderHint = null; S.starting = true; S.startLines = []; refresh();
+  const lines = ["✓ 코드맵·앵커 준비", "✓ 초기 체크포인트 자동 저장 (vib start 초기 저장)", "✓ 감시(watch) 켜짐 — 코드 변경을 지켜봐요"];
+  const tick = (i) => {
+    S.startLines.push(lines[i]); refresh();
+    if(i+1 < lines.length){ setTimeout(()=>tick(i+1), 600); return; }
+    setTimeout(()=>{
+      S.starting = false; S.autoInit = true; S.coach = null; S.projName = "my-first-app"; // 자동 초기 저장 — 3️⃣ 완료로 치지 않음
+      S.backupList = [{ note:"vib start 초기 저장 (프로젝트 열기)" }]; S.backups = 1;
+      document.getElementById("tbProj").textContent = "VibeLign — " + S.projName;
+      const prompt = S.promptText.trim();
+      if(prompt){ S.planTopic = prompt; go("planning"); startPlanning(); toast("📋 적어주신 한 줄로 기획방을 열었어요 — 페르소나들과 다듬어 보세요"); }
+      else { go("home"); toast("🏠 준비 끝! 홈에서 가이드 줄을 따라가면 돼요"); }
+    }, 500);
+  };
+  setTimeout(()=>tick(0), 400);
+}
+function resumeRecent(dir){
+  S.dirPicked = true; S.autoInit = true; S.projName = dir.split("/").pop();
+  S.backupList = [{ note:"vib start 초기 저장 (프로젝트 열기)" }]; S.backups = 1;
+  document.getElementById("tbProj").textContent = "VibeLign — " + S.projName;
+  go("home");
+  toast("📂 최근 프로젝트를 이어서 열었어요 — 코드맵·감시가 다시 켜졌어요");
+}
+// 실제 앱 onExitProject: 감시 중지 + projectDir=null → 온보딩(프로젝트 선택)으로 복귀.
+// 떠난 프로젝트는 최근 목록 맨 앞에 올려 "이어서 열기" 가능. 프로젝트별 진행 상태는 새로 시작.
+function exitToOnboarding(){
+  const dir = "~/Documents/coding/" + S.projName;
+  if(!S.recent.includes(dir)) S.recent.unshift(dir);
+  Object.assign(S, {
+    page:"onboard", projName:"my-first-app",
+    hasPlanDoc:false, planningPending:false, planMsgs:0, enrich:null,
+    planTopic:"할 일 앱에 다크모드를 추가하고 싶어",
+    hasCheckpoint:false, changedFiles:0, guardStatus:null,
+    override:null, celebrating:false, celebrated:false, backups:0, autoInit:false, backupList:[],
+    collapsed:true, utilOpen:false, accOpen:undefined,
+    workRun:null, handoff:null, runStarted:false, runReady:false, runVerified:false,
+    dirPicked:false, folderHint:null, setupOpen:false, startLines:[], starting:false,
+    coach:"folder", promptText:"", onbGreeted:false, mcpTip:false,
+  });
+  _lastStripStep = undefined;
+  toast("↩ 프로젝트에서 나왔어요 — 다른 폴더를 열거나, 최근 프로젝트에서 이어서 열 수 있어요");
+  refresh();
+}
+function removeRecent(i){ S.recent.splice(i,1); toast("목록에서 제거했어요 (폴더가 지워지는 건 아니에요)"); refresh(); }
+function installClaude(){
+  S.aiToolMissing = false; document.getElementById("togTool").checked = false;
+  if(S.selTools) S.selTools.add("claude");
+  toast("(데모) 설치 마법사 완료 — Claude Code 준비됨, MCP 자동 설정에도 선택됐어요");
+  refresh();
+}
+
+// 현행 guide.ts의 inferStep 그대로 (충돌 시 뒤 단계 우선)
 function inferStep(){
-  if(!S.hasPlanDoc || S.planningPending) return 2;
-  if(!S.hasCheckpoint) return 3;
-  let step = 4;
-  const changed = S.isGit ? S.changedFiles : 0; // 비-git → 항상 0으로 읽힘 (null 아님)
-  if(changed > 0) step = (S.guardStatus === "ok") ? 6 : 5;
+  let step = (!S.hasPlanDoc || S.planningPending) ? 2 : (!S.hasCheckpoint ? 3 : 4);
+  const changed = S.isGit ? S.changedFiles : 0; // 비-git → 항상 0 (자동 5️⃣ 전환 없음)
+  if(S.hasCheckpoint && changed > 0) step = (S.guardStatus === "ok") ? 6 : 5;
   return step;
 }
 function currentStep(){
@@ -148,49 +335,391 @@ function currentStep(){
 }
 function setOverride(step){ S.override = { step, base: inferStep() }; refresh(); }
 
-// ───────── 사용자 행동 (앱 안) ─────────
-function confirmPlan(){ S.hasPlanDoc = true; toast("📋 기획안이 확정됐어요"); go("planning"); }
-function saveCheckpoint(){
-  const was6 = currentStep() === 6;
-  S.hasCheckpoint = true; S.backups += 1;
-  S.changedFiles = 0; S.guardStatus = null; // baseline 재캡처 → 변경 0
-  if(was6 && !S.celebrated){ S.celebrated = true; S.celebrating = true; }
-  toast("✅ 체크포인트가 저장됐어요");
+// 6️⃣→4️⃣ 전환 = 루프 닫힘 → 첫 사이클 축하 (프로젝트당 1회)
+function maybeCelebrate(prev){
+  if(prev === 6 && currentStep() === 4 && !S.celebrated){ S.celebrated = true; S.celebrating = true; }
+}
+
+// ───────── 사용자 행동: 기획방 ─────────
+// 주제 라벨 — 온보딩에서 적은 한 줄. 모든 페르소나·기획안·작업 텍스트가 이걸 따라간다.
+function topicLabel(){ return (S.planTopic || "내 앱").trim(); }
+
+// 주제 키워드 → 앱 종류별 구체 프로파일. 실제 LLM이 없는 목업이라 키워드로 분기해
+// "주제마다 다른 구체적 대화"를 흉내낸다. 매칭 없으면 generic 폴백(주제를 그대로 받는 톤).
+function topicProfile(){
+  const t = topicLabel();
+  const has = (...ks) => ks.some(k => t.includes(k));
+  if(has("메모","노트")) return {
+    pd:`"${t}" 좋네요! 메인은 메모 목록, 누르면 작성·수정 화면으로 가는 흐름이 자연스러워요. 제목 없이 본문만 빠르게 적을까요, 제목도 둘까요?`,
+    tech:"메모 한 건 = {제목, 본문, 작성시각} 객체 배열이면 충분해요. 저장은 localStorage. 화면은 목록(NoteList)·편집기(NoteEditor) 둘로 나눌게요.",
+    qa:"완료 기준 제안: ① 메모를 적고 저장하면 목록에 바로 뜸 ② 새로고침해도 남아 있음 ③ 삭제가 동작. 이대로 저장하면 작업 약속(계약)이 만들어져요.",
+    goal:"메모를 적고 목록에서 다시 보고 삭제하기",
+    scope:"NoteList(목록)·NoteEditor(작성/수정) 2화면 · {제목,본문,작성시각} · localStorage",
+    done:["메모 저장 시 목록에 즉시 표시","새로고침 후에도 유지","메모 삭제 동작"] };
+  if(has("할 일","할일","투두","todo","체크리스트","체크 리스트")) return {
+    pd:`"${t}" 좋아요! 핵심은 '추가 → 완료 체크 → 삭제' 한 흐름이에요. 마감일이나 분류는 일단 빼고 가장 단순하게 시작할까요?`,
+    tech:"할 일 = {내용, 완료여부} 배열로 시작해요. 입력창 + 목록 한 화면이면 되고, 완료는 체크박스 토글. 저장은 localStorage.",
+    qa:"완료 기준 제안: ① 항목 추가가 목록에 즉시 반영 ② 완료 체크가 유지됨 ③ 새로고침 후에도 남음. 이대로 저장하면 작업 약속(계약)이 만들어져요.",
+    goal:"할 일을 추가하고 완료 체크·삭제하기",
+    scope:"입력창+목록 1화면 · {내용,완료여부} 배열 · localStorage",
+    done:["추가가 목록에 즉시 반영","완료 체크 상태 유지","새로고침 후 유지"] };
+  if(has("일기","다이어리","diary")) return {
+    pd:`"${t}" 좋네요! 날짜별로 한 편씩 쓰는 구조가 직관적이에요. 메인을 '오늘 쓰기'로 둘까요, '지난 일기 목록'으로 둘까요?`,
+    tech:"일기 = {날짜, 내용, 기분} 배열로 충분해요. 작성 화면과 날짜 목록 둘로 나누고, 저장은 localStorage. 달력은 다음 단계로 미뤄요.",
+    qa:"완료 기준 제안: ① 오늘 일기를 저장하면 목록에 날짜와 함께 뜸 ② 지난 일기를 다시 열어볼 수 있음 ③ 새로고침 후 유지. 이대로 저장하면 작업 약속(계약)이 만들어져요.",
+    goal:"날짜별로 일기를 쓰고 지난 일기 다시 보기",
+    scope:"작성 화면·날짜 목록 2화면 · {날짜,내용,기분} · localStorage",
+    done:["오늘 일기 저장 시 날짜와 함께 목록 표시","지난 일기 다시 열람","새로고침 후 유지"] };
+  if(has("가계부","지출","용돈","예산","budget","돈 관리","money")) return {
+    pd:`"${t}" 좋아요! 핵심은 '수입·지출 한 줄 기록 → 이번 달 합계'예요. 카테고리는 몇 개만 미리 정해둘까요?`,
+    tech:"기록 = {금액, 분류, 수입/지출, 날짜} 배열. 입력 폼 + 목록 + 합계 표시 한 화면으로 시작해요. 저장은 localStorage.",
+    qa:"완료 기준 제안: ① 지출을 적으면 목록과 합계에 바로 반영 ② 수입/지출 구분이 합계에 맞게 계산 ③ 새로고침 후 유지. 이대로 저장하면 작업 약속(계약)이 만들어져요.",
+    goal:"수입·지출을 기록하고 이번 달 합계 보기",
+    scope:"입력 폼+목록+합계 1화면 · {금액,분류,수입/지출,날짜} · localStorage",
+    done:["기록 시 목록·합계 즉시 반영","수입/지출 구분 합산 정확","새로고침 후 유지"] };
+  if(has("사진","갤러리","앨범","포토","gallery","photo")) return {
+    pd:`"${t}" 좋네요! 메인은 사진 격자(그리드), 누르면 크게 보기. 업로드는 파일 선택만으로 간단히 갈까요?`,
+    tech:"사진 = {이미지(dataURL), 제목} 배열. 그리드 화면 + 확대 보기 모달이면 충분해요. 저장은 localStorage(용량 주의), 우선 소량으로.",
+    qa:"완료 기준 제안: ① 사진을 추가하면 그리드에 바로 뜸 ② 클릭하면 크게 보임 ③ 새로고침 후 유지. 이대로 저장하면 작업 약속(계약)이 만들어져요.",
+    goal:"사진을 올려 격자로 보고 크게 보기",
+    scope:"그리드 화면+확대 모달 · {이미지,제목} · localStorage(소량)",
+    done:["사진 추가 시 그리드에 즉시 표시","클릭 시 확대 보기","새로고침 후 유지"] };
+  if(has("타이머","뽀모도로","스톱워치","pomodoro","timer")) return {
+    pd:`"${t}" 좋아요! 핵심은 '시간 설정 → 시작/정지 → 0이 되면 알림'이에요. 집중 25분·휴식 5분 기본값으로 둘까요?`,
+    tech:"상태는 {남은초, 진행중여부} 하나면 돼요. setInterval로 카운트다운, 화면 하나에 큰 숫자 + 시작/정지/리셋 버튼. 저장은 거의 필요 없어요.",
+    qa:"완료 기준 제안: ① 시작하면 1초씩 줄어듦 ② 정지·리셋이 정확히 동작 ③ 0이 되면 알림 표시. 이대로 저장하면 작업 약속(계약)이 만들어져요.",
+    goal:"시간을 설정해 카운트다운하고 끝나면 알림",
+    scope:"숫자+시작/정지/리셋 1화면 · {남은초,진행중} · setInterval",
+    done:["시작 시 1초씩 감소","정지·리셋 정확 동작","0에서 알림 표시"] };
+  if(has("습관","루틴","운동","habit","트래커","tracker")) return {
+    pd:`"${t}" 좋네요! 핵심은 '오늘 했나 체크 → 연속 일수 보기'예요. 추적할 습관을 처음엔 두세 개로 한정할까요?`,
+    tech:"습관 = {이름, 날짜별 체크기록} 구조. 목록 + 날짜별 체크 화면으로 시작하고, 연속 일수는 기록에서 계산. 저장은 localStorage.",
+    qa:"완료 기준 제안: ① 오늘 체크가 즉시 반영 ② 연속 일수가 맞게 계산 ③ 새로고침 후 유지. 이대로 저장하면 작업 약속(계약)이 만들어져요.",
+    goal:"오늘 습관을 체크하고 연속 일수 보기",
+    scope:"습관 목록+날짜별 체크 · {이름,날짜별기록} · localStorage",
+    done:["오늘 체크 즉시 반영","연속 일수 정확 계산","새로고침 후 유지"] };
+  if(has("블로그","글","게시","포스트","blog")) return {
+    pd:`"${t}" 좋아요! 메인은 글 목록, 누르면 본문 보기, '새 글'로 작성. 댓글·로그인은 일단 빼고 갈까요?`,
+    tech:"글 = {제목, 본문, 작성시각} 배열. 목록·상세·작성 세 화면으로 나누고 저장은 localStorage. 마크다운은 다음 단계로.",
+    qa:"완료 기준 제안: ① 새 글을 저장하면 목록에 뜸 ② 글을 눌러 본문을 봄 ③ 새로고침 후 유지. 이대로 저장하면 작업 약속(계약)이 만들어져요.",
+    goal:"글을 쓰고 목록·본문으로 읽기",
+    scope:"목록·상세·작성 3화면 · {제목,본문,작성시각} · localStorage",
+    done:["새 글 저장 시 목록 표시","글 본문 열람","새로고침 후 유지"] };
+  if(has("포트폴리오","소개","이력","portfolio","프로필")) return {
+    pd:`"${t}" 좋네요! 한 페이지 스크롤로 '소개 → 프로젝트 → 연락처' 순이 깔끔해요. 가장 먼저 보여줄 한 문장부터 정해볼까요?`,
+    tech:"내용은 데이터 한 곳에 모아두고 섹션 컴포넌트로 뿌리면 돼요. 페이지 하나 + 섹션 3개. 저장보다 정적 콘텐츠 위주.",
+    qa:"완료 기준 제안: ① 세 섹션이 순서대로 보임 ② 프로젝트 항목을 데이터로 쉽게 추가 ③ 모바일에서도 깨지지 않음. 이대로 저장하면 작업 약속(계약)이 만들어져요.",
+    goal:"소개·프로젝트·연락처를 한 페이지로 보여주기",
+    scope:"1페이지+섹션 3개 · 콘텐츠 데이터 1곳 · 정적 위주",
+    done:["세 섹션 순서대로 표시","프로젝트 항목 데이터로 추가 용이","모바일에서 안 깨짐"] };
+  if(has("다크모드","다크 모드","테마","dark mode","dark")) return {
+    pd:`"${t}" 좋아요. 토글 위치는 설정 화면이 자연스럽고, 시스템 설정 따라가기도 넣을 수 있어요. 우선 수동 토글부터 갈까요?`,
+    tech:"색상을 CSS 변수로 분리하면 토글이 한 줄이에요. 저장은 localStorage. 범위: theme 정의 · 토글 컴포넌트 · 설정 화면 정도.",
+    qa:"완료 기준 제안: ① 토글 시 즉시 전환 ② 새로고침 후 유지 ③ 기존 화면 그대로. 이대로 저장하면 작업 약속(계약)이 만들어져요.",
+    goal:"라이트/다크 테마를 토글로 전환",
+    scope:"색상 CSS 변수 · 토글 컴포넌트 · 설정 화면 · localStorage",
+    done:["토글 시 즉시 전환","새로고침 후 유지","기존 화면 그대로 보존"] };
+  // 폴백 — 매칭 없을 때도 주제를 그대로 받아 핵심 화면/동작을 캐묻는 톤.
+  return {
+    pd:`"${t}" 좋아요! 사용자가 처음 보는 핵심 화면 하나를 먼저 정해볼까요? 거기서 할 수 있는 가장 중요한 동작 한 가지는 뭘까요?`,
+    tech:"핵심 데이터 한 종류 + 화면 한두 개로 작게 시작해요. 저장은 localStorage면 충분하고, 파일은 목록·상세로 나눌게요.",
+    qa:"완료 기준 제안: ① 핵심 동작이 바로 됨 ② 새로고침 후에도 유지 ③ 기존 동작 보존. 이대로 저장하면 작업 약속(계약)이 만들어져요.",
+    goal:`${t}의 핵심 기능 만들기`,
+    scope:"핵심 데이터 1종 + 목록·상세 화면 · localStorage",
+    done:["핵심 동작 즉시 동작","새로고침 후 유지","기존 동작 보존"] };
+}
+
+// 페르소나 대화 — topicProfile()로 주제별 구체화. 3인(기획 PD·기술 검토·검증).
+function personaMsgs(){
+  const p = topicProfile();
+  return [
+    ["🎬 기획 PD", p.pd],
+    ["🛠 기술 검토", p.tech],
+    ["✅ 검증", p.qa],
+  ];
+}
+
+// 실행 미리보기 — 주제별 미니 목업. c(변경 수)>0이면 "AI가 만든 후", 아니면 "빈 상태".
+// topicProfile()과 같은 키워드 순서로 분기(kind 일치). 인라인 스타일로 자체 완결.
+// 주제별 고유 accent 색 — 실행 미리보기·프리뷰 바에 입혀 주제마다 다른 색감을 준다.
+function topicAccent(){
+  const t = topicLabel(); const has = (...ks) => ks.some(k => t.includes(k));
+  if(has("메모","노트")) return "#F5A623";
+  if(has("할 일","할일","투두","todo","체크리스트","체크 리스트")) return "#27AE60";
+  if(has("일기","다이어리","diary")) return "#9B59B6";
+  if(has("가계부","지출","용돈","예산","budget","돈 관리","money")) return "#E67E22";
+  if(has("사진","갤러리","앨범","포토","gallery","photo")) return "#2D9CDB";
+  if(has("타이머","뽀모도로","스톱워치","pomodoro","timer")) return "#E74C3C";
+  if(has("습관","루틴","운동","habit","트래커","tracker")) return "#F5621E";
+  if(has("블로그","글","게시","포스트","blog")) return "#1ABC9C";
+  if(has("포트폴리오","소개","이력","portfolio","프로필")) return "#34495E";
+  if(has("다크모드","다크 모드","테마","dark mode","dark")) return "#6C5CE7";
+  return "#7C2D12";
+}
+function topicPreview(c){
+  const t = topicLabel();
+  const a = topicAccent(); // 주제 고유 색 — 제목·버튼·강조에 사용
+  const has = (...ks) => ks.some(k => t.includes(k));
+  const empty = (icon, msg) => `<b style="color:${a}">${icon}</b><div style="color:#aaa;margin-top:18px;text-align:center;font-size:12px">${msg}</div>`;
+  const btn = (label) => `<span style="border:1.5px solid ${a};color:${a};border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700">${label}</span>`;
+  if(has("메모","노트")) return c>0
+    ? `<b style="color:${a}">📝 메모</b><div style="margin-top:8px;display:grid;gap:6px;font-size:12px">
+        <div style="border:1px solid #eee;border-left:3px solid ${a};border-radius:6px;padding:6px 8px"><b>장보기 목록</b><br><span style="color:#888">달걀, 빵, 커피…</span></div>
+        <div style="border:1px solid #eee;border-left:3px solid ${a};border-radius:6px;padding:6px 8px"><b>주말 아이디어</b><br><span style="color:#888">앱에 검색 추가하기…</span></div></div>
+        <div style="margin-top:8px">${btn("+ 새 메모")}</div>`
+    : empty("📝 메모", "아직 메모가 없어요<br>+ 버튼으로 첫 메모를 적어보세요");
+  if(has("할 일","할일","투두","todo","체크리스트","체크 리스트")) return c>0
+    ? `<b style="color:${a}">✅ 할 일</b><div style="margin-top:8px;display:grid;gap:5px;font-size:13px">
+        <label style="display:flex;gap:6px"><input type="checkbox" checked disabled style="accent-color:${a}"> <s style="color:#999">장보기</s></label>
+        <label style="display:flex;gap:6px"><input type="checkbox" disabled style="accent-color:${a}"> 운동하기</label>
+        <label style="display:flex;gap:6px"><input type="checkbox" disabled style="accent-color:${a}"> 책 읽기</label></div>`
+    : `<b style="color:${a}">✅ 할 일</b><div style="margin-top:8px;display:flex;gap:6px"><input type="text" style="flex:1;border:1px solid #ccc;padding:4px" placeholder="할 일 입력" disabled>${btn("추가")}</div><div style="color:#aaa;margin-top:12px;text-align:center;font-size:12px">할 일을 추가해보세요</div>`;
+  if(has("일기","다이어리","diary")) return c>0
+    ? `<b style="color:${a}">📔 일기</b><div style="margin-top:8px;display:grid;gap:6px;font-size:12px">
+        <div style="border:1px solid #eee;border-left:3px solid ${a};border-radius:6px;padding:6px 8px"><span style="color:#888">2026-06-13</span> 😊<br>오늘 첫 앱을 만들었다!</div>
+        <div style="border:1px solid #eee;border-left:3px solid ${a};border-radius:6px;padding:6px 8px"><span style="color:#888">2026-06-12</span> 😌<br>바이브라인 시작</div></div>`
+    : empty("📔 일기", "오늘의 첫 일기를 써보세요");
+  if(has("가계부","지출","용돈","예산","budget","돈 관리","money")) return c>0
+    ? `<b style="color:${a}">💰 가계부</b><div style="margin-top:8px;font-size:12px;display:grid;gap:4px">
+        <div style="display:flex;justify-content:space-between"><span>점심</span><span style="color:#c0392b">-9,000</span></div>
+        <div style="display:flex;justify-content:space-between"><span>용돈</span><span style="color:#27ae60">+50,000</span></div>
+        <div style="display:flex;justify-content:space-between;border-top:2px solid ${a};padding-top:4px;font-weight:700"><span>이번 달</span><span style="color:${a}">+41,000</span></div></div>`
+    : empty("💰 가계부", "첫 수입·지출을 기록해보세요");
+  if(has("사진","갤러리","앨범","포토","gallery","photo")) return c>0
+    ? `<b style="color:${a}">🖼 갤러리</b><div style="margin-top:8px;display:grid;grid-template-columns:repeat(3,1fr);gap:4px">${["#F5621E","#2D9CDB","#27AE60","#FBBF24","#9B59B6","#1A1A1A"].map(col=>`<div style="aspect-ratio:1;background:${col};border-radius:4px"></div>`).join("")}</div>`
+    : empty("🖼 갤러리", "사진을 올리면 격자로 보여요");
+  if(has("타이머","뽀모도로","스톱워치","pomodoro","timer")) return c>0
+    ? `<b style="color:${a}">⏱ 타이머</b><div style="text-align:center;margin-top:10px"><div style="font-size:34px;font-weight:800;font-family:monospace;color:${a}">24:37</div><div style="margin-top:6px">${btn("정지")} ${btn("리셋")}</div></div>`
+    : `<b style="color:${a}">⏱ 타이머</b><div style="text-align:center;margin-top:10px"><div style="font-size:34px;font-weight:800;font-family:monospace;color:#aaa">25:00</div><div style="margin-top:6px">${btn("시작")}</div></div>`;
+  if(has("습관","루틴","운동","habit","트래커","tracker")) return c>0
+    ? `<b style="color:${a}">🔥 습관</b><div style="margin-top:8px;font-size:12px;display:grid;gap:6px">
+        <div style="display:flex;justify-content:space-between"><span style="color:${a}">운동 ●●●●●</span><span style="color:${a};font-weight:700">5일째</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:${a}">독서 ●●●○○</span><span style="color:${a};font-weight:700">3일째</span></div></div>`
+    : empty("🔥 습관", "습관을 추가하고 오늘부터 체크해보세요");
+  if(has("블로그","글","게시","포스트","blog")) return c>0
+    ? `<b style="color:${a}">✍️ 블로그</b><div style="margin-top:8px;display:grid;gap:6px;font-size:12px">
+        <div style="border-bottom:1px solid #eee;padding-bottom:5px"><b style="color:${a}">첫 글을 썼어요</b><br><span style="color:#888">2026-06-13</span></div>
+        <div style="border-bottom:1px solid #eee;padding-bottom:5px"><b style="color:${a}">바이브라인 후기</b><br><span style="color:#888">2026-06-13</span></div></div>`
+    : empty("✍️ 블로그", "첫 글을 써보세요");
+  if(has("포트폴리오","소개","이력","portfolio","프로필")) return c>0
+    ? `<div style="font-size:12px"><div style="font-weight:800;font-size:14px;color:${a}">👋 안녕하세요, 만드는 사람입니다</div><div style="margin-top:8px;color:#555">— 프로젝트<br>· VibeLign으로 만든 앱<br>· 나만의 메모장</div><div style="margin-top:8px;color:#555">— 연락처: hello@me.com</div></div>`
+    : empty("📇 포트폴리오", "소개 한 문장부터 채워보세요");
+  if(has("다크모드","다크 모드","테마","dark mode","dark")) return c>0
+    ? `<div style="background:#14141B;color:#eee;border-radius:6px;padding:14px;text-align:center"><b style="color:${a}">🌙 다크모드 ON</b><br><span style="font-size:11px;color:#aaa">설정 › 테마 [●]</span></div>`
+    : `<div style="text-align:center;padding:6px"><b>☀️ 라이트모드</b><br><span style="font-size:11px;color:#888">설정 › 테마 [○]</span></div>`;
+  // 폴백 — 주제 이름 + 일반 상태.
+  return c>0
+    ? `<b style="color:${a}">${t}</b><div style="color:#555;margin-top:12px">✨ 기획안대로 만든 핵심 기능이 여기 나타났어요</div>`
+    : `<b style="color:${a}">${t}</b><div style="color:#aaa;margin-top:18px;text-align:center;font-size:12px">아직 비어 있어요 — AI에게 시키면 채워져요</div>`;
+}
+function startPlanning(){
+  S.planningPending = true; S.planMsgs = 0; refresh();
+  const tick = () => {
+    S.planMsgs += 1; refresh();
+    if(S.planMsgs < personaMsgs().length) setTimeout(tick, 900);
+    else { S.planningPending = false; toast("💬 대화가 충분히 익었어요 — 마음에 들면 '기획안으로 저장'을 누르세요"); refresh(); }
+  };
+  setTimeout(tick, 800);
+}
+function confirmPlan(){
+  S.hasPlanDoc = true; S.enrich = "running";
+  toast("📋 기획안이 저장됐어요 — 백그라운드에서 작업 범위(계약)를 분석 중…");
+  setTimeout(()=>{ S.enrich = "done"; toast("✅ 계약 준비 완료 — 목표·범위·금지·완료 기준이 작업방 지시문이 돼요"); refresh(); }, 1600);
   refresh();
 }
+
+// ───────── 사용자 행동: 작업방 (체크포인트→실행→검사 자동 시퀀스) ─────────
+// AI 작업 출력(데모) — 주제에 종속.
+function workLines(){
+  return [
+    `$ claude -p "기획안 적용: ${topicLabel()}"`,
+    "· 핵심 파일 생성 — 기본 구조 잡기",
+    "· 화면·데이터 연결",
+    "· 기획안 범위대로 기능 추가",
+    "✅ 작업 완료 — 3개 파일, 약속 범위 내",
+  ];
+}
+function startWork(){
+  if(S.aiToolMissing){ toast("⚠️ AI 도구가 없어요 — 작업방의 '설치 도움받기'를 눌러보세요"); refresh(); return; }
+  if(!S.hasPlanDoc){ toast("⚠️ 확정된 기획안이 없어요 — 기획방에서 먼저 확정하세요"); return; }
+  if(S.workRun && (S.workRun.phase==="checkpoint"||S.workRun.phase==="running"||S.workRun.phase==="guard")) return;
+  const usedHandoff = S.handoff; S.handoff = null; // 핸드오프는 실행 시 소비
+  S.workRun = { phase:"checkpoint", lines:[], handoff:usedHandoff };
+  refresh();
+  setTimeout(()=>{ // ① 체크포인트 자동 저장 (실패 시 실행 중단 — 데모는 항상 성공)
+    S.hasCheckpoint = true; addBackup(`작업방 실행 전 자동 저장: "${topicLabel()}"`); S.changedFiles = 0; S.guardStatus = null;
+    S.workRun.phase = "running"; toast("📌 체크포인트가 자동으로 저장됐어요 — 이제 망쳐도 되돌릴 수 있어요");
+    refresh(); streamWork(0);
+  }, 800);
+}
+function streamWork(i){
+  const lines = workLines();
+  if(i < lines.length){
+    S.workRun.lines.push(lines[i]); refresh();
+    setTimeout(()=>streamWork(i+1), 650);
+    return;
+  }
+  S.workRun.phase = "guard"; S.changedFiles = 3; S.runVerified = false; S.runReady = false; refresh(); // ② 실행 종료 → 변경 감지
+  setTimeout(()=>{ // ③ 자동 검사 (guard) — pass면 가이드가 바로 6️⃣로
+    S.workRun.phase = "done"; S.guardStatus = "ok";
+    toast("🛡️ 자동 검사: 통과 — 약속한 범위(3개 파일)만 바뀌었어요");
+    refresh();
+  }, 900);
+}
+
+// ───────── 사용자 행동: 실행해보기 ─────────
+function startRun(){
+  S.runStarted = true; S.runReady = false; refresh();
+  setTimeout(()=>{ S.runReady = true; toast("🌐 http://localhost:5173 감지 — 미리보기가 열렸어요"); refresh(); }, 1100);
+}
+function verifyRun(){ S.runVerified = true; toast("✓ 작동 확인! 이제 백업 탭에서 마무리 저장만 하면 한 사이클 완성이에요"); refresh(); }
+function requestImprove(){
+  S.handoff = { text:"방금 만든 화면에서 핵심 버튼이 잘 안 보여요 — 더 눈에 띄게 위로 옮겨주세요" };
+  toast("🔁 개선 요청이 작업방으로 전달됐어요 — 지시문이 자동으로 바뀌었어요");
+  go("work");
+}
+
+// ───────── 사용자 행동: 홈·백업 ─────────
 function runGuard(){
   const changed = S.isGit ? S.changedFiles : 0;
-  S.guardStatus = "ok"; // 데모: 엔진 status=pass 가정
-  toast(changed > 0 ? "🛡️ 상태 확인: pass — 약속한 범위만 바뀌었어요" : "🛡️ 상태 확인: pass — 바뀐 게 없어요");
+  S.guardStatus = "ok"; // 데모: 엔진 verdict=pass 가정
+  toast(changed > 0 ? "🛡️ 상태 확인: 통과 — 약속한 범위만 바뀌었어요" : "🛡️ 상태 확인: 통과 — 바뀐 게 없어요");
   refresh();
 }
-function undoNow(){ S.changedFiles = 0; S.guardStatus = null; toast("↩ 마지막 체크포인트 시점으로 되돌렸어요"); refresh(); }
+// 체크포인트 1건 기록(메모 포함) — 백업 타임라인에 주제 맥락이 남게.
+function addBackup(note){ S.backupList.push({ note }); S.backups = S.backupList.length; }
+function saveCheckpoint(){
+  const prev = currentStep();
+  const note = prev===6 ? `결과 저장: "${topicLabel()}" 작동 확인 후`
+             : prev===3 ? `AI 작업 전 안전 저장: "${topicLabel()}"`
+             : `수동 체크포인트: "${topicLabel()}"`;
+  S.hasCheckpoint = true; addBackup(note);
+  S.changedFiles = 0; S.guardStatus = null; // baseline 재캡처 → 변경 0
+  toast("✅ 체크포인트가 저장됐어요");
+  maybeCelebrate(prev);
+  refresh();
+}
+function undoNow(){
+  S.changedFiles = 0; S.guardStatus = null; S.runVerified = false; S.workRun = null;
+  toast("↩ 마지막 체크포인트 시점으로 되돌렸어요 — 없던 일이 됐어요 (되돌리기 전 상태도 자동 보관)");
+  refresh();
+}
 function extAiWork(n){
-  if(currentStep() < 4 && inferStep() < 4){ toast("⚠️ 아직 4️⃣ 전이에요 — 기획·체크포인트부터!"); }
-  const prev = S.changedFiles;
+  if(inferStep() < 4){ toast("⚠️ 아직 4️⃣ 전이에요 — 기획·체크포인트부터!"); }
+  const prevN = S.changedFiles;
   S.changedFiles = n;
-  if(n > prev) S.guardStatus = null; // 변경 수 "증가" 시에만 guard 리셋
-  toast(S.isGit ? `📝 파일 ${n}개가 바뀌었어요 (탭 전환 시 감지)` : "📝 파일이 바뀌었지만 비-git이라 자동 감지가 안 돼요");
+  if(n > prevN) S.guardStatus = null; // 변경 "증가" 시에만 guard 리셋 (지문 변화 근사)
+  S.runVerified = false;
+  toast(S.isGit ? `📝 파일 ${n}개가 바뀌었어요 — 외부 작업은 검사가 자동이 아니니 '✓ 다 했어요'나 홈 '상태 확인'으로!` : "📝 파일이 바뀌었지만 비-git이라 자동 감지가 안 돼요 — 코드탐색의 '✓ 다 했어요'가 유일한 출구");
   refresh();
 }
-function go(page){ S.page = page; if(page === "manual") S.accOpen = undefined; refresh(); }
+function go(page){ S.page = page; if(page === "manual") S.accOpen = undefined; S.utilOpen = false; refresh(); }
 function toggleAcc(i){
   const step = S.guideEnabled ? currentStep() : null;
   const open = (S.accOpen === undefined) ? step : S.accOpen;
   S.accOpen = (open === i) ? 0 : i;
   refresh();
 }
-function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),2600); }
+function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),3200); }
 
-// ───────── 렌더 ─────────
+// ───────── 렌더 (현행 stages.ts 구조) ─────────
 const TABS = [ ["home","🏠 홈"], ["plan","📋 기획"], ["dev","⚙️ 개발"], ["maintain","🛡️ 유지보수"] ];
-const PAGE2TAB = { home:"home", manual:"manual", settings:"settings", planning:"plan", "plan-doc":"plan", code:"dev", docs:"dev", doctor:"maintain", backups:"maintain", logs:"maintain" };
-const SUBNAV = { plan:[["planning","기획방"],["plan-doc","기획안"]], dev:[["code","코드탐색"],["docs","문서"]], maintain:[["doctor","진단"],["backups","백업"],["logs","로그"]] };
+const PAGE2TAB = { home:"home", manual:"manual", settings:"settings", planning:"plan", "plan-doc":"plan", code:"dev", docs:"dev", work:"dev", run:"dev", doctor:"maintain", backups:"maintain", logs:"maintain" };
+const SUBNAV = { plan:[["planning","기획방"],["plan-doc","기획안"]], dev:[["code","코드탐색"],["docs","문서"],["work","작업방"],["run","실행해보기"]], maintain:[["doctor","진단"],["backups","백업"],["logs","에러로그"]] };
 const FIRST = { home:"home", plan:"planning", dev:"code", maintain:"doctor", manual:"manual", settings:"settings" };
+function pageLabel(p){ return ({home:"홈",planning:"기획방","plan-doc":"기획안",code:"코드탐색",docs:"문서",work:"작업방",run:"실행해보기",doctor:"진단",backups:"백업",logs:"에러로그"})[p] || p; }
 
 function refresh(){
+  if(S.page === "onboard"){
+    // 온보딩 중엔 실제 앱처럼 탭·가이드 줄이 아예 없음 (Onboarding.tsx가 전체 화면)
+    document.getElementById("tbProj").textContent = "VibeLign — 시작하기";
+    document.getElementById("tabbar").innerHTML = "";
+    document.getElementById("subnav").innerHTML = "";
+    document.getElementById("strip").innerHTML = "";
+    renderOnboarding(); renderSignals(null); return;
+  }
   const step = S.guideEnabled ? currentStep() : null;
   renderTabs(); renderSubnav(); renderStrip(step); renderContent(step); renderSignals(step);
+}
+
+// 게임형 코치마크 말풍선 — 단계마다 가리키는 대상이 옮겨가며 끝까지 인도한다.
+// "뽁" 팝 애니메이션은 CSS(popbubble)가, 단계 전환은 S.coach가 담당.
+function coachBubble(){
+  if(!S.coach) return "";
+  if(S.coach==="folder"){
+    return `<div class="bubble" style="left:-2px;--tailx:24px">
+      <button class="x" title="닫기" onclick="dismissCoach()">×</button>
+      <span class="em">👋</span> 안녕! 먼저 <b>＋</b>를 눌러 프로젝트 폴더를 골라줘.<br>비어 있는 새 폴더를 만들어도 좋아요 — 거기서부터 시작할게요!</div>`;
+  }
+  // prompt 단계 — 말풍선이 입력창 쪽으로 옮겨가 다음 행동을 가리킨다.
+  return `<div class="bubble" style="left:54px;--tailx:20px">
+    <button class="x" title="닫기" onclick="dismissCoach()">×</button>
+    <span class="em">✍️</span> 좋았어! 이제 <b>만들고 싶은 걸 한 줄</b> 적고<br>오른쪽 <b>●</b>를 누르면 시작! 나머진 내가 정렬해 둘게 🚀</div>`;
+}
+
+// Onboarding.tsx 미니어처 — 폴더 선택 + 한 줄 기획 입력 + AI 도구·설치·시스템 상태 패널
+function renderOnboarding(){
+  const det = detectedTools(); const sel = toolSel();
+  const chips = SETUP_TOOLS.map(([k,l])=>
+    `<button class="toolchip ${sel.has(k)?"on":""}" onclick="toggleTool('${k}')">${l}${det.includes(k)?" MCP":""}</button>`).join("")
+    + `<button class="toolchip all ${sel.size===SETUP_TOOLS.length?"on":""}" onclick="toggleAllTools()">${sel.size===SETUP_TOOLS.length?"전체 해제":"전체 선택"}</button>`;
+  const claudeCard = S.aiToolMissing
+    ? `<div style="font-weight:800;margin-bottom:4px">Claude Code가 아직 없어요</div>
+       <div style="color:#555;line-height:1.6;margin-bottom:8px">공식 설치를 대신 진행해 드려요. 설치·로그인까지 끝나면 작업방이 이 도구로 AI를 실행해요.</div>
+       <button class="btn primary" style="margin:0" onclick="installClaude()">Claude Code 설치 시작</button>`
+    : `<div style="font-weight:800;margin-bottom:4px">✓ Claude Code 준비됨</div>
+       <div style="color:#555;line-height:1.6">설치·로그인 확인 완료 — 바로 시작하면 돼요. <span style="color:#A14B00">전체 삭제</span>도 여기서 할 수 있어요.</div>`;
+  const recent = S.recent.length === 0 ? "" :
+    `<h4 style="margin-top:12px">최근 프로젝트</h4>
+     <p style="color:#777;font-size:11px;margin-bottom:6px">전에 열었던 폴더예요 — 이름을 클릭하면 그 프로젝트를 이어서 열어요 (×는 목록에서만 제거, 폴더는 그대로)</p>
+     <div style="display:grid;gap:6px">${S.recent.map((d,i)=>
+       `<div class="recent-row"><button class="open" onclick="resumeRecent('${d}')">${d}</button><button class="rm" onclick="removeRecent(${i})">×</button></div>`).join("")}</div>`;
+  const greetPop = S.onbGreeted ? "" : " pop"; S.onbGreeted = true; // 진입 1회만 "뽁"
+  document.getElementById("content").innerHTML = `<div class="onb">
+    <div class="onb-welcome">
+      <span class="mascot big${greetPop}">🧭</span>
+      <span class="gbubble${greetPop}">
+        <span class="em">👋</span> 안녕, 반가워! 난 바이브라인 길잡이 🧭<br>
+        처음이어도 걱정 마 — <b>폴더 고르기</b>부터 <b>기획·코딩·확인·백업</b>까지 한 칸씩 같이 갈게. 시작은 아래 <b>＋</b>부터!</span>
+    </div>
+    <h1>계획부터, 바이브까지, 되돌림은 언제든</h1>
+    <div class="sub">무엇을 만들지 한 줄로 적어보세요. 나머지는 정렬해 드릴게요</div>
+    <div class="onb-bar${S.coach?' coach-on':''}">
+      ${coachBubble()}
+      <div class="onb-plus-wrap">
+        <button class="onb-plus ${S.coach==="folder"?"attract":""}" title="프로젝트 폴더 선택" onclick="pickFolder()">+</button>
+        <div class="hovertip">➕ 여기 눌러서 프로젝트 폴더 고르기!<br>새 폴더 만들어도 돼요 👌</div>
+      </div>
+      <input type="text" value="${S.promptText.replace(/"/g,"&quot;")}" oninput="syncPrompt(this)" placeholder="예: 할 일 앱에 다크모드를 추가하고 싶어">
+      <button class="onb-instant" title="AI 선택">Instant</button>
+      <button class="onb-send" title="전송" onclick="startApp()">●</button>
+    </div>
+    ${S.dirPicked?'<div class="dirname">선택한 폴더: my-first-app</div>':""}
+    ${S.folderHint?`<div class="hint">${S.folderHint}</div>`:""}
+    ${S.startLines.length?`<div class="progress">${S.startLines.map(l=>`<div>${l}</div>`).join("")}</div>`:""}
+    <button class="onb-toggle" onclick="S.setupOpen=!S.setupOpen;refresh()">${S.setupOpen?"▾":"▸"} AI 도구 · 설치 · 시스템 상태</button>
+    ${S.setupOpen?`<div class="onb-grid">
+      <div class="onb-card orange">
+        <div class="cap">MCP 자동 설정 <span class="dim">(설치된 도구는 자동 선택돼요)</span></div>
+        <div class="toolchips">${chips}</div>
+        ${S.mcpTip ? `<div class="tip-bubble"><span class="ic">🔌</span><span><b>MCP가 뭐냐면</b> — 고른 AI 도구에 바이브라인의 <b>코드맵·앵커·검사·백업</b>을 '연결'하는 거예요. 그러면 Claude 같은 도구가 이 기능들을 직접 쓰면서 더 똑똑하게 작업해요. 설치된 도구는 자동으로 골라뒀으니 그대로 둬도 돼요!</span><button class="x" title="닫기" onclick="S.mcpTip=false;refresh()">×</button></div>` : ""}
+        <p style="color:#777;font-size:11px;margin-top:6px">선택한 도구에는 시작할 때 VibeLign MCP(코드맵·앵커·검사·백업)가 자동으로 연결돼요.</p>
+        <div class="sect">CLAUDE CODE 설치/관리</div>
+        ${claudeCard}
+      </div>
+      <div class="onb-card green">
+        <h4 style="color:#1B7A43">시스템 상태</h4>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+          <span class="sysbadge">VIB CLI: 발견됨</span>
+          <span class="sysbadge">Git: ${S.isGit?"준비됨":"필요"}</span>
+          <span class="sysbadge">Xcode CLT: 준비됨</span>
+          <span class="sysbadge">Claude Code: ${S.aiToolMissing?"미설치":"준비됨"}</span>
+        </div>
+        ${recent}
+      </div>
+    </div>`:""}
+    <p style="color:#444;font-size:14px;max-width:680px;text-align:center;line-height:1.9">📁 <b>+</b>로 프로젝트 폴더를 고르고(새 폴더여도, 기존 코드여도 OK), 만들고 싶은 걸 한 줄 적은 뒤 <b>●</b>를 누르면 — 코드맵·앵커·감시·초기 저장이 자동으로 준비되고 곧장 기획방이 열려요.</p>
+  </div>`;
 }
 
 function renderTabs(){
@@ -198,37 +727,74 @@ function renderTabs(){
   let h = TABS.map(([k,l]) => `<button class="tab ${cur===k?"active":""}" onclick="go('${FIRST[k]}')">${l}</button>`).join("");
   h += `<button class="tab right ${cur==="manual"?"active":""}" onclick="go('manual')">📖 사용법</button>`;
   h += `<button class="tab ${cur==="settings"?"active":""}" onclick="go('settings')">⚙ 설정</button>`;
+  h += `<button class="tab" title="탐색기로 열기" onclick="toast('📂 (데모) 탐색기에서 프로젝트 폴더를 열어요 — 앱은 그대로예요')">📂 폴더열기</button>`;
+  h += `<button class="tab" style="color:#777" title="이 프로젝트에서 나가기 — 처음 화면(프로젝트 선택)으로 돌아가요" onclick="exitToOnboarding()">${S.projName} ↩</button>`;
   document.getElementById("tabbar").innerHTML = h;
 }
 function renderSubnav(){
   const items = SUBNAV[PAGE2TAB[S.page]] || [];
   document.getElementById("subnav").innerHTML = items.map(([p,l]) =>
-    `<button class="subtab ${S.page===p?"active":""}" onclick="go('${p}')">${l}</button>`).join("");
+    `<button class="subtab ${S.page===p?"active":""}" onclick="go('${p}')">${l}</button>`).join("")
+    || `<span style="font-size:11px;color:#999">　</span>`;
 }
 
+// 현행 GuideStrip.tsx 미니어처 — 온보딩과 같은 말풍선 톤(마스코트 🧭 + 크림 말풍선).
+// 단계가 바뀐 순간에만 "뽁" 팝(popbubble) 재생 — 탭 전환·접기 같은 잔 렌더엔 흔들리지 않게.
+let _lastStripStep; // 직전 표시 단계 추적 (pop 트리거)
 function renderStrip(step){
   const el = document.getElementById("strip");
+  const pop = step !== _lastStripStep; _lastStripStep = step;
+  const popCls = pop ? " pop" : "";
   if(S.celebrating){
-    el.innerHTML = `<div class="strip"><span class="celebrate">🎉 <b>첫 사이클 완주!</b> 기획부터 저장까지 해냈어요 — 이 흐름 그대로 반복하면 돼요</span>
-      <button class="chip" onclick="S.celebrating=false;refresh()">×</button></div>`;
+    el.innerHTML = `<div class="strip celebrate">
+      <span class="mascot pop" style="background:#86EFAC">🎉</span>
+      <span class="gbubble pop" style="background:#E8F6EC;border-color:#166534">
+        <b>첫 사이클 완주!</b> 기획부터 저장까지 해냈어요 — 이 흐름 그대로 반복하면 돼요</span>
+      <button class="chip ghost" onclick="S.celebrating=false;refresh()">×</button></div>`;
+    _lastStripStep = undefined; // 축하 종료 후 복귀 시 다시 팝
     return;
   }
-  const right = `<div class="spacer"></div>
-    <span class="${S.hasCheckpoint?"status-ok":"status-no"}">${S.hasCheckpoint?"✓ 백업 데이터 있음":"백업 데이터 없음"}</span>
+  const statusHtml = `<span class="${S.hasCheckpoint?"status-ok":"status-no"}">${S.hasCheckpoint?"✓ 백업 데이터 있음":"백업 데이터 없음"}</span>
     ${S.planningPending?'<span class="pending">● 기획 진행 중</span>':""}`;
-  if(!step){ el.innerHTML = `<div class="strip thin">${right}</div>`; return; }
+  if(!step){ el.innerHTML = `<div class="strip thin"><span class="spacer"></span>${statusHtml}</div>`; _lastStripStep = undefined; return; }
   const d = STEPS[step];
-  let mid = `<span class="guide">🧭 지금: <span class="now">${d.icon} ${d.label}</span> — ${d.short}`;
-  if(d.target) mid += ` <button class="chip" onclick="go('${d.target}')">${pageLabel(d.target)}으로 이동 →</button>`;
-  if(step===4) mid += ` <button class="chip amber" title="외부 AI 작업이 끝났거나 멈췄으면 확인 단계로" onclick="setOverride(5);go('home')">AI 작업이 끝났거나 멈췄나요? 확인하러 가기 →</button>`;
-  if(step===4 && S.aiToolMissing) mid += ` <button class="chip amber" onclick="go('settings')">AI 도구가 아직 없나요? 설치 도움받기 →</button>`;
-  if(step===4||step===5) mid += ` <button class="chip gray" title="마지막으로 저장한 시점으로 코드를 되돌릴 수 있어요" onclick="go('backups')">잘 안 됐나요? 되돌리기 →</button>`;
-  mid += ` <button class="chip" ${step===2?"disabled":""} onclick="setOverride(${step-1})">‹</button>
-           <button class="chip" ${step===6?"disabled":""} onclick="setOverride(${step+1})">›</button>
-           <button class="chip" title="가이드 끄기 (설정에서 다시 켤 수 있어요)" onclick="S.guideEnabled=false;refresh()">×</button></span>`;
-  el.innerHTML = `<div class="strip">${mid}${right}</div>`;
+  const onTarget = d.target && d.target === S.page;
+  const goBtn = (d.target && !onTarget) ? `<button class="chip amber" onclick="go('${d.target}')">${d.go}</button>` : "";
+  if(S.collapsed){
+    el.innerHTML = `<div class="strip">
+      <button class="chip ghost sq" title="안내 자세히 보기" onclick="S.collapsed=false;refresh()">▸</button>
+      <span class="mascot${popCls}">🧭</span>
+      <span class="gbubble${popCls}" style="display:flex;align-items:center;gap:8px">
+        <span class="now">${d.icon} ${d.label}</span>${goBtn}</span></div>`;
+    return;
+  }
+  // 폴백 affordance(현행과 동일): 4️⃣ + 코드탐색 탭에서만 — 작업방 경유는 자동 검사·전환이라 불필요
+  let extra = "";
+  if(step===4 && S.page==="code")
+    extra += `<button class="chip outline" title="AI 작업이 끝났어도, 중간에 멈췄어도 눌러요 — 확인 단계로 가요" onclick="setOverride(5);go('home')">✓ 다 했어요 — 결과 확인</button>`;
+  if(step===4 && S.page==="code" && S.aiToolMissing)
+    extra += `<button class="chip outline" onclick="go('settings')">AI 도구가 없어요 — 설치 도움받기</button>`;
+  let util = "";
+  if(S.utilOpen){
+    const escape = (step===4||step===5) ? `<button class="chip ghost" title="마지막으로 저장한 시점으로 코드를 되돌릴 수 있어요" onclick="go('backups')">잘 안 되면: 되돌리기</button><span class="divider"></span>` : "";
+    util = `<div class="util">${escape}
+      <button class="chip ghost sq" ${step===2?"disabled":""} onclick="setOverride(${step-1})">‹</button>
+      <button class="chip ghost sq" ${step===6?"disabled":""} onclick="setOverride(${step+1})">›</button>
+      <button class="chip ghost sq" title="가이드 끄기 (설정에서 다시 켤 수 있어요)" onclick="S.guideEnabled=false;refresh()">×</button>
+      <span class="divider"></span>${statusHtml}</div>`;
+  }
+  el.innerHTML = `<div class="strip">
+      <span class="mascot${popCls}">🧭</span>
+      <span class="gbubble${popCls} col">
+        <span style="display:flex;align-items:center;gap:6px">
+          <button class="chip ghost sq" title="한 줄로 접기" onclick="S.collapsed=true;refresh()">▾</button>
+          <span class="overline">지금 할 일:</span></span>
+        <span><span class="now">${d.icon} ${d.label}</span> — ${d.short}</span>
+        <span class="row">${goBtn}${extra}
+          <button class="chip ghost" onclick="S.utilOpen=!S.utilOpen;refresh()">${S.utilOpen?"접기 ▴":"문제 있나요? ▾"}</button></span>
+      </span>
+      <span class="spacer"></span>${util}</div>`;
 }
-function pageLabel(p){ return ({home:"홈",planning:"기획방","plan-doc":"기획안",code:"코드탐색",docs:"문서",doctor:"진단",backups:"백업",logs:"로그"})[p] || p; }
 
 function cardState(stage, step){
   if(!step) return null;
@@ -241,46 +807,185 @@ function cardState(stage, step){
 function renderContent(step){
   const c = document.getElementById("content");
   const changed = S.isGit ? S.changedFiles : 0;
+
   if(S.page==="home"){
-    const cards = [["planning","📋","기획","아이디어를 기획안으로", S.hasPlanDoc?"완료":"대기"],
-                   ["develop","⚙️","개발","코드 보기·탐색","열기"],
-                   ["maintain","🛡️","유지보수","안전 점검·복원",`백업 ${S.backups}개`]];
-    let h = `<div class="cards">` + cards.map(([k,ic,nm,ds,meta])=>{
+    const prof = topicProfile();
+    const cards = [
+      ["planning","📋","기획", S.hasPlanDoc?`"${topicLabel()}" 확정`:`"${topicLabel()}"`, S.hasPlanDoc?"기획안 1개":"기획 전", "planning"],
+      ["develop","⚙️","개발", S.hasPlanDoc?prof.goal:"AI에게 시키고 직접 실행", S.workRun?"실행 기록 있음":(S.hasPlanDoc?"작업 준비됨":"열기"), "code"],
+      ["maintain","🛡️","유지보수", S.backups>0?"점검 · 되돌리기 가능":"안전 점검·복원", `백업 ${S.backups}개`, "doctor"]];
+    let h = `<div class="cards">` + cards.map(([k,ic,nm,ds,meta,fallback])=>{
       const st = cardState(k, step);
       const badge = st==="now"?'<span class="badge-now">지금 할 차례</span>':st==="done"?'<span class="badge-done">✓ 완료</span>':st==="upcoming"?'<span class="badge-next">다음</span>':"";
       const act = st==="now" && step ? `<div class="action">→ ${STEPS[step].icon} ${STEPS[step].short}</div>` : "";
-      const dest = {planning:"planning",develop:"code",maintain:"doctor"}[k];
+      const dest = (st==="now" && step && STEPS[step].target) ? STEPS[step].target : fallback; // hubCardTarget
       return `<div class="hubcard ${st==="now"?"now":""}" onclick="go('${dest}')"><div class="icon">${ic}</div><div class="name">${nm}${badge}</div><div class="desc">${ds}</div>${act}<div class="meta">${meta}</div></div>`;
     }).join("") + `</div>`;
-    h += `<div class="panel"><h3>🛡️ 상태 확인 ${step===5?'<span class="badge-now">지금 할 차례</span>':""}</h3>
-      <p>AI가 약속한 범위만 고쳤는지 검사해요. ${changed>0?`지금 <b style="color:#FBBF24">파일 ${changed}개</b>가 마지막 저장 이후 바뀌어 있어요.`:"마지막 저장 이후 바뀐 파일이 없어요."}</p>
-      <button class="btn ${step===5?"primary":""}" onclick="runGuard()">상태 확인 실행</button>
-      ${S.guardStatus==="ok"?'<p style="color:#4DFF91;margin-top:8px">✓ 검사 통과(pass) — 약속한 범위만 바뀌었어요. 이제 저장하거나 되돌리면 돼요.</p>':""}</div>`;
+    h += `<div class="panel"><h3>🛡️ 프로젝트 안전 상태 ${step===5?'<span class="badge-now">지금 할 차례</span>':""}</h3>
+      <p>AI가 약속한 범위만 고쳤는지 검사해요. ${changed>0?`지금 <b style="color:#B45309">파일 ${changed}개</b>가 마지막 저장 이후 바뀌어 있어요.`:"마지막 저장 이후 바뀐 파일이 없어요."}</p>
+      <button class="btn ${step===5?"primary":""}" onclick="runGuard()">상태 확인하기</button>
+      ${S.guardStatus==="ok"?'<p class="ok" style="margin-top:8px">✓ 검사 통과 — 약속한 범위만 바뀌었어요. 실행해보기로 작동도 확인했다면, 이제 저장하거나 되돌리면 돼요.</p>':""}</div>`;
+    h += `<div class="panel"><h3>↩ 되돌리기</h3>
+      <p>${S.backups>0?`되돌릴 수 있는 저장 지점이 <b>${S.backups}개</b> 있어요. 망쳤을 땐 백업 탭에서 한 번에 되돌려요.`:"아직 저장 지점이 없어요. 첫 체크포인트를 저장해 두세요."}</p>
+      <button class="btn" onclick="go('backups')">백업 탭 열기 →</button></div>`;
     c.innerHTML = h;
+
   } else if(S.page==="planning"){
-    c.innerHTML = S.hasPlanDoc
-      ? `<div class="panel" style="margin-top:16px"><h3>📋 기획방</h3><p>확정된 기획안: <b>plan-20260610.md</b> — "할 일 앱에 다크모드 추가"</p><p style="color:#666">AI 페르소나 대화 기록 (생략) …</p></div>`
-      : `<div class="empty"><div class="big">📋</div><div>무엇을 만들고 싶은지 적으면 기획방이 열립니다.</div>
-         <input type="text" value="할 일 앱에 다크모드를 추가하고 싶어" readonly>
-         <div><button class="btn primary" onclick="S.planningPending=true;refresh();setTimeout(()=>{S.planningPending=false;confirmPlan()},1500)">기획 시작 → (데모: 1.5초 뒤 자동 확정)</button></div></div>`;
+    if(!S.hasPlanDoc && !S.planningPending && S.planMsgs===0){
+      c.innerHTML = `<div class="empty"><div class="big">📋</div><div>무엇을 만들고 싶은지 적으면 기획방이 열립니다.</div>
+        <input type="text" value="${S.planTopic.replace(/"/g,"&quot;")}" readonly>
+        <div><button class="btn primary" onclick="startPlanning()">기획 시작 →</button></div></div>`;
+    } else {
+      let msgs = personaMsgs().slice(0, S.planMsgs).map(([who,txt])=>`<div class="msg"><span class="who">${who}</span><span>${txt}</span></div>`).join("");
+      if(S.planningPending) msgs += `<div class="msg"><span class="who">…</span><span style="color:#999">페르소나가 생각 중이에요</span></div>`;
+      const enrichBadge = S.enrich==="running" ? `<p class="warn" style="margin-top:8px">⏳ 백그라운드 분석 중 — 작업 범위·금지·완료 기준(계약)을 만들고 있어요</p>`
+                        : S.enrich==="done" ? `<p class="ok" style="margin-top:8px">✓ 계약 준비 완료 — 작업방 지시문이 자동으로 만들어졌어요</p>` : "";
+      c.innerHTML = `<div class="panel first"><h3>📋 기획방 ${step===2?'<span class="badge-now">지금 할 차례</span>':""}</h3>
+        <p>주제: <b>"${S.planTopic}"</b> <span style="color:#999">— 온보딩에서 적은 한 줄이 그대로 기획 주제가 돼요</span></p>${msgs}
+        ${S.hasPlanDoc ? `<p class="ok" style="margin-top:10px">✓ 확정된 기획안: <b>plan-20260613.md</b></p>${enrichBadge}`
+          : `<button class="btn primary" ${S.planningPending?"disabled":""} onclick="confirmPlan()">📋 기획안으로 저장 (확정)</button>
+             <p style="margin-top:6px;color:#999">저장하는 순간 이 대화가 다음 단계 AI 작업의 약속(목표·범위)이 돼요.</p>`}</div>`;
+    }
+
   } else if(S.page==="plan-doc"){
-    c.innerHTML = `<div class="panel" style="margin-top:16px"><h3>📄 기획안</h3><p>${S.hasPlanDoc?"plan-20260610.md — 다크모드 토글, 색상 변수 분리, 설정 저장 …":"아직 확정된 기획안이 없어요."}</p></div>`;
+    c.innerHTML = `<div class="panel first"><h3>📄 기획안</h3>
+      ${S.hasPlanDoc ? (()=>{ const p=topicProfile(); return `<p><b>plan-20260613.md</b> — ${topicLabel()}</p>
+        <p style="margin-top:6px">· 목표: ${p.goal}<br>· 범위: ${p.scope}<br>· 완료 기준: ${p.done.join(" / ")}</p>`
+        + (S.enrich==="done"?'<p class="ok" style="margin-top:8px">✓ 계약(작업 범위·금지·완료 기준) 첨부됨 — 작업방이 이걸 그대로 지시문으로 써요</p>':""); })()
+      : `<p>아직 확정된 기획안이 없어요. 기획방에서 대화 후 저장하면 여기 나타나요.</p>`}</div>`;
+
   } else if(S.page==="code"){
-    c.innerHTML = `<div class="panel" style="margin-top:16px"><h3>⚙️ 코드탐색 ${step===4?'<span class="badge-now">지금 할 차례</span>':""}</h3>
-      <p>기획안 기반 지시문을 복사해 외부 AI 도구에 붙여넣으세요.</p>
-      <button class="btn ${step===4?"primary":""}" onclick="toast('📎 지시문이 복사됐어요 — 이제 Claude Code에 붙여넣으세요 (아래 데모 컨트롤로 AI 작업을 흉내내 보세요)')">📎 기획안 지시문 복사</button>
+    c.innerHTML = `<div class="panel first"><h3>⚙️ 코드탐색</h3>
+      <p>프로젝트 코드를 둘러보는 곳이에요. <b>기본 동선은 작업방</b> — 외부 도구(터미널)를 직접 쓰고 싶을 때만 아래 복사를 쓰세요.</p>
+      <button class="btn" ${S.hasPlanDoc?"":"disabled"} onclick="toast('📎 작업 지시가 복사됐어요 — 터미널의 Claude Code에 붙여넣으세요. 끝나면 가이드의 \\'✓ 다 했어요\\'를 눌러요 (아래 데모 컨트롤로 외부 작업을 흉내내 보세요)')">📎 작업 지시 복사 (외부 도구용)</button>
+      ${step===4?'<p style="margin-top:6px;color:#999">외부에서 작업했다면 가이드 줄을 ▸펼쳐 \'✓ 다 했어요 — 결과 확인\'을 누르세요. 비-git 프로젝트는 이게 유일한 확인 입구예요.</p>':""}
       <div class="filelist">src/App.tsx${changed>0?' <span class="changed">● 변경됨</span>':""}<br>src/theme.ts${changed>1?' <span class="changed">● 변경됨</span>':""}<br>src/Settings.tsx${changed>2?' <span class="changed">● 변경됨</span>':""}<br>src/index.ts</div></div>`;
+
+  } else if(S.page==="docs"){
+    if(!S.hasPlanDoc){
+      c.innerHTML = `<div class="panel first"><h3>📚 문서</h3><p>프로젝트 안의 설명 문서(README 등)를 보는 곳이에요. 기획을 확정하면 여기에 <b>"${topicLabel()}"</b> 문서 초안이 자동으로 만들어져요.</p></div>`;
+    } else {
+      const p = topicProfile();
+      c.innerHTML = `<div class="panel first"><h3>📚 문서</h3>
+        <p style="color:#777">기획안에서 자동으로 만들어진 문서 초안이에요 — 작업하면서 같이 자라요.</p>
+        <div style="border:2px solid #1A1A1A;border-radius:8px;background:#FFFDF6;padding:16px;margin-top:10px;box-shadow:3px 3px 0 rgba(26,26,26,.5)">
+          <div style="font-size:11px;color:#999;font-family:monospace;margin-bottom:10px">README.md</div>
+          <h2 style="font-size:19px;margin-bottom:4px">${topicLabel()}</h2>
+          <p style="color:#555;margin-bottom:12px">${p.goal}</p>
+          <h4 style="margin:12px 0 4px">🧩 화면·구조</h4>
+          <p style="color:#555;line-height:1.7">${p.scope}</p>
+          <h4 style="margin:12px 0 4px">✅ 완료 기준</h4>
+          <ul style="color:#555;line-height:1.8;padding-left:18px;margin:0">${p.done.map(d=>`<li>${d}</li>`).join("")}</ul>
+          <h4 style="margin:12px 0 4px">▶ 실행 방법</h4>
+          <p style="color:#555;font-family:monospace">npm run dev</p>
+        </div></div>`;
+    }
+
+  } else if(S.page==="work"){
+    const w = S.workRun;
+    const running = w && (w.phase==="checkpoint"||w.phase==="running"||w.phase==="guard");
+    const planCard = S.hasPlanDoc
+      ? `<p>📄 <b>plan-20260613.md</b> — ${topicLabel()} ${S.enrich==="done"?'<span class="ok">· 계약 첨부됨</span>':""}</p>`
+      : `<p class="warn">확정된 기획안이 없어요 — 기획방에서 먼저 확정하면 지시문이 자동으로 만들어져요.</p>`;
+    const handoffHtml = S.handoff ? `<div class="handoff">🔁 실행해보기에서 온 개선 요청으로 지시문이 바뀌었어요:<br><b>"${S.handoff.text}"</b></div>` : "";
+    const instruction = S.handoff ? S.handoff.text : `기획안(계약)대로 "${topicLabel()}"를 만들어 주세요 — 목표: ${topicProfile().goal} / 범위: ${topicProfile().scope}, 그 외 파일 수정 금지`;
+    let progress = "";
+    if(w){
+      const ph = (name, key, order) => `<span class="phase ${w.phase===key?"on":(["checkpoint","running","guard","done"].indexOf(w.phase)>order?"done":"")}">${name}</span>`;
+      progress = `<div class="phases">${ph("① 체크포인트 자동 저장","checkpoint",0)}${ph("② AI 실행","running",1)}${ph("③ 자동 검사","guard",2)}</div>`;
+      if(w.lines.length) progress += `<div class="term">${w.lines.map(l=>l.startsWith("✅")?`<span class="ok">${l}</span>`:l).join("<br>")}</div>`;
+      if(w.phase==="done") progress += `<p class="ok" style="margin-top:10px">✅ AI 작업이 끝났어요 · 🛡️ 자동 검사 통과 — 약속한 범위만 바뀌었어요</p>
+        <button class="btn primary" onclick="go('run')">▶ 실행해보기로 작동 확인</button>
+        <button class="btn" onclick="go('backups')">📌 마무리 저장하러 가기</button>`;
+    }
+    c.innerHTML = `<div class="panel first"><h3>🤖 작업방 ${step===4?'<span class="badge-now">지금 할 차례</span>':""}</h3>
+      ${planCard}${handoffHtml}
+      <p style="margin-top:8px">지시문: <i>"${instruction}"</i></p>
+      <p style="margin-top:4px;color:#999">실행 도구: ${S.aiToolMissing?'<b class="warn">감지된 AI 도구 없음</b>':"<b>Claude Code</b> (감지됨)"} · 버튼 하나로 체크포인트 저장 → AI 실행 → 자동 검사가 이어져요.</p>
+      ${S.aiToolMissing?'<button class="btn" onclick="go(\'settings\')">AI 도구가 없어요 — 설치 도움받기</button>':""}
+      <button class="btn ${step===4?"primary":""}" ${running||S.aiToolMissing?"disabled":""} onclick="startWork()">▶ AI에게 작업 시키기</button>
+      ${progress}</div>`;
+
+  } else if(S.page==="run"){
+    let body = `<p>감지된 실행 방법: <b>npm run dev</b> (Node.js 프로젝트) — 버튼 하나로 앱을 직접 켜봐요.</p>
+      <button class="btn ${step===5?"primary":""}" ${S.runStarted&&!S.runReady?"disabled":""} onclick="startRun()">▶ 실행</button>`;
+    if(S.runStarted){
+      body += `<div class="term">$ npm run dev<br>VITE ready in 412ms<br><span class="ok">➜ Local: http://localhost:5173</span></div>`;
+      if(S.runReady){
+        body += `<div class="preview" style="border-color:${topicAccent()}"><div class="bar" style="background:${topicAccent()};color:#fff"><span style="color:#fff">●</span> http://localhost:5173 — ${topicLabel()} 미리보기</div>
+          <div class="app" style="border-top:4px solid ${topicAccent()};background:${topicAccent()}10">${topicPreview(changed)}</div></div>`;
+        body += S.runVerified
+          ? `<p class="ok" style="margin-top:10px">✓ 작동 확인 완료 — 이제 백업에서 마무리 저장하면 한 사이클 끝!</p><button class="btn" onclick="go('backups')">📌 마무리 저장하러 가기</button>`
+          : `<button class="btn primary" onclick="verifyRun()">✓ 잘 돼요</button>
+             <button class="btn" onclick="requestImprove()">🔁 이건 아닌데 — 작업방에 개선 요청</button>`;
+      }
+    }
+    c.innerHTML = `<div class="panel first"><h3>▶ 실행해보기 ${step===5?'<span class="badge-now">지금 할 차례</span>':""}</h3>${body}
+      <p style="margin-top:10px;color:#999">'상태 확인'이 안전(범위)을 본다면, 여기는 작동(진짜 켜지나)을 봐요. 마음에 안 들면 '개선 요청'으로 작업방에 그대로 넘겨요.</p></div>`;
+
   } else if(S.page==="backups"){
-    c.innerHTML = `<div class="panel" style="margin-top:16px"><h3>🛡️ 백업 ${step===3||step===6?'<span class="badge-now">지금 할 차례</span>':""}</h3>
-      <p>저장된 체크포인트: <b>${S.backups}개</b>${changed>0?` · 마지막 저장 이후 <b style="color:#FBBF24">파일 ${changed}개</b> 변경됨`:""}</p>
+    const bl = S.backupList || [];
+    const rows = bl.length ? bl.slice().reverse().map((b,i)=>{
+      const auto = b.note.includes("vib start 초기 저장") || b.note.includes("자동 저장");
+      const latest = i===0;
+      return `<div style="display:flex;gap:9px;align-items:center;border:2px solid #1A1A1A;border-radius:6px;padding:7px 11px;background:${latest?"#FFF6DC":"#fff"}">
+        <span>📌</span><span style="flex:1;font-size:12.5px">${b.note}${latest?' <span style="color:#7C2D12;font-weight:700">· 최신</span>':""}</span>
+        <span style="font-size:11px;color:${auto?"#999":"#166534"};font-weight:700">${auto?"자동":"수동"}</span></div>`;
+    }).join("") : `<p style="color:#999">아직 저장된 체크포인트가 없어요.</p>`;
+    c.innerHTML = `<div class="panel first"><h3>🛡️ 백업 ${step===3||step===6?'<span class="badge-now">지금 할 차례</span>':""}</h3>
+      <p>"${topicLabel()}"의 저장 지점: <b>${S.backups}개</b>${changed>0?` · 마지막 저장 이후 <b style="color:#B45309">파일 ${changed}개</b> 변경됨`:""}</p>
+      ${!S.hasCheckpoint&&S.autoInit?'<p class="warn">자동 초기 저장만으로는 3️⃣이 끝난 게 아니에요 — AI에게 시키기 직전 상태를 한 번 직접 저장하세요.</p>':""}
+      <div style="display:grid;gap:6px;margin:10px 0">${rows}</div>
       <button class="btn ${step===3||step===6?"primary":""}" onclick="saveCheckpoint()">📌 체크포인트 저장</button>
       <button class="btn" ${S.backups===0||changed===0?"disabled":""} onclick="undoNow()">↩ 되돌리기 — 저장했던 그 시점으로</button>
-      <p style="margin-top:10px;color:#666">되돌리기: 체크포인트로 저장했던 상태로 코드를 되돌려요. AI가 코드를 이상하게 바꿔놨을 때 "그냥 없던 일로 해줘!" 할 때 써요.</p></div>`;
+      <p style="margin-top:10px;color:#999">되돌리기: 체크포인트로 저장했던 상태로 코드를 되돌려요. AI가 코드를 이상하게 바꿔놨을 때 "그냥 없던 일로 해줘!" 할 때 써요. 되돌리기 전 현재 상태도 자동으로 먼저 보관하니 안심하세요. 참고로 작업방 ▶ 실행은 체크포인트를 자동으로 저장해 줘요.</p></div>`;
+
   } else if(S.page==="doctor"){
-    c.innerHTML = `<div class="panel" style="margin-top:16px"><h3>🩺 진단</h3><p>상태 확인(guard)에서 문제가 발견되면 여기로 안내돼요. 지금은 깨끗해요.</p></div>`;
+    const pf = topicProfile();
+    const dirty = changed > 0;
+    const score = dirty ? 88 : 96;
+    const mod = pf.scope.split("·")[0].trim(); // 주제 핵심 모듈/화면 이름 (예: "NoteList(목록)")
+    const scoreColor = score >= 90 ? "#166534" : "#B45309";
+    const checks = [
+      ["ok","앵커 안전구역이 설정돼 있어요"],
+      ["ok","진입 파일이 작게 유지돼요 (비즈니스 로직 분리)"],
+      S.hasPlanDoc ? ["ok",`권장 구조를 따르고 있어요 — ${pf.scope}`] : null,
+      ["ok","민감정보(API 키 등) 노출이 없어요"],
+      dirty ? ["warn",`${mod} 쪽 코드가 점점 커지고 있어요 — 구역(앵커)으로 나눠두면 더 안전해요`] : null,
+    ].filter(Boolean);
+    c.innerHTML = `<div class="panel first"><h3>🩺 진단</h3>
+      <p style="color:#777">코드가 규칙대로 잘 정리됐는지 점검해요. 점수와 문제를 보고 자동 수정 계획(Plan)→적용(Apply)까지 할 수 있어요.</p>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:12px">
+        <span style="font-size:32px;font-weight:800;color:${scoreColor}">${score}</span>
+        <span style="color:#999">/ 100 — ${S.hasPlanDoc?`"${topicLabel()}"`:"프로젝트"} 건강 점수</span></div>
+      <ul style="list-style:none;padding:0;margin:12px 0 0;display:grid;gap:7px;font-size:13px;line-height:1.6">
+        ${checks.map(([k,t])=>`<li style="color:${k==="ok"?"#166534":"#B45309"}">${k==="ok"?"✓":"⚠"} ${t}</li>`).join("")}</ul>
+      <button class="btn" onclick="toast('🩺 다시 검사했어요 — ${dirty?"경미한 제안 1건":"문제 없음, 깨끗해요"}')">다시 검사</button>
+      ${dirty?`<button class="btn primary" onclick="toast('🛠 (데모) 자동 수정 계획을 만들어 적용해요 — ${mod} 구역 나누기')">자동 수정 계획(Plan)</button>`:""}
+      </div>`;
+
+  } else if(S.page==="logs"){
+    const ran = S.runStarted || S.workRun;
+    if(!ran){
+      c.innerHTML = `<div class="panel first"><h3>📜 에러로그</h3><p>"${topicLabel()}"에서 난 오류를 모아 보는 곳이에요. 아직 기록된 오류가 없어요 — 작업방에서 AI를 실행하거나 실행해보기 ▶로 앱을 켜면 여기에 로그가 쌓여요.</p></div>`;
+    } else {
+      const mod = topicProfile().scope.split("·")[0].trim(); // 주제 핵심 모듈/화면
+      const color = lv => ({info:"#9AA0A6",warn:"#FBBF24",error:"#ff8080",ok:"#4DFF91"})[lv];
+      const lines = [
+        ["info","10:32:01",`dev 서버 시작 — "${topicLabel()}" (http://localhost:5173)`],
+        ["info","10:32:02",`${mod} 렌더 완료`],
+        changed>0 ? ["info","10:32:04","기획안 범위대로 변경 적용됨 (파일 3개)"] : null,
+        ["ok","10:32:05","심각한 오류: 0건 — 깨끗해요"],
+      ].filter(Boolean);
+      const body = lines.map(([lv,t,m])=>`<div><span style="color:#777">${t}</span> <span style="color:${color(lv)};font-weight:700">[${lv}]</span> ${m}</div>`).join("");
+      c.innerHTML = `<div class="panel first"><h3>📜 에러로그</h3>
+        <p style="color:#777">"${topicLabel()}"을 실행하며 쌓인 기록이에요. 빨간 <b style="color:#B91C1C">[error]</b>가 보이면 진단 탭에서 고치는 길을 안내해요.</p>
+        <div class="term" style="margin-top:10px">${body}</div></div>`;
+    }
+
   } else if(S.page==="manual"){
-    const open = (S.accOpen === undefined) ? step : S.accOpen; // 진입 시 현재 단계 자동 펼침 (spec §3.4)
-    let h = `<div class="howto-wrap"><div class="howto-title">📖 순서대로 따라하기</div>`;
+    const open = (S.accOpen === undefined) ? step : S.accOpen; // 진입 시 현재 단계 자동 펼침
+    let h = `<div class="howto-wrap"><div class="howto-title">📖 순서대로 따라하기 — 기획 → 코딩 → 확인 → 저장, 이 여섯 칸만 돌면 돼요</div>`;
     for(let i=1;i<=6;i++){
       const d = STEPS[i]; const isCur = step===i; const isOpen = open===i;
       h += `<div class="acc ${isCur?"current":""}">
@@ -288,24 +993,29 @@ function renderContent(step){
           ${d.icon} <b>${d.label}</b> — <span class="short">${d.short}</span><span class="arrow">${isOpen?"▾":"▸"}</span></button>
         ${isOpen?`<div class="acc-body">${d.howto.join("<br>")}${d.target?`<br><button class="chip" onclick="go('${d.target}')">지금 하러 가기 → ${pageLabel(d.target)}</button>`:""}</div>`:""}</div>`;
     }
-    h += `</div><div class="panel" style="margin-top:10px"><h3>명령어 사전</h3><p>체크포인트 · 되돌리기 · 상태 확인 · 코드맵 · 앵커 … (기존 사전 그대로 이 아래에)</p></div>`;
+    h += `</div><div class="panel" style="margin-top:10px"><h3>명령어 사전</h3><p>체크포인트(안전 저장) · 되돌리기(없던 일로) · 상태 확인(약속 범위 검사) · 작업방(AI에게 시키기) · 실행해보기(직접 켜보기) · 코드맵 · 앵커 … (기존 사전 그대로 이 아래에)</p></div>`;
     c.innerHTML = h;
+
   } else if(S.page==="settings"){
-    c.innerHTML = `<div class="panel" style="margin-top:16px"><h3>초보자 가이드</h3>
+    c.innerHTML = `<div class="panel first"><h3>초보자 가이드</h3>
       <p>화면 상단에 "지금 할 일 → 다음 행동"을 안내하는 가이드 줄과 홈 카드의 차례 표시를 보여줍니다. 익숙해지면 꺼도 좋아요.</p>
       <button class="btn ${S.guideEnabled?"primary":""}" onclick="S.guideEnabled=!S.guideEnabled;refresh()">${S.guideEnabled?"ON":"OFF"}</button></div>
       <div class="panel"><h3>AI 도구 설정 ${S.aiToolMissing?'<span class="badge-now">설치 필요</span>':""}</h3>
-      <p>${S.aiToolMissing?"설치된 AI 도구가 없어요. Claude Code 설치를 도와드릴게요.":"✓ Claude Code 감지됨"}</p>
-      ${S.aiToolMissing?'<button class="btn primary" onclick="S.aiToolMissing=true;document.getElementById(\'togTool\').checked=true;toast(\'(데모) 실제 앱에선 여기서 설치 마법사가 진행돼요\')">Claude Code 설치 시작</button>':""}</div>`;
+      <p>${S.aiToolMissing?"설치된 AI 도구가 없어요. Claude Code 설치를 도와드릴게요.":"✓ Claude Code 감지됨 — 작업방이 이 도구로 AI를 실행해요"}</p>
+      ${S.aiToolMissing?'<button class="btn primary" onclick="installClaude()">Claude Code 설치 시작</button>':""}</div>
+      <div class="panel"><h3>MCP 자동 설정</h3>
+      <p>온보딩에서 고른 도구에 VibeLign MCP(코드맵·앵커·검사·백업)가 연결돼 있어요. 도구를 새로 설치했다면 여기서 다시 연결할 수 있어요. <span style="color:#999">(설치된 도구는 자동 선택돼요)</span></p></div>`;
+
   } else {
-    c.innerHTML = `<div class="panel" style="margin-top:16px"><p>(${S.page} — 목업 생략)</p></div>`;
+    c.innerHTML = `<div class="panel first"><p>(${S.page} — 목업 생략)</p></div>`;
   }
 }
 
 function renderSignals(step){
   const changed = S.isGit ? S.changedFiles : 0;
-  document.getElementById("signals").textContent =
-    `signals → hasPlanDoc:${S.hasPlanDoc} hasCheckpoint:${S.hasCheckpoint} changedSinceCheckpoint:${S.isGit?changed:"0(비-git)"} guard:${S.guardStatus??"null"} | inferStep:${inferStep()} override:${S.override?S.override.step:"없음"} → 표시 단계:${step??"가이드 OFF"}`;
+  document.getElementById("signals").textContent = S.page==="onboard"
+    ? `onboarding → dirPicked:${S.dirPicked} prompt:"${S.promptText.slice(0,20)}…" tools:[${Array.from(toolSel()).join(",")}] claude:${S.aiToolMissing?"미설치":"준비됨"} recent:${S.recent.length}개`
+    : `signals → hasPlanDoc:${S.hasPlanDoc} hasCheckpoint(수동):${S.hasCheckpoint} autoInit:${S.autoInit} changedSinceCheckpoint:${S.isGit?changed:"0(비-git)"} guard:${S.guardStatus??"null"} runVerified:${S.runVerified} handoff:${S.handoff?"있음":"없음"} | inferStep:${inferStep()} override:${S.override?S.override.step:"없음"} → 표시 단계:${step??"가이드 OFF"}`;
 }
 
 resetDemo();
