@@ -28,3 +28,26 @@ describe("DESIGN_STYLES motion", () => {
     expect(m!.recipe.length).toBeGreaterThan(20);
   });
 });
+
+describe("DESIGN_STYLES 5종 완성", () => {
+  it("5종이 순서대로 존재", () => {
+    expect(DESIGN_STYLES.map((s) => s.id)).toEqual(
+      ["neo-brutalism", "minimal-saas", "frutiger-aero", "retro-diner", "risograph"]);
+  });
+  it("모든 스타일이 motion(tokens+recipe)을 가진다", () => {
+    for (const s of DESIGN_STYLES) {
+      expect(s.motion, s.id).toBeDefined();
+      expect(s.motion!.tokens.duration).toMatch(/ms|s/);
+      expect(s.motion!.tokens.easing.length).toBeGreaterThan(0);
+      expect(s.motion!.recipe.length).toBeGreaterThan(10);
+    }
+  });
+  it("신규 4스타일은 토큰 9필드를 모두 가진다", () => {
+    for (const id of ["minimal-saas", "frutiger-aero", "retro-diner", "risograph"]) {
+      const t = getStyle(id)!.tokens;
+      for (const k of ["bg","surface","text","primary","accent","border","fontFamily","radius","shadow"] as const) {
+        expect(t[k], `${id}.${k}`).toBeTruthy();
+      }
+    }
+  });
+});
