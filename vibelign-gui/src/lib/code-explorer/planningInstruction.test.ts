@@ -83,5 +83,35 @@ describe("buildPlanningWorkInstruction", () => {
     const withNull = buildPlanningWorkInstruction({ prompt: "p", outputPath: "plans/p.md", contract: null });
     expect(withNull).toBe(without);
   });
+
+  test("injects_design_scaffold_when_design_present", () => {
+    const out = buildPlanningWorkInstruction({
+      prompt: "예약 앱",
+      outputPath: "plans/x.md",
+      design: {
+        mockupPath: ".vibelign/design_preview/mockup-neo.html",
+        tokens: {
+          bg: "#FFF",
+          surface: "#FFF",
+          text: "#111",
+          primary: "#FFD400",
+          accent: "#F44",
+          border: "3px solid #111",
+          fontFamily: "Archivo",
+          radius: "0px",
+          shadow: "6px 6px 0 #111",
+        },
+      },
+    });
+    expect(out).toContain(".vibelign/design_preview/mockup-neo.html");
+    expect(out).toContain("시작점");
+    expect(out).toContain("#FFD400");
+    expect(out).toContain("var(--");
+  });
+
+  test("omits_design_section_when_design_absent", () => {
+    const out = buildPlanningWorkInstruction({ prompt: "예약 앱", outputPath: "plans/x.md" });
+    expect(out).not.toContain("디자인 목업");
+  });
 });
 // === ANCHOR: PLANNINGINSTRUCTION_TEST_END ===

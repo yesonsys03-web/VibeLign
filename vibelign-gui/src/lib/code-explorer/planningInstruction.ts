@@ -7,6 +7,20 @@ interface PlanningWorkInstructionInput {
   readonly outputPath: string;
   readonly persona?: PlanningWorkPersona;
   readonly contract?: PlanningContract | null;
+  readonly design?: {
+    readonly mockupPath: string;
+    readonly tokens: {
+      readonly bg: string;
+      readonly surface: string;
+      readonly text: string;
+      readonly primary: string;
+      readonly accent: string;
+      readonly border: string;
+      readonly fontFamily: string;
+      readonly radius: string;
+      readonly shadow: string;
+    };
+  };
 }
 
 export type PlanningWorkPersona = PlanningPersonaId;
@@ -31,7 +45,7 @@ const PERSONA_CLI_DETAILS: Record<PlanningWorkPersona, { readonly cliName: strin
 };
 
 // === ANCHOR: PLANNINGINSTRUCTION_BUILDPLANNINGWORKINSTRUCTION_START ===
-export function buildPlanningWorkInstruction({ prompt, outputPath, persona, contract }: PlanningWorkInstructionInput): string {
+export function buildPlanningWorkInstruction({ prompt, outputPath, persona, contract, design }: PlanningWorkInstructionInput): string {
   const trimmedPrompt = prompt.trim() || "저장된 기획안을 기준으로 구현 범위를 정리하세요.";
   const personaDetails = persona ? PERSONA_CLI_DETAILS[persona] : null;
   return [
@@ -57,6 +71,17 @@ export function buildPlanningWorkInstruction({ prompt, outputPath, persona, cont
             : []),
           ...contract.exclusions.map((item) => `- 건드리지 말 것: ${item}`),
           ...contract.doneCriteria.map((item) => `- 완료 기준: ${item}`),
+          "",
+        ]
+      : []),
+    ...(design
+      ? [
+          "[디자인 목업 — 코딩 시작 스캐폴드]",
+          `- 목업 파일: ${design.mockupPath} (이 HTML/CSS를 시작점으로 이어서 확장하세요. 레이아웃·구조 보존)`,
+          "- 색·폰트·모서리·그림자는 아래 토큰을 CSS 변수(var(--bg) 등)로만 사용:",
+          `  --bg:${design.tokens.bg}; --surface:${design.tokens.surface}; --text:${design.tokens.text};`,
+          `  --primary:${design.tokens.primary}; --accent:${design.tokens.accent}; --border:${design.tokens.border};`,
+          `  --font:${design.tokens.fontFamily}; --radius:${design.tokens.radius}; --shadow:${design.tokens.shadow};`,
           "",
         ]
       : []),
