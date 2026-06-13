@@ -54,7 +54,7 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
   }
 
   return (
-    <div style={{ padding: 16 }}>
+    <div className="page-content">
       <button onClick={onBack}>← 뒤로</button>
       <h2>디자인 미리보기</h2>
       {!isLikelyWeb && (
