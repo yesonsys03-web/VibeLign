@@ -617,7 +617,7 @@ export default function App() {
                   void runDetect(projectDir).then((r) => setDesignIsWeb(r == null ? true : r.kind === "web")).catch(() => setDesignIsWeb(true));
                   navigate("design-preview");
                 }} />}
-                {page === "design-preview" && designPlanPath && (
+                {page === "design-preview" && (designPlanPath ? (
                   <DesignPreview
                     projectDir={projectDir}
                     planPath={designPlanPath}
@@ -625,7 +625,16 @@ export default function App() {
                     onBack={() => navigate("plan-doc")}
                     onConfirm={(b) => { setDesignBinding(b); navigate("work"); }}
                   />
-                )}
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16, padding: 24 }}>
+                    <div style={{ fontSize: 32 }}>🎨</div>
+                    <div style={{ fontSize: 14, color: "#555", textAlign: "center", lineHeight: 1.6 }}>
+                      디자인 미리보기는 기획안이 필요해요.<br />
+                      기획 단계에서 기획안을 고르고 <strong>🎨 디자인 미리보기</strong> 를 누르면 여기에 목업이 그려집니다.
+                    </div>
+                    <button className="btn" onClick={() => navigate("plan-doc")}>기획안 고르러 가기</button>
+                  </div>
+                ))}
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={navigate} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} guideStep={guide.enabled ? guide.step : null} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
                 {page === "code" && <CodeExplorer projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} planningDocStale={planningResult?.docStale ?? false} onReviewInPlanning={(path) => { if (projectDir) void openPlanningRoom(projectDir, buildPlanReviewPrompt(path), path); }} />}
