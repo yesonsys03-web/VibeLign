@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { DESIGN_STYLES, getStyle, type StyleSpec } from "../lib/design-preview/styles";
+import { DESIGN_STYLES, getStyle, type StyleSpec, type MotionSpec } from "../lib/design-preview/styles";
 import { generateDesignMockup, saveDesignMockup } from "../lib/vib/design";
 
 export interface DesignBinding {
   readonly mockupPath: string;
   readonly tokens: StyleSpec["tokens"];
+  readonly motion?: MotionSpec;
 }
 
 interface Props {
@@ -46,7 +47,7 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
     if (!selected || !html) return;
     try {
       const mockupPath = await saveDesignMockup({ projectDir, styleId: selected.id, html });
-      onConfirm({ mockupPath, tokens: selected.tokens });
+      onConfirm({ mockupPath, tokens: selected.tokens, motion: selected.motion });
     } catch (e) {
       setError(String(e));
     }

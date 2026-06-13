@@ -47,4 +47,20 @@ describe("DesignPreview", () => {
     expect(screen.getByText(/웹 UI 프로젝트가 아닐 수 있어요/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "이 스타일로 그려보기" })).toBeInTheDocument(); // 여전히 가능
   });
+
+  test("확정 시 선택 스타일의 motion을 바인딩에 실어 전달", async () => {
+    mocks.generateMock.mockResolvedValue({ html: "<!doctype html><h1>M</h1>", cached: false });
+    mocks.saveMock.mockResolvedValue(".vibelign/design_preview/m.html");
+    const onConfirm = vi.fn();
+    render(<DesignPreview projectDir="/tmp/demo" planPath="plans/x.md" isLikelyWeb onBack={vi.fn()} onConfirm={onConfirm} />);
+    fireEvent.click(screen.getByRole("button", { name: /네오브루탈리즘/ }));
+    fireEvent.click(screen.getByRole("button", { name: "이 스타일로 그려보기" }));
+    await waitFor(() => screen.getByTitle("디자인 목업"));
+    fireEvent.click(screen.getByRole("button", { name: "이 디자인으로 만들기" }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      mockupPath: ".vibelign/design_preview/m.html",
+      motion: expect.objectContaining({ recipe: expect.any(String) }),
+    }));
+  });
 });

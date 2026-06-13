@@ -20,6 +20,10 @@ interface PlanningWorkInstructionInput {
       readonly radius: string;
       readonly shadow: string;
     };
+    readonly motion?: {
+      readonly tokens: { readonly duration: string; readonly easing: string };
+      readonly recipe: string;
+    };
   };
 }
 
@@ -82,6 +86,13 @@ export function buildPlanningWorkInstruction({ prompt, outputPath, persona, cont
           `  --bg:${design.tokens.bg}; --surface:${design.tokens.surface}; --text:${design.tokens.text};`,
           `  --primary:${design.tokens.primary}; --accent:${design.tokens.accent}; --border:${design.tokens.border};`,
           `  --font:${design.tokens.fontFamily}; --radius:${design.tokens.radius}; --shadow:${design.tokens.shadow};`,
+          ...(design.motion ? [
+            "",
+            "[모션 가이드]",
+            `- 움직임 성격: ${design.motion.recipe}`,
+            `  --dur:${design.motion.tokens.duration}; --ease:${design.motion.tokens.easing};`,
+            "- prefers-reduced-motion 을 존중하고 상태 전환 시 공간 일관성을 유지. 실코드에선 CSS/JS 모션 모두 사용 가능.",
+          ] : []),
           "",
         ]
       : []),

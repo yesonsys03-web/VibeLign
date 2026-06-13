@@ -113,5 +113,31 @@ describe("buildPlanningWorkInstruction", () => {
     const out = buildPlanningWorkInstruction({ prompt: "예약 앱", outputPath: "plans/x.md" });
     expect(out).not.toContain("디자인 목업");
   });
+
+  test("design.motion이 있으면 [모션 가이드] 섹션을 포함", () => {
+    const out = buildPlanningWorkInstruction({
+      prompt: "예약 앱", outputPath: "plans/x.md",
+      design: {
+        mockupPath: ".vibelign/design_preview/m.html",
+        tokens: { bg: "#FFF", surface: "#FFF", text: "#111", primary: "#FFD400", accent: "#F44",
+          border: "3px solid #111", fontFamily: "Archivo", radius: "0px", shadow: "6px 6px 0 #111" },
+        motion: { tokens: { duration: "80ms", easing: "ease" }, recipe: "딱딱하게 즉각" },
+      },
+    });
+    expect(out).toContain("딱딱하게 즉각");
+    expect(out).toContain("--dur:80ms");
+    expect(out).toContain("prefers-reduced-motion");
+  });
+  test("design.motion이 없으면 모션 가이드 없음", () => {
+    const out = buildPlanningWorkInstruction({
+      prompt: "예약 앱", outputPath: "plans/x.md",
+      design: {
+        mockupPath: ".vibelign/design_preview/m.html",
+        tokens: { bg: "#FFF", surface: "#FFF", text: "#111", primary: "#FFD400", accent: "#F44",
+          border: "3px solid #111", fontFamily: "Archivo", radius: "0px", shadow: "6px 6px 0 #111" },
+      },
+    });
+    expect(out).not.toContain("모션 가이드");
+  });
 });
 // === ANCHOR: PLANNINGINSTRUCTION_TEST_END ===
