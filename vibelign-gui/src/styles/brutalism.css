@@ -95,7 +95,7 @@ html, body {
   cursor: pointer;
   background: var(--primary);
   color: var(--white);
-  transition: transform 0.05s, box-shadow 0.05s;
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -136,11 +136,11 @@ html, body {
   box-shadow: var(--shadow);
   background: var(--white);
   padding: 16px;
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
 .card:hover {
   transform: translate(-1px, -1px);
   box-shadow: var(--shadow-lg);
-  transition: transform 0.1s, box-shadow 0.1s;
 }
 
 /* 기능 카드 (컬러 헤더) */
