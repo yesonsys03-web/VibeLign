@@ -1,5 +1,5 @@
 // === ANCHOR: GUIDE_STRIP_START ===
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { journeyStep, type ActiveGuideStep } from "../../lib/nav/guide";
 import { PAGE_LABELS, type Page } from "../../lib/nav/stages";
 import { collapseToggleStyle } from "../../lib/nav/collapse";
@@ -40,6 +40,11 @@ const iconBtnStyle = {
 // 의미 그룹(정보 | 비상구 | 컨트롤) 사이 세로 구분선.
 const dividerStyle = { width: 1, height: 14, background: "rgba(0, 0, 0, 0.25)" };
 
+// 가이드 주행동(앰버) 버튼 — "지금 할 차례" 배지와 같은 톤으로 최상위 강조.
+const goBtnStyle = { fontSize: 13, padding: "5px 12px", background: "#FBBF24", color: "#1A1A1A", border: "1px solid #1A1A1A", borderRadius: 4 } as const;
+// 보조(아웃라인) 버튼 — 폴백 affordance(✓ 다 했어요 / 설치 도움받기).
+const outlineBtnStyle = { fontSize: 14, padding: "5px 12px", color: "#7C2D12", background: "transparent", border: "1px solid #7C2D12", borderRadius: 4 } as const;
+
 // 접힘 선호는 전역 UI 설정(프로젝트 무관) — 한 번 접으면 계속 접힌 채 유지(답답함 해소).
 const GUIDE_COLLAPSED_KEY = "vibelign:guide-collapsed";
 function readCollapsed(): boolean {
@@ -59,10 +64,10 @@ function writeCollapsed(v: boolean) {
 }
 
 /**
- * 탭바 아래 안내 줄 — 좌측 가이드(지금 할 일) + 우측 기존 상태 신호. A안 상태 스트립을 대체·통합.
- * 시인성(spec §3.2): 가이드 활성 시 15px·진한 웜 그레이 배경(#CFCABB)에 #7C2D12 강조, off 시 얇은 줄(3px·13px).
- * 배경을 다크가 아닌 라이트 톤으로 두는 이유 — 앱 전체가 크림(#FEFBF0) 테마라 블랙 스트립은 이질적 섬이 된다.
- * 작업 탭 안에서 초보자에게 보이는 유일한 안내 표면이라 두 탭바 아래에서 묻히면 안 된다.
+ * 탭바 아래 안내 줄 — 말하는 마스코트(🧭) + 크림 말풍선으로 "지금 할 일"을 건넨다.
+ * 온보딩 코치마크·완주 축하와 같은 캐릭터 톤(brutalism.css .guide-mascot/.guide-bubble).
+ * 시인성(spec §3.2): 가이드 활성 시 진한 웜 그레이 배경(#CFCABB)에 #7C2D12 강조, off 시 얇은 줄.
+ * "뽁" 팝은 단계가 바뀐 렌더에만 1회(prevStep ref) — 탭 전환·접기 같은 잔 렌더엔 흔들리지 않는다.
  */
 export function GuideStrip({
   enabled,
@@ -94,28 +99,42 @@ export function GuideStrip({
       writeCollapsed(!v);
       return !v;
     });
+
+  // 단계 전환 감지 — 직전 단계와 다를 때만 "뽁" 팝 클래스를 부여(잔 렌더 깜빡임 방지, spec 목업 _lastStripStep 패턴).
+  const prevStepRef = useRef<ActiveGuideStep | null>(null);
+  const popped = step !== prevStepRef.current;
+  useEffect(() => {
+    prevStepRef.current = step;
+  }, [step]);
+  const popCls = popped ? " pop" : "";
+
   if (celebrating) {
-    // 첫 사이클 완주 축하(spec §3.2) — 이 순간만큼은 가이드 줄 대신 완료 마디를 보여준다.
+    // 첫 사이클 완주 축하(spec §3.2) — 이 순간만큼은 가이드 줄 대신 🎉 마스코트+말풍선으로.
     return (
       <div
         style={{
           display: "flex",
           flexWrap: "wrap",
           alignItems: "center",
-          gap: 12,
+          gap: 11,
           padding: "10px 14px",
-          fontSize: 15,
-          color: "#166534",
           background: "#E8F6EC",
           borderBottom: "2px solid #1A1A1A",
         }}
       >
-        <span>
-          🎉 <b>첫 사이클 완주!</b> 기획부터 저장까지 해냈어요 — 이 흐름 그대로 반복하면 돼요
+        <span className="guide-mascot pop" style={{ background: "#86EFAC" }}>
+          🎉
+        </span>
+        <span
+          className="guide-bubble pop"
+          style={{ background: "#E8F6EC", borderColor: "#166534", color: "#166534", fontSize: 15 }}
+        >
+          <b>첫 사이클 완주!</b> 기획부터 저장까지 해냈어요 — 이 흐름 그대로 반복하면 돼요
         </span>
         <button
           className="nav-tab"
           style={{ fontSize: 14, padding: "5px 10px", color: "#4A4A4A", borderRight: "none" }}
+          aria-label="축하 닫기"
           onClick={() => onCelebrateDismiss?.()}
         >
           ×
@@ -123,8 +142,17 @@ export function GuideStrip({
       </div>
     );
   }
+
+  // 주행동(목적지로 이동) 버튼 — 컴팩트·펼침 공용.
+  const goButton =
+    def && def.targetPage && !onTarget ? (
+      <button className="nav-tab" style={goBtnStyle} onClick={() => onNavigate(def.targetPage as Page)}>
+        {def.goLabel ?? `${PAGE_LABELS[def.targetPage]}으로 이동 →`}
+      </button>
+    ) : null;
+
   if (def && step && collapsed) {
-    // 컴팩트(기본) — 한 줄: 단계 라벨 + 주행동 버튼 + ▾자세히. 안내 기능은 유지하되 높이를 줄인다.
+    // 컴팩트(기본) — 한 줄: 🧭 마스코트 + 말풍선(단계 라벨 + 주행동) + ▸자세히.
     return (
       <div
         style={{
@@ -133,7 +161,6 @@ export function GuideStrip({
           alignItems: "center",
           gap: 10,
           padding: "6px 14px",
-          fontSize: 14,
           background: "#CFCABB",
           borderBottom: "2px solid #1A1A1A",
         }}
@@ -147,28 +174,24 @@ export function GuideStrip({
         >
           ▸
         </button>
-        <span style={{ color: "#7C2D12", fontWeight: 700 }}>
-          🧭 {def.icon} {def.label}
+        <span className={`guide-mascot${popCls}`}>🧭</span>
+        <span className={`guide-bubble${popCls}`} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+          <span style={{ color: "#7C2D12", fontWeight: 700 }}>
+            {def.icon} {def.label}
+          </span>
+          {goButton}
         </span>
-        {def.targetPage && !onTarget && (
-          <button
-            className="nav-tab"
-            style={{ fontSize: 13, padding: "4px 10px", background: "#FBBF24", color: "#1A1A1A", border: "1px solid #1A1A1A", borderRadius: 4 }}
-            onClick={() => onNavigate(def.targetPage as Page)}
-          >
-            {def.goLabel ?? `${PAGE_LABELS[def.targetPage]}으로 이동 →`}
-          </button>
-        )}
       </div>
     );
   }
+
   return (
     <div
       style={{
         display: "flex",
         flexWrap: "wrap",
         alignItems: "center",
-        gap: 16,
+        gap: 12,
         padding: def ? "10px 14px" : "3px 12px",
         fontSize: 13,
         color: "#555",
@@ -177,81 +200,78 @@ export function GuideStrip({
       }}
     >
       {def && step && (
-        // 고정 2단 구조 — ①텍스트 행(자연 개행) ②버튼 행. 확대·창 폭에 따라 버튼이 텍스트
-        // 옆/아래로 오가며 배치가 출렁이지 않도록 column으로 고정. 버튼 행만 좁을 때 보조적 wrap.
-        <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8, fontSize: 15, minWidth: 0, flex: "1 1 auto" }}>
-          {/* 머리말(오버라인) 행 — 단계 제목과 분리해 "라벨 → 내용 → 행동" 3단 고정 위계.
-              제목 앞 ▾ 칩으로 한 줄 접기(기획안 카드와 통일). */}
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <button
-              type="button"
-              style={collapseToggleStyle}
-              title="한 줄로 접기"
-              aria-expanded={true}
-              onClick={toggleCollapsed}
-            >
-              ▾
-            </button>
-            <span style={{ color: "#555", fontSize: 13, fontWeight: 700, letterSpacing: "0.04em" }}>🧭 지금 할 일:</span>
-          </span>
-          <span style={{ color: "#1A1A1A", lineHeight: 1.6 }}>
-            <span style={{ color: "#7C2D12", fontWeight: 700 }}>
-              {def.icon} {def.label}
-            </span>{" "}
-            — {def.shortAction}
-          </span>
-          <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 10, rowGap: 8 }}>
-            {def.targetPage && !onTarget && (
+        // 🧭 마스코트 + 말풍선(세로 3단: 머리말 → 내용 → 행동). 확대·창 폭에도 배치가 출렁이지
+        // 않도록 말풍선 내부를 column으로 고정, 버튼 행만 좁을 때 보조적 wrap.
+        <span style={{ display: "flex", alignItems: "flex-start", gap: 11, flex: "1 1 auto", minWidth: 0 }}>
+          <span className={`guide-mascot${popCls}`}>🧭</span>
+          <span
+            className={`guide-bubble${popCls}`}
+            style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8, fontSize: 15, minWidth: 0 }}
+          >
+            {/* 머리말(오버라인) 행 — 단계 제목과 분리해 "라벨 → 내용 → 행동" 3단 고정 위계.
+                제목 앞 ▾ 칩으로 한 줄 접기(기획안 카드와 통일). 마스코트가 🧭를 맡으므로 머리말엔 생략. */}
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <button
-                // 가이드의 주행동 버튼 — 앰버 채움 + 검정 텍스트("지금 할 차례" 배지와 같은 톤)로 최상위 강조.
-                className="nav-tab"
-                style={{ fontSize: 14, padding: "5px 12px", background: "#FBBF24", color: "#1A1A1A", border: "1px solid #1A1A1A", borderRadius: 4 }}
-                onClick={() => onNavigate(def.targetPage as Page)}
+                type="button"
+                style={collapseToggleStyle}
+                title="한 줄로 접기"
+                aria-expanded={true}
+                onClick={toggleCollapsed}
               >
-                {def.goLabel ?? `${PAGE_LABELS[def.targetPage]}으로 이동 →`}
+                ▾
               </button>
-            )}
-            {/* 수동 출구는 외부 도구 폴백(코드탐색에서 복사) 전용 — 작업방 경유는 종료 감지가
-                자동으로 검사·전환하므로 이 버튼이 필요 없다(작업방 기획안 §2). */}
-            {step === 4 && currentPage === "code" && (
+              <span style={{ color: "#555", fontSize: 13, fontWeight: 700, letterSpacing: "0.04em" }}>지금 할 일:</span>
+            </span>
+            <span style={{ color: "#1A1A1A", lineHeight: 1.6 }}>
+              <span style={{ color: "#7C2D12", fontWeight: 700 }}>
+                {def.icon} {def.label}
+              </span>{" "}
+              — {def.shortAction}
+            </span>
+            <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 10, rowGap: 8 }}>
+              {goButton}
+              {/* 수동 출구는 외부 도구 폴백(코드탐색에서 복사) 전용 — 작업방 경유는 종료 감지가
+                  자동으로 검사·전환하므로 이 버튼이 필요 없다(작업방 기획안 §2). */}
+              {step === 4 && currentPage === "code" && (
+                <button
+                  className="nav-tab"
+                  style={outlineBtnStyle}
+                  title="AI 작업이 끝났어도, 중간에 멈췄어도 눌러요 — 확인 단계로 가요"
+                  onClick={() => {
+                    // 외부 AI 작업 종료는 신호로 100% 감지 불가, 비-git 프로젝트는 변경이 항상
+                    // 0으로 읽혀 자동 전환이 아예 없음 → 수동 출구(spec §3.2 affordance).
+                    // 라벨은 상태 선언("다 했어요")으로 짧게 — 중도 중단 포용("멈췄어도")은 툴팁이 담당.
+                    // override 후 5️⃣ 목적지로 이동.
+                    onStepChange(5);
+                    const verify = journeyStep(5);
+                    if (verify.targetPage) onNavigate(verify.targetPage as Page);
+                  }}
+                >
+                  ✓ 다 했어요 — 결과 확인
+                </button>
+              )}
+              {/* 도구 미보유 분기도 폴백 동선에서만 — 작업방 화면은 자체 설치 안내 버튼을 가진다. */}
+              {step === 4 && currentPage === "code" && aiToolMissing && onOpenSettings && (
+                <button
+                  className="nav-tab"
+                  style={outlineBtnStyle}
+                  title="설정의 'AI 도구 설정'에서 설치를 도와드려요"
+                  onClick={onOpenSettings}
+                >
+                  {/* 도구 미보유 입문자 분기(spec §3.2) — 4️⃣는 앱 밖으로 나가는 유일한 지점이라 최대 이탈 절벽 */}
+                  AI 도구가 없어요 — 설치 도움받기
+                </button>
+              )}
               <button
                 className="nav-tab"
-                style={{ fontSize: 14, padding: "5px 12px", color: "#7C2D12", background: "transparent", border: "1px solid #7C2D12", borderRadius: 4 }}
-                title="AI 작업이 끝났어도, 중간에 멈췄어도 눌러요 — 확인 단계로 가요"
-                onClick={() => {
-                  // 외부 AI 작업 종료는 신호로 100% 감지 불가, 비-git 프로젝트는 변경이 항상
-                  // 0으로 읽혀 자동 전환이 아예 없음 → 수동 출구(spec §3.2 affordance).
-                  // 라벨은 상태 선언("다 했어요")으로 짧게 — 중도 중단 포용("멈췄어도")은 툴팁이 담당.
-                  // override 후 5️⃣ 목적지로 이동.
-                  onStepChange(5);
-                  const verify = journeyStep(5);
-                  if (verify.targetPage) onNavigate(verify.targetPage as Page);
-                }}
+                style={{ fontSize: 13, padding: "5px 10px", color: "#4A4A4A", borderRight: "none" }}
+                title="되돌리기·단계 이동·가이드 끄기·백업 상태"
+                aria-expanded={utilOpen}
+                onClick={() => setUtilOpen((v) => !v)}
               >
-                ✓ 다 했어요 — 결과 확인
+                {utilOpen ? "접기 ▴" : "문제 있나요? ▾"}
               </button>
-            )}
-            {/* 도구 미보유 분기도 폴백 동선에서만 — 작업방 화면은 자체 설치 안내 버튼을 가진다. */}
-            {step === 4 && currentPage === "code" && aiToolMissing && onOpenSettings && (
-              <button
-                className="nav-tab"
-                style={{ fontSize: 14, padding: "5px 12px", color: "#7C2D12", background: "transparent", border: "1px solid #7C2D12", borderRadius: 4 }}
-                title="설정의 'AI 도구 설정'에서 설치를 도와드려요"
-                onClick={onOpenSettings}
-              >
-                {/* 도구 미보유 입문자 분기(spec §3.2) — 4️⃣는 앱 밖으로 나가는 유일한 지점이라 최대 이탈 절벽 */}
-                AI 도구가 없어요 — 설치 도움받기
-              </button>
-            )}
-            <button
-              className="nav-tab"
-              style={{ fontSize: 13, padding: "5px 10px", color: "#4A4A4A", borderRight: "none" }}
-              title="되돌리기·단계 이동·가이드 끄기·백업 상태"
-              aria-expanded={utilOpen}
-              onClick={() => setUtilOpen((v) => !v)}
-            >
-              {utilOpen ? "접기 ▴" : "문제 있나요? ▾"}
-            </button>
+            </span>
           </span>
         </span>
       )}

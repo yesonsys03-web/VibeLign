@@ -1,5 +1,5 @@
 // === ANCHOR: TOOLSETUPSELECTOR_START ===
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 
 // vib start --tools 가 받는 키와 1:1 (vibelign/commands/vib_start_cmd.py START_TOOL_CHOICES).
 const SETUP_TOOLS: readonly { readonly key: string; readonly label: string }[] = [
@@ -23,6 +23,8 @@ interface ToolSetupSelectorProps {
 // === ANCHOR: TOOLSETUPSELECTOR_TOOLSETUPSELECTOR_START ===
 export function ToolSetupSelector({ detected, selected, onChange, disabled = false }: ToolSetupSelectorProps): ReactElement {
   const allSelected = SETUP_TOOLS.every((t) => selected.has(t.key));
+  // MCP 설명 말풍선(W4) — "전체 선택" 클릭 시 등장, "전체 해제" 시 숨김. 컴포넌트 내부에 캡슐화.
+  const [mcpTip, setMcpTip] = useState(false);
 
   function toggle(key: string): void {
     const next = new Set(selected);
@@ -34,7 +36,13 @@ export function ToolSetupSelector({ detected, selected, onChange, disabled = fal
     onChange(next);
   }
 
+  function toggleAll(): void {
+    onChange(allSelected ? new Set() : new Set(SETUP_TOOL_KEYS));
+    setMcpTip(!allSelected); // 전체 선택 → 설명, 전체 해제 → 숨김
+  }
+
   return (
+    <>
     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
       {SETUP_TOOLS.map((tool) => {
         const active = selected.has(tool.key);
@@ -64,7 +72,7 @@ export function ToolSetupSelector({ detected, selected, onChange, disabled = fal
       <button
         type="button"
         disabled={disabled}
-        onClick={() => onChange(allSelected ? new Set() : new Set(SETUP_TOOL_KEYS))}
+        onClick={toggleAll}
         style={{
           fontSize: 11,
           fontWeight: 700,
@@ -78,6 +86,19 @@ export function ToolSetupSelector({ detected, selected, onChange, disabled = fal
         {allSelected ? "전체 해제" : "전체 선택"}
       </button>
     </div>
+    {mcpTip && (
+      <div className="tip-bubble">
+        <span className="ic">🔌</span>
+        <span>
+          <b>MCP가 뭐냐면</b> — 고른 AI 도구에 바이브라인의 <b>코드맵·앵커·검사·백업</b>을 &apos;연결&apos;하는 거예요.
+          그러면 Claude 같은 도구가 이 기능들을 직접 쓰면서 더 똑똑하게 작업해요. 설치된 도구는 자동으로 골라뒀으니 그대로 둬도 돼요!
+        </span>
+        <button type="button" className="x" aria-label="설명 닫기" onClick={() => setMcpTip(false)}>
+          ×
+        </button>
+      </div>
+    )}
+    </>
   );
 }
 // === ANCHOR: TOOLSETUPSELECTOR_TOOLSETUPSELECTOR_END ===

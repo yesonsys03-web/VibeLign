@@ -14,7 +14,7 @@ import {
 } from "../lib/vib";
 import { OnboardingAdvancedPanel } from "./onboarding/OnboardingAdvancedPanel";
 import { OnboardingClaudeSetup } from "./onboarding/OnboardingClaudeSetup";
-import { OnboardingInputBar } from "./onboarding/OnboardingInputBar";
+import { OnboardingInputBar, type OnboardingCoach } from "./onboarding/OnboardingInputBar";
 import { OnboardingStartProgress } from "./onboarding/OnboardingStartProgress";
 import { OnboardingSystemWarnings } from "./onboarding/OnboardingSystemWarnings";
 import { ToolSetupSelector } from "../components/ToolSetupSelector";
@@ -43,6 +43,8 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
   const [onboardingSnapshot, setOnboardingSnapshot] = useState<OnboardingSnapshot | null>(null);
   const [startProgressLabels, setStartProgressLabels] = useState<string[]>([]);
   const [startStatusMessage, setStartStatusMessage] = useState<string | null>(null);
+  // 게임형 코치마크(W3) — 첫 화면 "folder", 폴더 선택 후 "prompt", 시작/닫기 시 null.
+  const [coach, setCoach] = useState<OnboardingCoach>("folder");
 
   useEffect(() => {
     getVibPath().then((p) => { setVibFound(p); setVibChecking(false); });
@@ -80,6 +82,7 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
     if (typeof dir === "string") {
       setSelectedDir(dir);
       setFolderHint(null);
+      setCoach((c) => (c === "folder" ? "prompt" : c)); // 코치 1→2단계: 폴더 골랐으니 입력 안내로
       promptRef.current?.focus();
     }
   }
@@ -100,6 +103,7 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
       return;
     }
     setFolderHint(null);
+    setCoach(null); // 시작하면 코치 인도 완료
     setStartStatusMessage(null);
     setStartProgressLabels([]);
 
@@ -136,6 +140,15 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
     <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "var(--bg)", overflow: "auto" }}>
       <main style={{ width: "min(860px, calc(100% - 32px))", margin: "0 auto", padding: setupOpen ? "20px 0 24px" : "72px 0 28px", flex: 1 }}>
         <section style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+          {/* 환영 인사(W2) — 🧭 마스코트 말풍선. 마운트 시 1회 "뽁"(재렌더엔 재생 안 됨). */}
+          <div className="onb-welcome">
+            <span className="guide-mascot big pop">🧭</span>
+            <span className="guide-bubble pop">
+              <span className="em">👋</span> 안녕, 반가워! 난 바이브라인 길잡이 🧭
+              <br />
+              처음이어도 걱정 마 — <b>폴더 고르기</b>부터 <b>기획·코딩·확인·백업</b>까지 한 칸씩 같이 갈게. 시작은 아래 <b>＋</b>부터!
+            </span>
+          </div>
           <h1 className="heading-xl" style={{ fontSize: 24, margin: 0, textAlign: "center" }}>
             계획부터, 바이브까지, 되돌림은 언제든
           </h1>
@@ -150,6 +163,8 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
             onPromptChange={setPromptText}
             onPickFolder={pickFolder}
             onSubmit={handlePromptSubmit}
+            coach={coach}
+            onDismissCoach={() => setCoach(null)}
           />
           <OnboardingStartProgress
             labels={startProgressLabels}

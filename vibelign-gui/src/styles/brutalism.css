@@ -421,6 +421,91 @@ html, body {
 .alert-success { background: var(--green); }
 .alert-warn    { background: var(--primary); color: var(--white); }
 
+/* ─── 가이드 마스코트 말풍선 (강PD 가이드 레이어) ───────────────────────────── */
+/* "뽁" 하고 튀어나오는 팝 — 오버슈트 바운스. 단계 전환 등 "변화 1회"에만 부여한다. */
+@keyframes popbubble {
+  0%   { transform: scale(0) rotate(-7deg); opacity: 0; }
+  55%  { transform: scale(1.14) rotate(2deg); opacity: 1; }
+  78%  { transform: scale(0.95) rotate(-1deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+/* 말하는 마스코트(🧭) 원형 아바타. .big 은 온보딩 환영용(W2). */
+.guide-mascot {
+  width: 34px; height: 34px; flex-shrink: 0;
+  border: 2.5px solid var(--black); border-radius: 50%;
+  background: #FBBF24;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 18px; box-shadow: var(--shadow-sm);
+}
+.guide-mascot.big { width: 46px; height: 46px; font-size: 24px; box-shadow: var(--shadow); }
+.guide-mascot.pop { animation: popbubble 0.4s cubic-bezier(0.18, 1.5, 0.4, 1) both; }
+/* 마스코트가 내미는 크림 말풍선 — 꼬리는 왼쪽(마스코트 방향). */
+.guide-bubble {
+  position: relative;
+  background: #FFF6DC; border: 2.5px solid var(--black); border-radius: 14px;
+  padding: 8px 12px; box-shadow: var(--shadow-sm);
+}
+.guide-bubble::before { content: ""; position: absolute; right: 100%; top: 12px; border: 8px solid transparent; border-right-color: var(--black); }
+.guide-bubble::after  { content: ""; position: absolute; right: 100%; top: 12px; margin-right: -3px; border: 6px solid transparent; border-right-color: #FFF6DC; }
+.guide-bubble.pop { animation: popbubble 0.42s cubic-bezier(0.18, 1.5, 0.4, 1) both; transform-origin: left center; }
+
+/* 온보딩 + 버튼 끌어당김(W3 코치 1단계): 펄스링 + 살짝 들썩. */
+@keyframes guide-pulsering {
+  0%   { box-shadow: 0 0 0 0 rgba(245, 98, 30, 0.55); }
+  70%  { box-shadow: 0 0 0 13px rgba(245, 98, 30, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 98, 30, 0); }
+}
+@keyframes guide-nudge {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+.guide-attract { animation: guide-pulsering 1.6s infinite, guide-nudge 1.2s ease-in-out infinite; border-color: var(--primary) !important; color: var(--primary) !important; }
+
+/* 온보딩 코치마크 — + 위(왼위)에 자동으로 뜨는 안내 말풍선(꼬리 아래, +를 가리킴). */
+.coach-bubble {
+  position: absolute; bottom: calc(100% + 14px); left: -2px;
+  max-width: 380px; z-index: 20;
+  background: #FFF6DC; border: 2.5px solid var(--black); border-radius: 16px;
+  padding: 10px 30px 10px 14px; font-size: 13px; font-weight: 700; line-height: 1.55; color: var(--black);
+  box-shadow: var(--shadow-sm);
+  animation: popbubble 0.42s cubic-bezier(0.18, 1.5, 0.4, 1) both, guide-nudge 2.6s ease-in-out 0.5s infinite;
+}
+.coach-bubble.at-prompt { left: 54px; }
+.coach-bubble::before { content: ""; position: absolute; top: 100%; left: var(--tailx, 24px); border: 11px solid transparent; border-top-color: var(--black); }
+.coach-bubble::after  { content: ""; position: absolute; top: 100%; left: calc(var(--tailx, 24px) + 2.5px); border: 8px solid transparent; border-top-color: #FFF6DC; }
+.coach-bubble .x { position: absolute; top: 5px; right: 7px; border: none; background: transparent; font-size: 13px; font-weight: 900; color: #999; cursor: pointer; line-height: 1; }
+.coach-bubble .x:hover { color: var(--black); }
+.coach-bubble .em { font-size: 15px; }
+
+/* + 호버 시 뽁 — +의 왼쪽 아래에 떠서 위 코치 말풍선과 겹치지 않게. */
+.coach-hovertip {
+  position: absolute; top: calc(100% + 12px); left: -6px; width: max-content; max-width: 220px; z-index: 21;
+  background: var(--black); color: #FFF6DC; border: 2px solid var(--black); border-radius: 14px;
+  padding: 7px 11px; font-size: 12px; font-weight: 700; line-height: 1.5;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.35); display: none;
+}
+.coach-hovertip::before { content: ""; position: absolute; bottom: 100%; left: 18px; border: 9px solid transparent; border-bottom-color: var(--black); }
+.onb-plus-wrap { position: relative; }
+.onb-plus-wrap:hover .coach-hovertip { display: block; animation: popbubble 0.34s cubic-bezier(0.18, 1.5, 0.4, 1) both; }
+
+/* MCP 설명 말풍선(W4) — "전체 선택" 클릭 시 인라인으로 뽁. */
+.tip-bubble {
+  display: flex; align-items: flex-start; gap: 9px; margin: 10px 0 2px; position: relative;
+  background: #FFF6DC; border: 2.5px solid var(--black); border-radius: 14px;
+  padding: 10px 30px 10px 12px; box-shadow: var(--shadow-sm);
+  font-size: 12.5px; line-height: 1.65; color: var(--black);
+  animation: popbubble 0.4s cubic-bezier(0.18, 1.5, 0.4, 1) both;
+}
+.tip-bubble .ic { font-size: 18px; flex-shrink: 0; }
+.tip-bubble .x { position: absolute; top: 5px; right: 8px; border: none; background: transparent; font-size: 13px; font-weight: 900; color: #999; cursor: pointer; line-height: 1; }
+.tip-bubble .x:hover { color: var(--black); }
+
+/* 온보딩 환영 인사(W2) — 🧭 마스코트 + 큰 말풍선. */
+.onb-welcome { display: flex; align-items: flex-start; gap: 11px; max-width: 560px; margin: 2px auto 4px; }
+.onb-welcome .guide-bubble { font-size: 13.5px; font-weight: 700; line-height: 1.6; padding: 11px 15px; }
+.onb-welcome .guide-bubble::before, .onb-welcome .guide-bubble::after { top: 16px; }
+.onb-welcome .em { font-size: 15px; }
+
 /* ─── 스크롤바 ───────────────────────────────────────────────────────────────── */
 * { scrollbar-width: thin; scrollbar-color: var(--black) var(--gray); }
 ::-webkit-scrollbar { width: 6px; }
