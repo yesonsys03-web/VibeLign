@@ -10,6 +10,10 @@ pub(crate) const INTERNAL_PROVIDER_PRIORITY: &[&str] = &["claude", "codex", "agy
 /// 페르소나 CLI 한 번 호출의 상한. 초과하면 자식을 죽이고 timeout 으로 처리한다.
 const PERSONA_TIMEOUT_SECS: u64 = 120;
 
+/// 디자인 목업 생성 상한. 페르소나보다 길게 둔다 — 무거운 맥락(CLAUDE.md/OMC/MCP) 프로젝트에서
+/// `claude -p` 시작+생성이 ~100초+ 걸리는 것을 측정(2026-06-13). 120초면 타임아웃 빈발.
+const DESIGN_GEN_TIMEOUT_SECS: u64 = 300;
+
 /// CLI 실행을 timeout 상한으로 감싼다. stdout/stderr 는 별도 스레드로 비워 파이프
 /// 교착을 막고, 상한을 넘기면 자식 프로세스를 죽인 뒤 Ok(None)(=timeout)을 돌려준다.
 fn output_with_timeout(
@@ -622,7 +626,7 @@ pub(crate) fn run_design_generation(project_dir: &Path, prompt: &str) -> Option<
     cmd.env("PATH", augmented_vib_path());
     cmd.env("NO_COLOR", "1");
     hide_console(&mut cmd);
-    match capture_with_stdin_timeout(cmd, prompt, Duration::from_secs(PERSONA_TIMEOUT_SECS)) {
+    match capture_with_stdin_timeout(cmd, prompt, Duration::from_secs(DESIGN_GEN_TIMEOUT_SECS)) {
         Ok(Some(output)) if output.status.success() => {
             let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if text.is_empty() { None } else { Some(text) }
