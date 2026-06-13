@@ -79,6 +79,10 @@
 | focus-visible 아웃라인 스펙 | 굵기(2~3px)·색(--primary vs --black)·offset — 육안 |
 | 인터랙티브 카드 식별 | `.card`/`.feature-card` 중 클릭 가능한 것만. 마크업 확인 필요(클래스 추가 vs 셀렉터 한정) |
 
+## 6.1 구현 중 확정/조정 (2026-06-13, 리뷰 반영)
+- **nav-tab는 translate/press 미적용** — §3.3가 nav-tab에 "이동+그림자 축소"를 적었으나, `.nav-tab`은 box-shadow가 없는 평면(border-right만)이라 그림자 눌림 시그니처가 성립 안 함 + 탭이 클릭 시 밀리면 잰크. → 매끄러운 background 전환 + focus-visible 아웃라인으로 확정(시그니처 press는 shadow 있는 .btn/.card에만).
+- **카드 hover 타이밍 100ms→60ms** — 토큰 통일의 의도된 결과(40ms 빨라짐). 육안에서 "너무 빠름" 느끼면 `--dur` 재조정 지점.
+
 ## 7. 후속 (범위 밖)
 - 스페이싱 스케일 토큰(`--space-*`) 도입 + 적용
 - 컴포넌트 마감 일관성(상태·정렬·포커스 통일, component.gallery 참조)
