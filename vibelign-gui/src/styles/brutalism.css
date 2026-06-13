@@ -540,4 +540,13 @@ html, body {
 ::-webkit-scrollbar-track { background: var(--gray); }
 ::-webkit-scrollbar-thumb { background: var(--black); }
 
+/* 동작 줄이기 선호 시 모든 모션 완화 (전역 가드) */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
 /* === ANCHOR: BRUTALISM_CSS_END === */
