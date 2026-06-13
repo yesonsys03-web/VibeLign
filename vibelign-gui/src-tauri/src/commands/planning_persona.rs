@@ -531,6 +531,94 @@ pub(crate) fn run_active_ai(
     }
 }
 
+/// 생성용 CLI 선택 — judge_cli_args(opus 고정) 미적용, provider 기본 args 그대로.
+fn pick_generation_cli(
+    messages: &[crate::commands::planning_chat_types::PlanningChatMessage],
+) -> Option<(PathBuf, Vec<String>)> {
+    for message in messages.iter().rev() {
+        if message.role == "assistant" && message.status == "ok" {
+            if let Some(persona_id) = message.persona_id.as_deref() {
+                if let Some((path, args, _provider)) = resolve_persona_cli(persona_id) {
+                    return Some((path, args));
+                }
+            }
+        }
+    }
+    for persona_id in ["chloe", "gio", "mina", "deepseek"] {
+        if let Some((path, args, _provider)) = resolve_persona_cli(persona_id) {
+            return Some((path, args));
+        }
+    }
+    None
+}
+
+/// output_with_timeout 과 같은 timeout/kill 전략 + stdin 쓰기.
+/// 큰 프롬프트를 argv 대신 stdin 으로 넘겨 Windows .cmd 셔임 명령행 길이/파싱 한계를 피한다.
+fn capture_with_stdin_timeout(
+    mut cmd: Command,
+    input: &str,
+    timeout: Duration,
+) -> std::io::Result<Option<std::process::Output>> {
+    use std::io::{Read, Write};
+    cmd.stdin(Stdio::piped());
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+    let mut child = cmd.spawn()?;
+    if let Some(mut stdin) = child.stdin.take() {
+        let bytes = input.as_bytes().to_vec();
+        std::thread::spawn(move || {
+            let _ = stdin.write_all(&bytes);
+            // drop -> EOF (claude -p / codex exec 가 입력 종료를 인식)
+        });
+    }
+    let mut stdout = child.stdout.take();
+    let mut stderr = child.stderr.take();
+    let out_handle = std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        if let Some(s) = stdout.as_mut() { let _ = s.read_to_end(&mut buf); }
+        buf
+    });
+    let err_handle = std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        if let Some(s) = stderr.as_mut() { let _ = s.read_to_end(&mut buf); }
+        buf
+    });
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(status) = child.try_wait()? {
+            let stdout = out_handle.join().unwrap_or_default();
+            let stderr = err_handle.join().unwrap_or_default();
+            return Ok(Some(std::process::Output { status, stdout, stderr }));
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            drop(out_handle);
+            drop(err_handle);
+            return Ok(None);
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// 디자인 목업 생성 1-shot. opus 미고정, 프롬프트는 stdin 전달.
+pub(crate) fn run_design_generation(project_dir: &Path, prompt: &str) -> Option<String> {
+    let (executable, args) = pick_generation_cli(&[])?;
+    let mut cmd = Command::new(executable);
+    cmd.args(&args); // 프롬프트는 argv 가 아니라 stdin
+    cmd.current_dir(project_dir);
+    cmd.env("PATH", augmented_vib_path());
+    cmd.env("NO_COLOR", "1");
+    hide_console(&mut cmd);
+    match capture_with_stdin_timeout(cmd, prompt, Duration::from_secs(PERSONA_TIMEOUT_SECS)) {
+        Ok(Some(output)) if output.status.success() => {
+            let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if text.is_empty() { None } else { Some(text) }
+        }
+        _ => None,
+    }
+}
+
 /// resolver(실행파일명→설치여부)로 설치된 provider id 만 추린다.
 /// provider 후보 순서는 INTERNAL_PROVIDER_PRIORITY(드롭다운/탐지 공용)를 재사용한다.
 fn installed_providers_from(resolver: impl Fn(&str) -> bool) -> Vec<String> {
