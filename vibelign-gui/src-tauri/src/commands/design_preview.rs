@@ -80,4 +80,36 @@ fn has_inline_event_handler(lower: &str) -> bool {
     }
     false
 }
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub(crate) struct DesignTokens {
+    pub bg: String,
+    pub surface: String,
+    pub text: String,
+    pub primary: String,
+    pub accent: String,
+    pub border: String,
+    #[serde(rename = "fontFamily")]
+    pub font_family: String,
+    pub radius: String,
+    pub shadow: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub(crate) struct StyleSpec {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub tokens: DesignTokens,
+    pub recipe: String,
+}
+
+pub(crate) fn tokens_to_css_vars(t: &DesignTokens) -> String {
+    format!(
+        ":root{{--bg:{};--surface:{};--text:{};--primary:{};--accent:{};--border:{};--font:{};--radius:{};--shadow:{};}}",
+        t.bg, t.surface, t.text, t.primary, t.accent, t.border, t.font_family, t.radius, t.shadow
+    )
+}
 // ANCHOR: DESIGN_PREVIEW_END

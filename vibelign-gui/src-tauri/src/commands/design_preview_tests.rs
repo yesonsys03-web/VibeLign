@@ -32,3 +32,20 @@ fn html_validator_allows_inline_svg_namespace() {
         "<!doctype html><svg xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M0 0\"/></svg>"
     ).is_ok());
 }
+
+fn sample_tokens() -> DesignTokens {
+    DesignTokens {
+        bg: "#FFFDF5".into(), surface: "#FFFFFF".into(), text: "#111111".into(),
+        primary: "#FFD400".into(), accent: "#FF4D4D".into(), border: "3px solid #111111".into(),
+        font_family: "Archivo, sans-serif".into(), radius: "0px".into(), shadow: "6px 6px 0 #111111".into(),
+    }
+}
+#[test]
+fn css_vars_deterministic_and_complete() {
+    let css = tokens_to_css_vars(&sample_tokens());
+    assert!(css.starts_with(":root{"));
+    assert!(css.contains("--bg:#FFFDF5"));
+    assert!(css.contains("--primary:#FFD400"));
+    assert!(css.contains("--shadow:6px 6px 0 #111111"));
+    assert_eq!(tokens_to_css_vars(&sample_tokens()), css);
+}
