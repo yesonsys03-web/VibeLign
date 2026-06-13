@@ -45,14 +45,14 @@ const goBtnStyle = { fontSize: 13, padding: "5px 12px", background: "#FBBF24", c
 // 보조(아웃라인) 버튼 — 폴백 affordance(✓ 다 했어요 / 설치 도움받기).
 const outlineBtnStyle = { fontSize: 14, padding: "5px 12px", color: "#7C2D12", background: "transparent", border: "1px solid #7C2D12", borderRadius: 4 } as const;
 
-// 접힘 선호는 전역 UI 설정(프로젝트 무관) — 한 번 접으면 계속 접힌 채 유지(답답함 해소).
+// 접힘 선호는 전역 UI 설정(프로젝트 무관) — 한 번 접으면 계속 접힌 채 유지.
 const GUIDE_COLLAPSED_KEY = "vibelign:guide-collapsed";
 function readCollapsed(): boolean {
   try {
     const v = localStorage.getItem(GUIDE_COLLAPSED_KEY);
-    return v === null ? true : v === "1"; // 기본은 컴팩트(한 줄) — 저장된 선호가 있으면 따른다
+    return v === null ? false : v === "1"; // 기본은 펼침 — 문서탭만 강제 접힘(2026-06-13 사용자 결정). 저장된 선호가 있으면 따른다
   } catch {
-    return true;
+    return false;
   }
 }
 function writeCollapsed(v: boolean) {
@@ -92,13 +92,17 @@ export function GuideStrip({
   // 유틸리티(되돌리기·‹ › ×·상태 신호) 접힘 — 기본 화면을 "안내문 + 행동 버튼 1개"로 유지.
   // 비상구(되돌리기)가 접힘 뒤로 숨는 트레이드오프는 토글 라벨("문제 있나요?")이 길 안내를 대신한다.
   const [utilOpen, setUtilOpen] = useState(false);
-  // 접힘(컴팩트 한 줄) 토글 — 기본 컴팩트, ▾자세히로 펼침. 답답함 해소(2026-06-12 사용자 요청).
+  // 접힘(컴팩트 한 줄) 토글 — 기본 펼침, 접으면 한 줄(▾↔▸). 문서탭만 항상 접힘(2026-06-13 사용자 결정).
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const toggleCollapsed = () =>
     setCollapsed((v) => {
       writeCollapsed(!v);
       return !v;
     });
+  // 문서탭(MD 뷰어)은 읽기 화면이라 가이드를 기본 접힘으로 — 본문을 가리지 않게(여정의 critical path 아님).
+  // 전역 접힘 선호(collapsed)는 건드리지 않고 이 탭에서만 강제 접힘. 펼치기(▸)는 무의미하므로 문서탭에선 숨긴다.
+  const onDocs = currentPage === "docs";
+  const effectiveCollapsed = collapsed || onDocs;
 
   // 단계 전환 감지 — 직전 단계와 다를 때만 "뽁" 팝 클래스를 부여(잔 렌더 깜빡임 방지, spec 목업 _lastStripStep 패턴).
   const prevStepRef = useRef<ActiveGuideStep | null>(null);
@@ -151,7 +155,7 @@ export function GuideStrip({
       </button>
     ) : null;
 
-  if (def && step && collapsed) {
+  if (def && step && effectiveCollapsed) {
     // 컴팩트(기본) — 한 줄: 🧭 마스코트 + 말풍선(단계 라벨 + 주행동) + ▸자세히.
     return (
       <div
@@ -165,15 +169,17 @@ export function GuideStrip({
           borderBottom: "2px solid #1A1A1A",
         }}
       >
-        <button
-          type="button"
-          style={collapseToggleStyle}
-          title="안내 자세히 보기"
-          aria-expanded={false}
-          onClick={toggleCollapsed}
-        >
-          ▸
-        </button>
+        {!onDocs && (
+          <button
+            type="button"
+            style={collapseToggleStyle}
+            title="안내 자세히 보기"
+            aria-expanded={false}
+            onClick={toggleCollapsed}
+          >
+            ▸
+          </button>
+        )}
         <span className={`guide-mascot${popCls}`}>🧭</span>
         <span className={`guide-bubble${popCls}`} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
           <span style={{ color: "#7C2D12", fontWeight: 700 }}>

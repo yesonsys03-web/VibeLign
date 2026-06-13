@@ -448,6 +448,27 @@ html, body {
 .guide-bubble::before { content: ""; position: absolute; right: 100%; top: 12px; border: 8px solid transparent; border-right-color: var(--black); }
 .guide-bubble::after  { content: ""; position: absolute; right: 100%; top: 12px; margin-right: -3px; border: 6px solid transparent; border-right-color: #FFF6DC; }
 .guide-bubble.pop { animation: popbubble 0.42s cubic-bezier(0.18, 1.5, 0.4, 1) both; transform-origin: left center; }
+/* "쏙" 빨려 들어감 — 마스코트(왼쪽)로 가속하며 사라지는 macOS 지니 느낌. 말풍선 접기에 쓴다. */
+@keyframes suckbubble {
+  0%   { transform: scale(1) rotate(0); opacity: 1; }
+  100% { transform: scale(0) rotate(-7deg); opacity: 0; }
+}
+.guide-bubble.suck { animation: suckbubble 0.3s cubic-bezier(0.5, 0, 0.78, 0) both; transform-origin: left center; }
+/* 탭 가능한 마스코트(말풍선 토글) — 버튼 기본 스타일 리셋 + 손가락 커서. */
+.guide-mascot.tappable { cursor: pointer; padding: 0; font-family: inherit; -webkit-appearance: none; appearance: none; }
+/* 앱 실행 1회 — 마스코트가 프레임 왼쪽 밖에서 안 보이다가, 화면을 가로질러 또르르 굴러와 "계" 위에서 멈춘다.
+   출발 거리(--roll-from)는 JS가 측정해 "프레임 끝 바로 밖"으로 잡는다 → 전체 이동이 화면 안에서 보인다.
+   ease-in-out: 부드럽게 굴러 나와 가속, 막판에 감속하며 사뿐히 정지. rotate 3바퀴=구르는 질감. */
+@keyframes mascot-rollin {
+  0%   { transform: translateX(var(--roll-from, -60vw)) rotate(-1080deg); opacity: 0; }
+  2%   { opacity: 1; }                                   /* 프레임 안으로 들어오는 순간부터 보이며 */
+  86%  { transform: translateX(10px) rotate(14deg); }    /* 거의 다 와서 살짝 지나쳤다가 */
+  100% { transform: translateX(0) rotate(0); }           /* 또르르 제자리에 멈춤 */
+}
+.guide-mascot.rollin { animation: mascot-rollin 1.2s cubic-bezier(0.6, 0, 0.3, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .guide-mascot.rollin { animation: none; }
+}
 
 /* 온보딩 + 버튼 끌어당김(W3 코치 1단계): 펄스링 + 살짝 들썩. */
 @keyframes guide-pulsering {

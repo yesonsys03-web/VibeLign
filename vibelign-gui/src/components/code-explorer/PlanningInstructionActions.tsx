@@ -79,6 +79,14 @@ export function PlanningInstructionActions({ prompt, outputPath, contract = null
 
   return (
     <>
+      {/* 동선 봉합 후 역할 명확화 — 기본 경로는 작업방(앱 내 자동 실행)이고, 이 복사 영역은
+          "내 외부 도구에 직접 붙여넣어 쓰는 경우"용임을 초보자에게 분명히 한다(두 길이 안 헷갈리게). */}
+      <div style={{ fontSize: 14, fontWeight: 900, color: "#1A1A1A" }}>
+        외부 AI 도구에 직접 붙여넣어 쓰는 경우 — 작업 지시 복사
+      </div>
+      <div style={{ fontSize: 12.5, color: "#555", fontWeight: 700, lineHeight: 1.6 }}>
+        기본은 <b>작업방</b>이 앱 안에서 자동으로 실행해요. Claude Code·Cursor 등 <b>내 도구에 직접</b> 시킬 때만 복사하면 돼요.
+      </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
         <button className="btn btn-black btn-sm" type="button" onClick={() => void handleCopyInstruction()} style={{ fontSize: 11 }}>
           작업 지시 복사
@@ -105,7 +113,7 @@ export function PlanningInstructionActions({ prompt, outputPath, contract = null
           </button>
         ))}
       </div>
-      <div style={{ fontSize: 10, color: "#888", fontWeight: 700, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 12.5, color: "#555", fontWeight: 700, lineHeight: 1.6 }}>
         VibeLign MCP가 연결된 도구(Claude Code·Cursor 등)에서는 복사 없이 그 도구에 <b>“VibeLign 기획안 구현해”</b> 라고만 입력해도 됩니다.
       </div>
       {copyStatus === "copied" && (
