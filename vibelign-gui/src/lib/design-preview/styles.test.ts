@@ -23,7 +23,7 @@ describe("DESIGN_STYLES motion", () => {
   it("네오브루탈리즘은 motion(tokens+recipe)을 가진다", () => {
     const m = getStyle("neo-brutalism")!.motion;
     expect(m).toBeDefined();
-    expect(m!.tokens.duration).toMatch(/ms|s/);
+    expect(m!.tokens.duration).toMatch(/^\d+(\.\d+)?m?s$/);
     expect(m!.tokens.easing).toBeTruthy();
     expect(m!.recipe.length).toBeGreaterThan(20);
   });
@@ -37,7 +37,7 @@ describe("DESIGN_STYLES 5종 완성", () => {
   it("모든 스타일이 motion(tokens+recipe)을 가진다", () => {
     for (const s of DESIGN_STYLES) {
       expect(s.motion, s.id).toBeDefined();
-      expect(s.motion!.tokens.duration).toMatch(/ms|s/);
+      expect(s.motion!.tokens.duration).toMatch(/^\d+(\.\d+)?m?s$/);
       expect(s.motion!.tokens.easing.length).toBeGreaterThan(0);
       expect(s.motion!.recipe.length).toBeGreaterThan(10);
     }
