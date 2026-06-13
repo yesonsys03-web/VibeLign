@@ -146,4 +146,49 @@ pub(crate) fn build_mockup_prompt(
     }
     out
 }
+
+use sha2::{Digest, Sha256};
+use std::path::PathBuf;
+
+pub(crate) fn design_cache_key(prompt: &str) -> String {
+    let mut h = Sha256::new();
+    h.update(prompt.as_bytes());
+    format!("{:x}", h.finalize())
+}
+fn design_cache_dir(project_dir: &Path) -> PathBuf {
+    project_dir.join(".vibelign").join("design_preview")
+}
+fn design_cache_path(project_dir: &Path, key: &str) -> PathBuf {
+    design_cache_dir(project_dir).join(format!("{key}.html"))
+}
+pub(crate) fn read_design_cache(project_dir: &Path, key: &str) -> Option<String> {
+    std::fs::read_to_string(design_cache_path(project_dir, key)).ok()
+}
+pub(crate) fn write_design_cache(project_dir: &Path, key: &str, html: &str) -> Result<(), String> {
+    let path = design_cache_path(project_dir, key);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&path, html).map_err(|e| e.to_string())
+}
+/// 최근 keep 개만 남기고 오래된 .html 캐시를 제거(mtime 기준).
+pub(crate) fn prune_design_cache(project_dir: &Path, keep: usize) {
+    let dir = design_cache_dir(project_dir);
+    let mut files: Vec<(std::time::SystemTime, PathBuf)> = match std::fs::read_dir(&dir) {
+        Ok(rd) => rd
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.extension().map(|x| x == "html").unwrap_or(false))
+            .filter_map(|p| std::fs::metadata(&p).and_then(|m| m.modified()).ok().map(|t| (t, p)))
+            .collect(),
+        Err(_) => return,
+    };
+    if files.len() <= keep {
+        return;
+    }
+    files.sort_by(|a, b| b.0.cmp(&a.0)); // 최신 먼저
+    for (_, path) in files.into_iter().skip(keep) {
+        let _ = std::fs::remove_file(path);
+    }
+}
 // ANCHOR: DESIGN_PREVIEW_END

@@ -75,3 +75,24 @@ fn prompt_includes_feedback_and_previous() {
     assert!(p.contains("이전")); // 직전 목업 포함
     assert!(p.contains("아래 현재 목업을 기준"));
 }
+
+#[test]
+fn cache_key_stable_sha256() {
+    let a = design_cache_key("p");
+    assert_eq!(a, design_cache_key("p"));
+    assert_ne!(a, design_cache_key("q"));
+    assert_eq!(a.len(), 64);
+}
+#[test]
+fn cache_roundtrip_and_prune_keeps_newest() {
+    let root = tempfile::tempdir().expect("temp");
+    for i in 0..5 {
+        write_design_cache(root.path(), &design_cache_key(&format!("k{i}")), "<!doctype html>").expect("w");
+    }
+    prune_design_cache(root.path(), 3);
+    let dir = root.path().join(".vibelign").join("design_preview");
+    let count = std::fs::read_dir(&dir).unwrap().filter(|e| {
+        e.as_ref().ok().map(|x| x.path().extension().map(|p| p == "html").unwrap_or(false)).unwrap_or(false)
+    }).count();
+    assert!(count <= 3);
+}
