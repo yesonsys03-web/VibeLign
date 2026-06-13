@@ -160,6 +160,9 @@ pub(crate) fn build_mockup_prompt(
     out.push_str("- 위 :root 블록을 <style>에 그대로 넣고, 색/폰트/모서리/그림자는 var(--bg) 등 변수로만 참조.\n");
     out.push_str("- 외부 리소스(CDN·폰트·이미지 URL)·자바스크립트·인라인 이벤트 핸들러 금지. 인라인 CSS만.\n");
     out.push_str("- 기획안의 화면/구역을 실제 콘텐츠 예시로 채워 한 화면으로 배치.\n");
+    out.push_str("\n[컴포넌트 커버리지 — 기획안에 맞는 것을 충실히 표현]\n");
+    out.push_str("내비게이션·버튼(주/보조)·카드·입력/폼·뱃지·탭·모달 또는 시트·리스트/테이블·빈 상태(empty state) 중 ");
+    out.push_str("기획안 화면에 어울리는 것들을 실제 콘텐츠 예시로 포함하세요. 기획안과 무관한 컴포넌트는 넣지 마세요.\n");
     if let Some(m) = &style.motion {
         out.push_str("\n[모션 — 이 스타일의 움직임 성격]\n");
         out.push_str(&m.recipe);

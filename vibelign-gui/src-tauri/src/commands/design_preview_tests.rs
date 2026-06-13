@@ -140,6 +140,16 @@ fn prompt_omits_motion_section_when_absent() {
 }
 
 #[test]
+fn prompt_always_includes_component_coverage() {
+    let css = tokens_to_css_vars(&sample_tokens());
+    // motion 없는 스타일에서도 컴포넌트 커버리지는 항상 포함(모션과 독립).
+    let p = build_mockup_prompt("# 앱", &sample_style(), &css, None, None);
+    assert!(p.contains("컴포넌트 커버리지"));
+    assert!(p.contains("빈 상태"));
+    assert!(p.contains("무관한 컴포넌트는 넣지 마세요"));
+}
+
+#[test]
 fn validator_allows_css_motion() {
     // CSS 전환·@keyframes·:hover·@media 는 스크립트가 아니므로 통과해야 한다(회귀 가드).
     let html = "<!doctype html><style>@keyframes pop{from{transform:scale(.96)}to{transform:scale(1)}}\
