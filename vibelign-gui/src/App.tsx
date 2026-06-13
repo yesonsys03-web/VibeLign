@@ -39,6 +39,8 @@ import { StageSwitcherBar } from "./components/nav/StageSwitcherBar";
 import { StageSubnav } from "./components/nav/StageSubnav";
 import { StageHubCards } from "./components/nav/StageHubCards";
 import PlanDocView from "./pages/PlanDocView";
+import DesignPreview, { type DesignBinding } from "./pages/DesignPreview";
+import { runDetect } from "./lib/vib/run";
 import { HomePlanningStart } from "./components/home/HomePlanningStart";
 import "./styles/brutalism.css";
 import "./App.css";
@@ -112,6 +114,11 @@ export default function App() {
   const [mapMode, setMapMode] = useState<"manual" | "auto">("manual");
   const [planningPrompt, setPlanningPrompt] = useState("");
   const [planningResult, setPlanningResult] = useState<PlanningChatSessionResponse | null>(null);
+  // 디자인 미리보기: PlanDocView 가 선택한 기획안 경로(designPlanPath) → 확정 시 designBinding 으로 작업방에 바인딩.
+  const [designPlanPath, setDesignPlanPath] = useState<string | null>(null);
+  const [designBinding, setDesignBinding] = useState<DesignBinding | null>(null);
+  // 웹 게이트(비차단): run_detect 가 electron 으로 확정될 때만 경고. unknown/null 은 불확실 → 경고 안 함.
+  const [designIsWeb, setDesignIsWeb] = useState(true);
   const [reviewSourcePath, setReviewSourcePath] = useState<string | null>(null);
   const [doctorLaunchIntent, setDoctorLaunchIntent] = useState<DoctorLaunchIntent | null>(null);
   const [showSessionPicker, setShowSessionPicker] = useState(false);
@@ -604,11 +611,25 @@ export default function App() {
                     <button className="nav-tab" onClick={() => setShowSessionPicker(true)}>이전 기획 불러오기</button>
                   </div>
                 ))}
-                {page === "plan-doc" && <PlanDocView projectDir={projectDir} activeSessionId={planningResult?.sessionId ?? null} onStart={() => { if (planningResult) navigate("planning"); else setPage("home"); }} onDeleted={(sessionId) => { if (planningResult?.sessionId === sessionId) setPlanningResult(null); }} onEdit={(sessionId) => void resumeSession(sessionId)} />}
+                {page === "plan-doc" && <PlanDocView projectDir={projectDir} activeSessionId={planningResult?.sessionId ?? null} onStart={() => { if (planningResult) navigate("planning"); else setPage("home"); }} onDeleted={(sessionId) => { if (planningResult?.sessionId === sessionId) setPlanningResult(null); }} onEdit={(sessionId) => void resumeSession(sessionId)} onDesignPreview={(planPath) => {
+                  setDesignPlanPath(planPath);
+                  // 웹 게이트 휴리스틱(비차단): electron 으로 확정될 때만 경고(unknown/null 은 불확실 → true).
+                  void runDetect(projectDir).then((r) => setDesignIsWeb(r?.kind !== "electron")).catch(() => setDesignIsWeb(true));
+                  navigate("design-preview");
+                }} />}
+                {page === "design-preview" && designPlanPath && (
+                  <DesignPreview
+                    projectDir={projectDir}
+                    planPath={designPlanPath}
+                    isLikelyWeb={designIsWeb}
+                    onBack={() => navigate("plan-doc")}
+                    onConfirm={(b) => { setDesignBinding(b); navigate("work"); }}
+                  />
+                )}
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={navigate} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} guideStep={guide.enabled ? guide.step : null} />}
                 {page === "docs" && <DocsViewer projectDir={projectDir} />}
                 {page === "code" && <CodeExplorer projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} planningDocStale={planningResult?.docStale ?? false} onReviewInPlanning={(path) => { if (projectDir) void openPlanningRoom(projectDir, buildPlanReviewPrompt(path), path); }} />}
-                {page === "work" && <WorkRoom projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} planningDocStale={planningResult?.docStale ?? false} workHandoff={workHandoff} onWorkHandoffConsumed={() => setWorkHandoff(null)} onNavigate={navigate} onOpenSettings={() => openSettings()} onGuardResult={(status) => {
+                {page === "work" && <WorkRoom projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} planningDocStale={planningResult?.docStale ?? false} design={designBinding ?? undefined} workHandoff={workHandoff} onWorkHandoffConsumed={() => setWorkHandoff(null)} onNavigate={navigate} onOpenSettings={() => openSettings()} onGuardResult={(status) => {
                   // 작업방 자동 검사도 홈 '상태 확인'과 같은 가이드 신호 채널로 보고(spec §4-7와 동일 지문 기록).
                   guardCheckedFingerprintRef.current = changedFingerprint;
                   setGuardStatus(status);

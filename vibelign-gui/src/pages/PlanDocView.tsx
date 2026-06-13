@@ -22,6 +22,8 @@ interface PlanDocViewProps {
   onDeleted?: (sessionId: string) => void;
   /** 이 기획안을 기획방에서 이어서 수정(세션 재개). */
   onEdit?: (sessionId: string) => void;
+  /** 현재 선택한 기획안 경로로 디자인 미리보기 진입(활성 세션 아님). */
+  onDesignPreview?: (planPath: string) => void;
 }
 
 function fileName(path: string): string {
@@ -35,7 +37,7 @@ function fileName(path: string): string {
  * 보여주고, 항목마다 수정(기획방 재개)·삭제(휴지통)한다. 사이드바 하단 휴지통에서
  * 복구/비우기, 삭제 직후엔 실행취소 토스트. 휴지통은 30일 뒤 자동 정리된다.
  */
-export default function PlanDocView({ projectDir, activeSessionId, onStart, onDeleted, onEdit }: PlanDocViewProps) {
+export default function PlanDocView({ projectDir, activeSessionId, onStart, onDeleted, onEdit, onDesignPreview }: PlanDocViewProps) {
   const [plans, setPlans] = useState<PlanningSessionSummary[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [doc, setDoc] = useState<ReadFileResult | null>(null);
@@ -270,8 +272,18 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {selectedPath && (
-          <div style={{ padding: "6px 12px", fontSize: 12, color: "#555", borderBottom: "1px solid #1A1A1A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {selectedPath}
+          <div style={{ padding: "6px 12px", fontSize: 12, color: "#555", borderBottom: "1px solid #1A1A1A", display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedPath}</span>
+            {onDesignPreview && (
+              <button
+                type="button"
+                onClick={() => onDesignPreview(selectedPath)}
+                title="이 기획안을 코딩 전에 디자인 목업으로 미리보기"
+                style={{ flexShrink: 0, border: "2px solid #1A1A1A", background: "#fff", fontSize: 12, fontWeight: 700, padding: "2px 8px", cursor: "pointer", whiteSpace: "nowrap" }}
+              >
+                🎨 디자인 미리보기
+              </button>
+            )}
           </div>
         )}
         {selected?.docStale && (
