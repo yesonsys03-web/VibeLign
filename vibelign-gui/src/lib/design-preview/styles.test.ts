@@ -18,3 +18,13 @@ describe("DESIGN_STYLES", () => {
     for (const id of ids) expect(id).toMatch(/^[a-z0-9-]+$/);
   });
 });
+
+describe("DESIGN_STYLES motion", () => {
+  it("네오브루탈리즘은 motion(tokens+recipe)을 가진다", () => {
+    const m = getStyle("neo-brutalism")!.motion;
+    expect(m).toBeDefined();
+    expect(m!.tokens.duration).toMatch(/ms|s/);
+    expect(m!.tokens.easing).toBeTruthy();
+    expect(m!.recipe.length).toBeGreaterThan(20);
+  });
+});
