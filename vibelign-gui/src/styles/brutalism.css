@@ -22,6 +22,9 @@
   --shadow: 4px 4px 0px #1A1A1A;
   --shadow-sm: 2px 2px 0px #1A1A1A;
   --shadow-lg: 6px 6px 0px #1A1A1A;
+  --dur: 60ms;                        /* 브루탈리즘 모션: 딱딱·즉각 (현 .btn 0.05s 근접) */
+  --dur-pop: 140ms;                   /* 등장/펄스용 */
+  --ease: cubic-bezier(.2, 0, 0, 1);  /* 각진 즉각 — 디자인프리뷰 네오브루탈리즘과 동일 성격 */
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
