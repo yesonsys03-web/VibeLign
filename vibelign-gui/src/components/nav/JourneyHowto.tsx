@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { JOURNEY_STEPS, type ActiveGuideStep, type GuideStep } from "../../lib/nav/guide";
 import { PAGE_LABELS, type Page } from "../../lib/nav/stages";
+import { collapseToggleStyle } from "../../lib/nav/collapse";
 
 interface JourneyHowtoProps {
   /** 현재 단계(가이드 추론). null이면 강조 없이 전부 접힘. */
@@ -12,11 +13,23 @@ interface JourneyHowtoProps {
 /** 사용법 탭 상단 "순서대로 따라하기" 아코디언. 현재 단계가 자동으로 펼쳐진다(spec §3.4). */
 export function JourneyHowto({ currentStep, onNavigate }: JourneyHowtoProps) {
   const [open, setOpen] = useState<GuideStep | null>(currentStep);
+  const [sectionOpen, setSectionOpen] = useState(true);
   useEffect(() => setOpen(currentStep), [currentStep]);
   return (
     <div style={{ padding: "16px 20px 4px" }}>
-      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>📖 순서대로 따라하기</div>
-      {JOURNEY_STEPS.map((def) => {
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+        <button
+          type="button"
+          style={collapseToggleStyle}
+          title={sectionOpen ? "순서대로 따라하기 접기" : "순서대로 따라하기 펼치기"}
+          aria-expanded={sectionOpen}
+          onClick={() => setSectionOpen((v) => !v)}
+        >
+          {sectionOpen ? "▾" : "▸"}
+        </button>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>📖 순서대로 따라하기</div>
+      </div>
+      {sectionOpen && JOURNEY_STEPS.map((def) => {
         const isOpen = open === def.step;
         const isCurrent = currentStep === def.step;
         return (
