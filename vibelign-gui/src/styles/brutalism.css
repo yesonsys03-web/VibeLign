@@ -291,8 +291,10 @@ html, body {
   font-family: 'Space Grotesk', sans-serif;
   white-space: nowrap;
   flex-shrink: 0;
+  transition: background var(--dur) var(--ease);
 }
 .nav-tab:hover  { background: var(--gray); }
+.nav-tab:focus-visible { outline: 3px solid var(--primary); outline-offset: -3px; }
 .nav-tab:disabled { opacity: 0.35; cursor: default; }
 .nav-tab:disabled:hover { background: transparent; }
 .nav-tab.active { background: var(--primary); color: var(--white); }
@@ -368,8 +370,10 @@ html, body {
   outline: none;
   width: 100%;
   color: var(--black);
+  transition: box-shadow var(--dur) var(--ease);
 }
 .input-field:focus { box-shadow: var(--shadow); }
+.input-field:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
 
 /* ─── 레이아웃 ────────────────────────────────────────────────────────────────── */
 .app-layout {
