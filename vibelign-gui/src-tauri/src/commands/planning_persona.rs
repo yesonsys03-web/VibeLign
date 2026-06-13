@@ -535,18 +535,24 @@ pub(crate) fn run_active_ai(
 fn pick_generation_cli(
     messages: &[crate::commands::planning_chat_types::PlanningChatMessage],
 ) -> Option<(PathBuf, Vec<String>)> {
+    // stdin 1-shot 으로 검증된 provider 만 허용 — claude(-p)·codex(exec) 만 stdin EOF 를
+    // 입력 종료로 인식한다. opencode(run) 등은 프롬프트를 argv 로 받아 stdin 만 주면 타임아웃까지 행.
     for message in messages.iter().rev() {
         if message.role == "assistant" && message.status == "ok" {
             if let Some(persona_id) = message.persona_id.as_deref() {
-                if let Some((path, args, _provider)) = resolve_persona_cli(persona_id) {
-                    return Some((path, args));
+                if let Some((path, args, provider)) = resolve_persona_cli(persona_id) {
+                    if provider == "claude" || provider == "codex" {
+                        return Some((path, args));
+                    }
                 }
             }
         }
     }
     for persona_id in ["chloe", "gio", "mina", "deepseek"] {
-        if let Some((path, args, _provider)) = resolve_persona_cli(persona_id) {
-            return Some((path, args));
+        if let Some((path, args, provider)) = resolve_persona_cli(persona_id) {
+            if provider == "claude" || provider == "codex" {
+                return Some((path, args));
+            }
         }
     }
     None
@@ -828,6 +834,20 @@ mod tests {
         cmd.args(["-c", "sleep 5"]);
         let result =
             super::output_with_timeout(cmd, std::time::Duration::from_millis(150)).expect("spawn");
+        assert!(result.is_none()); // 상한 초과 → 자식 종료 후 None
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn capture_with_stdin_timeout_kills_slow_command() {
+        let mut cmd = std::process::Command::new("sh");
+        cmd.args(["-c", "sleep 5"]);
+        let result = super::capture_with_stdin_timeout(
+            cmd,
+            "프롬프트",
+            std::time::Duration::from_millis(150),
+        )
+        .expect("spawn");
         assert!(result.is_none()); // 상한 초과 → 자식 종료 후 None
     }
 

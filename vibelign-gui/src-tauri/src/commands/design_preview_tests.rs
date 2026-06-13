@@ -24,6 +24,10 @@ fn html_validator_blocks_unsafe() {
     assert!(validate_mockup_html("<!doctype html><img src=\"//cdn/x.png\">").is_err()); // protocol-relative src
     assert!(validate_mockup_html("<!doctype html><style>@import 'x';</style>").is_err());
     assert!(validate_mockup_html("<!doctype html><button onclick=\"x\">").is_err());
+    // 공백/탭/개행 구분자·이름과 = 사이 공백 우회 차단(FIX 4).
+    assert!(validate_mockup_html("<!doctype html><div\tonclick=\"x\">").is_err());
+    assert!(validate_mockup_html("<!doctype html><div onmouseover =\"x\">").is_err());
+    assert!(validate_mockup_html("<!doctype html><div\nonload=\"x\">").is_err());
 }
 #[test]
 fn html_validator_allows_inline_svg_namespace() {
@@ -95,6 +99,27 @@ fn cache_roundtrip_and_prune_keeps_newest() {
         e.as_ref().ok().map(|x| x.path().extension().map(|p| p == "html").unwrap_or(false)).unwrap_or(false)
     }).count();
     assert!(count <= 3);
+}
+
+#[test]
+fn prune_preserves_saved_mockup_scaffolds() {
+    // 확정 저장된 mockup-* 스캐폴드는 prune 이 절대 제거하지 않아야 한다(FIX 5).
+    let root = tempfile::tempdir().expect("temp");
+    // 확정 스캐폴드 몇 개 — save_mockup_file 이 만드는 이름 형태(mockup-<id>-<hash>.html).
+    for i in 0..3 {
+        save_mockup_file(root.path(), "neo", &format!("<!doctype html><b>{i}</b>")).expect("save");
+    }
+    // keep 보다 많은 <sha>.html 캐시 엔트리.
+    for i in 0..5 {
+        write_design_cache(root.path(), &design_cache_key(&format!("c{i}")), "<!doctype html>").expect("w");
+    }
+    prune_design_cache(root.path(), 2);
+    let dir = root.path().join(".vibelign").join("design_preview");
+    let mockups = std::fs::read_dir(&dir).unwrap().filter(|e| {
+        e.as_ref().ok().and_then(|x| x.file_name().into_string().ok())
+            .map(|n| n.starts_with("mockup-")).unwrap_or(false)
+    }).count();
+    assert_eq!(mockups, 3); // 모든 mockup-* 보존
 }
 
 #[test]

@@ -67,12 +67,13 @@ fn has_inline_event_handler(lower: &str) -> bool {
     let bytes = lower.as_bytes();
     let mut i = 0;
     while i + 3 < bytes.len() {
-        if bytes[i] == b' ' && bytes[i + 1] == b'o' && bytes[i + 2] == b'n' {
+        let delim = matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r' | b'/');
+        if delim && bytes[i + 1] == b'o' && bytes[i + 2] == b'n' {
             let mut j = i + 3;
-            while j < bytes.len() && bytes[j].is_ascii_lowercase() {
-                j += 1;
-            }
-            if j > i + 3 && j < bytes.len() && bytes[j] == b'=' {
+            while j < bytes.len() && bytes[j].is_ascii_lowercase() { j += 1; }
+            let name_len = j - (i + 3);
+            while j < bytes.len() && matches!(bytes[j], b' ' | b'\t' | b'\n' | b'\r') { j += 1; }
+            if name_len > 0 && j < bytes.len() && bytes[j] == b'=' {
                 return true;
             }
         }
@@ -179,6 +180,13 @@ pub(crate) fn prune_design_cache(project_dir: &Path, keep: usize) {
             .filter_map(|e| e.ok())
             .map(|e| e.path())
             .filter(|p| p.extension().map(|x| x == "html").unwrap_or(false))
+            // 확정 저장된 스캐폴드(mockup-<id>-<hash>.html)는 prune 대상에서 제외 — <sha>.html 캐시만 sweep.
+            .filter(|p| {
+                !p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|n| n.starts_with("mockup-"))
+                    .unwrap_or(false)
+            })
             .filter_map(|p| std::fs::metadata(&p).and_then(|m| m.modified()).ok().map(|t| (t, p)))
             .collect(),
         Err(_) => return,

@@ -23,6 +23,8 @@ interface WorkRoomProps {
   planningDocStale: boolean;
   /** 디자인 미리보기에서 확정된 목업 바인딩(있으면 작업 지시문에 스캐폴드 섹션 추가). */
   design?: DesignBinding;
+  /** 디자인 미리보기 대상 기획안 경로 — 비활성(과거) 기획안 프리뷰 시 지시문이 이 경로를 가리키게 한다. */
+  designPlanPath?: string;
   /** 실행해보기 → 작업방 핸드오프(§4): error/improve. 마운트 시 consume-once 로 받는다. */
   workHandoff?: WorkHandoff | null;
   /** 핸드오프 소비 완료 — App 의 workHandoff 를 비워 재진입 재발동 방지. */
@@ -130,6 +132,7 @@ export default function WorkRoom({
   planningContract,
   planningDocStale,
   design,
+  designPlanPath,
   workHandoff,
   onWorkHandoffConsumed,
   onNavigate,
@@ -167,8 +170,9 @@ export default function WorkRoom({
   const isDetected = (id: ProviderId) => providers?.includes(id) ?? false;
   const ready = selectedProvider !== null && isDetected(selectedProvider);
   const anyDetected = PROVIDER_DEFS.some((d) => isDetected(d.id));
-  const instruction = planningOutputPath
-    ? buildPlanningWorkInstruction({ prompt: planningPrompt, outputPath: planningOutputPath, contract: planningContract, design })
+  const effectiveOutputPath = design ? (designPlanPath ?? planningOutputPath) : planningOutputPath;
+  const instruction = effectiveOutputPath
+    ? buildPlanningWorkInstruction({ prompt: planningPrompt, outputPath: effectiveOutputPath, contract: planningContract, design })
     : null;
   // 핸드오프(error/improve) 모드면 실행 지시문을 핸드오프 text 기반으로 교체(기획 표시는
   // instruction 그대로 유지). plan-less 도 동작 — planPath 없으면 text 만으로 작업(§4·§6).
