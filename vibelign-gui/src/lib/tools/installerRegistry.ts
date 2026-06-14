@@ -39,3 +39,19 @@ export function installTool(id: string): Promise<ToolInstallResult> {
 export function toolInstallStatus(id: string): Promise<boolean> {
   return invoke<boolean>("tool_install_status", { id });
 }
+
+export interface ToolUninstallResult {
+  removed: boolean;
+  exitCode: number | null;
+  manualHint: string;
+  manualUrl: string;
+}
+
+export function uninstallTool(id: string): Promise<ToolUninstallResult> {
+  return invoke<ToolUninstallResult>("uninstall_tool", { id });
+}
+
+/** 제거가 실패했거나 명령이 없으면(removed=false) 수동 안내로. */
+export function shouldGuideManualUninstall(r: { removed: boolean }): boolean {
+  return !r.removed;
+}
