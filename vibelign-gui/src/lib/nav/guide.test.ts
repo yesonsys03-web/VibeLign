@@ -26,6 +26,7 @@ const base: GuideSignals = {
   hasCheckpoint: false,
   changedFileCount: null,
   guardStatus: null,
+  runVerified: false,
 };
 
 /** 테스트용 변경 entry — 기본 지문(mtime_ms=1, size=10) */
@@ -70,10 +71,20 @@ describe("inferStep", () => {
   it("변경 감지되면 5 (뒤 단계 우선 — spec §4-1)", () => {
     expect(inferStep({ ...base, hasPlanDoc: true, hasCheckpoint: true, changedFileCount: 3 })).toBe(5);
   });
-  it("변경 + guard 통과면 6", () => {
+  it("변경 + guard 통과 + 작동확인이면 6 (두 축 모두)", () => {
     expect(
-      inferStep({ ...base, hasPlanDoc: true, hasCheckpoint: true, changedFileCount: 3, guardStatus: "ok" }),
+      inferStep({ ...base, hasPlanDoc: true, hasCheckpoint: true, changedFileCount: 3, guardStatus: "ok", runVerified: true }),
     ).toBe(6);
+  });
+  it("guard만 통과(작동 미확인)면 5 — 두 축 필요", () => {
+    expect(
+      inferStep({ ...base, hasPlanDoc: true, hasCheckpoint: true, changedFileCount: 3, guardStatus: "ok", runVerified: false }),
+    ).toBe(5);
+  });
+  it("작동만 확인(guard 미통과)면 5 — 두 축 필요", () => {
+    expect(
+      inferStep({ ...base, hasPlanDoc: true, hasCheckpoint: true, changedFileCount: 3, guardStatus: null, runVerified: true }),
+    ).toBe(5);
   });
   it("체크포인트 없으면 변경 감지돼도 5로 점프하지 않음", () => {
     expect(inferStep({ ...base, hasPlanDoc: true, changedFileCount: 3 })).toBe(3);

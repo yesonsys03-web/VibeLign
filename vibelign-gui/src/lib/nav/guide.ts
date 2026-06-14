@@ -149,13 +149,20 @@ export interface GuideSignals {
    * 아니라서 같은 파일 재수정·동수 집합 교체에서도 stale pass가 남지 않는다.
    */
   guardStatus: "ok" | "issue" | null;
+  /**
+   * 작동 검증(실행해보기로 진짜 켜지는지 확인) 완료 여부. 5️⃣ 결과 검증은 두 축 —
+   * 안전(guardStatus)·작동(runVerified) — 이라 둘 다 충족해야 6️⃣로 넘어간다.
+   * guardStatus 와 같은 지문-stale 규칙으로 App 이 무효화한다.
+   */
+  runVerified: boolean;
 }
 
 /** 신호 → 현재 단계 추론. 충돌 시 뒤 단계 우선(spec §4-1). 1️⃣은 반환하지 않음. */
 export function inferStep(s: GuideSignals): ActiveGuideStep {
   let step: ActiveGuideStep = !s.hasPlanDoc || s.planningPending ? 2 : !s.hasCheckpoint ? 3 : 4;
   if (s.hasCheckpoint && s.changedFileCount !== null && s.changedFileCount > 0) {
-    step = s.guardStatus === "ok" ? 6 : 5;
+    // 6️⃣은 두 축 모두 — 안전(guard ok) + 작동(실행해보기 확인) — 충족 시에만.
+    step = s.guardStatus === "ok" && s.runVerified ? 6 : 5;
   }
   return step;
 }

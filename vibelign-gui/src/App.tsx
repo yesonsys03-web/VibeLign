@@ -475,6 +475,7 @@ export default function App() {
       hasCheckpoint: hasUserCheckpoint,
       changedFileCount,
       guardStatus,
+      runVerified,
     },
     backupLoaded,
   );
@@ -578,6 +579,7 @@ export default function App() {
               planningPending={planningPendingNow}
               aiToolMissing={aiToolMissing}
               celebrating={celebrating}
+              runVerified={runVerified}
               onNavigate={navigate}
               onStepChange={guide.setStep}
               onDisable={() => guide.setEnabled(false)}

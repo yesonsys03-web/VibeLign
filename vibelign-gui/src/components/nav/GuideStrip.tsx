@@ -16,6 +16,8 @@ interface GuideStripProps {
   aiToolMissing?: boolean;
   /** 첫 사이클 완주 축하 표시 중 — App이 6️⃣→4️⃣ 전환에서 1회 켠다(spec §3.2) */
   celebrating?: boolean;
+  /** 작동 검증(실행해보기) 완료 — 5️⃣에서 "✓ 작동 확인됨"으로 축 진행을 표시. */
+  runVerified?: boolean;
   onNavigate: (page: Page) => void;
   onStepChange: (next: ActiveGuideStep) => void;
   onDisable: () => void;
@@ -77,6 +79,7 @@ export function GuideStrip({
   planningPending,
   aiToolMissing = false,
   celebrating = false,
+  runVerified = false,
   onNavigate,
   onStepChange,
   onDisable,
@@ -158,7 +161,9 @@ export function GuideStrip({
   // 5️⃣ 결과 검증은 두 축(상태확인=안전·실행해보기=작동) — 상태확인은 홈 버튼, 실행해보기는 이 버튼으로
   // 이어준다. 주행동(goButton)이 홈을 가리켜(onTarget) 숨겨질 때도 실행해보기로 갈 길을 항상 연다.
   const runButton =
-    step === 5 && currentPage !== "run" ? (
+    step !== 5 ? null : runVerified ? (
+      <span style={{ color: "#166534", fontWeight: 800, fontSize: 13, whiteSpace: "nowrap" }}>✓ 작동 확인됨</span>
+    ) : currentPage !== "run" ? (
       <button className="nav-tab" style={goBtnStyle} onClick={() => onNavigate("run")}>
         ▶ 실행해보기 →
       </button>
