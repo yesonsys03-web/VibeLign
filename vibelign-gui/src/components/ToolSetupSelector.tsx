@@ -1,5 +1,6 @@
 // === ANCHOR: TOOLSETUPSELECTOR_START ===
 import { useState, type ReactElement } from "react";
+import { ToolInstallPanel } from "./tools/ToolInstallPanel";
 
 // vib start --tools 가 받는 키와 1:1 (vibelign/commands/vib_start_cmd.py START_TOOL_CHOICES).
 // autoInstall: true = VibeLign이 자동으로 설치해 줌 / false = 직접 설치 필요
@@ -11,6 +12,14 @@ const SETUP_TOOLS: readonly { readonly key: string; readonly label: string; read
   { key: "opencode", label: "OpenCode", autoInstall: false },
   { key: "antigravity", label: "Antigravity", autoInstall: false },
 ];
+
+// 자동설치 패널을 지원하는 도구 키 → installerRegistry id 매핑
+// (antigravity 선택 키 ≠ agy 레지스트리 id)
+const AUTO_INSTALL_PANEL_ID: Readonly<Record<string, string>> = {
+  opencode: "opencode",
+  codex: "codex",
+  antigravity: "agy",
+};
 
 export const SETUP_TOOL_KEYS: readonly string[] = SETUP_TOOLS.map((t) => t.key);
 
@@ -26,6 +35,8 @@ export function ToolSetupSelector({ detected, selected, onChange, disabled = fal
   const allSelected = SETUP_TOOLS.every((t) => selected.has(t.key));
   // MCP 설명 말풍선(W4) — "전체 선택" 클릭 시 등장, "전체 해제" 시 숨김. 컴포넌트 내부에 캡슐화.
   const [mcpTip, setMcpTip] = useState(false);
+  // 자동 설치 패널 확장 상태 — key: 도구 key, 기본 닫힘
+  const [expandedPanel, setExpandedPanel] = useState<string | null>(null);
 
   function toggle(key: string): void {
     const next = new Set(selected);
@@ -48,59 +59,90 @@ export function ToolSetupSelector({ detected, selected, onChange, disabled = fal
       {SETUP_TOOLS.map((tool) => {
         const active = selected.has(tool.key);
         const isDetected = detected?.includes(tool.key) ?? false;
+        const panelId = AUTO_INSTALL_PANEL_ID[tool.key];
+        const panelOpen = expandedPanel === tool.key;
         return (
-          <button
-            key={tool.key}
-            type="button"
-            disabled={disabled}
-            aria-pressed={active}
-            onClick={() => toggle(tool.key)}
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              padding: "4px 10px",
-              border: `2px solid ${active ? "#2D9CDB" : "#333"}`,
-              background: active ? "#2D9CDB" : "transparent",
-              color: active ? "#fff" : "#888",
-              cursor: disabled ? "default" : "pointer",
-            }}
-          >
-            {tool.label}
-            {isDetected ? " MCP" : ""}
-            {tool.autoInstall ? (
-              <span
-                title="VibeLign이 자동으로 설치해 드려요"
+          <div key={tool.key} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <button
+                type="button"
+                disabled={disabled}
+                aria-pressed={active}
+                onClick={() => toggle(tool.key)}
                 style={{
-                  marginLeft: 4,
-                  fontSize: 9,
-                  fontWeight: 800,
-                  padding: "1px 4px",
-                  background: active ? "rgba(255,255,255,0.25)" : "#D1FAE5",
-                  color: active ? "#fff" : "#065F46",
-                  borderRadius: 3,
-                  verticalAlign: "middle",
-                }}
-              >
-                자동설치
-              </span>
-            ) : (
-              <span
-                title="직접 설치가 필요해요"
-                style={{
-                  marginLeft: 4,
-                  fontSize: 9,
+                  fontSize: 11,
                   fontWeight: 700,
-                  padding: "1px 4px",
-                  background: active ? "rgba(255,255,255,0.15)" : "#F3F4F6",
-                  color: active ? "rgba(255,255,255,0.8)" : "#9CA3AF",
-                  borderRadius: 3,
-                  verticalAlign: "middle",
+                  padding: "4px 10px",
+                  border: `2px solid ${active ? "#2D9CDB" : "#333"}`,
+                  background: active ? "#2D9CDB" : "transparent",
+                  color: active ? "#fff" : "#888",
+                  cursor: disabled ? "default" : "pointer",
                 }}
               >
-                직접설치
-              </span>
+                {tool.label}
+                {isDetected ? " MCP" : ""}
+                {tool.autoInstall ? (
+                  <span
+                    title="VibeLign이 자동으로 설치해 드려요"
+                    style={{
+                      marginLeft: 4,
+                      fontSize: 9,
+                      fontWeight: 800,
+                      padding: "1px 4px",
+                      background: active ? "rgba(255,255,255,0.25)" : "#D1FAE5",
+                      color: active ? "#fff" : "#065F46",
+                      borderRadius: 3,
+                      verticalAlign: "middle",
+                    }}
+                  >
+                    자동설치
+                  </span>
+                ) : (
+                  <span
+                    title="직접 설치가 필요해요"
+                    style={{
+                      marginLeft: 4,
+                      fontSize: 9,
+                      fontWeight: 700,
+                      padding: "1px 4px",
+                      background: active ? "rgba(255,255,255,0.15)" : "#F3F4F6",
+                      color: active ? "rgba(255,255,255,0.8)" : "#9CA3AF",
+                      borderRadius: 3,
+                      verticalAlign: "middle",
+                    }}
+                  >
+                    직접설치
+                  </span>
+                )}
+              </button>
+              {panelId != null && !disabled && (
+                <button
+                  type="button"
+                  title="자동 설치 패널 열기/닫기"
+                  aria-expanded={panelOpen}
+                  onClick={() => setExpandedPanel(panelOpen ? null : tool.key)}
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 800,
+                    padding: "2px 5px",
+                    border: "1px solid #1A1A1A",
+                    background: panelOpen ? "#1A1A1A" : "transparent",
+                    color: panelOpen ? "#fff" : "#1A1A1A",
+                    cursor: "pointer",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  자동 설치
+                </button>
+              )}
+            </div>
+            {panelId != null && panelOpen && (
+              <ToolInstallPanel
+                id={panelId}
+                onDone={() => setExpandedPanel(null)}
+              />
             )}
-          </button>
+          </div>
         );
       })}
       <button
