@@ -398,6 +398,59 @@ pub(crate) fn build_synthesis_prompt(spec_md: &str, description: &str, base_styl
     out
 }
 
+fn strip_json_fences(s: &str) -> String {
+    let t = s.trim();
+    let t = t.strip_prefix("```json").or_else(|| t.strip_prefix("```")).unwrap_or(t);
+    let t = t.strip_suffix("```").unwrap_or(t);
+    t.trim().to_string()
+}
+
+/// 클로드 원시 응답 → 검증된 StyleSpec. 펜스 제거 → JSON 파싱 → id 재발급 → 검증.
+pub(crate) fn parse_synthesized_style(raw: &str, id_seed: &str) -> Result<StyleSpec, String> {
+    let cleaned = strip_json_fences(raw);
+    let mut spec: StyleSpec = serde_json::from_str(&cleaned)
+        .map_err(|e| format!("스타일 JSON 파싱 실패: {e}"))?;
+    spec.id = safe_style_id_from(id_seed);
+    validate_style_spec(&spec)?;
+    Ok(spec)
+}
+
+fn synth_cache_path(project_dir: &Path, key: &str) -> PathBuf {
+    design_cache_dir(project_dir).join(format!("synth-{key}.json"))
+}
+
+#[tauri::command]
+pub(crate) fn synthesize_style(
+    project_dir: String,
+    plan_path: String,
+    description: String,
+    base_style: Option<StyleSpec>,
+) -> Result<StyleSpec, String> {
+    let dir = Path::new(&project_dir);
+    if !dir.is_absolute() {
+        return Err("projectDir must be absolute".into());
+    }
+    if description.trim().is_empty() && base_style.is_none() {
+        return Err("스타일 묘사를 입력해 주세요".into());
+    }
+    let spec_md = load_plan_markdown(dir, &plan_path)?;
+    let prompt = build_synthesis_prompt(&spec_md, &description, base_style.as_ref());
+    let key = design_cache_key(&prompt);
+    if let Ok(cached) = std::fs::read_to_string(synth_cache_path(dir, &key)) {
+        if let Ok(spec) = parse_synthesized_style(&cached, &prompt) {
+            return Ok(spec);
+        }
+    }
+    let raw = planning_persona::run_design_generation(dir, &prompt)
+        .ok_or_else(|| "스타일 합성에 실패했습니다 (CLI 미설치/로그인/타임아웃)".to_string())?;
+    let spec = parse_synthesized_style(&raw, &prompt)?;
+    if let Some(p) = synth_cache_path(dir, &key).parent() {
+        let _ = std::fs::create_dir_all(p);
+    }
+    let _ = std::fs::write(synth_cache_path(dir, &key), strip_json_fences(&raw));
+    Ok(spec)
+}
+
 // ANCHOR: DESIGN_PREVIEW_END
 
 #[cfg(test)]
@@ -478,5 +531,23 @@ mod custom_style_tests {
         let p = build_synthesis_prompt("기획", "더 밝게", Some(&base));
         assert!(p.contains("[기준 스타일"));
         assert!(p.contains(&base.name));
+    }
+
+    #[test]
+    fn parses_fenced_json_and_reissues_id() {
+        let raw = "```json\n{\"id\":\"x\",\"name\":\"파스텔\",\"description\":\"부드러운\",\"tokens\":{\"bg\":\"#FFF7FB\",\"surface\":\"#FFFFFF\",\"text\":\"#3A2E39\",\"primary\":\"#F7A8C4\",\"accent\":\"#A8D8F7\",\"border\":\"1px solid #F0D9E6\",\"fontFamily\":\"'Inter', sans-serif\",\"radius\":\"16px\",\"shadow\":\"0 2px 8px rgba(0,0,0,0.06)\"},\"recipe\":\"둥근 모서리와 파스텔 강조.\"}\n```";
+        let spec = parse_synthesized_style(raw, "seed-1").expect("should parse");
+        assert_eq!(spec.name, "파스텔");
+        assert!(spec.id.starts_with("custom-"));
+        assert!(is_safe_style_id(&spec.id));
+    }
+    #[test]
+    fn rejects_unsafe_synthesized_tokens() {
+        let raw = "{\"id\":\"x\",\"name\":\"나쁨\",\"description\":\"d\",\"tokens\":{\"bg\":\"#fff;}body{x\",\"surface\":\"#fff\",\"text\":\"#000\",\"primary\":\"#000\",\"accent\":\"#000\",\"border\":\"1px solid #000\",\"fontFamily\":\"sans-serif\",\"radius\":\"8px\",\"shadow\":\"none\"},\"recipe\":\"r\"}";
+        assert!(parse_synthesized_style(raw, "seed").is_err());
+    }
+    #[test]
+    fn rejects_non_json() {
+        assert!(parse_synthesized_style("그냥 텍스트입니다", "seed").is_err());
     }
 }
