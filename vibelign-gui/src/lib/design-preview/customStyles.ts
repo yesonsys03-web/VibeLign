@@ -19,3 +19,17 @@ export function mergeStyleLists(builtin: readonly StyleSpec[], custom: readonly 
   }
   return result;
 }
+
+/** 토큰 → `:root{…}` CSS 변수 블록(백엔드 tokens_to_css_vars 미러, motion 변수 포함). */
+export function tokensToCssVars(t: StyleSpec["tokens"], motion?: StyleSpec["motion"]): string {
+  let s = `:root{--bg:${t.bg};--surface:${t.surface};--text:${t.text};--primary:${t.primary};--accent:${t.accent};--border:${t.border};--font:${t.fontFamily};--radius:${t.radius};--shadow:${t.shadow};}`;
+  if (motion) {
+    s = s.replace(/\}$/, `--dur:${motion.tokens.duration};--ease:${motion.tokens.easing};}`);
+  }
+  return s;
+}
+
+/** 목업 HTML 의 첫 `:root{…}` 블록을 새 블록으로 치환(LLM 재호출 없는 즉시 재색칠). 매치 없으면 원본 유지. */
+export function replaceRootBlock(html: string, rootBlock: string): string {
+  return html.replace(/:root\s*\{[^}]*\}/, rootBlock);
+}

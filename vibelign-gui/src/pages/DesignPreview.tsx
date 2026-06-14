@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { DESIGN_STYLES, type StyleSpec, type MotionSpec } from "../lib/design-preview/styles";
 import { generateDesignMockup, saveDesignMockup, synthesizeStyle, listCustomStyles, saveCustomStyle, deleteCustomStyle } from "../lib/vib/design";
-import { EXAMPLE_CHIPS, mergeStyleLists } from "../lib/design-preview/customStyles";
+import { EXAMPLE_CHIPS, mergeStyleLists, tokensToCssVars, replaceRootBlock } from "../lib/design-preview/customStyles";
 
 export interface DesignBinding {
   readonly mockupPath: string;
@@ -74,6 +74,15 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
     } finally {
       setLoading(false);
     }
+  }
+
+  // 합성 스타일의 색 토큰을 즉시 바꾼다 — LLM 재호출 없이 목업 HTML 의 :root 변수만 갈아끼움.
+  function recolor(key: "bg" | "surface" | "primary" | "accent" | "text", value: string) {
+    if (!synth) return;
+    const tokens = { ...synth.tokens, [key]: value };
+    const updated = { ...synth, tokens };
+    setSynth(updated);
+    if (html) setHtml(replaceRootBlock(html, tokensToCssVars(tokens, updated.motion)));
   }
 
   async function confirm() {
@@ -169,10 +178,27 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
             <div style={{ border: "2px solid #1A1A1A", padding: "10px 12px", marginBottom: 8, background: "#F5F1E3", display: "grid", gap: 6 }}>
               <div style={{ fontSize: 13, fontWeight: 900 }}>✦ 이런 스타일을 만들었어요 — {synth.name}</div>
               <div style={{ fontSize: 12, color: "#444" }}>{synth.description}</div>
-              <div style={{ display: "flex", gap: 6 }}>
-                {[synth.tokens.bg, synth.tokens.surface, synth.tokens.primary, synth.tokens.accent, synth.tokens.text].map((c, i) => (
-                  <span key={i} title={c} style={{ width: 28, height: 28, background: c, border: "1px solid #1A1A1A", borderRadius: 4 }} />
-                ))}
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {([
+                  { key: "bg", label: "배경" },
+                  { key: "surface", label: "표면" },
+                  { key: "primary", label: "주요" },
+                  { key: "accent", label: "강조" },
+                  { key: "text", label: "글자" },
+                ] as const).map(({ key, label }) => {
+                  const c = synth.tokens[key];
+                  const hex = /^#[0-9a-fA-F]{6}$/.test(c) ? c : "#ffffff";
+                  return (
+                    <label key={key} title={`${label} — 클릭해 색 바꾸기 (${c})`}
+                      style={{ position: "relative", width: 28, height: 28, display: "inline-block", cursor: "pointer" }}>
+                      <span style={{ display: "block", width: 28, height: 28, background: c, border: "1px solid #1A1A1A", borderRadius: 4 }} />
+                      <input type="color" aria-label={`${label} 색 바꾸기`} value={hex}
+                        onChange={(e) => recolor(key, e.target.value)}
+                        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, border: 0, padding: 0, cursor: "pointer" }} />
+                    </label>
+                  );
+                })}
+                <span style={{ fontSize: 11, color: "#888" }}>✎ 색을 클릭해 바꿔보세요</span>
               </div>
               {synth.motion && <div style={{ fontSize: 11, color: "#666" }}>모션: {synth.motion.recipe}</div>}
             </div>

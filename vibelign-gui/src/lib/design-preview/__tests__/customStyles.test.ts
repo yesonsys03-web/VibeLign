@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { mergeStyleLists, EXAMPLE_CHIPS } from "../customStyles";
+import { mergeStyleLists, EXAMPLE_CHIPS, tokensToCssVars, replaceRootBlock } from "../customStyles";
 import type { StyleSpec } from "../styles";
 
 const mk = (id: string, name: string): StyleSpec => ({
@@ -22,5 +22,24 @@ describe("customStyles", () => {
   test("EXAMPLE_CHIPS: 비어있지 않은 일상어 시드", () => {
     expect(EXAMPLE_CHIPS.length).toBeGreaterThanOrEqual(4);
     expect(EXAMPLE_CHIPS.every((c) => c.trim().length > 0)).toBe(true);
+  });
+
+  test("tokensToCssVars: 변경된 색이 :root 변수로 들어간다", () => {
+    const css = tokensToCssVars({ ...mk("x", "X").tokens, primary: "#ff0000" });
+    expect(css.startsWith(":root{")).toBe(true);
+    expect(css).toContain("--primary:#ff0000;");
+    expect(css).toContain("--font:sans-serif;");
+  });
+  test("tokensToCssVars: motion 있으면 --dur/--ease 합류", () => {
+    const css = tokensToCssVars(mk("x", "X").tokens, { tokens: { duration: "200ms", easing: "ease" }, recipe: "r" });
+    expect(css).toContain("--dur:200ms;");
+    expect(css).toContain("--ease:ease;");
+    expect(css.endsWith("}")).toBe(true);
+  });
+  test("replaceRootBlock: 첫 :root 블록만 치환, 매치 없으면 원본", () => {
+    const html = "<style>:root{--bg:#000;} .x{color:red}</style>";
+    const out = replaceRootBlock(html, ":root{--bg:#fff;}");
+    expect(out).toBe("<style>:root{--bg:#fff;} .x{color:red}</style>");
+    expect(replaceRootBlock("<style>.x{}</style>", ":root{--bg:#fff;}")).toBe("<style>.x{}</style>");
   });
 });
