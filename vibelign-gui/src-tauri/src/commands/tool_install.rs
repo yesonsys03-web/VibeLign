@@ -23,6 +23,16 @@ pub(crate) struct ToolInstaller {
     pub auth_hint: &'static str,
     pub manual_url: &'static str,
     pub recommended_for_beginner: bool,
+    /// OS별 제거 명령. None = 그 OS는 안내 폴백.
+    pub mac_uninstall: Option<(&'static str, &'static [&'static str])>,
+    pub win_uninstall: Option<(&'static str, &'static [&'static str])>,
+    /// true 면 mac 에서 probe_binary 경로를 resolve 후 remove_file (agy).
+    /// Windows 에서는 이 플래그를 무시하고 win_uninstall 명령 또는 안내 폴백으로 진행.
+    pub uninstall_remove_binary: bool,
+    /// 안내 폴백 시 보여줄 수동 제거 단계.
+    pub uninstall_hint: &'static str,
+    /// 안내 폴백 시 열 공식 문서 URL.
+    pub uninstall_url: &'static str,
 }
 
 const OPENCODE: ToolInstaller = ToolInstaller {
@@ -32,6 +42,11 @@ const OPENCODE: ToolInstaller = ToolInstaller {
     auth: AuthKind::None,
     auth_hint: "무료 모델이라 추가 로그인이 필요 없어요 — 바로 쓸 수 있어요.",
     manual_url: "https://opencode.ai/download", recommended_for_beginner: true,
+    mac_uninstall: Some(("opencode", &["uninstall", "--keep-config", "--keep-data", "--force"])),
+    win_uninstall: Some(("npm", &["uninstall", "-g", "opencode-ai"])),
+    uninstall_remove_binary: false,
+    uninstall_hint: "제거가 안 되면 `npm uninstall -g opencode-ai` 또는 설치 시 사용한 방법으로 지워주세요.",
+    uninstall_url: "https://opencode.ai/docs/cli/",
 };
 const CODEX: ToolInstaller = ToolInstaller {
     id: "codex", display_name: "Codex", probe_binary: "codex",
@@ -40,6 +55,11 @@ const CODEX: ToolInstaller = ToolInstaller {
     auth: AuthKind::Login,
     auth_hint: "설치 후 OpenAI 로그인이 필요해요 — 터미널에서 `codex` 를 한 번 실행해 로그인하세요.",
     manual_url: "https://www.npmjs.com/package/@openai/codex", recommended_for_beginner: false,
+    mac_uninstall: Some(("npm", &["uninstall", "-g", "@openai/codex"])),
+    win_uninstall: None,
+    uninstall_remove_binary: false,
+    uninstall_hint: "`npm uninstall -g @openai/codex` 를 실행하거나, npm 으로 설치하지 않았다면 설치 페이지의 제거 안내를 따라주세요.",
+    uninstall_url: "https://www.npmjs.com/package/@openai/codex",
 };
 const AGY: ToolInstaller = ToolInstaller {
     id: "agy", display_name: "Antigravity", probe_binary: "agy",
@@ -48,6 +68,11 @@ const AGY: ToolInstaller = ToolInstaller {
     auth: AuthKind::Login,
     auth_hint: "설치 후 Google 로그인이 필요해요 — `agy` 를 처음 실행하면 브라우저 로그인이 열려요.",
     manual_url: "https://antigravity.google/docs/cli-install", recommended_for_beginner: false,
+    mac_uninstall: None,
+    win_uninstall: None,
+    uninstall_remove_binary: true,
+    uninstall_hint: "macOS: PATH 의 agy 실행파일(예: ~/.local/bin/agy)을 직접 지워주세요. Windows: 설정 > 앱 > 설치된 앱에서 'Antigravity CLI' 를 제거하세요. ANTIGRAVITY_API_KEY 환경변수가 있으면 함께 지워주세요.",
+    uninstall_url: "https://antigravity.google/docs/cli-install",
 };
 
 pub(crate) fn tool_installer(id: &str) -> Option<&'static ToolInstaller> {
@@ -66,6 +91,16 @@ pub(crate) fn install_command(t: &ToolInstaller, os: &str) -> Option<(String, Ve
         "windows" => Some((t.win_program.to_string(), t.win_args.iter().map(|s| s.to_string()).collect())),
         _ => None,
     }
+}
+
+/// os: "macos" | "windows". 그 OS에 제거 명령이 없으면 None(→ 안내 폴백 또는 remove_binary).
+pub(crate) fn uninstall_command(t: &ToolInstaller, os: &str) -> Option<(String, Vec<String>)> {
+    let (prog, args) = match os {
+        "macos" => t.mac_uninstall?,
+        "windows" => t.win_uninstall?,
+        _ => return None,
+    };
+    Some((prog.to_string(), args.iter().map(|s| s.to_string()).collect()))
 }
 
 #[cfg(target_os = "macos")]
@@ -214,5 +249,41 @@ mod tests {
     fn unsupported_os_yields_no_command_for_manual_fallback() {
         let t = tool_installer("agy").unwrap();
         assert!(install_command(t, "linux-unknown").is_none());
+    }
+
+    #[test]
+    fn uninstall_command_per_os() {
+        let oc = tool_installer("opencode").unwrap();
+        let mac = uninstall_command(oc, "macos").expect("opencode mac uninstall");
+        assert_eq!(mac.0, "opencode");
+        assert!(mac.1.iter().any(|a| a == "uninstall"));
+        let win = uninstall_command(oc, "windows").expect("opencode win uninstall");
+        assert_eq!(win.0, "npm");
+    }
+
+    #[test]
+    fn codex_win_and_agy_have_no_command_fallback_to_manual() {
+        let cx = tool_installer("codex").unwrap();
+        assert!(uninstall_command(cx, "macos").is_some());
+        assert!(uninstall_command(cx, "windows").is_none());
+        let agy = tool_installer("agy").unwrap();
+        assert!(uninstall_command(agy, "macos").is_none());
+        assert!(uninstall_command(agy, "windows").is_none());
+    }
+
+    #[test]
+    fn agy_uses_remove_binary_others_do_not() {
+        assert!(tool_installer("agy").unwrap().uninstall_remove_binary);
+        assert!(!tool_installer("opencode").unwrap().uninstall_remove_binary);
+        assert!(!tool_installer("codex").unwrap().uninstall_remove_binary);
+    }
+
+    #[test]
+    fn manual_fallback_tools_have_hint_and_url() {
+        for id in ["opencode", "codex", "agy"] {
+            let t = tool_installer(id).unwrap();
+            assert!(!t.uninstall_hint.is_empty(), "{id} hint");
+            assert!(!t.uninstall_url.is_empty(), "{id} url");
+        }
     }
 }
