@@ -122,20 +122,24 @@ pub(crate) fn install_tool(app: tauri::AppHandle, id: String) -> Result<ToolInst
     hide_console(&mut cmd);
     let mut child = cmd.spawn().map_err(|e| format!("설치 실행 실패: {e}"))?;
 
-    let emit = |app: &tauri::AppHandle, stream: &str, line: String| {
-        use tauri::Emitter;
-        let _ = app.emit("tool-install-output", ToolInstallOutput { id: id.clone(), stream: stream.into(), line });
-    };
+    use tauri::Emitter;
+    // stderr 를 별도 스레드에서 동시에 드레인 — 순차 읽기 데드락 방지(설치기는 stderr 수다스러움).
+    let stderr_handle = child.stderr.take().map(|err| {
+        let app2 = app.clone();
+        let id2 = id.clone();
+        std::thread::spawn(move || {
+            for line in BufReader::new(err).lines().map_while(Result::ok) {
+                let _ = app2.emit("tool-install-output", ToolInstallOutput { id: id2.clone(), stream: "stderr".into(), line });
+            }
+        })
+    });
     if let Some(out) = child.stdout.take() {
-        let (app2, stream) = (app.clone(), "stdout");
         for line in BufReader::new(out).lines().map_while(Result::ok) {
-            emit(&app2, stream, line);
+            let _ = app.emit("tool-install-output", ToolInstallOutput { id: id.clone(), stream: "stdout".into(), line });
         }
     }
-    if let Some(err) = child.stderr.take() {
-        for line in BufReader::new(err).lines().map_while(Result::ok) {
-            emit(&app, "stderr", line);
-        }
+    if let Some(h) = stderr_handle {
+        let _ = h.join();
     }
     let status = child.wait().map_err(|e| format!("설치 대기 실패: {e}"))?;
     // 종료 후 새로 PATH 해석해 프로브(설치 직후 PATH 반영 확인).
