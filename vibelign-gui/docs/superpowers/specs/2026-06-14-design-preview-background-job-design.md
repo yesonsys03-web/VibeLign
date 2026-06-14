@@ -40,7 +40,7 @@
   - `{ kind: "style"; style: StyleSpec; feedback?: string; previousHtml?: string }` → mockup 직접(synth 안 함; `synth`는 호출자가 넘긴 style이 합성본일 수 있으나 여기선 건드리지 않음).
 - **App.tsx에서 인스턴스화** → 상태 수명 = 앱(프로젝트) 수명.
 - **projectDir 변경 시 자동 reset**(useEffect 의존성 `[projectDir]`): 프로젝트 전환/종료 시 이전 잡 잔여 제거.
-- **언마운트 후 setState 가드**: 훅은 App에 살아 언마운트되지 않지만, projectDir 변경으로 진행 중 잡 결과가 늦게 도착할 때를 대비해 `run` 내부에 토큰(증가하는 ref) 기반 stale-결과 무시 가드를 둔다(가장 최근 `run`의 결과만 반영).
+- **언마운트 후 setState 가드**: 훅은 App에 살아 언마운트되지 않지만, projectDir 변경으로 진행 중 잡 결과가 늦게 도착할 때를 대비해 `run` 내부에 시퀀스(증가하는 ref) 기반 stale-결과 무시 가드를 둔다(가장 최근 `run`의 결과만 반영).
 
 **3-2. `DesignPreview` — `job` props를 받는 뷰**
 - 시그니처에 `job: DesignJob` 추가(App이 주입). 기존 props(projectDir/planPath/isLikelyWeb/onBack/onConfirm) 유지.
