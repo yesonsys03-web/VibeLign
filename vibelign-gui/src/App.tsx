@@ -649,7 +649,7 @@ export default function App() {
                 }} />}
                 {page === "run" && <RunPanel projectDir={projectDir} onNavigate={navigate} guardStatus={guardStatus} runVerified={runVerified} onRunVerified={() => { runVerifiedFingerprintRef.current = changedFingerprint; setRunVerified(true); }} onRequestWorkHandoff={(h) => { setWorkHandoff(h); navigate("work"); }} />}
                 {page === "doctor" && <Doctor projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} launchIntent={doctorLaunchIntent} />}
-                {page === "backups" && <BackupDashboardPage projectDir={projectDir} onBackupsChanged={() => setBackupsVersion((v) => v + 1)} />}
+                {page === "backups" && <BackupDashboardPage projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} onBackupsChanged={() => setBackupsVersion((v) => v + 1)} />}
                 {page === "logs" && <ErrorLogs projectDir={projectDir} />}
                 {page === "settings" && (
                   <>

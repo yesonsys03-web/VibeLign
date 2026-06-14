@@ -1,16 +1,19 @@
 // === ANCHOR: BACKUP_DASHBOARD_PAGE_START ===
 import { useCallback, useEffect, useState } from "react";
 import BackupDashboardView from "../components/backup-dashboard/BackupDashboard";
+import RecoveryOptionsCard from "../components/agent-memory/RecoveryOptionsCard";
 import type { BackupEntry } from "../lib/vib";
 import { backupCreate, backupList, backupRestore, getCachedBackupList } from "../lib/vib";
 
 interface BackupDashboardPageProps {
   projectDir: string;
+  apiKey?: string | null;
+  providerKeys?: Record<string, string>;
   /** 저장본 생성·복원 직후 호출 — App이 가이드 신호(체크포인트·변경 수)를 즉시 재조회한다. */
   onBackupsChanged?: () => void;
 }
 
-export default function BackupDashboardPage({ projectDir, onBackupsChanged }: BackupDashboardPageProps) {
+export default function BackupDashboardPage({ projectDir, apiKey, providerKeys, onBackupsChanged }: BackupDashboardPageProps) {
   const cached = getCachedBackupList(projectDir);
   const [entries, setEntries] = useState<BackupEntry[]>(cached?.backups ?? []);
   const [loading, setLoading] = useState(!cached);
@@ -93,6 +96,9 @@ export default function BackupDashboardPage({ projectDir, onBackupsChanged }: Ba
         {notice && <div className="alert alert-success">{notice}</div>}
       </div>
       <div className="page-content" style={{ overflowY: "auto" }}>
+        <div style={{ padding: "12px 20px 0" }}>
+          <RecoveryOptionsCard projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} />
+        </div>
         <BackupDashboardView entries={entries} loading={loading} query={query} selectedId={selectedId} restoring={restoring} projectDir={projectDir} activeChildView={activeChildView} onRefresh={() => void load(true)} onQueryChange={setQuery} onSelect={setSelectedId} onRestore={handleRestore} onActiveChildViewChange={setActiveChildView} />
       </div>
     </div>
