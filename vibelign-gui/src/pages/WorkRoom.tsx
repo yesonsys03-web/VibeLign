@@ -14,6 +14,7 @@ import type { GuardResult, PlanningContract } from "../lib/vib/types";
 import type { Page } from "../lib/nav/stages";
 import type { DesignBinding } from "./DesignPreview";
 import { planCardCollapsed, setPlanCardCollapsed, collapseToggleStyle } from "../lib/nav/collapse";
+import { runCtaVisible } from "./workRoomCta";
 
 interface WorkRoomProps {
   projectDir: string;
@@ -746,6 +747,29 @@ export default function WorkRoom({
             ))}
           </div>
         </section>
+      )}
+      {runCtaVisible(phase, guardVerdict) && (
+        <div
+          style={{
+            position: "sticky",
+            bottom: 0,
+            zIndex: 5,
+            // .page-content 의 padding:20px 를 음수 마진으로 상쇄해 컨테이너 가장자리에 밀착.
+            margin: "0 -20px -20px",
+            padding: "12px 20px",
+            background: "#F5F1E3",
+            borderTop: "2px solid #1A1A1A",
+            boxShadow: "0 -4px 12px rgba(0,0,0,0.12)",
+          }}
+        >
+          <button
+            className="btn"
+            onClick={() => onNavigate("run")}
+            style={{ width: "100%", background: "#1A1A1A", color: "#fff", border: "2px solid #1A1A1A", fontWeight: 900 }}
+          >
+            ▶ 이대로 실행해보기 →
+          </button>
+        </div>
       )}
       </div>
     </div>
