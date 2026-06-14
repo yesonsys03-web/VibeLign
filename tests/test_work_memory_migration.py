@@ -522,6 +522,8 @@ def test_save_memory_state_typed_fields_override_unknown_field_collisions(tmp_pa
             "stale": False,
             "proposed": False,
             "from_previous_intent": False,
+            "accepted_by": "",
+            "accepted_at": "",
         }
     ]
     assert raw["future_field"] is True
