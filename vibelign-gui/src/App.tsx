@@ -580,6 +580,7 @@ export default function App() {
               aiToolMissing={aiToolMissing}
               celebrating={celebrating}
               runVerified={runVerified}
+              guardOk={guardStatus === "ok"}
               onNavigate={navigate}
               onStepChange={guide.setStep}
               onDisable={() => guide.setEnabled(false)}

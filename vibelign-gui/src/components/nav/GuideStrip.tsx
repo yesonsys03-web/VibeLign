@@ -16,8 +16,10 @@ interface GuideStripProps {
   aiToolMissing?: boolean;
   /** 첫 사이클 완주 축하 표시 중 — App이 6️⃣→4️⃣ 전환에서 1회 켠다(spec §3.2) */
   celebrating?: boolean;
-  /** 작동 검증(실행해보기) 완료 — 5️⃣에서 "✓ 작동 확인됨"으로 축 진행을 표시. */
+  /** 작동 검증(실행해보기) 완료 — 5️⃣ 안내 문구에 진행을 반영. */
   runVerified?: boolean;
+  /** 안전 검증(상태 확인=guard ok) 완료 — 5️⃣ 안내 문구에 진행을 반영. */
+  guardOk?: boolean;
   onNavigate: (page: Page) => void;
   onStepChange: (next: ActiveGuideStep) => void;
   onDisable: () => void;
@@ -80,6 +82,7 @@ export function GuideStrip({
   aiToolMissing = false,
   celebrating = false,
   runVerified = false,
+  guardOk = false,
   onNavigate,
   onStepChange,
   onDisable,
@@ -160,10 +163,20 @@ export function GuideStrip({
 
   // 5️⃣ 결과 검증은 두 축(상태확인=안전·실행해보기=작동) — 상태확인은 홈 버튼, 실행해보기는 이 버튼으로
   // 이어준다. 주행동(goButton)이 홈을 가리켜(onTarget) 숨겨질 때도 실행해보기로 갈 길을 항상 연다.
+  // 5️⃣ 결과 검증은 두 축(안전=guard·작동=실행해보기). 남은 축만 안내해 문구↔진행 모순을 없앤다.
+  // 둘 다 끝나면 inferStep 이 6️⃣로 넘기므로 5️⃣ 자체가 안 보인다.
+  const step5Action =
+    step !== 5
+      ? null
+      : runVerified
+        ? "✓ 작동 확인됨 — 이제 '상태 확인'으로 안전만 확인하면 끝이에요"
+        : guardOk
+          ? "✓ 안전 확인됨 — 이제 '실행해보기'로 진짜 작동을 확인하세요"
+          : null;
+
+  // 실행해보기 버튼은 작동 미확인일 때만(확인되면 문구가 ✓로 알림).
   const runButton =
-    step !== 5 ? null : runVerified ? (
-      <span style={{ color: "#166534", fontWeight: 800, fontSize: 13, whiteSpace: "nowrap" }}>✓ 작동 확인됨</span>
-    ) : currentPage !== "run" ? (
+    step === 5 && !runVerified && currentPage !== "run" ? (
       <button className="nav-tab" style={goBtnStyle} onClick={() => onNavigate("run")}>
         ▶ 실행해보기 →
       </button>
@@ -247,7 +260,7 @@ export function GuideStrip({
               <span style={{ color: "#7C2D12", fontWeight: 700 }}>
                 {def.icon} {def.label}
               </span>{" "}
-              — {def.shortAction}
+              — {step5Action ?? def.shortAction}
             </span>
             <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 10, rowGap: 8 }}>
               {goButton}
