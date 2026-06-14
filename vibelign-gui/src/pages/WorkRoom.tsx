@@ -748,7 +748,7 @@ export default function WorkRoom({
           </div>
         </section>
       )}
-      {runCtaVisible(phase, guardVerdict) && (
+      {runOutcome && runCtaVisible(phase, guardVerdict) && (
         <div
           style={{
             position: "sticky",
