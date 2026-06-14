@@ -320,4 +320,106 @@ pub(crate) fn save_design_mockup(
     }
     save_mockup_file(dir, &style_id, &html)
 }
+const MAX_TOKEN_LEN: usize = 200;
+const MAX_RECIPE_LEN: usize = 2048;
+const MAX_DESC_LEN: usize = 512;
+const MAX_NAME_LEN: usize = 80;
+
+/// CSS 토큰 값 안전성 — <style> 변수로 그대로 주입되므로 인젝션/이스케이프 토큰 거부.
+/// 따옴표·쉼표·공백은 정상 값(border/shadow/fontFamily)이라 허용.
+pub(crate) fn css_value_is_safe(v: &str) -> bool {
+    let lower = v.to_ascii_lowercase();
+    !v.trim().is_empty()
+        && v.len() <= MAX_TOKEN_LEN
+        && !v.contains([';', '{', '}', '<', '>'])
+        && !lower.contains("url(")
+        && !lower.contains("expression(")
+        && !lower.contains("@import")
+        && !lower.contains("javascript:")
+}
+
+/// 합성된 StyleSpec 검증. 토큰 안전성 + 길이 한도.
+pub(crate) fn validate_style_spec(s: &StyleSpec) -> Result<(), String> {
+    if s.name.trim().is_empty() || s.name.len() > MAX_NAME_LEN {
+        return Err("스타일 이름이 비었거나 너무 깁니다".into());
+    }
+    if s.description.len() > MAX_DESC_LEN {
+        return Err("스타일 설명이 너무 깁니다".into());
+    }
+    if s.recipe.trim().is_empty() || s.recipe.len() > MAX_RECIPE_LEN {
+        return Err("스타일 recipe가 비었거나 너무 깁니다".into());
+    }
+    let t = &s.tokens;
+    for v in [&t.bg, &t.surface, &t.text, &t.primary, &t.accent, &t.border, &t.font_family, &t.radius, &t.shadow] {
+        if !css_value_is_safe(v) {
+            return Err(format!("토큰 값이 안전하지 않습니다: {v}"));
+        }
+    }
+    if let Some(m) = &s.motion {
+        if !css_value_is_safe(&m.tokens.duration) || !css_value_is_safe(&m.tokens.easing) {
+            return Err("모션 토큰 값이 안전하지 않습니다".into());
+        }
+        if m.recipe.len() > MAX_RECIPE_LEN {
+            return Err("모션 recipe가 너무 깁니다".into());
+        }
+    }
+    Ok(())
+}
+
+/// 시드(합성 프롬프트 등)에서 항상 `is_safe_style_id` 통과하는 id 생성.
+pub(crate) fn safe_style_id_from(seed: &str) -> String {
+    format!("custom-{}", &design_cache_key(seed)[..8])
+}
+
 // ANCHOR: DESIGN_PREVIEW_END
+
+#[cfg(test)]
+mod custom_style_tests {
+    use super::*;
+
+    fn ok_tokens() -> DesignTokens {
+        DesignTokens {
+            bg: "#FFFFFF".into(), surface: "#F8FAFC".into(), text: "#0F172A".into(),
+            primary: "#4F46E5".into(), accent: "#06B6D4".into(),
+            border: "1px solid #E2E8F0".into(),
+            font_family: "'Inter', system-ui, sans-serif".into(),
+            radius: "12px".into(), shadow: "0 1px 3px rgba(15,23,42,0.08)".into(),
+        }
+    }
+    fn ok_spec() -> StyleSpec {
+        StyleSpec { id: "custom-x".into(), name: "테스트".into(), description: "설명".into(),
+            tokens: ok_tokens(), recipe: "둥근 카드와 한 강조색.".into(), motion: None }
+    }
+
+    #[test]
+    fn accepts_valid_spec() {
+        assert!(validate_style_spec(&ok_spec()).is_ok());
+    }
+    #[test]
+    fn rejects_css_injection_in_token() {
+        let mut s = ok_spec();
+        s.tokens.primary = "red;} body{display:none".into();
+        assert!(validate_style_spec(&s).is_err());
+    }
+    #[test]
+    fn rejects_url_and_import_and_expression() {
+        for bad in ["url(http://x)", "@import 'x'", "expression(alert(1))", "<svg>"] {
+            let mut s = ok_spec();
+            s.tokens.bg = bad.into();
+            assert!(validate_style_spec(&s).is_err(), "should reject {bad}");
+        }
+    }
+    #[test]
+    fn rejects_empty_name_or_recipe() {
+        let mut s = ok_spec(); s.name = "  ".into();
+        assert!(validate_style_spec(&s).is_err());
+        let mut s2 = ok_spec(); s2.recipe = "".into();
+        assert!(validate_style_spec(&s2).is_err());
+    }
+    #[test]
+    fn safe_id_is_always_valid() {
+        let id = safe_style_id_from("아무 시드 ABC !@#");
+        assert!(is_safe_style_id(&id), "got {id}");
+        assert!(id.starts_with("custom-"));
+    }
+}
