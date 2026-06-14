@@ -43,6 +43,8 @@ GITIGNORE_RUST_OBJECTS_LINE = ".vibelign/rust_objects/"
 GITIGNORE_SCAN_CACHE_LINE = ".vibelign/scan_cache.json"
 GITIGNORE_LOGS_LINE = ".vibelign/logs/"
 GITIGNORE_REPORTS_LINE = ".vibelign/reports/"
+GITIGNORE_NODE_MODULES_LINE = "node_modules/"
+GITIGNORE_DS_STORE_LINE = ".DS_Store"
 LARGE_FILE_LINE_THRESHOLD = 300
 START_TOOL_CHOICES = (
     "claude",
@@ -209,6 +211,39 @@ def _init_git(root: Path) -> bool:
         return False
 
 
+def _ensure_initial_commit(root: Path) -> bool:
+    """커밋이 0개인 repo에만 초기 베이스라인 커밋을 만든다. 기존 커밋/실패/git없음 → False."""
+    git = _find_git_exe()
+    if not git:
+        return False
+    try:
+        head = subprocess.run(
+            [git, "rev-parse", "--verify", "HEAD"],
+            cwd=root, capture_output=True, creationflags=WINDOWS_SUBPROCESS_FLAGS,
+        )
+        if head.returncode == 0:
+            return False  # 이미 커밋 있음 — 히스토리 불변
+        subprocess.run(
+            [git, "add", "-A"], cwd=root, check=True, capture_output=True,
+            creationflags=WINDOWS_SUBPROCESS_FLAGS,
+        )
+        staged = subprocess.run(
+            [git, "diff", "--cached", "--quiet"],
+            cwd=root, capture_output=True, creationflags=WINDOWS_SUBPROCESS_FLAGS,
+        )
+        if staged.returncode == 0:
+            return False  # staged 비어있음(빈 디렉터리)
+        subprocess.run(
+            [git, "-c", "user.name=VibeLign", "-c", "user.email=vibelign@local",
+             "commit", "--no-verify", "-m", "chore: 초기 베이스라인 (VibeLign)"],
+            cwd=root, check=True, capture_output=True,
+            creationflags=WINDOWS_SUBPROCESS_FLAGS,
+        )
+        return True
+    except (subprocess.CalledProcessError, OSError):
+        return False
+
+
 # === ANCHOR: VIB_START_CMD__HAS_GIT_END ===
 
 
@@ -224,6 +259,8 @@ def _ensure_gitignore_entry(root: Path) -> None:
             GITIGNORE_SCAN_CACHE_LINE,
             GITIGNORE_LOGS_LINE,
             GITIGNORE_REPORTS_LINE,
+            GITIGNORE_NODE_MODULES_LINE,
+            GITIGNORE_DS_STORE_LINE,
         ]
         if line
         not in (

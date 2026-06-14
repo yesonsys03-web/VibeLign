@@ -473,5 +473,39 @@ class TestPagesRoutesUiClassification(unittest.TestCase):
         rust_scan.assert_called_once_with(rust_root)
 
 
+def _git(root, *args):
+    import subprocess
+    return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True)
+
+def test_ensure_initial_commit_creates_baseline(tmp_path):
+    from vibelign.commands.vib_start_cmd import _ensure_initial_commit
+    _git(tmp_path, "init")
+    (tmp_path / "a.txt").write_text("hello", encoding="utf-8")
+    assert _ensure_initial_commit(tmp_path) is True
+    count = _git(tmp_path, "rev-list", "--count", "HEAD").stdout.strip()
+    assert count == "1"
+
+def test_ensure_initial_commit_skips_when_commits_exist(tmp_path):
+    from vibelign.commands.vib_start_cmd import _ensure_initial_commit
+    _git(tmp_path, "init")
+    (tmp_path / "a.txt").write_text("x", encoding="utf-8")
+    _git(tmp_path, "-c", "user.name=t", "-c", "user.email=t@t", "add", "-A")
+    _git(tmp_path, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-m", "first")
+    assert _ensure_initial_commit(tmp_path) is False
+    assert _git(tmp_path, "rev-list", "--count", "HEAD").stdout.strip() == "1"
+
+def test_ensure_initial_commit_no_git(tmp_path, monkeypatch):
+    import vibelign.commands.vib_start_cmd as m
+    monkeypatch.setattr(m, "_find_git_exe", lambda: None)
+    assert m._ensure_initial_commit(tmp_path) is False
+
+def test_gitignore_includes_node_modules_and_dsstore(tmp_path):
+    from vibelign.commands.vib_start_cmd import _ensure_gitignore_entry
+    _ensure_gitignore_entry(tmp_path)
+    body = (tmp_path / ".gitignore").read_text(encoding="utf-8")
+    assert "node_modules/" in body
+    assert ".DS_Store" in body
+
+
 if __name__ == "__main__":
     unittest.main()
