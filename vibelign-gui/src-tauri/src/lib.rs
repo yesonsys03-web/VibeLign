@@ -189,6 +189,7 @@ pub fn run() {
             onboarding::detect_installed_tools,
             commands::tool_install::install_tool,
             commands::tool_install::tool_install_status,
+            commands::tool_install::uninstall_tool,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

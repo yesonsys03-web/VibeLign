@@ -133,6 +133,17 @@ pub(crate) struct ToolInstallOutput {
     pub line: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ToolUninstallResult {
+    /// 이 호출 후 바이너리가 없으면 true (애초에 설치 안 돼 있던 경우도 포함).
+    pub removed: bool,
+    pub exit_code: Option<i32>,
+    /// removed=false 일 때 보여줄 수동 제거 안내.
+    pub manual_hint: String,
+    pub manual_url: String,
+}
+
 #[tauri::command]
 pub(crate) fn tool_install_status(id: String) -> Result<bool, String> {
     let t = tool_installer(&id).ok_or_else(|| "알 수 없는 도구".to_string())?;
@@ -212,6 +223,89 @@ pub(crate) async fn install_tool(
 }
 // ANCHOR: TOOL_INSTALL_END
 
+// ANCHOR: TOOL_UNINSTALL_START
+/// resolve된 실행파일 경로(Option)를 받아 있으면 삭제하고, 호출 후 없으면 true.
+/// 파일 1개만 remove_file — 비재귀·셸 미경유. None 이면 이미 없으므로 true.
+fn remove_resolved_binary(resolved: Option<std::path::PathBuf>) -> std::io::Result<bool> {
+    match resolved {
+        Some(path) => {
+            std::fs::remove_file(&path)?;
+            Ok(!path.exists())
+        }
+        None => Ok(true),
+    }
+}
+
+#[tauri::command]
+pub(crate) async fn uninstall_tool(
+    app: tauri::AppHandle,
+    id: String,
+) -> Result<ToolUninstallResult, String> {
+    let t = tool_installer(&id).ok_or_else(|| "알 수 없는 도구".to_string())?;
+    let manual_hint = t.uninstall_hint.to_string();
+    let manual_url = t.uninstall_url.to_string();
+
+    // 1) agy mac: 명령이 없어 resolve된 단일 바이너리만 삭제(파일 1개, 비재귀, 셸 미경유).
+    if t.uninstall_remove_binary && current_os() == "macos" {
+        let removed = remove_resolved_binary(find_executable(t.probe_binary))
+            .map_err(|e| format!("제거 실패: {e}"))?;
+        return Ok(ToolUninstallResult { removed, exit_code: None, manual_hint, manual_url });
+    }
+
+    // 2) 제거 명령이 있으면 실행. 없으면 안내 폴백.
+    let Some((program, args)) = uninstall_command(t, current_os()) else {
+        return Ok(ToolUninstallResult { removed: false, exit_code: None, manual_hint, manual_url });
+    };
+
+    let probe_binary = t.probe_binary;
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Emitter;
+        let mut cmd = std::process::Command::new(&program);
+        cmd.args(&args);
+        cmd.env("PATH", augmented_vib_path());
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
+        hide_console(&mut cmd);
+        let mut child = cmd.spawn().map_err(|e| format!("제거 실행 실패: {e}"))?;
+
+        let stderr_handle = child.stderr.take().map(|err| {
+            let app2 = app.clone();
+            let id2 = id.clone();
+            std::thread::spawn(move || {
+                for line in BufReader::new(err).lines().map_while(Result::ok) {
+                    let _ = app2.emit(
+                        "tool-install-output",
+                        ToolInstallOutput { id: id2.clone(), stream: "stderr".into(), line },
+                    );
+                }
+            })
+        });
+        if let Some(out) = child.stdout.take() {
+            for line in BufReader::new(out).lines().map_while(Result::ok) {
+                let _ = app.emit(
+                    "tool-install-output",
+                    ToolInstallOutput { id: id.clone(), stream: "stdout".into(), line },
+                );
+            }
+        }
+        if let Some(h) = stderr_handle {
+            let _ = h.join();
+        }
+        let status = child.wait().map_err(|e| format!("제거 대기 실패: {e}"))?;
+        // 제거 후 재-probe — 정말 사라졌는지 검증(거짓 성공 방지).
+        let removed = find_executable(probe_binary).is_none();
+        Ok(ToolUninstallResult {
+            removed,
+            exit_code: status.code(),
+            manual_hint,
+            manual_url,
+        })
+    })
+    .await
+    .map_err(|_| SPAWN_FAIL.to_string())?
+}
+// ANCHOR: TOOL_UNINSTALL_END
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -276,6 +370,22 @@ mod tests {
         assert!(tool_installer("agy").unwrap().uninstall_remove_binary);
         assert!(!tool_installer("opencode").unwrap().uninstall_remove_binary);
         assert!(!tool_installer("codex").unwrap().uninstall_remove_binary);
+    }
+
+    #[test]
+    fn remove_resolved_binary_none_is_already_gone() {
+        assert!(remove_resolved_binary(None).unwrap());
+    }
+
+    #[test]
+    fn remove_resolved_binary_deletes_single_file() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("vibelign_uninstall_test_bin");
+        std::fs::write(&path, b"x").unwrap();
+        assert!(path.exists());
+        let removed = remove_resolved_binary(Some(path.clone())).unwrap();
+        assert!(removed);
+        assert!(!path.exists());
     }
 
     #[test]
