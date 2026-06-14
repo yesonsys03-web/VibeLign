@@ -2,13 +2,33 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, test, vi } from "vitest";
 import DesignPreview from "../DesignPreview";
 
-const mocks = vi.hoisted(() => ({ generateMock: vi.fn(), saveMock: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  generateMock: vi.fn(),
+  saveMock: vi.fn(),
+  synthesizeMock: vi.fn(),
+  listCustomMock: vi.fn().mockResolvedValue([]),
+  saveCustomMock: vi.fn().mockResolvedValue(undefined),
+  deleteCustomMock: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("../../lib/vib/design", () => ({
   generateDesignMockup: mocks.generateMock,
   saveDesignMockup: mocks.saveMock,
+  synthesizeStyle: mocks.synthesizeMock,
+  listCustomStyles: mocks.listCustomMock,
+  saveCustomStyle: mocks.saveCustomMock,
+  deleteCustomStyle: mocks.deleteCustomMock,
 }));
 
-afterEach(() => { cleanup(); mocks.generateMock.mockReset(); mocks.saveMock.mockReset(); });
+afterEach(() => {
+  cleanup();
+  mocks.generateMock.mockReset();
+  mocks.saveMock.mockReset();
+  mocks.synthesizeMock.mockReset();
+  mocks.listCustomMock.mockReset();
+  mocks.listCustomMock.mockResolvedValue([]);
+  mocks.saveCustomMock.mockReset();
+  mocks.deleteCustomMock.mockReset();
+});
 
 describe("DesignPreview", () => {
   test("스타일 선택·생성 시 목업을 sandbox iframe에 렌더", async () => {
@@ -35,7 +55,7 @@ describe("DesignPreview", () => {
     fireEvent.click(screen.getByRole("button", { name: "이 스타일로 그려보기" }));
     await waitFor(() => expect((screen.getByTitle("디자인 목업") as HTMLIFrameElement).getAttribute("srcdoc")).toContain("V1"));
     fireEvent.change(screen.getByLabelText("수정 요청"), { target: { value: "버튼 크게" } });
-    fireEvent.click(screen.getByRole("button", { name: "다시 그리기" }));
+    fireEvent.click(screen.getByRole("button", { name: /다시 그리기/ }));
     await waitFor(() => expect((screen.getByTitle("디자인 목업") as HTMLIFrameElement).getAttribute("srcdoc")).toContain("V2"));
     expect(mocks.generateMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ feedback: "버튼 크게", previousHtml: expect.stringContaining("V1") }),
@@ -56,7 +76,7 @@ describe("DesignPreview", () => {
     fireEvent.click(screen.getByRole("button", { name: /네오브루탈리즘/ }));
     fireEvent.click(screen.getByRole("button", { name: "이 스타일로 그려보기" }));
     await waitFor(() => screen.getByTitle("디자인 목업"));
-    fireEvent.click(screen.getByRole("button", { name: "이 디자인으로 만들기" }));
+    fireEvent.click(screen.getByRole("button", { name: /이 디자인으로 만들기/ }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalled());
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
       mockupPath: ".vibelign/design_preview/m.html",

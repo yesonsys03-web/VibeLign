@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DESIGN_STYLES, getStyle, type StyleSpec, type MotionSpec } from "../lib/design-preview/styles";
-import { generateDesignMockup, saveDesignMockup, synthesizeStyle } from "../lib/vib/design";
-import { EXAMPLE_CHIPS } from "../lib/design-preview/customStyles";
+import { generateDesignMockup, saveDesignMockup, synthesizeStyle, listCustomStyles, saveCustomStyle, deleteCustomStyle } from "../lib/vib/design";
+import { EXAMPLE_CHIPS, mergeStyleLists } from "../lib/design-preview/customStyles";
 
 export interface DesignBinding {
   readonly mockupPath: string;
@@ -27,6 +27,13 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
   const [describe, setDescribe] = useState("");
   const [synth, setSynth] = useState<StyleSpec | null>(null);
   const selected = selectedId ? getStyle(selectedId) : undefined;
+  const [custom, setCustom] = useState<StyleSpec[]>([]);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  useEffect(() => {
+    listCustomStyles(projectDir).then(setCustom).catch(() => setCustom([]));
+  }, [projectDir]);
+  const allStyles = mergeStyleLists(DESIGN_STYLES, custom);
+  const customIds = new Set(custom.map((s) => s.id));
 
   async function createFromDescription(baseStyle?: StyleSpec) {
     const desc = describe.trim();
@@ -85,11 +92,26 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
         </p>
       )}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        {DESIGN_STYLES.map((s) => (
+        {allStyles.map((s) => (
           <button key={s.id} onClick={() => setSelectedId(s.id)} aria-pressed={selectedId === s.id}
             style={{ border: selectedId === s.id ? "2px solid #111" : "1px solid #ccc", padding: 12 }}>
             <strong>{s.name}</strong>
             <div>{s.description}</div>
+            {customIds.has(s.id) && (
+              <span
+                role="button"
+                aria-label={`${s.name} 삭제`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void deleteCustomStyle({ projectDir, styleId: s.id }).then(() =>
+                    listCustomStyles(projectDir).then(setCustom),
+                  );
+                }}
+                style={{ fontSize: 11, color: "#b42318", fontWeight: 800, cursor: "pointer" }}
+              >
+                ✕ 삭제
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -116,6 +138,16 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
       <button disabled={!selected || loading} onClick={() => void generate(false)}>
         {loading ? "그리는 중…" : "이 스타일로 그려보기"}
       </button>
+      {selected && !synth && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+          <input aria-label="스타일 변형" value={describe} onChange={(e) => setDescribe(e.target.value)}
+            placeholder={`예: "${selected.name}" 에서 더 밝게 / 더 미니멀하게`}
+            style={{ flex: 1, minWidth: 220, padding: "9px 12px", border: "2px solid #1A1A1A", fontSize: 14 }} />
+          <button className="btn" disabled={!describe.trim() || loading} onClick={() => void createFromDescription(selected)}>
+            ✦ 이 스타일 변형하기
+          </button>
+        </div>
+      )}
       {error && <p style={{ color: "crimson" }}>{error}</p>}
       {html && (
         <>
@@ -144,6 +176,17 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
               style={{ background: "#1A1A1A", color: "#fff", border: "2px solid #1A1A1A", fontWeight: 900 }}>
               ✓ 이 디자인으로 만들기
             </button>
+            {synth && (
+              <button className="btn" disabled={loading} onClick={() => {
+                void saveCustomStyle({ projectDir, style: synth })
+                  .then(() => listCustomStyles(projectDir).then(setCustom))
+                  .then(() => setSavedMsg("스타일을 저장했어요 — 목록에서 다시 쓸 수 있어요"))
+                  .catch((e) => setError(String(e)));
+              }}>
+                ＋ 이 스타일 저장하기
+              </button>
+            )}
+            {savedMsg && <span style={{ fontSize: 12, fontWeight: 800, color: "#166534", alignSelf: "center" }}>{savedMsg}</span>}
           </div>
         </>
       )}
