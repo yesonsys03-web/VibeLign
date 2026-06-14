@@ -54,7 +54,7 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
   }
 
   return (
-    <div className="page-content">
+    <div className="page-content" style={{ height: "100%" }}>
       <button onClick={onBack}>← 뒤로</button>
       <h2>디자인 미리보기</h2>
       {!isLikelyWeb && (
@@ -78,11 +78,18 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
       {html && (
         <>
           <iframe title="디자인 목업" srcDoc={html} sandbox="" style={{ width: "100%", height: 600, border: "1px solid #ddd" }} />
-          <div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 12, paddingTop: 12, borderTop: "2px solid #1A1A1A" }}>
             <input aria-label="수정 요청" value={feedback} onChange={(e) => setFeedback(e.target.value)}
-              placeholder="예: 여긴 빨강, 버튼 크게" />
-            <button disabled={loading || !feedback.trim()} onClick={() => void generate(true)}>다시 그리기</button>
-            <button onClick={() => void confirm()}>이 디자인으로 만들기</button>
+              placeholder="예: 여긴 빨강, 버튼 크게"
+              style={{ flex: 1, minWidth: 220, padding: "9px 12px", border: "2px solid #1A1A1A", fontSize: 14 }} />
+            <button className="btn" disabled={loading || !feedback.trim()} onClick={() => void generate(true)}
+              style={{ fontWeight: 800 }}>
+              ↻ 다시 그리기
+            </button>
+            <button className="btn" onClick={() => void confirm()}
+              style={{ background: "#1A1A1A", color: "#fff", border: "2px solid #1A1A1A", fontWeight: 900 }}>
+              ✓ 이 디자인으로 만들기
+            </button>
           </div>
         </>
       )}
