@@ -26,4 +26,5 @@ pub(crate) mod settings;
 pub(crate) mod vib_bridge;
 pub(crate) mod watch;
 pub(crate) mod work_room;
+pub(crate) mod tool_install;
 // === ANCHOR: MOD_END ===
