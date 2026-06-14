@@ -119,6 +119,8 @@ export default function App() {
   const [planningResult, setPlanningResult] = useState<PlanningChatSessionResponse | null>(null);
   // 디자인 미리보기: PlanDocView 가 선택한 기획안 경로(designPlanPath) → 확정 시 designBinding 으로 작업방에 바인딩.
   const [designPlanPath, setDesignPlanPath] = useState<string | null>(null);
+  // 기획안이 바뀌면 이전 기획안용 디자인 잡을 폐기 — 다른 기획안에 엉뚱한 목업이 바인딩되는 것 방지.
+  useEffect(() => { designJob.reset(); }, [designPlanPath, designJob.reset]);
   const [designBinding, setDesignBinding] = useState<DesignBinding | null>(null);
   // 웹 게이트(비차단): run_detect 가 electron 으로 확정될 때만 경고. unknown/null 은 불확실 → 경고 안 함.
   const [designIsWeb, setDesignIsWeb] = useState(true);
