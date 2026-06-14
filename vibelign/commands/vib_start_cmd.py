@@ -1104,6 +1104,10 @@ def run_vib_start(args: Namespace) -> None:
             clack_warn(
                 "git을 찾을 수 없어서 자동 초기화를 건너뜠어요. git을 설치하면 비밀정보 자동 검사 등을 쓸 수 있어요."
             )
+    if git_active:
+        _ensure_gitignore_entry(root)
+        if _ensure_initial_commit(root):
+            clack_success("초기 베이스라인 커밋을 만들었어요 (변경 추적 시작)")
     secret_hook_result = install_pre_commit_secret_hook(root) if git_active else None
     record_hook_result = (
         install_post_commit_record_hook(root) if git_active else None
