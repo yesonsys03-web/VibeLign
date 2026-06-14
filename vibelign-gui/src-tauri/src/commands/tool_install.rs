@@ -104,53 +104,76 @@ pub(crate) fn tool_install_status(id: String) -> Result<bool, String> {
     Ok(find_executable(t.probe_binary).is_some())
 }
 
+const SPAWN_FAIL: &str = "작업 실행에 실패했어요";
+
 #[tauri::command]
-pub(crate) fn install_tool(app: tauri::AppHandle, id: String) -> Result<ToolInstallResult, String> {
+pub(crate) async fn install_tool(
+    app: tauri::AppHandle,
+    id: String,
+) -> Result<ToolInstallResult, String> {
     let t = tool_installer(&id).ok_or_else(|| "알 수 없는 도구".to_string())?;
     let Some((program, args)) = install_command(t, current_os()) else {
         // 지원 안 되는 OS → 가이드 수동 폴백
         return Ok(ToolInstallResult {
-            installed: false, exit_code: None, auth: t.auth,
-            auth_hint: t.auth_hint.to_string(), manual_url: t.manual_url.to_string(),
+            installed: false,
+            exit_code: None,
+            auth: t.auth,
+            auth_hint: t.auth_hint.to_string(),
+            manual_url: t.manual_url.to_string(),
         });
     };
-    let mut cmd = std::process::Command::new(&program);
-    cmd.args(&args);
-    cmd.env("PATH", augmented_vib_path());
-    cmd.stdout(std::process::Stdio::piped());
-    cmd.stderr(std::process::Stdio::piped());
-    hide_console(&mut cmd);
-    let mut child = cmd.spawn().map_err(|e| format!("설치 실행 실패: {e}"))?;
+    // 설치 프로세스 spawn + drain + wait 은 최대 수 분 걸릴 수 있으므로 blocking 풀로 뺀다.
+    let probe_binary = t.probe_binary;
+    let auth = t.auth;
+    let auth_hint = t.auth_hint.to_string();
+    let manual_url = t.manual_url.to_string();
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Emitter;
+        let mut cmd = std::process::Command::new(&program);
+        cmd.args(&args);
+        cmd.env("PATH", augmented_vib_path());
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
+        hide_console(&mut cmd);
+        let mut child = cmd.spawn().map_err(|e| format!("설치 실행 실패: {e}"))?;
 
-    use tauri::Emitter;
-    // stderr 를 별도 스레드에서 동시에 드레인 — 순차 읽기 데드락 방지(설치기는 stderr 수다스러움).
-    let stderr_handle = child.stderr.take().map(|err| {
-        let app2 = app.clone();
-        let id2 = id.clone();
-        std::thread::spawn(move || {
-            for line in BufReader::new(err).lines().map_while(Result::ok) {
-                let _ = app2.emit("tool-install-output", ToolInstallOutput { id: id2.clone(), stream: "stderr".into(), line });
+        // stderr 를 별도 스레드에서 동시에 드레인 — 순차 읽기 데드락 방지(설치기는 stderr 수다스러움).
+        let stderr_handle = child.stderr.take().map(|err| {
+            let app2 = app.clone();
+            let id2 = id.clone();
+            std::thread::spawn(move || {
+                for line in BufReader::new(err).lines().map_while(Result::ok) {
+                    let _ = app2.emit(
+                        "tool-install-output",
+                        ToolInstallOutput { id: id2.clone(), stream: "stderr".into(), line },
+                    );
+                }
+            })
+        });
+        if let Some(out) = child.stdout.take() {
+            for line in BufReader::new(out).lines().map_while(Result::ok) {
+                let _ = app.emit(
+                    "tool-install-output",
+                    ToolInstallOutput { id: id.clone(), stream: "stdout".into(), line },
+                );
             }
-        })
-    });
-    if let Some(out) = child.stdout.take() {
-        for line in BufReader::new(out).lines().map_while(Result::ok) {
-            let _ = app.emit("tool-install-output", ToolInstallOutput { id: id.clone(), stream: "stdout".into(), line });
         }
-    }
-    if let Some(h) = stderr_handle {
-        let _ = h.join();
-    }
-    let status = child.wait().map_err(|e| format!("설치 대기 실패: {e}"))?;
-    // 종료 후 새로 PATH 해석해 프로브(설치 직후 PATH 반영 확인).
-    let installed = find_executable(t.probe_binary).is_some();
-    Ok(ToolInstallResult {
-        installed,
-        exit_code: status.code(),
-        auth: t.auth,
-        auth_hint: t.auth_hint.to_string(),
-        manual_url: t.manual_url.to_string(),
+        if let Some(h) = stderr_handle {
+            let _ = h.join();
+        }
+        let status = child.wait().map_err(|e| format!("설치 대기 실패: {e}"))?;
+        // 종료 후 새로 PATH 해석해 프로브(설치 직후 PATH 반영 확인).
+        let installed = find_executable(probe_binary).is_some();
+        Ok(ToolInstallResult {
+            installed,
+            exit_code: status.code(),
+            auth,
+            auth_hint,
+            manual_url,
+        })
     })
+    .await
+    .map_err(|_| SPAWN_FAIL.to_string())?
 }
 // ANCHOR: TOOL_INSTALL_END
 
