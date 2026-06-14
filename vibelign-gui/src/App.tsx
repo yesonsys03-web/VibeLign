@@ -41,6 +41,7 @@ import { StageHubCards } from "./components/nav/StageHubCards";
 import PlanDocView from "./pages/PlanDocView";
 import DesignPreview, { type DesignBinding } from "./pages/DesignPreview";
 import { useDesignJob } from "./lib/design-preview/useDesignJob";
+import { DesignJobChip } from "./components/nav/DesignJobChip";
 import { runDetect } from "./lib/vib/run";
 import { HomePlanningStart } from "./components/home/HomePlanningStart";
 import "./styles/brutalism.css";
@@ -589,6 +590,8 @@ export default function App() {
               onOpenSettings={() => openSettings()}
               onCelebrateDismiss={() => setCelebrating(false)}
             />
+
+            <DesignJobChip status={designJob.status} page={page} onOpen={() => navigate("design-preview")} />
 
             <div style={{ flex: 1, overflow: "hidden" }}>
               <ErrorBoundary>
