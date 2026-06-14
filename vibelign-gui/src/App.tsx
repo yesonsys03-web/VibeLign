@@ -600,7 +600,11 @@ export default function App() {
                   </>
                 )}
                 {page === "planning" && (planningResult ? (
-                  <PlanningRoom projectDir={projectDir} result={planningResult} sourcePath={reviewSourcePath} onBack={() => setPage("home")} onStartWork={() => navigate("work")} onResultChange={setPlanningResult} isEnriching={enrichingSessionId !== null && enrichingSessionId === planningResult.sessionId} onEnrich={enrichPlanAfterSave} />
+                  <PlanningRoom projectDir={projectDir} result={planningResult} sourcePath={reviewSourcePath} onBack={() => setPage("home")} onStartWork={() => navigate("work")} onDesignPreview={(planPath) => {
+                    setDesignPlanPath(planPath);
+                    void runDetect(projectDir).then((r) => setDesignIsWeb(r == null ? true : r.kind === "web")).catch(() => setDesignIsWeb(true));
+                    navigate("design-preview");
+                  }} onResultChange={setPlanningResult} isEnriching={enrichingSessionId !== null && enrichingSessionId === planningResult.sessionId} onEnrich={enrichPlanAfterSave} />
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16, padding: 24 }}>
                     <div style={{ fontSize: 32 }}>📋</div>

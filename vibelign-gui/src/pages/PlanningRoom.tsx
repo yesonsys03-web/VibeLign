@@ -26,6 +26,7 @@ interface PlanningRoomProps {
   readonly sourcePath?: string | null;
   readonly onBack: () => void;
   readonly onStartWork?: () => void;
+  readonly onDesignPreview?: (planPath: string) => void;
   readonly onResultChange: (result: PlanningChatSessionResponse) => void;
   /** 저장 후 백그라운드 보강(준비상태·계약 분석) 진행 중 — "분석 중" 표시(App 소유). */
   readonly isEnriching?: boolean;
@@ -33,7 +34,7 @@ interface PlanningRoomProps {
   readonly onEnrich?: (sessionId: string) => void;
 }
 
-export default function PlanningRoom({ projectDir, result, sourcePath, onBack, onStartWork, onResultChange, isEnriching = false, onEnrich }: PlanningRoomProps) {
+export default function PlanningRoom({ projectDir, result, sourcePath, onBack, onStartWork, onDesignPreview, onResultChange, isEnriching = false, onEnrich }: PlanningRoomProps) {
   const [showMarkdown, setShowMarkdown] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -193,6 +194,7 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
               onSave={() => handleSavePlan("button")}
               onStartWork={handleStartWork}
               onToggleMarkdown={() => setShowMarkdown((visible) => !visible)}
+              onDesignPreview={result.outputPath && onDesignPreview ? () => onDesignPreview(result.outputPath!) : undefined}
             />
             <PlanningAdvancedDetails details={result.details} />
             {showMarkdown && <PlanningMarkdownView markdown={markdown} />}

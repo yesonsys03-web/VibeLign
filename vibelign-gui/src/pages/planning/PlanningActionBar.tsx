@@ -10,6 +10,8 @@ interface PlanningActionBarProps {
   readonly onSave: () => void;
   readonly onStartWork: () => void;
   readonly onToggleMarkdown: () => void;
+  /** 기획 확정 후 디자인 미리보기로 진입할 수 있을 때 제공. 없으면 버튼 미표시. */
+  readonly onDesignPreview?: () => void;
 }
 
 // === ANCHOR: PLANNINGACTIONBAR_PLANNINGACTIONBAR_START ===
@@ -23,6 +25,7 @@ export function PlanningActionBar({
   onSave,
   onStartWork,
   onToggleMarkdown,
+  onDesignPreview,
 }: PlanningActionBarProps) {
   return (
     // 저장 버튼은 항상 눈에 띄어야 한다 — 긴 세션에서 스크롤로 사라지지 않게 하단 고정.
@@ -64,6 +67,11 @@ export function PlanningActionBar({
       {hasSavedPlan && (
         <button className="btn btn-black" type="button" onClick={onStartWork} style={{ fontSize: 12 }}>
           AI 작업 시작
+        </button>
+      )}
+      {hasSavedPlan && onDesignPreview && (
+        <button className="btn btn-ghost" type="button" onClick={onDesignPreview} style={{ fontSize: 12 }}>
+          🎨 디자인 먼저 정하기
         </button>
       )}
       {isEnriching && (
