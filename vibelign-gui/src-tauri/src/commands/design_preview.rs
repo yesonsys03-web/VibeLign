@@ -375,6 +375,29 @@ pub(crate) fn safe_style_id_from(seed: &str) -> String {
     format!("custom-{}", &design_cache_key(seed)[..8])
 }
 
+/// 사용자 일상어 묘사(+선택적 기준 스타일) → 클로드가 StyleSpec JSON 을 내도록 하는 프롬프트.
+pub(crate) fn build_synthesis_prompt(spec_md: &str, description: &str, base_style: Option<&StyleSpec>) -> String {
+    let mut out = String::new();
+    out.push_str("당신은 UI 디자인 시스템 전문가입니다. 사용자가 일상어로 묘사한 느낌을 하나의 디자인 스타일로 번역하세요.\n");
+    out.push_str("중요: 파일 저장·Write/Edit/Bash 등 도구 사용 금지. 아래 스키마에 정확히 맞는 JSON 객체 하나만 응답 본문으로 출력(설명·마크다운 펜스 금지).\n\n");
+    out.push_str("[JSON 스키마]\n");
+    out.push_str("{\"id\":\"custom\",\"name\":\"<짧은 한국어 이름>\",\"description\":\"<한 줄 설명>\",\"tokens\":{\"bg\":\"#hex\",\"surface\":\"#hex 또는 rgba()\",\"text\":\"#hex\",\"primary\":\"#hex\",\"accent\":\"#hex\",\"border\":\"<예: 1px solid #ddd>\",\"fontFamily\":\"<예: 'Inter', system-ui, sans-serif>\",\"radius\":\"<예: 12px>\",\"shadow\":\"<예: 0 1px 3px rgba(0,0,0,0.1)>\"},\"recipe\":\"<시각 규칙 2~5문장>\",\"motion\":{\"tokens\":{\"duration\":\"<예: 200ms>\",\"easing\":\"<예: cubic-bezier(.4,0,.2,1)>\"},\"recipe\":\"<움직임 성격 1~2문장>\"}}\n\n");
+    out.push_str("[제약]\n- 색은 #hex 또는 rgb()/rgba() 만. 토큰 값에 ; { } < > url( @import 금지.\n- 기획안 분위기와 사용자 묘사에 어울리는 조화로운 팔레트.\n\n");
+    out.push_str("[기획안 맥락]\n");
+    out.push_str(spec_md);
+    if let Some(b) = base_style {
+        out.push_str("\n\n[기준 스타일 — 아래를 출발점으로 변형]\n");
+        out.push_str(&format!("{} — {}\n", b.name, b.description));
+        out.push_str(&b.recipe);
+        out.push_str(&format!("\n토큰: bg={} primary={} accent={} radius={} font={}\n",
+            b.tokens.bg, b.tokens.primary, b.tokens.accent, b.tokens.radius, b.tokens.font_family));
+    }
+    out.push_str("\n\n[사용자 묘사 — 이 느낌으로]\n");
+    out.push_str(description);
+    out.push('\n');
+    out
+}
+
 // ANCHOR: DESIGN_PREVIEW_END
 
 #[cfg(test)]
@@ -439,5 +462,21 @@ mod custom_style_tests {
         let mut s = ok_spec();
         s.tokens.bg = "#fff\n--injected: blue".into();
         assert!(validate_style_spec(&s).is_err());
+    }
+
+    #[test]
+    fn synthesis_prompt_has_schema_and_description() {
+        let p = build_synthesis_prompt("기획안내용", "귀엽고 파스텔톤", None);
+        assert!(p.contains("fontFamily"));      // JSON 스키마 안내 포함
+        assert!(p.contains("기획안내용"));        // 기획 맥락 포함
+        assert!(p.contains("귀엽고 파스텔톤"));    // 사용자 묘사 포함
+        assert!(!p.contains("[기준 스타일"));     // base 없으면 변형 섹션 없음
+    }
+    #[test]
+    fn synthesis_prompt_includes_base_style_when_given() {
+        let base = ok_spec();
+        let p = build_synthesis_prompt("기획", "더 밝게", Some(&base));
+        assert!(p.contains("[기준 스타일"));
+        assert!(p.contains(&base.name));
     }
 }
