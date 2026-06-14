@@ -27,7 +27,7 @@
 VibeLign(`vibelign`)은 바이브 코딩 작업을 더 안전하게 해주는 AI 코딩 안전 **CLI + 데스크톱 GUI** 예요.
 프로젝트 구조 보호, 체크포인트 저장, 되돌리기, 앵커 관리, 커밋 전 비밀정보 차단을 도와줘요.
 
-> **🆕 v2.2**: GUI ↔ Rust core 다이렉트 브리지(in-process, Python subprocess 없이 ~80ms → <5ms), 통합 에러 로그 뷰 + GitHub 이슈 자동 보고, 자동 백업 실패 가시화. [CHANGELOG](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md) 참고. v1 → v2 사용자: [마이그레이션 가이드](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md).
+> **🆕 v2.4**: 디자인 미리보기에서 일상어로 스타일을 즉석 합성(다른 탭으로 이동해도 백그라운드 생성 유지), opencode·codex·agy를 앱 안에서 원클릭 설치, "실행해보기" 흐름으로 첫 `vib start`부터 동작 확인까지 안내, 무거운 작업 중에도 UI가 멈추지 않는 비동기 Tauri 커맨드 적용. [CHANGELOG](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md) 참고. v1 → v2 사용자: [마이그레이션 가이드](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md).
 
 문서: `https://yesonsys03-web.github.io/VibeLign/`  
 저장소: `https://github.com/yesonsys03-web/VibeLign`  
