@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { DESIGN_STYLES, getStyle, type StyleSpec, type MotionSpec } from "../lib/design-preview/styles";
-import { generateDesignMockup, saveDesignMockup } from "../lib/vib/design";
+import { generateDesignMockup, saveDesignMockup, synthesizeStyle } from "../lib/vib/design";
+import { EXAMPLE_CHIPS } from "../lib/design-preview/customStyles";
 
 export interface DesignBinding {
   readonly mockupPath: string;
@@ -23,7 +24,27 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
   const [feedback, setFeedback] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [describe, setDescribe] = useState("");
+  const [synth, setSynth] = useState<StyleSpec | null>(null);
   const selected = selectedId ? getStyle(selectedId) : undefined;
+
+  async function createFromDescription(baseStyle?: StyleSpec) {
+    const desc = describe.trim();
+    if (!desc && !baseStyle) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const spec = await synthesizeStyle({ projectDir, planPath, description: desc, baseStyle });
+      setSynth(spec);
+      const res = await generateDesignMockup({ projectDir, planPath, style: spec });
+      setHtml(res.html);
+      setSelectedId(spec.id);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function generate(useFeedback: boolean) {
     if (!selected) return;
@@ -44,10 +65,11 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
   }
 
   async function confirm() {
-    if (!selected || !html) return;
+    const style = synth ?? selected;
+    if (!style || !html) return;
     try {
-      const mockupPath = await saveDesignMockup({ projectDir, styleId: selected.id, html });
-      onConfirm({ mockupPath, tokens: selected.tokens, motion: selected.motion });
+      const mockupPath = await saveDesignMockup({ projectDir, styleId: style.id, html });
+      onConfirm({ mockupPath, tokens: style.tokens, motion: style.motion });
     } catch (e) {
       setError(String(e));
     }
@@ -71,12 +93,44 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
           </button>
         ))}
       </div>
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "2px solid #1A1A1A", display: "grid", gap: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 900 }}>✏️ 직접 만들기 — 원하는 느낌을 그냥 말로 적어보세요</div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {EXAMPLE_CHIPS.map((chip) => (
+            <button key={chip} type="button" onClick={() => setDescribe(chip)}
+              style={{ fontSize: 12, padding: "4px 10px", border: "2px solid #1A1A1A", background: "#fff", borderRadius: 999 }}>
+              {chip}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input aria-label="디자인 묘사" value={describe} onChange={(e) => setDescribe(e.target.value)}
+            placeholder="예: 귀엽고 파스텔톤으로"
+            style={{ flex: 1, minWidth: 220, padding: "9px 12px", border: "2px solid #1A1A1A", fontSize: 14 }} />
+          <button className="btn" disabled={!describe.trim() || loading} onClick={() => void createFromDescription()}
+            style={{ background: "#1A1A1A", color: "#fff", border: "2px solid #1A1A1A", fontWeight: 900 }}>
+            {loading ? "클로드가 그리는 중…" : "✦ 클로드에게 그려달라기"}
+          </button>
+        </div>
+      </div>
       <button disabled={!selected || loading} onClick={() => void generate(false)}>
         {loading ? "그리는 중…" : "이 스타일로 그려보기"}
       </button>
       {error && <p style={{ color: "crimson" }}>{error}</p>}
       {html && (
         <>
+          {synth && (
+            <div style={{ border: "2px solid #1A1A1A", padding: "10px 12px", marginBottom: 8, background: "#F5F1E3", display: "grid", gap: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 900 }}>✦ 이런 스타일을 만들었어요 — {synth.name}</div>
+              <div style={{ fontSize: 12, color: "#444" }}>{synth.description}</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[synth.tokens.bg, synth.tokens.surface, synth.tokens.primary, synth.tokens.accent, synth.tokens.text].map((c, i) => (
+                  <span key={i} title={c} style={{ width: 28, height: 28, background: c, border: "1px solid #1A1A1A", borderRadius: 4 }} />
+                ))}
+              </div>
+              {synth.motion && <div style={{ fontSize: 11, color: "#666" }}>모션: {synth.motion.recipe}</div>}
+            </div>
+          )}
           <iframe title="디자인 목업" srcDoc={html} sandbox="" style={{ width: "100%", height: 600, border: "1px solid #ddd" }} />
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 12, paddingTop: 12, borderTop: "2px solid #1A1A1A" }}>
             <input aria-label="수정 요청" value={feedback} onChange={(e) => setFeedback(e.target.value)}
