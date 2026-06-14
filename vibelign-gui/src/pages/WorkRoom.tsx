@@ -2,9 +2,10 @@
 // 작업방 Tier 1 (plans/2026-06-12-작업방-tier1-design.md §4·§5) — 기획안 기반 지시문을
 // 사용자의 코딩 CLI(BYO, MVP=Claude Code)로 헤드리스 실행. M3: 체크포인트→실행→guard
 // 안전 시퀀스를 자동으로 잇는다 — 이 시퀀스 강제가 외부 도구 대비 작업방의 존재 이유다.
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { ToolInstallPanel } from "../components/tools/ToolInstallPanel";
 
 import { buildPlanningWorkInstruction } from "../lib/code-explorer/planningInstruction";
 import { buildHandoffInstruction, type WorkHandoff } from "../lib/run-preview/workHandoff";
@@ -182,7 +183,7 @@ export default function WorkRoom({
   const effectiveInstruction =
     handoff != null ? buildHandoffInstruction(handoff, planningOutputPath) : instruction;
 
-  useEffect(() => {
+  const detectProviders = useCallback(() => {
     void invoke<string[]>("planning_provider_status")
       .then((list) => {
         setProviders(list);
@@ -191,6 +192,10 @@ export default function WorkRoom({
       })
       .catch(() => setProviders([]));
   }, []);
+
+  useEffect(() => {
+    detectProviders();
+  }, [detectProviders]);
 
   // 지난 실행 기록 복원 — 앱 재시작 후에도 직전 실행을 볼 수 있게(알람앱 트라이얼 요구).
   useEffect(() => {
@@ -506,20 +511,16 @@ export default function WorkRoom({
                 </button>
               );
             })}
-          {providers !== null && !anyDetected && (
-            <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={{ fontSize: 12, color: "#b42318", fontWeight: 700 }}>
-                실행 가능한 AI 도구를 찾지 못했어요.
-              </span>
-              <span style={{ fontSize: 11, color: "#555" }}>
-                Claude Code는 <b>처음 설정</b>에서 자동으로 설치돼요. 나머지(Codex 등)는 직접 설치 후 설정에서 등록하세요.
-              </span>
-              <button className="btn btn-ghost btn-sm" onClick={onOpenSettings} style={{ fontSize: 12, alignSelf: "flex-start" }}>
-                설정에서 도구 등록하기 →
-              </button>
-            </span>
-          )}
         </div>
+        {providers !== null && !anyDetected && (
+          <div style={{ display: "grid", gap: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 800 }}>아직 실행할 AI 도구가 없어요 — 무료로 바로 설치할 수 있어요.</div>
+            <ToolInstallPanel id="opencode" onDone={detectProviders} />
+            <button className="btn btn-ghost btn-sm" onClick={onOpenSettings} style={{ fontSize: 12, justifySelf: "start" }}>
+              다른 도구(codex·antigravity) 설치/등록 →
+            </button>
+          </div>
+        )}
 
         {phase === "idle" && (
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
