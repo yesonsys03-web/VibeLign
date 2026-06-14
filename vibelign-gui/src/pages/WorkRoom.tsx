@@ -654,6 +654,15 @@ export default function WorkRoom({
             )}
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {guardSafe && (
+                <button
+                  className="btn"
+                  onClick={() => onNavigate("run")}
+                  style={{ background: "#1A1A1A", color: "#fff", border: "2px solid #1A1A1A", fontWeight: 900 }}
+                >
+                  ▶ 실행해보기 →
+                </button>
+              )}
               {guardVerdict === "prepare" &&
                 guardResult?.recommendations.some((r) => r.includes("앵커") || r.toLowerCase().includes("anchor")) && (
                   <button
@@ -683,11 +692,6 @@ export default function WorkRoom({
               {guardVerdict === "stop" && (
                 <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("backups")} style={{ fontSize: 12 }}>
                   백업에서 되돌리기 →
-                </button>
-              )}
-              {guardSafe && (
-                <button className="btn btn-sm" onClick={() => onNavigate("run")}>
-                  ▶ 실행해보기 →
                 </button>
               )}
               <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("home")} style={{ fontSize: 12 }}>
