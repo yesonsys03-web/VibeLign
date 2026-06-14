@@ -105,11 +105,20 @@ describe("resolveOverride", () => {
   it("override 없으면 추론값", () => {
     expect(resolveOverride(null, 3)).toBe(3);
   });
-  it("추론이 기록 시점과 같으면 override 유지", () => {
-    expect(resolveOverride({ step: 5, baseInferred: 3 }, 3)).toBe(5);
+  it("전방 이동 오버라이드(<5)는 baseInferred 일치 시 유지", () => {
+    expect(resolveOverride({ step: 4, baseInferred: 3 }, 3)).toBe(4);
   });
   it("추론이 바뀌면 override 자동 해제 (spec §4-2)", () => {
     expect(resolveOverride({ step: 5, baseInferred: 3 }, 4)).toBe(4);
+  });
+  it("변경 없음(4)이면 5 오버라이드 폐기 (spec §3-B)", () => {
+    expect(resolveOverride({ step: 5, baseInferred: 4 }, 4)).toBe(4);
+  });
+  it("변경 없음(4)이면 6 오버라이드 폐기 (spec §3-B)", () => {
+    expect(resolveOverride({ step: 6, baseInferred: 5 }, 4)).toBe(4);
+  });
+  it("검증할 변경 있음(5)이면 5 오버라이드 유지", () => {
+    expect(resolveOverride({ step: 5, baseInferred: 5 }, 5)).toBe(5);
   });
 });
 

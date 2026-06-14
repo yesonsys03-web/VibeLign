@@ -173,12 +173,15 @@ export interface GuideOverride {
   baseInferred: ActiveGuideStep;
 }
 
-/** 수동 보정 적용: 추론이 기록 시점과 같을 때만 override 유지. */
+/** 수동 보정 적용: 추론이 기록 시점과 같을 때만 유지. 단, 5·6(검증·저장) 오버라이드는 inferred<5이면 stale로 간주해 폐기(spec §3-B). */
 export function resolveOverride(
   override: GuideOverride | null,
   inferred: ActiveGuideStep,
 ): ActiveGuideStep {
-  if (override && override.baseInferred === inferred) return override.step;
+  if (!override) return inferred;
+  // 5️⃣/6️⃣(검증·저장)는 검증할 변경이 있을 때만 의미 — inferred<5이면 stale 오버라이드 폐기.
+  if (override.step >= 5 && inferred < 5) return inferred;
+  if (override.baseInferred === inferred) return override.step;
   return inferred;
 }
 
