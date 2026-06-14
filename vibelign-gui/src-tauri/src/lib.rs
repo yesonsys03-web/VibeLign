@@ -187,6 +187,8 @@ pub fn run() {
             onboarding::check_wsl_available,
             onboarding::check_xcode_clt,
             onboarding::detect_installed_tools,
+            commands::tool_install::install_tool,
+            commands::tool_install::tool_install_status,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -74,6 +74,80 @@ fn current_os() -> &'static str { "macos" }
 fn current_os() -> &'static str { "windows" }
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn current_os() -> &'static str { "other" }
+use std::io::{BufRead, BufReader};
+use super::platform::{augmented_vib_path, hide_console};
+use super::planning_persona::find_executable;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ToolInstallResult {
+    pub installed: bool,
+    pub exit_code: Option<i32>,
+    /// none/login — 설치됐을 때 다음에 필요한 인증
+    pub auth: AuthKind,
+    pub auth_hint: String,
+    /// 자동설치 불가/실패 시 수동 폴백용
+    pub manual_url: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ToolInstallOutput {
+    pub id: String,
+    pub stream: String,
+    pub line: String,
+}
+
+#[tauri::command]
+pub(crate) fn tool_install_status(id: String) -> Result<bool, String> {
+    let t = tool_installer(&id).ok_or_else(|| "알 수 없는 도구".to_string())?;
+    Ok(find_executable(t.probe_binary).is_some())
+}
+
+#[tauri::command]
+pub(crate) fn install_tool(app: tauri::AppHandle, id: String) -> Result<ToolInstallResult, String> {
+    let t = tool_installer(&id).ok_or_else(|| "알 수 없는 도구".to_string())?;
+    let Some((program, args)) = install_command(t, current_os()) else {
+        // 지원 안 되는 OS → 가이드 수동 폴백
+        return Ok(ToolInstallResult {
+            installed: false, exit_code: None, auth: t.auth,
+            auth_hint: t.auth_hint.to_string(), manual_url: t.manual_url.to_string(),
+        });
+    };
+    let mut cmd = std::process::Command::new(&program);
+    cmd.args(&args);
+    cmd.env("PATH", augmented_vib_path());
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
+    hide_console(&mut cmd);
+    let mut child = cmd.spawn().map_err(|e| format!("설치 실행 실패: {e}"))?;
+
+    let emit = |app: &tauri::AppHandle, stream: &str, line: String| {
+        use tauri::Emitter;
+        let _ = app.emit("tool-install-output", ToolInstallOutput { id: id.clone(), stream: stream.into(), line });
+    };
+    if let Some(out) = child.stdout.take() {
+        let (app2, stream) = (app.clone(), "stdout");
+        for line in BufReader::new(out).lines().map_while(Result::ok) {
+            emit(&app2, stream, line);
+        }
+    }
+    if let Some(err) = child.stderr.take() {
+        for line in BufReader::new(err).lines().map_while(Result::ok) {
+            emit(&app, "stderr", line);
+        }
+    }
+    let status = child.wait().map_err(|e| format!("설치 대기 실패: {e}"))?;
+    // 종료 후 새로 PATH 해석해 프로브(설치 직후 PATH 반영 확인).
+    let installed = find_executable(t.probe_binary).is_some();
+    Ok(ToolInstallResult {
+        installed,
+        exit_code: status.code(),
+        auth: t.auth,
+        auth_hint: t.auth_hint.to_string(),
+        manual_url: t.manual_url.to_string(),
+    })
+}
 // ANCHOR: TOOL_INSTALL_END
 
 #[cfg(test)]
