@@ -5,7 +5,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { ToolInstallPanel } from "../components/tools/ToolInstallPanel";
 
 import { buildPlanningWorkInstruction } from "../lib/code-explorer/planningInstruction";
 import { buildHandoffInstruction, type WorkHandoff } from "../lib/run-preview/workHandoff";
@@ -513,11 +512,13 @@ export default function WorkRoom({
             })}
         </div>
         {providers !== null && !anyDetected && (
-          <div style={{ display: "grid", gap: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 800 }}>아직 실행할 AI 도구가 없어요 — 무료로 바로 설치할 수 있어요.</div>
-            <ToolInstallPanel id="opencode" onDone={detectProviders} />
+          <div style={{ display: "grid", gap: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: "#b42318" }}>실행할 AI 도구를 찾지 못했어요</span>
+            <span style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>
+              작업방은 <strong>Claude Code</strong> 또는 <strong>Codex</strong>로 코딩해요. Claude Code는 자동 설치돼요 — 처음 설정에서 Claude를 설치하면 바로 쓸 수 있어요. (codex·antigravity는 도구 설정에서 설치/등록)
+            </span>
             <button className="btn btn-ghost btn-sm" onClick={onOpenSettings} style={{ fontSize: 12, justifySelf: "start" }}>
-              다른 도구(codex·antigravity) 설치/등록 →
+              설정에서 도구 설치/등록하기 →
             </button>
           </div>
         )}
