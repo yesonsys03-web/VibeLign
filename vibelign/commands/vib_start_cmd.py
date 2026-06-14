@@ -235,12 +235,14 @@ def _ensure_initial_commit(root: Path) -> bool:
             return False  # staged 비어있음(빈 디렉터리)
         subprocess.run(
             [git, "-c", "user.name=VibeLign", "-c", "user.email=vibelign@local",
+             "-c", "commit.gpgsign=false",
              "commit", "--no-verify", "-m", "chore: 초기 베이스라인 (VibeLign)"],
             cwd=root, check=True, capture_output=True,
             creationflags=WINDOWS_SUBPROCESS_FLAGS,
         )
         return True
     except (subprocess.CalledProcessError, OSError):
+        clack_warn("초기 베이스라인 커밋을 만들지 못했어요 (계속 진행)")
         return False
 
 
