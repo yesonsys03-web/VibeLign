@@ -155,6 +155,15 @@ export function GuideStrip({
       </button>
     ) : null;
 
+  // 5️⃣ 결과 검증은 두 축(상태확인=안전·실행해보기=작동) — 상태확인은 홈 버튼, 실행해보기는 이 버튼으로
+  // 이어준다. 주행동(goButton)이 홈을 가리켜(onTarget) 숨겨질 때도 실행해보기로 갈 길을 항상 연다.
+  const runButton =
+    step === 5 && currentPage !== "run" ? (
+      <button className="nav-tab" style={goBtnStyle} onClick={() => onNavigate("run")}>
+        ▶ 실행해보기 →
+      </button>
+    ) : null;
+
   if (def && step && effectiveCollapsed) {
     // 컴팩트(기본) — 한 줄: 🧭 마스코트 + 말풍선(단계 라벨 + 주행동) + ▸자세히.
     return (
@@ -186,6 +195,7 @@ export function GuideStrip({
             {def.icon} {def.label}
           </span>
           {goButton}
+          {runButton}
         </span>
       </div>
     );
@@ -236,6 +246,7 @@ export function GuideStrip({
             </span>
             <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 10, rowGap: 8 }}>
               {goButton}
+              {runButton}
               {/* 수동 출구는 외부 도구 폴백(코드탐색에서 복사) 전용 — 작업방 경유는 종료 감지가
                   자동으로 검사·전환하므로 이 버튼이 필요 없다(작업방 기획안 §2). */}
               {step === 4 && currentPage === "code" && (
