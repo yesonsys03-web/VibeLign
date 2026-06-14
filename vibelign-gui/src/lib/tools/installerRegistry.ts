@@ -22,9 +22,10 @@ export function getInstaller(id: string): ToolInstallerMeta | undefined {
 export interface ToolInstallResult {
   installed: boolean;
   exitCode: number | null;
-  auth?: AuthKind;
-  authHint?: string;
-  manualUrl?: string;
+  // 백엔드(install_tool)가 항상 채워 보낸다 — 옵셔널 아님(리뷰 정합).
+  auth: AuthKind;
+  authHint: string;
+  manualUrl: string;
 }
 
 /** 자동설치가 실패했거나(installed=false) 미지원(exitCode=null)이면 수동 가이드로. */

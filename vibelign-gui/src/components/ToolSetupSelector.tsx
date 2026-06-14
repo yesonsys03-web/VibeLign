@@ -3,14 +3,17 @@ import { useState, type ReactElement } from "react";
 import { ToolInstallPanel } from "./tools/ToolInstallPanel";
 
 // vib start --tools 가 받는 키와 1:1 (vibelign/commands/vib_start_cmd.py START_TOOL_CHOICES).
-// autoInstall: true = VibeLign이 자동으로 설치해 줌 / false = 직접 설치 필요
+// autoInstall: true = VibeLign이 자동 설치해 줌 / false = 직접 설치 필요.
+//   - claude: 기존 온보딩 설치 플로(OnboardingClaudeSetup)로 자동 설치.
+//   - opencode/codex/antigravity: 아래 ToolInstallPanel(AUTO_INSTALL_PANEL_ID)로 자동 설치.
+//   - claude_desktop/cursor: 자동 설치 미지원(직접 설치).
 const SETUP_TOOLS: readonly { readonly key: string; readonly label: string; readonly autoInstall: boolean }[] = [
   { key: "claude", label: "Claude Code", autoInstall: true },
   { key: "claude_desktop", label: "Claude Desktop", autoInstall: false },
   { key: "cursor", label: "Cursor", autoInstall: false },
-  { key: "codex", label: "Codex", autoInstall: false },
-  { key: "opencode", label: "OpenCode", autoInstall: false },
-  { key: "antigravity", label: "Antigravity", autoInstall: false },
+  { key: "codex", label: "Codex", autoInstall: true },
+  { key: "opencode", label: "OpenCode", autoInstall: true },
+  { key: "antigravity", label: "Antigravity", autoInstall: true },
 ];
 
 // 자동설치 패널을 지원하는 도구 키 → installerRegistry id 매핑
