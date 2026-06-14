@@ -90,68 +90,79 @@ pub(crate) struct ProjectSummary {
     git_commits: Vec<SummaryLine>,
 }
 
+const SPAWN_FAIL: &str = "작업 실행에 실패했어요";
+
 #[tauri::command]
-pub(crate) fn read_project_summary(dir: String) -> ProjectSummary {
-    let path = std::path::Path::new(&dir);
-    let project_name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| "프로젝트".to_string());
+pub(crate) async fn read_project_summary(dir: String) -> ProjectSummary {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = std::path::Path::new(&dir);
+        let project_name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "프로젝트".to_string());
 
-    // git log: hash|subject|date (최근 3개)
-    let git_commits = git_cmd()
-        .args(["log", "-3", "--pretty=format:%h|%s|%ad", "--date=short"])
-        .current_dir(path)
-        .output()
-        .ok()
-        .map(|o| {
-            String::from_utf8_lossy(&o.stdout)
-                .lines()
-                .filter_map(|l| {
-                    let parts: Vec<&str> = l.splitn(3, '|').collect();
-                    if parts.len() < 2 {
-                        return None;
-                    }
-                    let hash = parts[0].trim();
-                    let subject = parts[1].trim();
-                    if subject.is_empty() {
-                        return None;
-                    }
-                    let date = parts.get(2).copied().unwrap_or("").trim();
+        // git log: hash|subject|date (최근 3개)
+        let git_commits = git_cmd()
+            .args(["log", "-3", "--pretty=format:%h|%s|%ad", "--date=short"])
+            .current_dir(path)
+            .output()
+            .ok()
+            .map(|o| {
+                String::from_utf8_lossy(&o.stdout)
+                    .lines()
+                    .filter_map(|l| {
+                        let parts: Vec<&str> = l.splitn(3, '|').collect();
+                        if parts.len() < 2 {
+                            return None;
+                        }
+                        let hash = parts[0].trim();
+                        let subject = parts[1].trim();
+                        if subject.is_empty() {
+                            return None;
+                        }
+                        let date = parts.get(2).copied().unwrap_or("").trim();
 
-                    // git show --stat: 변경 파일 목록 (on-load 프리페치)
-                    let stat = git_cmd()
-                        .args(["show", "--stat", "--pretty=format:%b", hash])
-                        .current_dir(path)
-                        .output()
-                        .ok()
-                        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-                        .unwrap_or_default();
+                        // git show --stat: 변경 파일 목록 (on-load 프리페치)
+                        let stat = git_cmd()
+                            .args(["show", "--stat", "--pretty=format:%b", hash])
+                            .current_dir(path)
+                            .output()
+                            .ok()
+                            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                            .unwrap_or_default();
 
-                    let mut detail = format!("{} — {}", date, subject);
-                    if !stat.is_empty() {
-                        detail.push_str(&format!("\n\n{}", stat));
-                    }
+                        let mut detail = format!("{} — {}", date, subject);
+                        if !stat.is_empty() {
+                            detail.push_str(&format!("\n\n{}", stat));
+                        }
 
-                    Some(SummaryLine {
-                        display: trunc(subject, 20),
-                        detail,
+                        Some(SummaryLine {
+                            display: trunc(subject, 20),
+                            detail,
+                        })
                     })
-                })
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
 
-    let content = std::fs::read_to_string(path.join("PROJECT_CONTEXT.md")).unwrap_or_default();
-    let checkpoints = parse_checkpoints_from_ctx(&content)
-        .into_iter()
-        .map(|[display, detail]| SummaryLine { display, detail })
-        .collect();
+        let content =
+            std::fs::read_to_string(path.join("PROJECT_CONTEXT.md")).unwrap_or_default();
+        let checkpoints = parse_checkpoints_from_ctx(&content)
+            .into_iter()
+            .map(|[display, detail]| SummaryLine { display, detail })
+            .collect();
 
-    ProjectSummary {
-        project_name,
-        checkpoints,
-        git_commits,
-    }
+        ProjectSummary {
+            project_name,
+            checkpoints,
+            git_commits,
+        }
+    })
+    .await
+    .unwrap_or_else(|_| ProjectSummary {
+        project_name: "프로젝트".to_string(),
+        checkpoints: vec![],
+        git_commits: vec![],
+    })
 }
 // === ANCHOR: PROJECT_SUMMARY_END ===
