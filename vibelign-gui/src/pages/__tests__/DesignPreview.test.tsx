@@ -1,6 +1,13 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import DesignPreview from "../DesignPreview";
+import { useDesignJob } from "../../lib/design-preview/useDesignJob";
+import type { ComponentProps } from "react";
+
+function Harness(props: Omit<ComponentProps<typeof DesignPreview>, "job">) {
+  const job = useDesignJob(props.projectDir);
+  return <DesignPreview {...props} job={job} />;
+}
 
 const mocks = vi.hoisted(() => ({
   generateMock: vi.fn(),
@@ -33,7 +40,7 @@ afterEach(() => {
 describe("DesignPreview", () => {
   test("스타일 선택·생성 시 목업을 sandbox iframe에 렌더", async () => {
     mocks.generateMock.mockResolvedValue({ html: "<!doctype html><h1>MOCK</h1>", cached: false });
-    render(<DesignPreview projectDir="/tmp/demo" planPath="plans/x.md" isLikelyWeb onBack={vi.fn()} onConfirm={vi.fn()} />);
+    render(<Harness projectDir="/tmp/demo" planPath="plans/x.md" isLikelyWeb onBack={vi.fn()} onConfirm={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /네오브루탈리즘/ }));
     fireEvent.click(screen.getByRole("button", { name: "이 스타일로 그려보기" }));
     await waitFor(() => {
@@ -50,7 +57,7 @@ describe("DesignPreview", () => {
     mocks.generateMock
       .mockResolvedValueOnce({ html: "<!doctype html><h1>V1</h1>", cached: false })
       .mockResolvedValueOnce({ html: "<!doctype html><h1>V2</h1>", cached: false });
-    render(<DesignPreview projectDir="/tmp/demo" planPath="plans/x.md" isLikelyWeb onBack={vi.fn()} onConfirm={vi.fn()} />);
+    render(<Harness projectDir="/tmp/demo" planPath="plans/x.md" isLikelyWeb onBack={vi.fn()} onConfirm={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /네오브루탈리즘/ }));
     fireEvent.click(screen.getByRole("button", { name: "이 스타일로 그려보기" }));
     await waitFor(() => expect((screen.getByTitle("디자인 목업") as HTMLIFrameElement).getAttribute("srcdoc")).toContain("V1"));
@@ -63,7 +70,7 @@ describe("DesignPreview", () => {
   });
 
   test("비웹이면 경고 배너를 보이되 차단하지 않음", () => {
-    render(<DesignPreview projectDir="/tmp/demo" planPath="plans/x.md" isLikelyWeb={false} onBack={vi.fn()} onConfirm={vi.fn()} />);
+    render(<Harness projectDir="/tmp/demo" planPath="plans/x.md" isLikelyWeb={false} onBack={vi.fn()} onConfirm={vi.fn()} />);
     expect(screen.getByText(/웹 UI 프로젝트가 아닐 수 있어요/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "이 스타일로 그려보기" })).toBeInTheDocument(); // 여전히 가능
   });
@@ -72,7 +79,7 @@ describe("DesignPreview", () => {
     mocks.generateMock.mockResolvedValue({ html: "<!doctype html><h1>M</h1>", cached: false });
     mocks.saveMock.mockResolvedValue(".vibelign/design_preview/m.html");
     const onConfirm = vi.fn();
-    render(<DesignPreview projectDir="/tmp/demo" planPath="plans/x.md" isLikelyWeb onBack={vi.fn()} onConfirm={onConfirm} />);
+    render(<Harness projectDir="/tmp/demo" planPath="plans/x.md" isLikelyWeb onBack={vi.fn()} onConfirm={onConfirm} />);
     fireEvent.click(screen.getByRole("button", { name: /네오브루탈리즘/ }));
     fireEvent.click(screen.getByRole("button", { name: "이 스타일로 그려보기" }));
     await waitFor(() => screen.getByTitle("디자인 목업"));

@@ -40,6 +40,7 @@ import { StageSubnav } from "./components/nav/StageSubnav";
 import { StageHubCards } from "./components/nav/StageHubCards";
 import PlanDocView from "./pages/PlanDocView";
 import DesignPreview, { type DesignBinding } from "./pages/DesignPreview";
+import { useDesignJob } from "./lib/design-preview/useDesignJob";
 import { runDetect } from "./lib/vib/run";
 import { HomePlanningStart } from "./components/home/HomePlanningStart";
 import "./styles/brutalism.css";
@@ -90,6 +91,7 @@ export default function App() {
   const [projectDir, setProjectDir] = useState<string | null>(null);
   const [recentDirs, setRecentDirs] = useState<string[]>([]);
   const [page, setPage] = useState<Page>("home");
+  const designJob = useDesignJob(projectDir ?? "");
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [providerKeys, setProviderKeys] = useState<Record<string, string>>({});
   const [envKeyStatus, setEnvKeyStatus] = useState<Record<string, boolean>>({});
@@ -629,6 +631,7 @@ export default function App() {
                     projectDir={projectDir}
                     planPath={designPlanPath}
                     isLikelyWeb={designIsWeb}
+                    job={designJob}
                     onBack={() => navigate("plan-doc")}
                     onConfirm={(b) => { setDesignBinding(b); navigate("work"); }}
                   />
