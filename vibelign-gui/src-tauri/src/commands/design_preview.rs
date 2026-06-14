@@ -451,6 +451,75 @@ pub(crate) fn synthesize_style(
     Ok(spec)
 }
 
+pub(crate) const MAX_CUSTOM_STYLES: usize = 50;
+
+fn custom_styles_path(project_dir: &Path) -> PathBuf {
+    design_cache_dir(project_dir).join("custom-styles.json")
+}
+
+/// 손상/없음 → 빈 목록 폴백(앱 안 깨지게).
+pub(crate) fn load_custom_styles(project_dir: &Path) -> Vec<StyleSpec> {
+    std::fs::read_to_string(custom_styles_path(project_dir))
+        .ok()
+        .and_then(|s| serde_json::from_str::<Vec<StyleSpec>>(&s).ok())
+        .unwrap_or_default()
+}
+
+fn write_custom_styles(project_dir: &Path, list: &[StyleSpec]) -> Result<(), String> {
+    let path = custom_styles_path(project_dir);
+    if let Some(p) = path.parent() {
+        std::fs::create_dir_all(p).map_err(|e| e.to_string())?;
+    }
+    let json = serde_json::to_string_pretty(list).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())
+}
+
+/// 같은 id 면 교체, 아니면 추가(상한 초과 시 거부).
+pub(crate) fn upsert_style(mut list: Vec<StyleSpec>, style: StyleSpec) -> Result<Vec<StyleSpec>, String> {
+    if let Some(existing) = list.iter_mut().find(|s| s.id == style.id) {
+        *existing = style;
+        return Ok(list);
+    }
+    if list.len() >= MAX_CUSTOM_STYLES {
+        return Err(format!("저장 가능한 커스텀 스타일은 최대 {MAX_CUSTOM_STYLES}개입니다"));
+    }
+    list.push(style);
+    Ok(list)
+}
+
+#[tauri::command]
+pub(crate) fn save_custom_style(project_dir: String, style: StyleSpec) -> Result<(), String> {
+    let dir = Path::new(&project_dir);
+    if !dir.is_absolute() {
+        return Err("projectDir must be absolute".into());
+    }
+    if !is_safe_style_id(&style.id) {
+        return Err("스타일 id 형식이 올바르지 않습니다".into());
+    }
+    validate_style_spec(&style)?;
+    let list = upsert_style(load_custom_styles(dir), style)?;
+    write_custom_styles(dir, &list)
+}
+
+#[tauri::command]
+pub(crate) fn list_custom_styles(project_dir: String) -> Result<Vec<StyleSpec>, String> {
+    let dir = Path::new(&project_dir);
+    if !dir.is_absolute() {
+        return Err("projectDir must be absolute".into());
+    }
+    Ok(load_custom_styles(dir))
+}
+
+#[tauri::command]
+pub(crate) fn delete_custom_style(project_dir: String, style_id: String) -> Result<(), String> {
+    let dir = Path::new(&project_dir);
+    if !dir.is_absolute() {
+        return Err("projectDir must be absolute".into());
+    }
+    let list: Vec<StyleSpec> = load_custom_styles(dir).into_iter().filter(|s| s.id != style_id).collect();
+    write_custom_styles(dir, &list)
+}
+
 // ANCHOR: DESIGN_PREVIEW_END
 
 #[cfg(test)]
@@ -549,5 +618,25 @@ mod custom_style_tests {
     #[test]
     fn rejects_non_json() {
         assert!(parse_synthesized_style("그냥 텍스트입니다", "seed").is_err());
+    }
+
+    #[test]
+    fn upsert_replaces_same_id_and_caps() {
+        let a = StyleSpec { id: "custom-a".into(), ..ok_spec() };
+        let list = upsert_style(vec![], a.clone()).unwrap();
+        assert_eq!(list.len(), 1);
+        let a2 = StyleSpec { name: "교체".into(), ..a.clone() };
+        let list = upsert_style(list, a2).unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].name, "교체");
+    }
+    #[test]
+    fn upsert_rejects_over_cap() {
+        let mut list = vec![];
+        for i in 0..MAX_CUSTOM_STYLES {
+            list = upsert_style(list, StyleSpec { id: format!("custom-{i}"), ..ok_spec() }).unwrap();
+        }
+        let over = upsert_style(list, StyleSpec { id: "custom-new".into(), ..ok_spec() });
+        assert!(over.is_err());
     }
 }
