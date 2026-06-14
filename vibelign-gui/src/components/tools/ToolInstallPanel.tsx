@@ -6,7 +6,10 @@ import {
   toolInstallStatus,
   getInstaller,
   shouldGuideManual,
+  uninstallTool,
+  shouldGuideManualUninstall,
   type ToolInstallResult,
+  type ToolUninstallResult,
 } from "../../lib/tools/installerRegistry";
 
 interface Props {
@@ -16,9 +19,12 @@ interface Props {
 
 export function ToolInstallPanel({ id, onDone }: Props) {
   const meta = getInstaller(id);
-  const [phase, setPhase] = useState<"idle" | "installing" | "done" | "manual">("idle");
+  const [phase, setPhase] = useState<
+    "idle" | "installing" | "done" | "manual" | "confirm-uninstall" | "uninstalling" | "removed" | "manual-uninstall"
+  >("idle");
   const [lines, setLines] = useState<string[]>([]);
   const [result, setResult] = useState<ToolInstallResult | null>(null);
+  const [uninstallResult, setUninstallResult] = useState<ToolUninstallResult | null>(null);
   const [installed, setInstalled] = useState(false);
   const outRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +68,23 @@ export function ToolInstallPanel({ id, onDone }: Props) {
     }
   }
 
+  async function startUninstall() {
+    setPhase("uninstalling");
+    setLines([]);
+    try {
+      const r = await uninstallTool(id);
+      setUninstallResult(r);
+      if (shouldGuideManualUninstall(r)) {
+        setPhase("manual-uninstall");
+      } else {
+        setInstalled(false);
+        setPhase("removed");
+      }
+    } catch {
+      setPhase("manual-uninstall");
+    }
+  }
+
   return (
     <div
       style={{
@@ -72,12 +95,23 @@ export function ToolInstallPanel({ id, onDone }: Props) {
         background: "#F5F1E3",
       }}
     >
-      <div style={{ fontWeight: 900, fontSize: 14 }}>
-        {meta.displayName} {installed ? "✓ 설치됨" : ""}
-        {meta.recommendedForBeginner && !installed ? " — 무료·키 불필요 (추천)" : ""}
+      <div style={{ fontWeight: 900, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
+        <span>
+          {meta.displayName} {installed ? "✓ 설치됨" : ""}
+          {meta.recommendedForBeginner && !installed ? " — 무료·키 불필요 (추천)" : ""}
+        </span>
+        {installed && (phase === "idle" || phase === "done") && (
+          <button
+            className="btn btn-sm"
+            onClick={() => { setLines([]); setPhase("confirm-uninstall"); }}
+            style={{ border: "2px solid #B91C1C", background: "transparent", color: "#B91C1C", fontWeight: 800, marginLeft: "auto" }}
+          >
+            🗑 제거
+          </button>
+        )}
       </div>
 
-      {phase === "idle" && !installed && (
+      {(phase === "idle" || phase === "removed") && !installed && (
         <button
           className="btn"
           onClick={() => void start()}
@@ -97,6 +131,63 @@ export function ToolInstallPanel({ id, onDone }: Props) {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span className="spinner" />
           <span style={{ fontWeight: 800, fontSize: 13 }}>설치 중… (수십 초~몇 분)</span>
+        </div>
+      )}
+
+      {phase === "confirm-uninstall" && (
+        <div style={{ display: "grid", gap: 6, fontSize: 13 }}>
+          <div style={{ fontWeight: 800 }}>정말 제거할까요? (설정·로그인은 유지됩니다)</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              className="btn btn-sm"
+              onClick={() => void startUninstall()}
+              style={{ background: "#B91C1C", color: "#fff", border: "2px solid #B91C1C", fontWeight: 800 }}
+            >
+              제거
+            </button>
+            <button className="btn btn-sm" onClick={() => setPhase("idle")}>취소</button>
+          </div>
+        </div>
+      )}
+
+      {phase === "uninstalling" && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span className="spinner" />
+          <span style={{ fontWeight: 800, fontSize: 13 }}>제거 중…</span>
+        </div>
+      )}
+
+      {phase === "removed" && (
+        <div style={{ fontSize: 12, color: "#166534", fontWeight: 700 }}>✓ 제거 완료!</div>
+      )}
+
+      {phase === "manual-uninstall" && (
+        <div style={{ fontSize: 12, color: "#92400E", display: "grid", gap: 6 }}>
+          <div style={{ fontWeight: 800 }}>자동 제거가 안 됐어요 — 직접 제거해 주세요.</div>
+          {uninstallResult?.manualHint && <div>{uninstallResult.manualHint}</div>}
+          {uninstallResult?.manualUrl && (
+            <button
+              className="btn btn-sm"
+              onClick={() => {
+                if (uninstallResult.manualUrl) void openUrl(uninstallResult.manualUrl).catch(() => {});
+              }}
+              style={{ justifySelf: "start" }}
+            >
+              제거 안내 페이지 열기 →
+            </button>
+          )}
+          <button
+            className="btn btn-sm"
+            onClick={() =>
+              void toolInstallStatus(id).then((ok) => {
+                setInstalled(ok);
+                if (!ok) setPhase("removed");
+              })
+            }
+            style={{ justifySelf: "start" }}
+          >
+            제거 후 다시 확인
+          </button>
         </div>
       )}
 
