@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { DESIGN_STYLES, getStyle, type StyleSpec, type MotionSpec } from "../lib/design-preview/styles";
+import { DESIGN_STYLES, type StyleSpec, type MotionSpec } from "../lib/design-preview/styles";
 import { generateDesignMockup, saveDesignMockup, synthesizeStyle, listCustomStyles, saveCustomStyle, deleteCustomStyle } from "../lib/vib/design";
 import { EXAMPLE_CHIPS, mergeStyleLists } from "../lib/design-preview/customStyles";
 
@@ -26,7 +26,6 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
   const [error, setError] = useState<string | null>(null);
   const [describe, setDescribe] = useState("");
   const [synth, setSynth] = useState<StyleSpec | null>(null);
-  const selected = selectedId ? getStyle(selectedId) : undefined;
   const [custom, setCustom] = useState<StyleSpec[]>([]);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   useEffect(() => {
@@ -34,18 +33,19 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
   }, [projectDir]);
   const allStyles = mergeStyleLists(DESIGN_STYLES, custom);
   const customIds = new Set(custom.map((s) => s.id));
+  const selected = selectedId ? allStyles.find((s) => s.id === selectedId) : undefined;
 
   async function createFromDescription(baseStyle?: StyleSpec) {
     const desc = describe.trim();
     if (!desc && !baseStyle) return;
     setLoading(true);
     setError(null);
+    setSavedMsg(null);
     try {
       const spec = await synthesizeStyle({ projectDir, planPath, description: desc, baseStyle });
       setSynth(spec);
       const res = await generateDesignMockup({ projectDir, planPath, style: spec });
       setHtml(res.html);
-      setSelectedId(spec.id);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -54,12 +54,13 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
   }
 
   async function generate(useFeedback: boolean) {
-    if (!selected) return;
+    const style = synth ?? selected;
+    if (!style) return;
     setLoading(true);
     setError(null);
     try {
       const res = await generateDesignMockup({
-        projectDir, planPath, style: selected,
+        projectDir, planPath, style,
         feedback: useFeedback ? feedback.trim() : undefined,
         previousHtml: useFeedback ? (html ?? undefined) : undefined,
       });
@@ -93,7 +94,7 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
       )}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {allStyles.map((s) => (
-          <button key={s.id} onClick={() => setSelectedId(s.id)} aria-pressed={selectedId === s.id}
+          <button key={s.id} onClick={() => { setSelectedId(s.id); setSynth(null); }} aria-pressed={selectedId === s.id}
             style={{ border: selectedId === s.id ? "2px solid #111" : "1px solid #ccc", padding: 12 }}>
             <strong>{s.name}</strong>
             <div>{s.description}</div>
@@ -135,7 +136,7 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
           </button>
         </div>
       </div>
-      <button disabled={!selected || loading} onClick={() => void generate(false)}>
+      <button disabled={(!selected && !synth) || loading} onClick={() => void generate(false)}>
         {loading ? "그리는 중…" : "이 스타일로 그려보기"}
       </button>
       {selected && !synth && (
