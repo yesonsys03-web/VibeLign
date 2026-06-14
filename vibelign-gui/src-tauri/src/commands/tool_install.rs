@@ -224,16 +224,13 @@ pub(crate) async fn install_tool(
 // ANCHOR: TOOL_INSTALL_END
 
 // ANCHOR: TOOL_UNINSTALL_START
-/// resolve된 실행파일 경로(Option)를 받아 있으면 삭제하고, 호출 후 없으면 true.
-/// 파일 1개만 remove_file — 비재귀·셸 미경유. None 이면 이미 없으므로 true.
-fn remove_resolved_binary(resolved: Option<std::path::PathBuf>) -> std::io::Result<bool> {
-    match resolved {
-        Some(path) => {
-            std::fs::remove_file(&path)?;
-            Ok(!path.exists())
-        }
-        None => Ok(true),
+/// resolve된 실행파일 경로(Option)를 받아 있으면 삭제. 파일 1개만 remove_file — 비재귀·셸 미경유.
+/// None 이면 이미 없으므로 no-op.
+fn remove_resolved_binary(resolved: Option<std::path::PathBuf>) -> std::io::Result<()> {
+    if let Some(path) = resolved {
+        std::fs::remove_file(&path)?;
     }
+    Ok(())
 }
 
 #[tauri::command]
@@ -247,8 +244,11 @@ pub(crate) async fn uninstall_tool(
 
     // 1) agy mac: 명령이 없어 resolve된 단일 바이너리만 삭제(파일 1개, 비재귀, 셸 미경유).
     if t.uninstall_remove_binary && current_os() == "macos" {
-        let removed = remove_resolved_binary(find_executable(t.probe_binary))
-            .map_err(|e| format!("제거 실패: {e}"))?;
+        let probe = t.probe_binary;
+        remove_resolved_binary(find_executable(probe)).map_err(|e| format!("제거 실패: {e}"))?;
+        // 명령 경로와 동일하게 재-probe — 심링크/중복 PATH 로 agy 가 여전히 잡히면
+        // removed=false → 프론트가 안내 폴백으로 전환(거짓 성공 방지, 스펙 §50).
+        let removed = find_executable(probe).is_none();
         return Ok(ToolUninstallResult { removed, exit_code: None, manual_hint, manual_url });
     }
 
@@ -373,18 +373,16 @@ mod tests {
     }
 
     #[test]
-    fn remove_resolved_binary_none_is_already_gone() {
-        assert!(remove_resolved_binary(None).unwrap());
+    fn remove_resolved_binary_none_is_noop() {
+        assert!(remove_resolved_binary(None).is_ok());
     }
 
     #[test]
     fn remove_resolved_binary_deletes_single_file() {
-        let dir = std::env::temp_dir();
-        let path = dir.join("vibelign_uninstall_test_bin");
+        let path = std::env::temp_dir().join("vibelign_uninstall_test_bin");
         std::fs::write(&path, b"x").unwrap();
         assert!(path.exists());
-        let removed = remove_resolved_binary(Some(path.clone())).unwrap();
-        assert!(removed);
+        remove_resolved_binary(Some(path.clone())).unwrap();
         assert!(!path.exists());
     }
 
