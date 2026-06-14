@@ -278,7 +278,7 @@ pub(crate) struct DesignMockupResult {
 }
 
 #[tauri::command]
-pub(crate) fn generate_design_mockup(
+pub(crate) async fn generate_design_mockup(
     project_dir: String,
     plan_path: String,
     style: StyleSpec,
@@ -299,8 +299,14 @@ pub(crate) fn generate_design_mockup(
     if let Some(html) = read_design_cache(dir, &key) {
         return Ok(DesignMockupResult { html, cached: true });
     }
-    let raw = planning_persona::run_design_generation(dir, &prompt)
-        .ok_or_else(|| "디자인 목업 생성에 실패했습니다 (CLI 미설치/로그인/타임아웃)".to_string())?;
+    // 동기 실행 시 Tauri 메인 스레드를 막아 웹뷰 전체가 멈춘다(탭 이동 불가). blocking 풀로 빼서 메인 스레드 보존.
+    let dir_owned = dir.to_path_buf();
+    let raw = tauri::async_runtime::spawn_blocking(move || {
+        planning_persona::run_design_generation(&dir_owned, &prompt)
+    })
+    .await
+    .map_err(|_| "작업 실행에 실패했어요".to_string())?
+    .ok_or_else(|| "디자인 목업 생성에 실패했습니다 (CLI 미설치/로그인/타임아웃)".to_string())?;
     let html = strip_code_fences(&raw);
     validate_mockup_html(&html)?; // 저장 전 검증
     write_design_cache(dir, &key, &html)?;
@@ -420,7 +426,7 @@ fn synth_cache_path(project_dir: &Path, key: &str) -> PathBuf {
 }
 
 #[tauri::command]
-pub(crate) fn synthesize_style(
+pub(crate) async fn synthesize_style(
     project_dir: String,
     plan_path: String,
     description: String,
@@ -441,8 +447,15 @@ pub(crate) fn synthesize_style(
             return Ok(spec);
         }
     }
-    let raw = planning_persona::run_design_generation(dir, &prompt)
-        .ok_or_else(|| "스타일 합성에 실패했습니다 (CLI 미설치/로그인/타임아웃)".to_string())?;
+    // 동기 실행 시 Tauri 메인 스레드를 막아 웹뷰가 멈춘다. blocking 풀로 빼서 메인 스레드 보존.
+    let dir_owned = dir.to_path_buf();
+    let prompt_for_cli = prompt.clone();
+    let raw = tauri::async_runtime::spawn_blocking(move || {
+        planning_persona::run_design_generation(&dir_owned, &prompt_for_cli)
+    })
+    .await
+    .map_err(|_| "작업 실행에 실패했어요".to_string())?
+    .ok_or_else(|| "스타일 합성에 실패했습니다 (CLI 미설치/로그인/타임아웃)".to_string())?;
     let spec = parse_synthesized_style(&raw, &prompt)?;
     if let Some(p) = synth_cache_path(dir, &key).parent() {
         let _ = std::fs::create_dir_all(p);
