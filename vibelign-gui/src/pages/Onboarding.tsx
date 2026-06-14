@@ -16,7 +16,7 @@ import { OnboardingAdvancedPanel } from "./onboarding/OnboardingAdvancedPanel";
 import { OnboardingClaudeSetup } from "./onboarding/OnboardingClaudeSetup";
 import { OnboardingInputBar, type OnboardingCoach } from "./onboarding/OnboardingInputBar";
 import { OnboardingStartProgress } from "./onboarding/OnboardingStartProgress";
-import { OnboardingSystemWarnings } from "./onboarding/OnboardingSystemWarnings";
+import { OnboardingGitWarning, OnboardingSystemWarnings } from "./onboarding/OnboardingSystemWarnings";
 import { ToolSetupSelector } from "../components/ToolSetupSelector";
 
 interface OnboardingProps {
@@ -222,6 +222,7 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
           <p style={{ margin: 0, textAlign: "center", color: "#666", fontSize: 14, fontWeight: 600 }}>
             무엇을 만들지 한 줄로 적어보세요. 나머지는 정렬해 드릴게요
           </p>
+          {gitInstalled === false && <OnboardingGitWarning />}
           <OnboardingInputBar
             promptText={promptText}
             selectedDirName={selectedDir ? selectedDirName : ""}
