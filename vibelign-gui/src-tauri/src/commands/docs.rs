@@ -264,32 +264,42 @@ fn run_docs_cache_helper(root: &str, extra_args: &[&str]) -> Result<String, Stri
     }
 }
 
-#[tauri::command]
-pub(crate) fn list_docs_index(root: String) -> Result<Vec<DocsIndexEntry>, String> {
-    // 1) 캐시 파일이 있으면 즉시 반환 — subprocess cold-start 를 우회한다.
-    let root_path = strip_unc_prefix(
-        PathBuf::from(&root)
-            .canonicalize()
-            .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?,
-    );
-    if let Some(entries) = read_docs_index_cache_file(&root_path) {
-        return Ok(entries);
-    }
+const SPAWN_FAIL: &str = "작업 실행에 실패했어요";
 
-    // 2) 캐시 miss: subprocess 가 인덱스를 만들고 캐시 파일을 기록한다 (side-effect).
-    let raw = run_docs_cache_helper(&root, &[])?;
-    serde_json::from_str::<Vec<DocsIndexEntry>>(raw.trim())
-        .map_err(|e| format!("docs index 결과를 해석할 수 없어요: {e}"))
+#[tauri::command]
+pub(crate) async fn list_docs_index(root: String) -> Result<Vec<DocsIndexEntry>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        // 1) 캐시 파일이 있으면 즉시 반환 — subprocess cold-start 를 우회한다.
+        let root_path = strip_unc_prefix(
+            PathBuf::from(&root)
+                .canonicalize()
+                .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?,
+        );
+        if let Some(entries) = read_docs_index_cache_file(&root_path) {
+            return Ok(entries);
+        }
+
+        // 2) 캐시 miss: subprocess 가 인덱스를 만들고 캐시 파일을 기록한다 (side-effect).
+        let raw = run_docs_cache_helper(&root, &[])?;
+        serde_json::from_str::<Vec<DocsIndexEntry>>(raw.trim())
+            .map_err(|e| format!("docs index 결과를 해석할 수 없어요: {e}"))
+    })
+    .await
+    .map_err(|_| SPAWN_FAIL.to_string())?
 }
 
 /// 사이드바 새로고침 버튼이 호출한다. 캐시를 건너뛰고 강제로 subprocess 를 돌려
 /// 파일 시스템 변화를 즉시 반영한다. Python 쪽이 캐시를 새로 기록하므로 후속 호출은
 /// 다시 캐시 hit.
 #[tauri::command]
-pub(crate) fn rebuild_docs_index(root: String) -> Result<Vec<DocsIndexEntry>, String> {
-    let raw = run_docs_cache_helper(&root, &[])?;
-    serde_json::from_str::<Vec<DocsIndexEntry>>(raw.trim())
-        .map_err(|e| format!("docs index 결과를 해석할 수 없어요: {e}"))
+pub(crate) async fn rebuild_docs_index(root: String) -> Result<Vec<DocsIndexEntry>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let raw = run_docs_cache_helper(&root, &[])?;
+        serde_json::from_str::<Vec<DocsIndexEntry>>(raw.trim())
+            .map_err(|e| format!("docs index 결과를 해석할 수 없어요: {e}"))
+    })
+    .await
+    .map_err(|_| SPAWN_FAIL.to_string())?
 }
 
 fn read_docs_visual_contract(root: &str) -> Result<DocsVisualContract, String> {
@@ -367,74 +377,82 @@ fn docs_artifact_path(root_path: &Path, relative_path: &str, dir_name: &str) -> 
 }
 
 #[tauri::command]
-pub(crate) fn read_docs_visual(
+pub(crate) async fn read_docs_visual(
     root: String,
     path: PathBuf,
 ) -> Result<Option<DocsVisualReadResult>, String> {
-    let (_resolved_path, relative_path) = resolve_doc_path(&root, path)?;
-    if !docs_access::is_canvas_eligible_path(&relative_path) {
-        return Err(format!(
-            "Canvas visualization is unsupported for excluded docs path: {relative_path}"
-        ));
-    }
-    let root_path = strip_unc_prefix(
-        PathBuf::from(&root)
-            .canonicalize()
-            .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?,
-    );
-    // Route extra source docs to `_extra/<rel>.json` to avoid hidden-dir nesting.
-    let artifact_path = docs_artifact_path(&root_path, &relative_path, "docs_visual");
+    tauri::async_runtime::spawn_blocking(move || {
+        let (_resolved_path, relative_path) = resolve_doc_path(&root, path)?;
+        if !docs_access::is_canvas_eligible_path(&relative_path) {
+            return Err(format!(
+                "Canvas visualization is unsupported for excluded docs path: {relative_path}"
+            ));
+        }
+        let root_path = strip_unc_prefix(
+            PathBuf::from(&root)
+                .canonicalize()
+                .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?,
+        );
+        // Route extra source docs to `_extra/<rel>.json` to avoid hidden-dir nesting.
+        let artifact_path = docs_artifact_path(&root_path, &relative_path, "docs_visual");
 
-    if !artifact_path.exists() {
-        return Ok(None);
-    }
+        if !artifact_path.exists() {
+            return Ok(None);
+        }
 
-    let artifact_text = std::fs::read_to_string(&artifact_path)
-        .map_err(|e| format!("docs visual artifact를 읽을 수 없어요: {e}"))?;
-    let artifact: serde_json::Value = serde_json::from_str(&artifact_text)
-        .map_err(|e| format!("docs visual artifact JSON이 손상되었어요: {e}"))?;
-    let contract = read_docs_visual_contract(&root)?;
+        let artifact_text = std::fs::read_to_string(&artifact_path)
+            .map_err(|e| format!("docs visual artifact를 읽을 수 없어요: {e}"))?;
+        let artifact: serde_json::Value = serde_json::from_str(&artifact_text)
+            .map_err(|e| format!("docs visual artifact JSON이 손상되었어요: {e}"))?;
+        let contract = read_docs_visual_contract(&root)?;
 
-    Ok(Some(DocsVisualReadResult {
-        path: relative_path,
-        artifact,
-        contract,
-    }))
+        Ok(Some(DocsVisualReadResult {
+            path: relative_path,
+            artifact,
+            contract,
+        }))
+    })
+    .await
+    .map_err(|_| SPAWN_FAIL.to_string())?
 }
 
 #[tauri::command]
-pub(crate) fn read_docs_html(
+pub(crate) async fn read_docs_html(
     root: String,
     path: PathBuf,
 ) -> Result<Option<DocsHtmlReadResult>, String> {
-    let (_resolved_path, relative_path) = resolve_doc_path(&root, path)?;
-    if !docs_access::is_canvas_eligible_path(&relative_path) {
-        return Err(format!(
-            "Raw HTML Canvas is unsupported for excluded docs path: {relative_path}"
-        ));
-    }
-    let root_path = strip_unc_prefix(
-        PathBuf::from(&root)
-            .canonicalize()
-            .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?,
-    );
-    let artifact_path = docs_artifact_path(&root_path, &relative_path, "docs_html");
+    tauri::async_runtime::spawn_blocking(move || {
+        let (_resolved_path, relative_path) = resolve_doc_path(&root, path)?;
+        if !docs_access::is_canvas_eligible_path(&relative_path) {
+            return Err(format!(
+                "Raw HTML Canvas is unsupported for excluded docs path: {relative_path}"
+            ));
+        }
+        let root_path = strip_unc_prefix(
+            PathBuf::from(&root)
+                .canonicalize()
+                .map_err(|e| format!("프로젝트 루트를 확인할 수 없어요: {e}"))?,
+        );
+        let artifact_path = docs_artifact_path(&root_path, &relative_path, "docs_html");
 
-    if !artifact_path.exists() {
-        return Ok(None);
-    }
+        if !artifact_path.exists() {
+            return Ok(None);
+        }
 
-    let artifact_text = std::fs::read_to_string(&artifact_path)
-        .map_err(|e| format!("docs HTML artifact를 읽을 수 없어요: {e}"))?;
-    let artifact: serde_json::Value = serde_json::from_str(&artifact_text)
-        .map_err(|e| format!("docs HTML artifact JSON이 손상되었어요: {e}"))?;
-    let contract = read_docs_html_contract(&root)?;
+        let artifact_text = std::fs::read_to_string(&artifact_path)
+            .map_err(|e| format!("docs HTML artifact를 읽을 수 없어요: {e}"))?;
+        let artifact: serde_json::Value = serde_json::from_str(&artifact_text)
+            .map_err(|e| format!("docs HTML artifact JSON이 손상되었어요: {e}"))?;
+        let contract = read_docs_html_contract(&root)?;
 
-    Ok(Some(DocsHtmlReadResult {
-        path: relative_path,
-        artifact,
-        contract,
-    }))
+        Ok(Some(DocsHtmlReadResult {
+            path: relative_path,
+            artifact,
+            contract,
+        }))
+    })
+    .await
+    .map_err(|_| SPAWN_FAIL.to_string())?
 }
 
 // ─── 추가 문서 소스 관리 ────────────────────────────────────────────────────────
