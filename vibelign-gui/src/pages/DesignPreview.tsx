@@ -26,6 +26,7 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
   const [error, setError] = useState<string | null>(null);
   const [describe, setDescribe] = useState("");
   const [synth, setSynth] = useState<StyleSpec | null>(null);
+  const [loadingMsg, setLoadingMsg] = useState("");
   const [custom, setCustom] = useState<StyleSpec[]>([]);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   useEffect(() => {
@@ -41,9 +42,11 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
     setLoading(true);
     setError(null);
     setSavedMsg(null);
+    setLoadingMsg("① 클로드가 스타일을 구상하는 중…");
     try {
       const spec = await synthesizeStyle({ projectDir, planPath, description: desc, baseStyle });
       setSynth(spec);
+      setLoadingMsg("② 화면 목업을 그리는 중… (최대 1~2분 걸려요)");
       const res = await generateDesignMockup({ projectDir, planPath, style: spec });
       setHtml(res.html);
     } catch (e) {
@@ -58,6 +61,7 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
     if (!style) return;
     setLoading(true);
     setError(null);
+    setLoadingMsg("디자인을 그리는 중… (최대 1~2분 걸려요)");
     try {
       const res = await generateDesignMockup({
         projectDir, planPath, style,
@@ -150,6 +154,15 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, onBac
         </div>
       )}
       {error && <p style={{ color: "crimson" }}>{error}</p>}
+      {loading && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, padding: "12px 14px", border: "2px solid #1A1A1A", background: "#F5F1E3" }}>
+          <span className="spinner" />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 900 }}>{loadingMsg || "클로드가 작업 중…"}</div>
+            <div style={{ fontSize: 12, color: "#666" }}>⏳ 멈춘 게 아니에요 — 클로드가 디자인을 만들고 있어요.</div>
+          </div>
+        </div>
+      )}
       {html && (
         <>
           {synth && (
