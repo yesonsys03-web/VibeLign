@@ -19,6 +19,7 @@ export interface DesignJob {
   error: string | null;
   run: (params: DesignRunParams, planPath: string) => void;
   recolor: (key: RecolorKey, value: string) => void;
+  clearSynth: () => void;
   reset: () => void;
 }
 
@@ -101,5 +102,7 @@ export function useDesignJob(projectDir: string): DesignJob {
     [synth, html],
   );
 
-  return { status, phaseMsg, html, synth, error, run, recolor, reset };
+  const clearSynth = useCallback(() => setSynth(null), []);
+
+  return { status, phaseMsg, html, synth, error, run, recolor, clearSynth, reset };
 }

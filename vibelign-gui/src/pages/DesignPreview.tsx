@@ -82,7 +82,7 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, job, 
       )}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {allStyles.map((s) => (
-          <button key={s.id} onClick={() => { setSelectedId(s.id); }} aria-pressed={selectedId === s.id}
+          <button key={s.id} onClick={() => { setSelectedId(s.id); job.clearSynth(); }} aria-pressed={selectedId === s.id}
             style={{ border: selectedId === s.id ? "2px solid #111" : "1px solid #ccc", padding: 12 }}>
             <strong>{s.name}</strong>
             <div>{s.description}</div>
