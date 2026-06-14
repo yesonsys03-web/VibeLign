@@ -507,9 +507,17 @@ export default function WorkRoom({
               );
             })}
           {providers !== null && !anyDetected && (
-            <button className="btn btn-ghost btn-sm" onClick={onOpenSettings} style={{ fontSize: 12 }}>
-              AI 도구 설치 도움받기 →
-            </button>
+            <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: 12, color: "#b42318", fontWeight: 700 }}>
+                실행 가능한 AI 도구를 찾지 못했어요.
+              </span>
+              <span style={{ fontSize: 11, color: "#555" }}>
+                Claude Code는 <b>처음 설정</b>에서 자동으로 설치돼요. 나머지(Codex 등)는 직접 설치 후 설정에서 등록하세요.
+              </span>
+              <button className="btn btn-ghost btn-sm" onClick={onOpenSettings} style={{ fontSize: 12, alignSelf: "flex-start" }}>
+                설정에서 도구 등록하기 →
+              </button>
+            </span>
           )}
         </div>
 

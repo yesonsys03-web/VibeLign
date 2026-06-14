@@ -2,13 +2,14 @@
 import { useState, type ReactElement } from "react";
 
 // vib start --tools 가 받는 키와 1:1 (vibelign/commands/vib_start_cmd.py START_TOOL_CHOICES).
-const SETUP_TOOLS: readonly { readonly key: string; readonly label: string }[] = [
-  { key: "claude", label: "Claude Code" },
-  { key: "claude_desktop", label: "Claude Desktop" },
-  { key: "cursor", label: "Cursor" },
-  { key: "codex", label: "Codex" },
-  { key: "opencode", label: "OpenCode" },
-  { key: "antigravity", label: "Antigravity" },
+// autoInstall: true = VibeLign이 자동으로 설치해 줌 / false = 직접 설치 필요
+const SETUP_TOOLS: readonly { readonly key: string; readonly label: string; readonly autoInstall: boolean }[] = [
+  { key: "claude", label: "Claude Code", autoInstall: true },
+  { key: "claude_desktop", label: "Claude Desktop", autoInstall: false },
+  { key: "cursor", label: "Cursor", autoInstall: false },
+  { key: "codex", label: "Codex", autoInstall: false },
+  { key: "opencode", label: "OpenCode", autoInstall: false },
+  { key: "antigravity", label: "Antigravity", autoInstall: false },
 ];
 
 export const SETUP_TOOL_KEYS: readonly string[] = SETUP_TOOLS.map((t) => t.key);
@@ -66,6 +67,39 @@ export function ToolSetupSelector({ detected, selected, onChange, disabled = fal
           >
             {tool.label}
             {isDetected ? " MCP" : ""}
+            {tool.autoInstall ? (
+              <span
+                title="VibeLign이 자동으로 설치해 드려요"
+                style={{
+                  marginLeft: 4,
+                  fontSize: 9,
+                  fontWeight: 800,
+                  padding: "1px 4px",
+                  background: active ? "rgba(255,255,255,0.25)" : "#D1FAE5",
+                  color: active ? "#fff" : "#065F46",
+                  borderRadius: 3,
+                  verticalAlign: "middle",
+                }}
+              >
+                자동설치
+              </span>
+            ) : (
+              <span
+                title="직접 설치가 필요해요"
+                style={{
+                  marginLeft: 4,
+                  fontSize: 9,
+                  fontWeight: 700,
+                  padding: "1px 4px",
+                  background: active ? "rgba(255,255,255,0.15)" : "#F3F4F6",
+                  color: active ? "rgba(255,255,255,0.8)" : "#9CA3AF",
+                  borderRadius: 3,
+                  verticalAlign: "middle",
+                }}
+              >
+                직접설치
+              </span>
+            )}
           </button>
         );
       })}
