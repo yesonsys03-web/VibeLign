@@ -336,6 +336,10 @@ pub(crate) fn css_value_is_safe(v: &str) -> bool {
         && !lower.contains("expression(")
         && !lower.contains("@import")
         && !lower.contains("javascript:")
+        && !v.contains("/*")
+        && !v.contains("*/")
+        && !v.contains('\n')
+        && !v.contains('\r')
 }
 
 /// 합성된 StyleSpec 검증. 토큰 안전성 + 길이 한도.
@@ -421,5 +425,19 @@ mod custom_style_tests {
         let id = safe_style_id_from("아무 시드 ABC !@#");
         assert!(is_safe_style_id(&id), "got {id}");
         assert!(id.starts_with("custom-"));
+    }
+    #[test]
+    fn rejects_css_comment_injection() {
+        for bad in ["red /*", "*/ }", "blue /* x */"] {
+            let mut s = ok_spec();
+            s.tokens.primary = bad.into();
+            assert!(validate_style_spec(&s).is_err(), "should reject {bad}");
+        }
+    }
+    #[test]
+    fn rejects_newline_in_token() {
+        let mut s = ok_spec();
+        s.tokens.bg = "#fff\n--injected: blue".into();
+        assert!(validate_style_spec(&s).is_err());
     }
 }
