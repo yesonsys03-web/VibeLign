@@ -317,6 +317,10 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.4.1** — Uninstall for AI CLI tools (OpenCode / Codex / Antigravity):
+
+- 🧹 **One-click uninstall in `ToolInstallPanel`** — Remove opencode/codex/antigravity from the app. opencode & codex (macOS) use their uninstall command; agy (macOS) deletes only the PATH-resolved single binary via `std::fs::remove_file` (one file, non-recursive, no shell) then re-probes to confirm — preventing false success on symlink/duplicate-PATH installs; codex/agy (Windows) fall back to a manual guide. Binary-only removal — MCP config, tool config, and login state are preserved.
+
 **v2.2.20** — Code Explorer adds docs tree + per-category color coding:
 
 - 📚 **`docs/` + `.md` files now in the sidebar** — A Tauri-only `list_code_files` scanner runs alongside the engine's `project_scan`, so `docs/superpowers/specs/*.md`, wiki, release notes and other Markdown docs show up in the tree and open in the viewer (Markdown language tag). Code-analysis pipelines (anchor_tools, patch_suggester, doctor_v2, risk_analyzer) keep their original code-only scope and are untouched.

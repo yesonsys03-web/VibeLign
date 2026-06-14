@@ -317,6 +317,10 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.4.1** — AI CLI 도구 언인스톨 (OpenCode / Codex / Antigravity):
+
+- 🧹 **`ToolInstallPanel` 원클릭 제거** — opencode/codex/antigravity 를 앱에서 제거. opencode·codex(macOS)는 제거 명령으로, agy(macOS)는 PATH에서 resolve된 단일 바이너리만 `std::fs::remove_file`(파일 1개·비재귀·셸 미경유) 후 재-probe로 검증 — 심링크/중복 PATH 설치의 거짓성공 방지, codex/agy(Windows)는 수동 안내 폴백. 바이너리만 제거 — MCP 설정·도구 config·로그인은 보존.
+
 **v2.2.20** — Code Explorer 사이드바에 docs 트리 + 카테고리별 컬러 구분:
 
 - 📚 **사이드바에 `docs/` 폴더 + `.md` 미리보기** — 엔진 `project_scan`(코드 분석 파이프라인과 공유)과 별도로 Tauri 전용 `list_code_files` 스캐너를 신설. `docs/superpowers/specs/*.md`, wiki, release notes 등의 Markdown 문서가 트리에 노출되고 뷰어에서 Markdown 언어 태그로 열림. anchor_tools/patch_suggester/doctor_v2/risk_analyzer 등 코드 도메인 분석은 그대로 유지.

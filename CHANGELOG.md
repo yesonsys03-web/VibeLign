@@ -10,6 +10,28 @@
 
 ---
 
+## [2.4.1] — 2026-06-14
+
+**AI CLI 도구 언인스톨 + dead-code 정리** — opencode/codex/antigravity CLI를 앱 안에서 제거할 수 있게 했다. 클로드코드 언인스톨과 동일하게 **CLI 바이너리만** 제거하고 MCP 설정·도구 config·로그인은 보존한다.
+
+### Added
+
+- **AI CLI 도구 언인스톨** — opencode / codex / antigravity(agy) 를 GUI에서 제거. opencode·codex(macOS)는 제거 명령으로 자동 처리, agy(macOS)는 PATH에서 resolve된 단일 바이너리만 `std::fs::remove_file`(파일 1개·비재귀·셸 미경유) 후 재-probe로 검증해 심링크/중복 PATH 거짓성공을 방지, codex/agy(Windows)는 수동 제거 안내 폴백. `ToolInstallPanel` 에 🗑 제거 버튼 + 확인 + 진행/완료/안내 단계 추가. CLI 바이너리만 제거하고 MCP 설정(`.mcp.json` 등)·도구 config·로그인 상태는 보존 (`vibelign-gui/src-tauri/src/commands/tool_install.rs`, `vibelign-gui/src/lib/tools/installerRegistry.ts`, `vibelign-gui/src/components/tools/ToolInstallPanel.tsx`).
+
+### Fixed
+
+- **`SPAWN_FAIL` dead-code 경고 제거** — `vibelign-gui/src-tauri/src/commands/project_summary.rs` 에서 쓰이지 않던 `const SPAWN_FAIL` 상수를 삭제해 `dead_code` 경고를 없앴다.
+
+### Notes
+
+- **버전 동기화 보정** — `vibelign-core/Cargo.toml` 이 v2.4.0 에서 2.3.1 에 머물던 드리프트를 2.4.1 로 맞춰 6개 버전 소스를 재동기화.
+
+### Verified
+
+- Rust `cargo test --lib tool_install` 11 passed, 프론트 `vitest ToolInstallPanel.test.tsx` 4 passed. 4-task TDD 구현이 각각 스펙+품질 리뷰 + 최종 전체 리뷰를 통과.
+
+---
+
 ## [2.4.0] — 2026-06-14
 
 **디자인 미리보기의 도약 + 앱 반응성 대수술** — 일상어로 스타일을 즉석 합성하고, 생성 작업이 탭을 넘나들며 살아남는 백그라운드 잡 시스템을 도입했으며, 동기 Tauri 커맨드가 메인 스레드를 막던 근본 원인을 `async + spawn_blocking`으로 해소한 릴리즈. AI 도구 원클릭 설치, 온보딩 "실행해보기" 흐름, `vib start` 베이스라인 커밋까지 더해 처음 사용자의 데드엔드를 제거했다.

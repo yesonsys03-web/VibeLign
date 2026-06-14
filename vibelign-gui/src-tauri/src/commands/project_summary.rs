@@ -90,8 +90,6 @@ pub(crate) struct ProjectSummary {
     git_commits: Vec<SummaryLine>,
 }
 
-const SPAWN_FAIL: &str = "작업 실행에 실패했어요";
-
 #[tauri::command]
 pub(crate) async fn read_project_summary(dir: String) -> ProjectSummary {
     tauri::async_runtime::spawn_blocking(move || {
