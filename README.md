@@ -317,6 +317,12 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.4.4** — New 갸리카 (car) guide mascot in onboarding & the planning room:
+
+- 🚗 **Onboarding mascot drives in** from off-screen left, brakes under the input, then pops a welcome bubble. Click it to dismiss the bubble, click again to "vroom" off-screen right, and click anywhere to drive it back in.
+- ⏳ **Planning-room loading** — while personas (클로이/지오/미나/딥시기) prepare their answers, the car runs in place as a "부릉부릉" loading animation instead of plain waiting text.
+- 🧭→🚗 Replaces the old compass guide mascot.
+
 **v2.4.3** — Adapt to Claude's programmatic-usage pricing change (minimize automatic Claude calls):
 
 - 🔻 **Planning personas no longer auto-fall-back to Claude** (Codex/OpenCode first); the Claude persona ("클로이") is **off by default — opt-in**. Disabled personas can't be selected in the composer and "모두" only calls enabled ones.
