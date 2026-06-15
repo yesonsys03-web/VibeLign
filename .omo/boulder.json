@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "active_work_id": "planning-work-home-reset-accessible-name",
+  "active_work_id": "planning-work-help-primary-legacy-commands",
   "works": {
     "planning-room-next-actions": {
       "work_id": "planning-room-next-actions",
@@ -383,6 +383,22 @@
       "active_plan": ".omo/plans/planning-work-home-reset-accessible-name.md",
       "plan_name": "planning-work-home-reset-accessible-name",
       "session_ids": ["codex:planning-work-home-reset-accessible-name"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-plan-structure-command-accessor": {
+      "work_id": "planning-work-plan-structure-command-accessor",
+      "active_plan": ".omo/plans/planning-work-plan-structure-command-accessor.md",
+      "plan_name": "planning-work-plan-structure-command-accessor",
+      "session_ids": ["codex:planning-work-plan-structure-command-accessor"],
+      "status": "complete",
+      "worktree_path": null
+    },
+    "planning-work-help-primary-legacy-commands": {
+      "work_id": "planning-work-help-primary-legacy-commands",
+      "active_plan": ".omo/plans/planning-work-help-primary-legacy-commands.md",
+      "plan_name": "planning-work-help-primary-legacy-commands",
+      "session_ids": ["codex:planning-work-help-primary-legacy-commands"],
       "status": "complete",
       "worktree_path": null
     }

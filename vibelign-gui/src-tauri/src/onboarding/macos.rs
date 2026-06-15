@@ -625,26 +625,28 @@ pub(crate) fn installed_tools() -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
 
     for tool in &cli_tools {
-        let zsh_cmd = format!("command -v {}", tool);
-        let zsh_ok =
-            run_command_capture_with_timeout("/bin/zsh", &["-lc", &zsh_cmd], &[], 10)
+        // Cheap + robust first: probe an augmented PATH directly. `zsh -lc`/`bash -lc`
+        // are login *non-interactive* shells that source `.zprofile`/`.zshenv` but NOT
+        // `.zshrc`, where most users export their PATH (e.g. `~/.bun/bin` for opencode).
+        // So `command -v` misses such tools even when installed. The augmented probe
+        // (same one tool_install.rs uses) catches them and lets us skip the slow shells.
+        let path_ok = crate::commands::planning_persona::find_executable(tool).is_some();
+        let probe_cmd = format!("command -v {}", tool);
+        let zsh_ok = !path_ok
+            && run_command_capture_with_timeout("/bin/zsh", &["-lc", &probe_cmd], &[], 10)
                 .map(|r| r.ok)
                 .unwrap_or(false);
-        let bash_cmd = format!("command -v {}", tool);
-        let bash_ok = if !zsh_ok {
-            run_command_capture_with_timeout("/bin/bash", &["-lc", &bash_cmd], &[], 10)
+        let bash_ok = !path_ok
+            && !zsh_ok
+            && run_command_capture_with_timeout("/bin/bash", &["-lc", &probe_cmd], &[], 10)
                 .map(|r| r.ok)
-                .unwrap_or(false)
-        } else {
-            false
-        };
-        let direct_ok = if !zsh_ok && !bash_ok && *tool == "claude" {
-            let claude_bin = PathBuf::from(&home).join(".local/bin/claude");
-            claude_bin.exists()
-        } else {
-            false
-        };
-        if zsh_ok || bash_ok || direct_ok {
+                .unwrap_or(false);
+        let direct_ok = !path_ok
+            && !zsh_ok
+            && !bash_ok
+            && *tool == "claude"
+            && PathBuf::from(&home).join(".local/bin/claude").exists();
+        if path_ok || zsh_ok || bash_ok || direct_ok {
             found.push(tool.to_string());
         }
     }

@@ -83,7 +83,23 @@ export function ToolSetupSelector({ detected, selected, onChange, disabled = fal
                 }}
               >
                 {tool.label}
-                {isDetected ? " MCP" : ""}
+                {isDetected && (
+                  <span
+                    title="이 컴퓨터에 설치되어 있어요"
+                    style={{
+                      marginLeft: 4,
+                      fontSize: 9,
+                      fontWeight: 800,
+                      padding: "1px 4px",
+                      background: "#DCFCE7",
+                      color: "#166534",
+                      borderRadius: 3,
+                      verticalAlign: "middle",
+                    }}
+                  >
+                    ✓ 설치됨
+                  </span>
+                )}
                 {tool.autoInstall ? (
                   <span
                     title="VibeLign이 자동으로 설치해 드려요"
@@ -92,8 +108,8 @@ export function ToolSetupSelector({ detected, selected, onChange, disabled = fal
                       fontSize: 9,
                       fontWeight: 800,
                       padding: "1px 4px",
-                      background: active ? "rgba(255,255,255,0.25)" : "#D1FAE5",
-                      color: active ? "#fff" : "#065F46",
+                      background: "#FEF3C7",
+                      color: "#92400E",
                       borderRadius: 3,
                       verticalAlign: "middle",
                     }}
@@ -108,8 +124,8 @@ export function ToolSetupSelector({ detected, selected, onChange, disabled = fal
                       fontSize: 9,
                       fontWeight: 700,
                       padding: "1px 4px",
-                      background: active ? "rgba(255,255,255,0.15)" : "#F3F4F6",
-                      color: active ? "rgba(255,255,255,0.8)" : "#9CA3AF",
+                      background: "#E5E7EB",
+                      color: "#4B5563",
                       borderRadius: 3,
                       verticalAlign: "middle",
                     }}
