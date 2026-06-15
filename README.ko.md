@@ -317,6 +317,13 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.4.2** — 설치된 AI 도구 감지 정확화 + 설정 가독성 + 기획방 자동 스크롤:
+
+- 🔍 **설치된 AI 도구가 이제 제대로 "설치됨"으로 표시** — 설정의 도구 감지가 `zsh -lc`/`bash -lc`(로그인·비대화형) 셸의 `command -v` 에 의존했는데, 이 셸은 PATH export 가 대부분 들어있는 `.zshrc`(대화형 전용)를 안 읽어서 `~/.bun/bin` 의 opencode 같은 도구가 설치돼 있어도 누락됐다. 이제 augmented PATH(homebrew/cargo/bun/.local/bin)를 직접 탐색해, Finder/Dock 으로 앱을 실행해도 빠짐없이 감지한다.
+- ✅ **설치 상태 표시 명확화** — 모호한 " MCP" 접미사를 또렷한 **"✓ 설치됨"** 배지로 교체하고, 설치됨/자동설치/직접설치 배지를 초록/앰버/회색으로 구분해 선택된(파란) 버튼 위에서도 잘 읽히게 했다.
+- 🔤 **설정 텍스트 가독성** — AI 도구 설정·기획방 페르소나·API 키 카드의 작고 흐리던 설명 문구를 표준 카드 스타일(13px·진한색)로 통일했고, 흰 배경에서 안 읽히던 제공자 이름의 터미널 그린도 진한색으로 바꿨다.
+- ⬇️ **기획방 스마트 자동 스크롤** — 메시지를 보내거나 새 응답이 오면 페이지 맨 아래가 아니라 그 답변으로 스크롤된다. 위에서 이전 대화를 읽는 중이면 스크롤을 가로채지 않는다.
+
 **v2.4.1** — AI CLI 도구 언인스톨 (OpenCode / Codex / Antigravity):
 
 - 🧹 **`ToolInstallPanel` 원클릭 제거** — opencode/codex/antigravity 를 앱에서 제거. opencode·codex(macOS)는 제거 명령으로, agy(macOS)는 PATH에서 resolve된 단일 바이너리만 `std::fs::remove_file`(파일 1개·비재귀·셸 미경유) 후 재-probe로 검증 — 심링크/중복 PATH 설치의 거짓성공 방지, codex/agy(Windows)는 수동 안내 폴백. 바이너리만 제거 — MCP 설정·도구 config·로그인은 보존.

@@ -10,6 +10,29 @@
 
 ---
 
+## [2.4.2] — 2026-06-15
+
+**설치된 AI 도구 감지 정확화 + 설정 화면 가독성 + 기획방 자동 스크롤** — 컴퓨터에 깔려 있는 AI CLI 도구가 설정에서 "설치됨"으로 안 뜨던 문제를 고치고, 설정 카드 텍스트 가독성을 통일했으며, 기획방에서 새 답변으로 자동 스크롤되게 했다.
+
+### Fixed
+
+- **설치된 AI 도구 감지 누락** — 설정 "AI 도구 설정"의 도구 감지가 `zsh -lc`/`bash -lc` 로그인(비대화형) 셸의 `command -v` 에 의존해, `.zshrc`(대화형 셸 전용)에서 PATH를 export 하는 도구(`~/.bun/bin` 의 opencode 등)를 설치돼 있어도 못 찾던 문제. augmented PATH(homebrew·cargo·bun·.local/bin 등)를 직접 탐색하는 `find_executable` 우선 방식으로 변경 — Finder/Dock 실행 시에도 누락 없이 감지되고, 설치된 도구는 느린 셸 spawn 도 건너뛴다 (`vibelign-gui/src-tauri/src/onboarding/macos.rs`, `vibelign-gui/src-tauri/src/onboarding/mod.rs`).
+
+### Changed
+
+- **설치 상태 표시 명확화** — 도구 이름 뒤 모호한 " MCP" 접미사를 또렷한 **"✓ 설치됨"** 배지로 교체. 설치됨/자동설치/직접설치 배지를 초록/앰버/회색으로 구분하고, 선택(파란 버튼) 여부와 무관하게 밝은 배경+진한 글자로 고정해 가독성을 확보 (`vibelign-gui/src/components/ToolSetupSelector.tsx`).
+- **설정 카드 텍스트 가독성 통일** — AI 도구 설정·기획방 페르소나·API 키 카드의 설명 문구가 다른 카드보다 작고(11px) 흐린 회색이라 안 읽히던 문제를 표준 카드 스타일(13px·진한색·lineHeight 1.7)로 통일. API 키 제공자 이름의 터미널용 네온 그린(#7DFF6B)도 흰 카드에서 안 읽혀 진한색으로 변경 (`vibelign-gui/src/pages/Settings.tsx`, `vibelign-gui/src/components/PlanningPersonaSettings.tsx`).
+
+### Added
+
+- **기획방 대화창 스마트 자동 스크롤** — 메시지를 보내거나 새 응답이 오면 화면이 페이지 맨 아래가 아니라 그 답변 메시지 위치로 자동 스크롤된다. 사용자가 위에서 이전 대화를 읽는 중이면 가로채지 않는 stick-to-bottom 방식 (`vibelign-gui/src/pages/planning/PlanningMessages.tsx`).
+
+### Verified
+
+- `tsc --noEmit` ✓, `eslint` ✓, GUI 단위 테스트(PlanningMessages 6/6) ✓, `cargo build`(GUI 백엔드) ✓.
+
+---
+
 ## [2.4.1] — 2026-06-14
 
 **AI CLI 도구 언인스톨 + dead-code 정리** — opencode/codex/antigravity CLI를 앱 안에서 제거할 수 있게 했다. 클로드코드 언인스톨과 동일하게 **CLI 바이너리만** 제거하고 MCP 설정·도구 config·로그인은 보존한다.

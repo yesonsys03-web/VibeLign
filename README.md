@@ -317,6 +317,13 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.4.2** — Accurate install detection + Settings readability + planning-room auto-scroll:
+
+- 🔍 **Installed AI tools now detected reliably** — Settings tool detection relied on `zsh -lc`/`bash -lc` (login, non-interactive) `command -v`, which skips `.zshrc` where most PATH exports live (e.g. `~/.bun/bin` for opencode) — so installed tools showed as missing. Now it probes an augmented PATH (homebrew/cargo/bun/.local/bin) directly, so tools are found even when the app is launched from Finder/Dock.
+- ✅ **Clearer install state** — replaced the cryptic " MCP" suffix with a distinct **"✓ Installed"** badge, and color-coded the Installed / Auto-install / Manual badges (green / amber / gray) so they stay readable on the selected (blue) button.
+- 🔤 **Settings text readability** — unified the small, faded description text across the AI-tools, planning-persona, and API-key cards to the standard card style (13px, solid color); provider names no longer use the unreadable terminal-green on white.
+- ⬇️ **Planning-room smart auto-scroll** — after you send or a new reply arrives, the view scrolls to that reply (not the page bottom); it won't hijack your scroll while you're reading earlier messages.
+
 **v2.4.1** — Uninstall for AI CLI tools (OpenCode / Codex / Antigravity):
 
 - 🧹 **One-click uninstall in `ToolInstallPanel`** — Remove opencode/codex/antigravity from the app. opencode & codex (macOS) use their uninstall command; agy (macOS) deletes only the PATH-resolved single binary via `std::fs::remove_file` (one file, non-recursive, no shell) then re-probes to confirm — preventing false success on symlink/duplicate-PATH installs; codex/agy (Windows) fall back to a manual guide. Binary-only removal — MCP config, tool config, and login state are preserved.
