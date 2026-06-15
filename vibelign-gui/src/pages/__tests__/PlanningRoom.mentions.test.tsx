@@ -25,14 +25,15 @@ describe("PlanningRoom mention chips", () => {
     render(<PlanningRoom projectDir="/tmp/demo" result={result} onBack={vi.fn()} onResultChange={vi.fn()} />);
     const composer = screen.getByPlaceholderText("기획안을 어떻게 더 다듬을까요?");
 
-    fireEvent.click(screen.getByRole("button", { name: "클로이 설계" }));
+    // 클로이는 기본 OFF(opt-in, 비활성)라 클릭 불가 → 활성 페르소나(지오)로 멘션 삽입 검증.
+    fireEvent.click(screen.getByRole("button", { name: "지오 검토" }));
 
-    expect(composer).toHaveValue("@클로이");
+    expect(composer).toHaveValue("@지오");
 
-    fireEvent.click(screen.getByRole("button", { name: "클로이 설계" }));
+    fireEvent.click(screen.getByRole("button", { name: "지오 검토" }));
     fireEvent.click(screen.getByRole("button", { name: "모두" }));
 
-    expect(composer).toHaveValue("@클로이 @모두");
+    expect(composer).toHaveValue("@지오 @모두");
   });
 });
 // === ANCHOR: PLANNINGROOM_MENTIONS_TEST_END ===

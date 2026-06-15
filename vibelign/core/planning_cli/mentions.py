@@ -9,7 +9,12 @@ from vibelign.core.planning_cli.personas import ORDERED_PERSONAS
 
 PersonaAliasGroup = tuple[str, tuple[str, ...]]
 
-DEFAULT_PERSONA_IDS: Final[tuple[str, ...]] = tuple(persona.id for persona in ORDERED_PERSONAS)
+# 자동 실행 기본 세트에서 클로이(claude)는 제외한다 — claude -p 가 구독 크레딧/API 로
+# 과금될 수 있어, @모두/멘션 없음 같은 암묵 실행에는 넣지 않는다. 클로이는 사용자가
+# `@클로이`로 명시할 때만 실행된다(opt-in). GUI 측 클로이 기본 OFF 와 같은 취지.
+DEFAULT_PERSONA_IDS: Final[tuple[str, ...]] = tuple(
+    persona.id for persona in ORDERED_PERSONAS if persona.id != "chloe"
+)
 MENTION_ALIASES: Final[tuple[PersonaAliasGroup, ...]] = tuple(
     (persona.id, (persona.id, persona.name)) for persona in ORDERED_PERSONAS
 )

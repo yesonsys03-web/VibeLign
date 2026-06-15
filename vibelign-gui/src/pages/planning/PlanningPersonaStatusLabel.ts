@@ -29,6 +29,8 @@ export function planningPersonaStatusDisplay(status: string, surface: PlanningPe
     case "terms_blocked":
     case "process_error":
       return { label: "건너뜀", tone: "skipped" };
+    case "disabled":
+      return { label: "꺼짐", tone: "skipped" };
     default:
       return { label: status, tone: "unknown" };
   }

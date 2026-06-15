@@ -1,7 +1,8 @@
 // === ANCHOR: PLANNINGPERSONACOMPOSER_START ===
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { appendPlanningChatTurn, prewarmPlanningEnrich, type PlanningChatSessionResponse } from "../../lib/vib";
+import { appendPlanningChatTurn, getPlanningPersonas, prewarmPlanningEnrich, type PlanningChatSessionResponse, type PlanningPersonaConfigMap } from "../../lib/vib";
+import { effectivePersona } from "../../components/PlanningPersonaSettings";
 import { DEFAULT_PLANNING_MODE, type PlanningModeOption } from "./PlanningModes";
 import { PlanningModeSelector } from "./PlanningModeSelector";
 import { allPlanningPersonaIds, PLANNING_PERSONAS } from "./PlanningPersonas";
@@ -30,6 +31,13 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
   const [selectedPersonaIds, setSelectedPersonaIds] = useState<readonly string[]>(DEFAULT_PLANNING_MODE.personaIds);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // 페르소나 on/off 상태를 읽어 꺼진 페르소나는 선택 못 하게 한다(클로이 기본 OFF — 과금 회피).
+  const [personaCfg, setPersonaCfg] = useState<PlanningPersonaConfigMap>({});
+  useEffect(() => {
+    getPlanningPersonas().then(setPersonaCfg).catch(() => setPersonaCfg({}));
+  }, []);
+  const isPersonaEnabled = (id: string) => effectivePersona(personaCfg, id).enabled;
+  const enabledCount = PLANNING_PERSONAS.filter((p) => isPersonaEnabled(p.id)).length;
   const canSubmit = message.trim().length > 0 && selectedPersonaIds.length > 0 && Boolean(sessionId) && !isSubmitting;
   const slashHints = matchingSlashCommands(message);
 
@@ -102,45 +110,69 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
           value={selectedModeId}
           onChange={(option) => {
             setSelectedModeId(option.id);
-            setSelectedPersonaIds(option.personaIds);
+            setSelectedPersonaIds(option.personaIds.filter(isPersonaEnabled));
           }}
         />
-        {PLANNING_PERSONAS.map((persona) => (
+        {PLANNING_PERSONAS.map((persona) => {
+          const enabled = isPersonaEnabled(persona.id);
+          const active = selectedPersonaIds.includes(persona.id);
+          return (
           <button
             key={persona.id}
             type="button"
-            title={persona.description}
-            aria-pressed={selectedPersonaIds.includes(persona.id)}
+            disabled={!enabled}
+            title={enabled ? persona.description : `${persona.label}는 꺼져 있어요 — 설정 > 기획방 페르소나에서 켜세요`}
+            aria-pressed={active}
             onClick={() => {
+              if (!enabled) return;
               setSelectedPersonaIds(togglePersona(selectedPersonaIds, persona.id));
               setMessage((current) => appendMention(current, persona.mention));
             }}
             style={{
               border: "2px solid #1A1A1A",
-              background: selectedPersonaIds.includes(persona.id) ? "#1A1A1A" : "#F7F0DF",
-              color: selectedPersonaIds.includes(persona.id) ? "#FFFFFF" : "#1A1A1A",
+              background: active ? "#1A1A1A" : "#F7F0DF",
+              color: active ? "#FFFFFF" : "#1A1A1A",
               padding: "7px 9px",
               fontSize: 12,
               fontWeight: 900,
-              cursor: "pointer",
+              cursor: enabled ? "pointer" : "not-allowed",
+              opacity: enabled ? 1 : 0.5,
             }}
           >
             <PlanningPersonaAvatar personaId={persona.id} label={persona.label} decorative size={18} />
             {persona.label} {persona.role}
+            {!enabled && (
+              <span
+                aria-hidden="true"
+                style={{ marginLeft: 4, fontSize: 9, fontWeight: 800, padding: "1px 4px", background: "#E5E7EB", color: "#4B5563", borderRadius: 3, verticalAlign: "middle" }}
+              >
+                꺼짐
+              </span>
+            )}
+            {persona.id === "chloe" && enabled && (
+              <span
+                aria-hidden="true"
+                title="클로이(Claude)는 claude -p 로 실행돼 구독 크레딧/API 가 차감될 수 있어요."
+                style={{ marginLeft: 4, fontSize: 9, fontWeight: 800, padding: "1px 4px", background: "#FEF3C7", color: "#92400E", borderRadius: 3, verticalAlign: "middle" }}
+              >
+                ⚠ 크레딧
+              </span>
+            )}
           </button>
-        ))}
+          );
+        })}
         <button
           type="button"
-          title="네 도우미 모두에게 한 번에 물어봐요"
-          aria-pressed={selectedPersonaIds.length === PLANNING_PERSONAS.length}
+          title="켜져 있는 도우미 모두에게 한 번에 물어봐요"
+          aria-pressed={enabledCount > 0 && selectedPersonaIds.length === enabledCount}
           onClick={() => {
-            setSelectedPersonaIds(allPlanningPersonaIds());
+            setSelectedPersonaIds(allPlanningPersonaIds().filter(isPersonaEnabled));
             setMessage((current) => appendMention(current, "@모두"));
           }}
           style={{
             border: "2px solid #1A1A1A",
-            background: selectedPersonaIds.length === PLANNING_PERSONAS.length ? "#1A1A1A" : "#FFFFFF",
-            color: selectedPersonaIds.length === PLANNING_PERSONAS.length ? "#FFFFFF" : "#1A1A1A",
+            background: enabledCount > 0 && selectedPersonaIds.length === enabledCount ? "#1A1A1A" : "#FFFFFF",
+            color: enabledCount > 0 && selectedPersonaIds.length === enabledCount ? "#FFFFFF" : "#1A1A1A",
             padding: "7px 9px",
             fontSize: 12,
             fontWeight: 900,

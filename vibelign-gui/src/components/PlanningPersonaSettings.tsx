@@ -27,7 +27,9 @@ export interface EffectivePersona {
 // === ANCHOR: PLANNINGPERSONASETTINGS_EFFECTIVEPERSONA_START ===
 export function effectivePersona(map: PlanningPersonaConfigMap, id: string): EffectivePersona {
   const entry = map[id] ?? {};
-  return { enabled: entry.enabled ?? true, role: entry.role ?? DEFAULT_ROLE[id] ?? "design" };
+  // 클로이(claude)는 claude -p 로 실행돼 구독 크레딧/API 가 차감될 수 있어 기본 OFF(opt-in).
+  // 나머지 페르소나는 기본 ON. (Rust persona_default_enabled 와 일치)
+  return { enabled: entry.enabled ?? id !== "chloe", role: entry.role ?? DEFAULT_ROLE[id] ?? "design" };
 }
 // === ANCHOR: PLANNINGPERSONASETTINGS_EFFECTIVEPERSONA_END ===
 
@@ -92,6 +94,14 @@ export function PlanningPersonaSettings() {
             <span title={modelOk ? "설치됨" : "미설치 — 다른 모델로 자동 대체"} style={{ fontSize: 11, color: modelOk ? "#2f6f46" : "#A14B00", minWidth: 78 }}>
               {model}{modelOk ? "" : " (미설치)"}
             </span>
+            {PERSONA_MODEL[persona.id] === "claude" && (
+              <span
+                title="클로이는 claude -p 로 실행돼요. 구독을 써도 별도 월 크레딧에서 차감되고, 크레딧 소진 후엔 API 요금이 청구될 수 있어요. 기본은 꺼져 있고, 켤 때만 호출됩니다."
+                style={{ fontSize: 9, fontWeight: 800, padding: "1px 5px", background: "#FEF3C7", color: "#92400E", borderRadius: 3, whiteSpace: "nowrap" }}
+              >
+                ⚠ 크레딧 차감 가능
+              </span>
+            )}
             <select
               value={eff.role}
               onChange={(e) => void persist(applyRoleSwap(map, persona.id, e.target.value))}

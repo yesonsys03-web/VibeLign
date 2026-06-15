@@ -71,8 +71,9 @@ def test_vib_plan_json_includes_legacy_llm_fields(tmp_path: Path, capsys: pytest
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
-    assert payload["adapter"] == "claude"
-    assert payload["persona_id"] == "chloe"
+    # 기본(멘션 없음) 세트는 클로이(claude) 제외 → 주 페르소나는 지오(codex). 과금 회피.
+    assert payload["adapter"] == "codex"
+    assert payload["persona_id"] == "gio"
     assert payload["llm_status"] == "not_installed"
     assert payload["fallback_reason"] == "cli_unavailable_template_only"
 

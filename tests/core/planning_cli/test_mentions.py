@@ -14,12 +14,13 @@ def test_mentions_resolve_korean_and_english_aliases() -> None:
     assert result.clean_text == "자동 스크린샷 앱을 검토해줘"
 
 
-def test_mentions_resolve_all_alias_to_every_persona() -> None:
+def test_mentions_resolve_all_alias_excludes_optin_chloe() -> None:
     text = "@모두 자동 스크린샷 앱을 기획해줘"
 
     result = resolve_persona_mentions(text)
 
-    assert result.persona_ids == ("chloe", "gio", "mina")
+    # @모두 도 클로이(claude)는 제외 — 과금 회피. 클로이는 @클로이로 명시할 때만 실행된다.
+    assert result.persona_ids == ("gio", "mina")
     assert result.used_default is False
     assert result.clean_text == "자동 스크린샷 앱을 기획해줘"
 
@@ -29,7 +30,8 @@ def test_mentions_default_to_prepared_persona_set() -> None:
 
     result = resolve_persona_mentions(text)
 
-    assert result.persona_ids == ("chloe", "gio", "mina")
+    # 멘션 없는 기본 세트에서도 클로이(claude)는 제외(opt-in) — 자동 크레딧 차감 방지.
+    assert result.persona_ids == ("gio", "mina")
     assert result.used_default is True
     assert result.clean_text == text
 

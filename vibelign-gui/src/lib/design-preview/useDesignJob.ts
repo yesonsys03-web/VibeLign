@@ -1,3 +1,4 @@
+// === ANCHOR: USEDESIGNJOB_START ===
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { StyleSpec } from "./styles";
 import { synthesizeStyle, generateDesignMockup } from "../vib/design";
@@ -23,6 +24,7 @@ export interface DesignJob {
   reset: () => void;
 }
 
+// === ANCHOR: USEDESIGNJOB_USEDESIGNJOB_START ===
 export function useDesignJob(projectDir: string): DesignJob {
   const [status, setStatus] = useState<DesignJobStatus>("idle");
   const [phaseMsg, setPhaseMsg] = useState("");
@@ -48,13 +50,14 @@ export function useDesignJob(projectDir: string): DesignJob {
   const run = useCallback(
     (params: DesignRunParams, planPath: string) => {
       const runSeq = ++seqRef.current;
+      // === ANCHOR: USEDESIGNJOB_FRESH_START ===
       const fresh = () => seqRef.current === runSeq;
       setStatus("running");
       setError(null);
       void (async () => {
         try {
           if (params.kind === "describe") {
-            setPhaseMsg("① 클로드가 스타일을 구상하는 중…");
+            setPhaseMsg("① AI가 스타일을 구상하는 중…");
             const spec = await synthesizeStyle({
               projectDir,
               planPath,
@@ -87,6 +90,7 @@ export function useDesignJob(projectDir: string): DesignJob {
           setStatus("error");
         }
       })();
+      // === ANCHOR: USEDESIGNJOB_FRESH_END ===
     },
     [projectDir],
   );
@@ -104,5 +108,7 @@ export function useDesignJob(projectDir: string): DesignJob {
 
   const clearSynth = useCallback(() => setSynth(null), []);
 
+// === ANCHOR: USEDESIGNJOB_USEDESIGNJOB_END ===
   return { status, phaseMsg, html, synth, error, run, recolor, clearSynth, reset };
 }
+// === ANCHOR: USEDESIGNJOB_END ===

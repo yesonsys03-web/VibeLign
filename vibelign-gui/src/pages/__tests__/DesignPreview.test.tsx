@@ -1,3 +1,4 @@
+// === ANCHOR: DESIGNPREVIEW_TEST_START ===
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import DesignPreview from "../DesignPreview";
@@ -5,10 +6,12 @@ import { useDesignJob } from "../../lib/design-preview/useDesignJob";
 import { DESIGN_STYLES } from "../../lib/design-preview/styles";
 import type { ComponentProps } from "react";
 
+// === ANCHOR: DESIGNPREVIEW_TEST_HARNESS_START ===
 function Harness(props: Omit<ComponentProps<typeof DesignPreview>, "job">) {
   const job = useDesignJob(props.projectDir);
   return <DesignPreview {...props} job={job} />;
 }
+// === ANCHOR: DESIGNPREVIEW_TEST_HARNESS_END ===
 
 const mocks = vi.hoisted(() => ({
   generateMock: vi.fn(),
@@ -97,7 +100,7 @@ describe("DesignPreview", () => {
     mocks.generateMock.mockResolvedValue({ html: "<!doctype html><h1>SY</h1>", cached: false });
     render(<Harness projectDir="/tmp/demo" planPath="plans/x.md" isLikelyWeb onBack={vi.fn()} onConfirm={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("디자인 묘사"), { target: { value: "귀엽게" } });
-    fireEvent.click(screen.getByRole("button", { name: /클로드에게 그려달라기/ }));
+    fireEvent.click(screen.getByRole("button", { name: /AI에게 그려달라기/ }));
     await waitFor(() => screen.getByTitle("디자인 목업"));
     expect(screen.getByText(/이런 스타일을 만들었어요/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /네오브루탈리즘/ }));
@@ -110,3 +113,4 @@ describe("DesignPreview", () => {
     );
   });
 });
+// === ANCHOR: DESIGNPREVIEW_TEST_END ===

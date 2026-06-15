@@ -212,7 +212,8 @@ def build_cli_command(adapter: str, prompt: str) -> list[str] | None:
         case "codex":
             return [executable, "exec", prompt]
         case "claude":
-            return [executable, "-p", prompt]
+            # 과금 정책: opus(기본) 대신 sonnet 으로 고정해 크레딧 소모를 줄인다(GUI provider_spec 과 일치).
+            return [executable, "-p", "--model", "sonnet", prompt]
         case "agy":
             return [executable, "-p", prompt]
         case "opencode":
