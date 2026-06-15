@@ -1,3 +1,4 @@
+// === ANCHOR: SCOPEREPORT_TEST_START ===
 import { describe, expect, it } from "vitest";
 
 import { scopeReport } from "./scopeReport";
@@ -37,3 +38,4 @@ describe("scopeReport", () => {
     expect(report?.outOfScope).toEqual(["src/components/navbar.tsx"]);
   });
 });
+// === ANCHOR: SCOPEREPORT_TEST_END ===

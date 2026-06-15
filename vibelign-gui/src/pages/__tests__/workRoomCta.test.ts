@@ -1,3 +1,4 @@
+// === ANCHOR: WORKROOMCTA_TEST_START ===
 import { describe, expect, test } from "vitest";
 import { runCtaVisible } from "../workRoomCta";
 
@@ -25,3 +26,4 @@ describe("runCtaVisible", () => {
     expect(runCtaVisible("verifying", "pass")).toBe(false);
   });
 });
+// === ANCHOR: WORKROOMCTA_TEST_END ===

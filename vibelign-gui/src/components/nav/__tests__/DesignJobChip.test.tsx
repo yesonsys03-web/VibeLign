@@ -1,3 +1,4 @@
+// === ANCHOR: DESIGNJOBCHIP_TEST_START ===
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, test, expect, vi } from "vitest";
 import { DesignJobChip } from "../DesignJobChip";
@@ -23,3 +24,4 @@ describe("DesignJobChip", () => {
     expect(container.firstChild).toBeNull();
   });
 });
+// === ANCHOR: DESIGNJOBCHIP_TEST_END ===

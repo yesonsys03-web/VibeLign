@@ -1,3 +1,4 @@
+// === ANCHOR: ERRORFIXINSTRUCTION_TEST_START ===
 import { describe, expect, it } from "vitest";
 import { buildRunErrorFixInstruction } from "./errorFixInstruction";
 
@@ -28,3 +29,4 @@ describe("buildRunErrorFixInstruction", () => {
     expect(buildRunErrorFixInstruction({ errorText: "   ", planPath: null })).toContain("캡처된 출력이 없어요");
   });
 });
+// === ANCHOR: ERRORFIXINSTRUCTION_TEST_END ===

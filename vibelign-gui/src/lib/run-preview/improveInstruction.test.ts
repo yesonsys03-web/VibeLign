@@ -1,3 +1,4 @@
+// === ANCHOR: IMPROVEINSTRUCTION_TEST_START ===
 import { describe, expect, it } from "vitest";
 import { buildImproveInstruction } from "./improveInstruction";
 
@@ -21,3 +22,4 @@ describe("buildImproveInstruction", () => {
     expect(buildImproveInstruction({ requestText: "  ", planPath: null })).toContain("구체적인 요청이 없");
   });
 });
+// === ANCHOR: IMPROVEINSTRUCTION_TEST_END ===

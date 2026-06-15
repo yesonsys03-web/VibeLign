@@ -1,3 +1,4 @@
+// === ANCHOR: STAGES_TEST_START ===
 import { describe, it, expect } from "vitest";
 import {
   stageOf,
@@ -77,6 +78,7 @@ describe("PAGE_LABELS", () => {
 });
 
 describe("PAGE_DESCRIPTIONS / STAGE_DESCRIPTIONS (말풍선)", () => {
+  // === ANCHOR: STAGES_TEST_LEN_START ===
   const len = (s: string) => s.replace(/\s/g, "").length; // 공백 제외 글자 수
 
   it("모든 page 에 말풍선이 있고 비어있지 않다", () => {
@@ -84,6 +86,7 @@ describe("PAGE_DESCRIPTIONS / STAGE_DESCRIPTIONS (말풍선)", () => {
       expect(PAGE_DESCRIPTIONS[page]?.length ?? 0).toBeGreaterThan(0);
     }
   });
+  // === ANCHOR: STAGES_TEST_LEN_END ===
 
   it("모든 page 말풍선은 10자 이내", () => {
     for (const [page, desc] of Object.entries(PAGE_DESCRIPTIONS)) {
@@ -97,3 +100,4 @@ describe("PAGE_DESCRIPTIONS / STAGE_DESCRIPTIONS (말풍선)", () => {
     }
   });
 });
+// === ANCHOR: STAGES_TEST_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: WORKHANDOFF_TEST_START ===
 import { describe, expect, it } from "vitest";
 import { buildHandoffInstruction } from "./workHandoff";
 
@@ -19,3 +20,4 @@ describe("buildHandoffInstruction", () => {
     expect(buildHandoffInstruction({ kind: "improve", text: "x" }, "p.md")).toContain("p.md");
   });
 });
+// === ANCHOR: WORKHANDOFF_TEST_END ===

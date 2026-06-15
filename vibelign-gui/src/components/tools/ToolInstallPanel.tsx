@@ -1,3 +1,4 @@
+// === ANCHOR: TOOLINSTALLPANEL_START ===
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -17,6 +18,7 @@ interface Props {
   readonly onDone?: () => void;
 }
 
+// === ANCHOR: TOOLINSTALLPANEL_TOOLINSTALLPANEL_START ===
 export function ToolInstallPanel({ id, onDone }: Props) {
   const meta = getInstaller(id);
   const [phase, setPhase] = useState<
@@ -50,6 +52,7 @@ export function ToolInstallPanel({ id, onDone }: Props) {
 
   if (!meta) return null;
 
+  // === ANCHOR: TOOLINSTALLPANEL_START_START ===
   async function start() {
     setPhase("installing");
     setLines([]);
@@ -67,7 +70,9 @@ export function ToolInstallPanel({ id, onDone }: Props) {
       setPhase("manual");
     }
   }
+  // === ANCHOR: TOOLINSTALLPANEL_START_END ===
 
+  // === ANCHOR: TOOLINSTALLPANEL_STARTUNINSTALL_START ===
   async function startUninstall() {
     setPhase("uninstalling");
     setLines([]);
@@ -84,6 +89,7 @@ export function ToolInstallPanel({ id, onDone }: Props) {
       setPhase("manual-uninstall");
     }
   }
+  // === ANCHOR: TOOLINSTALLPANEL_STARTUNINSTALL_END ===
 
   return (
     <div
@@ -247,7 +253,9 @@ export function ToolInstallPanel({ id, onDone }: Props) {
             설치 후 다시 확인
           </button>
         </div>
+// === ANCHOR: TOOLINSTALLPANEL_TOOLINSTALLPANEL_END ===
       )}
     </div>
   );
 }
+// === ANCHOR: TOOLINSTALLPANEL_END ===

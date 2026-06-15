@@ -1,6 +1,8 @@
+// === ANCHOR: STAGEHUBCARDS_BADGE_TEST_START ===
 import { describe, expect, it } from "vitest";
 import { badgeText, type PlanningSummary } from "./StageHubCards";
 
+// === ANCHOR: STAGEHUBCARDS_BADGE_TEST_SUMMARY_START ===
 const summary = (over: Partial<PlanningSummary>): PlanningSummary => ({
   total: 0,
   saved: 0,
@@ -8,6 +10,7 @@ const summary = (over: Partial<PlanningSummary>): PlanningSummary => ({
   stale: 0,
   ...over,
 });
+// === ANCHOR: STAGEHUBCARDS_BADGE_TEST_SUMMARY_END ===
 
 describe("badgeText — planning (다중 기획안)", () => {
   it("'기획안'은 저장된 plan doc(saved)만 — 미저장 초안은 '초안'으로(탭과 일치)", () => {
@@ -43,3 +46,4 @@ describe("badgeText — 그 외 단계", () => {
     expect(badgeText("develop", "none", 0)).toBe("열기");
   });
 });
+// === ANCHOR: STAGEHUBCARDS_BADGE_TEST_END ===

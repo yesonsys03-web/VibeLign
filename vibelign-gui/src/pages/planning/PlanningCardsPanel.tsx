@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGCARDSPANEL_START ===
 import { useState } from "react";
 import type { CSSProperties } from "react";
 
@@ -47,6 +48,7 @@ interface PlanningCardsPanelProps {
   readonly onCardsChange: (cards: readonly Card[]) => void;
 }
 
+// === ANCHOR: PLANNINGCARDSPANEL_PLANNINGCARDSPANEL_START ===
 export function PlanningCardsPanel({ cards, projectDir, sessionId, onCardsChange }: PlanningCardsPanelProps) {
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -54,6 +56,7 @@ export function PlanningCardsPanel({ cards, projectDir, sessionId, onCardsChange
     return null;
   }
 
+  // === ANCHOR: PLANNINGCARDSPANEL_HANDLEACTION_START ===
   async function handleAction(cardId: string, action: CardAction) {
     if (!sessionId || busyId) {
       return;
@@ -68,6 +71,7 @@ export function PlanningCardsPanel({ cards, projectDir, sessionId, onCardsChange
       setBusyId(null);
     }
   }
+  // === ANCHOR: PLANNINGCARDSPANEL_HANDLEACTION_END ===
 
   return (
     <div style={{ display: "grid", gap: 8 }}>
@@ -75,9 +79,11 @@ export function PlanningCardsPanel({ cards, projectDir, sessionId, onCardsChange
         <CardItem key={card.id} card={card} busy={busyId === card.id} onAction={handleAction} />
       ))}
     </div>
+// === ANCHOR: PLANNINGCARDSPANEL_PLANNINGCARDSPANEL_END ===
   );
 }
 
+// === ANCHOR: PLANNINGCARDSPANEL_CARDITEM_START ===
 function CardItem({
   card,
   busy,
@@ -134,6 +140,7 @@ function CardItem({
     </div>
   );
 }
+// === ANCHOR: PLANNINGCARDSPANEL_CARDITEM_END ===
 
 const cardBtnStyle: CSSProperties = {
   fontSize: 12,
@@ -143,3 +150,4 @@ const cardBtnStyle: CSSProperties = {
   padding: "3px 8px",
   cursor: "pointer",
 };
+// === ANCHOR: PLANNINGCARDSPANEL_END ===

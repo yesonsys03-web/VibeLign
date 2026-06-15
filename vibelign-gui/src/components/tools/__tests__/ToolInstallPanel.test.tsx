@@ -1,3 +1,4 @@
+// === ANCHOR: TOOLINSTALLPANEL_TEST_START ===
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -71,3 +72,4 @@ describe("ToolInstallPanel uninstall", () => {
     expect(await screen.findByText(/설정 > 앱에서 제거하세요\./)).toBeInTheDocument();
   });
 });
+// === ANCHOR: TOOLINSTALLPANEL_TEST_END ===

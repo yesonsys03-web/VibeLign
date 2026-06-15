@@ -1,3 +1,4 @@
+// === ANCHOR: DESIGNJOBCHIP_START ===
 import { designChipState } from "../../lib/nav/designChip";
 import type { DesignJobStatus } from "../../lib/design-preview/useDesignJob";
 import type { Page } from "../../lib/nav/stages";
@@ -8,6 +9,7 @@ interface Props {
   readonly onOpen: () => void;
 }
 
+// === ANCHOR: DESIGNJOBCHIP_DESIGNJOBCHIP_START ===
 export function DesignJobChip({ status, page, onOpen }: Props) {
   const s = designChipState(status, page);
   if (!s.visible) return null;
@@ -36,3 +38,5 @@ export function DesignJobChip({ status, page, onOpen }: Props) {
     </button>
   );
 }
+// === ANCHOR: DESIGNJOBCHIP_DESIGNJOBCHIP_END ===
+// === ANCHOR: DESIGNJOBCHIP_END ===

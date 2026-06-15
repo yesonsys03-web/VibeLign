@@ -1,3 +1,4 @@
+// === ANCHOR: GUIDE_TEST_START ===
 import { describe, it, expect } from "vitest";
 import {
   JOURNEY_STEPS,
@@ -30,12 +31,14 @@ const base: GuideSignals = {
 };
 
 /** 테스트용 변경 entry — 기본 지문(mtime_ms=1, size=10) */
+// === ANCHOR: GUIDE_TEST_ENT_START ===
 const ent = (path: string, mtime_ms = 1, size = 10): GuideChangedEntry => ({
   path,
   status: "modified",
   mtime_ms,
   size,
 });
+// === ANCHOR: GUIDE_TEST_ENT_END ===
 
 describe("JOURNEY_STEPS", () => {
   it("6단계가 순서대로", () => {
@@ -282,3 +285,4 @@ describe("shouldCelebrate", () => {
     expect(guideCelebratedKey("/a")).not.toBe(guideCelebratedKey("/b"));
   });
 });
+// === ANCHOR: GUIDE_TEST_END ===

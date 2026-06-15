@@ -1,3 +1,4 @@
+// === ANCHOR: RUNVIEW_TEST_START ===
 import { describe, expect, it } from "vitest";
 import { collectErrorTail, isFixable, isTerminal, kindLabel, phaseLabel, statusView } from "./runView";
 
@@ -84,3 +85,4 @@ describe("collectErrorTail", () => {
     expect(collectErrorTail([])).toBe("");
   });
 });
+// === ANCHOR: RUNVIEW_TEST_END ===

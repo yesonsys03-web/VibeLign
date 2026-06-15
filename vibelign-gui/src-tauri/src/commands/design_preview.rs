@@ -1,3 +1,4 @@
+// === ANCHOR: DESIGN_PREVIEW_START ===
 // ANCHOR: DESIGN_PREVIEW_START
 use std::path::Path;
 
@@ -653,3 +654,4 @@ mod custom_style_tests {
         assert!(over.is_err());
     }
 }
+// === ANCHOR: DESIGN_PREVIEW_END ===

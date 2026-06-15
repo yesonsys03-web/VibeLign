@@ -1,3 +1,4 @@
+// === ANCHOR: STYLES_START ===
 export interface DesignTokens {
   readonly bg: string;
   readonly surface: string;
@@ -109,6 +110,9 @@ export const DESIGN_STYLES: readonly StyleSpec[] = [
     },
   },
 ];
+// === ANCHOR: STYLES_GETSTYLE_START ===
 export function getStyle(id: string): StyleSpec | undefined {
   return DESIGN_STYLES.find((s) => s.id === id);
 }
+// === ANCHOR: STYLES_GETSTYLE_END ===
+// === ANCHOR: STYLES_END ===

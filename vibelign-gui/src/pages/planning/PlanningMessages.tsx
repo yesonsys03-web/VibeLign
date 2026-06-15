@@ -129,7 +129,16 @@ function PlanningMessageBubble({
           })()}
         </div>
       )}
-      {message.content}
+      {message.status === "pending" ? (
+        // 답변 대기 중에는 placeholder 텍스트 대신 갸리카가 부릉부릉 달리는 로딩 애니메이션만 보여준다.
+        <span
+          className="gyari-loader"
+          role="img"
+          aria-label={`${message.personaId ? planningPersonaLabel(message.personaId) : "AI"} 답변을 준비하는 중`}
+        />
+      ) : (
+        message.content
+      )}
       {message.status === "failed" && onRetry && (
         <div style={{ marginTop: 8 }}>
           <button

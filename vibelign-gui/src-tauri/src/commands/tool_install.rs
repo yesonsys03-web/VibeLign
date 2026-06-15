@@ -1,3 +1,4 @@
+// === ANCHOR: TOOL_INSTALL_START ===
 // ANCHOR: TOOL_INSTALL_START
 use serde::Serialize;
 
@@ -395,3 +396,4 @@ mod tests {
         }
     }
 }
+// === ANCHOR: TOOL_INSTALL_END ===
