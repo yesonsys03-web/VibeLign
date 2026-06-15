@@ -1,4 +1,5 @@
 // === ANCHOR: PLANNINGMESSAGES_START ===
+import { useEffect, useRef } from "react";
 import type { PlanningChatMessage } from "../../lib/vib";
 import { PlanningPersonaAvatar } from "./PlanningPersonaAvatar";
 import { planningPersonaLabel } from "./PlanningPersonas";
@@ -21,6 +22,31 @@ interface PlanningMessagesProps {
 
 // === ANCHOR: PLANNINGMESSAGES_PLANNINGMESSAGES_START ===
 export function PlanningMessages({ messages, outputPath, onRetry }: PlanningMessagesProps) {
+  // 스마트 자동 스크롤: 사용자가 하단 근처에 있을 때만 새 메시지를 따라 내려간다.
+  // 위에서 이전 대화를 읽는 중이면 스크롤을 가로채지 않는다. 스크롤 컨테이너는 .page-content.
+  const nearBottomRef = useRef(true);
+  useEffect(() => {
+    const container = document.querySelector<HTMLElement>(".page-content");
+    if (!container) return;
+    const onScroll = () => {
+      const dist = container.scrollHeight - container.scrollTop - container.clientHeight;
+      nearBottomRef.current = dist <= 160;
+    };
+    container.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => container.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // 마지막 메시지의 개수·id·내용 길이·상태가 바뀌면(새 메시지/응답 갱신) 하단으로 따라간다.
+  const last = messages[messages.length - 1];
+  const tail = `${messages.length}:${last?.id ?? ""}:${last?.content.length ?? 0}:${last?.status ?? ""}`;
+  useEffect(() => {
+    if (!nearBottomRef.current) return;
+    const container = document.querySelector<HTMLElement>(".page-content");
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+  }, [tail]);
+
   return (
     <div style={{ display: "grid", gap: 12 }}>
       {messages.map((message) => (
