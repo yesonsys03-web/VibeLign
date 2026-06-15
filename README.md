@@ -317,6 +317,13 @@ VibeLign promises:
 
 ## 📋 Release Notes
 
+**v2.4.3** — Adapt to Claude's programmatic-usage pricing change (minimize automatic Claude calls):
+
+- 🔻 **Planning personas no longer auto-fall-back to Claude** (Codex/OpenCode first); the Claude persona ("클로이") is **off by default — opt-in**. Disabled personas can't be selected in the composer and "모두" only calls enabled ones.
+- 💲 **When Claude is used, it's pinned to Sonnet** (not Opus) to reduce credit burn — across personas, the readiness judge, design generation, and the CLI.
+- 🎨 **Design preview** and 🛠 **Work Room** default to **Codex**; choosing Claude Code shows a **credit-usage warning** (it runs `claude -p`, which from 2026-06-15 bills a separate monthly credit / standard API rates instead of the subscription pool).
+- ℹ️ **Unaffected**: interactive Claude Code in your terminal, MCP integration, and your own API-key calls (`vib ask`, docs-enhance).
+
 **v2.4.2** — Accurate install detection + Settings readability + planning-room auto-scroll:
 
 - 🔍 **Installed AI tools now detected reliably** — Settings tool detection relied on `zsh -lc`/`bash -lc` (login, non-interactive) `command -v`, which skips `.zshrc` where most PATH exports live (e.g. `~/.bun/bin` for opencode) — so installed tools showed as missing. Now it probes an augmented PATH (homebrew/cargo/bun/.local/bin) directly, so tools are found even when the app is launched from Finder/Dock.

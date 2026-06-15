@@ -10,6 +10,33 @@
 
 ---
 
+## [2.4.3] — 2026-06-15
+
+**Claude 가격 정책 변경 대응 — 자동 Claude 호출 최소화** — 2026-06-15부터 `claude -p`(헤드리스)·Claude Agent SDK 등 **프로그래밍 방식** Claude 사용이 구독 사용량 풀이 아니라 **별도 월 크레딧/표준 API 요금**으로 청구되도록 정책이 바뀌었다. VibeLign이 사용자 모르게 Claude를 자동 호출해 크레딧을 소모하지 않도록 정리하고, 쓸 때도 비용을 낮췄다. (터미널에서 직접 쓰는 **인터랙티브 Claude Code 사용은 영향 없음**)
+
+### Changed
+
+- **기획방 페르소나** — 자동 폴백 우선순위에서 claude를 맨 뒤로 돌려 codex·opencode를 먼저 쓰고, **클로이(claude)는 기본 OFF(opt-in)**. 컴포저에서 꺼진 페르소나는 선택이 막히고 "꺼짐"으로 표시되며 "모두"는 켜진 도구만 부른다 (`planning_persona.rs`, `planning_chat.rs`, `PlanningPersonaComposer.tsx`, `PlanningPersonaSettings.tsx`).
+- **Claude 모델 opus→sonnet** — 켜서 쓰더라도 크레딧 소모를 줄이도록 페르소나·판정(judge)·디자인 생성·Python CLI 전반에서 sonnet으로 고정.
+- **디자인 미리보기** — codex 우선 생성, Claude는 클로이가 켜진 경우에만. "클로드"→"AI" 문구로 바꾸고 크레딧 안내 추가 (`pick_generation_cli`, `DesignPreview.tsx`, `useDesignJob.ts`).
+- **작업방(WorkRoom)** — 기본 실행 도구를 **Codex**로, Claude Code 선택 시 `claude -p` 크레딧 차감 경고 배너 + 실행 전 확인 노트 (`WorkRoom.tsx`).
+- **Python `vib` CLI** — 기본 페르소나 세트(@모두·멘션 없음)에서 클로이 제외(`@클로이`로 명시할 때만 실행), claude→sonnet (`mentions.py`, `cli_adapters.py`).
+
+### Added
+
+- 비활성 페르소나가 호출되면 조용한 무응답 대신 **"꺼짐" 안내 메시지**(status=disabled)를 남긴다.
+- 클로이/Claude Code 선택 지점마다 **"크레딧 차감 가능" 경고** 표시.
+
+### Notes
+
+- **영향받지 않음**: 터미널에서 직접 쓰는 인터랙티브 Claude Code, MCP 서버 연동, 사용자 API 키 직접 호출(`vib ask`·docs-enhance).
+
+### Verified
+
+- `cargo test` 93 통과 · `pytest` 1195 통과 · GUI vitest 통과.
+
+---
+
 ## [2.4.2] — 2026-06-15
 
 **설치된 AI 도구 감지 정확화 + 설정 화면 가독성 + 기획방 자동 스크롤** — 컴퓨터에 깔려 있는 AI CLI 도구가 설정에서 "설치됨"으로 안 뜨던 문제를 고치고, 설정 카드 텍스트 가독성을 통일했으며, 기획방에서 새 답변으로 자동 스크롤되게 했다.

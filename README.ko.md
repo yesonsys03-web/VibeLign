@@ -317,6 +317,13 @@ VibeLign이 보장하는 것:
 
 ## 📋 업데이트 내역 (Release Notes)
 
+**v2.4.3** — Claude 프로그래밍 사용 과금 정책 변경 대응 (자동 Claude 호출 최소화):
+
+- 🔻 **기획방 페르소나가 더는 Claude로 자동 폴백하지 않아요** (Codex·OpenCode 우선). Claude 페르소나(클로이)는 **기본 꺼짐 — opt-in**. 꺼진 페르소나는 선택이 막히고 "모두"도 켜진 도구만 불러요.
+- 💲 **Claude를 쓸 때도 Sonnet 고정**(Opus 아님)으로 크레딧 소모를 줄였어요 — 페르소나·검토(judge)·디자인 생성·CLI 전반.
+- 🎨 **디자인 미리보기**와 🛠 **작업방** 기본 도구는 **Codex**. Claude Code를 고르면 **크레딧 차감 경고**가 떠요 (`claude -p`로 실행돼 2026-06-15부터 구독 풀이 아니라 별도 월 크레딧/표준 API 요금으로 청구).
+- ℹ️ **영향 없음**: 터미널에서 직접 쓰는 인터랙티브 Claude Code, MCP 연동, 사용자 API 키 직접 호출(`vib ask`·docs-enhance).
+
 **v2.4.2** — 설치된 AI 도구 감지 정확화 + 설정 가독성 + 기획방 자동 스크롤:
 
 - 🔍 **설치된 AI 도구가 이제 제대로 "설치됨"으로 표시** — 설정의 도구 감지가 `zsh -lc`/`bash -lc`(로그인·비대화형) 셸의 `command -v` 에 의존했는데, 이 셸은 PATH export 가 대부분 들어있는 `.zshrc`(대화형 전용)를 안 읽어서 `~/.bun/bin` 의 opencode 같은 도구가 설치돼 있어도 누락됐다. 이제 augmented PATH(homebrew/cargo/bun/.local/bin)를 직접 탐색해, Finder/Dock 으로 앱을 실행해도 빠짐없이 감지한다.
