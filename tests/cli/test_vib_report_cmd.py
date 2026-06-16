@@ -130,3 +130,32 @@ def test_report_unreadable_plan_reports_error_json(
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is False
     assert "읽을 수 없" in payload["error"]
+
+
+def test_report_docx_writes_binary(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+    run_vib_report(_args(plan, json=True, format="docx"))
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    out = Path(payload["path"])
+    assert out.suffix == ".docx"
+    assert out.read_bytes()[:2] == b"PK"
+
+
+def test_report_docx_graceful_when_lib_absent(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+    import vibelign.core.reporting_cli.docx_renderer as dmod
+    monkeypatch.setattr(dmod, "DOCX_AVAILABLE", False)
+    with pytest.raises(SystemExit):
+        run_vib_report(_args(plan, json=True, format="docx"))
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    assert "python-docx" in payload["error"]
