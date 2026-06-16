@@ -53,6 +53,10 @@ pub const DOCS_READ_EXTENSIONS: &[&str] = &[
     ".doc",
 ];
 
+/// 보고서 내보내기 산출물 디렉터리. 우리 CLI 가 생성한 보고서(.html)만 들어가므로
+/// GUI 미리보기를 위해 hidden(.vibelign) 규칙·비-doc 확장자를 좁게 면제한다.
+pub const REPORT_OUTPUT_PREFIX: &str = ".vibelign/reports/";
+
 const CANVAS_ALLOWED_HIDDEN_PREFIXES: &[&str] = &[".omc/plans"];
 const CANVAS_EXCLUDED_PREFIXES: &[&str] = &["promo"];
 const CANVAS_EXCLUDED_FILES: &[&str] = &[
@@ -138,6 +142,16 @@ fn read_allowlist_from_docs_index(path: &Path) -> BTreeSet<String> {
 ///    must not start with `.` and must not be in `DOCS_READ_IGNORED_DIRS`.
 pub fn is_allowed_doc_path(relative_path: &str, extras: &ExtraSourceAllowlist) -> bool {
     let lower = relative_path.to_ascii_lowercase();
+
+    // 보고서 산출물(.vibelign/reports/*.html) 예외: hidden 디렉터리·비-doc 확장자라
+    // 일반 규칙엔 안 걸리지만, 우리 CLI 가 만든 보고서 미리보기를 위해 명시 허용한다.
+    // (`..` 차단 + 고정 prefix 한정이라 임의 경로 노출 없음.)
+    if !relative_path.contains("..")
+        && relative_path.starts_with(REPORT_OUTPUT_PREFIX)
+        && lower.ends_with(".html")
+    {
+        return true;
+    }
 
     // 1) Extension check
     if !DOCS_READ_EXTENSIONS.iter().any(|ext| lower.ends_with(ext)) {
@@ -279,6 +293,29 @@ mod tests {
     #[test]
     fn test_extension_no_extension_rejected() {
         assert!(!is_allowed_doc_path("docs/README", &empty_allowlist()));
+    }
+
+    #[test]
+    fn test_report_html_under_vibelign_reports_allowed() {
+        // 보고서 미리보기: .vibelign/reports/*.html 은 hidden 디렉터리지만 허용.
+        assert!(is_allowed_doc_path(
+            ".vibelign/reports/예약-앱-work.html",
+            &empty_allowlist()
+        ));
+    }
+
+    #[test]
+    fn test_report_prefix_does_not_allow_traversal() {
+        assert!(!is_allowed_doc_path(
+            ".vibelign/reports/../../secret.html",
+            &empty_allowlist()
+        ));
+    }
+
+    #[test]
+    fn test_html_outside_reports_still_rejected() {
+        // 보고서 prefix 한정 예외 — 일반 .html 은 여전히 차단.
+        assert!(!is_allowed_doc_path("docs/page.html", &empty_allowlist()));
     }
 
     // ── Path traversal ─────────────────────────────────────────────────────────
