@@ -95,7 +95,9 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           pip install pyinstaller
-          pip install -e .
+          # report extra(python-docx/pptx)까지 설치해야 vib.spec 의 collect_all 이
+          # Word/PPT 렌더러를 번들에 포함한다. 빠지면 GUI 보고서 내보내기가 실패한다.
+          pip install -e ".[report]"
           pyinstaller vib.spec --distpath dist-vib --noconfirm
           # onedir 산출물 전체를 Tauri resources 로 번들링할 경로에 복사한다.
           # Why: onefile PyInstaller 는 매 실행마다 $TMPDIR/_MEI{pid}/ 로 재압축 해제해 1~3초
