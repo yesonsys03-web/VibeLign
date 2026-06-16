@@ -8,16 +8,30 @@
 //! 핵심 gotcha(macOS): `.visible(false)` 면 WKWebView 렌더 파이프라인이 멈춰 빈 PDF 가
 //! 된다. 그래서 `.visible(true)` 로 띄우되 화면 밖(-10000,-10000)으로 보낸다.
 
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::mpsc;
 use std::time::Duration;
 
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
-/// out_pdf 경로를 검증한다: `.pdf` 확장자, 부모 디렉터리 생성 가능.
-/// 성공 시 정규화된 PathBuf, 실패 시 사용자용 에러 메시지를 반환한다.
-pub(crate) fn validate_out_pdf(out_pdf: &str) -> Result<PathBuf, String> {
+/// 경로 컴포넌트에 `..`(ParentDir) 이 포함되어 있는지 검사한다.
+fn has_parent_dir(path: &Path) -> bool {
+    path.components()
+        .any(|c| matches!(c, Component::ParentDir))
+}
+
+/// out_pdf 를 containment 검증한다.
+/// - `.pdf` 확장자
+/// - `..` 컴포넌트 없음 (사이드-이펙트 없이 먼저 검사)
+/// - 부모 디렉터리 생성 후 정규화 경로가 `canon_root` 하위
+/// 성공 시 정규화된 out_pdf PathBuf 반환.
+pub(crate) fn validate_out_pdf(
+    canon_root: &Path,
+    out_pdf: &str,
+) -> Result<PathBuf, String> {
     let path = PathBuf::from(out_pdf);
+
+    // 1) 확장자 검사
     let ext_ok = path
         .extension()
         .and_then(|e| e.to_str())
@@ -26,45 +40,95 @@ pub(crate) fn validate_out_pdf(out_pdf: &str) -> Result<PathBuf, String> {
     if !ext_ok {
         return Err(format!("출력 경로가 .pdf 가 아닙니다: {out_pdf}"));
     }
+
+    // 2) `..` / 탈출 컴포넌트 검사 (FS 사이드이펙트 없이)
+    if has_parent_dir(&path) {
+        return Err(format!("출력 경로에 상위 디렉터리 참조(..)가 포함되어 있습니다: {out_pdf}"));
+    }
+
+    // 3) 부모 디렉터리 생성 (검증 통과 후에만)
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent)
                 .map_err(|e| format!("출력 디렉터리 생성 실패({}): {e}", parent.display()))?;
         }
     }
-    Ok(path)
-}
 
-/// html_path 가 실제로 존재하는 파일인지 검증한다.
-pub(crate) fn validate_html_path(html_path: &str) -> Result<PathBuf, String> {
-    let path = PathBuf::from(html_path);
-    if !path.is_file() {
-        return Err(format!("HTML 파일을 찾을 수 없습니다: {html_path}"));
+    // 4) 컨테인먼트: 정규화 경로가 canon_root 하위여야 한다.
+    //    부모가 존재하게 된 뒤에 canonicalize 해야 성공한다.
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let canon_parent = std::fs::canonicalize(parent)
+        .map_err(|e| format!("출력 디렉터리 정규화 실패: {e}"))?;
+    if !canon_parent.starts_with(canon_root) {
+        return Err("출력 경로가 프로젝트 밖을 가리킵니다".into());
     }
+
     Ok(path)
 }
 
-/// 절대 파일 경로를 `file://` URL 로 변환한다.
-pub(crate) fn file_url_for(path: &Path) -> String {
-    format!("file://{}", path.to_string_lossy())
+/// html_path 를 containment 검증한다.
+/// - `..` 컴포넌트 없음
+/// - 파일이 존재해야 함
+/// - 정규화 경로가 `canon_root` 하위
+/// 성공 시 정규화된 PathBuf 반환.
+pub(crate) fn validate_html_path(
+    canon_root: &Path,
+    html_path: &str,
+) -> Result<PathBuf, String> {
+    let path = PathBuf::from(html_path);
+
+    // 1) `..` 검사
+    if has_parent_dir(&path) {
+        return Err(format!("HTML 경로에 상위 디렉터리 참조(..)가 포함되어 있습니다: {html_path}"));
+    }
+
+    // 2) 존재 확인 + 정규화
+    let canon_file = std::fs::canonicalize(&path)
+        .map_err(|_| format!("HTML 파일을 찾을 수 없습니다: {html_path}"))?;
+
+    // 3) 컨테인먼트
+    if !canon_file.starts_with(canon_root) {
+        return Err("기획안 경로가 프로젝트 밖을 가리킵니다".into());
+    }
+
+    Ok(canon_file)
+}
+
+/// 절대 파일 경로를 퍼센트-인코딩된 `file:///…` URL 로 변환한다.
+/// 한글·공백·`#` 등 특수문자를 올바르게 인코딩한다.
+pub(crate) fn file_url_for(path: &Path) -> Result<String, String> {
+    url::Url::from_file_path(path)
+        .map(|u| u.to_string())
+        .map_err(|()| format!("file:// URL 변환 실패: {}", path.display()))
 }
 
 /// 보고서 HTML 파일을 오프스크린 웹뷰에 로드하고, 로드 완료 후 네이티브 print-to-PDF 로
 /// `out_pdf` 에 저장한다.
 ///
+/// `root`: 프로젝트 루트 절대 경로. `html_path`·`out_pdf` 모두 이 경로 하위여야 한다.
+///
 /// 반환: 성공 시 out_pdf 경로 문자열, 실패 시 에러 메시지.
 #[tauri::command]
 pub(crate) async fn export_report_pdf(
     app: tauri::AppHandle,
+    root: String,
     html_path: String,
     out_pdf: String,
 ) -> Result<String, String> {
-    let html_file = validate_html_path(&html_path)?;
-    let out_path = validate_out_pdf(&out_pdf)?;
+    // 프로젝트 루트 정규화 (모든 containment 검사의 기준).
+    let canon_root = std::fs::canonicalize(&root)
+        .map_err(|e| format!("프로젝트 루트 정규화 실패({root}): {e}"))?;
 
-    // 실제 HTML 파일을 file:// 로 로드한다(data:URL 길이 한계 회피).
-    let file_url = file_url_for(&html_file);
-    let parsed = file_url
+    let html_file = validate_html_path(&canon_root, &html_path)?;
+    let out_path = validate_out_pdf(&canon_root, &out_pdf)?;
+
+    // 실제 HTML 파일을 퍼센트-인코딩된 file:// URL 로 로드한다.
+    // url::Url::from_file_path 가 한글·공백·# 등을 올바르게 인코딩한다.
+    let file_url_str = file_url_for(&html_file)?;
+    let parsed = file_url_str
         .parse()
         .map_err(|e| format!("file:// URL 파싱 실패: {e}"))?;
 
