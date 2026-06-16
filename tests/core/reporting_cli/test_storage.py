@@ -105,3 +105,20 @@ def test_write_rejects_symlink_escape(tmp_path: Path, tmp_path_factory: pytest.T
 
     # 외부 디렉터리에 파일이 생성되지 않아야 한다
     assert not (outside / "escaped.html").exists()
+
+
+def test_write_report_bytes_default_path_docx(tmp_path):
+    from vibelign.core.reporting_cli.storage import write_report_bytes
+    m = ReportModel(title="예약 앱", report_type="work", date="2026-06-16")
+    dest = write_report_bytes(tmp_path, m, b"PK\x03\x04docx", slug_source="예약 앱", ext=".docx")
+    assert dest.suffix == ".docx"
+    assert dest.parent == tmp_path / ".vibelign" / "reports"
+    assert dest.read_bytes() == b"PK\x03\x04docx"
+
+
+def test_write_report_bytes_rejects_escape(tmp_path):
+    from vibelign.core.reporting_cli.storage import write_report_bytes
+    m = ReportModel(title="t", report_type="work", date="2026-06-16")
+    import pytest
+    with pytest.raises(ValueError, match="project-relative"):
+        write_report_bytes(tmp_path, m, b"x", slug_source="x", ext=".pptx", output="../x.pptx")
