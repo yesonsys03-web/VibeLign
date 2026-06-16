@@ -698,7 +698,7 @@ def register_extended_commands(
         help="보고서 종류 (work=업무, proposal=제안, result=결과)",
     )
     _ = r.add_argument(
-        "--format", default="html", choices=["html"], help="출력 포맷"
+        "--format", default="html", choices=["html", "docx", "pptx"], help="출력 포맷"
     )
     _ = r.add_argument(
         "--output", default=None, help="저장 경로 (기본: .vibelign/reports/)"

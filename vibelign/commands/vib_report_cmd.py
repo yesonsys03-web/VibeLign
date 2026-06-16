@@ -8,10 +8,14 @@ from typing import Protocol, cast
 
 from vibelign.core.project_root import resolve_project_root
 from vibelign.core.reporting_cli import (
+    ReportRendererUnavailable,
     build_report_model,
     parse_plan_markdown,
+    render_docx,
     render_html,
+    render_pptx,
     write_report,
+    write_report_bytes,
 )
 from vibelign.terminal_render import clack_intro, clack_success
 
@@ -54,17 +58,21 @@ def run_vib_report(args: object) -> None:
         _fail(want_json, str(exc))
         return
 
-    html = render_html(model)
     slug_source = data.title or data.idea or plan_path.stem
+    fmt = getattr(raw, "format", "html") or "html"
     try:
-        dest = write_report(
-            root,
-            model,
-            html,
-            slug_source=slug_source,
-            output=raw.output,
-            force=raw.force,
-        )
+        if fmt == "docx":
+            data_bytes = render_docx(model)
+            dest = write_report_bytes(root, model, data_bytes, slug_source=slug_source, ext=".docx", output=raw.output, force=raw.force)
+        elif fmt == "pptx":
+            data_bytes = render_pptx(model)
+            dest = write_report_bytes(root, model, data_bytes, slug_source=slug_source, ext=".pptx", output=raw.output, force=raw.force)
+        else:  # html
+            html = render_html(model)
+            dest = write_report(root, model, html, slug_source=slug_source, output=raw.output, force=raw.force)
+    except ReportRendererUnavailable as exc:
+        _fail(want_json, str(exc))
+        return
     except (FileExistsError, ValueError) as exc:
         _fail(want_json, str(exc))
         return

@@ -22,6 +22,9 @@ classifiers = [
 ]
 dependencies = ["anthropic>=0.40.0", "rich>=13.9.0", "mcp>=1.0.0", "watchdog>=3.0.0", "typing_extensions>=4.0.0; python_version < '3.12'"]
 
+[project.optional-dependencies]
+report = ["python-docx>=1.0", "python-pptx>=1.0"]
+
 [project.urls]
 Homepage = "https://yesonsys03-web.github.io/VibeLign/"
 Repository = "https://github.com/yesonsys03-web/VibeLign"

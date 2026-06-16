@@ -51,23 +51,22 @@ def _unique_output_path(root: Path, relative: Path) -> Path:
         index += 1
 
 
-def write_report(
+def _resolve_report_dest(
     root: Path,
     model: ReportModel,
-    html: str,
     *,
     slug_source: str,
+    ext: str,
     output: str | None = None,
     force: bool = False,
 ) -> Path:
-    """보고서 HTML 을 디스크에 쓰고 최종 경로를 반환한다.
+    """dest 경로를 해석하고 모든 보안 가드를 적용한 뒤 절대 경로를 반환한다.
 
     output 이 주어지면 프로젝트 상대 경로만 허용한다. explicit output 은
     force=True 없이는 기존 파일을 덮어쓰지 않는다. output 이 없으면
-    .vibelign/reports/{slug}-{report_type}.html 로 저장하되
+    .vibelign/reports/{slug}-{report_type}{ext} 로 저장하되
     기존 파일은 덮어쓰지 않는다.
     """
-    root = root.resolve()
     if output:
         relative = _relative_output_path(output)
         # explicit output 은 _unique_output_path 를 거치지 않는다:
@@ -76,7 +75,7 @@ def write_report(
         slug = _report_slug(slug_source)
         relative = _unique_output_path(
             root,
-            Path(".vibelign") / "reports" / f"{slug}-{model.report_type}.html",
+            Path(".vibelign") / "reports" / f"{slug}-{model.report_type}{ext}",
         )
     dest = root / relative
 
@@ -88,6 +87,39 @@ def write_report(
 
     if output and dest.exists() and not force:
         raise FileExistsError(f"output already exists: {relative}")
+    return dest
+
+
+def write_report(
+    root: Path,
+    model: ReportModel,
+    html: str,
+    *,
+    slug_source: str,
+    output: str | None = None,
+    force: bool = False,
+) -> Path:
+    """보고서 HTML 을 디스크에 쓰고 최종 경로를 반환한다."""
+    root = root.resolve()
+    dest = _resolve_report_dest(root, model, slug_source=slug_source, ext=".html", output=output, force=force)
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(html, encoding="utf-8")
+    return dest
+
+
+def write_report_bytes(
+    root: Path,
+    model: ReportModel,
+    data: bytes,
+    *,
+    slug_source: str,
+    ext: str,
+    output: str | None = None,
+    force: bool = False,
+) -> Path:
+    """보고서 바이너리(docx/pptx 등)를 디스크에 쓰고 최종 경로를 반환한다."""
+    root = root.resolve()
+    dest = _resolve_report_dest(root, model, slug_source=slug_source, ext=ext, output=output, force=force)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(data)
     return dest
