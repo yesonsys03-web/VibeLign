@@ -11,12 +11,19 @@ from vibelign.core.reporting_cli import (
     ReportRendererUnavailable,
     build_report_model,
     parse_plan_markdown,
+    polish_report_model,
     render_docx,
     render_html,
     render_pptx,
     write_report,
     write_report_bytes,
 )
+from vibelign.core.reporting_cli.polish_cache import (
+    load_polish_cache,
+    polish_cache_key,
+    save_polish_cache,
+)
+from vibelign.core.reporting_cli.storage import _report_slug
 from vibelign.terminal_render import clack_intro, clack_success
 
 
@@ -28,6 +35,8 @@ class ReportArgs(Protocol):
     force: bool
     date: str | None
     json: bool
+    polish: bool
+    cli: str
 
 
 def run_vib_report(args: object) -> None:
@@ -59,6 +68,19 @@ def run_vib_report(args: object) -> None:
         return
 
     slug_source = data.title or data.idea or plan_path.stem
+
+    if getattr(raw, "polish", False):
+        provider = getattr(raw, "cli", "auto") or "auto"
+        # enrich 캐시(§6): 동일 입력 재요청 시 provider 재호출 0.
+        key = polish_cache_key(model, provider=provider)
+        slug = _report_slug(slug_source)
+        cached = load_polish_cache(root, slug, key=key)
+        if cached is not None:
+            model = cached
+        else:
+            model = polish_report_model(model, provider=provider, root=root)
+            save_polish_cache(root, slug, key=key, model=model)
+
     fmt = getattr(raw, "format", "html") or "html"
     try:
         if fmt == "docx":

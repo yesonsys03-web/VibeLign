@@ -706,6 +706,8 @@ def register_extended_commands(
     _ = r.add_argument("--force", action="store_true", help="기존 --output 파일 덮어쓰기")
     _ = r.add_argument("--date", default=None, help="보고서 날짜 (기본: 오늘)")
     _ = r.add_argument("--json", action="store_true", help="JSON 으로 결과 출력")
+    _ = r.add_argument("--polish", action="store_true", help="AI 로 어조 다듬기(무료 provider, 기본 OFF)")
+    _ = r.add_argument("--cli", default="auto", choices=["auto", "codex", "opencode", "agy", "claude"], help="다듬기 provider (claude 는 명시 opt-in)")
     r.set_defaults(
         func=lazy_command("vibelign.commands.vib_report_cmd", "run_vib_report")
     )
