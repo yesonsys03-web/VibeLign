@@ -39,8 +39,8 @@ describe("pagesForStage", () => {
   it("유지보수 단계는 진단·백업·에러로그 순서", () => {
     expect(pagesForStage("maintain")).toEqual(["doctor", "backups", "logs"]);
   });
-  it("기획 단계는 기획방·기획안 순서", () => {
-    expect(pagesForStage("planning")).toEqual(["planning", "plan-doc"]);
+  it("기획 단계는 기획방·기획안·보고서 순서", () => {
+    expect(pagesForStage("planning")).toEqual(["planning", "plan-doc", "report"]);
   });
 });
 
@@ -63,6 +63,7 @@ describe("PAGE_LABELS", () => {
       home: "홈",
       planning: "기획방",
       "plan-doc": "기획안",
+      report: "보고서 작성",
       code: "코드탐색",
       docs: "문서",
       "design-preview": "디자인 미리보기",

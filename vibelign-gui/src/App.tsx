@@ -39,6 +39,7 @@ import { StageSwitcherBar } from "./components/nav/StageSwitcherBar";
 import { StageSubnav } from "./components/nav/StageSubnav";
 import { StageHubCards } from "./components/nav/StageHubCards";
 import PlanDocView from "./pages/PlanDocView";
+import ReportView from "./pages/ReportView";
 import DesignPreview, { type DesignBinding } from "./pages/DesignPreview";
 import { useDesignJob } from "./lib/design-preview/useDesignJob";
 import { DesignJobChip } from "./components/nav/DesignJobChip";
@@ -625,6 +626,7 @@ export default function App() {
                     <button className="nav-tab" onClick={() => setShowSessionPicker(true)}>이전 기획 불러오기</button>
                   </div>
                 ))}
+                {page === "report" && <ReportView projectDir={projectDir} onStart={() => { if (planningResult) navigate("planning"); else setPage("home"); }} />}
                 {page === "plan-doc" && <PlanDocView projectDir={projectDir} activeSessionId={planningResult?.sessionId ?? null} onStart={() => { if (planningResult) navigate("planning"); else setPage("home"); }} onDeleted={(sessionId) => { if (planningResult?.sessionId === sessionId) setPlanningResult(null); }} onEdit={(sessionId) => void resumeSession(sessionId)} onDesignPreview={(planPath) => {
                   setDesignPlanPath(planPath);
                   // 웹 게이트(비차단): 확정 web 일 때만 무경고. electron·unknown 은 경고, 탐지 실패(null)는 무경고.
