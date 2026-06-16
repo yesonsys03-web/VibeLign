@@ -95,28 +95,6 @@ pub fn run() {
                 });
             }
 
-            // PDF 스파이크 무인 트리거(계획 2b / Task 1). 평소엔 비활성.
-            // VIBELIGN_PDF_SPIKE=<출력 경로> 가 설정된 경우에만, 앱 부팅 후 ~2s 뒤
-            // export_report_pdf_spike 를 자동 호출해 PDF 를 직접 생성한다(devtools 없이 검증).
-            if let Ok(spike_out) = std::env::var("VIBELIGN_PDF_SPIKE") {
-                if !spike_out.is_empty() {
-                    let handle = app.handle().clone();
-                    // ~2s 지연 후 비동기 스파이크 호출. tokio 직접 의존 없이 std 스레드로
-                    // 지연한 뒤 async 런타임에 작업을 올린다.
-                    std::thread::spawn(move || {
-                        std::thread::sleep(std::time::Duration::from_secs(2));
-                        tauri::async_runtime::spawn(async move {
-                            match commands::report_pdf::export_report_pdf_spike(handle, spike_out)
-                                .await
-                            {
-                                Ok(p) => eprintln!("VibeLign PDF 스파이크: 성공 → {p}"),
-                                Err(e) => eprintln!("VibeLign PDF 스파이크: 실패 — {e}"),
-                            }
-                        });
-                    });
-                }
-            }
-
             Ok(())
         })
         .manage(watch_state)
@@ -213,7 +191,7 @@ pub fn run() {
             commands::tool_install::install_tool,
             commands::tool_install::tool_install_status,
             commands::tool_install::uninstall_tool,
-            commands::report_pdf::export_report_pdf_spike,
+            commands::report_pdf::export_report_pdf,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

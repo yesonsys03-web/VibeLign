@@ -22,6 +22,8 @@ pub(crate) mod planning_persona_context;
 pub(crate) mod platform;
 pub(crate) mod project_summary;
 pub(crate) mod report_pdf;
+#[cfg(test)]
+mod report_pdf_tests;
 pub(crate) mod run_preview;
 pub(crate) mod settings;
 pub(crate) mod vib_bridge;
