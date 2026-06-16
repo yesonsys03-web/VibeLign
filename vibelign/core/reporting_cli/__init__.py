@@ -6,6 +6,7 @@ from vibelign.core.reporting_cli.models import (
     Section,
 )
 from vibelign.core.reporting_cli.reader import parse_plan_markdown
+from vibelign.core.reporting_cli.storage import write_report
 from vibelign.core.reporting_cli.templates import (
     REPORT_TEMPLATES,
     REPORT_TYPE_LABELS,
@@ -22,4 +23,5 @@ __all__ = [
     "REPORT_TYPE_LABELS",
     "build_report_model",
     "render_html",
+    "write_report",
 ]
