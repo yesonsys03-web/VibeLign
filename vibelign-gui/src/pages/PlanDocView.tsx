@@ -225,7 +225,7 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
                   {onEdit && (
                     <button type="button" onClick={() => onEdit(plan.sessionId)} disabled={deletingId === plan.sessionId} title="기획방에서 이어서 수정" style={{ border: "none", background: "transparent", color: active ? "#fff" : "#888", fontSize: 12, fontWeight: 700, padding: "0 6px", cursor: "pointer", whiteSpace: "nowrap" }}>수정</button>
                   )}
-                  <button type="button" onClick={() => setReportFor(plan.outputPath ?? "")} disabled={deletingId === plan.sessionId} aria-label="보고서로 내보내기" title="보고서로 내보내기" style={{ border: "none", background: "transparent", color: active ? "#fff" : "#888", fontSize: 13, padding: "0 6px", cursor: "pointer" }}>📄</button>
+                  <button type="button" onClick={() => { if (plan.outputPath) setReportFor(plan.outputPath); }} disabled={deletingId === plan.sessionId} aria-label="보고서로 내보내기" title="보고서로 내보내기" style={{ border: "none", background: "transparent", color: active ? "#fff" : "#888", fontSize: 13, padding: "0 6px", cursor: "pointer" }}>📄</button>
                   <button type="button" onClick={() => setConfirmingId(plan.sessionId)} disabled={deletingId === plan.sessionId} title="이 기획안 삭제(휴지통)" style={{ border: "none", background: "transparent", color: active ? "#fff" : "#888", fontSize: 13, padding: "0 8px", cursor: "pointer" }}>🗑</button>
                 </div>
               )}
