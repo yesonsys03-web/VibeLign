@@ -10,6 +10,7 @@ from vibelign.core.project_root import resolve_project_root
 from vibelign.core.reporting_cli import (
     build_report_model,
     parse_plan_markdown,
+    polish_report_model,
     render_html,
     write_report,
 )
@@ -24,6 +25,8 @@ class ReportArgs(Protocol):
     force: bool
     date: str | None
     json: bool
+    polish: bool
+    cli: str
 
 
 def run_vib_report(args: object) -> None:
@@ -53,6 +56,9 @@ def run_vib_report(args: object) -> None:
     except ValueError as exc:
         _fail(want_json, str(exc))
         return
+
+    if getattr(raw, "polish", False):
+        model = polish_report_model(model, provider=getattr(raw, "cli", "auto") or "auto", root=Path.cwd())
 
     html = render_html(model)
     slug_source = data.title or data.idea or plan_path.stem

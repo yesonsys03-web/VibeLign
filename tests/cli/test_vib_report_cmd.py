@@ -26,6 +26,8 @@ def _args(plan_path: Path, **over) -> Namespace:
         force=False,
         date="2026-06-15",
         json=False,
+        polish=False,
+        cli="auto",
     )
     base.update(over)
     return Namespace(**base)
@@ -130,3 +132,32 @@ def test_report_unreadable_plan_reports_error_json(
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is False
     assert "읽을 수 없" in payload["error"]
+
+
+def test_report_polish_off_by_default_no_provider_call(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+    called = {"n": 0}
+    import vibelign.commands.vib_report_cmd as cmd
+    monkeypatch.setattr(cmd, "polish_report_model", lambda *a, **k: called.__setitem__("n", called["n"] + 1) or a[0])
+    run_vib_report(_args(plan, json=True))  # polish 미지정
+    assert called["n"] == 0  # 기본 OFF → polish 호출 안 함
+
+
+def test_report_polish_on_calls_polish(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+    seen = {}
+    import vibelign.commands.vib_report_cmd as cmd
+    def fake_polish(model, *, provider, root, **k):
+        seen["provider"] = provider
+        return model
+    monkeypatch.setattr(cmd, "polish_report_model", fake_polish)
+    run_vib_report(_args(plan, json=True, polish=True, cli="auto"))
+    assert seen.get("provider") == "auto"
