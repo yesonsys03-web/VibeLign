@@ -927,6 +927,33 @@ MANUAL: dict[str, ManualEntry] = {
             ("--json", "결과를 JSON 형식으로 출력해요. (개발자용)"),
         ],
     },
+    "report": {
+        "emoji": "📄",
+        "title": "vib report",
+        "one_line": "기획안(plans/*.md)을 업무/제안/결과 보고서로 내보내요",
+        "what": (
+            "저장된 기획안 마크다운을 업무보고·제안서·결과보고 HTML 보고서로\n"
+            "변환해서 .vibelign/reports/에 저장해요. (LLM 없이 템플릿 기반)"
+        ),
+        "when": [
+            "기획방에서 정리한 내용을 업무용 보고서로 만들고 싶을 때",
+            "기획안을 상사·고객에게 보여줄 문서로 바꾸고 싶을 때",
+        ],
+        "examples": [
+            ('vib report plans/예약-앱.md --type work', "업무 보고서 HTML 생성"),
+            ('vib report plans/예약-앱.md --type proposal', "제안서 HTML 생성"),
+            ('vib report plans/예약-앱.md --type result --json', "결과 보고 + JSON 출력"),
+        ],
+        "options": [
+            ("plan", "보고서로 만들 기획안 .md 경로예요."),
+            ("--type", "보고서 종류 (work=업무, proposal=제안, result=결과)."),
+            ("--format", "출력 포맷 (현재 html)."),
+            ("--output PATH", "저장할 프로젝트 상대 경로를 지정해요."),
+            ("--force", "기존 --output 파일을 덮어써요."),
+            ("--date", "보고서 날짜 (기본: 오늘)."),
+            ("--json", "결과를 JSON 형식으로 출력해요. (개발자용)"),
+        ],
+    },
     "export": {
         "emoji": "📤",
         "title": "vib export",
@@ -1471,7 +1498,7 @@ GROUPS = [
         ["checkpoint", "undo", "history", "recover", "backup-db-viewer", "backup-graph-summary", "backup-db-maintenance", "backup-cleanup"],
     ),
     ("🔬 점검 & 확인", ["doctor", "guard", "explain"]),
-    ("✏️ AI 작업 준비", ["plan", "anchor", "scan"]),
+    ("✏️ AI 작업 준비", ["plan", "report", "anchor", "scan"]),
     ("📚 문서 보기 & 다시생성", ["docs-build", "docs-enhance", "docs-index", "doc-sources"]),
     (
         "🗂️ 파일 & 설정",
