@@ -161,3 +161,22 @@ def test_report_polish_on_calls_polish(
     monkeypatch.setattr(cmd, "polish_report_model", fake_polish)
     run_vib_report(_args(plan, json=True, polish=True, cli="auto"))
     assert seen.get("provider") == "auto"
+
+
+def test_report_polish_uses_cache_on_second_run(
+    tmp_path, capsys, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+    calls = {"n": 0}
+    import vibelign.commands.vib_report_cmd as cmd
+
+    def counting(model, **k):
+        calls["n"] += 1
+        return model
+
+    monkeypatch.setattr(cmd, "polish_report_model", counting)
+    run_vib_report(_args(plan, json=True, polish=True, cli="auto"))
+    run_vib_report(_args(plan, json=True, polish=True, cli="auto"))
+    assert calls["n"] == 1  # 2번째는 캐시 히트 → polish 재호출 0

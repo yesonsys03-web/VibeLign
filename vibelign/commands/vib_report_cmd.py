@@ -7,12 +7,18 @@ from pathlib import Path
 from typing import Protocol, cast
 
 from vibelign.core.project_root import resolve_project_root
+from vibelign.core.planning_cli.storage import safe_plan_slug
 from vibelign.core.reporting_cli import (
     build_report_model,
     parse_plan_markdown,
     polish_report_model,
     render_html,
     write_report,
+)
+from vibelign.core.reporting_cli.polish_cache import (
+    load_polish_cache,
+    polish_cache_key,
+    save_polish_cache,
 )
 from vibelign.terminal_render import clack_intro, clack_success
 
@@ -57,11 +63,20 @@ def run_vib_report(args: object) -> None:
         _fail(want_json, str(exc))
         return
 
+    slug_source = data.title or data.idea or plan_path.stem
     if getattr(raw, "polish", False):
-        model = polish_report_model(model, provider=getattr(raw, "cli", "auto") or "auto", root=Path.cwd())
+        provider = getattr(raw, "cli", "auto") or "auto"
+        # enrich 캐시(§6): 동일 입력 재요청 시 provider 재호출 0.
+        key = polish_cache_key(model, provider=provider)
+        slug = safe_plan_slug(slug_source)
+        cached = load_polish_cache(root, slug, key=key)
+        if cached is not None:
+            model = cached
+        else:
+            model = polish_report_model(model, provider=provider, root=root)
+            save_polish_cache(root, slug, key=key, model=model)
 
     html = render_html(model)
-    slug_source = data.title or data.idea or plan_path.stem
     try:
         dest = write_report(
             root,
