@@ -11,6 +11,7 @@ import {
   type ReadFileResult,
 } from "../lib/vib";
 import type { PlanningSessionSummary, TrashedSessionSummary } from "../lib/vib/types";
+import { ExportReportModal } from "../components/plan-doc/ExportReportModal";
 
 interface PlanDocViewProps {
   projectDir: string;
@@ -53,6 +54,7 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
   const [emptying, setEmptying] = useState(false);
   const [trashError, setTrashError] = useState<string | null>(null);
   const [undo, setUndo] = useState<{ sessionId: string; title: string } | null>(null);
+  const [reportFor, setReportFor] = useState<string | null>(null);
 
   async function refreshPlans() {
     try {
@@ -223,6 +225,7 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
                   {onEdit && (
                     <button type="button" onClick={() => onEdit(plan.sessionId)} disabled={deletingId === plan.sessionId} title="기획방에서 이어서 수정" style={{ border: "none", background: "transparent", color: active ? "#fff" : "#888", fontSize: 12, fontWeight: 700, padding: "0 6px", cursor: "pointer", whiteSpace: "nowrap" }}>수정</button>
                   )}
+                  <button type="button" onClick={() => setReportFor(plan.outputPath ?? "")} disabled={deletingId === plan.sessionId} aria-label="보고서로 내보내기" title="보고서로 내보내기" style={{ border: "none", background: "transparent", color: active ? "#fff" : "#888", fontSize: 13, padding: "0 6px", cursor: "pointer" }}>📄</button>
                   <button type="button" onClick={() => setConfirmingId(plan.sessionId)} disabled={deletingId === plan.sessionId} title="이 기획안 삭제(휴지통)" style={{ border: "none", background: "transparent", color: active ? "#fff" : "#888", fontSize: 13, padding: "0 8px", cursor: "pointer" }}>🗑</button>
                 </div>
               )}
@@ -310,6 +313,12 @@ export default function PlanDocView({ projectDir, activeSessionId, onStart, onDe
           <button type="button" onClick={() => void handleRestore(undo.sessionId)} style={{ border: "none", background: "transparent", color: "#7DD3FC", fontWeight: 800, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>실행취소</button>
         </div>
       )}
+      <ExportReportModal
+        open={reportFor !== null}
+        planPath={reportFor ?? ""}
+        cwd={projectDir}
+        onClose={() => setReportFor(null)}
+      />
     </div>
   );
 }
