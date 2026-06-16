@@ -119,7 +119,8 @@ fn normalize_document_content(path: &Path, bytes: &[u8]) -> Result<String, Strin
         .unwrap_or("")
         .to_ascii_lowercase();
     match ext.as_str() {
-        "md" | "markdown" | "txt" | "csv" => normalize_text_document(bytes),
+        // .vibelign/reports/*.html 보고서 미리보기: 원본 마크업을 그대로 돌려준다(렌더는 프런트가 처리).
+        "md" | "markdown" | "txt" | "csv" | "html" | "htm" => normalize_text_document(bytes),
         "json" => {
             let text = normalize_text_document(bytes)?;
             match serde_json::from_str::<serde_json::Value>(&text) {

@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from "react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openPath } from "@tauri-apps/plugin-opener";
 import {
   generatePlanningReport,
   generateReportOffice,
@@ -39,12 +39,14 @@ export function ExportReportModal({ open, planPath, cwd, onClose }: ExportReport
   const [polish, setPolish] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<ResultState | null>(null);
+  const [openErr, setOpenErr] = useState<string | null>(null);
 
   if (!open) return null;
 
   const handleGenerate = async () => {
     setGenerating(true);
     setResult(null);
+    setOpenErr(null);
     if (format === "html") {
       const r = await generatePlanningReport(cwd, planPath, reportType, polish);
       setResult(
@@ -145,11 +147,20 @@ export function ExportReportModal({ open, planPath, cwd, onClose }: ExportReport
         </div>
 
         <div style={footer}>
+          {openErr && (
+            <span role="alert" style={{ color: "#9B1B1B", fontSize: 12, marginRight: "auto" }}>
+              {openErr}
+            </span>
+          )}
           {result && result.ok && (
             <button
               type="button"
               onClick={() => {
-                if (result.ok) void openUrl("file://" + result.path).catch(() => {});
+                if (!result.ok) return;
+                setOpenErr(null);
+                void openPath(result.path).catch((e) =>
+                  setOpenErr(`파일을 열지 못했어요: ${String(e)}`),
+                );
               }}
               style={primaryBtn}
             >

@@ -6,20 +6,20 @@ vi.mock("../../../lib/vib/report", () => ({
   generateReportPdf: vi.fn(),
   generateReportOffice: vi.fn(),
 }));
-vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@tauri-apps/plugin-opener", () => ({ openPath: vi.fn().mockResolvedValue(undefined) }));
 
 import {
   generatePlanningReport,
   generateReportPdf,
   generateReportOffice,
 } from "../../../lib/vib/report";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { ExportReportModal } from "../ExportReportModal";
 
 const mockGen = vi.mocked(generatePlanningReport);
 const mockGenPdf = vi.mocked(generateReportPdf);
 const mockGenOffice = vi.mocked(generateReportOffice);
-const mockOpen = vi.mocked(openUrl);
+const mockOpen = vi.mocked(openPath);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -58,7 +58,7 @@ test("생성 성공 → iframe 미리보기 + 파일 열기", async () => {
   expect(mockGen).toHaveBeenCalledWith("/proj", "plans/p.md", "work", false);
 
   fireEvent.click(screen.getByRole("button", { name: "파일 열기" }));
-  expect(mockOpen).toHaveBeenCalledWith("file:///proj/.vibelign/reports/r-work.html");
+  expect(mockOpen).toHaveBeenCalledWith("/proj/.vibelign/reports/r-work.html");
 });
 
 test("종류 선택이 호출 인자에 반영", async () => {
@@ -91,7 +91,7 @@ test("PDF 포맷 선택 → generateReportPdf 호출, 저장됨 표시, iframe �
   expect(screen.queryByTitle("보고서 미리보기")).toBeNull();
 
   fireEvent.click(screen.getByRole("button", { name: "파일 열기" }));
-  expect(mockOpen).toHaveBeenCalledWith("file:///proj/.vibelign/reports/r-work.pdf");
+  expect(mockOpen).toHaveBeenCalledWith("/proj/.vibelign/reports/r-work.pdf");
 });
 
 test("HTML 포맷(기본) → generatePlanningReport 호출, iframe 표시", async () => {
