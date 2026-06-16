@@ -25,7 +25,9 @@ def polish_try_order(provider: str | None) -> list[str]:
     return order
 
 
-def polish_block_text(text: str, *, provider: str, runner, root: Path, timeout_seconds: int) -> str | None:
+def polish_block_text(
+    text: str, *, provider: str, runner: cli_adapters.PlanningCliRunner, root: Path, timeout_seconds: int
+) -> str | None:
     """텍스트 한 덩이를 비즈니스 보고 어조로 다듬는다. 실패 시 None."""
     if not text.strip():
         return None

@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Protocol, cast
 
 from vibelign.core.project_root import resolve_project_root
-from vibelign.core.planning_cli.storage import safe_plan_slug
 from vibelign.core.reporting_cli import (
     build_report_model,
     parse_plan_markdown,
@@ -20,6 +19,7 @@ from vibelign.core.reporting_cli.polish_cache import (
     polish_cache_key,
     save_polish_cache,
 )
+from vibelign.core.reporting_cli.storage import _report_slug
 from vibelign.terminal_render import clack_intro, clack_success
 
 
@@ -68,7 +68,7 @@ def run_vib_report(args: object) -> None:
         provider = getattr(raw, "cli", "auto") or "auto"
         # enrich 캐시(§6): 동일 입력 재요청 시 provider 재호출 0.
         key = polish_cache_key(model, provider=provider)
-        slug = safe_plan_slug(slug_source)
+        slug = _report_slug(slug_source)
         cached = load_polish_cache(root, slug, key=key)
         if cached is not None:
             model = cached
