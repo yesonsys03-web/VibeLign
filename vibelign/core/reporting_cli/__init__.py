@@ -1,3 +1,4 @@
+from vibelign.core.reporting_cli.html_renderer import render_html
 from vibelign.core.reporting_cli.models import (
     Block,
     PlanningData,
@@ -20,4 +21,5 @@ __all__ = [
     "REPORT_TEMPLATES",
     "REPORT_TYPE_LABELS",
     "build_report_model",
+    "render_html",
 ]
