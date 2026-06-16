@@ -43,7 +43,8 @@ def parse_plan_markdown(text: str) -> PlanningData:
     def flush() -> None:
         nonlocal buf
         if current and current not in _LIST_FIELDS:
-            joined = " ".join(b.strip() for b in buf if b.strip())
+            # GUI 합성기는 단락 필드도 불릿(- …)으로 쓰므로 마커를 벗긴다.
+            joined = " ".join(s for b in buf if (s := _strip_bullet(b)))
             value = _strip_placeholder(joined)
             if value:
                 setattr(data, current, value)
