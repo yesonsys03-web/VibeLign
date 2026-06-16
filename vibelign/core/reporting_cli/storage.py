@@ -70,6 +70,8 @@ def write_report(
     root = root.resolve()
     if output:
         relative = _relative_output_path(output)
+        # explicit output 은 _unique_output_path 를 거치지 않는다:
+        # 덮어쓰기는 --force 계약으로 제어하고, 자동 suffix 는 하지 않는다.
     else:
         slug = _report_slug(slug_source)
         relative = _unique_output_path(
@@ -77,6 +79,13 @@ def write_report(
             Path(".vibelign") / "reports" / f"{slug}-{model.report_type}.html",
         )
     dest = root / relative
+
+    # 어휘적 검사(_relative_output_path)는 심볼릭 링크를 추적하지 않는다.
+    # resolve() 로 실제 경로를 구해 root 밖으로 탈출하는지 확인한다.
+    resolved = dest.resolve()
+    if not resolved.is_relative_to(root):
+        raise ValueError("output must be a project-relative path")
+
     if output and dest.exists() and not force:
         raise FileExistsError(f"output already exists: {relative}")
     dest.parent.mkdir(parents=True, exist_ok=True)

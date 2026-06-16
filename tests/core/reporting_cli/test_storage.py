@@ -91,3 +91,17 @@ def test_write_rejects_unsafe_output_paths(tmp_path: Path, output: str):
     # 드라이브 루트로 새므로, 가드가 OS 무관하게 거부해야 한다(아래 6종 전부).
     with pytest.raises(ValueError, match="project-relative"):
         write_report(tmp_path, _model(), "<x>", slug_source="x", output=output)
+
+
+def test_write_rejects_symlink_escape(tmp_path: Path, tmp_path_factory: pytest.TempPathFactory):
+    # 심볼릭 링크 경유 탈출: "link/escaped.html" 은 어휘적으론 안전하지만
+    # link 가 프로젝트 외부를 가리키면 실제 쓰기 위치가 root 밖이 된다.
+    outside = tmp_path_factory.mktemp("outside")
+    link = tmp_path / "link"
+    link.symlink_to(outside)
+
+    with pytest.raises(ValueError, match="project-relative"):
+        write_report(tmp_path, _model(), "<x>", slug_source="x", output="link/escaped.html")
+
+    # 외부 디렉터리에 파일이 생성되지 않아야 한다
+    assert not (outside / "escaped.html").exists()
