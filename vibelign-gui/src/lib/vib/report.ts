@@ -43,11 +43,17 @@ export async function generatePlanningReport(
   }
 
   const rel = toProjectRelative(cwd, parsed.path);
-  const doc = await loadDoc(cwd, rel);
-  return {
-    ok: true,
-    path: parsed.path,
-    reportType: String(parsed.report_type ?? reportType),
-    html: doc.content,
-  };
+  try {
+    const doc = await loadDoc(cwd, rel);
+    return {
+      ok: true,
+      path: parsed.path,
+      reportType: String(parsed.report_type ?? reportType),
+      html: doc.content,
+    };
+  } catch (e) {
+    // CLI 는 성공했지만 생성된 파일 읽기가 실패(권한/삭제/락) → 모달이 멈추지 않도록
+    // 래퍼의 {ok:false} 계약을 유지한다.
+    return { ok: false, error: `보고서 파일을 읽지 못했어요: ${String(e)}` };
+  }
 }

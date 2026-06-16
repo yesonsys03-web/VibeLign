@@ -86,3 +86,22 @@ describe("generatePlanningReport", () => {
     if (!res.ok) expect(res.error).toContain("Traceback");
   });
 });
+
+test("loadDoc 실패 시 {ok:false} 반환 (모달 멈춤 방지)", async () => {
+  mockRunVib.mockResolvedValue({
+    ok: true,
+    stdout: JSON.stringify({
+      ok: true,
+      path: "/proj/.vibelign/reports/r-work.html",
+      report_type: "work",
+    }),
+    stderr: "",
+    exit_code: 0,
+  });
+  mockLoadDoc.mockRejectedValue(new Error("EACCES"));
+
+  const res = await generatePlanningReport("/proj", "plans/p.md", "work");
+
+  expect(res.ok).toBe(false);
+  if (!res.ok) expect(res.error).toContain("읽지 못");
+});
