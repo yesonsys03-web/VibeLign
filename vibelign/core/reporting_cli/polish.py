@@ -35,12 +35,11 @@ def polish_block_text(text: str, *, provider: str, runner, root: Path, timeout_s
         f"{text}"
     )
     for adapter in polish_try_order(provider):
-        # build_cli_command 로 설치 여부 확인(None = 미설치 → 건너뜀).
-        # runner.run 에는 adapter 이름을 command[0] 으로 전달해 runner 가 식별할 수 있게 한다.
-        full_command = cli_adapters.build_cli_command(adapter, prompt)
-        if full_command is None:
+        # build_cli_command 가 실제 실행 명령(전체 경로 + 서브커맨드)을 만든다.
+        # None = 미설치 → 다음 provider. 프로덕션 정확성을 위해 이 명령을 그대로 실행한다.
+        command = cli_adapters.build_cli_command(adapter, prompt)
+        if command is None:
             continue
-        command = [adapter, prompt]
         result = runner.run(command, cwd=root, input_text="", timeout_seconds=timeout_seconds)
         if safe_planning_status(result.status, result.stdout) == "ok":
             cleaned = result.stdout.strip()

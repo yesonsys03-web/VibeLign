@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+import pytest
+
 from vibelign.core.reporting_cli.models import Block, ReportModel, Section
 from vibelign.core.reporting_cli.polish import polish_report_model, polish_try_order
 
@@ -21,6 +23,16 @@ class FakeRunner:
         adapter = command[0]
         self.attempts.append(adapter)
         return self.script.get(adapter, FakeResult("not_installed", ""))
+
+
+@pytest.fixture(autouse=True)
+def _stub_build_cli_command(monkeypatch):
+    # 실제 build_cli_command 은 전체 경로+서브커맨드를 반환하지만, 테스트는 adapter 식별만
+    # 필요하다. command[0]=adapter 로 스텁해 FakeRunner 가 adapter 를 식별하게 한다.
+    monkeypatch.setattr(
+        "vibelign.core.planning_cli.cli_adapters.build_cli_command",
+        lambda adapter, prompt: [adapter, prompt],
+    )
 
 
 def _model():
@@ -81,3 +93,22 @@ def test_polish_returns_new_model_does_not_mutate_input():
     out = polish_report_model(original, provider="auto", runner=runner)
     assert original.sections[0].blocks[0].text == "예약 앱 MVP"  # 입력 불변
     assert out is not original
+
+
+def test_polish_runs_build_cli_command_output_verbatim(monkeypatch):
+    # 회귀 가드: polish 는 build_cli_command 의 실제 명령(경로+서브커맨드)을 그대로 실행해야 한다.
+    # 버그 버전([adapter, prompt] 로 대체)이면 이 테스트가 실패한다.
+    monkeypatch.setattr(
+        "vibelign.core.planning_cli.cli_adapters.build_cli_command",
+        lambda adapter, prompt: [f"/bin/{adapter}", "exec", prompt],
+    )
+    captured = {}
+
+    class CaptRunner:
+        def run(self, command, *, cwd, input_text, timeout_seconds):
+            captured["cmd"] = command
+            return FakeResult("ok", "x")
+
+    polish_report_model(_model(), provider="codex", runner=CaptRunner())
+    assert captured["cmd"][0] == "/bin/codex"  # 전체 경로 보존
+    assert "exec" in captured["cmd"]  # 서브커맨드 보존
