@@ -681,6 +681,35 @@ def register_extended_commands(
     _ = p.add_argument("--json", action="store_true", help="결과를 JSON으로 출력해요")
     p.set_defaults(func=lazy_command("vibelign.commands.vib_plan_cmd", "run_vib_plan"))
 
+    r = sub.add_parser(
+        "report",
+        help="기획안을 보고서로 내보내기",
+        description="기획안 마크다운을 업무/제안/결과 보고서 HTML 로 변환해요.",
+        epilog=(
+            "이렇게 쓰세요:\n"
+            '  vib report plans/예약-앱.md --type work\n'
+            '  vib report plans/예약-앱.md --type proposal --json'
+        ),
+    )
+    _ = r.add_argument("plan", help="기획안 .md 경로")
+    _ = r.add_argument(
+        "--type",
+        default="work",
+        help="보고서 종류 (work=업무, proposal=제안, result=결과)",
+    )
+    _ = r.add_argument(
+        "--format", default="html", choices=["html"], help="출력 포맷"
+    )
+    _ = r.add_argument(
+        "--output", default=None, help="저장 경로 (기본: .vibelign/reports/)"
+    )
+    _ = r.add_argument("--force", action="store_true", help="기존 --output 파일 덮어쓰기")
+    _ = r.add_argument("--date", default=None, help="보고서 날짜 (기본: 오늘)")
+    _ = r.add_argument("--json", action="store_true", help="JSON 으로 결과 출력")
+    r.set_defaults(
+        func=lazy_command("vibelign.commands.vib_report_cmd", "run_vib_report")
+    )
+
     p = sub.add_parser(
         "transfer",
         help="AI 툴 바꿔도 맥락 유지 (PROJECT_CONTEXT.md 생성)",
