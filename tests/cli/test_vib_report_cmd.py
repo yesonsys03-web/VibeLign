@@ -115,3 +115,18 @@ def test_report_subcommand_keeps_type_validation_inside_command():
     ns = parser.parse_args(["report", "plan.md", "--type", "nope", "--json"])
     assert ns.type == "nope"
     assert callable(ns.func)
+
+
+def test_report_unreadable_plan_reports_error_json(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_bytes(b"\xff\xfe \x80\x81 invalid utf-8")
+
+    with pytest.raises(SystemExit):
+        run_vib_report(_args(plan, json=True))
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    assert "읽을 수 없" in payload["error"]

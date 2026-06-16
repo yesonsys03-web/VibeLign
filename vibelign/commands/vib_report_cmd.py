@@ -37,7 +37,11 @@ def run_vib_report(args: object) -> None:
         return
 
     root = resolve_project_root(Path.cwd())
-    data = parse_plan_markdown(plan_path.read_text(encoding="utf-8"))
+    try:
+        data = parse_plan_markdown(plan_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        _fail(want_json, f"기획안을 읽을 수 없어요: {exc}")
+        return
 
     try:
         model = build_report_model(
