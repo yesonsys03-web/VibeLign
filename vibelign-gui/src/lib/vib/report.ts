@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { runVib } from "./core";
 import { loadDoc } from "../docs";
 
@@ -55,5 +56,24 @@ export async function generatePlanningReport(
     // CLI 는 성공했지만 생성된 파일 읽기가 실패(권한/삭제/락) → 모달이 멈추지 않도록
     // 래퍼의 {ok:false} 계약을 유지한다.
     return { ok: false, error: `보고서 파일을 읽지 못했어요: ${String(e)}` };
+  }
+}
+
+export type PdfResult = { ok: true; path: string } | { ok: false; error: string };
+
+export async function generateReportPdf(
+  cwd: string,
+  planPath: string,
+  reportType: ReportType,
+): Promise<PdfResult> {
+  const html = await generatePlanningReport(cwd, planPath, reportType);
+  if (!html.ok) return html;
+
+  const outPdf = html.path.replace(/\.html$/i, ".pdf");
+  try {
+    const saved = await invoke<string>("export_report_pdf", { htmlPath: html.path, outPdf });
+    return { ok: true, path: saved };
+  } catch (e) {
+    return { ok: false, error: `PDF 생성 실패: ${String(e)}` };
   }
 }

@@ -2,9 +2,15 @@ import { useState, type CSSProperties } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   generatePlanningReport,
-  type ReportResult,
+  generateReportPdf,
   type ReportType,
 } from "../../lib/vib/report";
+
+type Format = "html" | "pdf";
+type ResultState =
+  | { kind: "html"; ok: true; path: string; reportType: string; html: string }
+  | { kind: "pdf"; ok: true; path: string }
+  | { ok: false; error: string };
 
 const TYPES: { id: ReportType; label: string }[] = [
   { id: "work", label: "업무 보고" },
@@ -21,16 +27,24 @@ export interface ExportReportModalProps {
 
 export function ExportReportModal({ open, planPath, cwd, onClose }: ExportReportModalProps) {
   const [reportType, setReportType] = useState<ReportType>("work");
+  const [format, setFormat] = useState<Format>("html");
   const [generating, setGenerating] = useState(false);
-  const [result, setResult] = useState<ReportResult | null>(null);
+  const [result, setResult] = useState<ResultState | null>(null);
 
   if (!open) return null;
 
   const handleGenerate = async () => {
     setGenerating(true);
     setResult(null);
-    const r = await generatePlanningReport(cwd, planPath, reportType);
-    setResult(r);
+    if (format === "pdf") {
+      const r = await generateReportPdf(cwd, planPath, reportType);
+      setResult(r.ok ? { kind: "pdf", ok: true, path: r.path } : r);
+    } else {
+      const r = await generatePlanningReport(cwd, planPath, reportType);
+      setResult(
+        r.ok ? { kind: "html", ok: true, path: r.path, reportType: r.reportType, html: r.html } : r,
+      );
+    }
     setGenerating(false);
   };
 
@@ -60,6 +74,29 @@ export function ExportReportModal({ open, planPath, cwd, onClose }: ExportReport
             ))}
           </div>
 
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ marginRight: 16 }}>
+              <input
+                type="radio"
+                name="export-format"
+                value="html"
+                checked={format === "html"}
+                onChange={() => setFormat("html")}
+              />{" "}
+              HTML 미리보기
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="export-format"
+                value="pdf"
+                checked={format === "pdf"}
+                onChange={() => setFormat("pdf")}
+              />{" "}
+              PDF 파일
+            </label>
+          </div>
+
           <button
             type="button"
             onClick={handleGenerate}
@@ -75,7 +112,7 @@ export function ExportReportModal({ open, planPath, cwd, onClose }: ExportReport
             </p>
           )}
 
-          {result && result.ok && (
+          {result && result.ok && result.kind === "html" && (
             <div style={{ marginTop: 12 }}>
               <iframe
                 title="보고서 미리보기"
@@ -85,6 +122,10 @@ export function ExportReportModal({ open, planPath, cwd, onClose }: ExportReport
               />
               <p style={{ fontSize: 12, color: "#666", marginTop: 8 }}>저장됨: {result.path}</p>
             </div>
+          )}
+
+          {result && result.ok && result.kind === "pdf" && (
+            <p style={{ fontSize: 12, color: "#666", marginTop: 12 }}>저장됨: {result.path}</p>
           )}
         </div>
 

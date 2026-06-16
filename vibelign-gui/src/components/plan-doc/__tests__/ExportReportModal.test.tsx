@@ -1,14 +1,18 @@
 import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 
-vi.mock("../../../lib/vib/report", () => ({ generatePlanningReport: vi.fn() }));
+vi.mock("../../../lib/vib/report", () => ({
+  generatePlanningReport: vi.fn(),
+  generateReportPdf: vi.fn(),
+}));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn().mockResolvedValue(undefined) }));
 
-import { generatePlanningReport } from "../../../lib/vib/report";
+import { generatePlanningReport, generateReportPdf } from "../../../lib/vib/report";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ExportReportModal } from "../ExportReportModal";
 
 const mockGen = vi.mocked(generatePlanningReport);
+const mockGenPdf = vi.mocked(generateReportPdf);
 const mockOpen = vi.mocked(openUrl);
 
 beforeEach(() => {
@@ -65,4 +69,38 @@ test("실패 → 에러 메시지, iframe 없음", async () => {
   fireEvent.click(screen.getByRole("button", { name: "보고서 생성" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("unknown report type");
   expect(screen.queryByTitle("보고서 미리보기")).toBeNull();
+});
+
+test("PDF 포맷 선택 → generateReportPdf 호출, 저장됨 표시, iframe 없음", async () => {
+  mockGenPdf.mockResolvedValue({ ok: true, path: "/proj/.vibelign/reports/r-work.pdf" });
+  renderOpen();
+
+  fireEvent.click(screen.getByLabelText("PDF 파일"));
+  fireEvent.click(screen.getByRole("button", { name: "보고서 생성" }));
+
+  await waitFor(() => expect(mockGenPdf).toHaveBeenCalledWith("/proj", "plans/p.md", "work"));
+  expect(mockGen).not.toHaveBeenCalled();
+
+  expect(screen.getByText(/저장됨.*r-work\.pdf/)).toBeInTheDocument();
+  expect(screen.queryByTitle("보고서 미리보기")).toBeNull();
+
+  fireEvent.click(screen.getByRole("button", { name: "파일 열기" }));
+  expect(mockOpen).toHaveBeenCalledWith("file:///proj/.vibelign/reports/r-work.pdf");
+});
+
+test("HTML 포맷(기본) → generatePlanningReport 호출, iframe 표시", async () => {
+  mockGen.mockResolvedValue({
+    ok: true,
+    path: "/proj/.vibelign/reports/r-work.html",
+    reportType: "work",
+    html: "<html><body>HTML 보고</body></html>",
+  });
+  renderOpen();
+
+  fireEvent.click(screen.getByRole("button", { name: "보고서 생성" }));
+
+  await screen.findByTitle("보고서 미리보기");
+  expect(mockGen).toHaveBeenCalledWith("/proj", "plans/p.md", "work");
+  expect(mockGenPdf).not.toHaveBeenCalled();
+  expect(screen.queryByTitle("보고서 미리보기")).toBeInTheDocument();
 });
