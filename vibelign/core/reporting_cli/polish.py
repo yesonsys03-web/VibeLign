@@ -1,0 +1,80 @@
+from __future__ import annotations
+
+from dataclasses import replace
+from pathlib import Path
+
+from vibelign.core.planning_cli import cli_adapters
+from vibelign.core.planning_cli.response_policy import safe_planning_status
+from vibelign.core.reporting_cli.models import Block, ReportModel, Section
+
+# design §6: 무료 provider 전용. planning 의 provider_try_order 는 claude 를 포함하므로
+# 재사용하지 않는다(비용 노출 방지). claude 는 명시 요청 시에만.
+FREE_PROVIDERS: tuple[str, ...] = ("codex", "opencode", "agy")
+_POLISH_BLOCK_KINDS = {"paragraph", "summary"}
+
+
+def polish_try_order(provider: str | None) -> list[str]:
+    """다듬기 provider 시도 순서. auto/None → 무료 전용. 명시 provider → 그것 우선 + 무료 보충.
+    claude 는 provider 가 정확히 'claude' 일 때만 포함된다(자동 폴백으로는 절대 안 들어감)."""
+    if not provider or provider == "auto":
+        return list(FREE_PROVIDERS)
+    order = [provider]
+    for p in FREE_PROVIDERS:
+        if p != provider:
+            order.append(p)
+    return order
+
+
+def polish_block_text(text: str, *, provider: str, runner, root: Path, timeout_seconds: int) -> str | None:
+    """텍스트 한 덩이를 비즈니스 보고 어조로 다듬는다. 실패 시 None."""
+    if not text.strip():
+        return None
+    prompt = (
+        "다음 보고서 문장을 의미는 그대로, 개발 용어를 업무 보고에 어울리는 비즈니스 "
+        "어조로 자연스럽게 다듬어줘. 설명·따옴표 없이 다듬은 문장만 출력해.\n\n"
+        f"{text}"
+    )
+    for adapter in polish_try_order(provider):
+        # build_cli_command 로 설치 여부 확인(None = 미설치 → 건너뜀).
+        # runner.run 에는 adapter 이름을 command[0] 으로 전달해 runner 가 식별할 수 있게 한다.
+        full_command = cli_adapters.build_cli_command(adapter, prompt)
+        if full_command is None:
+            continue
+        command = [adapter, prompt]
+        result = runner.run(command, cwd=root, input_text="", timeout_seconds=timeout_seconds)
+        if safe_planning_status(result.status, result.stdout) == "ok":
+            cleaned = result.stdout.strip()
+            if cleaned:
+                return cleaned
+    return None
+
+
+def polish_report_model(
+    model: ReportModel,
+    *,
+    provider: str = "auto",
+    runner=None,
+    root: Path | None = None,
+    timeout_seconds: int = 60,
+) -> ReportModel:
+    """ReportModel 의 paragraph/summary 블록 텍스트를 다듬은 새 ReportModel 을 반환한다.
+    블록별 실패는 원문 유지(graceful). 입력 model 은 변경하지 않는다."""
+    if runner is None:
+        runner = cli_adapters.SubprocessPlanningCliRunner()
+    if root is None:
+        root = Path.cwd()
+
+    new_sections: list[Section] = []
+    for section in model.sections:
+        new_blocks: list[Block] = []
+        for block in section.blocks:
+            if block.kind in _POLISH_BLOCK_KINDS and block.text:
+                polished = polish_block_text(
+                    block.text, provider=provider, runner=runner, root=root,
+                    timeout_seconds=timeout_seconds,
+                )
+                new_blocks.append(replace(block, text=polished) if polished else block)
+            else:
+                new_blocks.append(block)
+        new_sections.append(replace(section, blocks=new_blocks))
+    return replace(model, sections=new_sections)
