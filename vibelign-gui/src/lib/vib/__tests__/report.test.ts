@@ -7,7 +7,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 import { runVib } from "../core";
 import { loadDoc } from "../../docs";
 import { invoke } from "@tauri-apps/api/core";
-import { generatePlanningReport, generateReportPdf, toProjectRelative } from "../report";
+import { generatePlanningReport, generateReportPdf, generateReportOffice, toProjectRelative } from "../report";
 
 const mockRunVib = vi.mocked(runVib);
 const mockLoadDoc = vi.mocked(loadDoc);
@@ -169,4 +169,21 @@ describe("generateReportPdf", () => {
       expect(res.error).toContain("Chromium not found");
     }
   });
+});
+
+test("generatePlanningReport polish=true → --polish 인자 추가", async () => {
+  mockRunVib.mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/proj/.vibelign/reports/r.html", report_type: "work" }), stderr: "", exit_code: 0 });
+  mockLoadDoc.mockResolvedValue({ path: "x", content: "<i></i>" } as never);
+  await generatePlanningReport("/proj", "plans/p.md", "work", true);
+  const argv = mockRunVib.mock.calls[0][0];
+  expect(argv).toContain("--polish");
+});
+
+test("generateReportOffice docx → runVib 인자 + path 반환", async () => {
+  mockRunVib.mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/proj/.vibelign/reports/r.docx" }), stderr: "", exit_code: 0 });
+  const res = await generateReportOffice("/proj", "plans/p.md", "work", "docx", true);
+  expect(res.ok).toBe(true);
+  if (res.ok) expect(res.path).toContain(".docx");
+  const argv = mockRunVib.mock.calls[0][0];
+  expect(argv).toEqual(expect.arrayContaining(["--format", "docx", "--polish"]));
 });

@@ -23,9 +23,13 @@ export async function generatePlanningReport(
   cwd: string,
   planPath: string,
   reportType: ReportType,
+  polish = false,
 ): Promise<ReportResult> {
   const res = await runVib(
-    ["report", planPath, "--type", reportType, "--format", "html", "--json"],
+    [
+      "report", planPath, "--type", reportType, "--format", "html", "--json",
+      ...(polish ? ["--polish"] : []),
+    ],
     cwd,
   );
 
@@ -65,8 +69,9 @@ export async function generateReportPdf(
   cwd: string,
   planPath: string,
   reportType: ReportType,
+  polish = false,
 ): Promise<PdfResult> {
-  const html = await generatePlanningReport(cwd, planPath, reportType);
+  const html = await generatePlanningReport(cwd, planPath, reportType, polish);
   if (!html.ok) return html;
 
   const outPdf = html.path.replace(/\.html$/i, ".pdf");
@@ -76,4 +81,37 @@ export async function generateReportPdf(
   } catch (e) {
     return { ok: false, error: `PDF 생성 실패: ${String(e)}` };
   }
+}
+
+export type OfficeFormat = "docx" | "pptx";
+
+/** Word(.docx)/PPT(.pptx) 를 vib report 로 생성한다. CLI 가 바이너리 파일을 쓰고
+ *  경로를 반환하므로 미리보기 없이 경로만 돌려준다(모달은 "파일 열기"로 처리). */
+export async function generateReportOffice(
+  cwd: string,
+  planPath: string,
+  reportType: ReportType,
+  format: OfficeFormat,
+  polish = false,
+): Promise<PdfResult> {
+  const res = await runVib(
+    [
+      "report", planPath, "--type", reportType, "--format", format, "--json",
+      ...(polish ? ["--polish"] : []),
+    ],
+    cwd,
+  );
+  let parsed: { ok?: boolean; path?: string; error?: string };
+  try {
+    parsed = JSON.parse(res.stdout.trim());
+  } catch {
+    return {
+      ok: false,
+      error: res.stderr.trim() || res.stdout.trim() || "보고서 생성에 실패했어요.",
+    };
+  }
+  if (!parsed.ok || !parsed.path) {
+    return { ok: false, error: String(parsed.error ?? "보고서 생성에 실패했어요.") };
+  }
+  return { ok: true, path: parsed.path };
 }

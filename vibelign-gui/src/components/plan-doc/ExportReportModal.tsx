@@ -2,20 +2,28 @@ import { useState, type CSSProperties } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   generatePlanningReport,
+  generateReportOffice,
   generateReportPdf,
   type ReportType,
 } from "../../lib/vib/report";
 
-type Format = "html" | "pdf";
+type Format = "html" | "pdf" | "docx" | "pptx";
 type ResultState =
   | { kind: "html"; ok: true; path: string; reportType: string; html: string }
-  | { kind: "pdf"; ok: true; path: string }
+  | { kind: "file"; ok: true; path: string }
   | { ok: false; error: string };
 
 const TYPES: { id: ReportType; label: string }[] = [
   { id: "work", label: "업무 보고" },
   { id: "proposal", label: "제안서" },
   { id: "result", label: "결과 보고" },
+];
+
+const FORMATS: { id: Format; label: string }[] = [
+  { id: "html", label: "HTML 미리보기" },
+  { id: "pdf", label: "PDF 파일" },
+  { id: "docx", label: "Word 파일" },
+  { id: "pptx", label: "PPT 파일" },
 ];
 
 export interface ExportReportModalProps {
@@ -28,6 +36,7 @@ export interface ExportReportModalProps {
 export function ExportReportModal({ open, planPath, cwd, onClose }: ExportReportModalProps) {
   const [reportType, setReportType] = useState<ReportType>("work");
   const [format, setFormat] = useState<Format>("html");
+  const [polish, setPolish] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<ResultState | null>(null);
 
@@ -36,14 +45,17 @@ export function ExportReportModal({ open, planPath, cwd, onClose }: ExportReport
   const handleGenerate = async () => {
     setGenerating(true);
     setResult(null);
-    if (format === "pdf") {
-      const r = await generateReportPdf(cwd, planPath, reportType);
-      setResult(r.ok ? { kind: "pdf", ok: true, path: r.path } : r);
-    } else {
-      const r = await generatePlanningReport(cwd, planPath, reportType);
+    if (format === "html") {
+      const r = await generatePlanningReport(cwd, planPath, reportType, polish);
       setResult(
         r.ok ? { kind: "html", ok: true, path: r.path, reportType: r.reportType, html: r.html } : r,
       );
+    } else if (format === "pdf") {
+      const r = await generateReportPdf(cwd, planPath, reportType, polish);
+      setResult(r.ok ? { kind: "file", ok: true, path: r.path } : r);
+    } else {
+      const r = await generateReportOffice(cwd, planPath, reportType, format, polish);
+      setResult(r.ok ? { kind: "file", ok: true, path: r.path } : r);
     }
     setGenerating(false);
   };
@@ -75,25 +87,28 @@ export function ExportReportModal({ open, planPath, cwd, onClose }: ExportReport
           </div>
 
           <div style={{ marginBottom: 12 }}>
-            <label style={{ marginRight: 16 }}>
-              <input
-                type="radio"
-                name="export-format"
-                value="html"
-                checked={format === "html"}
-                onChange={() => setFormat("html")}
-              />{" "}
-              HTML 미리보기
-            </label>
+            {FORMATS.map((f) => (
+              <label key={f.id} style={{ marginRight: 16 }}>
+                <input
+                  type="radio"
+                  name="export-format"
+                  value={f.id}
+                  checked={format === f.id}
+                  onChange={() => setFormat(f.id)}
+                />{" "}
+                {f.label}
+              </label>
+            ))}
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
             <label>
               <input
-                type="radio"
-                name="export-format"
-                value="pdf"
-                checked={format === "pdf"}
-                onChange={() => setFormat("pdf")}
+                type="checkbox"
+                checked={polish}
+                onChange={(e) => setPolish(e.target.checked)}
               />{" "}
-              PDF 파일
+              AI 어조 다듬기 (무료)
             </label>
           </div>
 
@@ -124,7 +139,7 @@ export function ExportReportModal({ open, planPath, cwd, onClose }: ExportReport
             </div>
           )}
 
-          {result && result.ok && result.kind === "pdf" && (
+          {result && result.ok && result.kind === "file" && (
             <p style={{ fontSize: 12, color: "#666", marginTop: 12 }}>저장됨: {result.path}</p>
           )}
         </div>
