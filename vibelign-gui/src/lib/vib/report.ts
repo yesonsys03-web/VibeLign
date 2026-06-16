@@ -71,7 +71,7 @@ export async function generateReportPdf(
 
   const outPdf = html.path.replace(/\.html$/i, ".pdf");
   try {
-    const saved = await invoke<string>("export_report_pdf", { htmlPath: html.path, outPdf });
+    const saved = await invoke<string>("export_report_pdf", { root: cwd, htmlPath: html.path, outPdf });
     return { ok: true, path: saved };
   } catch (e) {
     return { ok: false, error: `PDF 생성 실패: ${String(e)}` };

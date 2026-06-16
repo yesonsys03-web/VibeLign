@@ -136,6 +136,7 @@ describe("generateReportPdf", () => {
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.path).toBe("/proj/.vibelign/reports/r-work.pdf");
     expect(mockInvoke).toHaveBeenCalledWith("export_report_pdf", {
+      root: "/proj",
       htmlPath: "/proj/.vibelign/reports/r-work.html",
       outPdf: "/proj/.vibelign/reports/r-work.pdf",
     });
