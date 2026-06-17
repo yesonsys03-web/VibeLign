@@ -4,7 +4,11 @@ import pytest
 
 from vibelign.core.reporting_cli import polish as polish_mod
 from vibelign.core.reporting_cli.models import Block, ReportModel, Section
-from vibelign.core.reporting_cli.polish import polish_report_model, polish_try_order
+from vibelign.core.reporting_cli.polish import (
+    polish_report_model,
+    polish_report_model_with_guards,
+    polish_try_order,
+)
 
 
 @dataclass
@@ -129,3 +133,24 @@ def test_polish_prompt_forbids_changing_numbers(monkeypatch):
     )
     assert "숫자" in captured["prompt"]
     assert "과장" in captured["prompt"]
+
+
+class _NumberDroppingRunner:
+    """summary 의 50% 를 '대폭' 으로 바꾸는(=숫자 누락) 가짜 다듬기."""
+
+    def run(self, command, *, cwd, input_text, timeout_seconds):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(status="ok", stdout="신규 회원 대폭 증가", stderr="", exit_code=0, duration_ms=1)
+
+
+def test_guard_reverts_block_and_records():
+    model = ReportModel(
+        title="t", report_type="work", date="d",
+        sections=[Section(heading="개요", blocks=[Block(kind="summary", text="신규 회원 50% 증가")])],
+    )
+    out, guards = polish_report_model_with_guards(
+        model, provider="codex", runner=_NumberDroppingRunner(), root=None,
+    )
+    assert out.sections[0].blocks[0].text == "신규 회원 50% 증가"  # 원문 유지
+    assert guards == [{"section": 0, "block": 0, "reason": "number_dropped", "missing": ["50"]}]

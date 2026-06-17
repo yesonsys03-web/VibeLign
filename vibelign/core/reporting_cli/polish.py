@@ -6,6 +6,7 @@ from pathlib import Path
 from vibelign.core.planning_cli import cli_adapters
 from vibelign.core.planning_cli.response_policy import safe_planning_status
 from vibelign.core.reporting_cli.models import Block, ReportModel, Section
+from vibelign.core.reporting_cli.polish_guard import guard_polished
 
 # design §6: 무료 provider 전용. planning 의 provider_try_order 는 claude 를 포함하므로
 # 재사용하지 않는다(비용 노출 방지). claude 는 명시 요청 시에만.
@@ -52,32 +53,48 @@ def polish_block_text(
     return None
 
 
-def polish_report_model(
+def polish_report_model_with_guards(
     model: ReportModel,
     *,
     provider: str = "auto",
     runner=None,
     root: Path | None = None,
     timeout_seconds: int = 60,
-) -> ReportModel:
-    """ReportModel 의 paragraph/summary 블록 텍스트를 다듬은 새 ReportModel 을 반환한다.
-    블록별 실패는 원문 유지(graceful). 입력 model 은 변경하지 않는다."""
+) -> tuple[ReportModel, list[dict]]:
+    """paragraph/summary 블록을 다듬되, 수치 가드를 통과한 블록만 교체한다.
+    가드 실패(숫자 누락/신규) 블록은 원문 유지 + guards 에 기록. 블록별 다듬기 실패도
+    원문 유지(graceful). 입력 model 은 변경하지 않는다."""
     if runner is None:
         runner = cli_adapters.SubprocessPlanningCliRunner()
     if root is None:
         root = Path.cwd()
 
+    guards: list[dict] = []
     new_sections: list[Section] = []
-    for section in model.sections:
+    for si, section in enumerate(model.sections):
         new_blocks: list[Block] = []
-        for block in section.blocks:
+        for bi, block in enumerate(section.blocks):
             if block.kind in _POLISH_BLOCK_KINDS and block.text:
                 polished = polish_block_text(
                     block.text, provider=provider, runner=runner, root=root,
                     timeout_seconds=timeout_seconds,
                 )
-                new_blocks.append(replace(block, text=polished) if polished else block)
+                if polished:
+                    ok, reason, missing = guard_polished(block.text, polished)
+                    if ok:
+                        new_blocks.append(replace(block, text=polished))
+                    else:
+                        new_blocks.append(block)
+                        guards.append({"section": si, "block": bi, "reason": reason, "missing": missing})
+                else:
+                    new_blocks.append(block)
             else:
                 new_blocks.append(block)
         new_sections.append(replace(section, blocks=new_blocks))
-    return replace(model, sections=new_sections)
+    return replace(model, sections=new_sections), guards
+
+
+def polish_report_model(model: ReportModel, **kwargs) -> ReportModel:
+    """하위호환 래퍼: 가드를 적용하되 guards 기록은 버리고 모델만 반환한다."""
+    new_model, _ = polish_report_model_with_guards(model, **kwargs)
+    return new_model
