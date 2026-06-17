@@ -383,13 +383,13 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
           )}
           <button type="button" onClick={onClose} style={secondaryBtn}>
             닫기
-// === ANCHOR: EXPORTREPORTMODAL_EXPORTREPORTMODAL_END ===
           </button>
         </div>
       </div>
     </div>
   );
 }
+// === ANCHOR: EXPORTREPORTMODAL_EXPORTREPORTMODAL_END ===
 
 const overlay: CSSProperties = {
   position: "fixed",
