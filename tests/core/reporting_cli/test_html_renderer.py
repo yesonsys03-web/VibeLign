@@ -48,3 +48,13 @@ def test_unknown_theme_falls_back_to_classic():
 
 def test_default_theme_is_classic_unchanged():
     assert "#9B1B1B" in render_html(_model())
+
+
+def test_author_shown_in_meta_when_present():
+    from dataclasses import replace
+    html = render_html(replace(_model(), author="홍길동"))
+    assert "작성자: 홍길동" in html
+
+
+def test_author_absent_keeps_meta_plain():
+    assert "작성자:" not in render_html(_model())

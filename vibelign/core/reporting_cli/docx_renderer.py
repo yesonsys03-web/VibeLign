@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 
 from vibelign.core.reporting_cli.models import ReportModel
-from vibelign.core.reporting_cli.templates import REPORT_TYPE_LABELS
+from vibelign.core.reporting_cli.templates import meta_line
 from vibelign.core.reporting_cli.themes import get_theme
 
 try:
@@ -31,10 +31,9 @@ def render_docx(model: ReportModel, theme: str = "classic") -> bytes:
         for r in heading.runs:
             r.font.color.rgb = accent
 
-    label = REPORT_TYPE_LABELS.get(model.report_type, model.report_type)
     doc = Document()
     _accent(doc.add_heading(model.title, level=0))
-    doc.add_paragraph(f"{label} · {model.date}")
+    doc.add_paragraph(meta_line(model))
     for section in model.sections:
         _accent(doc.add_heading(section.heading, level=1))
         for block in section.blocks:

@@ -63,8 +63,15 @@ def _blocks_for(value: object, style: str) -> list[Block]:
     return [Block(kind=kind, text=text)]
 
 
+def meta_line(model: ReportModel) -> str:
+    """메타 줄: '{종류 라벨} · {날짜}', author 있으면 '· 작성자: {author}' 추가."""
+    label = REPORT_TYPE_LABELS.get(model.report_type, model.report_type)
+    base = f"{label} · {model.date}"
+    return f"{base} · 작성자: {model.author}" if getattr(model, "author", "") else base
+
+
 def build_report_model(
-    data: PlanningData, report_type: str, *, date: str, source_plan_path: str = ""
+    data: PlanningData, report_type: str, *, date: str, source_plan_path: str = "", author: str = ""
 ) -> ReportModel:
     specs = REPORT_TEMPLATES.get(report_type)
     if specs is None:
@@ -80,5 +87,6 @@ def build_report_model(
         report_type=report_type,
         date=date,
         source_plan_path=source_plan_path,
+        author=author,
         sections=sections,
     )

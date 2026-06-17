@@ -3,7 +3,7 @@ from __future__ import annotations
 from html import escape
 
 from vibelign.core.reporting_cli.models import Block, ReportModel, Section
-from vibelign.core.reporting_cli.templates import REPORT_TYPE_LABELS
+from vibelign.core.reporting_cli.templates import meta_line
 from vibelign.core.reporting_cli.themes import get_theme
 
 _HEAD_OPEN = '<!DOCTYPE html>\n<html lang="ko">\n<head>\n<meta charset="utf-8">\n<title>'
@@ -34,12 +34,11 @@ def _render_section(section: Section) -> str:
 
 
 def render_html(model: ReportModel, theme: str = "classic") -> str:
-    label = REPORT_TYPE_LABELS.get(model.report_type, model.report_type)
     css = get_theme(theme).html_css
     parts = [
         _head(escape(model.title), css),
         f"<h1>{escape(model.title)}</h1>",
-        f'<p class="meta">{escape(label)} · {escape(model.date)}</p>',
+        f'<p class="meta">{escape(meta_line(model))}</p>',
     ]
     parts.extend(_render_section(s) for s in model.sections)
     parts.append(_TAIL)
