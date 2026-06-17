@@ -26,11 +26,15 @@ export async function generatePlanningReport(
   reportType: ReportType,
   polish = false,
   theme = "classic",
+  author = "",
+  pageNumbers = true,
 ): Promise<ReportResult> {
   const res = await runVib(
     [
-      "report", planPath, "--type", reportType, "--format", "html", "--theme", theme, "--json",
+      "report", planPath, "--type", reportType, "--format", "html", "--theme", theme,
+      "--author", author, "--json",
       ...(polish ? ["--polish"] : []),
+      ...(pageNumbers ? [] : ["--no-page-numbers"]),
     ],
     cwd,
   );
@@ -88,8 +92,10 @@ export async function generateReportPdf(
   reportType: ReportType,
   polish = false,
   theme = "classic",
+  author = "",
+  pageNumbers = true,
 ): Promise<PdfResult> {
-  const html = await generatePlanningReport(cwd, planPath, reportType, polish, theme);
+  const html = await generatePlanningReport(cwd, planPath, reportType, polish, theme, author, pageNumbers);
   if (!html.ok) return html;
 
   const outPdf = html.path.replace(/\.html$/i, ".pdf");
@@ -112,11 +118,15 @@ export async function generateReportOffice(
   format: OfficeFormat,
   polish = false,
   theme = "classic",
+  author = "",
+  pageNumbers = true,
 ): Promise<PdfResult> {
   const res = await runVib(
     [
-      "report", planPath, "--type", reportType, "--format", format, "--theme", theme, "--json",
+      "report", planPath, "--type", reportType, "--format", format, "--theme", theme,
+      "--author", author, "--json",
       ...(polish ? ["--polish"] : []),
+      ...(pageNumbers ? [] : ["--no-page-numbers"]),
     ],
     cwd,
   );
@@ -143,9 +153,10 @@ export async function emitReportModel(
   planPath: string,
   reportType: ReportType,
   polish: boolean,
+  author = "",
 ): Promise<EmitResult> {
   const args = [
-    "report", planPath, "--type", reportType, "--emit-model", "--json",
+    "report", planPath, "--type", reportType, "--emit-model", "--author", author, "--json",
     ...(polish ? ["--polish"] : []),
   ];
   const res = await runVib(args, cwd);
@@ -168,11 +179,15 @@ export async function renderReportWithDecisions(
   reject: [number, number][],
   polishKey: string,
   theme = "classic",
+  author = "",
+  pageNumbers = true,
 ): Promise<PdfResult> {
   const fmt = format === "pdf" ? "html" : format;
   const args = [
     "report", planPath, "--type", reportType, "--format", fmt,
-    "--reject-blocks", JSON.stringify(reject), "--polish-key", polishKey, "--theme", theme, "--json",
+    "--reject-blocks", JSON.stringify(reject), "--polish-key", polishKey, "--theme", theme,
+    "--author", author, "--json",
+    ...(pageNumbers ? [] : ["--no-page-numbers"]),
   ];
   const res = await runVib(args, cwd);
   try {
