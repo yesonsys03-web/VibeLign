@@ -1426,17 +1426,13 @@ source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "mcp" },
-    { name = "rich" },
-    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
-    { name = "watchdog" },
-]
-
-[package.optional-dependencies]
-report = [
     { name = "pypdf" },
     { name = "python-docx" },
     { name = "python-pptx" },
     { name = "reportlab" },
+    { name = "rich" },
+    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
+    { name = "watchdog" },
 ]
 
 [package.dev-dependencies]
@@ -1449,10 +1445,10 @@ dev = [
 requires-dist = [
     { name = "anthropic", specifier = ">=0.40.0" },
     { name = "mcp", specifier = ">=1.0.0" },
-    { name = "pypdf", marker = "extra == 'report'", specifier = ">=4.0" },
-    { name = "python-docx", marker = "extra == 'report'", specifier = ">=1.0" },
-    { name = "python-pptx", marker = "extra == 'report'", specifier = ">=1.0" },
-    { name = "reportlab", marker = "extra == 'report'", specifier = ">=4.0" },
+    { name = "pypdf", specifier = ">=4.0" },
+    { name = "python-docx", specifier = ">=1.0" },
+    { name = "python-pptx", specifier = ">=1.0" },
+    { name = "reportlab", specifier = ">=4.0" },
     { name = "rich", specifier = ">=13.9.0" },
     { name = "typing-extensions", marker = "python_full_version < '3.12'", specifier = ">=4.0.0" },
     { name = "watchdog", specifier = ">=3.0.0" },
