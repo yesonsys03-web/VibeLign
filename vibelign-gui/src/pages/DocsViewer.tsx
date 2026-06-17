@@ -14,9 +14,10 @@ type DocsViewMode = "source" | "easy" | "canvas" | "raw-html" | "split";
 
 interface DocsViewerProps {
   projectDir: string;
+  onGenerateReport?: (path: string) => void;
 }
 
-export default function DocsViewer({ projectDir }: DocsViewerProps) {
+export default function DocsViewer({ projectDir, onGenerateReport }: DocsViewerProps) {
   const [docsIndex, setDocsIndex] = useState<DocsIndexEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -370,6 +371,7 @@ export default function DocsViewer({ projectDir }: DocsViewerProps) {
             selectedPath={selectedPath}
             onQueryChange={setQuery}
             onSelect={setSelectedPath}
+            onGenerateReport={onGenerateReport}
           />
 
           <div className="card">

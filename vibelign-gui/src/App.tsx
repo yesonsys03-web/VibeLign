@@ -93,6 +93,7 @@ export default function App() {
   const [projectDir, setProjectDir] = useState<string | null>(null);
   const [recentDirs, setRecentDirs] = useState<string[]>([]);
   const [page, setPage] = useState<Page>("home");
+  const [reportSourcePath, setReportSourcePath] = useState<string | null>(null);
   const designJob = useDesignJob(projectDir ?? "");
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [providerKeys, setProviderKeys] = useState<Record<string, string>>({});
@@ -352,6 +353,11 @@ export default function App() {
   function navigate(next: Page) {
     if (next === "doctor") { openDoctorTab(); return; }
     setPage(next);
+  }
+
+  function openReportFor(path: string) {
+    setReportSourcePath(path);
+    navigate("report");
   }
 
   useEffect(() => {
@@ -626,7 +632,7 @@ export default function App() {
                     <button className="nav-tab" onClick={() => setShowSessionPicker(true)}>이전 기획 불러오기</button>
                   </div>
                 ))}
-                {page === "report" && <ReportView projectDir={projectDir} onStart={() => { if (planningResult) navigate("planning"); else setPage("home"); }} />}
+                {page === "report" && <ReportView projectDir={projectDir} sourcePath={reportSourcePath} onSourceHandled={() => setReportSourcePath(null)} onStart={() => { if (planningResult) navigate("planning"); else setPage("home"); }} />}
                 {page === "plan-doc" && <PlanDocView projectDir={projectDir} activeSessionId={planningResult?.sessionId ?? null} onStart={() => { if (planningResult) navigate("planning"); else setPage("home"); }} onDeleted={(sessionId) => { if (planningResult?.sessionId === sessionId) setPlanningResult(null); }} onEdit={(sessionId) => void resumeSession(sessionId)} onDesignPreview={(planPath) => {
                   setDesignPlanPath(planPath);
                   // 웹 게이트(비차단): 확정 web 일 때만 무경고. electron·unknown 은 경고, 탐지 실패(null)는 무경고.
@@ -653,8 +659,8 @@ export default function App() {
                   </div>
                 ))}
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={navigate} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} guideStep={guide.enabled ? guide.step : null} />}
-                {page === "docs" && <DocsViewer projectDir={projectDir} />}
-                {page === "code" && <CodeExplorer projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} planningDocStale={planningResult?.docStale ?? false} onReviewInPlanning={(path) => { if (projectDir) void openPlanningRoom(projectDir, buildPlanReviewPrompt(path), path); }} />}
+                {page === "docs" && <DocsViewer projectDir={projectDir} onGenerateReport={openReportFor} />}
+                {page === "code" && <CodeExplorer projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} planningDocStale={planningResult?.docStale ?? false} onReviewInPlanning={(path) => { if (projectDir) void openPlanningRoom(projectDir, buildPlanReviewPrompt(path), path); }} onGenerateReport={openReportFor} />}
                 {page === "work" && <WorkRoom projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} planningDocStale={planningResult?.docStale ?? false} design={designBinding ?? undefined} designPlanPath={designPlanPath ?? undefined} workHandoff={workHandoff} onWorkHandoffConsumed={() => setWorkHandoff(null)} onNavigate={navigate} onOpenSettings={() => openSettings()} onGuardResult={(status) => {
                   // 작업방 자동 검사도 홈 '상태 확인'과 같은 가이드 신호 채널로 보고(spec §4-7와 동일 지문 기록).
                   guardCheckedFingerprintRef.current = changedFingerprint;

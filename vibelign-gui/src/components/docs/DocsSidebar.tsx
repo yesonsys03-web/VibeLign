@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { categoryColor, categoryLabel, DOC_CATEGORY_ORDER, filterDocsIndex, formatCategoryWithSource, formatDocDate } from "../../lib/docs";
 import type { DocsIndexEntry } from "../../lib/vib";
 
@@ -8,6 +8,13 @@ interface DocsSidebarProps {
   selectedPath: string | null;
   onQueryChange: (value: string) => void;
   onSelect: (path: string) => void;
+  onGenerateReport?: (path: string) => void;
+}
+
+// 보고서로 만들 수 있는 문서 확장자(임의 .md).
+function isReportableDoc(path: string): boolean {
+  const ext = path.split(".").pop()?.toLowerCase();
+  return ext === "md" || ext === "markdown";
 }
 
 interface DocsTreeNode {
@@ -44,9 +51,21 @@ function buildDocsTree(entries: DocsIndexEntry[]): DocsTreeNode {
   return root;
 }
 
-export default function DocsSidebar({ docs, query, selectedPath, onQueryChange, onSelect }: DocsSidebarProps) {
+export default function DocsSidebar({ docs, query, selectedPath, onQueryChange, onSelect, onGenerateReport }: DocsSidebarProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(DEFAULT_COLLAPSED));
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => new Set());
+  const [menu, setMenu] = useState<{ x: number; y: number; path: string } | null>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const onDismiss = () => setMenu(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(null); };
+    document.addEventListener("mousedown", onDismiss);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDismiss);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menu]);
   const filtered = filterDocsIndex(docs, query);
   const orderedCategories = DOC_CATEGORY_ORDER.filter((category) => filtered.some((entry) => entry.category === category));
   const searching = query.trim().length > 0;
@@ -89,6 +108,11 @@ export default function DocsSidebar({ docs, query, selectedPath, onQueryChange, 
           overflow: "hidden",
         }}
         onClick={() => onSelect(entry.path)}
+        onContextMenu={
+          onGenerateReport && isReportableDoc(entry.path)
+            ? (e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, path: entry.path }); }
+            : undefined
+        }
       >
         <span style={{ display: "block", width: "100%", minWidth: 0 }}>
           <div
@@ -173,6 +197,7 @@ export default function DocsSidebar({ docs, query, selectedPath, onQueryChange, 
   }
 
   return (
+    <>
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div className="card">
         <div style={{ fontSize: 11, fontWeight: 700, color: "#888", marginBottom: 10, textTransform: "uppercase", letterSpacing: 1 }}>
@@ -229,5 +254,22 @@ export default function DocsSidebar({ docs, query, selectedPath, onQueryChange, 
         })}
       </div>
     </div>
+    {menu && (
+      <div
+        role="menu"
+        style={{ position: "fixed", left: menu.x, top: menu.y, zIndex: 1000, border: "2px solid #1A1A1A", background: "#fff", boxShadow: "var(--shadow-sm)" }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          style={{ display: "block", width: "100%", textAlign: "left", textTransform: "none", letterSpacing: 0 }}
+          onClick={() => { onGenerateReport?.(menu.path); setMenu(null); }}
+        >
+          보고서 작성
+        </button>
+      </div>
+    )}
+    </>
   );
 }
