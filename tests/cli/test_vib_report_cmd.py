@@ -265,3 +265,47 @@ def test_author_threads_to_html(tmp_path, capsys, monkeypatch):
     run_vib_report(_args(plan, json=True, author="홍길동"))
     out = json.loads(capsys.readouterr().out)
     assert "작성자: 홍길동" in Path(out["path"]).read_text(encoding="utf-8")
+
+
+DOC_MD = """# 자유 문서
+
+도입 문단.
+
+## 배경
+어떤 배경 설명.
+
+## 항목
+- 첫째
+- 둘째
+"""
+
+
+def test_report_type_doc_renders_arbitrary_markdown(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.chdir(tmp_path)
+    doc = tmp_path / "free.md"
+    doc.write_text(DOC_MD, encoding="utf-8")
+
+    run_vib_report(_args(doc, type="doc", json=True))
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["report_type"] == "doc"
+    html = Path(payload["path"]).read_text(encoding="utf-8")
+    assert "배경" in html
+    assert "<li>첫째</li>" in html
+
+
+def test_report_type_doc_empty_file_errors(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.chdir(tmp_path)
+    doc = tmp_path / "empty.md"
+    doc.write_text("   \n\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit):
+        run_vib_report(_args(doc, type="doc", json=True))
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    assert "내보낼 내용" in payload["error"]

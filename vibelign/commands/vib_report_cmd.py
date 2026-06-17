@@ -9,6 +9,7 @@ from typing import Protocol, cast
 from vibelign.core.project_root import resolve_project_root
 from vibelign.core.reporting_cli import (
     ReportRendererUnavailable,
+    build_doc_report_model,
     build_report_model,
     parse_plan_markdown,
     polish_report_model,
@@ -52,25 +53,39 @@ def run_vib_report(args: object) -> None:
         return
 
     root = resolve_project_root(Path.cwd())
+    author = getattr(raw, "author", "") or ""
     try:
-        data = parse_plan_markdown(plan_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        text = plan_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
         _fail(want_json, f"기획안을 읽을 수 없어요: {exc}")
         return
 
-    try:
-        model = build_report_model(
-            data,
-            raw.type,
+    if raw.type == "doc":
+        model = build_doc_report_model(
+            text,
             date=report_date,
             source_plan_path=str(plan_path),
-            author=getattr(raw, "author", "") or "",
+            author=author,
+            default_title=plan_path.stem,
         )
-    except ValueError as exc:
-        _fail(want_json, str(exc))
-        return
-
-    slug_source = data.title or data.idea or plan_path.stem
+        if not model.sections:
+            _fail(want_json, "문서에 내보낼 내용이 없습니다.")
+            return
+        slug_source = model.title or plan_path.stem
+    else:
+        try:
+            data = parse_plan_markdown(text)
+            model = build_report_model(
+                data,
+                raw.type,
+                date=report_date,
+                source_plan_path=str(plan_path),
+                author=author,
+            )
+        except ValueError as exc:
+            _fail(want_json, str(exc))
+            return
+        slug_source = data.title or data.idea or plan_path.stem
     provider = getattr(raw, "cli", "auto") or "auto"
 
     # --emit-model: 렌더·저장 없이 base/polished 구조화 모델 + key 를 JSON 으로 반환한다.

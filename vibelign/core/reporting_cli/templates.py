@@ -49,6 +49,7 @@ REPORT_TYPE_LABELS: dict[str, str] = {
     "work": "업무 보고",
     "proposal": "제안서",
     "result": "결과 보고",
+    "doc": "문서 보고서",
 }
 
 
