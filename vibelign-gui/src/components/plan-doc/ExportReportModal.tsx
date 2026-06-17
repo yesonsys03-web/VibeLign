@@ -3,6 +3,7 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import { pickFolder } from "../../lib/vib/system";
 import {
   copyReportTo,
+  emitReportModel,
   generatePlanningReport,
   generateReportOffice,
   generateReportPdf,
@@ -10,6 +11,17 @@ import {
   setReportExportDir,
   type ReportType,
 } from "../../lib/vib/report";
+import { isPolishable, type EmitPayload } from "../../lib/vib/reportModel";
+
+// AI 다듬기는 블록마다 순차로 LLM 을 1회 호출한다(머신·provider 에 따라 블록당 ~15~20초).
+// 이 수를 넘으면 수 분~수십 분이 걸려 사실상 멈춘 듯 보이므로 생성 전 경고한다.
+// 기획안 보고서는 블록이 6~7개라 절대 걸리지 않고, 일반 문서(--type doc)에만 작동한다.
+const POLISH_WARN_BLOCKS = 20;
+const SECONDS_PER_BLOCK_EST = 15;
+
+function countPolishableBlocks(payload: EmitPayload): number {
+  return payload.base.sections.reduce((n, s) => n + s.blocks.filter(isPolishable).length, 0);
+}
 
 type Format = "html" | "pdf" | "docx" | "pptx";
 type ResultState =
@@ -106,6 +118,22 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
   const handleGenerate = async () => {
     // 다듬기 ON + 리뷰 핸들러 제공 시: 인라인 생성 대신 검토 화면으로 위임한다.
     if (polish && onReviewRequest) {
+      // 큰 문서 경고: 먼저 다듬기 없이(=LLM 미호출, 즉시) 구조만 받아 블록 수를 센다.
+      setGenerating(true);
+      const probe = await emitReportModel(cwd, planPath, reportType, false, author);
+      setGenerating(false);
+      if (probe.ok) {
+        const blocks = countPolishableBlocks(probe.payload);
+        if (blocks > POLISH_WARN_BLOCKS) {
+          const mins = Math.max(1, Math.round((blocks * SECONDS_PER_BLOCK_EST) / 60));
+          const proceed = window.confirm(
+            `이 문서는 다듬기 대상 블록이 ${blocks}개예요.\n` +
+              `AI 어조 다듬기는 블록마다 순차로 처리해 약 ${mins}분 이상 걸릴 수 있어요.\n\n` +
+              `계속하려면 [확인], 취소하면 'AI 어조 다듬기'를 끄고 바로 생성하세요.`,
+          );
+          if (!proceed) return; // 모달 유지 — 사용자가 다듬기 끄고 다시 누르면 즉시 생성
+        }
+      }
       onReviewRequest(reportType, format, theme, author, pageNumbers);
       onClose();
       return;
