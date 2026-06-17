@@ -12,12 +12,8 @@ from vibelign.core.reporting_cli import (
     build_report_model,
     parse_plan_markdown,
     polish_report_model,
-    render_docx,
-    render_html,
-    render_pptx,
-    write_report,
-    write_report_bytes,
 )
+from vibelign.core.reporting_cli.render_job import render_and_write
 from vibelign.core.reporting_cli.polish_cache import (
     load_polish_cache,
     polish_cache_key,
@@ -83,15 +79,9 @@ def run_vib_report(args: object) -> None:
 
     fmt = getattr(raw, "format", "html") or "html"
     try:
-        if fmt == "docx":
-            data_bytes = render_docx(model)
-            dest = write_report_bytes(root, model, data_bytes, slug_source=slug_source, ext=".docx", output=raw.output, force=raw.force)
-        elif fmt == "pptx":
-            data_bytes = render_pptx(model)
-            dest = write_report_bytes(root, model, data_bytes, slug_source=slug_source, ext=".pptx", output=raw.output, force=raw.force)
-        else:  # html
-            html = render_html(model)
-            dest = write_report(root, model, html, slug_source=slug_source, output=raw.output, force=raw.force)
+        dest = render_and_write(
+            root, model, fmt, slug_source=slug_source, output=raw.output, force=raw.force
+        )
     except ReportRendererUnavailable as exc:
         _fail(want_json, str(exc))
         return
