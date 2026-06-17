@@ -106,3 +106,58 @@ def test_parse_drops_conversation_and_contract_dumps():
     blob = repr(data)
     assert "전화가 너무 많아요" not in blob  # 대화 정리 덤프
     assert "외부 AI 도구 지시문" not in blob  # 작업 계약 덤프
+
+
+from vibelign.core.reporting_cli.reader import (
+    build_doc_report_model,
+    parse_generic_markdown,
+)
+
+GENERIC_MD = """# 설계 노트
+
+도입 문단입니다.
+
+## 배경
+첫 줄.
+두 번째 줄.
+
+## 할 일
+- 항목 A
+- 항목 B
+1. 번호 항목
+"""
+
+
+def test_generic_title_from_h1():
+    title, _sections = parse_generic_markdown(GENERIC_MD)
+    assert title == "설계 노트"
+
+
+def test_generic_preamble_becomes_overview_section():
+    _title, sections = parse_generic_markdown(GENERIC_MD)
+    assert sections[0].heading == "개요"
+    assert sections[0].blocks[0].kind == "paragraph"
+    assert "도입 문단입니다." in sections[0].blocks[0].text
+
+
+def test_generic_headings_and_bullets():
+    _title, sections = parse_generic_markdown(GENERIC_MD)
+    headings = [s.heading for s in sections]
+    assert headings == ["개요", "배경", "할 일"]
+    todo = sections[2]
+    bullet_block = next(b for b in todo.blocks if b.kind == "bullets")
+    assert bullet_block.items == ["항목 A", "항목 B", "번호 항목"]
+
+
+def test_generic_no_headings_all_overview():
+    title, sections = parse_generic_markdown("그냥 메모\n- a\n- b\n")
+    assert title == ""
+    assert len(sections) == 1
+    assert sections[0].heading == "개요"
+
+
+def test_build_doc_model_uses_default_title_when_empty():
+    model = build_doc_report_model("- 한 줄", date="2026-06-17", default_title="myfile")
+    assert model.report_type == "doc"
+    assert model.title == "myfile"
+    assert model.sections[0].heading == "개요"

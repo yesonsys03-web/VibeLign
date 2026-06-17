@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from vibelign.core.reporting_cli.models import PlanningData
+from vibelign.core.reporting_cli.models import Block, PlanningData, ReportModel, Section
 
 _FIELD_BY_HEADING = {
     "한 줄 목표": "idea",
@@ -72,3 +72,88 @@ def parse_plan_markdown(text: str) -> PlanningData:
 
     flush()
     return data
+
+
+_BULLET_RE = re.compile(r"^(?:[-*]\s+|\d+[.)]\s+)")
+
+
+def parse_generic_markdown(text: str) -> tuple[str, list[Section]]:
+    """임의 마크다운을 (제목, 섹션[]) 으로 변환한다(기획 양식 무관).
+    첫 '# ' → 제목, 이후 '#'~'######' → 섹션 경계, 단락 → paragraph,
+    불릿/번호 → bullets. 첫 헤딩 이전 본문과 헤딩 없는 문서는 '개요' 섹션으로 보존한다.
+    """
+    title = ""
+    sections: list[Section] = []
+    heading: str | None = None
+    para: list[str] = []
+    bullets: list[str] = []
+    blocks: list[Block] = []
+
+    def flush_para() -> None:
+        nonlocal para
+        joined = " ".join(s for s in (p.strip() for p in para) if s)
+        if joined:
+            blocks.append(Block(kind="paragraph", text=joined))
+        para = []
+
+    def flush_bullets() -> None:
+        nonlocal bullets
+        if bullets:
+            blocks.append(Block(kind="bullets", items=bullets))
+        bullets = []
+
+    def flush_section() -> None:
+        nonlocal blocks
+        flush_bullets()
+        flush_para()
+        if blocks:
+            sections.append(Section(heading=heading or "개요", blocks=blocks))
+        blocks = []
+
+    for raw_line in text.splitlines():
+        line = raw_line.rstrip()
+        h1 = line.startswith("# ") and not line.startswith("## ")
+        if h1 and not title:
+            title = line[2:].strip()
+            continue
+        m = re.match(r"^(#{1,6})\s+(?P<h>.+)$", line)
+        if m:
+            flush_section()
+            heading = m.group("h").strip()
+            continue
+        stripped = line.strip()
+        if _BULLET_RE.match(stripped):
+            flush_para()
+            item = _strip_bullet(line)
+            if item:
+                bullets.append(item)
+            continue
+        if not stripped:
+            flush_bullets()
+            flush_para()
+            continue
+        flush_bullets()
+        para.append(line)
+
+    flush_section()
+    return title, sections
+
+
+def build_doc_report_model(
+    text: str,
+    *,
+    date: str,
+    source_plan_path: str = "",
+    author: str = "",
+    default_title: str = "문서 보고서",
+) -> ReportModel:
+    """임의 .md → '문서 그대로' ReportModel(report_type='doc')."""
+    title, sections = parse_generic_markdown(text)
+    return ReportModel(
+        title=title or default_title,
+        report_type="doc",
+        date=date,
+        source_plan_path=source_plan_path,
+        author=author,
+        sections=sections,
+    )
