@@ -1,7 +1,8 @@
 // === ANCHOR: SETTINGS_START ===
 import { useState, useEffect, useMemo } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { saveProviderApiKey, deleteProviderApiKey, getVibPath, getEnvKeyStatus, getAiEnhancement, setAiEnhancement, getAutoBackupOnCommit, setAutoBackupOnCommit, detectInstalledTools, runVib } from "../lib/vib";
+import { saveProviderApiKey, deleteProviderApiKey, getVibPath, getEnvKeyStatus, getAiEnhancement, setAiEnhancement, getAutoBackupOnCommit, setAutoBackupOnCommit, detectInstalledTools, runVib, pickFolder } from "../lib/vib";
+import { getReportExportDir, setReportExportDir } from "../lib/vib/report";
 import { ToolSetupSelector } from "../components/ToolSetupSelector";
 import { PlanningPersonaSettings } from "../components/PlanningPersonaSettings";
 
@@ -54,6 +55,28 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
   const [selectedTools, setSelectedTools] = useState<Set<string>>(new Set());
   const [toolSetupRunning, setToolSetupRunning] = useState(false);
   const [toolSetupMsg, setToolSetupMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [reportExportDir, setReportExportDirState] = useState<string | null>(null);
+  const [reportDirSaving, setReportDirSaving] = useState(false);
+
+  useEffect(() => {
+    getReportExportDir()
+      .then(setReportExportDirState)
+      .catch(() => setReportExportDirState(null));
+  }, []);
+
+  async function handleChangeReportDir() {
+    const dir = await pickFolder(reportExportDir ?? undefined).catch(() => null);
+    if (!dir) return;
+    setReportDirSaving(true);
+    try {
+      await setReportExportDir(dir);
+      setReportExportDirState(dir);
+    } catch (e) {
+      setMsg({ type: "err", text: `보고서 저장 폴더 변경 실패: ${e}` });
+    } finally {
+      setReportDirSaving(false);
+    }
+  }
 
   useEffect(() => {
     detectInstalledTools()
@@ -618,6 +641,39 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
               {toolSetupMsg.text}
             </div>
           )}
+        </div>
+
+        {/* 보고서 저장 폴더 섹션 */}
+        <div className="card" style={{ marginTop: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
+            보고서 저장 폴더
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 10 }}>
+            "보고서로 내보내기"가 파일을 복사해 둘 기본 폴더입니다. 미설정 시 OS 문서 폴더로 저장돼요.
+            (원본 사본은 항상 프로젝트의 <code style={{ color: "#888" }}>.vibelign/reports</code>에도 남습니다)
+          </div>
+          <div
+            style={{
+              background: "#1A1A1A",
+              border: "1px solid #333",
+              padding: "6px 10px",
+              fontFamily: "IBM Plex Mono, monospace",
+              fontSize: 11,
+              color: "#7DFF6B",
+              wordBreak: "break-all",
+              marginBottom: 10,
+            }}
+          >
+            {reportExportDir ?? "불러오는 중…"}
+          </div>
+          <button
+            className="btn btn-sm"
+            disabled={reportDirSaving}
+            onClick={() => void handleChangeReportDir()}
+            style={{ background: "#1A1A1A", color: "#fff", border: "2px solid #1A1A1A", fontWeight: 700 }}
+          >
+            {reportDirSaving ? <span className="spinner" /> : "폴더 변경"}
+          </button>
         </div>
 
         <PlanningPersonaSettings />

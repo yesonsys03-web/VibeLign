@@ -97,6 +97,87 @@ pub(crate) fn validate_html_path(
     Ok(canon_file)
 }
 
+/// `dir/file_name` 이 이미 있으면 `stem-2`, `stem-3` … 로 충돌을 회피한다.
+/// 파이썬 `_unique_output_path` 와 동일한 규칙(덮어쓰기 방지).
+fn unique_dest(dir: &Path, file_name: &Path) -> PathBuf {
+    let candidate = dir.join(file_name);
+    if !candidate.exists() {
+        return candidate;
+    }
+    let stem = file_name
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("report");
+    let ext = file_name.extension().and_then(|e| e.to_str());
+    for i in 2..1000 {
+        let name = match ext {
+            Some(e) => format!("{stem}-{i}.{e}"),
+            None => format!("{stem}-{i}"),
+        };
+        let c = dir.join(name);
+        if !c.exists() {
+            return c;
+        }
+    }
+    candidate
+}
+
+/// 생성된 보고서 산출물(`.vibelign/reports/*`)을 사용자가 지정한 폴더로 복사한다.
+///
+/// `src`: 보고서 절대경로. `dest_dir`: 네이티브 폴더 선택창이 돌려준 경로.
+/// 대상 경로는 사용자가 직접 고른 값이므로(사용자 동의 = 권한) 프로젝트 밖 복사를 허용한다.
+/// 대신 `src` 는 실제 존재하는 보고서 확장자 파일이어야 한다(임의 파일 유출 방지).
+///
+/// 반환: 실제로 기록된 대상 절대경로.
+#[tauri::command]
+pub(crate) fn copy_report_to(src: String, dest_dir: String) -> Result<String, String> {
+    let src_path = PathBuf::from(&src);
+    let meta = std::fs::metadata(&src_path)
+        .map_err(|_| format!("원본 파일을 찾을 수 없습니다: {src}"))?;
+    if !meta.is_file() {
+        return Err(format!("원본이 파일이 아닙니다: {src}"));
+    }
+    // 보고서 산출물 확장자만 허용한다.
+    let ext_ok = src_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| matches!(e.to_ascii_lowercase().as_str(), "html" | "pdf" | "docx" | "pptx"))
+        .unwrap_or(false);
+    if !ext_ok {
+        return Err("보고서 파일(.html/.pdf/.docx/.pptx)만 내보낼 수 있습니다".into());
+    }
+    let file_name = src_path
+        .file_name()
+        .ok_or("원본 파일명을 읽을 수 없습니다")?;
+    let dir_path = PathBuf::from(&dest_dir);
+    std::fs::create_dir_all(&dir_path)
+        .map_err(|e| format!("대상 폴더 생성 실패({dest_dir}): {e}"))?;
+    let dest = unique_dest(&dir_path, Path::new(file_name));
+    std::fs::copy(&src_path, &dest).map_err(|e| format!("복사 실패: {e}"))?;
+    Ok(dest.to_string_lossy().into_owned())
+}
+
+/// 저장된 보고서 기본 내보내기 폴더를 반환한다. 미설정 시 OS 문서 폴더로 폴백한다.
+/// 문서 폴더 해석은 Tauri PathResolver(Windows Known Folders 포함)를 사용해 크로스플랫폼 안전.
+#[tauri::command]
+pub(crate) fn get_report_export_dir(app: tauri::AppHandle) -> String {
+    if let Some(dir) = crate::commands::settings::read_report_export_dir() {
+        if !dir.trim().is_empty() {
+            return dir;
+        }
+    }
+    app.path()
+        .document_dir()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+/// 보고서 기본 내보내기 폴더를 저장한다(다음 내보내기의 기본값).
+#[tauri::command]
+pub(crate) fn set_report_export_dir(dir: String) -> Result<(), String> {
+    crate::commands::settings::write_report_export_dir(&dir)
+}
+
 /// 절대 파일 경로를 퍼센트-인코딩된 `file:///…` URL 로 변환한다.
 /// 한글·공백·`#` 등 특수문자를 올바르게 인코딩한다.
 pub(crate) fn file_url_for(path: &Path) -> Result<String, String> {

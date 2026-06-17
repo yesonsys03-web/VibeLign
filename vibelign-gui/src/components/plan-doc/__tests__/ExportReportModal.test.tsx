@@ -5,7 +5,11 @@ vi.mock("../../../lib/vib/report", () => ({
   generatePlanningReport: vi.fn(),
   generateReportPdf: vi.fn(),
   generateReportOffice: vi.fn(),
+  getReportExportDir: vi.fn().mockResolvedValue("/docs"),
+  setReportExportDir: vi.fn().mockResolvedValue(undefined),
+  copyReportTo: vi.fn((src: string, dir: string) => Promise.resolve(`${dir}/${src.split("/").pop()}`)),
 }));
+vi.mock("../../../lib/vib/system", () => ({ pickFolder: vi.fn().mockResolvedValue(null) }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openPath: vi.fn().mockResolvedValue(undefined) }));
 
 import {
@@ -57,8 +61,10 @@ test("생성 성공 → iframe 미리보기 + 파일 열기", async () => {
   expect(frame).toHaveAttribute("srcdoc", expect.stringContaining("업무 보고"));
   expect(mockGen).toHaveBeenCalledWith("/proj", "plans/p.md", "work", false);
 
+  // 생성 후 기본 폴더(/docs)로 자동 복사된 위치가 표시되고, 파일 열기는 그 위치를 연다.
+  await screen.findByText("/docs/r-work.html");
   fireEvent.click(screen.getByRole("button", { name: "파일 열기" }));
-  expect(mockOpen).toHaveBeenCalledWith("/proj/.vibelign/reports/r-work.html");
+  expect(mockOpen).toHaveBeenCalledWith("/docs/r-work.html");
 });
 
 test("종류 선택이 호출 인자에 반영", async () => {
@@ -87,11 +93,12 @@ test("PDF 포맷 선택 → generateReportPdf 호출, 저장됨 표시, iframe �
   await waitFor(() => expect(mockGenPdf).toHaveBeenCalledWith("/proj", "plans/p.md", "work", false));
   expect(mockGen).not.toHaveBeenCalled();
 
-  expect(screen.getByText(/저장됨.*r-work\.pdf/)).toBeInTheDocument();
+  expect(await screen.findByText(/내부 사본.*r-work\.pdf/)).toBeInTheDocument();
   expect(screen.queryByTitle("보고서 미리보기")).toBeNull();
 
+  await screen.findByText("/docs/r-work.pdf");
   fireEvent.click(screen.getByRole("button", { name: "파일 열기" }));
-  expect(mockOpen).toHaveBeenCalledWith("/proj/.vibelign/reports/r-work.pdf");
+  expect(mockOpen).toHaveBeenCalledWith("/docs/r-work.pdf");
 });
 
 test("HTML 포맷(기본) → generatePlanningReport 호출, iframe 표시", async () => {
@@ -119,7 +126,7 @@ test("Word 포맷 선택 → generateReportOffice(docx) 호출, 저장됨 표시
   await waitFor(() =>
     expect(mockGenOffice).toHaveBeenCalledWith("/proj", "plans/p.md", "work", "docx", false),
   );
-  expect(screen.getByText(/저장됨.*r-work\.docx/)).toBeInTheDocument();
+  expect(await screen.findByText(/내부 사본.*r-work\.docx/)).toBeInTheDocument();
   expect(screen.queryByTitle("보고서 미리보기")).toBeNull();
 });
 
