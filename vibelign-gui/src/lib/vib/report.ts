@@ -84,6 +84,16 @@ export async function copyReportTo(src: string, destDir: string): Promise<string
   return invoke<string>("copy_report_to", { src, destDir });
 }
 
+/** 생성된 PDF 에 페이지 번호("N / M")를 스탬프한다. 실패해도 false 만 돌려주고 throw 안 함(원본 PDF 보존). */
+export async function stampPdfPageNumbers(cwd: string, pdfPath: string): Promise<boolean> {
+  try {
+    const res = await runVib(["report-stamp-pdf", pdfPath, "--json"], cwd);
+    return JSON.parse(res.stdout.trim()).ok === true;
+  } catch {
+    return false;
+  }
+}
+
 export type PdfResult = { ok: true; path: string } | { ok: false; error: string };
 
 export async function generateReportPdf(
@@ -101,6 +111,7 @@ export async function generateReportPdf(
   const outPdf = html.path.replace(/\.html$/i, ".pdf");
   try {
     const saved = await invoke<string>("export_report_pdf", { root: cwd, htmlPath: html.path, outPdf });
+    if (pageNumbers) await stampPdfPageNumbers(cwd, saved);
     return { ok: true, path: saved };
   } catch (e) {
     return { ok: false, error: `PDF 생성 실패: ${String(e)}` };

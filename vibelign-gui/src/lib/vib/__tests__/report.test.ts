@@ -7,7 +7,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 import { runVib } from "../core";
 import { loadDoc } from "../../docs";
 import { invoke } from "@tauri-apps/api/core";
-import { generatePlanningReport, generateReportPdf, generateReportOffice, toProjectRelative, emitReportModel, renderReportWithDecisions } from "../report";
+import { generatePlanningReport, generateReportPdf, generateReportOffice, toProjectRelative, emitReportModel, renderReportWithDecisions, stampPdfPageNumbers } from "../report";
 
 const mockRunVib = vi.mocked(runVib);
 const mockLoadDoc = vi.mocked(loadDoc);
@@ -228,4 +228,11 @@ test("generatePlanningReport author/pageNumbers → 인자", async () => {
   await generatePlanningReport("/proj", "plans/p.md", "work", false, "classic", "홍길동", false);
   const a = mockRunVib.mock.calls[0][0];
   expect(a).toEqual(expect.arrayContaining(["--author", "홍길동", "--no-page-numbers"]));
+});
+
+test("stampPdfPageNumbers → report-stamp-pdf 호출", async () => {
+  mockRunVib.mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/p/r.pdf", pages: 2 }), stderr: "", exit_code: 0 });
+  const ok = await stampPdfPageNumbers("/proj", "/p/r.pdf");
+  expect(ok).toBe(true);
+  expect(mockRunVib.mock.calls[0][0]).toEqual(expect.arrayContaining(["report-stamp-pdf", "/p/r.pdf"]));
 });

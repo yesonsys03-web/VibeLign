@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listPlanningChatSessions } from "../lib/vib";
 import type { PlanningSessionSummary } from "../lib/vib/types";
 import { ExportReportModal } from "../components/plan-doc/ExportReportModal";
-import { emitReportModel, renderReportWithDecisions, type ReportType } from "../lib/vib/report";
+import { emitReportModel, renderReportWithDecisions, stampPdfPageNumbers, type ReportType } from "../lib/vib/report";
 import { ReportDiffReview } from "../components/report-review/ReportDiffReview";
 import { useReportExport } from "../components/report-review/useReportExport";
 import type { EmitPayload } from "../lib/vib/reportModel";
@@ -72,6 +72,7 @@ export default function ReportView({ projectDir, onStart }: ReportViewProps) {
         setReviewErr(`PDF 변환 실패: ${String(e)}`);
         return;
       }
+      if (pageNumbers) await stampPdfPageNumbers(projectDir, finalPath);
     }
     await exportTo(finalPath);
     setReviewBusy(false);
