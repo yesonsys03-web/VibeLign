@@ -37,3 +37,13 @@ def test_render_pptx_missing_lib_raises_clear(monkeypatch):
     monkeypatch.setattr(mod, "PPTX_AVAILABLE", False)
     with pytest.raises(mod.ReportRendererUnavailable):
         render_pptx(_model())
+
+
+def test_pptx_theme_renders_valid_file():
+    from vibelign.core.reporting_cli.models import Block, ReportModel, Section
+    from vibelign.core.reporting_cli.pptx_renderer import render_pptx as _render
+
+    m = ReportModel(title="t", report_type="work", date="d",
+                    sections=[Section("개요", [Block(kind="bullets", items=["a"])])])
+    data = _render(m, theme="pastel")
+    assert data[:2] == b"PK"  # 유효한 pptx(zip)

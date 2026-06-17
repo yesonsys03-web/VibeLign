@@ -33,3 +33,23 @@ def test_render_docx_missing_lib_raises_clear(monkeypatch):
     monkeypatch.setattr(mod, "DOCX_AVAILABLE", False)
     with pytest.raises(mod.ReportRendererUnavailable):
         render_docx(_model())
+
+
+def test_docx_theme_applies_accent_to_heading():
+    import io as _io
+
+    import docx as _docx
+
+    from vibelign.core.reporting_cli.docx_renderer import render_docx as _render
+    from vibelign.core.reporting_cli.models import Block, ReportModel, Section
+
+    m = ReportModel(title="t", report_type="work", date="d",
+                    sections=[Section("개요", [Block(kind="summary", text="요약")])])
+    data = _render(m, theme="executive")  # accent #1B3A6B
+    d = _docx.Document(_io.BytesIO(data))
+    colors = []
+    for p in d.paragraphs:
+        for r in p.runs:
+            if r.font.color is not None and r.font.color.rgb is not None:
+                colors.append(str(r.font.color.rgb))
+    assert "1B3A6B" in colors
