@@ -4,7 +4,8 @@ from vibelign.core.reporting_cli.themes import THEME_IDS, get_theme
 
 
 def test_five_themes_registered():
-    assert THEME_IDS == ("classic", "minimal", "executive", "compact", "pastel")
+    assert THEME_IDS[:5] == ("classic", "minimal", "executive", "compact", "pastel")
+    assert len(THEME_IDS) == 105
 
 
 def test_each_theme_has_nonempty_fields():
@@ -21,3 +22,10 @@ def test_unknown_theme_falls_back_to_classic():
 
 def test_classic_css_matches_current_design():
     assert get_theme("classic").accent == "#9B1B1B"
+
+
+def test_generated_theme_uses_token_catalog():
+    theme = get_theme("board-indigo-balanced")
+    assert theme.label == "임원형 · 인디고 · 표준"
+    assert theme.accent == "#3157A4"
+    assert "background:var(--accent)" in theme.html_css

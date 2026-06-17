@@ -13,7 +13,10 @@ import {
   setReportExportDir,
   type ReportType,
 } from "../../lib/vib/report";
+import type { ReportFontSizes } from "../../lib/vib/reportFontSizes";
 import { isPolishable, type EmitPayload } from "../../lib/vib/reportModel";
+import { ReportFontSizeControls } from "./ReportFontSizeControls";
+import { ReportThemeSelect } from "./ReportThemeSelect";
 
 // AI 다듬기는 블록마다 순차로 LLM 을 1회 호출한다(머신·provider 에 따라 블록당 ~15~20초).
 // 이 수를 넘으면 수 분~수십 분이 걸려 사실상 멈춘 듯 보이므로 생성 전 경고한다.
@@ -53,18 +56,17 @@ export interface ExportReportModalProps {
   cwd: string;
   onClose: () => void;
   /** 제공되고 'AI 다듬기'가 켜져 있으면, 인라인 생성 대신 블록 diff 검토 화면으로 보낸다. */
-  onReviewRequest?: (reportType: ReportType, format: Format, theme: string, author: string, pageNumbers: boolean) => void;
+  onReviewRequest?: (
+    reportType: ReportType,
+    format: Format,
+    theme: string,
+    author: string,
+    pageNumbers: boolean,
+    fontSizes: ReportFontSizes,
+  ) => void;
   /** 모달이 열릴 때 초기 선택될 보고서 종류(문서 우클릭 진입 시 "doc"). 기본 "work". */
   defaultType?: ReportType;
 }
-
-const THEMES: { id: string; label: string }[] = [
-  { id: "classic", label: "클래식" },
-  { id: "minimal", label: "모던 미니멀" },
-  { id: "executive", label: "임원 보고형" },
-  { id: "compact", label: "컴팩트" },
-  { id: "pastel", label: "부드러운 파스텔" },
-];
 
 // === ANCHOR: EXPORTREPORTMODAL_EXPORTREPORTMODAL_START ===
 export function ExportReportModal({ open, planPath, cwd, onClose, onReviewRequest, defaultType }: ExportReportModalProps) {
@@ -85,6 +87,7 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
       return "";
     }
   });
+  const [fontSizes, setFontSizes] = useState<ReportFontSizes>({});
   const [pageNumbers, setPageNumbers] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<ResultState | null>(null);
@@ -163,7 +166,7 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
           if (!proceed) return; // 모달 유지 — 사용자가 다듬기 끄고 다시 누르면 즉시 생성
         }
       }
-      onReviewRequest(reportType, format, theme, author, pageNumbers);
+      onReviewRequest(reportType, format, theme, author, pageNumbers, fontSizes);
       onClose();
       return;
     }
@@ -174,15 +177,15 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
     setExportErr(null);
     let next: ResultState;
     if (format === "html") {
-      const r = await generatePlanningReport(cwd, planPath, reportType, polish, theme, author, pageNumbers);
+      const r = await generatePlanningReport(cwd, planPath, reportType, polish, theme, author, pageNumbers, fontSizes);
       next = r.ok
         ? { kind: "html", ok: true, path: r.path, reportType: r.reportType, html: r.html }
         : r;
     } else if (format === "pdf") {
-      const r = await generateReportPdf(cwd, planPath, reportType, polish, theme, author, pageNumbers);
+      const r = await generateReportPdf(cwd, planPath, reportType, polish, theme, author, pageNumbers, fontSizes);
       next = r.ok ? { kind: "file", ok: true, path: r.path } : r;
     } else {
-      const r = await generateReportOffice(cwd, planPath, reportType, format, polish, theme, author, pageNumbers);
+      const r = await generateReportOffice(cwd, planPath, reportType, format, polish, theme, author, pageNumbers, fontSizes);
       next = r.ok ? { kind: "file", ok: true, path: r.path } : r;
     }
     setResult(next);
@@ -234,27 +237,21 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
           </div>
 
           <div style={{ marginBottom: 12 }}>
-            <label>
-              디자인 테마{" "}
-              <select
-                aria-label="디자인 테마"
-                value={theme}
-                onChange={(e) => {
-                  setTheme(e.target.value);
-                  try {
-                    localStorage.setItem("vibelign_report_theme", e.target.value);
-                  } catch {
-                    /* 테스트 환경 등 localStorage 미지원 시 무시 */
-                  }
-                }}
-              >
-                {THEMES.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <ReportThemeSelect
+              value={theme}
+              onChange={(nextTheme) => {
+                setTheme(nextTheme);
+                try {
+                  localStorage.setItem("vibelign_report_theme", nextTheme);
+                } catch {
+                  /* 테스트 환경 등 localStorage 미지원 시 무시 */
+                }
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <ReportFontSizeControls value={fontSizes} onChange={setFontSizes} />
           </div>
 
           <div style={{ marginBottom: 12 }}>

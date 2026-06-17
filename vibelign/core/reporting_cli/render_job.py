@@ -10,6 +10,7 @@ from vibelign.core.reporting_cli import (
     write_report,
     write_report_bytes,
 )
+from vibelign.core.reporting_cli.font_sizes import ReportFontSizes
 from vibelign.core.reporting_cli.models import ReportModel
 
 
@@ -23,19 +24,25 @@ def render_and_write(
     force: bool,
     theme: str = "classic",
     page_numbers: bool = False,
+    font_sizes: ReportFontSizes | None = None,
 ) -> Path:
     """모델을 fmt 로 렌더해 저장하고 경로를 반환한다.
     예외는 호출자가 처리: ReportRendererUnavailable / FileExistsError / ValueError."""
     if fmt == "docx":
-        data_bytes = render_docx(model, theme=theme, page_numbers=page_numbers)
+        data_bytes = render_docx(
+            model,
+            theme=theme,
+            page_numbers=page_numbers,
+            font_sizes=font_sizes,
+        )
         return write_report_bytes(
             root, model, data_bytes, slug_source=slug_source, ext=".docx", output=output, force=force
         )
     if fmt == "pptx":
-        data_bytes = render_pptx(model, theme=theme)
+        data_bytes = render_pptx(model, theme=theme, font_sizes=font_sizes)
         return write_report_bytes(
             root, model, data_bytes, slug_source=slug_source, ext=".pptx", output=output, force=force
         )
-    html = render_html(model, theme=theme)
+    html = render_html(model, theme=theme, font_sizes=font_sizes)
     return write_report(root, model, html, slug_source=slug_source, output=output, force=force)
 # === ANCHOR: RENDER_JOB_END ===

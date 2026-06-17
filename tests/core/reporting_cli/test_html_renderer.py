@@ -1,4 +1,5 @@
 from vibelign.core.reporting_cli.html_renderer import render_html
+from vibelign.core.reporting_cli.font_sizes import ReportFontSizes
 from vibelign.core.reporting_cli.models import Block, ReportModel, Section
 
 
@@ -42,12 +43,29 @@ def test_theme_minimal_injects_its_css():
     assert "Pretendard" in html and "text-transform:uppercase" in html
 
 
+def test_generated_theme_injects_its_css():
+    html = render_html(_model(), theme="cards-teal-dense")
+    assert "#147A73" in html
+    assert "border-radius:12px" in html
+
+
 def test_unknown_theme_falls_back_to_classic():
     assert render_html(_model(), theme="nope") == render_html(_model(), theme="classic")
 
 
 def test_default_theme_is_classic_unchanged():
     assert "#9B1B1B" in render_html(_model())
+
+
+def test_font_size_overrides_are_injected_after_theme_css():
+    html = render_html(
+        _model(),
+        theme="minimal",
+        font_sizes=ReportFontSizes(title=32, heading=19, body=15),
+    )
+    assert "h1 { font-size:32px; }" in html
+    assert "h2 { font-size:19px; }" in html
+    assert "body { font-size:15px; }" in html
 
 
 def test_author_shown_in_meta_when_present():

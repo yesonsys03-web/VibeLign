@@ -219,10 +219,52 @@ test("generatePlanningReport theme → --theme 인자", async () => {
   expect(mockRunVib.mock.calls[0][0]).toEqual(expect.arrayContaining(["--theme", "minimal"]));
 });
 
+test("generatePlanningReport fontSizes → 폰트 크기 인자", async () => {
+  mockRunVib.mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/p/r.html", report_type: "work" }), stderr: "", exit_code: 0 });
+  mockLoadDoc.mockResolvedValue({ path: "x", content: "<i></i>" } as never);
+  await generatePlanningReport(
+    "/proj",
+    "plans/p.md",
+    "work",
+    false,
+    "classic",
+    "",
+    true,
+    { title: 32, heading: 19, body: 15 },
+  );
+  expect(mockRunVib.mock.calls[0][0]).toEqual(
+    expect.arrayContaining([
+      "--title-font-size",
+      "32",
+      "--heading-font-size",
+      "19",
+      "--body-font-size",
+      "15",
+    ]),
+  );
+});
+
 test("renderReportWithDecisions theme → --theme 인자", async () => {
   mockRunVib.mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/p/r.html" }), stderr: "", exit_code: 0 });
   await renderReportWithDecisions("/proj", "plans/p.md", "work", "html", [[0, 1]], "k1", "executive");
   expect(mockRunVib.mock.calls[0][0]).toEqual(expect.arrayContaining(["--theme", "executive"]));
+});
+
+test("renderReportWithDecisions fontSizes → 폰트 크기 인자", async () => {
+  mockRunVib.mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/p/r.html" }), stderr: "", exit_code: 0 });
+  await renderReportWithDecisions(
+    "/proj",
+    "plans/p.md",
+    "work",
+    "html",
+    [[0, 1]],
+    "k1",
+    "executive",
+    "",
+    true,
+    { body: 16 },
+  );
+  expect(mockRunVib.mock.calls[0][0]).toEqual(expect.arrayContaining(["--body-font-size", "16"]));
 });
 
 test("generatePlanningReport author/pageNumbers → 인자", async () => {

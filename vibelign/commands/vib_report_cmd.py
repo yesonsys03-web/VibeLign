@@ -15,6 +15,7 @@ from vibelign.core.reporting_cli import (
     parse_plan_markdown,
     polish_report_model,
 )
+from vibelign.core.reporting_cli.font_sizes import normalize_report_font_sizes
 from vibelign.core.reporting_cli.render_job import render_and_write
 from vibelign.core.reporting_cli.polish_cache import (
     load_polish_cache,
@@ -22,6 +23,7 @@ from vibelign.core.reporting_cli.polish_cache import (
     save_polish_cache,
 )
 from vibelign.core.reporting_cli.storage import _report_slug
+from vibelign.core.reporting_cli.themes import has_theme
 from vibelign.terminal_render import clack_intro, clack_success
 
 
@@ -40,6 +42,9 @@ class ReportArgs(Protocol):
     reject_blocks: str | None
     polish_key: str | None
     theme: str
+    title_font_size: int | None
+    heading_font_size: int | None
+    body_font_size: int | None
     author: str
     page_numbers: bool
 # === ANCHOR: VIB_REPORT_CMD_REPORTARGS_END ===
@@ -58,6 +63,19 @@ def run_vib_report(args: object) -> None:
 
     root = resolve_project_root(Path.cwd())
     author = getattr(raw, "author", "") or ""
+    report_theme = getattr(raw, "theme", "classic") or "classic"
+    if not has_theme(report_theme):
+        _fail(want_json, f"알 수 없는 디자인 테마예요: {report_theme}")
+        return
+    try:
+        font_sizes = normalize_report_font_sizes(
+            title=getattr(raw, "title_font_size", None),
+            heading=getattr(raw, "heading_font_size", None),
+            body=getattr(raw, "body_font_size", None),
+        )
+    except ValueError as exc:
+        _fail(want_json, str(exc))
+        return
     try:
         text = plan_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
@@ -133,8 +151,9 @@ def run_vib_report(args: object) -> None:
             fmt = getattr(raw, "format", "html") or "html"
             dest = render_and_write(
                 root, merged, fmt, slug_source=slug_source, output=raw.output, force=raw.force,
-                theme=getattr(raw, "theme", "classic") or "classic",
+                theme=report_theme,
                 page_numbers=bool(getattr(raw, "page_numbers", True)),
+                font_sizes=font_sizes,
             )
         except ReportRendererUnavailable as exc:
             _fail(want_json, str(exc))
@@ -165,8 +184,9 @@ def run_vib_report(args: object) -> None:
     try:
         dest = render_and_write(
             root, model, fmt, slug_source=slug_source, output=raw.output, force=raw.force,
-            theme=getattr(raw, "theme", "classic") or "classic",
+            theme=report_theme,
             page_numbers=bool(getattr(raw, "page_numbers", True)),
+            font_sizes=font_sizes,
         )
     except ReportRendererUnavailable as exc:
         _fail(want_json, str(exc))

@@ -1,6 +1,7 @@
 import io
 import pytest
 from vibelign.core.reporting_cli.docx_renderer import render_docx, DOCX_AVAILABLE
+from vibelign.core.reporting_cli.font_sizes import ReportFontSizes
 from vibelign.core.reporting_cli.models import Block, ReportModel, Section
 
 
@@ -55,8 +56,46 @@ def test_docx_theme_applies_accent_to_heading():
     assert "1B3A6B" in colors
 
 
+def test_docx_generated_theme_applies_accent_to_heading():
+    import io as _io
+
+    import docx as _docx
+
+    from vibelign.core.reporting_cli.docx_renderer import render_docx as _render
+    from vibelign.core.reporting_cli.models import Block, ReportModel, Section
+
+    m = ReportModel(title="t", report_type="work", date="d",
+                    sections=[Section("개요", [Block(kind="summary", text="요약")])])
+    data = _render(m, theme="plain-coral-balanced")
+    d = _docx.Document(_io.BytesIO(data))
+    colors = []
+    for p in d.paragraphs:
+        for r in p.runs:
+            if r.font.color is not None and r.font.color.rgb is not None:
+                colors.append(str(r.font.color.rgb))
+    assert "C94F3D" in colors
+
+
+@pytest.mark.skipif(not DOCX_AVAILABLE, reason="python-docx 미설치")
+def test_docx_font_size_overrides_apply_to_title_heading_and_body():
+    import docx as _docx
+
+    data = render_docx(
+        _model(),
+        font_sizes=ReportFontSizes(title=32, heading=19, body=15),
+    )
+    d = _docx.Document(io.BytesIO(data))
+    paragraphs = {p.text: p for p in d.paragraphs if p.text}
+    assert paragraphs["예약 앱"].runs[0].font.size.pt == 32
+    assert paragraphs["개요"].runs[0].font.size.pt == 19
+    assert paragraphs["미용실 예약 앱"].runs[0].font.size.pt == 15
+
+
 def test_docx_page_numbers_adds_page_field():
-    import io as _io, docx as _docx
+    import io as _io
+
+    import docx as _docx
+
     from vibelign.core.reporting_cli.docx_renderer import render_docx as _r
     from vibelign.core.reporting_cli.models import Block, ReportModel, Section
     m = ReportModel(title="t", report_type="work", date="d",
@@ -67,7 +106,10 @@ def test_docx_page_numbers_adds_page_field():
 
 
 def test_docx_no_page_numbers_no_footer_field():
-    import io as _io, docx as _docx
+    import io as _io
+
+    import docx as _docx
+
     from vibelign.core.reporting_cli.docx_renderer import render_docx as _r
     from vibelign.core.reporting_cli.models import Block, ReportModel, Section
     m = ReportModel(title="t", report_type="work", date="d",

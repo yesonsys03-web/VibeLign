@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 
+from vibelign.core.reporting_cli.font_sizes import ReportFontSizes
 from vibelign.core.reporting_cli.models import ReportModel
 from vibelign.core.reporting_cli.templates import meta_line
 from vibelign.core.reporting_cli.themes import get_theme
@@ -43,13 +44,18 @@ def _add_page_number_footer(document) -> None:
 
 
 # === ANCHOR: DOCX_RENDERER_RENDER_DOCX_START ===
-def render_docx(model: ReportModel, theme: str = "classic", page_numbers: bool = False) -> bytes:
+def render_docx(
+    model: ReportModel,
+    theme: str = "classic",
+    page_numbers: bool = False,
+    font_sizes: ReportFontSizes | None = None,
+) -> bytes:
     if not DOCX_AVAILABLE:
         raise ReportRendererUnavailable(
             "Word 내보내기에 python-docx 가 필요합니다. (pip install python-docx)"
         )
     from docx import Document
-    from docx.shared import RGBColor
+    from docx.shared import Pt, RGBColor
 
     accent = RGBColor.from_string(get_theme(theme).accent.lstrip("#"))
 
@@ -59,21 +65,35 @@ def render_docx(model: ReportModel, theme: str = "classic", page_numbers: bool =
             r.font.color.rgb = accent
     # === ANCHOR: DOCX_RENDERER__ACCENT_END ===
 
+    def _size(paragraph, value: int | None) -> None:
+        if value is None:
+            return
+        for run in paragraph.runs:
+            run.font.size = Pt(value)
+
     doc = Document()
-    _accent(doc.add_heading(model.title, level=0))
-    doc.add_paragraph(meta_line(model))
+    title = doc.add_heading(model.title, level=0)
+    _accent(title)
+    _size(title, font_sizes.title if font_sizes is not None else None)
+    _size(doc.add_paragraph(meta_line(model)), font_sizes.body if font_sizes is not None else None)
     for section in model.sections:
-        _accent(doc.add_heading(section.heading, level=1))
+        heading = doc.add_heading(section.heading, level=1)
+        _accent(heading)
+        _size(heading, font_sizes.heading if font_sizes is not None else None)
         for block in section.blocks:
             if block.kind == "bullets":
                 for item in block.items:
-                    doc.add_paragraph(item, style="List Bullet")
+                    _size(
+                        doc.add_paragraph(item, style="List Bullet"),
+                        font_sizes.body if font_sizes is not None else None,
+                    )
             elif block.kind == "summary":
                 p = doc.add_paragraph()
                 run = p.add_run(block.text)
                 run.bold = True
+                _size(p, font_sizes.body if font_sizes is not None else None)
             else:  # paragraph
-                doc.add_paragraph(block.text)
+                _size(doc.add_paragraph(block.text), font_sizes.body if font_sizes is not None else None)
     if page_numbers:
         _add_page_number_footer(doc)
     buf = io.BytesIO()

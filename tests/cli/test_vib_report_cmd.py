@@ -119,6 +119,42 @@ def test_report_subcommand_keeps_type_validation_inside_command():
     assert callable(ns.func)
 
 
+def test_report_subcommand_keeps_theme_validation_inside_command(
+    capsys: pytest.CaptureFixture[str],
+):
+    from vibelign.cli.vib_cli import build_parser
+
+    parser = build_parser()
+    ns = parser.parse_args(["report", "plan.md", "--theme", "not-a-theme", "--json"])
+    assert ns.theme == "not-a-theme"
+    with pytest.raises(SystemExit):
+        parser.parse_args(["report", "--help"])
+    help_text = capsys.readouterr().out
+    assert "--theme THEME" in help_text
+    assert "plain-indigo-balanced" not in help_text
+
+
+def test_report_subcommand_accepts_font_size_options():
+    from vibelign.cli.vib_cli import build_parser
+
+    parser = build_parser()
+    ns = parser.parse_args(
+        [
+            "report",
+            "plan.md",
+            "--title-font-size",
+            "32",
+            "--heading-font-size",
+            "19",
+            "--body-font-size",
+            "15",
+        ]
+    )
+    assert ns.title_font_size == 32
+    assert ns.heading_font_size == 19
+    assert ns.body_font_size == 15
+
+
 def test_report_unreadable_plan_reports_error_json(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ):
@@ -259,9 +295,64 @@ def test_theme_threads_to_html(tmp_path, capsys, monkeypatch):
     assert "text-transform:uppercase" in Path(out["path"]).read_text(encoding="utf-8")
 
 
+def test_generated_theme_threads_to_html(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+    run_vib_report(_args(plan, json=True, theme="letter-wine-balanced"))
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is True
+    html = Path(out["path"]).read_text(encoding="utf-8")
+    assert "#8A2545" in html
+    assert "text-align:center" in html
+
+
+def test_font_sizes_thread_to_html(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+    run_vib_report(
+        _args(
+            plan,
+            json=True,
+            title_font_size=32,
+            heading_font_size=19,
+            body_font_size=15,
+        )
+    )
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is True
+    html = Path(out["path"]).read_text(encoding="utf-8")
+    assert "h1 { font-size:32px; }" in html
+    assert "h2 { font-size:19px; }" in html
+    assert "body { font-size:15px; }" in html
+
+
+def test_invalid_font_size_reports_error_json(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+    with pytest.raises(SystemExit):
+        run_vib_report(_args(plan, json=True, title_font_size=7))
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False
+    assert "8~72" in out["error"]
+
+
+def test_unknown_theme_reports_short_error_json(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+    with pytest.raises(SystemExit):
+        run_vib_report(_args(plan, json=True, theme="not-a-theme"))
+    out = json.loads(capsys.readouterr().out)
+    assert out == {"ok": False, "error": "알 수 없는 디자인 테마예요: not-a-theme"}
+
+
 def test_author_threads_to_html(tmp_path, capsys, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    plan = tmp_path / "plan.md"; plan.write_text(PLAN_MD, encoding="utf-8")
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
     run_vib_report(_args(plan, json=True, author="홍길동"))
     out = json.loads(capsys.readouterr().out)
     assert "작성자: 홍길동" in Path(out["path"]).read_text(encoding="utf-8")

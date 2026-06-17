@@ -2,6 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { runVib } from "./core";
 import { loadDoc } from "../docs";
+import { reportFontSizeArgs, type ReportFontSizes } from "./reportFontSizes";
 import type { EmitPayload } from "./reportModel";
 
 export type ReportType = "work" | "proposal" | "result" | "doc";
@@ -33,11 +34,13 @@ export async function generatePlanningReport(
   theme = "classic",
   author = "",
   pageNumbers = true,
+  fontSizes: ReportFontSizes = {},
 ): Promise<ReportResult> {
   const res = await runVib(
     [
       "report", planPath, "--type", reportType, "--format", "html", "--theme", theme,
       "--author", author, "--json",
+      ...reportFontSizeArgs(fontSizes),
       ...(polish ? ["--polish"] : []),
       ...(pageNumbers ? [] : ["--no-page-numbers"]),
     ],
@@ -120,8 +123,18 @@ export async function generateReportPdf(
   theme = "classic",
   author = "",
   pageNumbers = true,
+  fontSizes: ReportFontSizes = {},
 ): Promise<PdfResult> {
-  const html = await generatePlanningReport(cwd, planPath, reportType, polish, theme, author, pageNumbers);
+  const html = await generatePlanningReport(
+    cwd,
+    planPath,
+    reportType,
+    polish,
+    theme,
+    author,
+    pageNumbers,
+    fontSizes,
+  );
   if (!html.ok) return html;
 
   const outPdf = html.path.replace(/\.html$/i, ".pdf");
@@ -149,11 +162,13 @@ export async function generateReportOffice(
   theme = "classic",
   author = "",
   pageNumbers = true,
+  fontSizes: ReportFontSizes = {},
 ): Promise<PdfResult> {
   const res = await runVib(
     [
       "report", planPath, "--type", reportType, "--format", format, "--theme", theme,
       "--author", author, "--json",
+      ...reportFontSizeArgs(fontSizes),
       ...(polish ? ["--polish"] : []),
       ...(pageNumbers ? [] : ["--no-page-numbers"]),
     ],
@@ -214,12 +229,14 @@ export async function renderReportWithDecisions(
   theme = "classic",
   author = "",
   pageNumbers = true,
+  fontSizes: ReportFontSizes = {},
 ): Promise<PdfResult> {
   const fmt = format === "pdf" ? "html" : format;
   const args = [
     "report", planPath, "--type", reportType, "--format", fmt,
     "--reject-blocks", JSON.stringify(reject), "--polish-key", polishKey, "--theme", theme,
     "--author", author, "--json",
+    ...reportFontSizeArgs(fontSizes),
     ...(pageNumbers ? [] : ["--no-page-numbers"]),
   ];
   const res = await runVib(args, cwd);

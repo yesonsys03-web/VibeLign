@@ -3,6 +3,10 @@ from __future__ import annotations
 
 from html import escape
 
+from vibelign.core.reporting_cli.font_sizes import (
+    ReportFontSizes,
+    font_size_override_css,
+)
 from vibelign.core.reporting_cli.models import Block, ReportModel, Section
 from vibelign.core.reporting_cli.templates import meta_line
 from vibelign.core.reporting_cli.themes import get_theme
@@ -41,8 +45,14 @@ def _render_section(section: Section) -> str:
 
 
 # === ANCHOR: HTML_RENDERER_RENDER_HTML_START ===
-def render_html(model: ReportModel, theme: str = "classic") -> str:
+def render_html(
+    model: ReportModel,
+    theme: str = "classic",
+    font_sizes: ReportFontSizes | None = None,
+) -> str:
     css = get_theme(theme).html_css
+    if font_sizes is not None:
+        css = "\n".join(part for part in (css, font_size_override_css(font_sizes)) if part)
     parts = [
         _head(escape(model.title), css),
         f"<h1>{escape(model.title)}</h1>",

@@ -1,5 +1,6 @@
 import io
 import pytest
+from vibelign.core.reporting_cli.font_sizes import ReportFontSizes
 from vibelign.core.reporting_cli.pptx_renderer import render_pptx, PPTX_AVAILABLE
 from vibelign.core.reporting_cli.models import Block, ReportModel, Section
 
@@ -47,3 +48,17 @@ def test_pptx_theme_renders_valid_file():
                     sections=[Section("개요", [Block(kind="bullets", items=["a"])])])
     data = _render(m, theme="pastel")
     assert data[:2] == b"PK"  # 유효한 pptx(zip)
+
+
+@pytest.mark.skipif(not PPTX_AVAILABLE, reason="python-pptx 미설치")
+def test_pptx_font_size_overrides_apply_to_title_heading_and_body():
+    from pptx import Presentation
+
+    data = render_pptx(_model(), font_sizes=ReportFontSizes(title=34, heading=22, body=16))
+    prs = Presentation(io.BytesIO(data))
+    title_shape = prs.slides[0].shapes.title
+    section_title_shape = prs.slides[1].shapes.title
+    body_shape = prs.slides[1].placeholders[1]
+    assert title_shape.text_frame.paragraphs[0].runs[0].font.size.pt == 34
+    assert section_title_shape.text_frame.paragraphs[0].runs[0].font.size.pt == 22
+    assert body_shape.text_frame.paragraphs[0].runs[0].font.size.pt == 16
