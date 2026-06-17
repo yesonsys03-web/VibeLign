@@ -39,3 +39,20 @@ def test_emit_with_polish_fills_guards(tmp_path: Path, monkeypatch):
         str(plan), "work", date="2026-06-17", polish=True, provider="auto", root=tmp_path
     )
     assert payload["guards"] == [{"section": 0, "block": 0, "reason": "number_dropped", "missing": ["50"]}]
+
+
+from vibelign.core.reporting_cli.emit import emit_report_payload as _emit_doc_payload
+
+
+def test_emit_doc_type_preserves_arbitrary_sections(tmp_path):
+    doc = tmp_path / "free.md"
+    doc.write_text("# 자유\n\n## 배경\n설명 문단.\n", encoding="utf-8")
+
+    payload = _emit_doc_payload(
+        str(doc), "doc", date="2026-06-17", polish=False, provider="auto", root=tmp_path
+    )
+
+    assert payload["ok"] is True
+    assert payload["report_type"] == "doc"
+    headings = [s["heading"] for s in payload["base"]["sections"]]
+    assert "배경" in headings
