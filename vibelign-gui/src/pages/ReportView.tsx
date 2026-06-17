@@ -31,31 +31,31 @@ export default function ReportView({ projectDir, onStart }: ReportViewProps) {
   const [plans, setPlans] = useState<PlanningSessionSummary[] | null>(null);
   const [reportFor, setReportFor] = useState<string | null>(null);
   const [review, setReview] = useState<
-    { payload: EmitPayload; plan: string; type: ReportType; format: Fmt; theme: string } | null
+    { payload: EmitPayload; plan: string; type: ReportType; format: Fmt; theme: string; author: string; pageNumbers: boolean } | null
   >(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewErr, setReviewErr] = useState<string | null>(null);
   const { exportedPath, exportErr, exportTo, reset } = useReportExport();
 
-  async function handleReviewRequest(type: ReportType, format: Fmt, theme: string) {
+  async function handleReviewRequest(type: ReportType, format: Fmt, theme: string, author: string, pageNumbers: boolean) {
     if (!reportFor) return;
     const plan = reportFor;
     setReviewBusy(true);
     setReviewErr(null);
     reset();
-    const r = await emitReportModel(projectDir, plan, type, true);
+    const r = await emitReportModel(projectDir, plan, type, true, author);
     setReviewBusy(false);
-    if (r.ok) setReview({ payload: r.payload, plan, type, format, theme });
+    if (r.ok) setReview({ payload: r.payload, plan, type, format, theme, author, pageNumbers });
     else setReviewErr(r.error);
   }
 
   async function handleReviewConfirm(rejectBlocks: [number, number][]) {
     if (!review) return;
-    const { plan, type, format, payload, theme } = review;
+    const { plan, type, format, payload, theme, author, pageNumbers } = review;
     setReview(null);
     setReviewBusy(true);
     setReviewErr(null);
-    const r = await renderReportWithDecisions(projectDir, plan, type, format, rejectBlocks, payload.key, theme);
+    const r = await renderReportWithDecisions(projectDir, plan, type, format, rejectBlocks, payload.key, theme, author, pageNumbers);
     if (!r.ok) {
       setReviewBusy(false);
       setReviewErr(r.error);
@@ -202,7 +202,7 @@ export default function ReportView({ projectDir, onStart }: ReportViewProps) {
         planPath={reportFor ?? ""}
         cwd={projectDir}
         onClose={() => setReportFor(null)}
-        onReviewRequest={(type, format, theme) => void handleReviewRequest(type, format, theme)}
+        onReviewRequest={(type, format, theme, author, pageNumbers) => void handleReviewRequest(type, format, theme, author, pageNumbers)}
       />
     </div>
   );

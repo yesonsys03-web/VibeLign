@@ -36,7 +36,7 @@ export interface ExportReportModalProps {
   cwd: string;
   onClose: () => void;
   /** 제공되고 'AI 다듬기'가 켜져 있으면, 인라인 생성 대신 블록 diff 검토 화면으로 보낸다. */
-  onReviewRequest?: (reportType: ReportType, format: Format, theme: string) => void;
+  onReviewRequest?: (reportType: ReportType, format: Format, theme: string, author: string, pageNumbers: boolean) => void;
 }
 
 const THEMES: { id: string; label: string }[] = [
@@ -58,6 +58,14 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
       return "classic";
     }
   });
+  const [author, setAuthor] = useState<string>(() => {
+    try {
+      return localStorage.getItem("vibelign_report_author") || "";
+    } catch {
+      return "";
+    }
+  });
+  const [pageNumbers, setPageNumbers] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<ResultState | null>(null);
   const [openErr, setOpenErr] = useState<string | null>(null);
@@ -95,7 +103,7 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
   const handleGenerate = async () => {
     // 다듬기 ON + 리뷰 핸들러 제공 시: 인라인 생성 대신 검토 화면으로 위임한다.
     if (polish && onReviewRequest) {
-      onReviewRequest(reportType, format, theme);
+      onReviewRequest(reportType, format, theme, author, pageNumbers);
       onClose();
       return;
     }
@@ -106,15 +114,15 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
     setExportErr(null);
     let next: ResultState;
     if (format === "html") {
-      const r = await generatePlanningReport(cwd, planPath, reportType, polish, theme);
+      const r = await generatePlanningReport(cwd, planPath, reportType, polish, theme, author, pageNumbers);
       next = r.ok
         ? { kind: "html", ok: true, path: r.path, reportType: r.reportType, html: r.html }
         : r;
     } else if (format === "pdf") {
-      const r = await generateReportPdf(cwd, planPath, reportType, polish, theme);
+      const r = await generateReportPdf(cwd, planPath, reportType, polish, theme, author, pageNumbers);
       next = r.ok ? { kind: "file", ok: true, path: r.path } : r;
     } else {
-      const r = await generateReportOffice(cwd, planPath, reportType, format, polish, theme);
+      const r = await generateReportOffice(cwd, planPath, reportType, format, polish, theme, author, pageNumbers);
       next = r.ok ? { kind: "file", ok: true, path: r.path } : r;
     }
     setResult(next);
@@ -185,6 +193,37 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
                   </option>
                 ))}
               </select>
+            </label>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label>
+              작성자{" "}
+              <input
+                type="text"
+                aria-label="작성자"
+                value={author}
+                placeholder="(선택) 이름"
+                onChange={(e) => {
+                  setAuthor(e.target.value);
+                  try {
+                    localStorage.setItem("vibelign_report_author", e.target.value);
+                  } catch {
+                    /* localStorage 미지원 시 무시 */
+                  }
+                }}
+              />
+            </label>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label>
+              <input
+                type="checkbox"
+                checked={pageNumbers}
+                onChange={(e) => setPageNumbers(e.target.checked)}
+              />{" "}
+              페이지 번호 (Word·PDF)
             </label>
           </div>
 
