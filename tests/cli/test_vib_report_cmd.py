@@ -209,3 +209,41 @@ def test_report_polish_uses_cache_on_second_run(
     run_vib_report(_args(plan, json=True, polish=True, cli="auto"))
     run_vib_report(_args(plan, json=True, polish=True, cli="auto"))
     assert calls["n"] == 1  # 2번째는 캐시 히트 → polish 재호출 0
+
+
+def test_emit_model_prints_base_polished_and_key(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+    run_vib_report(_args(plan, json=True, emit_model=True))
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out["ok"] is True
+    assert "base" in out and "polished" in out and out["key"]
+    assert out["base"]["report_type"] == "work"
+
+
+def test_render_decisions_writes_file(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+    # provider 호출 없이 결정론적으로: polish 결과=원문(캐시에 저장됨).
+    monkeypatch.setattr(
+        "vibelign.core.reporting_cli.emit.polish_report_model_with_guards", lambda m, **k: (m, [])
+    )
+    run_vib_report(_args(plan, json=True, emit_model=True, polish=True))
+    key = json.loads(capsys.readouterr().out.strip())["key"]
+    run_vib_report(_args(plan, json=True, reject_blocks="[[0,0]]", polish_key=key))
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out["ok"] is True
+    assert Path(out["path"]).exists()
+
+
+def test_render_decisions_cache_miss_errors(tmp_path, capsys, monkeypatch):
+    """검토 캐시가 없으면 조용히 재-polish 하지 않고 명시 에러로 실패한다(재현성)."""
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+    with pytest.raises(SystemExit):
+        run_vib_report(_args(plan, json=True, reject_blocks="[[0,0]]", polish_key="deadbeef"))
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out["ok"] is False

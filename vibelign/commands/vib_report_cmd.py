@@ -33,6 +33,9 @@ class ReportArgs(Protocol):
     json: bool
     polish: bool
     cli: str
+    emit_model: bool
+    reject_blocks: str | None
+    polish_key: str | None
 
 
 def run_vib_report(args: object) -> None:
@@ -64,6 +67,61 @@ def run_vib_report(args: object) -> None:
         return
 
     slug_source = data.title or data.idea or plan_path.stem
+    provider = getattr(raw, "cli", "auto") or "auto"
+
+    # --emit-model: 렌더·저장 없이 base/polished 구조화 모델 + key 를 JSON 으로 반환한다.
+    if getattr(raw, "emit_model", False):
+        from vibelign.core.reporting_cli.emit import emit_report_payload
+
+        try:
+            payload = emit_report_payload(
+                str(plan_path), raw.type, date=report_date,
+                polish=getattr(raw, "polish", False), provider=provider, root=root,
+            )
+        except (OSError, UnicodeDecodeError, ValueError) as exc:
+            _fail(want_json, f"보고서 모델 생성 실패: {exc}")
+            return
+        print(json.dumps(payload, ensure_ascii=False))
+        return
+
+    # --reject-blocks: 거부 인덱스 + emit 이 준 --polish-key 로 캐시된 polished 를 로드해 병합·렌더.
+    # 캐시 미스 시 조용히 재-polish 하지 않고 명시 에러로 실패한다 → "검토한 내용 = 저장된 내용" 보장.
+    reject_raw = getattr(raw, "reject_blocks", None)
+    if reject_raw is not None:
+        from vibelign.core.reporting_cli.merge import merge_models
+
+        try:
+            reject = [(int(s), int(b)) for s, b in json.loads(reject_raw)]
+        except (ValueError, TypeError):
+            _fail(want_json, "reject-blocks JSON 형식이 잘못됐어요: [[section,block],...]")
+            return
+        polish_key = getattr(raw, "polish_key", None)
+        if not polish_key:
+            _fail(want_json, "polish-key 가 필요해요(emit 응답의 key 값).")
+            return
+        slug = _report_slug(slug_source)
+        polished = load_polish_cache(root, slug, key=polish_key)
+        if polished is None:
+            _fail(want_json, "검토 결과가 만료됐어요. 보고서를 다시 생성해주세요.")
+            return
+        try:
+            merged = merge_models(model, polished, reject)
+            fmt = getattr(raw, "format", "html") or "html"
+            dest = render_and_write(
+                root, merged, fmt, slug_source=slug_source, output=raw.output, force=raw.force
+            )
+        except ReportRendererUnavailable as exc:
+            _fail(want_json, str(exc))
+            return
+        except (FileExistsError, ValueError) as exc:
+            _fail(want_json, str(exc))
+            return
+        if want_json:
+            print(json.dumps({"ok": True, "path": str(dest), "report_type": merged.report_type}, ensure_ascii=False))
+        else:
+            clack_intro("VibeLign 보고서")
+            clack_success(f"보고서 저장: {dest}")
+        return
 
     if getattr(raw, "polish", False):
         provider = getattr(raw, "cli", "auto") or "auto"
