@@ -36,13 +36,28 @@ export interface ExportReportModalProps {
   cwd: string;
   onClose: () => void;
   /** 제공되고 'AI 다듬기'가 켜져 있으면, 인라인 생성 대신 블록 diff 검토 화면으로 보낸다. */
-  onReviewRequest?: (reportType: ReportType, format: Format) => void;
+  onReviewRequest?: (reportType: ReportType, format: Format, theme: string) => void;
 }
+
+const THEMES: { id: string; label: string }[] = [
+  { id: "classic", label: "클래식" },
+  { id: "minimal", label: "모던 미니멀" },
+  { id: "executive", label: "임원 보고형" },
+  { id: "compact", label: "컴팩트" },
+  { id: "pastel", label: "부드러운 파스텔" },
+];
 
 export function ExportReportModal({ open, planPath, cwd, onClose, onReviewRequest }: ExportReportModalProps) {
   const [reportType, setReportType] = useState<ReportType>("work");
   const [format, setFormat] = useState<Format>("html");
   const [polish, setPolish] = useState(false);
+  const [theme, setTheme] = useState<string>(() => {
+    try {
+      return localStorage.getItem("vibelign_report_theme") || "classic";
+    } catch {
+      return "classic";
+    }
+  });
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<ResultState | null>(null);
   const [openErr, setOpenErr] = useState<string | null>(null);
@@ -80,7 +95,7 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
   const handleGenerate = async () => {
     // 다듬기 ON + 리뷰 핸들러 제공 시: 인라인 생성 대신 검토 화면으로 위임한다.
     if (polish && onReviewRequest) {
-      onReviewRequest(reportType, format);
+      onReviewRequest(reportType, format, theme);
       onClose();
       return;
     }
@@ -91,15 +106,15 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
     setExportErr(null);
     let next: ResultState;
     if (format === "html") {
-      const r = await generatePlanningReport(cwd, planPath, reportType, polish);
+      const r = await generatePlanningReport(cwd, planPath, reportType, polish, theme);
       next = r.ok
         ? { kind: "html", ok: true, path: r.path, reportType: r.reportType, html: r.html }
         : r;
     } else if (format === "pdf") {
-      const r = await generateReportPdf(cwd, planPath, reportType, polish);
+      const r = await generateReportPdf(cwd, planPath, reportType, polish, theme);
       next = r.ok ? { kind: "file", ok: true, path: r.path } : r;
     } else {
-      const r = await generateReportOffice(cwd, planPath, reportType, format, polish);
+      const r = await generateReportOffice(cwd, planPath, reportType, format, polish, theme);
       next = r.ok ? { kind: "file", ok: true, path: r.path } : r;
     }
     setResult(next);
@@ -147,6 +162,30 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
                 {f.label}
               </label>
             ))}
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label>
+              디자인 테마{" "}
+              <select
+                aria-label="디자인 테마"
+                value={theme}
+                onChange={(e) => {
+                  setTheme(e.target.value);
+                  try {
+                    localStorage.setItem("vibelign_report_theme", e.target.value);
+                  } catch {
+                    /* 테스트 환경 등 localStorage 미지원 시 무시 */
+                  }
+                }}
+              >
+                {THEMES.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <div style={{ marginBottom: 12 }}>

@@ -59,7 +59,7 @@ test("생성 성공 → iframe 미리보기 + 파일 열기", async () => {
 
   const frame = await screen.findByTitle("보고서 미리보기");
   expect(frame).toHaveAttribute("srcdoc", expect.stringContaining("업무 보고"));
-  expect(mockGen).toHaveBeenCalledWith("/proj", "plans/p.md", "work", false);
+  expect(mockGen).toHaveBeenCalledWith("/proj", "plans/p.md", "work", false, "classic");
 
   // 생성 후 기본 폴더(/docs)로 자동 복사된 위치가 표시되고, 파일 열기는 그 위치를 연다.
   await screen.findByText("/docs/r-work.html");
@@ -72,7 +72,7 @@ test("종류 선택이 호출 인자에 반영", async () => {
   renderOpen();
   fireEvent.click(screen.getByLabelText("제안서"));
   fireEvent.click(screen.getByRole("button", { name: "보고서 생성" }));
-  await waitFor(() => expect(mockGen).toHaveBeenCalledWith("/proj", "plans/p.md", "proposal", false));
+  await waitFor(() => expect(mockGen).toHaveBeenCalledWith("/proj", "plans/p.md", "proposal", false, "classic"));
 });
 
 test("실패 → 에러 메시지, iframe 없음", async () => {
@@ -90,7 +90,7 @@ test("PDF 포맷 선택 → generateReportPdf 호출, 저장됨 표시, iframe �
   fireEvent.click(screen.getByLabelText("PDF 파일"));
   fireEvent.click(screen.getByRole("button", { name: "보고서 생성" }));
 
-  await waitFor(() => expect(mockGenPdf).toHaveBeenCalledWith("/proj", "plans/p.md", "work", false));
+  await waitFor(() => expect(mockGenPdf).toHaveBeenCalledWith("/proj", "plans/p.md", "work", false, "classic"));
   expect(mockGen).not.toHaveBeenCalled();
 
   expect(await screen.findByText(/내부 사본.*r-work\.pdf/)).toBeInTheDocument();
@@ -113,7 +113,7 @@ test("HTML 포맷(기본) → generatePlanningReport 호출, iframe 표시", asy
   fireEvent.click(screen.getByRole("button", { name: "보고서 생성" }));
 
   await screen.findByTitle("보고서 미리보기");
-  expect(mockGen).toHaveBeenCalledWith("/proj", "plans/p.md", "work", false);
+  expect(mockGen).toHaveBeenCalledWith("/proj", "plans/p.md", "work", false, "classic");
   expect(mockGenPdf).not.toHaveBeenCalled();
   expect(screen.queryByTitle("보고서 미리보기")).toBeInTheDocument();
 });
@@ -124,7 +124,7 @@ test("Word 포맷 선택 → generateReportOffice(docx) 호출, 저장됨 표시
   fireEvent.click(screen.getByLabelText("Word 파일"));
   fireEvent.click(screen.getByRole("button", { name: "보고서 생성" }));
   await waitFor(() =>
-    expect(mockGenOffice).toHaveBeenCalledWith("/proj", "plans/p.md", "work", "docx", false),
+    expect(mockGenOffice).toHaveBeenCalledWith("/proj", "plans/p.md", "work", "docx", false, "classic"),
   );
   expect(await screen.findByText(/내부 사본.*r-work\.docx/)).toBeInTheDocument();
   expect(screen.queryByTitle("보고서 미리보기")).toBeNull();
@@ -135,5 +135,13 @@ test("AI 다듬기 토글 → polish=true 로 전달", async () => {
   renderOpen();
   fireEvent.click(screen.getByLabelText("AI 어조 다듬기 (무료)"));
   fireEvent.click(screen.getByRole("button", { name: "보고서 생성" }));
-  await waitFor(() => expect(mockGen).toHaveBeenCalledWith("/proj", "plans/p.md", "work", true));
+  await waitFor(() => expect(mockGen).toHaveBeenCalledWith("/proj", "plans/p.md", "work", true, "classic"));
+});
+
+test("테마 선택 → generatePlanningReport 에 theme 전달", async () => {
+  mockGen.mockResolvedValue({ ok: true, path: "/proj/.vibelign/reports/r.html", reportType: "work", html: "<i></i>" });
+  renderOpen();
+  fireEvent.change(screen.getByLabelText("디자인 테마"), { target: { value: "minimal" } });
+  fireEvent.click(screen.getByRole("button", { name: "보고서 생성" }));
+  await waitFor(() => expect(mockGen).toHaveBeenCalledWith("/proj", "plans/p.md", "work", false, "minimal"));
 });

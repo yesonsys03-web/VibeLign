@@ -31,13 +31,13 @@ export default function ReportView({ projectDir, onStart }: ReportViewProps) {
   const [plans, setPlans] = useState<PlanningSessionSummary[] | null>(null);
   const [reportFor, setReportFor] = useState<string | null>(null);
   const [review, setReview] = useState<
-    { payload: EmitPayload; plan: string; type: ReportType; format: Fmt } | null
+    { payload: EmitPayload; plan: string; type: ReportType; format: Fmt; theme: string } | null
   >(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewErr, setReviewErr] = useState<string | null>(null);
   const { exportedPath, exportErr, exportTo, reset } = useReportExport();
 
-  async function handleReviewRequest(type: ReportType, format: Fmt) {
+  async function handleReviewRequest(type: ReportType, format: Fmt, theme: string) {
     if (!reportFor) return;
     const plan = reportFor;
     setReviewBusy(true);
@@ -45,17 +45,17 @@ export default function ReportView({ projectDir, onStart }: ReportViewProps) {
     reset();
     const r = await emitReportModel(projectDir, plan, type, true);
     setReviewBusy(false);
-    if (r.ok) setReview({ payload: r.payload, plan, type, format });
+    if (r.ok) setReview({ payload: r.payload, plan, type, format, theme });
     else setReviewErr(r.error);
   }
 
   async function handleReviewConfirm(rejectBlocks: [number, number][]) {
     if (!review) return;
-    const { plan, type, format, payload } = review;
+    const { plan, type, format, payload, theme } = review;
     setReview(null);
     setReviewBusy(true);
     setReviewErr(null);
-    const r = await renderReportWithDecisions(projectDir, plan, type, format, rejectBlocks, payload.key);
+    const r = await renderReportWithDecisions(projectDir, plan, type, format, rejectBlocks, payload.key, theme);
     if (!r.ok) {
       setReviewBusy(false);
       setReviewErr(r.error);
@@ -202,7 +202,7 @@ export default function ReportView({ projectDir, onStart }: ReportViewProps) {
         planPath={reportFor ?? ""}
         cwd={projectDir}
         onClose={() => setReportFor(null)}
-        onReviewRequest={(type, format) => void handleReviewRequest(type, format)}
+        onReviewRequest={(type, format, theme) => void handleReviewRequest(type, format, theme)}
       />
     </div>
   );
