@@ -1,5 +1,6 @@
 // === ANCHOR: PLANNINGROOM_START ===
 import { useState } from "react";
+import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
 
 import {
   openFolder,
@@ -129,12 +130,13 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
   // === ANCHOR: PLANNINGROOM_HANDLERETRYPERSONA_END ===
 
   // === ANCHOR: PLANNINGROOM_HANDLESTARTWORK_START ===
-  function handleStartWork() {
+  async function handleStartWork() {
     const proceed = onStartWork ?? onBack;
     // 저장 이후 대화가 더 진행됐으면 기획안·계약이 구버전 — 그대로 시작하면 지시문이 옛 기준이 된다.
     if (result.docStale && hasSavedPlan) {
-      const ok = window.confirm(
+      const ok = await tauriConfirm(
         "저장된 기획안·작업 계약이 마지막 대화를 반영하지 않았어요.\n'기획안 다시 저장'을 먼저 누르는 걸 권장합니다.\n저장하지 않고 작업을 시작할까요?",
+        { title: "작업 시작", kind: "warning" },
       );
       if (!ok) {
         return;
@@ -142,8 +144,9 @@ export default function PlanningRoom({ projectDir, result, sourcePath, onBack, o
     }
     const summary = readinessSummary(result.readiness);
     if (!summary.canStartWork) {
-      const ok = window.confirm(
+      const ok = await tauriConfirm(
         `핵심 항목 ${summary.coreRedCount}개가 명세에 비어 있어 구현 도구가 임의로 채웁니다.\n그래도 작업을 시작할까요?`,
+        { title: "작업 시작", kind: "warning" },
       );
       if (!ok) {
         return;

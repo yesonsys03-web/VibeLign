@@ -1,5 +1,6 @@
 // === ANCHOR: BACKUP_DASHBOARD_PAGE_START ===
 import { useCallback, useEffect, useState } from "react";
+import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
 import BackupDashboardView from "../components/backup-dashboard/BackupDashboard";
 import RecoveryOptionsCard from "../components/agent-memory/RecoveryOptionsCard";
 import type { BackupEntry } from "../lib/vib";
@@ -66,7 +67,7 @@ export default function BackupDashboardPage({ projectDir, apiKey, providerKeys, 
   }
 
   async function handleRestore(id: string) {
-    if (!window.confirm("이 저장본으로 되돌릴까요? 지금 상태도 먼저 안전하게 보관됩니다.")) return;
+    if (!(await tauriConfirm("이 저장본으로 되돌릴까요? 지금 상태도 먼저 안전하게 보관됩니다.", { title: "되돌리기", kind: "warning" }))) return;
     setRestoring(true);
     setError(null);
     try {
