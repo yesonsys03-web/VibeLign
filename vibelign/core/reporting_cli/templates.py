@@ -1,3 +1,4 @@
+# === ANCHOR: TEMPLATES_START ===
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,10 +12,12 @@ from vibelign.core.reporting_cli.models import (
 
 
 @dataclass(frozen=True)
+# === ANCHOR: TEMPLATES_SECTIONSPEC_START ===
 class SectionSpec:
     heading: str  # 보고서에 보일 제목
     source: str  # PlanningData 필드명
     style: str  # "paragraph" | "bullets" | "summary"
+# === ANCHOR: TEMPLATES_SECTIONSPEC_END ===
 
 
 REPORT_TEMPLATES: dict[str, list[SectionSpec]] = {
@@ -53,6 +56,7 @@ REPORT_TYPE_LABELS: dict[str, str] = {
 }
 
 
+# === ANCHOR: TEMPLATES__BLOCKS_FOR_START ===
 def _blocks_for(value: object, style: str) -> list[Block]:
     if isinstance(value, list):
         items = [v for v in value if v]
@@ -62,17 +66,22 @@ def _blocks_for(value: object, style: str) -> list[Block]:
         return []
     kind = "summary" if style == "summary" else "paragraph"
     return [Block(kind=kind, text=text)]
+# === ANCHOR: TEMPLATES__BLOCKS_FOR_END ===
 
 
+# === ANCHOR: TEMPLATES_META_LINE_START ===
 def meta_line(model: ReportModel) -> str:
     """메타 줄: '{종류 라벨} · {날짜}', author 있으면 '· 작성자: {author}' 추가."""
     label = REPORT_TYPE_LABELS.get(model.report_type, model.report_type)
     base = f"{label} · {model.date}"
     return f"{base} · 작성자: {model.author}" if getattr(model, "author", "") else base
+# === ANCHOR: TEMPLATES_META_LINE_END ===
 
 
+# === ANCHOR: TEMPLATES_BUILD_REPORT_MODEL_START ===
 def build_report_model(
     data: PlanningData, report_type: str, *, date: str, source_plan_path: str = "", author: str = ""
+# === ANCHOR: TEMPLATES_BUILD_REPORT_MODEL_END ===
 ) -> ReportModel:
     specs = REPORT_TEMPLATES.get(report_type)
     if specs is None:
@@ -91,3 +100,4 @@ def build_report_model(
         author=author,
         sections=sections,
     )
+# === ANCHOR: TEMPLATES_END ===

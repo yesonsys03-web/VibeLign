@@ -1,3 +1,4 @@
+# === ANCHOR: DOCX_RENDERER_START ===
 from __future__ import annotations
 
 import io
@@ -13,10 +14,13 @@ except ImportError:
     DOCX_AVAILABLE = False
 
 
+# === ANCHOR: DOCX_RENDERER_REPORTRENDERERUNAVAILABLE_START ===
 class ReportRendererUnavailable(RuntimeError):
     """렌더러 라이브러리(python-docx/pptx) 미설치."""
+# === ANCHOR: DOCX_RENDERER_REPORTRENDERERUNAVAILABLE_END ===
 
 
+# === ANCHOR: DOCX_RENDERER__ADD_PAGE_NUMBER_FOOTER_START ===
 def _add_page_number_footer(document) -> None:
     """바닥글 중앙에 'PAGE / NUMPAGES'(예: 1 / 3) 필드를 넣는다. Word 가 실제 번호 렌더."""
     from docx.oxml import OxmlElement
@@ -25,16 +29,20 @@ def _add_page_number_footer(document) -> None:
     para = document.sections[0].footer.paragraphs[0]
     para.alignment = 1  # WD_ALIGN_PARAGRAPH.CENTER
 
+    # === ANCHOR: DOCX_RENDERER__FIELD_START ===
     def _field(instr: str) -> None:
         fld = OxmlElement("w:fldSimple")
         fld.set(qn("w:instr"), instr)
         para._p.append(fld)
+    # === ANCHOR: DOCX_RENDERER__FIELD_END ===
 
     _field("PAGE")
+# === ANCHOR: DOCX_RENDERER__ADD_PAGE_NUMBER_FOOTER_END ===
     para.add_run(" / ")
     _field("NUMPAGES")
 
 
+# === ANCHOR: DOCX_RENDERER_RENDER_DOCX_START ===
 def render_docx(model: ReportModel, theme: str = "classic", page_numbers: bool = False) -> bytes:
     if not DOCX_AVAILABLE:
         raise ReportRendererUnavailable(
@@ -45,9 +53,11 @@ def render_docx(model: ReportModel, theme: str = "classic", page_numbers: bool =
 
     accent = RGBColor.from_string(get_theme(theme).accent.lstrip("#"))
 
+    # === ANCHOR: DOCX_RENDERER__ACCENT_START ===
     def _accent(heading) -> None:
         for r in heading.runs:
             r.font.color.rgb = accent
+    # === ANCHOR: DOCX_RENDERER__ACCENT_END ===
 
     doc = Document()
     _accent(doc.add_heading(model.title, level=0))
@@ -67,5 +77,7 @@ def render_docx(model: ReportModel, theme: str = "classic", page_numbers: bool =
     if page_numbers:
         _add_page_number_footer(doc)
     buf = io.BytesIO()
+# === ANCHOR: DOCX_RENDERER_RENDER_DOCX_END ===
     doc.save(buf)
     return buf.getvalue()
+# === ANCHOR: DOCX_RENDERER_END ===

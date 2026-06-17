@@ -1,3 +1,4 @@
+// === ANCHOR: PLANDOCVIEW_REPORT_TEST_START ===
 import { describe, test, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
@@ -42,3 +43,4 @@ describe("PlanDocView — 보고서 내보내기 버튼", () => {
     expect(modal.textContent).toBe("plans/예약-앱.md");
   });
 });
+// === ANCHOR: PLANDOCVIEW_REPORT_TEST_END ===

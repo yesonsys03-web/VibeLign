@@ -1,3 +1,4 @@
+# === ANCHOR: STORAGE_START ===
 from __future__ import annotations
 
 from hashlib import sha1
@@ -9,6 +10,7 @@ from vibelign.core.reporting_cli.models import ReportModel
 _MAX_REPORT_SLUG_CHARS = 80
 
 
+# === ANCHOR: STORAGE__RELATIVE_OUTPUT_PATH_START ===
 def _relative_output_path(output: str) -> Path:
     # is_absolute() 는 호스트 OS 규칙을 따른다: Windows 에서 "/tmp/x" 는 드라이브가
     # 없어 절대경로로 인정되지 않아 가드를 통과하고 드라이브 루트에 써진다.
@@ -25,8 +27,10 @@ def _relative_output_path(output: str) -> Path:
     ):
         raise ValueError("output must be a project-relative path")
     return Path(output)
+# === ANCHOR: STORAGE__RELATIVE_OUTPUT_PATH_END ===
 
 
+# === ANCHOR: STORAGE__REPORT_SLUG_START ===
 def _report_slug(slug_source: str) -> str:
     slug = safe_plan_slug(slug_source)
     if len(slug) <= _MAX_REPORT_SLUG_CHARS:
@@ -34,8 +38,10 @@ def _report_slug(slug_source: str) -> str:
     digest = sha1(slug.encode("utf-8")).hexdigest()[:8]
     prefix = slug[: _MAX_REPORT_SLUG_CHARS - len(digest) - 1].strip(" .-")
     return f"{prefix}-{digest}" if prefix else f"report-{digest}"
+# === ANCHOR: STORAGE__REPORT_SLUG_END ===
 
 
+# === ANCHOR: STORAGE__UNIQUE_OUTPUT_PATH_START ===
 def _unique_output_path(root: Path, relative: Path) -> Path:
     candidate = root / relative
     if not candidate.exists():
@@ -49,8 +55,10 @@ def _unique_output_path(root: Path, relative: Path) -> Path:
         if not (root / next_relative).exists():
             return next_relative
         index += 1
+# === ANCHOR: STORAGE__UNIQUE_OUTPUT_PATH_END ===
 
 
+# === ANCHOR: STORAGE__RESOLVE_REPORT_DEST_START ===
 def _resolve_report_dest(
     root: Path,
     model: ReportModel,
@@ -59,6 +67,7 @@ def _resolve_report_dest(
     ext: str,
     output: str | None = None,
     force: bool = False,
+# === ANCHOR: STORAGE__RESOLVE_REPORT_DEST_END ===
 ) -> Path:
     """dest 경로를 해석하고 모든 보안 가드를 적용한 뒤 절대 경로를 반환한다.
 
@@ -90,6 +99,7 @@ def _resolve_report_dest(
     return dest
 
 
+# === ANCHOR: STORAGE_WRITE_REPORT_START ===
 def write_report(
     root: Path,
     model: ReportModel,
@@ -98,6 +108,7 @@ def write_report(
     slug_source: str,
     output: str | None = None,
     force: bool = False,
+# === ANCHOR: STORAGE_WRITE_REPORT_END ===
 ) -> Path:
     """보고서 HTML 을 디스크에 쓰고 최종 경로를 반환한다."""
     root = root.resolve()
@@ -107,6 +118,7 @@ def write_report(
     return dest
 
 
+# === ANCHOR: STORAGE_WRITE_REPORT_BYTES_START ===
 def write_report_bytes(
     root: Path,
     model: ReportModel,
@@ -116,6 +128,7 @@ def write_report_bytes(
     ext: str,
     output: str | None = None,
     force: bool = False,
+# === ANCHOR: STORAGE_WRITE_REPORT_BYTES_END ===
 ) -> Path:
     """보고서 바이너리(docx/pptx 등)를 디스크에 쓰고 최종 경로를 반환한다."""
     root = root.resolve()
@@ -123,3 +136,4 @@ def write_report_bytes(
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(data)
     return dest
+# === ANCHOR: STORAGE_END ===

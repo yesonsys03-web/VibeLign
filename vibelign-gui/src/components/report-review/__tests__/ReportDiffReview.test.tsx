@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTDIFFREVIEW_TEST_START ===
 import { test, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { ReportDiffReview } from "../ReportDiffReview";
@@ -27,3 +28,4 @@ test("기본은 모두 수락 → reject 빈 배열", () => {
   fireEvent.click(screen.getByRole("button", { name: /저장|내보내기/ }));
   expect(onConfirm).toHaveBeenCalledWith([]);
 });
+// === ANCHOR: REPORTDIFFREVIEW_TEST_END ===

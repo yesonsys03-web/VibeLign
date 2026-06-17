@@ -1,3 +1,4 @@
+// === ANCHOR: REPORT_TEST_START ===
 import { describe, test, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../core", () => ({ runVib: vi.fn() }));
@@ -110,6 +111,7 @@ test("loadDoc 실패 시 {ok:false} 반환 (모달 멈춤 방지)", async () => 
 });
 
 describe("generateReportPdf", () => {
+  // === ANCHOR: REPORT_TEST_SETUPHTMLSUCCESS_START ===
   function setupHtmlSuccess() {
     mockRunVib.mockResolvedValue({
       ok: true,
@@ -126,6 +128,7 @@ describe("generateReportPdf", () => {
       content: "<html>RP</html>",
     } as never);
   }
+  // === ANCHOR: REPORT_TEST_SETUPHTMLSUCCESS_END ===
 
   test("성공 시 {ok:true, path} 반환하고 invoke 를 올바른 인자로 호출", async () => {
     setupHtmlSuccess();
@@ -236,3 +239,4 @@ test("stampPdfPageNumbers → report-stamp-pdf 호출", async () => {
   expect(ok).toBe(true);
   expect(mockRunVib.mock.calls[0][0]).toEqual(expect.arrayContaining(["report-stamp-pdf", "/p/r.pdf"]));
 });
+// === ANCHOR: REPORT_TEST_END ===

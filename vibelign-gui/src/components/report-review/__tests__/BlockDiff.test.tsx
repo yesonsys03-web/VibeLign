@@ -1,3 +1,4 @@
+// === ANCHOR: BLOCKDIFF_TEST_START ===
 import { test, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { BlockDiff } from "../BlockDiff";
@@ -34,3 +35,4 @@ test("non_answer 가드는 'AI 응답 보류' 배지를 보여준다", () => {
   );
   expect(screen.getByText("AI 응답 보류")).toBeInTheDocument();
 });
+// === ANCHOR: BLOCKDIFF_TEST_END ===

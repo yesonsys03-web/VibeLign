@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTVIEW_TEST_START ===
 import { test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
@@ -31,3 +32,4 @@ test("기획안 없으면 빈 상태 안내", async () => {
   render(<ReportView projectDir="/proj" />);
   expect(await screen.findByText(/보고서로 만들 기획안이 아직 없어요/)).toBeInTheDocument();
 });
+// === ANCHOR: REPORTVIEW_TEST_END ===

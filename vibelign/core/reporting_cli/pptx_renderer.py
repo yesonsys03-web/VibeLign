@@ -1,3 +1,4 @@
+# === ANCHOR: PPTX_RENDERER_START ===
 from __future__ import annotations
 
 import io
@@ -14,6 +15,7 @@ except ImportError:
     PPTX_AVAILABLE = False
 
 
+# === ANCHOR: PPTX_RENDERER__SECTION_TEXT_START ===
 def _section_text(section) -> str:
     lines: list[str] = []
     for block in section.blocks:
@@ -22,8 +24,10 @@ def _section_text(section) -> str:
         elif block.text:
             lines.append(block.text)
     return "\n".join(lines)
+# === ANCHOR: PPTX_RENDERER__SECTION_TEXT_END ===
 
 
+# === ANCHOR: PPTX_RENDERER_RENDER_PPTX_START ===
 def render_pptx(model: ReportModel, theme: str = "classic") -> bytes:
     if not PPTX_AVAILABLE:
         raise ReportRendererUnavailable(
@@ -34,10 +38,12 @@ def render_pptx(model: ReportModel, theme: str = "classic") -> bytes:
 
     accent = RGBColor.from_string(get_theme(theme).accent.lstrip("#"))
 
+    # === ANCHOR: PPTX_RENDERER__ACCENT_TITLE_START ===
     def _accent_title(shape) -> None:
         for para in shape.text_frame.paragraphs:
             for run in para.runs:
                 run.font.color.rgb = accent
+    # === ANCHOR: PPTX_RENDERER__ACCENT_TITLE_END ===
 
     prs = Presentation()
     # 제목 슬라이드
@@ -55,5 +61,7 @@ def render_pptx(model: ReportModel, theme: str = "classic") -> bytes:
         if len(slide.placeholders) > 1 and body:
             slide.placeholders[1].text = body
     buf = io.BytesIO()
+# === ANCHOR: PPTX_RENDERER_RENDER_PPTX_END ===
     prs.save(buf)
     return buf.getvalue()
+# === ANCHOR: PPTX_RENDERER_END ===

@@ -1,3 +1,4 @@
+# === ANCHOR: READER_START ===
 from __future__ import annotations
 
 import re
@@ -21,10 +22,13 @@ _FIELD_BY_HEADING = {
 _LIST_FIELDS = {"features", "flows", "decisions", "exclusions", "open_questions"}
 
 
+# === ANCHOR: READER__STRIP_PLACEHOLDER_START ===
 def _strip_placeholder(value: str) -> str:
     return "" if "아직 결정이 필요" in value else value
+# === ANCHOR: READER__STRIP_PLACEHOLDER_END ===
 
 
+# === ANCHOR: READER__STRIP_BULLET_START ===
 def _strip_bullet(line: str) -> str:
     stripped = line.strip()
     if stripped.startswith("- ") or stripped.startswith("* "):
@@ -33,13 +37,16 @@ def _strip_bullet(line: str) -> str:
     if numbered:
         return numbered.group("item").strip()
     return stripped
+# === ANCHOR: READER__STRIP_BULLET_END ===
 
 
+# === ANCHOR: READER_PARSE_PLAN_MARKDOWN_START ===
 def parse_plan_markdown(text: str) -> PlanningData:
     data = PlanningData()
     current: str | None = None
     buf: list[str] = []
 
+    # === ANCHOR: READER_FLUSH_START ===
     def flush() -> None:
         nonlocal buf
         if current and current not in _LIST_FIELDS:
@@ -49,6 +56,7 @@ def parse_plan_markdown(text: str) -> PlanningData:
             if value:
                 setattr(data, current, value)
         buf = []
+    # === ANCHOR: READER_FLUSH_END ===
 
     for raw_line in text.splitlines():
         line = raw_line.rstrip()
@@ -70,6 +78,7 @@ def parse_plan_markdown(text: str) -> PlanningData:
         else:
             buf.append(line)
 
+# === ANCHOR: READER_PARSE_PLAN_MARKDOWN_END ===
     flush()
     return data
 
@@ -77,6 +86,7 @@ def parse_plan_markdown(text: str) -> PlanningData:
 _BULLET_RE = re.compile(r"^(?:[-*]\s+|\d+[.)]\s+)")
 
 
+# === ANCHOR: READER_PARSE_GENERIC_MARKDOWN_START ===
 def parse_generic_markdown(text: str) -> tuple[str, list[Section]]:
     """임의 마크다운을 (제목, 섹션[]) 으로 변환한다(기획 양식 무관).
     첫 '# ' → 제목, 이후 '#'~'######' → 섹션 경계, 단락 → paragraph,
@@ -89,19 +99,24 @@ def parse_generic_markdown(text: str) -> tuple[str, list[Section]]:
     bullets: list[str] = []
     blocks: list[Block] = []
 
+    # === ANCHOR: READER_FLUSH_PARA_START ===
     def flush_para() -> None:
         nonlocal para
         joined = " ".join(s for s in (p.strip() for p in para) if s)
         if joined:
             blocks.append(Block(kind="paragraph", text=joined))
         para = []
+    # === ANCHOR: READER_FLUSH_PARA_END ===
 
+    # === ANCHOR: READER_FLUSH_BULLETS_START ===
     def flush_bullets() -> None:
         nonlocal bullets
         if bullets:
             blocks.append(Block(kind="bullets", items=bullets))
         bullets = []
+    # === ANCHOR: READER_FLUSH_BULLETS_END ===
 
+    # === ANCHOR: READER_FLUSH_SECTION_START ===
     def flush_section() -> None:
         nonlocal blocks
         flush_bullets()
@@ -109,6 +124,7 @@ def parse_generic_markdown(text: str) -> tuple[str, list[Section]]:
         if blocks:
             sections.append(Section(heading=heading or "개요", blocks=blocks))
         blocks = []
+    # === ANCHOR: READER_FLUSH_SECTION_END ===
 
     for raw_line in text.splitlines():
         line = raw_line.rstrip()
@@ -131,6 +147,7 @@ def parse_generic_markdown(text: str) -> tuple[str, list[Section]]:
         if not stripped:
             flush_bullets()
             flush_para()
+# === ANCHOR: READER_PARSE_GENERIC_MARKDOWN_END ===
             continue
         flush_bullets()
         para.append(line)
@@ -139,6 +156,7 @@ def parse_generic_markdown(text: str) -> tuple[str, list[Section]]:
     return title, sections
 
 
+# === ANCHOR: READER_BUILD_DOC_REPORT_MODEL_START ===
 def build_doc_report_model(
     text: str,
     *,
@@ -146,6 +164,7 @@ def build_doc_report_model(
     source_plan_path: str = "",
     author: str = "",
     default_title: str = "문서 보고서",
+# === ANCHOR: READER_BUILD_DOC_REPORT_MODEL_END ===
 ) -> ReportModel:
     """임의 .md → '문서 그대로' ReportModel(report_type='doc')."""
     title, sections = parse_generic_markdown(text)
@@ -157,3 +176,4 @@ def build_doc_report_model(
         author=author,
         sections=sections,
     )
+# === ANCHOR: READER_END ===

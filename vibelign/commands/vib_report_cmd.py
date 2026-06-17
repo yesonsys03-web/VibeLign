@@ -1,3 +1,4 @@
+# === ANCHOR: VIB_REPORT_CMD_START ===
 from __future__ import annotations
 
 import json
@@ -24,6 +25,7 @@ from vibelign.core.reporting_cli.storage import _report_slug
 from vibelign.terminal_render import clack_intro, clack_success
 
 
+# === ANCHOR: VIB_REPORT_CMD_REPORTARGS_START ===
 class ReportArgs(Protocol):
     plan: str
     type: str
@@ -40,8 +42,10 @@ class ReportArgs(Protocol):
     theme: str
     author: str
     page_numbers: bool
+# === ANCHOR: VIB_REPORT_CMD_REPORTARGS_END ===
 
 
+# === ANCHOR: VIB_REPORT_CMD_RUN_VIB_REPORT_START ===
 def run_vib_report(args: object) -> None:
     raw = cast(ReportArgs, args)
     want_json = bool(raw.json)
@@ -181,11 +185,15 @@ def run_vib_report(args: object) -> None:
     else:
         clack_intro("VibeLign 보고서")
         clack_success(f"보고서 저장: {dest}")
+# === ANCHOR: VIB_REPORT_CMD_RUN_VIB_REPORT_END ===
 
 
+# === ANCHOR: VIB_REPORT_CMD__FAIL_START ===
 def _fail(want_json: bool, message: str) -> None:
     if want_json:
         print(json.dumps({"ok": False, "error": message}, ensure_ascii=False))
     else:
         print(message, file=sys.stderr)
     raise SystemExit(1)
+# === ANCHOR: VIB_REPORT_CMD__FAIL_END ===
+# === ANCHOR: VIB_REPORT_CMD_END ===

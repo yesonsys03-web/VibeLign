@@ -1,3 +1,4 @@
+# === ANCHOR: POLISH_START ===
 from __future__ import annotations
 
 from dataclasses import replace
@@ -14,6 +15,7 @@ FREE_PROVIDERS: tuple[str, ...] = ("codex", "opencode", "agy")
 _POLISH_BLOCK_KINDS = {"paragraph", "summary"}
 
 
+# === ANCHOR: POLISH_POLISH_TRY_ORDER_START ===
 def polish_try_order(provider: str | None) -> list[str]:
     """다듬기 provider 시도 순서. auto/None → 무료 전용. 명시 provider → 그것 우선 + 무료 보충.
     claude 는 provider 가 정확히 'claude' 일 때만 포함된다(자동 폴백으로는 절대 안 들어감)."""
@@ -24,10 +26,13 @@ def polish_try_order(provider: str | None) -> list[str]:
         if p != provider:
             order.append(p)
     return order
+# === ANCHOR: POLISH_POLISH_TRY_ORDER_END ===
 
 
+# === ANCHOR: POLISH_POLISH_BLOCK_TEXT_START ===
 def polish_block_text(
     text: str, *, provider: str, runner: cli_adapters.PlanningCliRunner, root: Path, timeout_seconds: int
+# === ANCHOR: POLISH_POLISH_BLOCK_TEXT_END ===
 ) -> str | None:
     """텍스트 한 덩이를 비즈니스 보고 어조로 다듬는다. 실패 시 None."""
     if not text.strip():
@@ -53,6 +58,7 @@ def polish_block_text(
     return None
 
 
+# === ANCHOR: POLISH_POLISH_REPORT_MODEL_WITH_GUARDS_START ===
 def polish_report_model_with_guards(
     model: ReportModel,
     *,
@@ -60,6 +66,7 @@ def polish_report_model_with_guards(
     runner=None,
     root: Path | None = None,
     timeout_seconds: int = 60,
+# === ANCHOR: POLISH_POLISH_REPORT_MODEL_WITH_GUARDS_END ===
 ) -> tuple[ReportModel, list[dict]]:
     """paragraph/summary 블록을 다듬되, 수치 가드를 통과한 블록만 교체한다.
     가드 실패(숫자 누락/신규) 블록은 원문 유지 + guards 에 기록. 블록별 다듬기 실패도
@@ -98,7 +105,10 @@ def polish_report_model_with_guards(
     return replace(model, sections=new_sections), guards
 
 
+# === ANCHOR: POLISH_POLISH_REPORT_MODEL_START ===
 def polish_report_model(model: ReportModel, **kwargs) -> ReportModel:
     """하위호환 래퍼: 가드를 적용하되 guards 기록은 버리고 모델만 반환한다."""
     new_model, _ = polish_report_model_with_guards(model, **kwargs)
     return new_model
+# === ANCHOR: POLISH_POLISH_REPORT_MODEL_END ===
+# === ANCHOR: POLISH_END ===

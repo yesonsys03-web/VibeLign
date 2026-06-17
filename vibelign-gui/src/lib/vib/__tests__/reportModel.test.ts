@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTMODEL_TEST_START ===
 import { test, expect } from "vitest";
 import { rejectPairs, type ReviewDecisions } from "../reportModel";
 
@@ -9,3 +10,4 @@ test("rejectPairs collects only rejected coordinates", () => {
 test("rejectPairs empty when all accepted", () => {
   expect(rejectPairs({ "0:0": "accept" })).toEqual([]);
 });
+// === ANCHOR: REPORTMODEL_TEST_END ===
