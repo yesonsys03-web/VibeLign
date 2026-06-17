@@ -54,7 +54,7 @@ describe("generatePlanningReport", () => {
       expect(res.html).toContain("RP");
     }
     expect(mockRunVib).toHaveBeenCalledWith(
-      ["report", "plans/p.md", "--type", "work", "--format", "html", "--json"],
+      ["report", "plans/p.md", "--type", "work", "--format", "html", "--theme", "classic", "--json"],
       "/proj",
     );
     expect(mockLoadDoc).toHaveBeenCalledWith("/proj", ".vibelign/reports/r-work.html");
@@ -207,4 +207,17 @@ test("renderReportWithDecisions → reject-blocks + polish-key 인자", async ()
   expect(r.ok).toBe(true);
   const argv = mockRunVib.mock.calls[0][0];
   expect(argv).toEqual(expect.arrayContaining(["--reject-blocks", "[[0,1]]", "--polish-key", "k1"]));
+});
+
+test("generatePlanningReport theme → --theme 인자", async () => {
+  mockRunVib.mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/p/r.html", report_type: "work" }), stderr: "", exit_code: 0 });
+  mockLoadDoc.mockResolvedValue({ path: "x", content: "<i></i>" } as never);
+  await generatePlanningReport("/proj", "plans/p.md", "work", false, "minimal");
+  expect(mockRunVib.mock.calls[0][0]).toEqual(expect.arrayContaining(["--theme", "minimal"]));
+});
+
+test("renderReportWithDecisions theme → --theme 인자", async () => {
+  mockRunVib.mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/p/r.html" }), stderr: "", exit_code: 0 });
+  await renderReportWithDecisions("/proj", "plans/p.md", "work", "html", [[0, 1]], "k1", "executive");
+  expect(mockRunVib.mock.calls[0][0]).toEqual(expect.arrayContaining(["--theme", "executive"]));
 });

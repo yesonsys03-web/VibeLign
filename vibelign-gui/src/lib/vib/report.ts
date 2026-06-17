@@ -25,10 +25,11 @@ export async function generatePlanningReport(
   planPath: string,
   reportType: ReportType,
   polish = false,
+  theme = "classic",
 ): Promise<ReportResult> {
   const res = await runVib(
     [
-      "report", planPath, "--type", reportType, "--format", "html", "--json",
+      "report", planPath, "--type", reportType, "--format", "html", "--theme", theme, "--json",
       ...(polish ? ["--polish"] : []),
     ],
     cwd,
@@ -86,8 +87,9 @@ export async function generateReportPdf(
   planPath: string,
   reportType: ReportType,
   polish = false,
+  theme = "classic",
 ): Promise<PdfResult> {
-  const html = await generatePlanningReport(cwd, planPath, reportType, polish);
+  const html = await generatePlanningReport(cwd, planPath, reportType, polish, theme);
   if (!html.ok) return html;
 
   const outPdf = html.path.replace(/\.html$/i, ".pdf");
@@ -109,10 +111,11 @@ export async function generateReportOffice(
   reportType: ReportType,
   format: OfficeFormat,
   polish = false,
+  theme = "classic",
 ): Promise<PdfResult> {
   const res = await runVib(
     [
-      "report", planPath, "--type", reportType, "--format", format, "--json",
+      "report", planPath, "--type", reportType, "--format", format, "--theme", theme, "--json",
       ...(polish ? ["--polish"] : []),
     ],
     cwd,
@@ -164,11 +167,12 @@ export async function renderReportWithDecisions(
   format: "html" | "pdf" | "docx" | "pptx",
   reject: [number, number][],
   polishKey: string,
+  theme = "classic",
 ): Promise<PdfResult> {
   const fmt = format === "pdf" ? "html" : format;
   const args = [
     "report", planPath, "--type", reportType, "--format", fmt,
-    "--reject-blocks", JSON.stringify(reject), "--polish-key", polishKey, "--json",
+    "--reject-blocks", JSON.stringify(reject), "--polish-key", polishKey, "--theme", theme, "--json",
   ];
   const res = await runVib(args, cwd);
   try {
