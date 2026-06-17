@@ -104,7 +104,7 @@ export default function ReportView({ projectDir, onStart, sourcePath, onSourceHa
     };
   }, [projectDir]);
 
-  if (plans !== null && plans.length === 0 && !reportFor) {
+  if (plans !== null && plans.length === 0 && !reportFor && !review && !reviewBusy && !exportedPath) {
     return (
       <div
         style={{
