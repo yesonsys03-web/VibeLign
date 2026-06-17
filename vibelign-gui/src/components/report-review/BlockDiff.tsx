@@ -13,7 +13,12 @@ interface Props {
   onReject: () => void;
 }
 
+function guardLabel(g: GuardRecord): string {
+  return g.reason === "non_answer" ? "AI 응답 보류" : "숫자 보존됨";
+}
+
 function guardTitle(g: GuardRecord): string {
+  if (g.reason === "non_answer") return "AI 응답이 보고 문장 같지 않아 원문을 유지했어요";
   if (g.reason === "number_added") return "다듬기가 원문에 없던 숫자를 넣으려 해서 원문을 유지했어요";
   return `보존된 수치: ${g.missing.join(", ")}`;
 }
@@ -46,7 +51,7 @@ export function BlockDiff({ heading, base, polished, decision, guard, vague, onA
     <div style={box}>
       <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6 }}>
         {heading}
-        {guard && <span style={badge} title={guardTitle(guard)}>숫자 보존됨</span>}
+        {guard && <span style={badge} title={guardTitle(guard)}>{guardLabel(guard)}</span>}
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <div style={col}><div style={label}>원본</div><div>{base.text}</div></div>

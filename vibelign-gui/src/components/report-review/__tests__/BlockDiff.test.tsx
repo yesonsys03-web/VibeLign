@@ -19,3 +19,18 @@ test("모호어가 하이라이트(mark)로 표시된다", () => {
   const mark = screen.getByText("대폭");
   expect(mark.tagName.toLowerCase()).toBe("mark");
 });
+
+test("non_answer 가드는 'AI 응답 보류' 배지를 보여준다", () => {
+  render(
+    <BlockDiff
+      heading="대상"
+      base={{ kind: "paragraph", text: "동네 미용실 사장님", items: [] }}
+      polished={{ kind: "paragraph", text: "동네 미용실 사장님", items: [] }}
+      decision="reject"
+      guard={{ section: 0, block: 0, reason: "non_answer", missing: [] }}
+      onAccept={() => {}}
+      onReject={() => {}}
+    />,
+  );
+  expect(screen.getByText("AI 응답 보류")).toBeInTheDocument();
+});
