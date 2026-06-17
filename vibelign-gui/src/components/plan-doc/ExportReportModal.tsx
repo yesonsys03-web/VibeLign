@@ -1,5 +1,6 @@
 import { useState, type CSSProperties } from "react";
 import { openPath } from "@tauri-apps/plugin-opener";
+import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
 import { pickFolder } from "../../lib/vib/system";
 import {
   copyReportTo,
@@ -126,10 +127,12 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
         const blocks = countPolishableBlocks(probe.payload);
         if (blocks > POLISH_WARN_BLOCKS) {
           const mins = Math.max(1, Math.round((blocks * SECONDS_PER_BLOCK_EST) / 60));
-          const proceed = window.confirm(
+          // window.confirm 은 Tauri WKWebView 에서 반환값이 신뢰 불가 → 플러그인 다이얼로그 사용.
+          const proceed = await tauriConfirm(
             `이 문서는 다듬기 대상 블록이 ${blocks}개예요.\n` +
               `AI 어조 다듬기는 블록마다 순차로 처리해 약 ${mins}분 이상 걸릴 수 있어요.\n\n` +
-              `계속하려면 [확인], 취소하면 'AI 어조 다듬기'를 끄고 바로 생성하세요.`,
+              `취소하면 'AI 어조 다듬기'를 끄고 바로 생성할 수 있어요.`,
+            { title: "AI 어조 다듬기", kind: "warning", okLabel: "계속", cancelLabel: "취소" },
           );
           if (!proceed) return; // 모달 유지 — 사용자가 다듬기 끄고 다시 누르면 즉시 생성
         }
