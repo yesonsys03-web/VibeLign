@@ -718,6 +718,13 @@ def register_extended_commands(
         func=lazy_command("vibelign.commands.vib_report_cmd", "run_vib_report")
     )
 
+    sp = sub.add_parser("report-stamp-pdf", help="생성된 PDF 에 페이지 번호 스탬프")
+    _ = sp.add_argument("pdf", help="대상 PDF 경로")
+    _ = sp.add_argument("--json", action="store_true", help="JSON 으로 결과 출력")
+    sp.set_defaults(
+        func=lazy_command("vibelign.commands.vib_report_stamp_cmd", "run_vib_report_stamp")
+    )
+
     p = sub.add_parser(
         "transfer",
         help="AI 툴 바꿔도 맥락 유지 (PROJECT_CONTEXT.md 생성)",
