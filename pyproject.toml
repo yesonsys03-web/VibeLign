@@ -20,10 +20,14 @@ classifiers = [
     "Topic :: Software Development :: Build Tools",
     "Topic :: Software Development :: Quality Assurance",
 ]
-dependencies = ["anthropic>=0.40.0", "rich>=13.9.0", "mcp>=1.0.0", "watchdog>=3.0.0", "typing_extensions>=4.0.0; python_version < '3.12'"]
+dependencies = ["anthropic>=0.40.0", "rich>=13.9.0", "mcp>=1.0.0", "watchdog>=3.0.0", "typing_extensions>=4.0.0; python_version < '3.12'", "python-docx>=1.0", "python-pptx>=1.0", "pypdf>=4.0", "reportlab>=4.0"]
 
 [project.optional-dependencies]
-report = ["python-docx>=1.0", "python-pptx>=1.0", "pypdf>=4.0", "reportlab>=4.0"]
+# 보고서 내보내기(python-docx/pptx/pypdf/reportlab)는 GUI 가 주력 사용처라 항상 필요하다.
+# 따라서 base dependencies 로 승격했고, 어떤 설치 경로(dev uv-tool·PyInstaller 번들·pip)든
+# 자동 포함된다 → "python-docx 가 필요합니다" 류 누락 버그 클래스 제거.
+# 이 extra 는 기존 `pip install ".[report]"` 호출(gui.yml·build 스크립트) 호환을 위한 빈 별칭이다.
+report = []
 
 [project.urls]
 Homepage = "https://yesonsys03-web.github.io/VibeLign/"
