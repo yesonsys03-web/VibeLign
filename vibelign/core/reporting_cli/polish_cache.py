@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
 from hashlib import sha256
 from pathlib import Path
 
-from vibelign.core.reporting_cli.models import Block, ReportModel, Section
+from vibelign.core.reporting_cli.model_json import model_from_dict, model_to_dict
+from vibelign.core.reporting_cli.models import ReportModel
 
 _SCHEMA = 1
 
@@ -32,7 +32,7 @@ def _cache_path(root: Path, slug: str) -> Path:
 def save_polish_cache(root: Path, slug: str, *, key: str, model: ReportModel) -> Path:
     dest = _cache_path(root, slug)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"schema_version": _SCHEMA, "key": key, "model": asdict(model)}
+    payload = {"schema_version": _SCHEMA, "key": key, "model": model_to_dict(model)}
     dest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     return dest
 
@@ -47,12 +47,7 @@ def load_polish_cache(root: Path, slug: str, *, key: str) -> ReportModel | None:
         return None
     if data.get("schema_version") != _SCHEMA or data.get("key") != key:
         return None
-    m = data["model"]
-    sections = [
-        Section(heading=s["heading"], blocks=[Block(**b) for b in s["blocks"]])
-        for s in m["sections"]
-    ]
-    return ReportModel(
-        title=m["title"], report_type=m["report_type"], date=m["date"],
-        source_plan_path=m.get("source_plan_path", ""), sections=sections,
-    )
+    try:
+        return model_from_dict(data["model"])
+    except (KeyError, ValueError):
+        return None
