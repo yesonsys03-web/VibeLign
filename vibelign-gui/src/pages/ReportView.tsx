@@ -219,7 +219,7 @@ export default function ReportView({ projectDir, onStart, sourcePath, onSourceHa
         planPath={reportFor ?? ""}
         cwd={projectDir}
         defaultType={fromDoc ? "doc" : "work"}
-        onClose={() => setReportFor(null)}
+        onClose={() => { setReportFor(null); setFromDoc(false); }}
         onReviewRequest={(type, format, theme, author, pageNumbers) => void handleReviewRequest(type, format, theme, author, pageNumbers)}
       />
     </div>
