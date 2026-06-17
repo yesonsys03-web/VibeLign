@@ -6,7 +6,7 @@ from pathlib import Path
 from vibelign.core.planning_cli import cli_adapters
 from vibelign.core.planning_cli.response_policy import safe_planning_status
 from vibelign.core.reporting_cli.models import Block, ReportModel, Section
-from vibelign.core.reporting_cli.polish_guard import guard_polished
+from vibelign.core.reporting_cli.polish_guard import guard_polished, looks_like_non_answer
 
 # design §6: 무료 provider 전용. planning 의 provider_try_order 는 claude 를 포함하므로
 # 재사용하지 않는다(비용 노출 방지). claude 는 명시 요청 시에만.
@@ -80,12 +80,16 @@ def polish_report_model_with_guards(
                     timeout_seconds=timeout_seconds,
                 )
                 if polished:
-                    ok, reason, missing = guard_polished(block.text, polished)
-                    if ok:
-                        new_blocks.append(replace(block, text=polished))
-                    else:
+                    if looks_like_non_answer(block.text, polished):
                         new_blocks.append(block)
-                        guards.append({"section": si, "block": bi, "reason": reason, "missing": missing})
+                        guards.append({"section": si, "block": bi, "reason": "non_answer", "missing": []})
+                    else:
+                        ok, reason, missing = guard_polished(block.text, polished)
+                        if ok:
+                            new_blocks.append(replace(block, text=polished))
+                        else:
+                            new_blocks.append(block)
+                            guards.append({"section": si, "block": bi, "reason": reason, "missing": missing})
                 else:
                     new_blocks.append(block)
             else:

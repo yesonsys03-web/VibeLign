@@ -154,3 +154,28 @@ def test_guard_reverts_block_and_records():
     )
     assert out.sections[0].blocks[0].text == "신규 회원 50% 증가"  # 원문 유지
     assert guards == [{"section": 0, "block": 0, "reason": "number_dropped", "missing": ["50"]}]
+
+
+class _NonAnswerRunner:
+    """다듬기 대신 헛소리 메타응답을 돌려주는 가짜 provider."""
+
+    def run(self, command, *, cwd, input_text, timeout_seconds):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            status="ok",
+            stdout="**어떤 문장을 다듬어 드릴까요?** 원문을 알려주세요.",
+            stderr="", exit_code=0, duration_ms=1,
+        )
+
+
+def test_nonanswer_block_kept_original_and_recorded():
+    model = ReportModel(
+        title="t", report_type="work", date="d",
+        sections=[Section(heading="대상", blocks=[Block(kind="paragraph", text="동네 미용실 사장님")])],
+    )
+    out, guards = polish_report_model_with_guards(
+        model, provider="codex", runner=_NonAnswerRunner(), root=None,
+    )
+    assert out.sections[0].blocks[0].text == "동네 미용실 사장님"  # 원문 유지
+    assert guards == [{"section": 0, "block": 0, "reason": "non_answer", "missing": []}]
