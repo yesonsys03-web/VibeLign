@@ -171,6 +171,73 @@ class AnchorToolsV2Test(unittest.TestCase):
             )
             self.assertFalse(insert_js_symbol_anchors(path))
 
+    def test_insert_js_symbol_anchors_ignores_braces_in_strings(self):
+        # 문자열 안의 '}' 가 naive 카운터를 속여 END 앵커가 본문 중간에 박히던 버그.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "sample.tsx"
+            path.write_text(
+                'export function Foo() {\n'
+                '  const msg = "close brace: }";\n'
+                '  return msg;\n'
+                '}\n',
+                encoding="utf-8",
+            )
+            self.assertTrue(insert_js_symbol_anchors(path))
+            out = path.read_text(encoding="utf-8").splitlines()
+            end_idx = next(i for i, ln in enumerate(out) if "FOO_END" in ln)
+            # END 앵커 바로 위 줄은 함수 닫는 '}' 여야 한다(본문 중간 금지).
+            self.assertEqual(out[end_idx - 1].strip(), "}")
+            body_idx = next(i for i, ln in enumerate(out) if "return msg;" in ln)
+            self.assertLess(body_idx, end_idx)
+
+    def test_insert_js_symbol_anchors_jsx_end_after_close_brace(self):
+        # JSX 반환 컴포넌트(템플릿 리터럴 포함)의 END 앵커는 } 뒤에 와야 한다.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "Modal.tsx"
+            path.write_text(
+                "export function Modal() {\n"
+                "  const label = `n=${count}`;\n"
+                "  return (\n"
+                "    <div>\n"
+                "      <button>{label}</button>\n"
+                "      닫기\n"
+                "    </div>\n"
+                "  );\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            self.assertTrue(insert_js_symbol_anchors(path))
+            out = path.read_text(encoding="utf-8").splitlines()
+            end_idx = next(i for i, ln in enumerate(out) if "MODAL_END" in ln)
+            self.assertEqual(out[end_idx - 1].strip(), "}")
+            # '닫기' JSX 텍스트는 END 앵커보다 위에 있어야 한다(텍스트 안에 박히면 안 됨).
+            close_idx = next(i for i, ln in enumerate(out) if "닫기" in ln)
+            self.assertLess(close_idx, end_idx)
+
+    def test_insert_js_symbol_anchors_nested_arrow_keeps_outer_end_after_brace(self):
+        # 함수 본문 안의 const 화살표(핸들러) 마커가 바깥 함수의 END 위치를 밀면 안 된다.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "Panel.tsx"
+            path.write_text(
+                "export function Panel() {\n"
+                "  const onClick = () => {\n"
+                "    doThing();\n"
+                "  };\n"
+                "  return <button onClick={onClick}>닫기</button>;\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            self.assertTrue(insert_js_symbol_anchors(path))
+            out = path.read_text(encoding="utf-8").splitlines()
+            outer_end = next(
+                i for i, ln in enumerate(out) if "PANEL_PANEL_END" in ln
+            )
+            # 바깥 함수 END 앵커 바로 위는 함수 닫는 '}'.
+            self.assertEqual(out[outer_end - 1].strip(), "}")
+            # 안쪽 화살표 END 앵커도 존재하고 바깥 END 보다 위에 있어야 한다.
+            inner_end = next(i for i, ln in enumerate(out) if "PANEL_ONCLICK_END" in ln)
+            self.assertLess(inner_end, outer_end)
+
 
 if __name__ == "__main__":
     unittest.main()

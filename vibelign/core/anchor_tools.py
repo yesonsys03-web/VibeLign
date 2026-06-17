@@ -269,6 +269,86 @@ def _python_symbol_blocks(text: str) -> list[SymbolBlock]:
 # === ANCHOR: ANCHOR_TOOLS__PYTHON_SYMBOL_BLOCKS_END ===
 
 
+def _js_scan_line(line: str, state: dict) -> int:
+    """`line` 의 코드 영역 중괄호 순증감({ 개수 − } 개수)을 돌려준다.
+    문자열·템플릿 리터럴(${...} 보간 포함)·주석 안의 중괄호는 세지 않는다.
+    state(dict)로 줄 경계를 넘는 문맥(블록주석·미닫힌 문자열/템플릿)을 잇는다.
+    naive 카운터가 JSX·문자열·템플릿 안의 중괄호에 속아 본문 중간을 블록 끝으로
+    잡던 문제를 막는다(예: `"...}"` 의 } 를 블록 종료로 오인)."""
+    stack: list = state["stack"]  # 프레임: ("str", delim) | ("tmpl",) | ("interp", n)
+    delta = 0
+    j = 0
+    n = len(line)
+    while j < n:
+        c = line[j]
+        nxt = line[j + 1] if j + 1 < n else ""
+        if state["block_comment"]:
+            if c == "*" and nxt == "/":
+                state["block_comment"] = False
+                j += 2
+            else:
+                j += 1
+            continue
+        top = stack[-1] if stack else None
+        kind = top[0] if top else "code"
+        if kind == "str":
+            if c == "\\":
+                j += 2
+            elif c == top[1]:
+                stack.pop()
+                j += 1
+            else:
+                j += 1
+            continue
+        if kind == "tmpl":
+            if c == "\\":
+                j += 2
+            elif c == "`":
+                stack.pop()
+                j += 1
+            elif c == "$" and nxt == "{":
+                stack.append(("interp", 0))
+                j += 2
+            else:
+                j += 1
+            continue
+        # kind in ("code", "interp") → 실제 코드 문맥
+        if c == "/" and nxt == "/":
+            break  # 줄 주석 — 이후 무시
+        if c == "/" and nxt == "*":
+            state["block_comment"] = True
+            j += 2
+            continue
+        if c in ("'", '"'):
+            stack.append(("str", c))
+            j += 1
+            continue
+        if c == "`":
+            stack.append(("tmpl",))
+            j += 1
+            continue
+        if c == "{":
+            if kind == "interp":
+                stack[-1] = ("interp", top[1] + 1)
+            else:
+                delta += 1
+                state["opened"] = True  # 코드 블록 '{' 를 한 번이라도 봤다(한 줄 본문 감지)
+            j += 1
+            continue
+        if c == "}":
+            if kind == "interp":
+                if top[1] == 0:
+                    stack.pop()  # ${...} 닫힘 → 템플릿 텍스트로 복귀
+                else:
+                    stack[-1] = ("interp", top[1] - 1)
+            else:
+                delta -= 1
+            j += 1
+            continue
+        j += 1
+    return delta
+
+
 # === ANCHOR: ANCHOR_TOOLS__JS_SYMBOL_BLOCKS_START ===
 def _js_symbol_blocks(text: str) -> list[SymbolBlock]:
     lines = text.splitlines()
@@ -295,22 +375,20 @@ def _js_symbol_blocks(text: str) -> list[SymbolBlock]:
             continue
         symbol_name = match.group(2)
         indent = match.group(1)
-        saw_open = "{" in line
-        depth = line.count("{") - line.count("}")
-        if saw_open and depth <= 0:
-            blocks.append((idx, idx, symbol_name, indent))
-            continue
+        # 문자열·템플릿·주석을 인식하는 정확한 중괄호 카운터로 블록 끝을 찾는다.
+        # depth 는 줄 끝에서만 검사해 한 줄짜리 시그니처(구조분해 파라미터 { ... })를
+        # 본문 블록과 혼동하지 않는다.
+        state = {"stack": [], "block_comment": False, "opened": False}
+        depth = 0
         end_idx = idx
-        for probe in range(idx + 1, len(lines)):
-            probe_line = lines[probe]
-            if not saw_open and "{" in probe_line:
-                saw_open = True
-            if saw_open:
-                depth += probe_line.count("{") - probe_line.count("}")
+        closed = False
+        for probe in range(idx, len(lines)):
+            depth += _js_scan_line(lines[probe], state)
             end_idx = probe
-            if saw_open and depth <= 0:
+            if state["opened"] and depth <= 0:
+                closed = True
                 break
-        if not saw_open:
+        if not state["opened"] or not closed:
             continue
         while end_idx > idx and not lines[end_idx].strip():
             end_idx -= 1
@@ -371,8 +449,11 @@ def insert_js_symbol_anchors(path: Path) -> bool:
     if not blocks:
         return False
     existing = set(extract_anchors(path))
-    changed = False
-    for start_idx, end_idx, symbol_name, indent in reversed(blocks):
+    # 모든 삽입 위치를 먼저 모은 뒤 위치 내림차순으로 삽입한다. reversed(blocks) 로
+    # 하나씩 끼워넣으면 중첩 심볼(예: 함수 본문 안의 const 화살표)의 마커가 바깥 심볼의
+    # end 위치를 밀어 END 앵커가 } 위(본문/JSX 안)로 들어가던 버그를 막는다.
+    inserts: list[tuple[int, int, str]] = []
+    for start_idx, end_idx, symbol_name, indent in blocks:
         anchor_name = build_symbol_anchor_name(path, symbol_name)
         if anchor_name in existing:
             continue
@@ -380,12 +461,12 @@ def insert_js_symbol_anchors(path: Path) -> bool:
         end_marker = f"{indent}// === ANCHOR: {anchor_name}_END ==="
         if start_idx > 0 and lines[start_idx - 1].strip() == start_marker.strip():
             continue
-        insert_end_at = min(end_idx + 1, len(lines))
-        lines.insert(insert_end_at, end_marker)
-        lines.insert(start_idx, start_marker)
-        changed = True
-    if not changed:
+        inserts.append((start_idx, 0, start_marker))
+        inserts.append((min(end_idx + 1, len(lines)), 1, end_marker))
+    if not inserts:
         return False
+    for pos, _kind, marker in sorted(inserts, key=lambda x: (x[0], x[1]), reverse=True):
+        lines.insert(pos, marker)
     try:
         _ = path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
     except OSError as e:
