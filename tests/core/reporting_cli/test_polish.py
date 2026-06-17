@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 
+from vibelign.core.reporting_cli import polish as polish_mod
 from vibelign.core.reporting_cli.models import Block, ReportModel, Section
 from vibelign.core.reporting_cli.polish import polish_report_model, polish_try_order
 
@@ -112,3 +113,19 @@ def test_polish_runs_build_cli_command_output_verbatim(monkeypatch):
     polish_report_model(_model(), provider="codex", runner=CaptRunner())
     assert captured["cmd"][0] == "/bin/codex"  # 전체 경로 보존
     assert "exec" in captured["cmd"]  # 서브커맨드 보존
+
+
+def test_polish_prompt_forbids_changing_numbers(monkeypatch):
+    captured = {}
+
+    def fake_build(adapter, prompt):
+        captured["prompt"] = prompt
+        return None  # 미설치로 처리 → 호출만 캡처
+
+    monkeypatch.setattr(polish_mod.cli_adapters, "build_cli_command", fake_build)
+    polish_mod.polish_block_text(
+        "신규 회원 50% 증가", provider="codex",
+        runner=polish_mod.cli_adapters.SubprocessPlanningCliRunner(), root=None, timeout_seconds=1,
+    )
+    assert "숫자" in captured["prompt"]
+    assert "과장" in captured["prompt"]
