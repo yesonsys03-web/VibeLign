@@ -35,3 +35,16 @@ def test_render_is_full_document_with_print_css():
     assert html.lstrip().startswith("<!DOCTYPE html>")
     assert "@media print" in html
     assert "</html>" in html.rstrip()
+
+
+def test_theme_minimal_injects_its_css():
+    html = render_html(_model(), theme="minimal")
+    assert "Pretendard" in html and "text-transform:uppercase" in html
+
+
+def test_unknown_theme_falls_back_to_classic():
+    assert render_html(_model(), theme="nope") == render_html(_model(), theme="classic")
+
+
+def test_default_theme_is_classic_unchanged():
+    assert "#9B1B1B" in render_html(_model())

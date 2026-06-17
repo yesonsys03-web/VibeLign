@@ -4,34 +4,17 @@ from html import escape
 
 from vibelign.core.reporting_cli.models import Block, ReportModel, Section
 from vibelign.core.reporting_cli.templates import REPORT_TYPE_LABELS
+from vibelign.core.reporting_cli.themes import get_theme
 
-_HEAD = """<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<title>{title}</title>
-<style>
-  :root {{ --ink: #1A1A1A; --paper: #F7F7F2; --accent: #9B1B1B; }}
-  * {{ box-sizing: border-box; }}
-  body {{
-    font-family: "Noto Serif KR", "Apple SD Gothic Neo", serif;
-    color: var(--ink); background: var(--paper);
-    max-width: 760px; margin: 0 auto; padding: 48px 40px; line-height: 1.7;
-  }}
-  h1 {{ font-size: 26px; border-bottom: 3px solid var(--accent); padding-bottom: 10px; }}
-  h2 {{ font-size: 17px; color: var(--accent); margin-top: 28px; }}
-  p.meta {{ color: #666; font-size: 13px; margin-top: 4px; }}
-  p.summary {{ font-weight: 700; font-size: 16px; }}
-  ul {{ padding-left: 20px; }}
-  li {{ margin: 4px 0; }}
-  @media print {{
-    body {{ background: #fff; max-width: none; padding: 0; }}
-    h2 {{ break-after: avoid; }}
-    section {{ break-inside: avoid; }}
-  }}
-</style>
-</head>
-<body>"""
+_HEAD_OPEN = '<!DOCTYPE html>\n<html lang="ko">\n<head>\n<meta charset="utf-8">\n<title>'
+_HEAD_MID = "</title>\n<style>"
+_HEAD_CLOSE = "\n</style>\n</head>\n<body>"
+
+
+def _head(title: str, css: str) -> str:
+    """테마 CSS 를 끼운 <head>…<body> 를 만든다. 시맨틱 HTML 구조는 테마와 무관하게 동일."""
+    return f"{_HEAD_OPEN}{title}{_HEAD_MID}{css}{_HEAD_CLOSE}"
+
 
 _TAIL = "</body>\n</html>"
 
@@ -50,10 +33,11 @@ def _render_section(section: Section) -> str:
     return f"<section>\n<h2>{escape(section.heading)}</h2>\n{blocks}\n</section>"
 
 
-def render_html(model: ReportModel) -> str:
+def render_html(model: ReportModel, theme: str = "classic") -> str:
     label = REPORT_TYPE_LABELS.get(model.report_type, model.report_type)
+    css = get_theme(theme).html_css
     parts = [
-        _HEAD.format(title=escape(model.title)),
+        _head(escape(model.title), css),
         f"<h1>{escape(model.title)}</h1>",
         f'<p class="meta">{escape(label)} · {escape(model.date)}</p>',
     ]
