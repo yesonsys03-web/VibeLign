@@ -42,4 +42,5 @@ class ReportModel:
     report_type: str
     date: str
     source_plan_path: str = ""
+    author: str = ""
     sections: list[Section] = field(default_factory=list)

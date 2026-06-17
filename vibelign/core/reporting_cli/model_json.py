@@ -13,6 +13,7 @@ def model_to_dict(model: ReportModel) -> dict:
         "report_type": model.report_type,
         "date": model.date,
         "source_plan_path": model.source_plan_path,
+        "author": model.author,
         "sections": [
             {
                 "heading": s.heading,
@@ -54,6 +55,7 @@ def model_from_dict(data: object) -> ReportModel:
         report_type=data["report_type"],
         date=data["date"],
         source_plan_path=data.get("source_plan_path", ""),
+        author=data.get("author", ""),
         sections=sections,
     )
 # === ANCHOR: MODEL_JSON_END ===

@@ -35,3 +35,8 @@ def test_from_dict_rejects_invalid_block_kind():
 def test_from_dict_rejects_missing_field():
     with pytest.raises(ValueError):
         model_from_dict({"title": "x", "sections": []})  # report_type/date 누락
+
+
+def test_author_roundtrips():
+    m = ReportModel(title="t", report_type="work", date="d", author="홍길동", sections=[])
+    assert model_from_dict(model_to_dict(m)).author == "홍길동"
