@@ -1,3 +1,4 @@
+// === ANCHOR: EXPORTREPORTMODAL_START ===
 import { useState, type CSSProperties } from "react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
@@ -20,9 +21,11 @@ import { isPolishable, type EmitPayload } from "../../lib/vib/reportModel";
 const POLISH_WARN_BLOCKS = 20;
 const SECONDS_PER_BLOCK_EST = 15;
 
+// === ANCHOR: EXPORTREPORTMODAL_COUNTPOLISHABLEBLOCKS_START ===
 function countPolishableBlocks(payload: EmitPayload): number {
   return payload.base.sections.reduce((n, s) => n + s.blocks.filter(isPolishable).length, 0);
 }
+// === ANCHOR: EXPORTREPORTMODAL_COUNTPOLISHABLEBLOCKS_END ===
 
 type Format = "html" | "pdf" | "docx" | "pptx";
 type ResultState =
@@ -63,6 +66,7 @@ const THEMES: { id: string; label: string }[] = [
   { id: "pastel", label: "부드러운 파스텔" },
 ];
 
+// === ANCHOR: EXPORTREPORTMODAL_EXPORTREPORTMODAL_START ===
 export function ExportReportModal({ open, planPath, cwd, onClose, onReviewRequest, defaultType }: ExportReportModalProps) {
   const [reportType, setReportType] = useState<ReportType>(defaultType ?? "work");
   const [format, setFormat] = useState<Format>("html");
@@ -93,6 +97,7 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
   if (!open) return null;
 
   // 생성된 보고서를 지정 폴더로 복사한다. dir 가 없으면 기본 폴더(설정값→OS 문서 폴더)를 쓴다.
+  // === ANCHOR: EXPORTREPORTMODAL_EXPORTTO_START ===
   const exportTo = async (src: string, dir?: string) => {
     setExporting(true);
     setExportErr(null);
@@ -106,8 +111,10 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
       setExporting(false);
     }
   };
+  // === ANCHOR: EXPORTREPORTMODAL_EXPORTTO_END ===
 
   // "다른 위치에 저장": 폴더 선택 → 복사 → 그 폴더를 다음 기본값으로 기억.
+  // === ANCHOR: EXPORTREPORTMODAL_HANDLECHOOSELOCATION_START ===
   const handleChooseLocation = async () => {
     if (!result || !result.ok) return;
     const dir = await pickFolder().catch(() => null);
@@ -115,14 +122,33 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
     await exportTo(result.path, dir);
     void setReportExportDir(dir).catch(() => {});
   };
+  // === ANCHOR: EXPORTREPORTMODAL_HANDLECHOOSELOCATION_END ===
 
+  // === ANCHOR: EXPORTREPORTMODAL_HANDLEGENERATE_START ===
   const handleGenerate = async () => {
+    // 사전 점검(다듬기 없이 → LLM 미호출, 즉시): 선택한 종류로 추출된 섹션 수를 미리 본다.
+    setGenerating(true);
+    const probe = await emitReportModel(cwd, planPath, reportType, false, author);
+
+    // 빈 보고서 가드: 일반 문서에 기획 양식 종류(업무/제안/결과)를 고르면 추출 0 → 빈 보고서.
+    // 'doc'(문서 그대로)는 구조를 보존하므로 제외한다.
+    if (probe.ok && probe.payload.base.sections.length === 0 && reportType !== "doc") {
+      setGenerating(false);
+      const label = TYPES.find((t) => t.id === reportType)?.label ?? reportType;
+      const switchToDoc = await tauriConfirm(
+        `'${label}' 종류로는 이 문서에서 보고서 내용을 찾지 못했어요.\n` +
+          `업무 보고·제안서·결과 보고는 VibeLign 기획 양식 전용이에요.\n\n` +
+          `'문서 그대로'로 바꿀까요? (바꾼 뒤 다시 '보고서 생성'을 누르세요.)`,
+        { title: "보고서 종류 확인", kind: "warning", okLabel: "문서 그대로로 변경", cancelLabel: "취소" },
+      );
+      if (switchToDoc) setReportType("doc");
+      return; // 생성 중단 — 사용자가 종류 확인 후 다시 생성
+    }
+
     // 다듬기 ON + 리뷰 핸들러 제공 시: 인라인 생성 대신 검토 화면으로 위임한다.
     if (polish && onReviewRequest) {
-      // 큰 문서 경고: 먼저 다듬기 없이(=LLM 미호출, 즉시) 구조만 받아 블록 수를 센다.
-      setGenerating(true);
-      const probe = await emitReportModel(cwd, planPath, reportType, false, author);
       setGenerating(false);
+      // 큰 문서 경고: 다듬기는 블록당 순차 LLM 호출이라 오래 걸린다.
       if (probe.ok) {
         const blocks = countPolishableBlocks(probe.payload);
         if (blocks > POLISH_WARN_BLOCKS) {
@@ -141,7 +167,7 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
       onClose();
       return;
     }
-    setGenerating(true);
+    // 다듬기 OFF: 인라인 생성(setGenerating 은 위에서 이미 true).
     setResult(null);
     setOpenErr(null);
     setExportedPath(null);
@@ -164,6 +190,7 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
     // 생성 성공 시 기본 폴더로 자동 복사(내부 .vibelign/reports 사본은 그대로 유지).
     if (next.ok) void exportTo(next.path);
   };
+  // === ANCHOR: EXPORTREPORTMODAL_HANDLEGENERATE_END ===
 
   return (
     <div role="dialog" aria-label="보고서로 내보내기" style={overlay}>
@@ -356,6 +383,7 @@ export function ExportReportModal({ open, planPath, cwd, onClose, onReviewReques
           )}
           <button type="button" onClick={onClose} style={secondaryBtn}>
             닫기
+// === ANCHOR: EXPORTREPORTMODAL_EXPORTREPORTMODAL_END ===
           </button>
         </div>
       </div>
@@ -428,3 +456,4 @@ const secondaryBtn: CSSProperties = {
   borderRadius: 6,
   cursor: "pointer",
 };
+// === ANCHOR: EXPORTREPORTMODAL_END ===

@@ -36,7 +36,15 @@ export function ReportDiffReview({ payload, onConfirm, onCancel }: Props) {
         <button type="button" onClick={() => setAll("accept")}>모두 수락</button>
         <button type="button" onClick={() => setAll("reject")}>모두 원본</button>
       </div>
-      {diffs.length === 0 && <p style={{ color: "#888" }}>다듬을 항목이 없어요. 바로 내보낼 수 있어요.</p>}
+      {diffs.length === 0 &&
+        (payload.base.sections.length === 0 && payload.report_type !== "doc" ? (
+          <p style={{ color: "#9B1B1B", lineHeight: 1.6 }}>
+            이 문서에는 선택한 보고서 양식 항목이 없어요. <b>취소</b> 후 보고서 종류를{" "}
+            <b>‘문서 그대로’</b>로 바꿔 다시 만들어 주세요.
+          </p>
+        ) : (
+          <p style={{ color: "#888" }}>다듬을 항목이 없어요. 바로 내보낼 수 있어요.</p>
+        ))}
       {diffs.map(({ si, bi, sec }) => (
         <BlockDiff
           key={`${si}:${bi}`}
