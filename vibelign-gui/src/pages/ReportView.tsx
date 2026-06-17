@@ -15,6 +15,10 @@ interface ReportViewProps {
   projectDir: string;
   /** 보고서로 만들 기획안이 하나도 없을 때 기획 시작으로 이동. */
   onStart?: () => void;
+  /** 문서/코드탐색에서 우클릭→보고서로 넘어온 소스 .md 경로(루트 상대). */
+  sourcePath?: string | null;
+  /** sourcePath 를 모달로 소비한 뒤 부모 상태를 비우게 알린다(재진입 시 재오픈 방지). */
+  onSourceHandled?: () => void;
 }
 
 function fileName(path: string): string {
@@ -27,9 +31,10 @@ function fileName(path: string): string {
  * 기획 단계 '보고서 작성' 서브탭. 저장된 기획안을 골라 업무용 보고서
  * (HTML·PDF·Word·PPT)로 내보낸다. 직장인용 — 기획 내용을 보고서 독자에 맞게 변환.
  */
-export default function ReportView({ projectDir, onStart }: ReportViewProps) {
+export default function ReportView({ projectDir, onStart, sourcePath, onSourceHandled }: ReportViewProps) {
   const [plans, setPlans] = useState<PlanningSessionSummary[] | null>(null);
   const [reportFor, setReportFor] = useState<string | null>(null);
+  const [fromDoc, setFromDoc] = useState(false);
   const [review, setReview] = useState<
     { payload: EmitPayload; plan: string; type: ReportType; format: Fmt; theme: string; author: string; pageNumbers: boolean } | null
   >(null);
@@ -79,6 +84,13 @@ export default function ReportView({ projectDir, onStart }: ReportViewProps) {
   }
 
   useEffect(() => {
+    if (!sourcePath) return;
+    setReportFor(sourcePath);
+    setFromDoc(true);
+    onSourceHandled?.();
+  }, [sourcePath, onSourceHandled]);
+
+  useEffect(() => {
     let cancelled = false;
     listPlanningChatSessions(projectDir)
       .then((rows) => {
@@ -92,7 +104,7 @@ export default function ReportView({ projectDir, onStart }: ReportViewProps) {
     };
   }, [projectDir]);
 
-  if (plans !== null && plans.length === 0) {
+  if (plans !== null && plans.length === 0 && !reportFor) {
     return (
       <div
         style={{
@@ -179,7 +191,10 @@ export default function ReportView({ projectDir, onStart }: ReportViewProps) {
             <button
               type="button"
               onClick={() => {
-                if (plan.outputPath) setReportFor(plan.outputPath);
+                if (plan.outputPath) {
+                  setFromDoc(false);
+                  setReportFor(plan.outputPath);
+                }
               }}
               style={{
                 flexShrink: 0,
@@ -199,9 +214,11 @@ export default function ReportView({ projectDir, onStart }: ReportViewProps) {
       </div>
 
       <ExportReportModal
+        key={`${reportFor ?? "none"}:${fromDoc ? "doc" : "plan"}`}
         open={reportFor !== null}
         planPath={reportFor ?? ""}
         cwd={projectDir}
+        defaultType={fromDoc ? "doc" : "work"}
         onClose={() => setReportFor(null)}
         onReviewRequest={(type, format, theme, author, pageNumbers) => void handleReviewRequest(type, format, theme, author, pageNumbers)}
       />

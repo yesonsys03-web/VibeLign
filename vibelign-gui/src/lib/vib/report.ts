@@ -3,7 +3,7 @@ import { runVib } from "./core";
 import { loadDoc } from "../docs";
 import type { EmitPayload } from "./reportModel";
 
-export type ReportType = "work" | "proposal" | "result";
+export type ReportType = "work" | "proposal" | "result" | "doc";
 
 export type ReportResult =
   | { ok: true; path: string; reportType: string; html: string }

@@ -21,6 +21,7 @@ const TYPES: { id: ReportType; label: string }[] = [
   { id: "work", label: "업무 보고" },
   { id: "proposal", label: "제안서" },
   { id: "result", label: "결과 보고" },
+  { id: "doc", label: "문서 그대로" },
 ];
 
 const FORMATS: { id: Format; label: string }[] = [
@@ -37,6 +38,8 @@ export interface ExportReportModalProps {
   onClose: () => void;
   /** 제공되고 'AI 다듬기'가 켜져 있으면, 인라인 생성 대신 블록 diff 검토 화면으로 보낸다. */
   onReviewRequest?: (reportType: ReportType, format: Format, theme: string, author: string, pageNumbers: boolean) => void;
+  /** 모달이 열릴 때 초기 선택될 보고서 종류(문서 우클릭 진입 시 "doc"). 기본 "work". */
+  defaultType?: ReportType;
 }
 
 const THEMES: { id: string; label: string }[] = [
@@ -47,8 +50,8 @@ const THEMES: { id: string; label: string }[] = [
   { id: "pastel", label: "부드러운 파스텔" },
 ];
 
-export function ExportReportModal({ open, planPath, cwd, onClose, onReviewRequest }: ExportReportModalProps) {
-  const [reportType, setReportType] = useState<ReportType>("work");
+export function ExportReportModal({ open, planPath, cwd, onClose, onReviewRequest, defaultType }: ExportReportModalProps) {
+  const [reportType, setReportType] = useState<ReportType>(defaultType ?? "work");
   const [format, setFormat] = useState<Format>("html");
   const [polish, setPolish] = useState(false);
   const [theme, setTheme] = useState<string>(() => {
