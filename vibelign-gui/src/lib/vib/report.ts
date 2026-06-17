@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { runVib } from "./core";
 import { loadDoc } from "../docs";
+import type { EmitPayload } from "./reportModel";
 
 export type ReportType = "work" | "proposal" | "result";
 
@@ -63,6 +64,21 @@ export async function generatePlanningReport(
   }
 }
 
+/** 사용자가 지정한 보고서 기본 내보내기 폴더. 미설정 시 OS 문서 폴더로 폴백한다. */
+export async function getReportExportDir(): Promise<string> {
+  return invoke<string>("get_report_export_dir");
+}
+
+/** 보고서 기본 내보내기 폴더를 저장한다(다음 내보내기의 기본값). */
+export async function setReportExportDir(dir: string): Promise<void> {
+  return invoke<void>("set_report_export_dir", { dir });
+}
+
+/** 생성된 보고서 파일(.vibelign/reports/*)을 지정 폴더로 복사하고 실제 대상 경로를 돌려준다. */
+export async function copyReportTo(src: string, destDir: string): Promise<string> {
+  return invoke<string>("copy_report_to", { src, destDir });
+}
+
 export type PdfResult = { ok: true; path: string } | { ok: false; error: string };
 
 export async function generateReportPdf(
@@ -114,4 +130,52 @@ export async function generateReportOffice(
     return { ok: false, error: String(parsed.error ?? "보고서 생성에 실패했어요.") };
   }
   return { ok: true, path: parsed.path };
+}
+
+export type EmitResult = { ok: true; payload: EmitPayload } | { ok: false; error: string };
+
+/** 다듬기 전/후 구조화 모델(base/polished)+key+guards+vague 를 받아온다(파일 미저장). */
+export async function emitReportModel(
+  cwd: string,
+  planPath: string,
+  reportType: ReportType,
+  polish: boolean,
+): Promise<EmitResult> {
+  const args = [
+    "report", planPath, "--type", reportType, "--emit-model", "--json",
+    ...(polish ? ["--polish"] : []),
+  ];
+  const res = await runVib(args, cwd);
+  try {
+    const payload = JSON.parse(res.stdout.trim());
+    if (!payload.ok) return { ok: false, error: String(payload.error ?? "모델 생성 실패") };
+    return { ok: true, payload };
+  } catch {
+    return { ok: false, error: res.stderr.trim() || "모델 생성 실패" };
+  }
+}
+
+/** 거부 블록 인덱스 + emit 의 polishKey 로 캐시 polished 를 병합해 렌더·저장한다.
+ *  PDF 는 호출자가 결과 HTML 을 export_report_pdf 로 변환한다(여기서는 html 로 렌더). */
+export async function renderReportWithDecisions(
+  cwd: string,
+  planPath: string,
+  reportType: ReportType,
+  format: "html" | "pdf" | "docx" | "pptx",
+  reject: [number, number][],
+  polishKey: string,
+): Promise<PdfResult> {
+  const fmt = format === "pdf" ? "html" : format;
+  const args = [
+    "report", planPath, "--type", reportType, "--format", fmt,
+    "--reject-blocks", JSON.stringify(reject), "--polish-key", polishKey, "--json",
+  ];
+  const res = await runVib(args, cwd);
+  try {
+    const parsed = JSON.parse(res.stdout.trim());
+    if (!parsed.ok || !parsed.path) return { ok: false, error: String(parsed.error ?? "렌더 실패") };
+    return { ok: true, path: parsed.path };
+  } catch {
+    return { ok: false, error: res.stderr.trim() || "렌더 실패" };
+  }
 }

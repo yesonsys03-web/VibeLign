@@ -7,7 +7,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 import { runVib } from "../core";
 import { loadDoc } from "../../docs";
 import { invoke } from "@tauri-apps/api/core";
-import { generatePlanningReport, generateReportPdf, generateReportOffice, toProjectRelative } from "../report";
+import { generatePlanningReport, generateReportPdf, generateReportOffice, toProjectRelative, emitReportModel, renderReportWithDecisions } from "../report";
 
 const mockRunVib = vi.mocked(runVib);
 const mockLoadDoc = vi.mocked(loadDoc);
@@ -186,4 +186,25 @@ test("generateReportOffice docx → runVib 인자 + path 반환", async () => {
   if (res.ok) expect(res.path).toContain(".docx");
   const argv = mockRunVib.mock.calls[0][0];
   expect(argv).toEqual(expect.arrayContaining(["--format", "docx", "--polish"]));
+});
+
+test("emitReportModel → --emit-model 인자 + payload 파싱", async () => {
+  mockRunVib.mockResolvedValue({
+    ok: true,
+    stdout: JSON.stringify({ ok: true, report_type: "work", slug: "s", key: "k1", base: {}, polished: {}, guards: [], vague_warnings: [] }),
+    stderr: "", exit_code: 0,
+  });
+  const r = await emitReportModel("/proj", "plans/p.md", "work", true);
+  expect(r.ok).toBe(true);
+  if (r.ok) expect(r.payload.key).toBe("k1");
+  const argv = mockRunVib.mock.calls[0][0];
+  expect(argv).toEqual(expect.arrayContaining(["--emit-model", "--polish"]));
+});
+
+test("renderReportWithDecisions → reject-blocks + polish-key 인자", async () => {
+  mockRunVib.mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/p/r.html" }), stderr: "", exit_code: 0 });
+  const r = await renderReportWithDecisions("/proj", "plans/p.md", "work", "html", [[0, 1]], "k1");
+  expect(r.ok).toBe(true);
+  const argv = mockRunVib.mock.calls[0][0];
+  expect(argv).toEqual(expect.arrayContaining(["--reject-blocks", "[[0,1]]", "--polish-key", "k1"]));
 });
