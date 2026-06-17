@@ -53,3 +53,25 @@ def test_docx_theme_applies_accent_to_heading():
             if r.font.color is not None and r.font.color.rgb is not None:
                 colors.append(str(r.font.color.rgb))
     assert "1B3A6B" in colors
+
+
+def test_docx_page_numbers_adds_page_field():
+    import io as _io, docx as _docx
+    from vibelign.core.reporting_cli.docx_renderer import render_docx as _r
+    from vibelign.core.reporting_cli.models import Block, ReportModel, Section
+    m = ReportModel(title="t", report_type="work", date="d",
+                    sections=[Section("개요", [Block(kind="summary", text="x")])])
+    data = _r(m, page_numbers=True)
+    xml = _docx.Document(_io.BytesIO(data)).sections[0].footer._element.xml
+    assert "PAGE" in xml and "NUMPAGES" in xml
+
+
+def test_docx_no_page_numbers_no_footer_field():
+    import io as _io, docx as _docx
+    from vibelign.core.reporting_cli.docx_renderer import render_docx as _r
+    from vibelign.core.reporting_cli.models import Block, ReportModel, Section
+    m = ReportModel(title="t", report_type="work", date="d",
+                    sections=[Section("개요", [Block(kind="summary", text="x")])])
+    data = _r(m, page_numbers=False)
+    xml = _docx.Document(_io.BytesIO(data)).sections[0].footer._element.xml
+    assert "PAGE" not in xml

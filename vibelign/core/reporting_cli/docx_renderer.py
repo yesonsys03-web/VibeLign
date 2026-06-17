@@ -17,7 +17,25 @@ class ReportRendererUnavailable(RuntimeError):
     """렌더러 라이브러리(python-docx/pptx) 미설치."""
 
 
-def render_docx(model: ReportModel, theme: str = "classic") -> bytes:
+def _add_page_number_footer(document) -> None:
+    """바닥글 중앙에 'PAGE / NUMPAGES'(예: 1 / 3) 필드를 넣는다. Word 가 실제 번호 렌더."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    para = document.sections[0].footer.paragraphs[0]
+    para.alignment = 1  # WD_ALIGN_PARAGRAPH.CENTER
+
+    def _field(instr: str) -> None:
+        fld = OxmlElement("w:fldSimple")
+        fld.set(qn("w:instr"), instr)
+        para._p.append(fld)
+
+    _field("PAGE")
+    para.add_run(" / ")
+    _field("NUMPAGES")
+
+
+def render_docx(model: ReportModel, theme: str = "classic", page_numbers: bool = False) -> bytes:
     if not DOCX_AVAILABLE:
         raise ReportRendererUnavailable(
             "Word 내보내기에 python-docx 가 필요합니다. (pip install python-docx)"
@@ -46,6 +64,8 @@ def render_docx(model: ReportModel, theme: str = "classic") -> bytes:
                 run.bold = True
             else:  # paragraph
                 doc.add_paragraph(block.text)
+    if page_numbers:
+        _add_page_number_footer(doc)
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
