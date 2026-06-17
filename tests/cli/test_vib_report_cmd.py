@@ -247,3 +247,13 @@ def test_render_decisions_cache_miss_errors(tmp_path, capsys, monkeypatch):
         run_vib_report(_args(plan, json=True, reject_blocks="[[0,0]]", polish_key="deadbeef"))
     out = json.loads(capsys.readouterr().out.strip())
     assert out["ok"] is False
+
+
+def test_theme_threads_to_html(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+    run_vib_report(_args(plan, json=True, theme="minimal"))
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is True
+    assert "text-transform:uppercase" in Path(out["path"]).read_text(encoding="utf-8")

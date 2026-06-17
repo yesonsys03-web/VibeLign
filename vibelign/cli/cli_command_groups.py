@@ -711,6 +711,7 @@ def register_extended_commands(
     _ = r.add_argument("--emit-model", action="store_true", help="다듬기 전/후 구조화 모델을 JSON 으로 출력(파일 미저장)")
     _ = r.add_argument("--reject-blocks", default=None, help="원본 유지할 블록 인덱스 JSON: [[section,block],...]")
     _ = r.add_argument("--polish-key", default=None, help="emit 응답의 key — render 가 그 캐시 항목만 로드(재현성)")
+    _ = r.add_argument("--theme", default="classic", choices=["classic", "minimal", "executive", "compact", "pastel"], help="디자인 테마 (기본 classic)")
     r.set_defaults(
         func=lazy_command("vibelign.commands.vib_report_cmd", "run_vib_report")
     )

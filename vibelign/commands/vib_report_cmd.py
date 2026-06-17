@@ -36,6 +36,7 @@ class ReportArgs(Protocol):
     emit_model: bool
     reject_blocks: str | None
     polish_key: str | None
+    theme: str
 
 
 def run_vib_report(args: object) -> None:
@@ -108,7 +109,8 @@ def run_vib_report(args: object) -> None:
             merged = merge_models(model, polished, reject)
             fmt = getattr(raw, "format", "html") or "html"
             dest = render_and_write(
-                root, merged, fmt, slug_source=slug_source, output=raw.output, force=raw.force
+                root, merged, fmt, slug_source=slug_source, output=raw.output, force=raw.force,
+                theme=getattr(raw, "theme", "classic") or "classic",
             )
         except ReportRendererUnavailable as exc:
             _fail(want_json, str(exc))
@@ -138,7 +140,8 @@ def run_vib_report(args: object) -> None:
     fmt = getattr(raw, "format", "html") or "html"
     try:
         dest = render_and_write(
-            root, model, fmt, slug_source=slug_source, output=raw.output, force=raw.force
+            root, model, fmt, slug_source=slug_source, output=raw.output, force=raw.force,
+            theme=getattr(raw, "theme", "classic") or "classic",
         )
     except ReportRendererUnavailable as exc:
         _fail(want_json, str(exc))
