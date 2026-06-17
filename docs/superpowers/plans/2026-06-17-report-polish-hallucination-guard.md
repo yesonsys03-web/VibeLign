@@ -135,6 +135,13 @@ def test_guard_fails_when_new_number_added():
 def test_guard_ok_when_no_numbers_either_side():
     ok, reason, missing = guard_polished("회원이 늘었다", "회원이 증가했습니다")
     assert ok is True
+
+
+def test_guard_ok_when_date_reformatted():
+    # '06'(원본) 과 '6'(다듬) 을 같게 보아 멀쩡한 날짜 재포맷을 되돌리지 않는다.
+    ok, reason, missing = guard_polished("기한 2026-06-17 까지", "기한 2026년 6월 17일까지")
+    assert ok is True
+    assert missing == []
 ```
 
 - [ ] **Step 2: 실패 확인**
@@ -155,13 +162,20 @@ from collections import Counter
 _NUM = re.compile(r"\d[\d,]*(?:\.\d+)?")
 
 
+def _norm(token: str) -> str:
+    """천단위 콤마 제거 + 정수 토큰의 선행 0 제거('06'→'6').
+    날짜 재포맷('2026-06-17'→'2026년 6월 17일')이 가드를 헛발동시키지 않게 한다."""
+    t = token.replace(",", "")
+    return str(int(t)) if t.isdigit() else t
+
+
 def extract_numbers(text: str) -> set[str]:
-    """문자열의 숫자 토큰을 천단위 콤마 제거해 정규화한 집합으로 반환한다."""
-    return {m.replace(",", "") for m in _NUM.findall(text)}
+    """문자열의 숫자 토큰을 정규화한 집합으로 반환한다."""
+    return {_norm(m) for m in _NUM.findall(text)}
 
 
 def _counts(text: str) -> Counter[str]:
-    return Counter(m.replace(",", "") for m in _NUM.findall(text))
+    return Counter(_norm(m) for m in _NUM.findall(text))
 
 
 def guard_polished(original: str, polished: str) -> tuple[bool, str, list[str]]:
@@ -442,25 +456,25 @@ Expected: FAIL — emit 이 빈 배열 반환
 
 import 와 polish 블록을 교체:
 
+import 교체 (emit.py 상단): `polish_report_model` → `polish_report_model_with_guards`, 그리고 `lint_model` 추가.
+
 ```python
-# emit.py 상단 import 교체
 from vibelign.core.reporting_cli.polish import polish_report_model_with_guards
 from vibelign.core.reporting_cli.vague_lint import lint_model
-# (기존 polish_report_model import 제거)
 ```
 
-`emit_report_payload` 의 polish 분기를 교체:
+`emit_report_payload` 의 polish/return 사이 블록을 교체한다(Plan A 가 `key` 를 위에서 이미 계산해 둠 — 여기서 다시 계산하지 않는다):
 
 ```python
+    key = polish_cache_key(base, provider=provider)  # (Plan A 에서 추가됨 — 그대로 유지)
     guards: list[dict] = []
     if polish:
         polished, guards = polish_report_model_with_guards(base, provider=provider, root=root)
-        key = polish_cache_key(base, provider=provider)
         save_polish_cache(root, slug, key=key, model=polished)
     else:
         polished = base
 
-    vague_warnings = lint_model(polished)
+    vague_warnings = lint_model(polished)  # Plan A 의 `vague_warnings: list[dict] = []` 를 대체
 ```
 
 > `vague_warnings` 지역변수는 기존 반환 dict 에서 이미 참조(Plan A). polish=False 면 polished=base 라 base 의 모호어를 잡는다.
@@ -529,16 +543,24 @@ import type { Decision, GuardRecord, RModelBlock, VagueWarning } from "../../lib
 
 // Props 에 추가: vague?: VagueWarning[];
 
+// lint 의 offset(파이썬 코드포인트 기준)을 신뢰하지 않고, GUI 에서 term 을 직접 재탐색한다.
+// → 이모지 등 non-BMP 문자가 있어도 JS 문자열 내부에서 offset 이 일관(정렬 안전).
 function highlight(text: string, vague: VagueWarning[]) {
-  if (!vague.length) return text;
-  const marks = [...vague].sort((a, b) => a.offset - b.offset);
+  const terms = [...new Set(vague.map((w) => w.term))];
+  if (!terms.length) return text;
+  const hits: { start: number; len: number }[] = [];
+  for (const term of terms) {
+    let i = text.indexOf(term);
+    while (i !== -1) { hits.push({ start: i, len: term.length }); i = text.indexOf(term, i + 1); }
+  }
+  hits.sort((a, b) => a.start - b.start);
   const out: (string | JSX.Element)[] = [];
   let cur = 0;
-  marks.forEach((w, i) => {
-    if (w.offset < cur) return;
-    out.push(text.slice(cur, w.offset));
-    out.push(<mark key={i} style={{ background: "#ffe08a" }}>{text.slice(w.offset, w.offset + w.term.length)}</mark>);
-    cur = w.offset + w.term.length;
+  hits.forEach((h, idx) => {
+    if (h.start < cur) return; // 겹치는 매치는 건너뛴다
+    out.push(text.slice(cur, h.start));
+    out.push(<mark key={idx} style={{ background: "#ffe08a" }}>{text.slice(h.start, h.start + h.len)}</mark>);
+    cur = h.start + h.len;
   });
   out.push(text.slice(cur));
   return out;
@@ -584,7 +606,7 @@ Run: `pytest tests/core/reporting_cli -v`
 Expected: PASS (guard/lint/polish/emit 전부)
 
 - [ ] **Step 2: 플랫폼 무관성 확인(코드 점검)** — `polish_guard.py`/`vague_lint.py` 는 순수 정규식·문자열만 사용(파일·subprocess·플랫폼 API 없음) → Windows 동일 동작. 정규식은 ASCII 숫자만 매칭하므로 OS 로캘 영향 없음.
-- [ ] **Step 3: 한글 처리 확인** — `str.find` 는 유니코드 코드포인트 기준 offset 을 반환. GUI 의 `text.slice(offset, offset+term.length)` 도 동일 기준이라 한글 하이라이트 정렬 일치(테스트 Task 6 으로 커버).
+- [ ] **Step 3: 한글·유니코드 처리 확인** — 파이썬 `str.find` 의 offset 은 코드포인트 기준이고 JS `String` 은 UTF-16 기준이라, 이모지 등 non-BMP 문자가 섞이면 둘이 어긋난다. 그래서 GUI `highlight` 는 lint 의 offset 을 쓰지 않고 **term 을 JS 문자열에서 직접 재탐색**한다(Task 6) → 정렬 불일치 원천 회피. lint 의 offset 은 서버측 디버그·집계용으로만 남는다.
 - [ ] **Step 4: GUI 타입체크/린트**
 
 Run: `cd vibelign-gui && npx tsc --noEmit && npx eslint src/components/report-review src/lib/vib/reportModel.ts`

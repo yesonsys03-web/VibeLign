@@ -547,11 +547,12 @@ def emit_report_payload(
     base = build_report_model(data, report_type, date=date, source_plan_path=str(plan))
     slug = _report_slug(data.title or data.idea or plan.stem)
 
+    # 캐시 키는 항상 계산해 payload 에 싣는다(render 가 이 key 로만 캐시를 로드 → 재현성 보장).
+    key = polish_cache_key(base, provider=provider)
     guards: list[dict] = []
     vague_warnings: list[dict] = []
     if polish:
         polished = polish_report_model(base, provider=provider, root=root)
-        key = polish_cache_key(base, provider=provider)
         save_polish_cache(root, slug, key=key, model=polished)
     else:
         polished = base
@@ -560,6 +561,7 @@ def emit_report_payload(
         "ok": True,
         "report_type": report_type,
         "slug": slug,
+        "key": key,
         "base": model_to_dict(base),
         "polished": model_to_dict(polished),
         "guards": guards,
@@ -609,29 +611,44 @@ def _args(**over):
     base = dict(
         plan="", type="work", format="html", output=None, force=False,
         date="2026-06-17", json=True, polish=False, cli="auto",
-        emit_model=False, reject_blocks=None,
+        emit_model=False, reject_blocks=None, polish_key=None,
     )
     base.update(over)
     return SimpleNamespace(**base)
 
 
-def test_emit_model_prints_base_and_polished(tmp_path, monkeypatch, capsys):
+def test_emit_model_prints_base_polished_and_key(tmp_path, monkeypatch, capsys):
     plan = tmp_path / "p.md"; plan.write_text(PLAN, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     run_vib_report(_args(plan=str(plan), emit_model=True))
     out = json.loads(capsys.readouterr().out.strip())
     assert out["ok"] is True
-    assert "base" in out and "polished" in out
+    assert "base" in out and "polished" in out and out["key"]
     assert out["base"]["report_type"] == "work"
 
 
 def test_render_decisions_writes_file(tmp_path, monkeypatch, capsys):
     plan = tmp_path / "p.md"; plan.write_text(PLAN, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
-    run_vib_report(_args(plan=str(plan), reject_blocks="[[0,0]]"))
+    # 1) emit(polish=True) 으로 캐시를 채우고 key 를 받는다. provider 미설치 시에도
+    #    polish_report_model 이 원문을 그대로 캐시에 저장하므로 테스트 환경에서 안전.
+    run_vib_report(_args(plan=str(plan), emit_model=True, polish=True))
+    key = json.loads(capsys.readouterr().out.strip())["key"]
+    # 2) 그 key 로 render → 캐시 히트 → 파일 생성.
+    run_vib_report(_args(plan=str(plan), reject_blocks="[[0,0]]", polish_key=key))
     out = json.loads(capsys.readouterr().out.strip())
     assert out["ok"] is True
     assert Path(out["path"]).exists()
+
+
+def test_render_decisions_cache_miss_errors(tmp_path, monkeypatch, capsys):
+    """검토 캐시가 없으면 조용히 재-polish 하지 않고 명시 에러로 실패한다(재현성 보장)."""
+    plan = tmp_path / "p.md"; plan.write_text(PLAN, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit):
+        run_vib_report(_args(plan=str(plan), reject_blocks="[[0,0]]", polish_key="deadbeef"))
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out["ok"] is False
 ```
 
 - [ ] **Step 2: 실패 확인**
@@ -654,6 +671,7 @@ class ReportArgs(Protocol):
     cli: str
     emit_model: bool
     reject_blocks: str | None
+    polish_key: str | None
 ```
 
 - [ ] **Step 4: `run_vib_report` 에 emit/render 분기 추가 (모델 빌드 직후, polish 블록 앞)**
@@ -663,54 +681,59 @@ class ReportArgs(Protocol):
 ```python
     provider = getattr(raw, "cli", "auto") or "auto"
 
-    # --emit-model: 렌더·저장 없이 base/polished 구조화 모델을 JSON 으로 반환한다.
+    # --emit-model: 렌더·저장 없이 base/polished 구조화 모델 + key 를 JSON 으로 반환한다.
     if getattr(raw, "emit_model", False):
         from vibelign.core.reporting_cli.emit import emit_report_payload
-        payload = emit_report_payload(
-            str(plan_path), raw.type, date=report_date,
-            polish=getattr(raw, "polish", False), provider=provider, root=root,
-        )
+        try:
+            payload = emit_report_payload(
+                str(plan_path), raw.type, date=report_date,
+                polish=getattr(raw, "polish", False), provider=provider, root=root,
+            )
+        except (OSError, UnicodeDecodeError, ValueError) as exc:
+            _fail(want_json, f"보고서 모델 생성 실패: {exc}")
+            return
         print(json.dumps(payload, ensure_ascii=False))
         return
 
-    # --reject-blocks: 거부 인덱스만 받아 base+캐시 polished 를 병합해 렌더·저장한다.
+    # --reject-blocks: 거부 인덱스 + emit 이 준 --polish-key 로 캐시된 polished 를 로드해 병합·렌더.
+    # 캐시 미스 시 조용히 재-polish 하지 않고 명시 에러로 실패한다 → "검토한 내용 = 저장된 내용" 보장.
     reject_raw = getattr(raw, "reject_blocks", None)
     if reject_raw is not None:
         from vibelign.core.reporting_cli.merge import merge_models
-        from vibelign.core.reporting_cli.polish_cache import (
-            load_polish_cache,
-            polish_cache_key,
-            save_polish_cache,
-        )
+        from vibelign.core.reporting_cli.polish_cache import load_polish_cache
         try:
             reject = [(int(s), int(b)) for s, b in json.loads(reject_raw)]
         except (ValueError, TypeError):
             _fail(want_json, "reject-blocks JSON 형식이 잘못됐어요: [[section,block],...]")
             return
+        polish_key = getattr(raw, "polish_key", None)
+        if not polish_key:
+            _fail(want_json, "polish-key 가 필요해요(emit 응답의 key 값).")
+            return
         slug = _report_slug(slug_source)
-        key = polish_cache_key(model, provider=provider)
-        polished = load_polish_cache(root, slug, key=key)
+        polished = load_polish_cache(root, slug, key=polish_key)
         if polished is None:
-            polished = polish_report_model(model, provider=provider, root=root)
-            save_polish_cache(root, slug, key=key, model=polished)
-        model = merge_models(model, polished, reject)
-        fmt = getattr(raw, "format", "html") or "html"
+            _fail(want_json, "검토 결과가 만료됐어요. 보고서를 다시 생성해주세요.")
+            return
         try:
+            merged = merge_models(model, polished, reject)
+            fmt = getattr(raw, "format", "html") or "html"
             dest = render_and_write(
-                root, model, fmt, slug_source=slug_source, output=raw.output, force=raw.force
+                root, merged, fmt, slug_source=slug_source, output=raw.output, force=raw.force
             )
         except ReportRendererUnavailable as exc:
             _fail(want_json, str(exc)); return
         except (FileExistsError, ValueError) as exc:
             _fail(want_json, str(exc)); return
         if want_json:
-            print(json.dumps({"ok": True, "path": str(dest), "report_type": model.report_type}, ensure_ascii=False))
+            print(json.dumps({"ok": True, "path": str(dest), "report_type": merged.report_type}, ensure_ascii=False))
         else:
             clack_intro("VibeLign 보고서"); clack_success(f"보고서 저장: {dest}")
         return
 ```
 
 > 기존 `if getattr(raw, "polish", False):` 캐시 블록과 그 뒤 일반 렌더 경로는 그대로 둔다(다듬기 없이 바로 내보내는 기존 모달 경로 유지).
+> **재현성:** render 는 `polish_cache_key` 를 재계산하지 않고 emit 이 준 `--polish-key` 로만 캐시를 로드한다. 따라서 emit/render 사이의 `date` 드리프트나 provider 비결정성이 "본 것 ≠ 저장된 것" 을 만들 수 없다. `base` 와 캐시된 `polished` 는 동일 base 에서 파생돼 `merge_models` 의 zip 정렬이 항상 일치한다.
 
 - [ ] **Step 5: `cli_command_groups.py` report 서브파서에 인자 추가**
 
@@ -721,9 +744,11 @@ report 서브파서(`r = ...add_parser("report")`) 의 기존 `--polish` 인자 
                    help="다듬기 전/후 구조화 모델을 JSON으로 출력(파일 미저장)")
     r.add_argument("--reject-blocks", default=None,
                    help='원본 유지할 블록 인덱스 JSON: [[section,block],...]')
+    r.add_argument("--polish-key", default=None,
+                   help="emit 응답의 key — render 가 그 캐시 항목만 로드(재현성)")
 ```
 
-> argparse 가 `--emit-model` → `args.emit_model`, `--reject-blocks` → `args.reject_blocks` 로 매핑한다.
+> argparse 가 `--emit-model` → `args.emit_model`, `--reject-blocks` → `args.reject_blocks`, `--polish-key` → `args.polish_key` 로 매핑한다.
 
 - [ ] **Step 6: 통과 확인 + 전체 회귀**
 
@@ -779,7 +804,7 @@ export interface RModel {
 export interface GuardRecord { section: number; block: number; reason: string; missing: string[]; }
 export interface VagueWarning { section: number; block: number; term: string; offset: number; }
 export interface EmitPayload {
-  ok: true; report_type: string; slug: string;
+  ok: true; report_type: string; slug: string; key: string;
   base: RModel; polished: RModel; guards: GuardRecord[]; vague_warnings: VagueWarning[];
 }
 
@@ -844,13 +869,15 @@ test("emitReportModel parses emit JSON", async () => {
   expect(vi.mocked(runVib).mock.calls[0][0]).toContain("--emit-model");
 });
 
-test("renderReportWithDecisions passes reject-blocks", async () => {
+test("renderReportWithDecisions passes reject-blocks and polish-key", async () => {
   vi.mocked(runVib).mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/p/r.html" }), stderr: "", code: 0 } as never);
-  const r = await renderReportWithDecisions("/proj", "plans/p.md", "work", "html", [[0, 1]]);
+  const r = await renderReportWithDecisions("/proj", "plans/p.md", "work", "html", [[0, 1]], "abc123");
   expect(r.ok).toBe(true);
   const args = vi.mocked(runVib).mock.calls[0][0];
   expect(args).toContain("--reject-blocks");
   expect(args).toContain("[[0,1]]");
+  expect(args).toContain("--polish-key");
+  expect(args).toContain("abc123");
 });
 ```
 
@@ -885,12 +912,12 @@ export async function emitReportModel(
 
 export async function renderReportWithDecisions(
   cwd: string, planPath: string, reportType: ReportType, format: "html" | "pdf" | "docx" | "pptx",
-  reject: [number, number][],
+  reject: [number, number][], polishKey: string,
 ): Promise<PdfResult> {
   // PDF 는 HTML 생성 후 export_report_pdf 로 변환하므로 여기서는 html 로 렌더 후 호출자가 PDF 변환.
   const fmt = format === "pdf" ? "html" : format;
   const args = ["report", planPath, "--type", reportType, "--format", fmt,
-    "--reject-blocks", JSON.stringify(reject), "--json"];
+    "--reject-blocks", JSON.stringify(reject), "--polish-key", polishKey, "--json"];
   const res = await runVib(args, cwd);
   try {
     const parsed = JSON.parse(res.stdout.trim());
@@ -1023,7 +1050,7 @@ export function BlockDiff({ heading, base, polished, decision, guard, onAccept, 
     <div style={box}>
       <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6 }}>
         {heading}
-        {guard && <span style={badge} title={`보존된 수치: ${guard.missing.join(", ")}`}>숫자 보존됨</span>}
+        {guard && <span style={badge} title={guardTitle(guard)}>숫자 보존됨</span>}
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <div style={col}><div style={label}>원본</div><div>{base.text}</div></div>
@@ -1035,6 +1062,11 @@ export function BlockDiff({ heading, base, polished, decision, guard, onAccept, 
       </div>
     </div>
   );
+}
+
+function guardTitle(g: GuardRecord): string {
+  if (g.reason === "number_added") return "다듬기가 원문에 없던 숫자를 넣으려 해서 원문을 유지했어요";
+  return `보존된 수치: ${g.missing.join(", ")}`;
 }
 
 const box: CSSProperties = { border: "1px solid #e5e0d0", borderRadius: 6, padding: 10, marginBottom: 8 };
@@ -1121,7 +1153,7 @@ git commit -m "feat(gui-report): 블록 diff 검토 컴포넌트(useReviewState/
 리뷰 진입 흐름:
 1. 보고서 카드 "보고서 만들기" → 종류·포맷·다듬기 선택(기존 `ExportReportModal` 의 입력부 재사용).
 2. **다듬기 ON 이면** `emitReportModel(cwd, plan, type, true)` → `ReportDiffReview` 표시. **OFF 면** 기존 `ExportReportModal` 경로 그대로(변경 없음).
-3. 리뷰에서 "저장/내보내기" → `renderReportWithDecisions(cwd, plan, type, format, reject)` → 경로 수신 → 기존 내보내기/복사 흐름(`copyReportTo` + 기본 폴더, 이미 구현)으로 저장 + "파일 열기".
+3. 리뷰에서 "저장/내보내기" → `renderReportWithDecisions(cwd, plan, type, format, reject, payload.key)` → 경로 수신 → 기존 내보내기/복사 흐름(`copyReportTo` + 기본 폴더, 이미 구현)으로 저장 + "파일 열기".
 4. PDF 포맷이면 `renderReportWithDecisions(...,"pdf",...)` 가 HTML 을 만들고, 기존 `export_report_pdf`(Tauri)로 변환(기존 `generateReportPdf` 의 변환부 재사용).
 
 > 통합점(스펙 §7) 해소: 생성 진입은 모달에 유지하되, 다듬기 ON 분기만 리뷰 화면으로 보낸다(모달→서브탭 전면 이전은 하지 않음 — 최소 변경).
@@ -1174,7 +1206,10 @@ const { exportTo } = useReportExport();
 
 async function handleReviewConfirm(reject: [number, number][]) {
   if (!review) return;
-  const r = await renderReportWithDecisions(projectDir, review.plan, review.type, review.format, reject);
+  // emit 이 준 key 를 그대로 넘겨 캐시된 polished 를 로드(재현성). 만료 시 r.ok=false.
+  const r = await renderReportWithDecisions(
+    projectDir, review.plan, review.type, review.format, reject, review.payload.key,
+  );
   setReview(null);
   if (r.ok) {
     await exportTo(r.path);          // 기본 폴더 복사(이미 구현된 흐름)
