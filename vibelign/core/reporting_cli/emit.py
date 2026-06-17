@@ -19,12 +19,13 @@ def emit_report_payload(
     polish: bool,
     provider: str,
     root: Path,
+    author: str = "",
 ) -> dict:
     """base/polished 구조화 모델 + 캐시 key + guards/vague_warnings 를 조립한다.
     polish 시 결과를 polish 캐시에 저장해 render 단계가 같은 key 로 재사용하게 한다."""
     plan = Path(plan_path).expanduser()
     data = parse_plan_markdown(plan.read_text(encoding="utf-8"))
-    base = build_report_model(data, report_type, date=date, source_plan_path=str(plan))
+    base = build_report_model(data, report_type, date=date, source_plan_path=str(plan), author=author)
     slug = _report_slug(data.title or data.idea or plan.stem)
 
     # 캐시 키는 항상 계산해 payload 에 싣는다(render 가 이 key 로만 캐시를 로드 → 재현성 보장).

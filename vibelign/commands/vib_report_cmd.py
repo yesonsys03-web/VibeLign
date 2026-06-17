@@ -37,6 +37,8 @@ class ReportArgs(Protocol):
     reject_blocks: str | None
     polish_key: str | None
     theme: str
+    author: str
+    page_numbers: bool
 
 
 def run_vib_report(args: object) -> None:
@@ -62,6 +64,7 @@ def run_vib_report(args: object) -> None:
             raw.type,
             date=report_date,
             source_plan_path=str(plan_path),
+            author=getattr(raw, "author", "") or "",
         )
     except ValueError as exc:
         _fail(want_json, str(exc))
@@ -78,6 +81,7 @@ def run_vib_report(args: object) -> None:
             payload = emit_report_payload(
                 str(plan_path), raw.type, date=report_date,
                 polish=getattr(raw, "polish", False), provider=provider, root=root,
+                author=getattr(raw, "author", "") or "",
             )
         except (OSError, UnicodeDecodeError, ValueError) as exc:
             _fail(want_json, f"보고서 모델 생성 실패: {exc}")
@@ -111,6 +115,7 @@ def run_vib_report(args: object) -> None:
             dest = render_and_write(
                 root, merged, fmt, slug_source=slug_source, output=raw.output, force=raw.force,
                 theme=getattr(raw, "theme", "classic") or "classic",
+                page_numbers=bool(getattr(raw, "page_numbers", True)),
             )
         except ReportRendererUnavailable as exc:
             _fail(want_json, str(exc))
@@ -142,6 +147,7 @@ def run_vib_report(args: object) -> None:
         dest = render_and_write(
             root, model, fmt, slug_source=slug_source, output=raw.output, force=raw.force,
             theme=getattr(raw, "theme", "classic") or "classic",
+            page_numbers=bool(getattr(raw, "page_numbers", True)),
         )
     except ReportRendererUnavailable as exc:
         _fail(want_json, str(exc))

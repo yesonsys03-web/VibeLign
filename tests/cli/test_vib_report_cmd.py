@@ -257,3 +257,11 @@ def test_theme_threads_to_html(tmp_path, capsys, monkeypatch):
     out = json.loads(capsys.readouterr().out)
     assert out["ok"] is True
     assert "text-transform:uppercase" in Path(out["path"]).read_text(encoding="utf-8")
+
+
+def test_author_threads_to_html(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"; plan.write_text(PLAN_MD, encoding="utf-8")
+    run_vib_report(_args(plan, json=True, author="홍길동"))
+    out = json.loads(capsys.readouterr().out)
+    assert "작성자: 홍길동" in Path(out["path"]).read_text(encoding="utf-8")

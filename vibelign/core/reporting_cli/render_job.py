@@ -22,11 +22,12 @@ def render_and_write(
     output: str | None,
     force: bool,
     theme: str = "classic",
+    page_numbers: bool = False,
 ) -> Path:
     """모델을 fmt 로 렌더해 저장하고 경로를 반환한다.
     예외는 호출자가 처리: ReportRendererUnavailable / FileExistsError / ValueError."""
     if fmt == "docx":
-        data_bytes = render_docx(model, theme=theme)
+        data_bytes = render_docx(model, theme=theme, page_numbers=page_numbers)
         return write_report_bytes(
             root, model, data_bytes, slug_source=slug_source, ext=".docx", output=output, force=force
         )

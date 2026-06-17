@@ -712,6 +712,8 @@ def register_extended_commands(
     _ = r.add_argument("--reject-blocks", default=None, help="원본 유지할 블록 인덱스 JSON: [[section,block],...]")
     _ = r.add_argument("--polish-key", default=None, help="emit 응답의 key — render 가 그 캐시 항목만 로드(재현성)")
     _ = r.add_argument("--theme", default="classic", choices=["classic", "minimal", "executive", "compact", "pastel"], help="디자인 테마 (기본 classic)")
+    _ = r.add_argument("--author", default="", help="작성자 이름 (메타에 표시)")
+    _ = r.add_argument("--page-numbers", action=argparse.BooleanOptionalAction, default=True, help="페이지 번호(Word, 기본 ON)")
     r.set_defaults(
         func=lazy_command("vibelign.commands.vib_report_cmd", "run_vib_report")
     )
