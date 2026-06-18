@@ -117,3 +117,18 @@ def test_docx_no_page_numbers_no_footer_field():
     data = _r(m, page_numbers=False)
     xml = _docx.Document(_io.BytesIO(data)).sections[0].footer._element.xml
     assert "PAGE" not in xml
+
+
+@pytest.mark.skipif(not DOCX_AVAILABLE, reason="python-docx 미설치")
+def test_docx_font_family_sets_ascii_and_eastasia():
+    from docx.oxml.ns import qn
+    from vibelign.core.reporting_cli.fonts import ReportFonts
+    data = render_docx(_model(), fonts=ReportFonts(heading="pretendard", body="gowun-batang"))
+    from docx import Document
+    d = Document(io.BytesIO(data))
+    title_run = {p.text: p for p in d.paragraphs if p.text}["예약 앱"].runs[0]
+    rfonts = title_run._element.rPr.rFonts
+    assert rfonts.get(qn("w:ascii")) == "Pretendard"
+    assert rfonts.get(qn("w:eastAsia")) == "Pretendard"
+    body_run = {p.text: p for p in d.paragraphs if p.text}["미용실 예약 앱"].runs[0]
+    assert body_run._element.rPr.rFonts.get(qn("w:eastAsia")) == "고운바탕"
