@@ -87,7 +87,7 @@ def _face_rules(fdef: FontDef) -> str:
     rules = []
     for face in fdef.faces:
         rules.append(
-            f"@font-face {{ font-family:{fdef.css_stack.split(',', 1)[0]}; "
+            f'@font-face {{ font-family:"{fdef.family}"; '
             f"font-weight:{face.weight}; font-style:normal; font-display:swap; "
             f"src:url({_face_data_uri(face.file)}) format('woff2'); }}"
         )

@@ -39,6 +39,7 @@ def test_heading_override_embeds_face_and_sets_h1_h2():
     assert "@font-face" in css
     assert "data:font/woff2;base64," in css
     assert '"Pretendard"' in css
+    assert "h1, h2" in css
     # 제목만 바꿨으면 본문은 default 유지
     assert '"Y"' in css
 
