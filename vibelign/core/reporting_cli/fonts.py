@@ -59,7 +59,8 @@ def font_def(font_id: str) -> FontDef | None:
 
 
 @lru_cache(maxsize=16)
-def _face_data_uri(file: str) -> str:
-    raw = (FONTS_DIR / file).read_bytes()
+def _face_data_uri(face_rel_path: str) -> str:
+    """Return a data URI for the woff2 file at FONTS_DIR / face_rel_path."""
+    raw = (FONTS_DIR / face_rel_path).read_bytes()
     return "data:font/woff2;base64," + base64.b64encode(raw).decode("ascii")
 # === ANCHOR: FONTS_END ===
