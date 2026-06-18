@@ -716,6 +716,8 @@ def register_extended_commands(
     _ = r.add_argument("--heading-font-size", type=int, default=None, metavar="PT", help="헤드라인 폰트 크기")
     _ = r.add_argument("--body-font-size", type=int, default=None, metavar="PT", help="본문 폰트 크기")
     _ = r.add_argument("--meta-font-size", type=int, default=None, metavar="PT", help="머리말(종류·날짜·작성자) 폰트 크기")
+    _ = r.add_argument("--heading-font", default=None, metavar="FONT", help="제목 폰트 ID")
+    _ = r.add_argument("--body-font", default=None, metavar="FONT", help="본문 폰트 ID")
     _ = r.add_argument("--author", default="", help="작성자 이름 (메타에 표시)")
     _ = r.add_argument("--page-numbers", action=argparse.BooleanOptionalAction, default=True, help="페이지 번호(Word, 기본 ON)")
     r.set_defaults(

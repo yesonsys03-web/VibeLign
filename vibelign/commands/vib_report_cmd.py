@@ -16,6 +16,7 @@ from vibelign.core.reporting_cli import (
     polish_report_model,
 )
 from vibelign.core.reporting_cli.font_sizes import normalize_report_font_sizes
+from vibelign.core.reporting_cli.fonts import normalize_report_fonts
 from vibelign.core.reporting_cli.render_job import render_and_write
 from vibelign.core.reporting_cli.polish_cache import (
     load_polish_cache,
@@ -46,6 +47,8 @@ class ReportArgs(Protocol):
     heading_font_size: int | None
     body_font_size: int | None
     meta_font_size: int | None
+    heading_font: str | None
+    body_font: str | None
     author: str
     page_numbers: bool
 # === ANCHOR: VIB_REPORT_CMD_REPORTARGS_END ===
@@ -74,6 +77,14 @@ def run_vib_report(args: object) -> None:
             heading=getattr(raw, "heading_font_size", None),
             body=getattr(raw, "body_font_size", None),
             meta=getattr(raw, "meta_font_size", None),
+        )
+    except ValueError as exc:
+        _fail(want_json, str(exc))
+        return
+    try:
+        report_fonts = normalize_report_fonts(
+            heading=getattr(raw, "heading_font", None),
+            body=getattr(raw, "body_font", None),
         )
     except ValueError as exc:
         _fail(want_json, str(exc))
@@ -156,6 +167,7 @@ def run_vib_report(args: object) -> None:
                 theme=report_theme,
                 page_numbers=bool(getattr(raw, "page_numbers", True)),
                 font_sizes=font_sizes,
+                fonts=report_fonts,
             )
         except ReportRendererUnavailable as exc:
             _fail(want_json, str(exc))
@@ -189,6 +201,7 @@ def run_vib_report(args: object) -> None:
             theme=report_theme,
             page_numbers=bool(getattr(raw, "page_numbers", True)),
             font_sizes=font_sizes,
+            fonts=report_fonts,
         )
     except ReportRendererUnavailable as exc:
         _fail(want_json, str(exc))

@@ -344,6 +344,53 @@ def test_invalid_font_size_reports_error_json(tmp_path, capsys, monkeypatch):
     assert "8~72" in out["error"]
 
 
+def test_report_subcommand_accepts_font_options():
+    from vibelign.cli.vib_cli import build_parser
+
+    parser = build_parser()
+    ns = parser.parse_args(
+        [
+            "report",
+            "plan.md",
+            "--heading-font",
+            "pretendard",
+            "--body-font",
+            "gowun-batang",
+        ]
+    )
+    assert ns.heading_font == "pretendard"
+    assert ns.body_font == "gowun-batang"
+
+
+def test_fonts_thread_to_html(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+    run_vib_report(
+        _args(
+            plan,
+            json=True,
+            heading_font="pretendard",
+            body_font=None,
+        )
+    )
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is True
+    html = Path(out["path"]).read_text(encoding="utf-8")
+    assert "@font-face" in html
+    assert '"Pretendard"' in html
+
+
+def test_invalid_font_reports_error_json(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+    with pytest.raises(SystemExit):
+        run_vib_report(_args(plan, json=True, heading_font="not-a-font"))
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False
+
+
 def test_unknown_theme_reports_short_error_json(tmp_path, capsys, monkeypatch):
     monkeypatch.chdir(tmp_path)
     plan = tmp_path / "plan.md"
