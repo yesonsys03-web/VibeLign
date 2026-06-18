@@ -39,6 +39,22 @@ const REPORT_THEME_DENSITIES = [
   { id: "dense", label: "촘촘" },
 ] as const;
 
+const SATGAT_REPORT_THEMES = [
+  { id: "satgat-work-brief", label: "삿갓 · 업무 브리프", group: "삿갓 specimen" },
+  { id: "satgat-executive-memo", label: "삿갓 · 임원 메모", group: "삿갓 specimen" },
+  { id: "satgat-proposal", label: "삿갓 · 제안서", group: "삿갓 specimen" },
+  { id: "satgat-result-report", label: "삿갓 · 결과 보고", group: "삿갓 specimen" },
+  { id: "satgat-research-note", label: "삿갓 · 리서치 노트", group: "삿갓 specimen" },
+  { id: "satgat-risk-review", label: "삿갓 · 리스크 검토", group: "삿갓 specimen" },
+  { id: "satgat-roadmap", label: "삿갓 · 로드맵", group: "삿갓 specimen" },
+  { id: "satgat-meeting-minutes", label: "삿갓 · 회의록", group: "삿갓 specimen" },
+  { id: "satgat-release-note", label: "삿갓 · 릴리즈 노트", group: "삿갓 specimen" },
+  { id: "satgat-decision-record", label: "삿갓 · 결정 기록", group: "삿갓 specimen" },
+  { id: "satgat-retrospective", label: "삿갓 · 회고", group: "삿갓 specimen" },
+  { id: "satgat-market-scan", label: "삿갓 · 시장 스캔", group: "삿갓 specimen" },
+  { id: "satgat-case-study", label: "삿갓 · 사례 연구", group: "삿갓 specimen" },
+] as const satisfies readonly ReportThemeOption[];
+
 function generatedReportThemes(): readonly ReportThemeOption[] {
   return REPORT_THEME_LAYOUTS.flatMap((layout) =>
     REPORT_THEME_PALETTES.flatMap((palette) =>
@@ -53,6 +69,7 @@ function generatedReportThemes(): readonly ReportThemeOption[] {
 
 export const REPORT_THEME_OPTIONS = [
   ...BASE_REPORT_THEMES,
+  ...SATGAT_REPORT_THEMES,
   ...generatedReportThemes(),
 ] as const satisfies readonly ReportThemeOption[];
 

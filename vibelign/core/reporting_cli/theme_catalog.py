@@ -50,6 +50,19 @@ class Density:
     section_gap: str
 
 
+@dataclass(frozen=True, slots=True)
+class SatgatSpecimen:
+    id: str
+    label: str
+    seal: str
+    accent: str
+    max_width: int
+    h1: str
+    h2: str
+    section: str
+    summary: str
+
+
 BASE_THEME_IDS: Final[tuple[str, ...]] = ("classic", "minimal", "executive", "compact", "pastel")
 
 _CLASSIC_CSS: Final[str] = """
@@ -154,6 +167,22 @@ DENSITIES: Final[tuple[Density, ...]] = (
     Density("dense", "촘촘", "30px 30px", "1.48", "13px", "14px"),
 )
 
+SATGAT_SPECIMENS: Final[tuple[SatgatSpecimen, ...]] = (
+    SatgatSpecimen("work-brief", "업무 브리프", "報", "#9B1B1B", 760, "font-size:27px;font-weight:700;letter-spacing:-0.018em;", "font-size:17px;border-left:2px solid var(--accent);padding-left:10px;", "border-top:1px solid var(--border);padding-top:16px;", "font-size:16px;font-weight:700;border:1px solid var(--border);padding:12px 14px;"),
+    SatgatSpecimen("executive-memo", "임원 메모", "決", "#9B1B1B", 720, "font-size:26px;font-weight:700;text-align:center;", "font-size:15px;border-bottom:1px solid var(--accent);padding-bottom:5px;", "padding:18px 0;border-bottom:1px solid var(--border);", "font-size:15px;font-weight:700;background:var(--tint);padding:12px 14px;"),
+    SatgatSpecimen("proposal", "제안서", "案", "#9B1B1B", 780, "font-size:29px;font-weight:700;", "font-size:16px;color:var(--accent);", "border-left:3px solid var(--accent);padding-left:18px;", "font-size:16px;font-weight:700;background:var(--ivory);border:1px solid var(--border);padding:14px 16px;"),
+    SatgatSpecimen("result-report", "결과 보고", "績", "#2E6B5E", 760, "font-size:28px;font-weight:700;", "font-size:16px;border-left:2px solid var(--accent);padding-left:10px;", "background:var(--ivory);border:1px solid var(--border);padding:14px 18px;", "font-size:16px;font-weight:700;color:var(--accent);"),
+    SatgatSpecimen("research-note", "리서치 노트", "考", "#2E6B5E", 700, "font-size:25px;font-weight:700;", "font-size:15px;border-bottom:1px dashed var(--border);padding-bottom:5px;", "padding:12px 0;", "font-size:15px;font-weight:700;border-left:2px solid var(--accent);padding-left:12px;"),
+    SatgatSpecimen("risk-review", "리스크 검토", "戒", "#9B1B1B", 740, "font-size:27px;font-weight:700;", "font-size:16px;color:var(--accent);", "border:1px solid var(--border);padding:14px 16px;", "font-size:16px;font-weight:700;background:var(--tint);padding:12px 14px;"),
+    SatgatSpecimen("roadmap", "로드맵", "程", "#B8954F", 800, "font-size:28px;font-weight:700;", "font-size:15px;border-left:2px solid var(--accent);padding-left:10px;", "border-top:1px solid var(--border);padding-top:18px;", "font-size:16px;font-weight:700;color:var(--accent);"),
+    SatgatSpecimen("meeting-minutes", "회의록", "議", "#2E6B5E", 720, "font-size:25px;font-weight:700;text-align:center;", "font-size:14px;color:var(--accent);", "border-bottom:1px solid var(--border);padding-bottom:14px;", "font-size:15px;font-weight:700;background:var(--ivory);padding:10px 12px;"),
+    SatgatSpecimen("release-note", "릴리즈 노트", "版", "#2E6B5E", 780, "font-size:28px;font-weight:700;", "font-size:15px;color:var(--accent);", "border-left:2px solid var(--border);padding-left:16px;", "font-size:15px;font-weight:700;border:1px solid var(--border);padding:12px 14px;"),
+    SatgatSpecimen("decision-record", "결정 기록", "定", "#9B1B1B", 700, "font-size:26px;font-weight:700;", "font-size:15px;border-bottom:1px solid var(--border);padding-bottom:5px;", "padding:14px 0;", "font-size:16px;font-weight:700;color:var(--accent);"),
+    SatgatSpecimen("retrospective", "회고", "省", "#B8954F", 740, "font-size:27px;font-weight:700;", "font-size:16px;border-left:2px solid var(--accent);padding-left:10px;", "background:var(--ivory);border:1px solid var(--border);padding:14px 16px;", "font-size:15px;font-weight:700;"),
+    SatgatSpecimen("market-scan", "시장 스캔", "觀", "#2E6B5E", 800, "font-size:28px;font-weight:700;", "font-size:15px;color:var(--accent);", "border-top:2px solid var(--border);padding-top:16px;", "font-size:16px;font-weight:700;background:var(--ivory);border-left:3px solid var(--accent);padding:12px 14px;"),
+    SatgatSpecimen("case-study", "사례 연구", "作", "#2E6B5E", 820, "font-size:30px;font-weight:700;", "font-size:16px;border-left:2px solid var(--accent);padding-left:10px;", "background:var(--ivory);border:1px solid var(--border);padding:16px 18px;", "font-size:16px;font-weight:700;color:var(--accent);"),
+)
+
 
 def _theme_css(layout: Layout, palette: Palette, density: Density) -> str:
     return f"""
@@ -169,6 +198,43 @@ def _theme_css(layout: Layout, palette: Palette, density: Density) -> str:
   p {{ margin:6px 0; }} ul {{ padding-left:20px; }} li {{ margin:4px 0; }}
   @media print {{ body {{ background:#fff; max-width:none; padding:0; }} section {{ break-inside:avoid; }} h2 {{ break-after:avoid; }} }}
 """
+
+
+def _satgat_css(specimen: SatgatSpecimen) -> str:
+    return f"""
+  :root {{ --ink:#1C1916; --paper:#F7F7F2; --ivory:#FFFFFB; --muted:#6B6862; --border:#D2D6CB; --accent:{specimen.accent}; --tint:#E8D0C9; }}
+  * {{ box-sizing:border-box; }}
+  body {{ font-family:"Gowun Batang","NanumMyeongjo","Apple SD Gothic Neo",serif; color:var(--ink); background:var(--paper);
+         max-width:{specimen.max_width}px; margin:0 auto; padding:56px 44px; line-height:1.74; font-size:14px; letter-spacing:-0.005em; }}
+  body::after {{ content:"백자지 · 먹 · 한 페이지 강조 5%"; display:block; margin-top:36px; color:var(--muted); font-family:"Gowun Dodum","Pretendard",sans-serif; font-size:10px; letter-spacing:.16em; }}
+  h1, h2, p, li {{ word-break:keep-all; overflow-wrap:break-word; }}
+  h1 {{ {specimen.h1} margin:0 0 8px; line-height:1.18; }}
+  h1::before {{ content:"{specimen.seal}"; display:inline-grid; place-items:center; width:30px; height:30px; margin-right:10px; border:1px solid var(--accent); color:var(--accent); font-family:"NanumMyeongjo",serif; font-weight:700; font-size:18px; vertical-align:3px; }}
+  h2 {{ {specimen.h2} margin:30px 0 8px; line-height:1.25; font-weight:700; }}
+  p.meta {{ color:var(--muted); font-family:"Gowun Dodum","Pretendard",sans-serif; font-size:12px; margin:0 0 26px; letter-spacing:.04em; }}
+  p.summary {{ {specimen.summary} line-height:1.55; }}
+  section {{ margin-top:24px; {specimen.section} }}
+  p {{ margin:7px 0; }} ul {{ padding-left:20px; }} li {{ margin:5px 0; }}
+  @page {{ margin:0; background:#F7F7F2; }}
+  @media (max-width:480px) {{ body {{ padding:40px 44px; }} h1 {{ font-size:23px; }} h1::before {{ width:28px; height:28px; font-size:17px; margin-right:8px; }} }}
+  @media print {{ body {{ background:#F7F7F2; max-width:none; padding:0; -webkit-print-color-adjust:exact; print-color-adjust:exact; }} section {{ break-inside:avoid; }} h2 {{ break-after:avoid; }} }}
+"""
+
+
+def satgat_specimen_themes() -> tuple[Theme, ...]:
+    return tuple(
+        Theme(
+            f"satgat-{specimen.id}",
+            f"삿갓 · {specimen.label}",
+            _satgat_css(specimen),
+            specimen.accent,
+            "#1C1916",
+            "#F7F7F2",
+            '"NanumMyeongjo","Gowun Batang",serif',
+            '"Gowun Batang","Apple SD Gothic Neo",serif',
+        )
+        for specimen in SATGAT_SPECIMENS
+    )
 
 
 def generated_themes() -> tuple[Theme, ...]:
@@ -194,5 +260,5 @@ def generated_themes() -> tuple[Theme, ...]:
 
 
 def all_themes() -> tuple[Theme, ...]:
-    return (*BASE_THEMES, *generated_themes())
+    return (*BASE_THEMES, *satgat_specimen_themes(), *generated_themes())
 # === ANCHOR: THEME_CATALOG_END ===
