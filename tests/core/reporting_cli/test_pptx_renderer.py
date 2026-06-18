@@ -62,3 +62,17 @@ def test_pptx_font_size_overrides_apply_to_title_heading_and_body():
     assert title_shape.text_frame.paragraphs[0].runs[0].font.size.pt == 34
     assert section_title_shape.text_frame.paragraphs[0].runs[0].font.size.pt == 22
     assert body_shape.text_frame.paragraphs[0].runs[0].font.size.pt == 16
+
+
+@pytest.mark.skipif(not PPTX_AVAILABLE, reason="python-pptx 미설치")
+def test_pptx_font_sets_latin_and_ea():
+    from pptx import Presentation
+    from pptx.oxml.ns import qn
+    from vibelign.core.reporting_cli.fonts import ReportFonts
+    data = render_pptx(_model(), fonts=ReportFonts(heading="pretendard"))
+    prs = Presentation(io.BytesIO(data))
+    title = prs.slides[0].shapes.title
+    run = title.text_frame.paragraphs[0].runs[0]
+    rpr = run._r.get_or_add_rPr()
+    assert rpr.find(qn("a:latin")).get("typeface") == "Pretendard"
+    assert rpr.find(qn("a:ea")).get("typeface") == "Pretendard"
