@@ -75,7 +75,10 @@ def render_docx(
     title = doc.add_heading(model.title, level=0)
     _accent(title)
     _size(title, font_sizes.title if font_sizes is not None else None)
-    _size(doc.add_paragraph(meta_line(model)), font_sizes.body if font_sizes is not None else None)
+    _size(
+        doc.add_paragraph(meta_line(model)),
+        (font_sizes.meta or font_sizes.body) if font_sizes is not None else None,
+    )
     for section in model.sections:
         heading = doc.add_heading(section.heading, level=1)
         _accent(heading)

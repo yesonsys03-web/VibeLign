@@ -1,5 +1,5 @@
 // === ANCHOR: REPORT_FONT_SIZES_START ===
-export type ReportFontSizeKey = "title" | "heading" | "body";
+export type ReportFontSizeKey = "title" | "meta" | "heading" | "body";
 
 export type ReportFontSizes = Partial<Record<ReportFontSizeKey, number>>;
 
@@ -15,6 +15,7 @@ export const REPORT_FONT_SIZE_MAX = 72;
 
 export const REPORT_FONT_SIZE_FIELDS = [
   { key: "title", label: "타이틀", flag: "--title-font-size", placeholder: "28" },
+  { key: "meta", label: "머리말", flag: "--meta-font-size", placeholder: "13" },
   { key: "heading", label: "헤드라인", flag: "--heading-font-size", placeholder: "17" },
   { key: "body", label: "본문", flag: "--body-font-size", placeholder: "14" },
 ] as const satisfies readonly ReportFontSizeField[];

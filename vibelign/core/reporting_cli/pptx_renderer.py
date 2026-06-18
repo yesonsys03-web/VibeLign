@@ -66,7 +66,10 @@ def render_pptx(
     _size_text(title_slide.shapes.title, font_sizes.title if font_sizes is not None else None)
     if len(title_slide.placeholders) > 1:
         title_slide.placeholders[1].text = meta_line(model)
-        _size_text(title_slide.placeholders[1], font_sizes.body if font_sizes is not None else None)
+        _size_text(
+            title_slide.placeholders[1],
+            (font_sizes.meta or font_sizes.body) if font_sizes is not None else None,
+        )
     # Section 당 슬라이드 1장 (Title and Content 레이아웃)
     for section in model.sections:
         slide = prs.slides.add_slide(prs.slide_layouts[1])

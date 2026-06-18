@@ -45,6 +45,7 @@ class ReportArgs(Protocol):
     title_font_size: int | None
     heading_font_size: int | None
     body_font_size: int | None
+    meta_font_size: int | None
     author: str
     page_numbers: bool
 # === ANCHOR: VIB_REPORT_CMD_REPORTARGS_END ===
@@ -72,6 +73,7 @@ def run_vib_report(args: object) -> None:
             title=getattr(raw, "title_font_size", None),
             heading=getattr(raw, "heading_font_size", None),
             body=getattr(raw, "body_font_size", None),
+            meta=getattr(raw, "meta_font_size", None),
         )
     except ValueError as exc:
         _fail(want_json, str(exc))

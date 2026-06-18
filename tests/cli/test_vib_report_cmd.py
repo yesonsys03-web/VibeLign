@@ -148,11 +148,14 @@ def test_report_subcommand_accepts_font_size_options():
             "19",
             "--body-font-size",
             "15",
+            "--meta-font-size",
+            "11",
         ]
     )
     assert ns.title_font_size == 32
     assert ns.heading_font_size == 19
     assert ns.body_font_size == 15
+    assert ns.meta_font_size == 11
 
 
 def test_report_unreadable_plan_reports_error_json(
@@ -318,6 +321,7 @@ def test_font_sizes_thread_to_html(tmp_path, capsys, monkeypatch):
             title_font_size=32,
             heading_font_size=19,
             body_font_size=15,
+            meta_font_size=11,
         )
     )
     out = json.loads(capsys.readouterr().out)
@@ -326,6 +330,7 @@ def test_font_sizes_thread_to_html(tmp_path, capsys, monkeypatch):
     assert "h1 { font-size:32px; }" in html
     assert "h2 { font-size:19px; }" in html
     assert "body { font-size:15px; }" in html
+    assert "p.meta { font-size:11px; }" in html
 
 
 def test_invalid_font_size_reports_error_json(tmp_path, capsys, monkeypatch):

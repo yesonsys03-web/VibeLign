@@ -174,6 +174,16 @@ test("폰트 크기 조절 → generatePlanningReport 에 fontSizes 전달", asy
   );
 });
 
+test("머리말 폰트 크기 → generatePlanningReport 에 meta 전달", async () => {
+  mockGen.mockResolvedValue({ ok: true, path: "/proj/.vibelign/reports/r.html", reportType: "work", html: "<i></i>" });
+  renderOpen();
+  fireEvent.change(screen.getByLabelText("머리말 폰트 크기"), { target: { value: "11" } });
+  fireEvent.click(screen.getByRole("button", { name: "보고서 생성" }));
+  await waitFor(() =>
+    expect(mockGen).toHaveBeenCalledWith("/proj", "plans/p.md", "work", false, "classic", "", true, { meta: 11 }),
+  );
+});
+
 test("폰트 크기 키보드 입력은 입력 중에 최소값으로 보정하지 않음", async () => {
   mockGen.mockResolvedValue({ ok: true, path: "/proj/.vibelign/reports/r.html", reportType: "work", html: "<i></i>" });
   renderOpen();

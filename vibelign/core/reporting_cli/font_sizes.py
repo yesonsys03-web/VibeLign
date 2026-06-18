@@ -14,9 +14,15 @@ class ReportFontSizes:
     title: int | None = None
     heading: int | None = None
     body: int | None = None
+    meta: int | None = None
 
     def has_overrides(self) -> bool:
-        return self.title is not None or self.heading is not None or self.body is not None
+        return (
+            self.title is not None
+            or self.heading is not None
+            or self.body is not None
+            or self.meta is not None
+        )
 
 
 def normalize_report_font_sizes(
@@ -24,11 +30,13 @@ def normalize_report_font_sizes(
     title: int | None = None,
     heading: int | None = None,
     body: int | None = None,
+    meta: int | None = None,
 ) -> ReportFontSizes:
     _check_size("타이틀", title)
     _check_size("헤드라인", heading)
     _check_size("본문", body)
-    return ReportFontSizes(title=title, heading=heading, body=body)
+    _check_size("머리말", meta)
+    return ReportFontSizes(title=title, heading=heading, body=body, meta=meta)
 
 
 def font_size_override_css(font_sizes: ReportFontSizes) -> str:
@@ -44,6 +52,8 @@ def font_size_override_css(font_sizes: ReportFontSizes) -> str:
             f"body {{ font-size:{font_sizes.body}px; }} "
             f"p.summary {{ font-size:{font_sizes.body}px; }}"
         )
+    if font_sizes.meta is not None:
+        rules.append(f"p.meta {{ font-size:{font_sizes.meta}px; }}")
     return "\n".join(rules)
 
 
