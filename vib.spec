@@ -30,6 +30,7 @@ hidden_imports = [
     "vibelign.core.reporting_cli.merge","vibelign.core.reporting_cli.render_job",
     "vibelign.core.reporting_cli.polish_guard","vibelign.core.reporting_cli.vague_lint",
     "vibelign.core.reporting_cli.themes",
+    "vibelign.core.reporting_cli.fonts",
     "pypdf","reportlab","reportlab.pdfgen.canvas","reportlab.lib.pagesizes",
     "vibelign.core.__init__","vibelign.core.ai_codespeak","vibelign.core.ai_dev_system",
     "vibelign.core.ai_explain","vibelign.core.analysis_cache","vibelign.core.anchor_tools",
@@ -92,6 +93,8 @@ if Path("vibelign/core/memory/memory_state.schema.json").exists():
     datas.append(("vibelign/core/memory/memory_state.schema.json", "vibelign/core/memory"))
 if Path("vibelign/core/recovery/recovery_plan.schema.json").exists():
     datas.append(("vibelign/core/recovery/recovery_plan.schema.json", "vibelign/core/recovery"))
+if Path("vibelign/core/reporting_cli/fonts").exists():
+    datas.append(("vibelign/core/reporting_cli/fonts", "vibelign/core/reporting_cli/fonts"))
 
 a = Analysis(
     ["vibelign/_vib_entry.py"],
