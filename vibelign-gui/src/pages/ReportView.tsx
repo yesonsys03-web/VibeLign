@@ -8,6 +8,8 @@ import { emitReportModel, renderReportWithDecisions, stampPdfPageNumbers, type R
 import { ReportDiffReview } from "../components/report-review/ReportDiffReview";
 import { useReportExport } from "../components/report-review/useReportExport";
 import type { EmitPayload } from "../lib/vib/reportModel";
+import type { ReportFontSizes } from "../lib/vib/reportFontSizes";
+import type { ReportFonts } from "../lib/vib/reportFonts";
 
 type Fmt = "html" | "pdf" | "docx" | "pptx";
 
@@ -36,13 +38,16 @@ export default function ReportView({ projectDir, onStart, sourcePath, onSourceHa
   const [reportFor, setReportFor] = useState<string | null>(null);
   const [fromDoc, setFromDoc] = useState(false);
   const [review, setReview] = useState<
-    { payload: EmitPayload; plan: string; type: ReportType; format: Fmt; theme: string; author: string; pageNumbers: boolean } | null
+    { payload: EmitPayload; plan: string; type: ReportType; format: Fmt; theme: string; author: string; pageNumbers: boolean; fontSizes: ReportFontSizes; fonts: ReportFonts } | null
   >(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewErr, setReviewErr] = useState<string | null>(null);
   const { exportedPath, exportErr, exportTo, reset } = useReportExport();
 
-  async function handleReviewRequest(type: ReportType, format: Fmt, theme: string, author: string, pageNumbers: boolean) {
+  async function handleReviewRequest(
+    type: ReportType, format: Fmt, theme: string, author: string,
+    pageNumbers: boolean, fontSizes: ReportFontSizes, fonts: ReportFonts,
+  ) {
     if (!reportFor) return;
     const plan = reportFor;
     setReviewBusy(true);
@@ -50,17 +55,17 @@ export default function ReportView({ projectDir, onStart, sourcePath, onSourceHa
     reset();
     const r = await emitReportModel(projectDir, plan, type, true, author);
     setReviewBusy(false);
-    if (r.ok) setReview({ payload: r.payload, plan, type, format, theme, author, pageNumbers });
+    if (r.ok) setReview({ payload: r.payload, plan, type, format, theme, author, pageNumbers, fontSizes, fonts });
     else setReviewErr(r.error);
   }
 
   async function handleReviewConfirm(rejectBlocks: [number, number][]) {
     if (!review) return;
-    const { plan, type, format, payload, theme, author, pageNumbers } = review;
+    const { plan, type, format, payload, theme, author, pageNumbers, fontSizes, fonts } = review;
     setReview(null);
     setReviewBusy(true);
     setReviewErr(null);
-    const r = await renderReportWithDecisions(projectDir, plan, type, format, rejectBlocks, payload.key, theme, author, pageNumbers);
+    const r = await renderReportWithDecisions(projectDir, plan, type, format, rejectBlocks, payload.key, theme, author, pageNumbers, fontSizes, fonts);
     if (!r.ok) {
       setReviewBusy(false);
       setReviewErr(r.error);
@@ -168,7 +173,8 @@ export default function ReportView({ projectDir, onStart, sourcePath, onSourceHa
             layout="inline"
             defaultType={fromDoc ? "doc" : "work"}
             onClose={() => { setReportFor(null); setFromDoc(false); }}
-            onReviewRequest={(type, format, theme, author, pageNumbers) => void handleReviewRequest(type, format, theme, author, pageNumbers)}
+            onReviewRequest={(type, format, theme, author, pageNumbers, fontSizes, fonts) =>
+              void handleReviewRequest(type, format, theme, author, pageNumbers, fontSizes, fonts)}
           />
         </div>
       </div>
