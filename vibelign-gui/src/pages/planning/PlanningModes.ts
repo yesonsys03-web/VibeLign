@@ -9,8 +9,8 @@ export interface PlanningModeOption {
 }
 
 export const PLANNING_MODE_OPTIONS = [
-  { id: "instant", label: "Instant", targetLabel: planningPersonaLabel("gio"), personaIds: ["gio"] },
   { id: "draft", label: "초안", targetLabel: planningPersonaLabel("chloe"), personaIds: ["chloe"] },
+  { id: "instant", label: "Instant", targetLabel: planningPersonaLabel("gio"), personaIds: ["gio"] },
   { id: "explore", label: "탐색", targetLabel: planningPersonaLabel("mina"), personaIds: ["mina"] },
   { id: "assist", label: "조교", targetLabel: planningPersonaLabel("deepseek"), personaIds: ["deepseek"] },
   { id: "full", label: "전체", targetLabel: "모두", personaIds: allPlanningPersonaIds() },

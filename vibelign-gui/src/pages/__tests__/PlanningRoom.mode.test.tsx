@@ -25,11 +25,11 @@ describe("PlanningRoom mode selector", () => {
     cleanup();
   });
 
-  test("keeps_instant_mode_mapped_to_gio_by_default", () => {
+  test("keeps_draft_mode_mapped_to_chloe_by_default", () => {
     render(<PlanningRoom projectDir="/tmp/demo" result={result} onBack={vi.fn()} onResultChange={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: "지오 검토" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "클로이 설계" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "클로이 설계" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "지오 검토" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "미나 탐색" })).toHaveAttribute("aria-pressed", "false");
   });
 

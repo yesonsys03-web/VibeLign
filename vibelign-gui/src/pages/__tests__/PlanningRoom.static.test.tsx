@@ -143,7 +143,7 @@ describe("PlanningRoom chat session view", () => {
       projectDir: "/tmp/demo",
       sessionId: "chat_1",
       prompt: "사용 흐름을 더 구체화해줘",
-      agents: ["gio"],
+      agents: ["chloe"],
       includeUserMessage: true,
       extractCards: true,
     });

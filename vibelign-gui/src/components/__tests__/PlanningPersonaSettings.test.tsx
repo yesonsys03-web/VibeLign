@@ -8,7 +8,6 @@ describe("PlanningPersonaSettings role swap", () => {
   });
 
   it("effectivePersona falls back to default role; chloe defaults OFF (opt-in), others ON", () => {
-    // 클로이(claude)는 claude -p 과금 회피로 기본 OFF. 나머지는 기본 ON.
     expect(effectivePersona({}, "chloe")).toEqual({ enabled: false, role: "design" });
     expect(effectivePersona({ gio: { role: "design" } }, "gio")).toEqual({ enabled: true, role: "design" });
     expect(effectivePersona({ mina: { enabled: false } }, "mina")).toEqual({ enabled: false, role: "explore" });

@@ -149,15 +149,6 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
                 꺼짐
               </span>
             )}
-            {persona.id === "chloe" && enabled && (
-              <span
-                aria-hidden="true"
-                title="클로이(Claude)는 claude -p 로 실행돼 구독 크레딧/API 가 차감될 수 있어요."
-                style={{ marginLeft: 4, fontSize: 9, fontWeight: 800, padding: "1px 4px", background: "#FEF3C7", color: "#92400E", borderRadius: 3, verticalAlign: "middle" }}
-              >
-                ⚠ 크레딧
-              </span>
-            )}
           </button>
           );
         })}

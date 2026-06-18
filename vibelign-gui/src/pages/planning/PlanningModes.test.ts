@@ -6,15 +6,15 @@ import { allPlanningPersonaIds, planningPersonaLabel } from "./PlanningPersonas"
 import { DEFAULT_PLANNING_MODE, PLANNING_MODE_OPTIONS, resolvePlanningMode } from "./PlanningModes";
 
 describe("PlanningModes", () => {
-  test("keeps_instant_mode_as_the_default_gio_review_path", () => {
+  test("keeps_draft_mode_as_the_default_chloe_design_path", () => {
     // Given
     const defaultMode = DEFAULT_PLANNING_MODE;
 
     // When
-    const resolved = resolvePlanningMode("instant");
+    const resolved = resolvePlanningMode("draft");
 
     // Then
-    expect(defaultMode).toMatchObject({ id: "instant", label: "Instant", targetLabel: "지오", personaIds: ["gio"] });
+    expect(defaultMode).toMatchObject({ id: "draft", label: "초안", targetLabel: "클로이", personaIds: ["chloe"] });
     expect(resolved).toBe(defaultMode);
   });
 
@@ -27,7 +27,7 @@ describe("PlanningModes", () => {
     const fallbackMode = resolvePlanningMode("unknown");
 
     // Then
-    expect(PLANNING_MODE_OPTIONS.map((option) => option.id)).toEqual(["instant", "draft", "explore", "assist", "full"]);
+    expect(PLANNING_MODE_OPTIONS.map((option) => option.id)).toEqual(["draft", "instant", "explore", "assist", "full"]);
     expect(fullMode.personaIds).toEqual(allPersonaIds);
     expect(fallbackMode).toBe(DEFAULT_PLANNING_MODE);
   });

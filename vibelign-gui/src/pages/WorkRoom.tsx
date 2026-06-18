@@ -96,9 +96,6 @@ const LINE_STYLE: Record<WorkDisplayLine["kind"], CSSProperties> = {
 };
 
 /** MVP 프로바이더 — 코딩 에이전트로 검증된 CLI 만(기획안 §1). 러너 work_adapter 와 짝. */
-// codex 를 먼저 둔다 — 기본 선택이 codex 가 되도록(아래 selectedProvider 기본값은
-// PROVIDER_DEFS 순서대로 첫 감지 도구를 고른다). claude 는 claude -p 라 별도 크레딧/API
-// 과금될 수 있어 기본에서 제외하고, 사용자가 명시적으로 골라야 한다.
 const PROVIDER_DEFS: { id: "claude" | "codex"; label: string }[] = [
   { id: "codex", label: "Codex" },
   { id: "claude", label: "Claude Code" },
@@ -514,16 +511,11 @@ export default function WorkRoom({
               );
             })}
         </div>
-        {selectedProvider === "claude" && (
-          <div style={{ fontSize: 12, color: "#92400E", lineHeight: 1.6, background: "#FEF3C7", border: "2px solid #1A1A1A", padding: "8px 10px" }}>
-            ⚠ <b>Claude Code</b>는 <b>claude -p</b>(헤드리스)로 실행돼요. 구독 사용량 풀이 아니라 <b>별도 월 크레딧</b>에서 차감되고, 크레딧을 다 쓰면 API 요금이 청구될 수 있어요. 무료·구독으로 쓰려면 <b>Codex</b>를 고르세요.
-          </div>
-        )}
         {providers !== null && !anyDetected && (
           <div style={{ display: "grid", gap: 6 }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: "#b42318" }}>실행할 AI 도구를 찾지 못했어요</span>
             <span style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>
-              작업방은 <strong>Codex</strong> 또는 <strong>Claude Code</strong>로 코딩해요. 기본은 Codex예요 — Claude Code는 claude -p 로 실행돼 별도 크레딧/API 가 들 수 있어요. 도구 설정에서 Codex(또는 Claude)를 설치/등록하세요.
+              작업방은 <strong>Codex</strong> 또는 <strong>Claude Code</strong>로 코딩해요. 도구 설정에서 Codex(또는 Claude)를 설치/등록하세요.
             </span>
             <button className="btn btn-ghost btn-sm" onClick={onOpenSettings} style={{ fontSize: 12, justifySelf: "start" }}>
               설정에서 도구 설치/등록하기 →
@@ -554,9 +546,6 @@ export default function WorkRoom({
             <div style={{ fontSize: 12, color: "#444", lineHeight: 1.7 }}>
               · 실행하면 <b>① 체크포인트 자동 저장 → ② AI 실행 → ③ 끝나면 자동 검사</b>로 이어집니다
               <br />· 사용자 본인의 <b>{PROVIDER_DEFS.find((d) => d.id === selectedProvider)?.label ?? "AI CLI"} 계정·요금제</b>로 실행됩니다 (토큰이 소모돼요)
-              {selectedProvider === "claude" && (
-                <><br />· <b>Claude Code(claude -p)</b>는 구독 풀이 아니라 <b>별도 월 크레딧/API</b>로 과금될 수 있어요 — 무료·구독은 Codex</>
-              )}
               <br />· 에이전트가 이 프로젝트의 파일을 실제로 수정해요 — 잘못되면 ①의 체크포인트로 되돌릴 수 있어요
             </div>
             <div style={{ display: "flex", gap: 8 }}>

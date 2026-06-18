@@ -130,8 +130,8 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, job, 
             {running ? "AI가 그리는 중…" : "✦ AI에게 그려달라기"}
           </button>
         </div>
-        <div style={{ fontSize: 11, color: "#92400E", lineHeight: 1.5 }}>
-          기본은 무료·구독 외 도구(Codex 등)로 그려요. 설정에서 <b>클로이(Claude)</b>를 켜면 디자인 생성에도 Claude가 쓰여 구독 크레딧/API 가 차감될 수 있어요.
+        <div style={{ fontSize: 11, color: "#555", lineHeight: 1.5 }}>
+          설정에서 켜둔 기획 도우미를 사용해 디자인을 생성해요.
         </div>
       </div>
       <button disabled={(!selected && !job.synth) || running} onClick={() => generate(false)}>
