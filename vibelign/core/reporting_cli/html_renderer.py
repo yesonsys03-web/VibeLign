@@ -7,6 +7,7 @@ from vibelign.core.reporting_cli.font_sizes import (
     ReportFontSizes,
     font_size_override_css,
 )
+from vibelign.core.reporting_cli.fonts import ReportFonts, font_family_override_css
 from vibelign.core.reporting_cli.models import Block, ReportModel, Section
 from vibelign.core.reporting_cli.templates import meta_line
 from vibelign.core.reporting_cli.themes import get_theme
@@ -49,10 +50,19 @@ def render_html(
     model: ReportModel,
     theme: str = "classic",
     font_sizes: ReportFontSizes | None = None,
+    fonts: ReportFonts | None = None,
 ) -> str:
-    css = get_theme(theme).html_css
+    theme_obj = get_theme(theme)
+    css = theme_obj.html_css
     if font_sizes is not None:
         css = "\n".join(part for part in (css, font_size_override_css(font_sizes)) if part)
+    if fonts is not None:
+        font_css = font_family_override_css(
+            fonts,
+            default_heading=theme_obj.heading_font,
+            default_body=theme_obj.body_font,
+        )
+        css = "\n".join(part for part in (css, font_css) if part)
     parts = [
         _head(escape(model.title), css),
         f"<h1>{escape(model.title)}</h1>",

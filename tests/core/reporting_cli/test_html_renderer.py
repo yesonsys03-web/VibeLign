@@ -76,3 +76,17 @@ def test_author_shown_in_meta_when_present():
 
 def test_author_absent_keeps_meta_plain():
     assert "작성자:" not in render_html(_model())
+
+
+def test_font_family_override_injected_after_theme_css():
+    from vibelign.core.reporting_cli.fonts import ReportFonts
+    html = render_html(_model(), theme="classic", fonts=ReportFonts(heading="pretendard"))
+    assert "@font-face" in html
+    assert '"Pretendard"' in html
+    assert "h1, h2 { font-family:" in html
+
+
+def test_no_fonts_keeps_theme_default_unchanged():
+    assert render_html(_model(), theme="classic") == render_html(
+        _model(), theme="classic", fonts=None
+    )
