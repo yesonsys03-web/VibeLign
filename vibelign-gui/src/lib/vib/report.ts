@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { runVib } from "./core";
 import { loadDoc } from "../docs";
 import { reportFontSizeArgs, type ReportFontSizes } from "./reportFontSizes";
+import { reportFontArgs, type ReportFonts } from "./reportFonts";
 import type { EmitPayload } from "./reportModel";
 
 export type ReportType = "work" | "proposal" | "result" | "doc";
@@ -35,12 +36,14 @@ export async function generatePlanningReport(
   author = "",
   pageNumbers = true,
   fontSizes: ReportFontSizes = {},
+  fonts: ReportFonts = {},
 ): Promise<ReportResult> {
   const res = await runVib(
     [
       "report", planPath, "--type", reportType, "--format", "html", "--theme", theme,
       "--author", author, "--json",
       ...reportFontSizeArgs(fontSizes),
+      ...reportFontArgs(fonts),
       ...(polish ? ["--polish"] : []),
       ...(pageNumbers ? [] : ["--no-page-numbers"]),
     ],
@@ -124,6 +127,7 @@ export async function generateReportPdf(
   author = "",
   pageNumbers = true,
   fontSizes: ReportFontSizes = {},
+  fonts: ReportFonts = {},
 ): Promise<PdfResult> {
   const html = await generatePlanningReport(
     cwd,
@@ -134,6 +138,7 @@ export async function generateReportPdf(
     author,
     pageNumbers,
     fontSizes,
+    fonts,
   );
   if (!html.ok) return html;
 
@@ -171,12 +176,14 @@ export async function generateReportOffice(
   author = "",
   pageNumbers = true,
   fontSizes: ReportFontSizes = {},
+  fonts: ReportFonts = {},
 ): Promise<PdfResult> {
   const res = await runVib(
     [
       "report", planPath, "--type", reportType, "--format", format, "--theme", theme,
       "--author", author, "--json",
       ...reportFontSizeArgs(fontSizes),
+      ...reportFontArgs(fonts),
       ...(polish ? ["--polish"] : []),
       ...(pageNumbers ? [] : ["--no-page-numbers"]),
     ],
@@ -238,6 +245,7 @@ export async function renderReportWithDecisions(
   author = "",
   pageNumbers = true,
   fontSizes: ReportFontSizes = {},
+  fonts: ReportFonts = {},
 ): Promise<PdfResult> {
   const fmt = format === "pdf" ? "html" : format;
   const args = [
@@ -245,6 +253,7 @@ export async function renderReportWithDecisions(
     "--reject-blocks", JSON.stringify(reject), "--polish-key", polishKey, "--theme", theme,
     "--author", author, "--json",
     ...reportFontSizeArgs(fontSizes),
+    ...reportFontArgs(fonts),
     ...(pageNumbers ? [] : ["--no-page-numbers"]),
   ];
   const res = await runVib(args, cwd);
