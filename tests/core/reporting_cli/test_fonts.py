@@ -53,11 +53,18 @@ def test_body_override_only_does_not_change_heading():
     assert '"X"' in css  # 제목은 default 유지
 
 
-def test_missing_font_file_degrades_without_crash(monkeypatch, tmp_path):
+def test_missing_font_file_degrades_without_crash(monkeypatch):
     # 번들에 woff2 가 없어도(부분 설치) 렌더가 크래시하지 않고 font-family 로 degrade.
     import vibelign.core.reporting_cli.fonts as fmod
 
-    monkeypatch.setattr(fmod, "FONTS_DIR", tmp_path)  # 빈 디렉터리 → woff2 없음
+    class _Missing:
+        def is_file(self):
+            return False
+
+        def read_bytes(self):
+            raise FileNotFoundError
+
+    monkeypatch.setattr(fmod, "_face_traversable", lambda rel: _Missing())
     css = fmod.font_family_override_css(
         ReportFonts(heading="pretendard", body="gowun-batang"),
         default_heading='"X", serif',

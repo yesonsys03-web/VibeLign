@@ -4,10 +4,22 @@ from __future__ import annotations
 import base64
 from dataclasses import dataclass
 from functools import lru_cache
+from importlib import resources
 from pathlib import Path
 from typing import Final
 
+# 패키지 내 폰트 디렉터리. 런타임 woff2 접근은 _face_traversable()(importlib.resources)
+# 을 쓴다 — PyInstaller onedir 같은 frozen 번들에서 __file__ 경로가 신뢰 불가하기 때문
+# (schema_contracts._load_schema 와 동일한 검증된 패턴). FONTS_DIR 는 dev/sdist 디스크
+# 검증 테스트용 편의 경로일 뿐, 런타임 로딩 경로가 아니다.
+_FONTS_ANCHOR_PKG: Final = "vibelign.core.reporting_cli"
 FONTS_DIR: Final = Path(__file__).resolve().parent / "fonts"
+
+
+def _face_traversable(face_rel_path: str):
+    """번들 환경 무관하게 woff2 리소스를 가리키는 Traversable 을 돌려준다.
+    face_rel_path 예: 'pretendard/pretendard-400.woff2'."""
+    return resources.files(_FONTS_ANCHOR_PKG).joinpath("fonts", *face_rel_path.split("/"))
 
 _SANS_FALLBACK: Final = '"Apple SD Gothic Neo","Malgun Gothic",sans-serif'
 _SERIF_FALLBACK: Final = '"Apple SD Gothic Neo","Batang",serif'
@@ -60,8 +72,8 @@ def font_def(font_id: str) -> FontDef | None:
 
 @lru_cache(maxsize=16)
 def _face_data_uri(face_rel_path: str) -> str:
-    """Return a data URI for the woff2 file at FONTS_DIR / face_rel_path."""
-    raw = (FONTS_DIR / face_rel_path).read_bytes()
+    """woff2 리소스를 base64 data URI 로 돌려준다(frozen 번들 안전)."""
+    raw = _face_traversable(face_rel_path).read_bytes()
     return "data:font/woff2;base64," + base64.b64encode(raw).decode("ascii")
 
 
@@ -88,7 +100,7 @@ def _face_rules(fdef: FontDef) -> str:
     for face in fdef.faces:
         # 번들에 woff2 가 없으면(부분 설치 등) 임베딩만 건너뛴다. font-family 규칙은
         # 호출부가 그대로 emit 하므로 시스템 설치 폰트/폴백 체인으로 degrade — 렌더는 안 깨진다.
-        if not (FONTS_DIR / face.file).is_file():
+        if not _face_traversable(face.file).is_file():
             continue
         rules.append(
             f'@font-face {{ font-family:"{fdef.family}"; '
