@@ -148,6 +148,14 @@ export async function generateReportPdf(
 }
 // === ANCHOR: REPORT_GENERATEREPORTPDF_END ===
 
+/** 생성된 보고서 PDF 의 원시 바이트를 읽어온다(인앱 pdf.js 미리보기용).
+ *  Rust 가 tauri::ipc::Response 로 보내므로 JS 는 ArrayBuffer 로 받는다. */
+// === ANCHOR: REPORT_READREPORTPDFBYTES_START ===
+export async function readReportPdfBytes(root: string, path: string): Promise<ArrayBuffer> {
+  return invoke<ArrayBuffer>("read_report_pdf_bytes", { root, path });
+}
+// === ANCHOR: REPORT_READREPORTPDFBYTES_END ===
+
 export type OfficeFormat = "docx" | "pptx";
 
 /** Word(.docx)/PPT(.pptx) 를 vib report 로 생성한다. CLI 가 바이너리 파일을 쓰고

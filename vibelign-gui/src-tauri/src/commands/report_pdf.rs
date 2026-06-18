@@ -355,4 +355,38 @@ pub(crate) async fn export_report_pdf(
 
     res?.map(|_| out_path.to_string_lossy().into_owned())
 }
+
+/// 생성된 보고서 PDF 를 읽어 원시 바이트로 돌려준다(인앱 pdf.js 미리보기용).
+///
+/// `root` 하위의 실제 `.pdf` 파일만 허용한다(임의 파일 유출 방지). 바이트는
+/// `tauri::ipc::Response` 로 전달되어 JS 에서 ArrayBuffer 로 수신된다(JSON 배열보다 효율적).
+#[tauri::command]
+pub(crate) fn read_report_pdf_bytes(
+    root: String,
+    path: String,
+) -> Result<tauri::ipc::Response, String> {
+    let canon_root = std::fs::canonicalize(&root)
+        .map_err(|e| format!("프로젝트 루트 정규화 실패({root}): {e}"))?;
+
+    let p = PathBuf::from(&path);
+    if has_parent_dir(&p) {
+        return Err("경로에 상위 디렉터리 참조(..)가 포함되어 있습니다".into());
+    }
+    let canon = std::fs::canonicalize(&p)
+        .map_err(|_| format!("PDF 파일을 찾을 수 없습니다: {path}"))?;
+    if !canon.starts_with(&canon_root) {
+        return Err("PDF 경로가 프로젝트 밖을 가리킵니다".into());
+    }
+    let ext_ok = canon
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("pdf"))
+        .unwrap_or(false);
+    if !ext_ok {
+        return Err("PDF 파일만 읽을 수 있습니다".into());
+    }
+
+    let bytes = std::fs::read(&canon).map_err(|e| format!("PDF 읽기 실패: {e}"))?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
 // === ANCHOR: REPORT_PDF_END ===

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listPlanningChatSessions } from "../lib/vib";
 import type { PlanningSessionSummary } from "../lib/vib/types";
-import { ExportReportModal } from "../components/plan-doc/ExportReportModal";
+import { ReportComposer } from "../components/plan-doc/ReportComposer";
 import { emitReportModel, renderReportWithDecisions, stampPdfPageNumbers, type ReportType } from "../lib/vib/report";
 import { ReportDiffReview } from "../components/report-review/ReportDiffReview";
 import { useReportExport } from "../components/report-review/useReportExport";
@@ -147,6 +147,34 @@ export default function ReportView({ projectDir, onStart, sourcePath, onSourceHa
     );
   }
 
+  if (reportFor) {
+    return (
+      <div style={{ height: "100%", display: "flex", flexDirection: "column", padding: "16px 20px", minHeight: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <button
+            type="button"
+            className="nav-tab"
+            onClick={() => { setReportFor(null); setFromDoc(false); }}
+          >
+            ← 목록으로
+          </button>
+          <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>📄 보고서 작성</h2>
+        </div>
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <ReportComposer
+            key={`${reportFor}:${fromDoc ? "doc" : "plan"}`}
+            planPath={reportFor}
+            cwd={projectDir}
+            layout="inline"
+            defaultType={fromDoc ? "doc" : "work"}
+            onClose={() => { setReportFor(null); setFromDoc(false); }}
+            onReviewRequest={(type, format, theme, author, pageNumbers) => void handleReviewRequest(type, format, theme, author, pageNumbers)}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ height: "100%", overflow: "auto", padding: "16px 20px" }}>
       <h2 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 4px" }}>📄 보고서 작성</h2>
@@ -212,16 +240,6 @@ export default function ReportView({ projectDir, onStart, sourcePath, onSourceHa
           </div>
         ))}
       </div>
-
-      <ExportReportModal
-        key={`${reportFor ?? "none"}:${fromDoc ? "doc" : "plan"}`}
-        open={reportFor !== null}
-        planPath={reportFor ?? ""}
-        cwd={projectDir}
-        defaultType={fromDoc ? "doc" : "work"}
-        onClose={() => { setReportFor(null); setFromDoc(false); }}
-        onReviewRequest={(type, format, theme, author, pageNumbers) => void handleReviewRequest(type, format, theme, author, pageNumbers)}
-      />
     </div>
   );
 }

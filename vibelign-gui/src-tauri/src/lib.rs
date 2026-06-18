@@ -192,6 +192,7 @@ pub fn run() {
             commands::tool_install::tool_install_status,
             commands::tool_install::uninstall_tool,
             commands::report_pdf::export_report_pdf,
+            commands::report_pdf::read_report_pdf_bytes,
             commands::report_pdf::copy_report_to,
             commands::report_pdf::get_report_export_dir,
             commands::report_pdf::set_report_export_dir,

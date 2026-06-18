@@ -14,6 +14,8 @@ vi.mock("../../../lib/vib/report", () => ({
 }));
 vi.mock("../../../lib/vib/system", () => ({ pickFolder: vi.fn().mockResolvedValue(null) }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openPath: vi.fn().mockResolvedValue(undefined) }));
+// PdfPreview 는 pdf.js 를 동적 import 하므로 jsdom 단위테스트에선 스텁으로 대체한다.
+vi.mock("../PdfPreview", () => ({ PdfPreview: () => null }));
 
 import {
   generatePlanningReport,
