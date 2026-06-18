@@ -53,6 +53,21 @@ def test_body_override_only_does_not_change_heading():
     assert '"X"' in css  # 제목은 default 유지
 
 
+def test_missing_font_file_degrades_without_crash(monkeypatch, tmp_path):
+    # 번들에 woff2 가 없어도(부분 설치) 렌더가 크래시하지 않고 font-family 로 degrade.
+    import vibelign.core.reporting_cli.fonts as fmod
+
+    monkeypatch.setattr(fmod, "FONTS_DIR", tmp_path)  # 빈 디렉터리 → woff2 없음
+    css = fmod.font_family_override_css(
+        ReportFonts(heading="pretendard", body="gowun-batang"),
+        default_heading='"X", serif',
+        default_body='"Y", serif',
+    )
+    assert "@font-face" not in css  # 파일 없으니 임베딩은 생략
+    assert '"Pretendard"' in css  # font-family 는 그대로 → 시스템 폰트 폴백
+    assert '"Gowun Batang"' in css
+
+
 def test_normalize_rejects_unknown_id():
     with pytest.raises(ValueError):
         normalize_report_fonts(heading="nope")

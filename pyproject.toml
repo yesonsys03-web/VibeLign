@@ -46,7 +46,7 @@ include = ["vibelign", "vibelign.*"]
 exclude = ["build*", "dist*", "promo*"]
 
 [tool.setuptools.package-data]
-vibelign = ["_bundled/vibelign-engine", "_bundled/vibelign-engine.exe", "_bundled/vibelign-engine.sha256", "_bundled/vibelign-engine.exe.sha256", "core/memory/*.schema.json", "core/recovery/*.schema.json"]
+vibelign = ["_bundled/vibelign-engine", "_bundled/vibelign-engine.exe", "_bundled/vibelign-engine.sha256", "_bundled/vibelign-engine.exe.sha256", "core/memory/*.schema.json", "core/recovery/*.schema.json", "core/reporting_cli/fonts/*/*.woff2", "core/reporting_cli/fonts/*/OFL.txt"]
 
 [tool.pyright]
 exclude = [

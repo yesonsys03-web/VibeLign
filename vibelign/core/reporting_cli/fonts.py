@@ -86,6 +86,10 @@ def normalize_report_fonts(*, heading: str | None = None, body: str | None = Non
 def _face_rules(fdef: FontDef) -> str:
     rules = []
     for face in fdef.faces:
+        # 번들에 woff2 가 없으면(부분 설치 등) 임베딩만 건너뛴다. font-family 규칙은
+        # 호출부가 그대로 emit 하므로 시스템 설치 폰트/폴백 체인으로 degrade — 렌더는 안 깨진다.
+        if not (FONTS_DIR / face.file).is_file():
+            continue
         rules.append(
             f'@font-face {{ font-family:"{fdef.family}"; '
             f"font-weight:{face.weight}; font-style:normal; font-display:swap; "
