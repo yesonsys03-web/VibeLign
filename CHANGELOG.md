@@ -10,6 +10,25 @@
 
 ---
 
+## [2.5.1] — 2026-06-18
+
+**삿갓 specimen 보고서팩 + Claude 안내 복원** — v2.5.0 보고서 내보내기 위에 satgat 스타일 specimen 테마 13종을 추가하고, 취소된 Claude 정책 변경 대응 문구를 되돌렸다. 기획방 기본 우선순위도 기존 흐름인 클로이(Claude) → 지오(Codex) 순서로 복원했다.
+
+### Added
+
+- **삿갓 specimen 보고서 테마 13종** — satgat 데모팩 전수 specimen처럼 바로 비교할 수 있는 보고서 양식을 theme catalog와 GUI 드롭다운에 추가 (`theme_catalog.py`, `reportThemes.ts`).
+
+### Changed
+
+- **기획방 기본 응답 모드 복원** — 기본 선택을 `초안 · 클로이`로 되돌리고, `Instant · 지오`는 두 번째 선택지로 유지 (`PlanningModes.ts`, `PlanningRoom.mode.test.tsx`).
+- **Claude 크레딧/차감 경고 제거** — 취소된 `claude -p` 정책 변경 대응 문구를 기획방 칩, 페르소나 설정, 작업방, 디자인 미리보기에서 제거 (`PlanningPersonaComposer.tsx`, `PlanningPersonaSettings.tsx`, `WorkRoom.tsx`, `DesignPreview.tsx`).
+
+### Verified
+
+- GUI 기획방/디자인 테스트 22개 통과, 변경 파일 ESLint 통과, `npx tsc --noEmit` 통과, `npx vite build` 통과. 보고서 테마 테스트는 13종 specimen 테마 ID와 GUI theme metadata를 검증.
+
+---
+
 ## [2.5.0] — 2026-06-18
 
 **보고서 작성 대폭 강화** — 기획방에서 만든 기획안(또는 임의 문서)을 직장에서 바로 쓰는 보고서로 내보내는 흐름을 처음부터 끝까지 다듬었다. PDF·Word·PPT 출력, 50여 종 테마, 한글 무료 폰트 선택, 그리고 Word 한글이 "풀려" 보이던 문제까지 정리했다.

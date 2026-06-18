@@ -27,7 +27,7 @@
 VibeLign (`vibelign`) is an AI coding safety **CLI + Desktop GUI** for vibe coding workflows.
 It helps developers and non-developers protect project structure, save checkpoints, undo bad AI edits, manage anchors, and block secret leaks before commit.
 
-> **🆕 v2.4**: Design Preview now synthesizes styles from plain-language descriptions (+ background generation while you navigate away), AI tools (opencode/codex/agy) install in one click from the app, the run/verify flow guides you from first `vib start` to a working app, and async Tauri commands eliminate UI freezes during heavy operations. See [CHANGELOG](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md). v1 → v2 사용자: [migration notes](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md).
+> **🆕 v2.5.1**: Report export now includes 13 satgat-inspired specimen themes, and the planning room is back to the original Chloe (Claude) → Gio (Codex) priority after Claude reverted the policy change that prompted the warning labels. See [CHANGELOG](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md). v1 → v2 users: [migration notes](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md).
 
 Documentation: `https://yesonsys03-web.github.io/VibeLign/`  
 Repository: `https://github.com/yesonsys03-web/VibeLign`  
@@ -316,6 +316,19 @@ VibeLign promises:
 ---
 
 ## 📋 Release Notes
+
+**v2.5.1** — Satgat specimen report pack + Claude warning cleanup:
+
+- 🧾 **13 new satgat-inspired report specimen themes** for comparing business report, proposal, result report, and document-style exports without hand-styling each run.
+- 🔁 **Planning-room priority restored** — default response mode is back to **Draft · Chloe** first, with **Instant · Gio** still available next.
+- 🧹 **Claude credit warning labels removed** after the policy reversal: planning-room chips, persona settings, Work Room, and Design Preview no longer show the `claude -p` credit warning.
+
+**v2.5.0** — Major report export upgrade:
+
+- 📄 **One-click plan/document → report export** in HTML preview, PDF, Word, and PowerPoint.
+- 🎨 **50+ report themes**, adjustable heading/body/header font sizes, page numbers, and remembered save locations.
+- 🔤 **Free Korean font selection** with embedded PDF fonts: Pretendard, Nanum Myeongjo, Gowun Batang, Gowun Dodum, and Geomun Gothic.
+- 🛠 **Korean Word/PPT text normalization fixed** so decomposed Hangul filenames/content no longer render as split jamo.
 
 **v2.4.4** — New 갸리카 (car) guide mascot in onboarding & the planning room:
 

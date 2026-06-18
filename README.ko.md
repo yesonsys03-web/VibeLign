@@ -27,7 +27,7 @@
 VibeLign(`vibelign`)은 바이브 코딩 작업을 더 안전하게 해주는 AI 코딩 안전 **CLI + 데스크톱 GUI** 예요.
 프로젝트 구조 보호, 체크포인트 저장, 되돌리기, 앵커 관리, 커밋 전 비밀정보 차단을 도와줘요.
 
-> **🆕 v2.4**: 디자인 미리보기에서 일상어로 스타일을 즉석 합성(다른 탭으로 이동해도 백그라운드 생성 유지), opencode·codex·agy를 앱 안에서 원클릭 설치, "실행해보기" 흐름으로 첫 `vib start`부터 동작 확인까지 안내, 무거운 작업 중에도 UI가 멈추지 않는 비동기 Tauri 커맨드 적용. [CHANGELOG](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md) 참고. v1 → v2 사용자: [마이그레이션 가이드](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md).
+> **🆕 v2.5.1**: 보고서 내보내기에 삿갓 스타일 specimen 테마 13종을 추가했고, Claude 정책 변경이 취소되어 경고 배지를 제거했습니다. 기획방 우선순위도 기존처럼 클로이(Claude) → 지오(Codex) 순서로 돌아왔어요. [CHANGELOG](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md) 참고. v1 → v2 사용자: [마이그레이션 가이드](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md).
 
 문서: `https://yesonsys03-web.github.io/VibeLign/`  
 저장소: `https://github.com/yesonsys03-web/VibeLign`  
@@ -316,6 +316,19 @@ VibeLign이 보장하는 것:
 ---
 
 ## 📋 업데이트 내역 (Release Notes)
+
+**v2.5.1** — 삿갓 specimen 보고서팩 + Claude 경고 정리:
+
+- 🧾 **삿갓 스타일 보고서 specimen 테마 13종 추가** — 업무 보고, 제안서, 결과 보고, 문서 그대로 내보내기를 손으로 꾸미지 않고 바로 비교할 수 있어요.
+- 🔁 **기획방 우선순위 복원** — 기본 응답 모드가 다시 **초안 · 클로이** 우선이고, **Instant · 지오**는 바로 다음 선택지로 유지됩니다.
+- 🧹 **Claude 크레딧 경고 배지 제거** — 정책 변경이 취소되어 기획방 칩, 페르소나 설정, 작업방, 디자인 미리보기의 `claude -p` 크레딧 경고를 걷어냈어요.
+
+**v2.5.0** — 보고서 내보내기 대폭 강화:
+
+- 📄 **기획안/일반 문서 → 보고서 원클릭 내보내기** — HTML 미리보기, PDF, Word, PowerPoint 지원.
+- 🎨 **50여 종 보고서 테마**, 제목/본문/머리말 폰트 크기 조절, 페이지 번호, 저장 위치 기억.
+- 🔤 **무료 한글 폰트 선택** — Pretendard, 나눔명조, 고운바탕, 고운돋움, 검은고딕을 고르고 PDF에 임베딩해요.
+- 🛠 **Word/PPT 한글 풀림 해결** — 자모가 분리돼 보이던 한글을 출력 직전 NFC로 정규화합니다.
 
 **v2.4.4** — 온보딩·기획방에 새 갸리카(자동차) 길잡이 마스코트:
 
