@@ -16,6 +16,8 @@ import {
 import type { ReportFontSizes } from "../../lib/vib/reportFontSizes";
 import { isPolishable, type EmitPayload } from "../../lib/vib/reportModel";
 import { ReportFontSizeControls } from "./ReportFontSizeControls";
+import { ReportFontSelect } from "./ReportFontSelect";
+import type { ReportFonts } from "../../lib/vib/reportFonts";
 import { ReportThemeSelect } from "./ReportThemeSelect";
 import { PdfPreview } from "./PdfPreview";
 
@@ -66,6 +68,7 @@ export interface ReportComposerProps {
     author: string,
     pageNumbers: boolean,
     fontSizes: ReportFontSizes,
+    fonts: ReportFonts,
   ) => void;
   /** 처음 선택될 보고서 종류(문서 우클릭 진입 시 "doc"). 기본 "work". */
   defaultType?: ReportType;
@@ -91,6 +94,7 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
     }
   });
   const [fontSizes, setFontSizes] = useState<ReportFontSizes>({});
+  const [fonts, setFonts] = useState<ReportFonts>({});
   const [pageNumbers, setPageNumbers] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<ResultState | null>(null);
@@ -169,7 +173,7 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
           if (!proceed) return; // 유지 — 사용자가 다듬기 끄고 다시 누르면 즉시 생성
         }
       }
-      onReviewRequest(reportType, format, theme, author, pageNumbers, fontSizes);
+      onReviewRequest(reportType, format, theme, author, pageNumbers, fontSizes, fonts);
       onClose();
       return;
     }
@@ -180,15 +184,15 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
     setExportErr(null);
     let next: ResultState;
     if (format === "html") {
-      const r = await generatePlanningReport(cwd, planPath, reportType, polish, theme, author, pageNumbers, fontSizes);
+      const r = await generatePlanningReport(cwd, planPath, reportType, polish, theme, author, pageNumbers, fontSizes, fonts);
       next = r.ok
         ? { kind: "html", ok: true, path: r.path, reportType: r.reportType, html: r.html }
         : r;
     } else if (format === "pdf") {
-      const r = await generateReportPdf(cwd, planPath, reportType, polish, theme, author, pageNumbers, fontSizes);
+      const r = await generateReportPdf(cwd, planPath, reportType, polish, theme, author, pageNumbers, fontSizes, fonts);
       next = r.ok ? { kind: "file", ok: true, path: r.path } : r;
     } else {
-      const r = await generateReportOffice(cwd, planPath, reportType, format, polish, theme, author, pageNumbers, fontSizes);
+      const r = await generateReportOffice(cwd, planPath, reportType, format, polish, theme, author, pageNumbers, fontSizes, fonts);
       next = r.ok ? { kind: "file", ok: true, path: r.path } : r;
     }
     setResult(next);
@@ -247,6 +251,10 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
 
       <div style={{ marginBottom: 12 }}>
         <ReportFontSizeControls value={fontSizes} onChange={setFontSizes} />
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <ReportFontSelect value={fonts} onChange={setFonts} />
       </div>
 
       <div style={{ marginBottom: 12 }}>
