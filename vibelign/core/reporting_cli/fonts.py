@@ -63,4 +63,52 @@ def _face_data_uri(face_rel_path: str) -> str:
     """Return a data URI for the woff2 file at FONTS_DIR / face_rel_path."""
     raw = (FONTS_DIR / face_rel_path).read_bytes()
     return "data:font/woff2;base64," + base64.b64encode(raw).decode("ascii")
+
+
+@dataclass(frozen=True, slots=True)
+class ReportFonts:
+    heading: str | None = None
+    body: str | None = None
+
+    def has_overrides(self) -> bool:
+        return self.heading is not None or self.body is not None
+
+
+def normalize_report_fonts(*, heading: str | None = None, body: str | None = None) -> ReportFonts:
+    h = heading or None
+    b = body or None
+    for label, fid in (("제목", h), ("본문", b)):
+        if fid is not None and fid not in REPORT_FONTS:
+            raise ValueError(f"알 수 없는 {label} 폰트예요: {fid}")
+    return ReportFonts(heading=h, body=b)
+
+
+def _face_rules(fdef: FontDef) -> str:
+    rules = []
+    for face in fdef.faces:
+        rules.append(
+            f"@font-face {{ font-family:{fdef.css_stack.split(',', 1)[0]}; "
+            f"font-weight:{face.weight}; font-style:normal; font-display:swap; "
+            f"src:url({_face_data_uri(face.file)}) format('woff2'); }}"
+        )
+    return "\n".join(rules)
+
+
+def font_family_override_css(
+    fonts: ReportFonts, *, default_heading: str, default_body: str
+) -> str:
+    if not fonts.has_overrides():
+        return ""
+    heading_def = REPORT_FONTS.get(fonts.heading) if fonts.heading else None
+    body_def = REPORT_FONTS.get(fonts.body) if fonts.body else None
+    heading_stack = heading_def.css_stack if heading_def else default_heading
+    body_stack = body_def.css_stack if body_def else default_body
+    parts: list[str] = []
+    for fdef in {f.id: f for f in (heading_def, body_def) if f}.values():
+        parts.append(_face_rules(fdef))
+    parts.append(
+        f"body, p, li, ul, p.summary, p.meta {{ font-family:{body_stack}; }}"
+    )
+    parts.append(f"h1, h2 {{ font-family:{heading_stack}; }}")
+    return "\n".join(parts)
 # === ANCHOR: FONTS_END ===
