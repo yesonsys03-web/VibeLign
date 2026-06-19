@@ -8,9 +8,11 @@ interface ReportThemeSelectProps {
 
 export function ReportThemeSelect({ value, onChange }: ReportThemeSelectProps) {
   return (
-    <label>
-      디자인 테마{" "}
+    <div>
+      {/* 종류·형식 사이드 버튼과 통일 — 그룹 라벨 헤더 + 브루탈리즘 input-field 스타일. */}
+      <div style={{ fontSize: 12, fontWeight: 700, color: "#1A1A1A", marginBottom: 6 }}>디자인 테마</div>
       <select
+        className="input-field"
         aria-label="디자인 테마"
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -25,7 +27,7 @@ export function ReportThemeSelect({ value, onChange }: ReportThemeSelectProps) {
           </optgroup>
         ))}
       </select>
-    </label>
+    </div>
   );
 }
 // === ANCHOR: REPORTTHEMESELECT_END ===

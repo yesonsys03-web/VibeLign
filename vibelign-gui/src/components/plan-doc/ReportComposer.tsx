@@ -205,31 +205,35 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
   // === ANCHOR: REPORTCOMPOSER_OPTIONS_START ===
   const options = (
     <>
-      <div style={{ marginBottom: 12 }}>
+      <div role="radiogroup" aria-label="보고서 종류" style={{ marginBottom: 12 }}>
+        <div style={groupLabel}>종류</div>
         {TYPES.map((t) => (
-          <label key={t.id} style={{ marginRight: 16, display: inline ? "block" : "inline", marginBottom: inline ? 4 : 0 }}>
+          <label key={t.id} className="btn btn-ghost btn-sm" style={sideBtn(reportType === t.id)}>
             <input
               type="radio"
               name="report-type"
               value={t.id}
               checked={reportType === t.id}
               onChange={() => setReportType(t.id)}
-            />{" "}
+              style={srOnly}
+            />
             {t.label}
           </label>
         ))}
       </div>
 
-      <div style={{ marginBottom: 12 }}>
+      <div role="radiogroup" aria-label="내보내기 형식" style={{ marginBottom: 12 }}>
+        <div style={groupLabel}>형식</div>
         {FORMATS.map((f) => (
-          <label key={f.id} style={{ marginRight: 16, display: inline ? "block" : "inline", marginBottom: inline ? 4 : 0 }}>
+          <label key={f.id} className="btn btn-ghost btn-sm" style={sideBtn(format === f.id)}>
             <input
               type="radio"
               name="export-format"
               value={f.id}
               checked={format === f.id}
               onChange={() => setFormat(f.id)}
-            />{" "}
+              style={srOnly}
+            />
             {f.label}
           </label>
         ))}
@@ -258,43 +262,45 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
       </div>
 
       <div style={{ marginBottom: 12 }}>
-        <label>
-          작성자{" "}
-          <input
-            type="text"
-            aria-label="작성자"
-            value={author}
-            placeholder="(선택) 이름"
-            onChange={(e) => {
-              setAuthor(e.target.value);
-              try {
-                localStorage.setItem("vibelign_report_author", e.target.value);
-              } catch {
-                /* localStorage 미지원 시 무시 */
-              }
-            }}
-          />
-        </label>
+        <div style={groupLabel}>작성자</div>
+        <input
+          type="text"
+          className="input-field"
+          aria-label="작성자"
+          value={author}
+          placeholder="(선택) 이름"
+          onChange={(e) => {
+            setAuthor(e.target.value);
+            try {
+              localStorage.setItem("vibelign_report_author", e.target.value);
+            } catch {
+              /* localStorage 미지원 시 무시 */
+            }
+          }}
+        />
       </div>
 
       <div style={{ marginBottom: 12 }}>
-        <label>
+        <div style={groupLabel}>옵션</div>
+        {/* 체크박스를 사이드 버튼식 토글로 — input 은 sr-only, 라벨이 버튼. ✓ 는 aria-hidden(접근명 보존). */}
+        <label className="btn btn-ghost btn-sm" style={sideBtn(pageNumbers)}>
           <input
             type="checkbox"
             checked={pageNumbers}
             onChange={(e) => setPageNumbers(e.target.checked)}
-          />{" "}
+            style={srOnly}
+          />
+          <span aria-hidden="true" style={{ width: 16, display: "inline-block" }}>{pageNumbers ? "✓" : ""}</span>
           페이지 번호 (Word·PDF)
         </label>
-      </div>
-
-      <div style={{ marginBottom: 12 }}>
-        <label>
+        <label className="btn btn-ghost btn-sm" style={sideBtn(polish)}>
           <input
             type="checkbox"
             checked={polish}
             onChange={(e) => setPolish(e.target.checked)}
-          />{" "}
+            style={srOnly}
+          />
+          <span aria-hidden="true" style={{ width: 16, display: "inline-block" }}>{polish ? "✓" : ""}</span>
           AI 어조 다듬기 (무료)
         </label>
       </div>
@@ -543,4 +549,36 @@ const secondaryBtn: CSSProperties = {
   borderRadius: 6,
   cursor: "pointer",
 };
+// 라디오 그룹 헤더(종류/형식) — 아래 폰트/테마 섹션 라벨과 톤을 맞춘다.
+const groupLabel: CSSProperties = { fontSize: 12, fontWeight: 700, color: "#1A1A1A", marginBottom: 6 };
+// 라디오 input 은 시각적으로 숨기되 라벨 연결·키보드·테스트(getByLabelText)는 유지.
+const srOnly: CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0 0 0 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+};
+// 코드탐색(CodeFileTree)식 풀폭 세로 버튼 — 선택 시 다크 배경, 항상 좌측 액센트 바.
+function sideBtn(active: boolean): CSSProperties {
+  return {
+    // label 은 .btn 의 display 를 못 받아 기본 inline 으로 흐른다 → flex 를 명시해 풀폭 세로 적층.
+    display: "flex",
+    alignItems: "center",
+    width: "100%",
+    justifyContent: "flex-start",
+    textAlign: "left",
+    marginBottom: 3,
+    textTransform: "none",
+    letterSpacing: 0,
+    cursor: "pointer",
+    background: active ? "#1A1A1A" : undefined,
+    color: active ? "#fff" : undefined,
+    boxShadow: "inset 4px 0 0 #9B1B1B, var(--shadow-sm)",
+  };
+}
 // === ANCHOR: REPORTCOMPOSER_END ===
