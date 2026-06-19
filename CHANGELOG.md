@@ -10,6 +10,26 @@
 
 ---
 
+## [2.5.2] — 2026-06-19
+
+**보고서 작성 폼 디자인 통일** — 보고서 내보내기 옵션 패널의 제각각이던 컨트롤(브라우저 기본 라디오·체크박스·드롭다운)을 코드탐색 화면의 사이드 버튼 디자인 언어로 통일했다.
+
+### Changed
+
+- **종류·형식 선택을 사이드 버튼으로** — `업무/제안/결과/문서`, `HTML/PDF/Word/PPT` 라디오를 코드탐색식 풀폭 세로 버튼(선택 시 다크 배경 + 좌측 액센트 바)으로 교체 (`ReportComposer.tsx`).
+- **페이지 번호·AI 다듬기를 토글 버튼으로** — 두 체크박스를 동일한 사이드 버튼식 토글(✓ 표시)로 통일 (`ReportComposer.tsx`).
+- **디자인 테마·작성자·폰트 종류 통일** — 드롭다운/입력을 브루탈리즘 `input-field`(검정 테두리 + 그림자 + 풀폭)로 맞추고 그룹마다 라벨 헤더를 추가 (`ReportComposer.tsx`, `ReportThemeSelect.tsx`, `ReportFontSelect.tsx`).
+
+### Fixed
+
+- **PPT 파일 버튼 잘림** — `<label>`이 `.btn`의 display 를 못 받아 가로로 흐르며 잘리던 문제를 `display:flex` 명시로 풀폭 세로 적층 수정 (`ReportComposer.tsx`).
+
+### Verified
+
+- 라디오·체크박스는 input 을 sr-only 로 숨기고 label 을 버튼화해 네이티브 토글·키보드·접근성(role/aria)·`getByLabelText` 테스트를 모두 보존. `npx tsc --noEmit`·ESLint·`vite build` 통과, `ExportReportModal` 14/14 통과, 전체 GUI 348 통과(기존 flaky/부채 3건은 부모 커밋에서도 동일 재현 — 본 변경 무관).
+
+---
+
 ## [2.5.1] — 2026-06-18
 
 **삿갓 specimen 보고서팩 + Claude 안내 복원** — v2.5.0 보고서 내보내기 위에 satgat 스타일 specimen 테마 13종을 추가하고, 취소된 Claude 정책 변경 대응 문구를 되돌렸다. 기획방 기본 우선순위도 기존 흐름인 클로이(Claude) → 지오(Codex) 순서로 복원했다.
