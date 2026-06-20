@@ -6,8 +6,10 @@ vi.mock("../../../lib/vib/report", () => ({
   generatePlanningReport: vi.fn(),
   generateReportPdf: vi.fn(),
   generateReportOffice: vi.fn(),
-  // 생성 전 빈-보고서 점검용 프로브. ok:false 면 가드를 건너뛰어 기존 동작 유지.
+  renderReportFileWithDecisions: vi.fn(),
+  renderReportHtmlWithDecisions: vi.fn(),
   emitReportModel: vi.fn().mockResolvedValue({ ok: false, error: "" }),
+  requestReportAssistance: vi.fn(),
   getReportExportDir: vi.fn().mockResolvedValue("/docs"),
   setReportExportDir: vi.fn().mockResolvedValue(undefined),
   copyReportTo: vi.fn((src: string, dir: string) => Promise.resolve(`${dir}/${src.split("/").pop()}`)),
@@ -222,4 +224,5 @@ test("작성자 입력/페이지번호 → generatePlanningReport 인자", async
   fireEvent.click(screen.getByRole("button", { name: "보고서 생성" }));
   await waitFor(() => expect(mockGen).toHaveBeenCalledWith("/proj", "plans/p.md", "work", false, "classic", "홍길동", false, {}, {}));
 });
+
 // === ANCHOR: EXPORTREPORTMODAL_TEST_END ===

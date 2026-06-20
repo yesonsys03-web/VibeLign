@@ -25,13 +25,13 @@ _SANS_FALLBACK: Final = '"Apple SD Gothic Neo","Malgun Gothic",sans-serif'
 _SERIF_FALLBACK: Final = '"Apple SD Gothic Neo","Batang",serif'
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class FontFace:
     file: str
     weight: int
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class FontDef:
     id: str
     label: str
@@ -77,7 +77,7 @@ def _face_data_uri(face_rel_path: str) -> str:
     return "data:font/woff2;base64," + base64.b64encode(raw).decode("ascii")
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ReportFonts:
     heading: str | None = None
     body: str | None = None

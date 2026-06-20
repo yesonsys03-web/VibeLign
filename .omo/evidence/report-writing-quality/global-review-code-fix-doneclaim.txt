@@ -1,0 +1,44 @@
+Status: DONE
+
+Changed files:
+- tests/core/reporting_cli/test_emit.py
+- vibelign/commands/vib_report_cmd.py
+- vibelign/commands/vib_report_render_payload.py
+
+Required blocker fixes:
+- E402 scenario: tests/core/reporting_cli/test_emit.py no longer imports _emit_doc_payload mid-file; the doc emit test reuses the top-level emit_report_payload import.
+- LOC scenario: vibelign/commands/vib_report_cmd.py render-payload loading was extracted to vibelign/commands/vib_report_render_payload.py, which includes production anchors.
+- Render-payload boundary scenario: malformed payload titles now fail at the render-payload helper boundary with a JSON error instead of rendering with invalid input.
+
+Evidence:
+- Ruff invocation: uv run ruff check tests/core/reporting_cli/test_emit.py vibelign/commands/vib_report_cmd.py vibelign/commands/vib_report_render_payload.py
+  Observable: EXIT_CODE=0, "All checks passed!"
+  Artifact: .omo/evidence/report-writing-quality/global-review-code-fix-ruff.txt
+- LOC invocation: awk pure LOC check for vibelign/commands/vib_report_cmd.py and vibelign/commands/vib_report_render_payload.py
+  Observable: vibelign/commands/vib_report_cmd.py pure_loc=249; vibelign/commands/vib_report_render_payload.py pure_loc=43; EXIT_CODE=0
+  Artifact: .omo/evidence/report-writing-quality/global-review-code-fix-loc.txt
+- Pytest invocation: uv run python -m pytest tests/core/reporting_cli/test_emit.py tests/cli/test_vib_report_cmd.py tests/cli/test_vib_report_assist_cmd.py tests/cli/test_vib_report_visual_cards_cmd.py tests/cli/test_vib_report_render_payload.py -v
+  Observable: 40 passed; EXIT_CODE=0
+  Artifact: .omo/evidence/report-writing-quality/global-review-code-fix-pytest.txt
+- Compile invocation: uv run python -m compileall vibelign/commands vibelign/core/reporting_cli
+  Observable: EXIT_CODE=0
+  Artifact: .omo/evidence/report-writing-quality/global-review-code-fix-compileall.txt
+- Diff whitespace invocation: git diff --check -- tests/core/reporting_cli/test_emit.py vibelign/commands/vib_report_cmd.py vibelign/commands vibelign/core/reporting_cli
+  Observable: EXIT_CODE=0
+  Artifact: .omo/evidence/report-writing-quality/global-review-code-fix-diff-check.txt
+- LSP diagnostics invocation: mcp__lsp.diagnostics severity=error for tests/core/reporting_cli/test_emit.py, vibelign/commands/vib_report_cmd.py, and vibelign/commands/vib_report_render_payload.py
+  Observable: No diagnostics found for each changed file.
+  Artifact: this done-claim file records the MCP diagnostic result.
+- VibeLign explain fallback invocation: vib explain --write-report
+  Observable: EXIT_CODE=0
+  Artifact: .omo/evidence/report-writing-quality/global-review-code-fix-vib-explain.txt
+- VibeLign guard fallback invocation: vib guard --strict --write-report
+  Observable: EXIT_CODE=1 due broad shared-worktree safety warnings and unrelated modified/untracked files, not the required Ruff/LOC/pytest/compile/diff checks.
+  Artifact: .omo/evidence/report-writing-quality/global-review-code-fix-vib-guard.txt
+- VibeLign checkpoint fallback invocation: vib checkpoint "global-review-code-fix" --json
+  Observable: EXIT_CODE=0
+  Artifact: .omo/evidence/report-writing-quality/global-review-code-fix-vib-checkpoint.txt
+
+Remaining risk:
+- The working tree contains many unrelated modified and untracked files from concurrent work. They were not reverted or staged.
+- The optional EmitReportPayload raw dict/list[dict] medium item was left unchanged because the blocker patch did not require broad payload model migration.

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # === ANCHOR: CLI_CORE_COMMANDS_START ===
 import argparse
 from collections.abc import Callable

@@ -1,0 +1,35 @@
+Surface: CLI report visual-cards production-like JSON
+Invocation: uv run vib report tests/fixtures/reporting_cli/quality_complete.md --type proposal --visual-cards --json --output .omo/evidence/report-writing-quality/runtime-audit-visual-cards.html --force
+ExitCode: 0
+
+## json excerpt
+{
+  "ok": true,
+  "report_type": "proposal",
+  "provider": "provider-neutral-draft",
+  "card_count": 6,
+  "first_card": {
+    "id": "report-card-1",
+    "title": "제안 요약",
+    "body": "예약 변경 처리 시간을 줄이고 운영팀이 같은 기준으로 후속 대응을 결정하도록 만든다.",
+    "caption": "출처: 제안 요약",
+    "visual_prompt": "2D business comic illustration, operations team reviewing a clean workflow board, editorial planning companion card, no readable text in image",
+    "negative_prompt": "readable text, letters, numbers, logos, watermark, captions",
+    "source_refs": [
+      {
+        "source_plan_path": "tests/fixtures/reporting_cli/quality_complete.md",
+        "section": 0,
+        "block": 0,
+        "heading": "제안 요약"
+      }
+    ],
+    "image": {
+      "provider": "provider-neutral-draft",
+      "asset_path": "",
+      "prompt": "2D business comic illustration, operations team reviewing a clean workflow board, editorial planning companion card, no readable text in image",
+      "generated": false
+    },
+    "approved": false
+  }
+}
+Validation: provider-neutral JSON, no fake provider/asset, no Hangul in visual prompts, no generic fallback tokens

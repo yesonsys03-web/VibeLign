@@ -930,24 +930,31 @@ MANUAL: dict[str, ManualEntry] = {
     "report": {
         "emoji": "📄",
         "title": "vib report",
-        "one_line": "기획안(plans/*.md)을 업무/제안/결과 보고서로 내보내요",
+        "one_line": "기획안(plans/*.md)을 업무/제안/결과/일반 문서 보고서로 내보내요",
         "what": (
-            "저장된 기획안 마크다운을 업무보고·제안서·결과보고 HTML 보고서로\n"
-            "변환해서 .vibelign/reports/에 저장해요. (LLM 없이 템플릿 기반)"
+            "저장된 기획안 마크다운을 업무보고·제안서·결과보고·일반 문서로 렌더링하고,\n"
+            "HTML/DOCX/PPTX로 내보내요.\n"
+            "품질 점검·보완 질문·카드 뉴스 사이드카는 --emit-model,\n"
+            "--assist-missing --json, --visual-cards --json처럼 명시 플래그로 확인해요."
         ),
         "when": [
             "기획방에서 정리한 내용을 업무용 보고서로 만들고 싶을 때",
             "기획안을 상사·고객에게 보여줄 문서로 바꾸고 싶을 때",
+            "명시 JSON/model 옵션으로 빠진 근거·리스크·다음 액션을 확인하고 싶을 때",
         ],
         "examples": [
             ('vib report plans/예약-앱.md --type work', "업무 보고서 HTML 생성"),
-            ('vib report plans/예약-앱.md --type proposal', "제안서 HTML 생성"),
-            ('vib report plans/예약-앱.md --type result --json', "결과 보고 + JSON 출력"),
+            ('vib report plans/예약-앱.md --type proposal --format docx', "제안서 Word 생성"),
+            ('vib report plans/예약-앱.md --type result --assist-missing --json', "부족한 항목 보완 질문 출력"),
+            ('vib report plans/예약-앱.md --type proposal --visual-cards --json', "카드 뉴스 초안 생성"),
         ],
         "options": [
             ("plan", "보고서로 만들 기획안 .md 경로예요."),
-            ("--type", "보고서 종류 (work=업무, proposal=제안, result=결과)."),
-            ("--format", "출력 포맷 (현재 html)."),
+            ("--type", "보고서 종류 (work=업무, proposal=제안, result=결과, doc=일반 문서)."),
+            ("--format", "출력 포맷 (html, docx, pptx)."),
+            ("--emit-model", "렌더링 전 보고서 모델과 품질 점검 결과를 출력해요."),
+            ("--assist-missing", "JSON 출력에서 부족한 보고서 항목에 대한 보완 초안·질문을 만들어요."),
+            ("--visual-cards", "JSON 출력에서 카드 뉴스 사이드카 초안을 만들어요. --visual-cards --json으로 사용해요."),
             ("--output PATH", "저장할 프로젝트 상대 경로를 지정해요."),
             ("--force", "기존 --output 파일을 덮어써요."),
             ("--date", "보고서 날짜 (기본: 오늘)."),

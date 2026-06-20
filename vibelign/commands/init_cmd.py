@@ -1,4 +1,6 @@
 # === ANCHOR: INIT_CMD_START ===
+from __future__ import annotations
+
 import platform
 import shutil
 import subprocess

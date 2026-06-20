@@ -1,0 +1,35 @@
+Status: DONE
+Verdict: confirmed
+
+Evidence:
+- .omo/evidence/report-writing-quality/f4-scope-fidelity.txt
+- .omo/evidence/report-writing-quality/f4-doneclaim.txt
+
+Commands run:
+1. Exact F4 plan command:
+   mkdir -p .omo/evidence/report-writing-quality && python3 - <<'PY' > .omo/evidence/report-writing-quality/f4-scope-fidelity.txt
+   [plan F4 scope-fidelity script]
+   PY
+2. Supplemental detail append:
+   python3 - <<'PY' >> .omo/evidence/report-writing-quality/f4-scope-fidelity.txt
+   [python path, backend PDF scan, direct CLI --format pdf rejection, GUI PDF, polish checks]
+   PY
+3. Clarification append:
+   python3 - <<'PY' >> .omo/evidence/report-writing-quality/f4-scope-fidelity.txt
+   [pdf_stamp.py tracked/unchanged clarification and report-stamp-pdf utility distinction]
+   PY
+
+Observed result:
+- Exact F4 command exited 0 and wrote: APPROVE scope fidelity.
+- python3 resolved to /usr/bin/python3 and executed as Python 3.9.6 from Xcode; import/CLI execution succeeded, so no uv fallback was needed.
+- Direct CLI report --format pdf was rejected with exit 2: invalid choice 'pdf' (choose from 'html', 'docx', 'pptx').
+- No backend report pdf_renderer or --format pdf renderer path was found in the F4 backend files.
+- Existing vibelign/core/reporting_cli/pdf_stamp.py is tracked and unchanged; it is a page-number stamping helper, not a report renderer or CLI report format.
+- GUI PDF boundary remains: generateReportPdf/export_report_pdf path is present in vibelign-gui/src/lib/vib/report.ts.
+- Polish boundary remains: FREE_PROVIDERS is present in vibelign/core/reporting_cli/polish.py.
+
+Accepted environment fallback:
+- None. /usr/bin/python3 completed the exact F4 command successfully.
+
+Blockers:
+- None.

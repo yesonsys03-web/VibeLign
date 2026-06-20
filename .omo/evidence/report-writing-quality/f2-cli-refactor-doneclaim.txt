@@ -1,0 +1,29 @@
+Status: DONE
+
+Changed files:
+- vibelign/cli/cli_command_groups.py
+- vibelign/cli/cli_report_command_groups.py
+- vibelign/cli/cli_workflow_command_groups.py
+
+Success criteria:
+- F2 exact code-quality heredoc passes and records APPROVE.
+- vibelign/cli/cli_command_groups.py is 627 physical lines, under the <650 gate.
+- Focused report CLI parser tests pass.
+- vibelign/cli and vibelign/commands compile.
+- git diff --check passes for vibelign/cli/cli_command_groups.py and vibelign/cli.
+
+Evidence:
+- .omo/evidence/report-writing-quality/f2-code-quality-scope.txt
+- .omo/evidence/report-writing-quality/f2-cli-refactor-tests.txt
+- .omo/evidence/report-writing-quality/f2-cli-refactor-compileall.txt
+- .omo/evidence/report-writing-quality/f2-cli-refactor-loc.txt
+- .omo/evidence/report-writing-quality/f2-cli-refactor-diff-check.txt
+
+Additional VibeLign fallback evidence:
+- .omo/evidence/report-writing-quality/f2-cli-refactor-vib-doctor-before.txt
+- .omo/evidence/report-writing-quality/f2-cli-refactor-vib-scan.txt
+- .omo/evidence/report-writing-quality/f2-cli-refactor-vib-explain.txt
+- .omo/evidence/report-writing-quality/f2-cli-refactor-vib-guard.txt
+
+Remaining risk:
+- vib guard --strict --write-report records exit=1 because the shared worktree already has broad dirty/new production files, including unrelated untracked reporting files flagged for missing anchors. The requested F2 exact command and focused parser/report validation pass.

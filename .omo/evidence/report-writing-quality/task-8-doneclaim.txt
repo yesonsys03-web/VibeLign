@@ -1,0 +1,34 @@
+Task 8 done claim
+Status: DONE
+Scenario: backend pytest acceptance
+Invocation: python3 -m pytest tests/core/reporting_cli/test_report_visual_cards.py tests/cli/test_vib_report_cmd.py -v
+Observable: 21 passed
+Artifact: .omo/evidence/report-writing-quality/task-8-pytest.txt
+
+Scenario: GUI helper and panel tests
+Invocation: cd vibelign-gui && npm run test -- src/lib/vib/__tests__/reportVisualCards.test.ts src/components/plan-doc/__tests__/ReportVisualCardsPanel.test.tsx
+Observable: 2 files passed, 4 tests passed
+Artifact: .omo/evidence/report-writing-quality/task-8-gui-tests.txt
+
+Scenario: happy CLI visual card JSON
+Invocation: python3 -m vibelign.cli.vib_cli report tests/fixtures/reporting_cli/quality_complete.md --type proposal --visual-cards --json
+Observable: ok=true, visual_cards.cards length=6, fake-image-provider
+Artifact: .omo/evidence/report-writing-quality/task-8-visual-cards.json
+
+Scenario: overlay separation
+Invocation: cd vibelign-gui && npm run test -- src/components/plan-doc/__tests__/ReportVisualCardsPanel.test.tsx -t "keeps Korean copy as editable overlays"
+Observable: fake image asset layer is separate from editable Korean title/body/caption controls
+Artifact: .omo/evidence/report-writing-quality/task-8-visual-overlays.txt
+
+Scenario: no-slop/size check
+Invocation: awk pure LOC over task-owned and legacy-wiring files
+Observable: new Todo 8 files are <=250 pure LOC; legacy exceptions documented
+Artifact: .omo/evidence/report-writing-quality/task-8-no-slop-check.txt
+
+VibeLign fallback guard:
+Invocation: vib explain --write-report > .omo/evidence/report-writing-quality/task-8-vib-explain.txt
+Observable: exit 0
+Artifact: .omo/evidence/report-writing-quality/task-8-vib-explain.txt
+Invocation: vib guard --strict --write-report > .omo/evidence/report-writing-quality/task-8-vib-guard.txt
+Observable: exit 1, broad workspace guard warnings including pre-existing dirty/untracked files and legacy file-size/anchor findings
+Artifact: .omo/evidence/report-writing-quality/task-8-vib-guard.txt

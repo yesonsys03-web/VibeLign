@@ -33,10 +33,6 @@ def build_parser() -> argparse.ArgumentParser:
         Callable[[str, str], Callable[[object], None]],
         cli_base.lazy_command,
     )
-    run_vib_guard = cast(
-        Callable[[object], None],
-        importlib.import_module("vibelign.commands.vib_guard_cmd").run_vib_guard,
-    )
     register_core_commands = cast(
         Callable[
             [
@@ -85,7 +81,11 @@ def build_parser() -> argparse.ArgumentParser:
     register_core_commands(
         sub, lazy_command_impl, cast(Callable[[object], None], run_init)
     )
-    register_extended_commands(sub, lazy_command_impl, run_vib_guard)
+    register_extended_commands(
+        sub,
+        lazy_command_impl,
+        lazy_command_impl("vibelign.commands.vib_guard_cmd", "run_vib_guard"),
+    )
     register_completion_command(sub, parser)
     _hide_suppressed_subcommands(parser)
 

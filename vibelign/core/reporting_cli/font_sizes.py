@@ -9,7 +9,7 @@ MIN_REPORT_FONT_SIZE: Final = 8
 MAX_REPORT_FONT_SIZE: Final = 72
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ReportFontSizes:
     title: int | None = None
     heading: int | None = None

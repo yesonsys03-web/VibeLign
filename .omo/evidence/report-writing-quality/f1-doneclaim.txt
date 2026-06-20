@@ -1,0 +1,64 @@
+Status: DONE
+Verdict: confirmed
+
+manualQa:
+  surfaceEvidence:
+    - scenarioId: F1-plan-compliance-audit
+      criterionRef: .omo/plans/report-writing-quality.md Final verification wave F1
+      surface: terminal
+      exactInvocation: |
+        mkdir -p .omo/evidence/report-writing-quality && python3 - <<'PY' > .omo/evidence/report-writing-quality/f1-plan-compliance.txt
+        from pathlib import Path
+        plan = Path(".omo/plans/report-writing-quality.md").read_text(encoding="utf-8")
+        draft = Path(".omo/drafts/report-writing-quality.md").read_text(encoding="utf-8")
+        for cid in ("C1", "C2", "C3", "C4", "C5", "C6", "C7"):
+            assert cid in draft, cid
+        for needle in ("quality sidecar", "assistance", "visual_cards", "report-visual-cards-v1", "--visual-cards", "ReportVisualCardsPanel", "ReportModel", "HTML-to-PDF", "missing_audience", "ReportQualityPanel", "Final verification wave"):
+            assert needle in plan, needle
+        assert "<" + "fill" not in plan
+        import re
+        for marker in ("T" + "BD", "TO" + "DO", "F" + "IXME", "X" + "XX", "place" + "holder", "APPEND" + " TASK"):
+            assert marker not in plan, marker
+        assert not re.search(r"\{\{.*?\}\}", plan)
+        assert not re.search(r"\[[Tt][Oo][Dd][Oo]\]", plan)
+        assert not re.search(r"<[A-Za-z][A-Za-z0-9_-]*>", plan)
+        lines = plan.splitlines()
+        assert sum(line.lstrip().startswith("QA scenarios (name the exact tool + invocation)") for line in lines) == 9
+        assert sum(line.lstrip().startswith("Commit: Y |") for line in lines) == 9
+        print("APPROVE plan compliance")
+        PY
+      verdict: PASS
+      artifactRefs:
+        - f1-plan-compliance
+  adversarialCases:
+    - scenarioId: F1-exact-approval-string
+      criterionRef: .omo/plans/report-writing-quality.md Final verification wave F1
+      adversarialClass: output-integrity
+      expectedBehavior: f1-plan-compliance.txt contains exactly APPROVE plan compliance
+      verdict: PASS
+      artifactRefs:
+        - f1-plan-compliance
+  artifactRefs:
+    - id: f1-plan-compliance
+      kind: terminal-output
+      description: Exact stdout from the F1 plan compliance audit; command exited 0 and emitted APPROVE plan compliance.
+      path: .omo/evidence/report-writing-quality/f1-plan-compliance.txt
+    - id: f1-doneclaim
+      kind: qa-doneclaim
+      description: Final F1 manual QA claim and matrix.
+      path: .omo/evidence/report-writing-quality/f1-doneclaim.txt
+
+Commands run:
+- rg -n "F1|plan compliance|compliance audit|APPROVE plan compliance" .omo/plans/report-writing-quality.md
+- sed -n '1,220p' AI_DEV_SYSTEM_SINGLE_FILE.md
+- sed -n '1,220p' .vibelign/project_map.json
+- rg -n "report-writing-quality|F1|plan compliance" /Users/topsphinx/.codex/memories/MEMORY.md
+- sed -n '300,340p' .omo/plans/report-writing-quality.md
+- sed -n '1,220p' .vibelign/anchor_meta.json
+- ls -la .omo/evidence/report-writing-quality 2>/dev/null || true
+- mkdir -p .omo/evidence/report-writing-quality && python3 - <<'PY' > .omo/evidence/report-writing-quality/f1-plan-compliance.txt
+- wc -c .omo/evidence/report-writing-quality/f1-plan-compliance.txt
+- sed -n '1,20p' .omo/evidence/report-writing-quality/f1-plan-compliance.txt
+- test "$(cat .omo/evidence/report-writing-quality/f1-plan-compliance.txt)" = "APPROVE plan compliance"
+
+Blockers: none

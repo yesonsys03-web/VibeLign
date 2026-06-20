@@ -26,6 +26,35 @@ def test_emit_without_polish_has_key_and_base_equals_polished(tmp_path: Path):
     assert any(w["term"] == "대폭" for w in payload["vague_warnings"])
 
 
+def test_emit_without_polish_includes_quality_and_default_assistance(
+    tmp_path: Path, monkeypatch
+):
+    plan = _write_plan(tmp_path)
+
+    def fail_provider_call(*args, **kwargs):
+        raise AssertionError("polish provider must not run for default emit-model preflight")
+
+    monkeypatch.setattr(
+        "vibelign.core.reporting_cli.emit.polish_report_model_with_guards", fail_provider_call
+    )
+
+    payload = emit_report_payload(
+        str(plan), "work", date="2026-06-17", polish=False, provider="auto", root=tmp_path
+    )
+
+    assert payload["base"] == payload["polished"]
+    assert payload["quality"]["schema_version"] == "report-quality-v1"
+    assert isinstance(payload["quality"]["findings"], list)
+    assert payload["quality"]["findings"]
+    assert payload["assistance"] == {
+        "schema_version": "report-assist-v1",
+        "status": "not_requested",
+        "suggestions": [],
+        "questions": [],
+        "applied_suggestion_ids": [],
+    }
+
+
 def test_emit_with_polish_fills_guards(tmp_path: Path, monkeypatch):
     plan = _write_plan(tmp_path)
 
@@ -41,14 +70,11 @@ def test_emit_with_polish_fills_guards(tmp_path: Path, monkeypatch):
     assert payload["guards"] == [{"section": 0, "block": 0, "reason": "number_dropped", "missing": ["50"]}]
 
 
-from vibelign.core.reporting_cli.emit import emit_report_payload as _emit_doc_payload
-
-
 def test_emit_doc_type_preserves_arbitrary_sections(tmp_path):
     doc = tmp_path / "free.md"
     doc.write_text("# 자유\n\n## 배경\n설명 문단.\n", encoding="utf-8")
 
-    payload = _emit_doc_payload(
+    payload = emit_report_payload(
         str(doc), "doc", date="2026-06-17", polish=False, provider="auto", root=tmp_path
     )
 

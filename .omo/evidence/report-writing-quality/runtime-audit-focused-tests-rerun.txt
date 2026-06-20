@@ -1,0 +1,5 @@
+Surface: pytest focused report-writing-quality runtime tests
+Invocation: uv run pytest tests/cli/test_vib_report_render_payload.py tests/cli/test_vib_report_visual_cards_cmd.py tests/cli/test_vib_report_assist_cmd.py tests/core/reporting_cli/test_report_assist.py tests/core/reporting_cli/test_report_visual_cards.py tests/core/reporting_cli/test_report_quality.py tests/cli/test_vib_report_cmd.py::test_report_subcommand_is_registered tests/test_manual_anchor_doctor_flags.py tests/test_gui_cli_contracts.py::GuiCliContractsTest::test_memory_help_surfaces_common_subcommand_flags -q
+.................................................                        [100%]
+49 passed in 0.33s
+ExitCode: 0

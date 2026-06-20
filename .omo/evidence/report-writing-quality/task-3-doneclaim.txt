@@ -1,0 +1,40 @@
+DoneClaim:
+- task: Todo 3 code-review blockers for report assist/source chunk retrieval fixed without touching .omo/plans checkboxes.
+- changed_files:
+  - vibelign/core/reporting_cli/source_chunks.py
+  - vibelign/core/reporting_cli/report_assist.py
+  - tests/core/reporting_cli/test_report_assist.py
+  - tests/cli/test_vib_report_cmd.py
+  - .omo/evidence/report-writing-quality/task-3-pytest.txt
+  - .omo/evidence/report-writing-quality/task-3-assist-long.json
+  - .omo/evidence/report-writing-quality/task-3-assist-sparse.json
+  - .omo/evidence/report-writing-quality/task-3-code-review-fixes.txt
+  - .omo/evidence/report-writing-quality/task-3-cleanup.txt
+  - .omo/evidence/report-writing-quality/task-3-doneclaim.txt
+- fixes:
+  - Removed the production overfit in source_chunks.py by deleting the fixture-token scoring boost and scoring chunks through generic finding signals, signal density, and heading relevance.
+  - Updated long-source tests to assert middle-range source refs and evidence/risk/action signal retrieval instead of the fixture marker or exact fixture line.
+  - Removed invalid # noqa: SIZE_OK from tests/cli/test_vib_report_cmd.py.
+  - Reduced cohesive helper parameter surfaces in report_assist.py with frozen ReportAssistanceInput and ProviderSuggestionInput dataclasses; kept the legacy wrapper because the CLI caller was outside the allowed edit scope.
+  - Left emit sidecar raw dict typing unchanged per scope instruction.
+- tests:
+  - Scenario: requested Todo 3 pytest suite. Invocation: .venv/bin/python3 -m pytest tests/core/reporting_cli/test_report_quality.py tests/core/reporting_cli/test_report_assist.py tests/core/reporting_cli/test_reader.py tests/core/reporting_cli/test_templates.py tests/cli/test_vib_report_cmd.py -v. Binary observable: EXIT:0, 64 passed. Artifact: .omo/evidence/report-writing-quality/task-3-pytest.txt.
+  - Scenario: focused lint check for touched blocker files. Invocation: .venv/bin/python3 -m ruff check vibelign/core/reporting_cli/source_chunks.py vibelign/core/reporting_cli/report_assist.py tests/core/reporting_cli/test_report_assist.py tests/cli/test_vib_report_cmd.py. Binary observable: exit 0, All checks passed. Artifact: .omo/evidence/report-writing-quality/task-3-code-review-fixes.txt.
+- manual_qa:
+  - Scenario: long source assist CLI. Invocation: .venv/bin/python3 -m vibelign.cli.vib_cli report tests/fixtures/reporting_cli/quality_long_2000.md --type work --assist-missing --json > .omo/evidence/report-writing-quality/task-3-assist-long.json. Binary observable: command exit 0; JSON ok=true; assistance.status=ready; middle source_ref range 900-1100 present; risk_candidate and source_candidate suggestions present. Artifact: .omo/evidence/report-writing-quality/task-3-assist-long.json.
+  - Scenario: sparse source assist CLI. Invocation: .venv/bin/python3 -m vibelign.cli.vib_cli report tests/fixtures/reporting_cli/quality_sparse.md --type proposal --assist-missing --json > .omo/evidence/report-writing-quality/task-3-assist-sparse.json. Binary observable: command exit 0; JSON ok=true; assistance.status=needs_user_input; user questions present; applied_suggestion_ids empty. Artifact: .omo/evidence/report-writing-quality/task-3-assist-sparse.json.
+  - Scenario: blocker audit. Invocation: rg -n '중간근거-품질|1009|noqa: SIZE_OK' vibelign/core/reporting_cli/source_chunks.py vibelign/core/reporting_cli/report_assist.py tests/core/reporting_cli/test_report_assist.py tests/cli/test_vib_report_cmd.py. Binary observable: exit 1, no matches. Artifact: .omo/evidence/report-writing-quality/task-3-code-review-fixes.txt.
+- adversarial_classes:
+  - production_overfit: production retrieval no longer contains the fixture token and tests no longer require the exact fixture marker/line.
+  - malformed_input: sparse report assist still returns user questions instead of fabricated source-backed facts.
+  - long_source_prompt_safety: provider prompts remain chunk-limited and source refs are capped.
+  - unsupported_provider_output: fake unsupported evidence is still downgraded to a user question.
+  - lint_suppression_noise: invalid SIZE_OK Ruff suppression is removed and focused Ruff passes.
+  - scope_control: emit raw sidecar dict risk and Todo 4/GUI/visual-card work were left untouched.
+- cleanup:
+  - Regenerated .omo/evidence/report-writing-quality/task-3-pytest.txt, task-3-assist-long.json, task-3-assist-sparse.json, task-3-cleanup.txt, task-3-code-review-fixes.txt, and this DoneClaim.
+  - Pure LOC: source_chunks.py 188; report_assist.py 239 warning band; test_report_assist.py 126; test_vib_report_cmd.py 402 legacy broad CLI regression suite.
+- risks:
+  - report_assist.py remains in the 200-250 LOC warning band, but no new vague helper module was introduced.
+  - generate_report_assistance(...) keeps its legacy keyword wrapper for existing CLI compatibility because vibelign/commands/vib_report_cmd.py was outside the allowed edit scope.
+  - python -m CLI invocations still emit the pre-existing runpy RuntimeWarning on stderr while returning exit 0 and valid JSON stdout.

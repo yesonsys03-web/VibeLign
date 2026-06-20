@@ -1,0 +1,66 @@
+F2 code quality scope doneclaim
+
+Status: BLOCKED
+Verdict: needs-fix
+codeQualityStatus: BLOCK
+recommendation: REQUEST_CHANGES
+reportPath: .omo/evidence/report-writing-quality/f2-doneclaim.txt
+
+Skill-perspective check:
+- remove-ai-slops consulted: yes. F2 blocker aligns with its oversized-module / maintenance-burden rule.
+- programming consulted: yes. F2 blocker aligns with its file-size and no type-escape-hatch review rules.
+- Skill-perspective violation: yes, because vibelign/cli/cli_command_groups.py exceeds the plan's wiring-file size threshold.
+
+Exact F2 command:
+mkdir -p .omo/evidence/report-writing-quality && python3 - <<'PY' > .omo/evidence/report-writing-quality/f2-code-quality-scope.txt
+from pathlib import Path
+import subprocess
+changed = subprocess.check_output(["git", "diff", "--name-only"], text=True).splitlines()
+blocked_patterns = (" as any", "@ts-ignore", "@ts-expect-error")
+for path in changed:
+    if not Path(path).is_file():
+        continue
+    text = Path(path).read_text(encoding="utf-8", errors="ignore")
+    for pattern in blocked_patterns:
+        assert pattern not in text, (path, pattern)
+for path in ("vibelign-gui/src/components/plan-doc/ReportComposer.tsx", "vibelign/commands/vib_report_cmd.py", "vibelign/cli/cli_command_groups.py"):
+    p = Path(path)
+    if p.exists():
+        lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
+        assert len(lines) < 650, (path, len(lines))
+print("APPROVE code quality scope")
+PY
+
+Exact F2 result:
+- Exit code: 1
+- f2-code-quality-scope.txt bytes: 0
+- Failure: AssertionError: ('vibelign/cli/cli_command_groups.py', 913)
+
+Supporting read-only checks:
+- git diff --name-only tracked changed files scanned by the command: 30
+- Type suppression hits in the F2 command scope: []
+- vibelign-gui/src/components/plan-doc/ReportComposer.tsx line count: 219
+- vibelign/commands/vib_report_cmd.py line count: 296
+- vibelign/cli/cli_command_groups.py line count: 913
+
+Findings by severity:
+
+CRITICAL:
+- None.
+
+HIGH:
+- vibelign/cli/cli_command_groups.py:1 exceeds the F2 wiring-file size threshold. The plan requires each of vibelign-gui/src/components/plan-doc/ReportComposer.tsx, vibelign/commands/vib_report_cmd.py, and vibelign/cli/cli_command_groups.py to have fewer than 650 lines. Current count is 913, so the exact F2 command blocks approval.
+
+MEDIUM:
+- None.
+
+LOW:
+- The exact F2 artifact is empty because stdout is redirected to f2-code-quality-scope.txt and the assertion failure is emitted on stderr.
+
+Accepted residual review:
+- Task 9 accepted guard residuals mention broad planning_required / anchor / worktree state.
+- Those residuals are outside F2 unless the exact F2 command catches a blocker.
+- F2 did catch a real blocker: vibelign/cli/cli_command_groups.py exceeds the plan threshold.
+
+Blockers:
+- Reduce or split vibelign/cli/cli_command_groups.py so the F2 command's len(lines) < 650 assertion passes, then rerun the exact F2 command.

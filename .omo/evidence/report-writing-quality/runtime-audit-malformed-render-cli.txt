@@ -1,0 +1,10 @@
+Surface: CLI report render with malformed VIBELIGN_REPORT_RENDER_PAYLOAD_PATH JSON
+Invocation: uv run vib report .omo/evidence/report-writing-quality/runtime-audit-plan.md --type work --emit-model --json > runtime-audit-emit.json; mutate payload; VIBELIGN_REPORT_RENDER_PAYLOAD_PATH=... uv run vib report ... --reject-blocks [] --json
+
+## stdout
+{"ok": false, "error": "render payload 형식이 잘못됐어요: text 는 문자열이어야 합니다"}
+
+## stderr
+
+ExitCode: 1
+Validation: structured JSON error, empty stderr, no traceback

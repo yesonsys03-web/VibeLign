@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Final
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class Theme:
     id: str
     label: str
@@ -17,7 +17,7 @@ class Theme:
     body_font: str
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class Palette:
     id: str
     label: str
@@ -27,7 +27,7 @@ class Palette:
     tint: str
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class Layout:
     id: str
     label: str
@@ -40,7 +40,7 @@ class Layout:
     heading_font: str
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class Density:
     id: str
     label: str
@@ -50,7 +50,7 @@ class Density:
     section_gap: str
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class SatgatSpecimen:
     id: str
     label: str

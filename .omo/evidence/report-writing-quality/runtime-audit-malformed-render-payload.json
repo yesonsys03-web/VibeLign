@@ -1,0 +1,128 @@
+{
+  "ok": true,
+  "report_type": "work",
+  "slug": "예약-앱",
+  "key": "a61c90ece82e3da7e2ac80b92ce99a49a0b980445a6b072cc32a1cbfd127d2d9",
+  "base": {
+    "title": "예약 앱",
+    "report_type": "work",
+    "date": "2026-06-20",
+    "source_plan_path": ".omo/evidence/report-writing-quality/runtime-audit-plan.md",
+    "author": "",
+    "sections": [
+      {
+        "heading": "개요",
+        "blocks": [
+          {
+            "kind": "summary",
+            "text": 1,
+            "items": []
+          }
+        ]
+      },
+      {
+        "heading": "핵심 내용",
+        "blocks": [
+          {
+            "kind": "bullets",
+            "text": "",
+            "items": [
+              "예약 캘린더",
+              "알림 문자"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "polished": {
+    "title": "예약 앱",
+    "report_type": "work",
+    "date": "2026-06-20",
+    "source_plan_path": ".omo/evidence/report-writing-quality/runtime-audit-plan.md",
+    "author": "",
+    "sections": [
+      {
+        "heading": "개요",
+        "blocks": [
+          {
+            "kind": "summary",
+            "text": "미용실 예약 앱.",
+            "items": []
+          }
+        ]
+      },
+      {
+        "heading": "핵심 내용",
+        "blocks": [
+          {
+            "kind": "bullets",
+            "text": "",
+            "items": [
+              "예약 캘린더",
+              "알림 문자"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "guards": [],
+  "vague_warnings": [],
+  "quality": {
+    "schema_version": "report-quality-v1",
+    "status": "warn",
+    "score": 38,
+    "readiness": "needs_review",
+    "summary": "5개 품질 경고를 검토하세요. 점수 38점.",
+    "findings": [
+      {
+        "code": "missing_audience",
+        "severity": "warn",
+        "message": "보고서 독자나 대상 사용자가 드러나지 않습니다.",
+        "source": "planning_data",
+        "blocking": false,
+        "suggestion": "대상 독자와 사용자를 한 문장으로 추가하세요."
+      },
+      {
+        "code": "missing_evidence",
+        "severity": "warn",
+        "message": "근거, 지표, 수치, 관찰 데이터가 부족합니다.",
+        "source": "report_model",
+        "blocking": false,
+        "suggestion": "판단 근거가 되는 수치나 관찰 내용을 추가하세요."
+      },
+      {
+        "code": "missing_decision_or_recommendation",
+        "severity": "warn",
+        "message": "결정 사항이나 권고가 드러나지 않습니다.",
+        "source": "planning_data",
+        "blocking": false,
+        "suggestion": "실행할 결정 또는 추천 방향을 명확히 쓰세요."
+      },
+      {
+        "code": "missing_risk",
+        "severity": "warn",
+        "message": "리스크와 대응 관점이 부족합니다.",
+        "source": "report_model",
+        "blocking": false,
+        "suggestion": "실행 리스크와 완화 방안을 함께 추가하세요."
+      },
+      {
+        "code": "missing_next_action",
+        "severity": "warn",
+        "message": "다음 액션, 담당자, 일정이 부족합니다.",
+        "source": "report_model",
+        "blocking": false,
+        "suggestion": "담당자와 기한이 있는 후속 조치를 추가하세요."
+      }
+    ]
+  },
+  "assistance": {
+    "schema_version": "report-assist-v1",
+    "status": "not_requested",
+    "suggestions": [],
+    "questions": [],
+    "applied_suggestion_ids": []
+  }
+}

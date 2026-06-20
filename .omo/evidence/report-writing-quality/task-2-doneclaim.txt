@@ -1,0 +1,32 @@
+DoneClaim:
+- task: Todo 2 quality and default assistance sidecars threaded through emit-model JSON without adding them to ReportModel/model_json roundtrip data.
+- changed_files:
+  - vibelign/core/reporting_cli/emit.py: computes Todo 1 report quality from parsed source data + base model and returns top-level quality plus default assistance sidecars.
+  - tests/core/reporting_cli/test_emit.py: asserts sidecars, quality findings, default assistance, base==polished with polish false, and no provider call when polish is false.
+  - tests/core/reporting_cli/test_model_json.py: asserts model_to_dict/model_from_dict keep quality/assistance out of ReportModel roundtrip.
+  - tests/cli/test_vib_report_cmd.py: asserts vib report --emit-model --json exposes sidecars through the CLI JSON path.
+  - .omo/evidence/report-writing-quality/task-2-emit-complete.json: regenerated complete fixture CLI emit-model output.
+  - .omo/evidence/report-writing-quality/task-2-emit-sparse.json: regenerated sparse fixture CLI emit-model output.
+  - .omo/evidence/report-writing-quality/task-2-pytest.txt: exact scoped pytest output.
+  - .omo/evidence/report-writing-quality/task-2-cleanup.txt: dirty-worktree, no-excuse checker, LOC, artifact validation, guard note.
+  - .omo/evidence/report-writing-quality/task-2-vib-guard.txt: VibeLign guard fallback output.
+- tests:
+  - PASS: .venv/bin/python3 -m pytest tests/core/reporting_cli/test_emit.py tests/core/reporting_cli/test_model_json.py tests/cli/test_vib_report_cmd.py -v; binary observable exit 0 and 37 passed; artifact .omo/evidence/report-writing-quality/task-2-pytest.txt.
+  - PASS: .venv/bin/python3 /Users/topsphinx/.codex/plugins/cache/sisyphuslabs/omo/4.11.1/skills/programming/scripts/python/check-no-excuse-rules.py vibelign/core/reporting_cli/emit.py tests/core/reporting_cli/test_emit.py tests/core/reporting_cli/test_model_json.py tests/cli/test_vib_report_cmd.py; binary observable exit 0 and no violations; captured in .omo/evidence/report-writing-quality/task-2-cleanup.txt.
+- manual_qa:
+  - PASS complete scenario: .venv/bin/python3 -m vibelign.cli.vib_cli report tests/fixtures/reporting_cli/quality_complete.md --type proposal --emit-model --json > .omo/evidence/report-writing-quality/task-2-emit-complete.json; binary observable JSON ok:true, base==polished, quality.schema_version report-quality-v1, quality.status ok, assistance.status not_requested with empty arrays.
+  - PASS sparse/malformed-input scenario: .venv/bin/python3 -m vibelign.cli.vib_cli report tests/fixtures/reporting_cli/quality_sparse.md --type work --emit-model --json > .omo/evidence/report-writing-quality/task-2-emit-sparse.json; binary observable JSON ok:true, quality.status warn, findings include missing_audience/missing_evidence/missing_next_action/missing_risk, assistance.status not_requested with empty arrays.
+  - PASS artifact validation: JSON validation script in .omo/evidence/report-writing-quality/task-2-cleanup.txt loaded both regenerated files and asserted ok:true, base==polished, quality findings list, and exact default assistance shape.
+- adversarial_classes:
+  - stale_state: complete and sparse JSON artifacts were regenerated from the current CLI after final edits; file sizes captured in cleanup.
+  - misleading_success_output: pytest output captured from the exact command with pipefail into task-2-pytest.txt.
+  - dirty_worktree: git status captured in task-2-cleanup.txt; existing Todo 1 and .omo files were not reverted or overwritten.
+  - malformed input: sparse emit-model returns ok:true with quality warnings and default assistance.
+  - no hidden AI/API: emit test monkeypatches polish provider to raise when polish is false; passing test proves default sidecars do not call provider.
+  - model pollution: model_json test proves sidecars are ignored on model_from_dict and not emitted by model_to_dict.
+- cleanup:
+  - No temporary test file remains.
+  - No .omo/plans checkbox edits were made.
+  - VibeLign fallback ran: vib doctor --strict failed on pre-existing broad project health issues, vib scan completed, vib explain --write-report completed, vib guard --strict --write-report produced task-2-vib-guard.txt.
+- risks:
+  - vib guard reports overall status stopped because the shared worktree includes Todo 1's untracked new production file vibelign/core/reporting_cli/report_quality.py without anchors and broader .omo state; this Todo 2 patch does not change that file.

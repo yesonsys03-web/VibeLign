@@ -29,7 +29,7 @@ pub fn run() {
         logs: String::new(),
     }));
 
-    tauri::Builder::default()
+    match tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -196,16 +196,23 @@ pub fn run() {
             commands::report_pdf::copy_report_to,
             commands::report_pdf::get_report_export_dir,
             commands::report_pdf::set_report_export_dir,
+            commands::report_render_payload::write_report_render_payload,
+            commands::report_render_payload::remove_report_render_payload,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building tauri application")
-        .run(move |_app_handle, event| match event {
+    {
+        Ok(app) => app.run(move |_app_handle, event| match event {
             tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. } => {
                 commands::watch::stop_for_exit(&watch_shutdown);
                 commands::work_room::stop_for_exit(&work_shutdown);
                 commands::run_preview::stop_for_exit(&run_shutdown);
             }
             _ => {}
-        });
+        }),
+        Err(error) => {
+            eprintln!("VibeLign: Tauri 앱 빌드 실패: {error}");
+            std::process::exit(1);
+        }
+    }
 }
 // === ANCHOR: LIB_END ===

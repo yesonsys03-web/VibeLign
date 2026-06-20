@@ -1,0 +1,43 @@
+DoneClaim:
+- task: Todo 1 report-quality analyzer gate-review blocker fix.
+- changed_files:
+  - vibelign/core/reporting_cli/report_quality.py
+  - tests/core/reporting_cli/test_report_quality.py
+  - .omo/evidence/report-writing-quality/task-1-quality-complete.json
+  - .omo/evidence/report-writing-quality/task-1-quality-sparse.json
+  - .omo/evidence/report-writing-quality/task-1-pytest.txt
+  - .omo/evidence/report-writing-quality/task-1-compileall.txt
+  - .omo/evidence/report-writing-quality/task-1-adversarial.txt
+  - .omo/evidence/report-writing-quality/task-1-cleanup.txt
+  - .omo/evidence/report-writing-quality/task-1-red-first.txt
+  - .omo/evidence/report-writing-quality/task-1-loc.txt
+  - .omo/evidence/report-writing-quality/task-1-no-excuse-check.txt
+  - .omo/evidence/report-writing-quality/task-1-vib-guard.txt
+  - .omo/evidence/report-writing-quality/task-1-doneclaim.txt
+- fixes:
+  - Regenerated sparse and complete manual QA JSON from current analyzer behavior and fixture sources; both parse with .venv/bin/python3 -m json.tool.
+  - Added a red-first regression for a titled markdown document whose only body is under an unmapped heading.
+  - Implemented deterministic parser_confidence when PlanningData has only title/no structured signal while ReportModel preserved body content.
+  - Refactored report_quality.py with _QualityText and reusable _QualityRule finding construction; _base_findings now has 3 parameters and report_quality.py is 244 pure LOC.
+- tests:
+  - .venv/bin/python3 -m pytest tests/core/reporting_cli/test_report_quality.py -v -> 6 passed; artifact .omo/evidence/report-writing-quality/task-1-pytest.txt.
+  - .venv/bin/python3 -m compileall vibelign/core/reporting_cli -> passed; artifact .omo/evidence/report-writing-quality/task-1-compileall.txt.
+  - System python3 is Python 3.9.6, so repository-compatible verification used .venv/bin/python3 Python 3.11.15.
+- manual_qa:
+  - quality_complete.md -> status ok, score 100, no findings; artifact .omo/evidence/report-writing-quality/task-1-quality-complete.json.
+  - quality_sparse.md -> status warn, score 50, missing_audience/missing_evidence/missing_risk/missing_next_action; artifact .omo/evidence/report-writing-quality/task-1-quality-sparse.json.
+- adversarial_classes:
+  - Empty report model blocks only on empty_content by default.
+  - Odd block kind with no text blocks only on empty_content by default.
+  - Titled unknown section body emits parser_confidence as non-blocking reader warning.
+  - Report type mismatch emits format_risk as non-blocking warning.
+  - Artifact: .omo/evidence/report-writing-quality/task-1-adversarial.txt.
+- cleanup:
+  - Pure LOC measured with nonblank/noncomment awk equivalent: report_quality.py 244, test_report_quality.py 114.
+  - AST parameter probe found no functions over 3 params in report_quality.py.
+  - Manual no-excuse grep found no broad/silent except, Any/cast/type ignore, banned asyncio/pandas imports, generic bare raises, or out-of-scope emit/assist/GUI surfaces in touched Python files.
+  - Public API preserved: analyze_report_quality(...) and quality_to_dict(...) remain covered by existing tests.
+  - Artifact: .omo/evidence/report-writing-quality/task-1-cleanup.txt.
+- risks:
+  - vib guard --strict --write-report completed but reports overall 멈춤 because this Todo 1 production file is still untracked/no-anchor and the broader workspace has existing untracked plan/evidence state; captured at .omo/evidence/report-writing-quality/task-1-vib-guard.txt.
+  - No .omo/plans checkboxes were edited.

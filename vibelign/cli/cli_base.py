@@ -1,4 +1,6 @@
 # === ANCHOR: CLI_BASE_START ===
+from __future__ import annotations
+
 import argparse
 import importlib
 import sys

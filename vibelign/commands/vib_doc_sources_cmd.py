@@ -1,6 +1,8 @@
 # === ANCHOR: VIB_DOC_SOURCES_CMD_START ===
 from __future__ import annotations
-import argparse, json, sys
+
+import argparse
+import json
 from dataclasses import asdict
 from pathlib import Path
 from ..core import doc_sources as _DOC_SOURCES

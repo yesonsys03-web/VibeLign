@@ -1,4 +1,7 @@
 // === ANCHOR: REPORT_MODEL_START ===
+import type { ReportAssistPayload } from "./reportAssist";
+import type { ReportQualityPayload } from "./reportQuality";
+
 export interface RModelBlock { kind: "paragraph" | "bullets" | "summary"; text: string; items: string[]; }
 export interface RModelSection { heading: string; blocks: RModelBlock[]; }
 export interface RModel {
@@ -9,6 +12,7 @@ export interface VagueWarning { section: number; block: number; term: string; of
 export interface EmitPayload {
   ok: true; report_type: string; slug: string; key: string;
   base: RModel; polished: RModel; guards: GuardRecord[]; vague_warnings: VagueWarning[];
+  quality: ReportQualityPayload; assistance: ReportAssistPayload;
 }
 
 /** 블록 좌표 "section:block" → 결정. */

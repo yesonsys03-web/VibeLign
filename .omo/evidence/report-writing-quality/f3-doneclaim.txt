@@ -1,0 +1,13 @@
+Status: DONE
+Verdict: needs-human-review
+Reason: product/semantic F3 checks pass under uv run python fallback, but the exact plan-specified sparse assistance GUI selector ran zero tests and cannot be counted as PASS evidence.
+Exact F3 command: FAIL_ACCEPTED_ENVIRONMENT due /usr/bin/python3 3.9.6 SyntaxError at match cli_choice; captured in f3-exact-command.txt.
+Fallback F3 command: PASS using uv run python; f3-real-qa.txt says APPROVE real manual QA artifacts.
+CLI sparse quality: warn/needs_review, findings=4.
+CLI complete quality: ok/ready, findings=0.
+Sparse assistance: needs_user_input, suggestions=4, questions=4.
+Long-source middle refs verified: [{'chunk_id': 'chunk-0006', 'heading_path': ['장기 운영 개선 보고서', '확정된 결정'], 'start_line': 1009, 'end_line': 1009}, {'chunk_id': 'chunk-0006', 'heading_path': ['장기 운영 개선 보고서', '확정된 결정'], 'start_line': 1010, 'end_line': 1010}].
+Visual cards verified: count=6, prompts include no readable text in image.
+HTML/DOCX/PPTX JSON generated ok:true and paths exist; GUI PDF conversion and visual overlay tests pass.
+Additional non-skipped GUI evidence: f3-gui-sparse-warning-generate-anyway.txt, f3-gui-assistance-confirmation.txt, f3-ts-assistance-confirmation.txt.
+manualQa matrix: f3-manualQa.json

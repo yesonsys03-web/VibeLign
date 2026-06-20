@@ -8,7 +8,13 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 import { runVib } from "../core";
 import { loadDoc } from "../../docs";
 import { invoke } from "@tauri-apps/api/core";
-import { generatePlanningReport, generateReportPdf, generateReportOffice, toProjectRelative, emitReportModel, renderReportWithDecisions, stampPdfPageNumbers } from "../report";
+import {
+  generatePlanningReport,
+  generateReportOffice,
+  generateReportPdf,
+  stampPdfPageNumbers,
+  toProjectRelative,
+} from "../report";
 
 const mockRunVib = vi.mocked(runVib);
 const mockLoadDoc = vi.mocked(loadDoc);
@@ -16,6 +22,7 @@ const mockInvoke = vi.mocked(invoke);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockInvoke.mockResolvedValue("/proj/.vibelign/reports/render-payloads/render-payload-test.json");
 });
 
 describe("toProjectRelative", () => {
@@ -44,7 +51,8 @@ describe("generatePlanningReport", () => {
     mockLoadDoc.mockResolvedValue({
       path: ".vibelign/reports/r-work.html",
       content: "<html>RP</html>",
-    } as never);
+      source_hash: "hash",
+    });
 
     const res = await generatePlanningReport("/proj", "plans/p.md", "work");
 
@@ -126,7 +134,8 @@ describe("generateReportPdf", () => {
     mockLoadDoc.mockResolvedValue({
       path: ".vibelign/reports/r-work.html",
       content: "<html>RP</html>",
-    } as never);
+      source_hash: "hash",
+    });
   }
   // === ANCHOR: REPORT_TEST_SETUPHTMLSUCCESS_END ===
 
@@ -143,6 +152,34 @@ describe("generateReportPdf", () => {
       htmlPath: "/proj/.vibelign/reports/r-work.html",
       outPdf: "/proj/.vibelign/reports/r-work.pdf",
     });
+  });
+
+  test("generateReportPdf uses html render then export_report_pdf", async () => {
+    setupHtmlSuccess();
+    mockInvoke.mockResolvedValue("/proj/.vibelign/reports/r-work.pdf");
+
+    const res = await generateReportPdf(
+      "/proj", "plans/p.md", "proposal", true, "satgat-proposal", "팀장", false,
+      { title: 31, heading: 18, body: 14, meta: 10 }, { heading: "pretendard", body: "gowun-batang" },
+    );
+
+    expect(res.ok).toBe(true);
+    const argv = mockRunVib.mock.calls[0][0];
+    expect(argv).toEqual(
+      expect.arrayContaining([
+        "report", "plans/p.md", "--type", "proposal", "--format", "html",
+        "--theme", "satgat-proposal", "--author", "팀장", "--title-font-size", "31",
+        "--heading-font-size", "18", "--body-font-size", "14", "--meta-font-size", "10",
+        "--heading-font", "pretendard", "--body-font", "gowun-batang", "--polish", "--no-page-numbers",
+      ]),
+    );
+    expect(argv).not.toEqual(expect.arrayContaining(["--format", "pdf"]));
+    expect(mockInvoke).toHaveBeenCalledWith("export_report_pdf", {
+      root: "/proj",
+      htmlPath: "/proj/.vibelign/reports/r-work.html",
+      outPdf: "/proj/.vibelign/reports/r-work.pdf",
+    });
+    expect(mockRunVib).toHaveBeenCalledTimes(1);
   });
 
   test("HTML 생성 실패 시 {ok:false} 전파하고 invoke 미호출", async () => {
@@ -176,7 +213,7 @@ describe("generateReportPdf", () => {
 
 test("generatePlanningReport polish=true → --polish 인자 추가", async () => {
   mockRunVib.mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/proj/.vibelign/reports/r.html", report_type: "work" }), stderr: "", exit_code: 0 });
-  mockLoadDoc.mockResolvedValue({ path: "x", content: "<i></i>" } as never);
+  mockLoadDoc.mockResolvedValue({ path: "x", content: "<i></i>", source_hash: "hash" });
   await generatePlanningReport("/proj", "plans/p.md", "work", true);
   const argv = mockRunVib.mock.calls[0][0];
   expect(argv).toContain("--polish");
@@ -191,37 +228,16 @@ test("generateReportOffice docx → runVib 인자 + path 반환", async () => {
   expect(argv).toEqual(expect.arrayContaining(["--format", "docx", "--polish"]));
 });
 
-test("emitReportModel → --emit-model 인자 + payload 파싱", async () => {
-  mockRunVib.mockResolvedValue({
-    ok: true,
-    stdout: JSON.stringify({ ok: true, report_type: "work", slug: "s", key: "k1", base: {}, polished: {}, guards: [], vague_warnings: [] }),
-    stderr: "", exit_code: 0,
-  });
-  const r = await emitReportModel("/proj", "plans/p.md", "work", true);
-  expect(r.ok).toBe(true);
-  if (r.ok) expect(r.payload.key).toBe("k1");
-  const argv = mockRunVib.mock.calls[0][0];
-  expect(argv).toEqual(expect.arrayContaining(["--emit-model", "--polish"]));
-});
-
-test("renderReportWithDecisions → reject-blocks + polish-key 인자", async () => {
-  mockRunVib.mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/p/r.html" }), stderr: "", exit_code: 0 });
-  const r = await renderReportWithDecisions("/proj", "plans/p.md", "work", "html", [[0, 1]], "k1");
-  expect(r.ok).toBe(true);
-  const argv = mockRunVib.mock.calls[0][0];
-  expect(argv).toEqual(expect.arrayContaining(["--reject-blocks", "[[0,1]]", "--polish-key", "k1"]));
-});
-
 test("generatePlanningReport theme → --theme 인자", async () => {
   mockRunVib.mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/p/r.html", report_type: "work" }), stderr: "", exit_code: 0 });
-  mockLoadDoc.mockResolvedValue({ path: "x", content: "<i></i>" } as never);
+  mockLoadDoc.mockResolvedValue({ path: "x", content: "<i></i>", source_hash: "hash" });
   await generatePlanningReport("/proj", "plans/p.md", "work", false, "minimal");
   expect(mockRunVib.mock.calls[0][0]).toEqual(expect.arrayContaining(["--theme", "minimal"]));
 });
 
 test("generatePlanningReport fontSizes → 폰트 크기 인자", async () => {
   mockRunVib.mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/p/r.html", report_type: "work" }), stderr: "", exit_code: 0 });
-  mockLoadDoc.mockResolvedValue({ path: "x", content: "<i></i>" } as never);
+  mockLoadDoc.mockResolvedValue({ path: "x", content: "<i></i>", source_hash: "hash" });
   await generatePlanningReport(
     "/proj",
     "plans/p.md",
@@ -244,32 +260,9 @@ test("generatePlanningReport fontSizes → 폰트 크기 인자", async () => {
   );
 });
 
-test("renderReportWithDecisions theme → --theme 인자", async () => {
-  mockRunVib.mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/p/r.html" }), stderr: "", exit_code: 0 });
-  await renderReportWithDecisions("/proj", "plans/p.md", "work", "html", [[0, 1]], "k1", "executive");
-  expect(mockRunVib.mock.calls[0][0]).toEqual(expect.arrayContaining(["--theme", "executive"]));
-});
-
-test("renderReportWithDecisions fontSizes → 폰트 크기 인자", async () => {
-  mockRunVib.mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/p/r.html" }), stderr: "", exit_code: 0 });
-  await renderReportWithDecisions(
-    "/proj",
-    "plans/p.md",
-    "work",
-    "html",
-    [[0, 1]],
-    "k1",
-    "executive",
-    "",
-    true,
-    { body: 16 },
-  );
-  expect(mockRunVib.mock.calls[0][0]).toEqual(expect.arrayContaining(["--body-font-size", "16"]));
-});
-
 test("generatePlanningReport author/pageNumbers → 인자", async () => {
   mockRunVib.mockResolvedValue({ ok: true, stdout: JSON.stringify({ ok: true, path: "/p/r.html", report_type: "work" }), stderr: "", exit_code: 0 });
-  mockLoadDoc.mockResolvedValue({ path: "x", content: "<i></i>" } as never);
+  mockLoadDoc.mockResolvedValue({ path: "x", content: "<i></i>", source_hash: "hash" });
   await generatePlanningReport("/proj", "plans/p.md", "work", false, "classic", "홍길동", false);
   const a = mockRunVib.mock.calls[0][0];
   expect(a).toEqual(expect.arrayContaining(["--author", "홍길동", "--no-page-numbers"]));

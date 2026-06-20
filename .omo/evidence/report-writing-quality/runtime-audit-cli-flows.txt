@@ -1,0 +1,13 @@
+Surface: CLI report/manual/rules runtime command flows
+Invocation: uv run vib manual report --json; uv run vib rules; uv run vib report runtime-audit-plan.md --type work --json --output runtime-audit-report-flow.html --force
+
+## manual report --json summary
+{"type": "dict", "keys": ["emoji", "examples", "one_line", "options", "title", "what", "when"], "has_report": true}
+
+## rules output summary
+{'chars': 4179, 'contains_core_rule': False, 'contains_anchor': True}
+
+## report flow output
+{"ok": true, "path": "/Users/topsphinx/Documents/coding/VibeLign/.omo/evidence/report-writing-quality/runtime-audit-report-flow.html", "report_type": "work"}
+
+Validation: manual, rules, and report command flows executed

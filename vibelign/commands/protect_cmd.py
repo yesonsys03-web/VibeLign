@@ -62,7 +62,7 @@ def run_protect(args: Namespace) -> None:
     try:
         rel = normalize_relpath(str(target_path.relative_to(root)))
     except ValueError:
-        print(f"오류: 프로젝트 루트 밖의 경로는 보호할 수 없습니다.")
+        print("오류: 프로젝트 루트 밖의 경로는 보호할 수 없습니다.")
         return
 
     is_dir = target_path.is_dir()
@@ -114,7 +114,7 @@ def run_protect(args: Namespace) -> None:
         else:
             if failed:
                 print(f"[잠금] 보호 목록에 추가됨: {rel}")
-                print(f"경고: 읽기 전용 설정 실패 — 권한이 부족합니다.")
+                print("경고: 읽기 전용 설정 실패 — 권한이 부족합니다.")
             else:
                 print(f"[잠금] 보호 설정 완료: {rel} (읽기 전용)")
         print()

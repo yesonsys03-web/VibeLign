@@ -5,6 +5,11 @@ import { loadDoc } from "../docs";
 import { reportFontSizeArgs, type ReportFontSizes } from "./reportFontSizes";
 import { reportFontArgs, type ReportFonts } from "./reportFonts";
 import type { EmitPayload } from "./reportModel";
+import {
+  REPORT_RENDER_PAYLOAD_PATH_ENV,
+  removeReportRenderPayload,
+  writeReportRenderPayload,
+} from "./reportRenderPayload";
 
 export type ReportType = "work" | "proposal" | "result" | "doc";
 
@@ -73,10 +78,11 @@ export async function generatePlanningReport(
       reportType: String(parsed.report_type ?? reportType),
       html: doc.content,
     };
-  } catch (e) {
+  } catch (error) {
     // CLI 는 성공했지만 생성된 파일 읽기가 실패(권한/삭제/락) → 모달이 멈추지 않도록
     // 래퍼의 {ok:false} 계약을 유지한다.
-    return { ok: false, error: `보고서 파일을 읽지 못했어요: ${String(e)}` };
+    if (error instanceof Error) return { ok: false, error: `보고서 파일을 읽지 못했어요: ${error.message}` };
+    throw error;
   }
   // === ANCHOR: REPORT_NORM_END ===
 }
@@ -117,6 +123,18 @@ export async function stampPdfPageNumbers(cwd: string, pdfPath: string): Promise
 
 export type PdfResult = { ok: true; path: string } | { ok: false; error: string };
 
+async function exportReportHtmlToPdf(cwd: string, htmlPath: string, pageNumbers: boolean): Promise<PdfResult> {
+  const outPdf = htmlPath.replace(/\.html$/i, ".pdf");
+  try {
+    const saved = await invoke<string>("export_report_pdf", { root: cwd, htmlPath, outPdf });
+    if (pageNumbers) await stampPdfPageNumbers(cwd, saved);
+    return { ok: true, path: saved };
+  } catch (error) {
+    if (error instanceof Error) return { ok: false, error: `PDF 생성 실패: ${error.message}` };
+    throw error;
+  }
+}
+
 // === ANCHOR: REPORT_GENERATEREPORTPDF_START ===
 export async function generateReportPdf(
   cwd: string,
@@ -141,15 +159,7 @@ export async function generateReportPdf(
     fonts,
   );
   if (!html.ok) return html;
-
-  const outPdf = html.path.replace(/\.html$/i, ".pdf");
-  try {
-    const saved = await invoke<string>("export_report_pdf", { root: cwd, htmlPath: html.path, outPdf });
-    if (pageNumbers) await stampPdfPageNumbers(cwd, saved);
-    return { ok: true, path: saved };
-  } catch (e) {
-    return { ok: false, error: `PDF 생성 실패: ${String(e)}` };
-  }
+  return exportReportHtmlToPdf(cwd, html.path, pageNumbers);
 }
 // === ANCHOR: REPORT_GENERATEREPORTPDF_END ===
 
@@ -205,65 +215,86 @@ export async function generateReportOffice(
 }
 // === ANCHOR: REPORT_GENERATEREPORTOFFICE_END ===
 
-export type EmitResult = { ok: true; payload: EmitPayload } | { ok: false; error: string };
-
-/** 다듬기 전/후 구조화 모델(base/polished)+key+guards+vague 를 받아온다(파일 미저장). */
 // === ANCHOR: REPORT_EMITREPORTMODEL_START ===
-export async function emitReportModel(
-  cwd: string,
-  planPath: string,
-  reportType: ReportType,
-  polish: boolean,
-  author = "",
-): Promise<EmitResult> {
-  const args = [
-    "report", planPath, "--type", reportType, "--emit-model", "--author", author, "--json",
-    ...(polish ? ["--polish"] : []),
-  ];
-  const res = await runVib(args, cwd);
-  try {
-    const payload = JSON.parse(res.stdout.trim());
-    if (!payload.ok) return { ok: false, error: String(payload.error ?? "모델 생성 실패") };
-    return { ok: true, payload };
-  } catch {
-    return { ok: false, error: res.stderr.trim() || "모델 생성 실패" };
-  }
-}
+export { emitReportModel, requestReportAssistance } from "./reportEmit";
+export type { EmitResult, ReportAssistancePayload, ReportAssistanceRequest, ReportAssistanceResult } from "./reportEmit";
 // === ANCHOR: REPORT_EMITREPORTMODEL_END ===
 
 /** 거부 블록 인덱스 + emit 의 polishKey 로 캐시 polished 를 병합해 렌더·저장한다.
  *  PDF 는 호출자가 결과 HTML 을 export_report_pdf 로 변환한다(여기서는 html 로 렌더). */
 // === ANCHOR: REPORT_RENDERREPORTWITHDECISIONS_START ===
-export async function renderReportWithDecisions(
-  cwd: string,
-  planPath: string,
-  reportType: ReportType,
-  format: "html" | "pdf" | "docx" | "pptx",
-  reject: [number, number][],
-  polishKey: string,
-  theme = "classic",
-  author = "",
-  pageNumbers = true,
-  fontSizes: ReportFontSizes = {},
-  fonts: ReportFonts = {},
-): Promise<PdfResult> {
+export type ReportRenderDecisionsRequest = {
+  readonly cwd: string; readonly planPath: string; readonly reportType: ReportType;
+  readonly format: "html" | "pdf" | "docx" | "pptx";
+  readonly rejectBlocks: readonly [number, number][]; readonly payload: EmitPayload;
+  readonly theme?: string; readonly author?: string; readonly pageNumbers?: boolean;
+  readonly fontSizes?: ReportFontSizes; readonly fonts?: ReportFonts;
+};
+
+export type ReportRenderFileDecisionsRequest = Omit<ReportRenderDecisionsRequest, "format"> & { readonly format: "pdf" | "docx" | "pptx" };
+
+export async function renderReportWithDecisions(request: ReportRenderDecisionsRequest): Promise<PdfResult> {
+  const {
+    cwd,
+    planPath,
+    reportType,
+    format,
+    rejectBlocks,
+    payload,
+    theme = "classic",
+    author = "",
+    pageNumbers = true,
+    fontSizes = {},
+    fonts = {},
+  } = request;
   const fmt = format === "pdf" ? "html" : format;
   const args = [
     "report", planPath, "--type", reportType, "--format", fmt,
-    "--reject-blocks", JSON.stringify(reject), "--polish-key", polishKey, "--theme", theme,
+    "--reject-blocks", JSON.stringify(rejectBlocks), "--polish-key", payload.key, "--theme", theme,
     "--author", author, "--json",
     ...reportFontSizeArgs(fontSizes),
     ...reportFontArgs(fonts),
     ...(pageNumbers ? [] : ["--no-page-numbers"]),
   ];
-  const res = await runVib(args, cwd);
+  const payloadPath = await writeReportRenderPayload(cwd, payload);
   try {
-    const parsed = JSON.parse(res.stdout.trim());
-    if (!parsed.ok || !parsed.path) return { ok: false, error: String(parsed.error ?? "렌더 실패") };
-    return { ok: true, path: parsed.path };
-  } catch {
-    return { ok: false, error: res.stderr.trim() || "렌더 실패" };
+    const res = await runVib(args, cwd, {
+      [REPORT_RENDER_PAYLOAD_PATH_ENV]: payloadPath,
+    });
+    try {
+      const parsed = JSON.parse(res.stdout.trim());
+      if (!parsed.ok || !parsed.path) return { ok: false, error: String(parsed.error ?? "렌더 실패") };
+      return { ok: true, path: parsed.path };
+    } catch {
+      return { ok: false, error: res.stderr.trim() || "렌더 실패" };
+    }
+  } finally {
+    await removeReportRenderPayload(cwd, payloadPath);
   }
+}
+
+export async function renderReportHtmlWithDecisions(request: ReportRenderDecisionsRequest): Promise<ReportResult> {
+  const rendered = await renderReportWithDecisions({ ...request, format: "html" });
+  if (!rendered.ok) return rendered;
+  const rel = toProjectRelative(request.cwd, rendered.path);
+  try {
+    const doc = await loadDoc(request.cwd, rel);
+    return {
+      ok: true,
+      path: rendered.path,
+      reportType: request.reportType,
+      html: doc.content,
+    };
+  } catch (error) {
+    if (error instanceof Error) return { ok: false, error: `보고서 파일을 읽지 못했어요: ${error.message}` };
+    throw error;
+  }
+}
+
+export async function renderReportFileWithDecisions(request: ReportRenderFileDecisionsRequest): Promise<PdfResult> {
+  const rendered = await renderReportWithDecisions(request);
+  if (!rendered.ok || request.format !== "pdf") return rendered;
+  return exportReportHtmlToPdf(request.cwd, rendered.path, request.pageNumbers ?? true);
 }
 // === ANCHOR: REPORT_RENDERREPORTWITHDECISIONS_END ===
 // === ANCHOR: REPORT_END ===

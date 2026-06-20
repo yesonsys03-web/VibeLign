@@ -1,0 +1,35 @@
+Status: DONE
+
+Changed files:
+- vibelign/core/reporting_cli/model_json.py
+- tests/core/reporting_cli/test_model_json.py
+- tests/cli/test_vib_report_render_payload.py
+
+Success criteria:
+- Scenario: model_from_dict rejects non-string display fields.
+  Invocation: uv run python -m pytest tests/core/reporting_cli/test_model_json.py -v
+  Observable: tests for title, report_type, date, source_plan_path, author, section heading, block text, and items entries pass.
+  Artifact: .omo/evidence/report-writing-quality/global-review-security-fix-pytest.txt
+- Scenario: model_from_dict rejects malformed section/block containers.
+  Invocation: uv run python -m pytest tests/core/reporting_cli/test_model_json.py -v
+  Observable: tests for non-dict section, non-list blocks, non-dict block, and non-list items pass.
+  Artifact: .omo/evidence/report-writing-quality/global-review-security-fix-pytest.txt
+- Scenario: JSON CLI render payload path receives malformed block.text.
+  Invocation: VIBELIGN_REPORT_RENDER_PAYLOAD_PATH=.omo/evidence/report-writing-quality/global-review-security-fix-manual-malformed-payload.json uv run vib report .omo/evidence/report-writing-quality/global-review-security-fix-manual-plan.md --type work --json --reject-blocks [] --polish-key <emit-key>
+  Observable: exit code 1, stdout {"ok": false, "error": "render payload 형식이 잘못됐어요: text 는 문자열이어야 합니다"}, stderr 0 bytes.
+  Artifact: .omo/evidence/report-writing-quality/global-review-security-fix-manual-cli.txt
+- Scenario: valid model roundtrip is preserved.
+  Invocation: uv run python -m pytest tests/core/reporting_cli/test_model_json.py -v
+  Observable: test_roundtrip_preserves_model passed.
+  Artifact: .omo/evidence/report-writing-quality/global-review-security-fix-pytest.txt
+
+Verification commands:
+- PASS: uv run python -m pytest tests/cli/test_vib_report_render_payload.py tests/core/reporting_cli/test_model_json.py -v
+  Artifact: .omo/evidence/report-writing-quality/global-review-security-fix-pytest.txt
+- PASS: uv run python -m compileall vibelign/core/reporting_cli vibelign/commands
+  Artifact: .omo/evidence/report-writing-quality/global-review-security-fix-compileall.txt
+- PASS: uv run ruff check vibelign/core/reporting_cli/model_json.py tests/cli/test_vib_report_render_payload.py tests/core/reporting_cli/test_model_json.py
+  Artifact: .omo/evidence/report-writing-quality/global-review-security-fix-ruff.txt
+
+Remaining risk:
+- uv run vib doctor --strict still reports pre-existing high-risk project structure and missing MCP registration unrelated to this narrow security fix.

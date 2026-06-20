@@ -22,6 +22,7 @@ pub(crate) mod planning_persona_context;
 pub(crate) mod platform;
 pub(crate) mod project_summary;
 pub(crate) mod report_pdf;
+pub(crate) mod report_render_payload;
 #[cfg(test)]
 mod report_pdf_tests;
 pub(crate) mod run_preview;

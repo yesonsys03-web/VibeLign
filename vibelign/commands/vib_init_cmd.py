@@ -6,7 +6,6 @@ from argparse import Namespace
 from pathlib import Path
 
 from vibelign.commands.vib_start_cmd import (
-    _ensure_gitignore_entry,
     _ensure_rule_files,
     _setup_project,
 )

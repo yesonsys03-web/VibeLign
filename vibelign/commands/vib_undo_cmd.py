@@ -100,7 +100,7 @@ def run_vib_undo(args: Namespace) -> None:
             time_label = friendly_time(cp.created_at)
             msg = _clean_msg(cp.message, cp.trigger, cp.git_commit_message)
             print(f"  [{i + 1}] {time_label:<18}  {msg}{pin}{marker}")
-        print(f"  [0] 취소")
+        print("  [0] 취소")
         print()
 
         try:
