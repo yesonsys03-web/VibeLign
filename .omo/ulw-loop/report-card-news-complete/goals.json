@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "createdAt": "2026-06-20T13:57:02.559Z",
+  "updatedAt": "2026-06-20T14:52:49.124Z",
+  "briefPath": ".omo/ulw-loop/report-card-news-complete/brief.md",
+  "goalsPath": ".omo/ulw-loop/report-card-news-complete/goals.json",
+  "ledgerPath": ".omo/ulw-loop/report-card-news-complete/ledger.jsonl",
+  "codexGoalMode": "aggregate",
+  "goals": [
+    {
+      "id": "G001-api-vibelign-reports-card-news",
+      "title": "API 없이 카드뉴스 초안 이후 흐름을 완료한다. 승인된 카드만 확정해서 .vibelign/reports/card-news...",
+      "objective": "API 없이 카드뉴스 초안 이후 흐름을 완료한다. 승인된 카드만 확정해서 .vibelign/reports/card-news 아래 JSON/HTML 결과물로 저장하고, GUI에서 카드뉴스 HTML을 열 수 있어야 한다. 이미지 생성 API는 붙이지 않고 provider-neutral-draft와 편집 가능한 한국어 오버레이를 유지한다.",
+      "status": "pending",
+      "successCriteria": [
+        {
+          "id": "C001",
+          "scenario": "Browser use: start vibelign-gui dev server, open http://127.0.0.1:<port>/.visual-qa/card-news-finalize.html, click '카드뉴스 확정', expect status text containing '카드뉴스 결과물' and an HTML path ending .vibelign/reports/card-news/*.html; capture screenshot and Playwright action log.",
+          "userModel": "happy",
+          "expectedEvidence": ".omo/ulw-loop/report-card-news-complete/evidence/C001-browser-finalize.json + screenshot .omo/ulw-loop/report-card-news-complete/evidence/C001-card-news-finalize.png",
+          "essential": true,
+          "capturedEvidence": "Browser QA refreshed after Instagram-style summary-card format change: desktop/mobile Chrome click 카드뉴스 확정; result/path visible; REPORT CARD NEWS, Korean title/source values visible; no horizontal overflow. Evidence: C001-browser-finalize.json, C001-browser-finalize-mobile.json, C001-card-news-finalize.png, C001-card-news-finalize-mobile.png. CLI happy path writes approved-only JSON/HTML with source refs, no script/network refs: C001-cli-happy.txt.",
+          "status": "pass",
+          "capturedAt": "2026-06-20T14:52:39.025Z"
+        },
+        {
+          "id": "C002",
+          "scenario": "CLI auxiliary surface: in a temp project, run vib report-card-news <payload.json> --json where payload has zero approved cards; expect exit code 1 JSON {ok:false,error contains '승인'} and no .vibelign/reports/card-news HTML output.",
+          "userModel": "edge",
+          "expectedEvidence": ".omo/ulw-loop/report-card-news-complete/evidence/C002-empty-approved-cli.txt",
+          "essential": true,
+          "capturedEvidence": "Edge CLI refreshed: zero approved exits 1 with Korean 승인 error; approved string false fails closed through strict payload validation; symlinked output dir exits 1 and outside dir remains empty. Evidence: C002-empty-approved-cli.txt.",
+          "status": "pass",
+          "capturedAt": "2026-06-20T14:52:49.048Z"
+        },
+        {
+          "id": "C003",
+          "scenario": "Regression auxiliary surface: run focused Python and Vitest report/card-news tests, including existing vib report --visual-cards JSON and report composer tab tests; expect all pass.",
+          "userModel": "regression",
+          "expectedEvidence": ".omo/ulw-loop/report-card-news-complete/evidence/C003-regression-tests.txt",
+          "essential": false,
+          "capturedEvidence": "Regression refreshed: uv pytest report/card-news bundle 27 passed; GUI Vitest 3 files / 16 tests passed; npm run build passed with existing chunk-size warning; scoped basedpyright 0 errors/0 warnings; git diff --check passed. Evidence: C003-regression-tests.txt, gui-regression-tests.txt, python-type-check-card-news.txt.",
+          "status": "pass",
+          "capturedAt": "2026-06-20T14:52:49.124Z"
+        }
+      ],
+      "attempt": 0,
+      "createdAt": "2026-06-20T13:57:02.559Z",
+      "updatedAt": "2026-06-20T14:52:49.124Z"
+    }
+  ],
+  "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/report-card-news-complete/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/report-card-news-complete/ledger.jsonl as the audit trail."
+}

@@ -19,22 +19,32 @@ vi.mock("../../../lib/vib/report", () => ({
 vi.mock("../PdfPreview", () => ({ PdfPreview: () => null }));
 vi.mock("../../../lib/vib/reportVisualCards", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../lib/vib/reportVisualCards")>();
-  return { ...actual, requestReportVisualCards: vi.fn() };
+  return { ...actual, requestReportVisualCards: vi.fn(), saveReportVisualCards: vi.fn() };
 });
 
 import {
   requestReportVisualCards,
+  saveReportVisualCards,
   type ReportVisualCard,
   type ReportVisualCardsPayload,
 } from "../../../lib/vib/reportVisualCards";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { ReportComposer } from "../ReportComposer";
 import { ReportVisualCardsPanel } from "../ReportVisualCardsPanel";
 
 const mockRequestReportVisualCards = vi.mocked(requestReportVisualCards);
+const mockSaveReportVisualCards = vi.mocked(saveReportVisualCards);
+const mockOpenPath = vi.mocked(openPath);
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockRequestReportVisualCards.mockResolvedValue({ ok: true, payload });
+  mockSaveReportVisualCards.mockResolvedValue({
+    ok: true,
+    htmlPath: "/proj/.vibelign/reports/card-news/cards.html",
+    jsonPath: "/proj/.vibelign/reports/card-news/cards.json",
+    cardCount: 1,
+  });
 });
 
 afterEach(cleanup);
@@ -49,6 +59,11 @@ const payload: ReportVisualCardsPayload = {
     card("card-3", "다음 액션", false),
   ],
   assets: [],
+};
+
+const noApprovedPayload: ReportVisualCardsPayload = {
+  ...payload,
+  cards: payload.cards.map((item) => ({ ...item, approved: false })),
 };
 
 function card(id: string, title: string, approved: boolean): ReportVisualCard {
@@ -70,35 +85,91 @@ function card(id: string, title: string, approved: boolean): ReportVisualCard {
   };
 }
 
-test("keeps Korean copy as editable overlays", () => {
+test("keeps Korean copy as editable summary cards", () => {
   const onExportChange = vi.fn<(cards: readonly ReportVisualCard[]) => void>();
   render(<ReportVisualCardsPanel payload={payload} onExportChange={onExportChange} />);
 
-  const imageLayer = screen.getByLabelText("card-1 이미지 레이어");
-  expect(imageLayer).toHaveAttribute("data-asset-path", "");
-  expect(imageLayer).toHaveAttribute("data-candidate-version", "1");
-  expect(imageLayer).not.toHaveTextContent("제안 요약");
-  expect(imageLayer.parentElement).not.toHaveStyle({ background: "linear-gradient(135deg, #DDEBFF, #FFE1C8)" });
+  const summaryCard = screen.getByLabelText("card-1 요약 카드");
+  expect(summaryCard).toHaveAttribute("data-candidate-version", "1");
+  expect(summaryCard).toHaveTextContent("REPORT CARD NEWS");
+  expect(summaryCard).toHaveTextContent("★");
 
-  const title = screen.getByLabelText("제안 요약 제목 오버레이");
-  const body = screen.getByLabelText("제안 요약 본문 오버레이");
-  const caption = screen.getByLabelText("제안 요약 캡션 오버레이");
+  const title = screen.getByLabelText("제안 요약 카드 제목");
+  const body = screen.getByLabelText("제안 요약 요약 본문");
+  const caption = screen.getByLabelText("제안 요약 출처 문구");
   expect(title).toHaveValue("제안 요약");
   expect(body).toHaveValue("제안 요약 본문은 한국어 오버레이로 남습니다.");
   expect(caption).toHaveValue("출처: 제안 요약");
-  expect(screen.getAllByText("2D business comic illustration, no readable text in image")[0]).not.toHaveTextContent(/[가-힣]/);
+  expect(screen.getAllByText(/카드뉴스 요약 포맷/)[0]).toHaveTextContent("2D business comic illustration");
 });
 
 test("production ReportComposer requests and previews visual cards", async () => {
   render(<ReportComposer planPath="plans/p.md" cwd="/proj" layout="inline" onClose={() => {}} />);
 
+  fireEvent.click(screen.getByRole("tab", { name: "카드뉴스" }));
   fireEvent.click(screen.getByRole("button", { name: "카드뉴스 초안 만들기" }));
 
-  await screen.findByText("시각 카드 초안");
+  await screen.findByText("요약 카드 초안");
   expect(mockRequestReportVisualCards).toHaveBeenCalledWith("/proj", "plans/p.md", "work");
   await waitFor(() => expect(screen.getByText("승인된 카드 1개")).toBeInTheDocument());
+  fireEvent.click(screen.getByRole("button", { name: "카드뉴스 확정" }));
+  await screen.findByText("카드뉴스 결과물 1장");
+  expect(mockSaveReportVisualCards).toHaveBeenCalledWith(
+    "/proj",
+    expect.objectContaining({ cards: [expect.objectContaining({ id: "card-1", approved: true })] }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "HTML 열기" }));
+  expect(mockOpenPath).toHaveBeenCalledWith("/proj/.vibelign/reports/card-news/cards.html");
   fireEvent.click(screen.getByRole("button", { name: "다음 액션 카드 승인" }));
   await waitFor(() => expect(screen.getByText("승인된 카드 2개")).toBeInTheDocument());
+});
+
+test("modal ReportComposer keeps the card-news workspace available", async () => {
+  render(<ReportComposer planPath="plans/p.md" cwd="/proj" layout="modal" onClose={() => {}} />);
+
+  fireEvent.click(screen.getByRole("tab", { name: "카드뉴스" }));
+
+  expect(screen.getByRole("button", { name: "카드뉴스 초안 만들기" })).toBeInTheDocument();
+});
+
+test("finalizes only approved visual cards", async () => {
+  const onFinalize = vi.fn<(cards: readonly ReportVisualCard[]) => void>();
+  render(<ReportVisualCardsPanel payload={payload} onFinalize={onFinalize} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "카드뉴스 확정" }));
+
+  expect(onFinalize).toHaveBeenCalledWith([expect.objectContaining({ id: "card-1", approved: true })]);
+});
+
+test("does not finalize when no visual cards are approved", () => {
+  const onFinalize = vi.fn<(cards: readonly ReportVisualCard[]) => void>();
+  render(<ReportVisualCardsPanel payload={noApprovedPayload} onFinalize={onFinalize} />);
+
+  const finalize = screen.getByRole("button", { name: "카드뉴스 확정" });
+  expect(finalize).toBeDisabled();
+  fireEvent.click(finalize);
+
+  expect(onFinalize).not.toHaveBeenCalled();
+});
+
+test("refuses to open card-news HTML outside the project result directory", async () => {
+  mockSaveReportVisualCards.mockResolvedValueOnce({
+    ok: true,
+    htmlPath: "/tmp/outside/cards.html",
+    jsonPath: "/tmp/outside/cards.json",
+    cardCount: 1,
+  });
+  render(<ReportComposer planPath="plans/p.md" cwd="/proj" layout="inline" onClose={() => {}} />);
+
+  fireEvent.click(screen.getByRole("tab", { name: "카드뉴스" }));
+  fireEvent.click(screen.getByRole("button", { name: "카드뉴스 초안 만들기" }));
+  await screen.findByText("요약 카드 초안");
+  fireEvent.click(screen.getByRole("button", { name: "카드뉴스 확정" }));
+  await screen.findByText("카드뉴스 결과물 1장");
+  fireEvent.click(screen.getByRole("button", { name: "HTML 열기" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("현재 프로젝트의 결과물 폴더");
+  expect(mockOpenPath).not.toHaveBeenCalled();
 });
 
 test("regenerates edits deletes and exports only approved cards", async () => {
@@ -120,12 +191,11 @@ test("regenerates edits deletes and exports only approved cards", async () => {
 
   fireEvent.click(screen.getByRole("button", { name: "제안 요약 카드 재생성" }));
   expect(onRegenerate).toHaveBeenCalledWith("card-1", expect.objectContaining({ id: "card-1" }), 2);
-  expect(screen.getByLabelText("card-1 이미지 레이어")).toHaveAttribute("data-asset-path", "");
-  expect(screen.getByLabelText("card-1 이미지 레이어")).toHaveAttribute("data-candidate-version", "2");
+  expect(screen.getByLabelText("card-1 요약 카드")).toHaveAttribute("data-candidate-version", "2");
   expect(screen.getByLabelText("제안 요약 후보 상태")).toHaveTextContent("후보 v2");
-  expect(screen.getByText(/alternate crop 2/)).not.toHaveTextContent(/[가-힣]/);
+  expect(screen.getByText(/alternate crop 2/)).toHaveTextContent("카드뉴스 요약 포맷");
 
-  fireEvent.change(screen.getByLabelText("제안 요약 제목 오버레이"), {
+  fireEvent.change(screen.getByLabelText("제안 요약 카드 제목"), {
     target: { value: "수정된 제안 요약" },
   });
   fireEvent.click(screen.getByRole("button", { name: "핵심 근거 카드 삭제" }));
@@ -142,6 +212,6 @@ test("regenerates edits deletes and exports only approved cards", async () => {
       expect.objectContaining({ id: "card-3" }),
     ]);
   });
-  expect(screen.queryByLabelText("card-2 이미지 레이어")).not.toBeInTheDocument();
-  expect(screen.getByLabelText("수정된 제안 요약 제목 오버레이")).toHaveValue("수정된 제안 요약");
+  expect(screen.queryByLabelText("card-2 요약 카드")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("수정된 제안 요약 카드 제목")).toHaveValue("수정된 제안 요약");
 });

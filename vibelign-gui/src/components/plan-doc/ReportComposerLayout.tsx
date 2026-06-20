@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 
 import { ReportComposerPreview } from "./ReportComposerPreview";
 import {
@@ -12,6 +12,9 @@ type ReportComposerLayoutProps = {
   readonly cwd: string;
   readonly inline: boolean;
   readonly controls: ReactNode;
+  readonly workspaceTab?: "report" | "cards";
+  readonly onWorkspaceTabChange?: (tab: "report" | "cards") => void;
+  readonly companion?: ReactNode;
   readonly exportBox: ReactNode;
   readonly result: ReportComposerResultState | null;
   readonly exportedPath: string | null;
@@ -24,6 +27,9 @@ export function ReportComposerLayout({
   cwd,
   inline,
   controls,
+  workspaceTab = "report",
+  onWorkspaceTabChange,
+  companion,
   exportBox,
   result,
   exportedPath,
@@ -31,16 +37,51 @@ export function ReportComposerLayout({
   onOpenErr,
   onClose,
 }: ReportComposerLayoutProps): ReactNode {
+  const inlineShellRef = useRef<HTMLDivElement | null>(null);
+  const isNarrowInline = useNarrowInlineLayout(inlineShellRef);
+  const canShowTabs = companion !== undefined && onWorkspaceTabChange !== undefined;
+  const workspace = (
+    <div style={workspacePane}>
+      {canShowTabs && (
+        <div role="tablist" aria-label="보고서 작성 작업 영역" style={workspaceTabs}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={workspaceTab === "report"}
+            onClick={() => onWorkspaceTabChange("report")}
+            style={workspaceTabButton(workspaceTab === "report")}
+          >
+            보고서
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={workspaceTab === "cards"}
+            onClick={() => onWorkspaceTabChange("cards")}
+            style={workspaceTabButton(workspaceTab === "cards")}
+          >
+            카드뉴스
+          </button>
+        </div>
+      )}
+      <div role="tabpanel" style={workspaceBody}>
+        {workspaceTab === "cards" && companion !== undefined ? (
+          companion
+        ) : (
+          <ReportComposerPreview cwd={cwd} result={result} fillHeight={inline} />
+        )}
+      </div>
+    </div>
+  );
+
   if (inline) {
     return (
-      <div style={{ display: "flex", height: "100%", gap: 16, minHeight: 0 }}>
-        <div style={inlineOptionsPane}>
+      <div ref={inlineShellRef} style={inlineShell(isNarrowInline)}>
+        <div style={inlineOptionsPane(isNarrowInline)}>
           {controls}
           {exportBox}
         </div>
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <ReportComposerPreview cwd={cwd} result={result} fillHeight />
-        </div>
+        {workspace}
       </div>
     );
   }
@@ -56,7 +97,7 @@ export function ReportComposerLayout({
 
       <div style={contentArea}>
         {controls}
-        <ReportComposerPreview cwd={cwd} result={result} fillHeight={false} />
+        {workspace}
         {exportBox}
       </div>
 
@@ -104,12 +145,23 @@ const header: CSSProperties = {
   fontWeight: 700,
 };
 const contentArea: CSSProperties = { padding: 16, overflow: "auto" };
-const inlineOptionsPane: CSSProperties = {
-  width: 300,
+const workspacePane: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  display: "flex",
+  flexDirection: "column",
+};
+const workspaceTabs: CSSProperties = {
+  display: "flex",
+  gap: 6,
+  alignItems: "center",
+  marginBottom: 10,
   flexShrink: 0,
+};
+const workspaceBody: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
   overflow: "auto",
-  padding: "4px 16px 16px 4px",
-  borderRight: "1px solid #e5e0d0",
 };
 const footer: CSSProperties = {
   padding: 12,
@@ -125,3 +177,62 @@ const iconBtn: CSSProperties = {
   cursor: "pointer",
   fontSize: 16,
 };
+
+function workspaceTabButton(active: boolean): CSSProperties {
+  return {
+    border: "2px solid #1A1A1A",
+    background: active ? "#F5621E" : "#FFFFFF",
+    color: "#1A1A1A",
+    padding: "7px 12px",
+    fontWeight: 800,
+    cursor: "pointer",
+    boxShadow: active ? "2px 2px 0 #1A1A1A" : "none",
+  };
+}
+
+function inlineShell(isNarrow: boolean): CSSProperties {
+  return {
+    display: "flex",
+    flexDirection: isNarrow ? "column" : "row",
+    height: "100%",
+    gap: isNarrow ? 12 : 16,
+    minHeight: 0,
+  };
+}
+
+function inlineOptionsPane(isNarrow: boolean): CSSProperties {
+  return {
+    width: isNarrow ? "auto" : 300,
+    maxHeight: isNarrow ? 240 : "none",
+    flexShrink: 0,
+    overflow: "auto",
+    padding: isNarrow ? "4px 4px 12px" : "4px 16px 16px 4px",
+    borderRight: isNarrow ? "none" : "1px solid #e5e0d0",
+    borderBottom: isNarrow ? "1px solid #e5e0d0" : "none",
+  };
+}
+
+function useNarrowInlineLayout(ref: RefObject<HTMLDivElement | null>): boolean {
+  const [isNarrow, setIsNarrow] = useState(false);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (node === null) return;
+
+    const update = () => {
+      setIsNarrow(node.getBoundingClientRect().width < 760);
+    };
+    update();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", update);
+      return () => window.removeEventListener("resize", update);
+    }
+
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [ref]);
+
+  return isNarrow;
+}

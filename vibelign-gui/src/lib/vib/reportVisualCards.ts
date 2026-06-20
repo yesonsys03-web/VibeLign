@@ -1,5 +1,6 @@
 import { runVib } from "./core";
 import type { ReportType } from "./report";
+import { removeReportRenderPayload, writeReportJsonPayload } from "./reportRenderPayload";
 
 export type ReportVisualCardSourceRef = {
   readonly source_plan_path: string;
@@ -37,6 +38,10 @@ export type ReportVisualCardsPayload = {
 
 export type ReportVisualCardsResult =
   | { readonly ok: true; readonly payload: ReportVisualCardsPayload }
+  | { readonly ok: false; readonly error: string };
+
+export type ReportCardNewsExportResult =
+  | { readonly ok: true; readonly htmlPath: string; readonly jsonPath: string; readonly cardCount: number }
   | { readonly ok: false; readonly error: string };
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -126,4 +131,50 @@ export async function requestReportVisualCards(
   } catch {
     return { ok: false, error: res.stderr.trim() || "카드뉴스 생성 실패" };
   }
+}
+
+export async function saveReportVisualCards(
+  cwd: string,
+  payload: ReportVisualCardsPayload,
+): Promise<ReportCardNewsExportResult> {
+  const payloadPath = await writeReportJsonPayload(cwd, payload);
+  try {
+    const res = await runVib(["report-card-news", payloadPath, "--json"], cwd);
+    const stdout = res.stdout.trim();
+    const stderr = res.stderr.trim();
+    if (stdout.length === 0) {
+      return { ok: false, error: cardNewsSaveError(stderr) };
+    }
+    const raw: unknown = JSON.parse(stdout);
+    if (!isRecord(raw) || raw.ok !== true) {
+      return {
+        ok: false,
+        error: isRecord(raw) ? stringValue(raw.error) || cardNewsSaveError(stderr) : cardNewsSaveError(stderr),
+      };
+    }
+    const htmlPath = stringValue(raw.html_path);
+    const jsonPath = stringValue(raw.json_path);
+    if (htmlPath.length === 0 || jsonPath.length === 0) {
+      return { ok: false, error: "카드뉴스 저장 결과 경로가 비어 있어요." };
+    }
+    return {
+      ok: true,
+      htmlPath,
+      jsonPath,
+      cardCount: numberValue(raw.card_count),
+    };
+  } catch (error) {
+    if (error instanceof SyntaxError) return { ok: false, error: "카드뉴스 저장 응답을 읽지 못했어요." };
+    if (error instanceof Error) return { ok: false, error: error.message || "카드뉴스 저장 실패" };
+    throw error;
+  } finally {
+    await removeReportRenderPayload(cwd, payloadPath);
+  }
+}
+
+function cardNewsSaveError(stderr: string): string {
+  if (stderr.includes("invalid choice: 'report-card-news'")) {
+    return "카드뉴스 확정 명령을 현재 설치된 vib에서 찾지 못했어요. VibeLign CLI를 업데이트한 뒤 다시 시도하세요.";
+  }
+  return stderr || "카드뉴스 저장 실패";
 }

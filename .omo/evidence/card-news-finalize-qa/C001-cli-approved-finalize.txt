@@ -1,0 +1,16 @@
+surface=CLI
+invocation=uv run vib report-card-news '/var/folders/_t/6r2qjps14jd83045jgx81k8r0000gn/T/tmp.40J1mvaY7z/cards.json' --json
+exit_status=0
+stdout={"ok": true, "json_path": "/Users/topsphinx/Documents/coding/VibeLign/.vibelign/reports/card-news/승인-카드-card-news-3.json", "html_path": "/Users/topsphinx/Documents/coding/VibeLign/.vibelign/reports/card-news/승인-카드-card-news-3.html", "card_count": 1}
+json_path=/Users/topsphinx/Documents/coding/VibeLign/.vibelign/reports/card-news/승인-카드-card-news-3.json
+html_path=/Users/topsphinx/Documents/coding/VibeLign/.vibelign/reports/card-news/승인-카드-card-news-3.html
+json_nonempty=yes
+html_nonempty=yes
+card_count=1
+card_ids=approved-card
+approved_only=yes
+source_refs_preserved=yes
+html_contains_approved_title=yes
+html_excludes_unapproved_title=yes
+no_script_or_network_reference=yes
+cleanup_target=/var/folders/_t/6r2qjps14jd83045jgx81k8r0000gn/T/tmp.40J1mvaY7z

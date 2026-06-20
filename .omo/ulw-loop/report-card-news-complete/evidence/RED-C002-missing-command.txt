@@ -1,0 +1,8 @@
+cmd=python3 -m vibelign.cli.vib_cli report-card-news payload.json --json
+exit=1
+stdout:
+
+stderr:
+/Applications/Xcode.app/Contents/Developer/usr/bin/python3: Error while finding module specification for 'vibelign.cli.vib_cli' (ModuleNotFoundError: No module named 'vibelign')
+
+temp=/var/folders/_t/6r2qjps14jd83045jgx81k8r0000gn/T/vibelign-cardnews-red-12yd0maz

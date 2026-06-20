@@ -1,0 +1,16 @@
+surface=GUI component/library test via npm/vitest
+invocation=cd vibelign-gui && npm test -- --run src/components/plan-doc/__tests__/ReportVisualCardsPanel.test.tsx src/lib/vib/__tests__/reportVisualCards.test.ts
+
+> vibelign-gui@2.5.2 test
+> vitest run --run src/components/plan-doc/__tests__/ReportVisualCardsPanel.test.tsx src/lib/vib/__tests__/reportVisualCards.test.ts
+
+
+ RUN  v4.1.5 /Users/topsphinx/Documents/coding/VibeLign/vibelign-gui
+
+(node:93414) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  2 passed (2)
+      Tests  8 passed (8)
+   Start at  23:16:10
+   Duration  1.43s (transform 153ms, setup 148ms, import 191ms, tests 466ms, environment 1.21s)

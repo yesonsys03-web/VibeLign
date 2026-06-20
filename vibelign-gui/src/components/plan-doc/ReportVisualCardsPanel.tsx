@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
 import {
   approvedReportVisualCards,
@@ -9,6 +9,7 @@ import {
 export type ReportVisualCardsPanelProps = {
   readonly payload: ReportVisualCardsPayload;
   readonly onExportChange?: (cards: readonly ReportVisualCard[]) => void;
+  readonly onFinalize?: (cards: readonly ReportVisualCard[]) => void;
   readonly onRegenerate?: ReportVisualCardRegenerate;
 };
 
@@ -56,9 +57,10 @@ function updateCard(
   return cards.map((card) => (card.id === cardId ? update(card) : card));
 }
 
-export function ReportVisualCardsPanel({ payload, onExportChange, onRegenerate }: ReportVisualCardsPanelProps) {
+export function ReportVisualCardsPanel({ payload, onExportChange, onFinalize, onRegenerate }: ReportVisualCardsPanelProps) {
   const [cards, setCards] = useState<readonly ReportVisualCard[]>(payload.cards);
   const [candidateVersions, setCandidateVersions] = useState<Readonly<Record<string, number>>>({});
+  const approvedCards = useMemo(() => approvedReportVisualCards(cards), [cards]);
 
   useEffect(() => {
     setCards(payload.cards);
@@ -66,8 +68,8 @@ export function ReportVisualCardsPanel({ payload, onExportChange, onRegenerate }
   }, [payload]);
 
   useEffect(() => {
-    onExportChange?.(approvedReportVisualCards(cards));
-  }, [cards, onExportChange]);
+    onExportChange?.(approvedCards);
+  }, [approvedCards, onExportChange]);
 
   const provider = payload.provider || "generic-image-provider";
 
@@ -95,9 +97,19 @@ export function ReportVisualCardsPanel({ payload, onExportChange, onRegenerate }
       <header style={header}>
         <div>
           <div style={eyebrow}>카드뉴스 companion</div>
-          <h2 style={title}>시각 카드 초안</h2>
+          <h2 style={title}>요약 카드 초안</h2>
         </div>
-        <span style={providerBadge}>{provider}</span>
+        <div style={headerActions}>
+          <span style={providerBadge}>{provider}</span>
+          <button
+            type="button"
+            disabled={approvedCards.length === 0}
+            onClick={() => onFinalize?.(approvedCards)}
+            style={approvedCards.length === 0 ? disabledFinalizeButton : finalizeButton}
+          >
+            카드뉴스 확정
+          </button>
+        </div>
       </header>
 
       <div style={grid}>
@@ -106,36 +118,47 @@ export function ReportVisualCardsPanel({ payload, onExportChange, onRegenerate }
           const candidateVersion = candidateVersions[card.id] ?? 1;
           return (
             <article key={card.id} aria-label={`${card.title} 카드`} style={cardBox}>
-              <div style={imageLayer}>
+              <div
+                aria-label={`${card.id} 요약 카드`}
+                data-candidate-version={candidateVersion}
+                style={summaryCard}
+              >
+                <div style={cardTopline}>
+                  <span style={numberBadge}>{candidateVersion}</span>
+                  <span style={seriesLabel}>REPORT CARD NEWS</span>
+                </div>
+                <div style={doodleRow} aria-hidden="true">
+                  <span>★</span>
+                  <span style={doodleLine} />
+                  <span>✦</span>
+                </div>
                 <div
-                  aria-label={`${card.id} 이미지 레이어`}
+                  aria-label={`${card.id} 카드 메타`}
                   data-asset-path={card.image.asset_path}
                   data-candidate-version={candidateVersion}
-                  style={assetLayer}
+                  style={hiddenMeta}
                 />
-                <div style={overlay}>
-                  <input
-                    aria-label={`${card.title} 제목 오버레이`}
-                    value={edit.title}
-                    onChange={(event) => editCard(card.id, { title: event.target.value })}
-                    style={titleInput}
-                  />
-                  <textarea
-                    aria-label={`${card.title} 본문 오버레이`}
-                    value={edit.body}
-                    onChange={(event) => editCard(card.id, { body: event.target.value })}
-                    style={bodyInput}
-                  />
-                  <input
-                    aria-label={`${card.title} 캡션 오버레이`}
-                    value={edit.caption}
-                    onChange={(event) => editCard(card.id, { caption: event.target.value })}
-                    style={captionInput}
-                  />
-                </div>
+                <input
+                  aria-label={`${card.title} 카드 제목`}
+                  value={edit.title}
+                  onChange={(event) => editCard(card.id, { title: event.target.value })}
+                  style={titleInput}
+                />
+                <textarea
+                  aria-label={`${card.title} 요약 본문`}
+                  value={edit.body}
+                  onChange={(event) => editCard(card.id, { body: event.target.value })}
+                  style={bodyInput}
+                />
+                <input
+                  aria-label={`${card.title} 출처 문구`}
+                  value={edit.caption}
+                  onChange={(event) => editCard(card.id, { caption: event.target.value })}
+                  style={captionInput}
+                />
               </div>
               <p aria-label={`${card.title} 후보 상태`} style={candidateText}>후보 v{candidateVersion}</p>
-              <p style={promptText}>{card.visual_prompt}</p>
+              <p style={promptText}>카드뉴스 요약 포맷 · {card.visual_prompt}</p>
               <div style={controls}>
                 <button type="button" aria-label={`${card.title} 카드 재생성`} onClick={() => regenerateCard(card.id)} style={secondaryButton}>
                   재생성
@@ -162,20 +185,27 @@ export function ReportVisualCardsPanel({ payload, onExportChange, onRegenerate }
 
 const panel: CSSProperties = { border: "2px solid #1A1A1A", background: "#FFFFFF", padding: 12, boxShadow: "4px 4px 0 #1A1A1A" };
 const header: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start", marginBottom: 12 };
+const headerActions: CSSProperties = { display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 };
 const eyebrow: CSSProperties = { fontSize: 11, fontWeight: 800, color: "#999999" };
 const title: CSSProperties = { margin: 0, fontSize: 20, lineHeight: 1.2 };
 const providerBadge: CSSProperties = { border: "2px solid #1A1A1A", padding: "4px 8px", fontSize: 12, fontWeight: 800, background: "#FEFBF0" };
-const grid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 };
+const grid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 };
 const cardBox: CSSProperties = { display: "grid", gap: 8, border: "2px solid #1A1A1A", padding: 8, background: "#FEFBF0" };
-const imageLayer: CSSProperties = { minHeight: 260, border: "2px solid #1A1A1A", background: "#FFFFFF", position: "relative", overflow: "hidden" };
-const assetLayer: CSSProperties = { position: "absolute", inset: 10, border: "2px solid #1A1A1A", background: "#FEFBF0", boxShadow: "4px 4px 0 #1A1A1A" };
-const overlay: CSSProperties = { position: "absolute", inset: 12, display: "grid", alignContent: "end", gap: 8 };
-const titleInput: CSSProperties = { border: "2px solid #1A1A1A", background: "#FFFFFF", padding: 8, fontSize: 18, fontWeight: 900 };
-const bodyInput: CSSProperties = { border: "2px solid #1A1A1A", background: "#FFFFFF", padding: 8, minHeight: 74, fontSize: 13, lineHeight: 1.5, resize: "none" };
-const captionInput: CSSProperties = { border: "1px solid #1A1A1A", background: "#FFFFFF", padding: 6, fontSize: 12, fontWeight: 800 };
+const summaryCard: CSSProperties = { minHeight: 360, aspectRatio: "4 / 5", border: "2px solid #1A1A1A", background: "#FFFFFF", padding: 14, display: "grid", gridTemplateRows: "auto auto auto 1fr auto", gap: 10, boxShadow: "5px 5px 0 #1A1A1A", overflow: "hidden" };
+const cardTopline: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 };
+const numberBadge: CSSProperties = { width: 34, height: 34, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "2px solid #1A1A1A", borderRadius: "999px", background: "#FF4D4D", color: "#FFFFFF", fontWeight: 900, fontSize: 18 };
+const seriesLabel: CSSProperties = { border: "2px solid #1A1A1A", padding: "3px 8px", background: "#FEFBF0", fontSize: 10, fontWeight: 900 };
+const doodleRow: CSSProperties = { display: "flex", alignItems: "center", gap: 8, color: "#F5621E", fontSize: 16, fontWeight: 900 };
+const doodleLine: CSSProperties = { flex: 1, borderTop: "3px solid #1A1A1A" };
+const hiddenMeta: CSSProperties = { display: "none" };
+const titleInput: CSSProperties = { border: "none", borderBottom: "4px solid #1A1A1A", background: "#FFFFFF", padding: "4px 0 8px", fontSize: 24, lineHeight: 1.15, fontWeight: 900 };
+const bodyInput: CSSProperties = { border: "2px solid #1A1A1A", borderRadius: 8, background: "#FEFBF0", padding: 12, minHeight: 150, fontSize: 14, lineHeight: 1.6, resize: "none" };
+const captionInput: CSSProperties = { border: "2px solid #1A1A1A", borderRadius: 999, background: "#FFFFFF", padding: "8px 10px", fontSize: 12, fontWeight: 800 };
 const candidateText: CSSProperties = { margin: 0, fontSize: 11, fontWeight: 800, color: "#1A1A1A" };
 const promptText: CSSProperties = { margin: 0, fontSize: 11, lineHeight: 1.4, color: "#666666", overflowWrap: "anywhere" };
 const controls: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 6 };
 const secondaryButton: CSSProperties = { border: "2px solid #1A1A1A", background: "#FFFFFF", color: "#1A1A1A", padding: "6px 9px", fontWeight: 800, cursor: "pointer" };
 const approvedButton: CSSProperties = { ...secondaryButton, background: "#4DFF91" };
 const dangerButton: CSSProperties = { ...secondaryButton, background: "#FF4D4D" };
+const finalizeButton: CSSProperties = { ...secondaryButton, background: "#F5621E", boxShadow: "2px 2px 0 #1A1A1A" };
+const disabledFinalizeButton: CSSProperties = { ...finalizeButton, opacity: 0.45, cursor: "not-allowed" };

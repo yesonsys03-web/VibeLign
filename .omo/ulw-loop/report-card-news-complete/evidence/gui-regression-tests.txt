@@ -1,0 +1,12 @@
+
+> vibelign-gui@2.5.2 test
+> vitest run src/components/plan-doc/__tests__/ReportVisualCardsPanel.test.tsx src/lib/vib/__tests__/reportVisualCards.test.ts src/pages/__tests__/ReportView.test.tsx
+
+
+ RUN  v4.1.5 /Users/topsphinx/Documents/coding/VibeLign/vibelign-gui
+
+
+ Test Files  3 passed (3)
+      Tests  16 passed (16)
+   Start at  23:50:12
+   Duration  1.81s (transform 332ms, setup 216ms, import 460ms, tests 1.10s, environment 2.20s)

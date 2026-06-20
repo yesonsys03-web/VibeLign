@@ -1,44 +1,80 @@
-import { describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import {
   approvedReportVisualCards,
   parseReportVisualCardsPayload,
   requestReportVisualCards,
+  saveReportVisualCards,
 } from "../reportVisualCards";
 
-vi.mock("../core", () => ({
-  runVib: vi.fn(async () => ({
-    stdout: JSON.stringify({
-      ok: true,
-      visual_cards: {
-          provider: "provider-neutral-draft",
-        status: "ready",
-        cards: [
-          {
-            id: "c1",
-            title: "제안 요약",
-            body: "예약 변경 처리 시간을 줄입니다.",
-            caption: "출처: 제안 요약",
-            visual_prompt: "2D business comic illustration, no readable text in image",
-            negative_prompt: "readable text",
-            source_refs: [{ source_plan_path: "plan.md", section: 0, block: 0, heading: "제안 요약" }],
-            image: {
-              provider: "provider-neutral-draft",
-              asset_path: "",
-              prompt: "2D business comic illustration, no readable text in image",
-              generated: false,
-            },
-            approved: true,
-          },
-        ],
-        assets: [],
-      },
-    }),
-    stderr: "",
-  })),
+const mocks = vi.hoisted(() => ({
+  runVib: vi.fn(),
+  writeReportJsonPayload: vi.fn(),
+  removeReportRenderPayload: vi.fn(),
 }));
 
+vi.mock("../core", () => ({
+  runVib: mocks.runVib,
+}));
+
+vi.mock("../reportRenderPayload", () => ({
+  writeReportJsonPayload: mocks.writeReportJsonPayload,
+  removeReportRenderPayload: mocks.removeReportRenderPayload,
+}));
+
+const draftCard = {
+  id: "c1",
+  title: "제안 요약",
+  body: "예약 변경 처리 시간을 줄입니다.",
+  caption: "출처: 제안 요약",
+  visual_prompt: "2D business comic illustration, no readable text in image",
+  negative_prompt: "readable text",
+  source_refs: [{ source_plan_path: "plan.md", section: 0, block: 0, heading: "제안 요약" }],
+  image: {
+    provider: "provider-neutral-draft",
+    asset_path: "",
+    prompt: "2D business comic illustration, no readable text in image",
+    generated: false,
+  },
+  approved: true,
+} as const;
+
+function draftPayload() {
+  return {
+    schema_version: "report-visual-cards-v1",
+    provider: "provider-neutral-draft",
+    status: "ready",
+    cards: [draftCard],
+    assets: [],
+  } as const;
+}
+
 describe("report visual cards", () => {
+  beforeEach(() => {
+    mocks.runVib.mockReset();
+    mocks.writeReportJsonPayload.mockReset();
+    mocks.removeReportRenderPayload.mockReset();
+    mocks.writeReportJsonPayload.mockResolvedValue("/repo/.vibelign/reports/render-payloads/render-payload-1.json");
+    mocks.removeReportRenderPayload.mockResolvedValue(undefined);
+    mocks.runVib.mockImplementation(async (args: readonly string[]) => {
+      if (args[0] === "report-card-news") {
+        return {
+          stdout: JSON.stringify({
+            ok: true,
+            html_path: "/repo/.vibelign/reports/card-news/cards.html",
+            json_path: "/repo/.vibelign/reports/card-news/cards.json",
+            card_count: 1,
+          }),
+          stderr: "",
+        };
+      }
+      return {
+        stdout: JSON.stringify({ ok: true, visual_cards: draftPayload() }),
+        stderr: "",
+      };
+    });
+  });
+
   test("parses provider-neutral draft cards without Korean copy in prompts", () => {
     const payload = parseReportVisualCardsPayload({
       provider: "provider-neutral-draft",
@@ -73,5 +109,60 @@ describe("report visual cards", () => {
     if (!result.ok) return;
     expect(result.payload.cards[0].image.provider).toBe("provider-neutral-draft");
     expect(result.payload.cards[0].title).toBe("제안 요약");
+  });
+
+  test("saves visual cards through a temporary payload file", async () => {
+    const result = await saveReportVisualCards("/repo", draftPayload());
+
+    expect(result).toEqual({
+      ok: true,
+      htmlPath: "/repo/.vibelign/reports/card-news/cards.html",
+      jsonPath: "/repo/.vibelign/reports/card-news/cards.json",
+      cardCount: 1,
+    });
+    expect(mocks.writeReportJsonPayload).toHaveBeenCalledWith("/repo", draftPayload());
+    expect(mocks.runVib).toHaveBeenCalledWith(
+      ["report-card-news", "/repo/.vibelign/reports/render-payloads/render-payload-1.json", "--json"],
+      "/repo",
+    );
+    expect(mocks.removeReportRenderPayload).toHaveBeenCalledWith(
+      "/repo",
+      "/repo/.vibelign/reports/render-payloads/render-payload-1.json",
+    );
+  });
+
+  test("cleans temporary payload when visual card save fails", async () => {
+    mocks.runVib.mockResolvedValueOnce({
+      stdout: JSON.stringify({ ok: false, error: "승인된 카드가 없습니다." }),
+      stderr: "",
+    });
+
+    const result = await saveReportVisualCards("/repo", draftPayload());
+
+    expect(result).toEqual({ ok: false, error: "승인된 카드가 없습니다." });
+    expect(mocks.removeReportRenderPayload).toHaveBeenCalledWith(
+      "/repo",
+      "/repo/.vibelign/reports/render-payloads/render-payload-1.json",
+    );
+  });
+
+  test("reports stderr instead of JSON parse errors when card news command is missing", async () => {
+    mocks.runVib.mockResolvedValueOnce({
+      ok: false,
+      stdout: "",
+      stderr: "invalid choice: 'report-card-news'",
+      exit_code: 2,
+    });
+
+    const result = await saveReportVisualCards("/repo", draftPayload());
+
+    expect(result).toEqual({
+      ok: false,
+      error: "카드뉴스 확정 명령을 현재 설치된 vib에서 찾지 못했어요. VibeLign CLI를 업데이트한 뒤 다시 시도하세요.",
+    });
+    expect(mocks.removeReportRenderPayload).toHaveBeenCalledWith(
+      "/repo",
+      "/repo/.vibelign/reports/render-payloads/render-payload-1.json",
+    );
   });
 });

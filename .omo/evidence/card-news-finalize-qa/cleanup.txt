@@ -1,0 +1,10 @@
+surface=filesystem cleanup for QA-generated card-news outputs
+invocation=rm -f .vibelign/reports/card-news/승인-카드-card-news-2.json .vibelign/reports/card-news/승인-카드-card-news-2.html .vibelign/reports/card-news/승인-카드-card-news-3.json .vibelign/reports/card-news/승인-카드-card-news-3.html
+removing=.vibelign/reports/card-news/승인-카드-card-news-2.json
+removing=.vibelign/reports/card-news/승인-카드-card-news-2.html
+removing=.vibelign/reports/card-news/승인-카드-card-news-3.json
+removing=.vibelign/reports/card-news/승인-카드-card-news-3.html
+post_cleanup_absent=.vibelign/reports/card-news/승인-카드-card-news-2.json
+post_cleanup_absent=.vibelign/reports/card-news/승인-카드-card-news-2.html
+post_cleanup_absent=.vibelign/reports/card-news/승인-카드-card-news-3.json
+post_cleanup_absent=.vibelign/reports/card-news/승인-카드-card-news-3.html

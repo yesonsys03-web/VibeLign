@@ -1,0 +1,12 @@
+surface=Python regression test via uv/pytest
+invocation=uv run pytest tests/cli/test_vib_report_card_news_finalize_cmd.py
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.0.3, pluggy-1.6.0
+rootdir: /Users/topsphinx/Documents/coding/VibeLign
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collected 3 items
+
+tests/cli/test_vib_report_card_news_finalize_cmd.py ...                  [100%]
+
+============================== 3 passed in 0.11s ===============================

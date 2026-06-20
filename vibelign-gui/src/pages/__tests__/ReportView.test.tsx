@@ -175,6 +175,18 @@ test("quality_complete sourcePath opens ReportComposer and generates preview", a
   );
 });
 
+test("카드뉴스 companion은 보고서 작성 오른쪽 작업 영역 탭에서 열린다", async () => {
+  render(<ReportView projectDir="/proj" sourcePath="tests/fixtures/reporting_cli/quality_complete.md" />);
+
+  expect(await screen.findByRole("button", { name: "보고서 생성" })).toBeInTheDocument();
+  expect(screen.queryByText("카드뉴스 출력")).toBeNull();
+
+  fireEvent.click(screen.getByRole("tab", { name: "카드뉴스" }));
+
+  expect(await screen.findByText("카드뉴스 출력")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "카드뉴스 초안 만들기" })).toBeInTheDocument();
+});
+
 test("quality panel warning blocks preview until generate-anyway", async () => {
   mockEmit.mockResolvedValueOnce({
     ok: true,

@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 # === ANCHOR: CLI_REPORT_COMMAND_GROUPS_REGISTER_REPORT_COMMAND_GROUP_START ===
 def register_report_command_group(
     sub: SubparserFactory,
-    lazy_command: Callable[[str, str], Callable[[object], None]],
+    lazy_command: Callable[[str, str], Callable[[argparse.Namespace], None]],
 ) -> None:
     p = sub.add_parser(
         "plan",
@@ -104,6 +104,17 @@ def register_report_command_group(
     _ = sp.add_argument("--json", action="store_true", help="JSON 으로 결과 출력")
     sp.set_defaults(
         func=lazy_command("vibelign.commands.vib_report_stamp_cmd", "run_vib_report_stamp")
+    )
+
+    cn = sub.add_parser(
+        "report-card-news",
+        help="승인된 보고서 카드뉴스를 HTML/JSON 결과물로 저장",
+        description="카드뉴스 companion payload에서 승인된 카드만 확정 결과물로 저장해요.",
+    )
+    _ = cn.add_argument("payload", help="카드뉴스 companion JSON payload 경로")
+    _ = cn.add_argument("--json", action="store_true", help="JSON 으로 결과 출력")
+    cn.set_defaults(
+        func=lazy_command("vibelign.commands.vib_report_card_news_cmd", "run_vib_report_card_news")
     )
 
 

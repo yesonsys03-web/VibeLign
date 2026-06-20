@@ -46,6 +46,7 @@ export interface ReportComposerProps {
 // === ANCHOR: REPORTCOMPOSER_REPORTCOMPOSER_START ===
 export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest, defaultType }: ReportComposerProps) {
   const [reportType, setReportType] = useState<ReportType>(defaultType ?? "work");
+  const [workspaceTab, setWorkspaceTab] = useState<"report" | "cards">("report");
   const [format, setFormat] = useState<Format>("html");
   const [polish, setPolish] = useState(false);
   const [theme, setTheme] = useState<string>(() => {
@@ -165,9 +166,11 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
         onFontsChange={setFonts}
         onPageNumbersChange={setPageNumbers}
         onPolishChange={setPolish}
-        onGenerate={handleGenerate}
+        onGenerate={() => {
+          setWorkspaceTab("report");
+          handleGenerate();
+        }}
       />
-      <ReportVisualCardsCompanion cwd={cwd} planPath={planPath} reportType={reportType} />
     </>
   );
   // === ANCHOR: REPORTCOMPOSER_OPTIONS_END ===
@@ -206,6 +209,9 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
       cwd={cwd}
       inline={inline}
       controls={composerControls}
+      workspaceTab={workspaceTab}
+      onWorkspaceTabChange={setWorkspaceTab}
+      companion={<ReportVisualCardsCompanion cwd={cwd} planPath={planPath} reportType={reportType} />}
       exportBox={exportBoxEl}
       result={result}
       exportedPath={exportedPath}

@@ -1,0 +1,7 @@
+{"ok": true, "json_path": "/private/var/folders/_t/6r2qjps14jd83045jgx81k8r0000gn/T/tmp.wv5ZZ7UWw8/.vibelign/reports/card-news/개요-card-news.json", "html_path": "/private/var/folders/_t/6r2qjps14jd83045jgx81k8r0000gn/T/tmp.wv5ZZ7UWw8/.vibelign/reports/card-news/개요-card-news.html", "card_count": 1}
+html_exists=yes
+json_exists=yes
+approved_only_literal_true=yes
+no_script_or_network_reference=yes
+source_refs_preserved=yes
+cleanup_target=/var/folders/_t/6r2qjps14jd83045jgx81k8r0000gn/T/tmp.wv5ZZ7UWw8
