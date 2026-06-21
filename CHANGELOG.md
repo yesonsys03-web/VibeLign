@@ -10,6 +10,35 @@
 
 ---
 
+## [2.5.3] — 2026-06-21
+
+**보고서 카드뉴스 출력 강화** — 보고서 내용을 3-6장 요약 카드로 나누고, 사용자가 구독 중인 CLI 모델별로 초안과 카드별 이미지를 다르게 생성할 수 있게 했다. 최종 HTML 카드뉴스에서도 생성 이미지가 실제로 보이도록 asset 저장·렌더링 경로를 정리했다.
+
+### Added
+
+- **카드뉴스 초안 모델 선택** — GUI 카드뉴스 companion에서 Local, Claude Code, Codex, Antigravity, OpenCode/DeepSeek 계열을 선택해 카드뉴스 초안을 만들 수 있다.
+- **내용 기반 카드 이미지 asset 생성** — 각 카드의 `visual_prompt`를 바탕으로 카드 본문 칸에 들어갈 SVG asset을 생성하고 `.vibelign/reports/card-news/assets/` 아래에 저장한다.
+- **LLM별 prompt pack 출력** — 카드뉴스 확정 시 각 LLM에서 바로 재생성·비교할 수 있는 prompt 파일을 함께 저장한다.
+- **asset 전용 미리보기 테스트** — 상대경로, macOS/POSIX 절대경로, Windows `C:\...` 절대경로 모두 생성 이미지로 렌더링되는지 검증한다.
+
+### Changed
+
+- **초안 화면과 최종 HTML의 표현 일치** — 초안 카드에서도 최종 HTML 카드뉴스처럼 생성 이미지가 카드 본문 칸에 표시된다.
+- **모델별 결과 차이 보존** — 모델이 다시 쓴 카드 문구와 `visual_prompt`가 asset 생성까지 이어져, 모델별 초안 이미지가 같은 placeholder로 수렴하지 않도록 했다.
+- **Tauri asset protocol 허용 범위 추가** — 앱 안에서 `.vibelign/reports/card-news/assets/` SVG를 안전하게 로드하도록 설정했다.
+
+### Fixed
+
+- **Windows 생성 이미지 미리보기** — Windows 절대경로(`C:\Users\...\ .vibelign\reports\card-news\assets\...`)로 저장된 카드뉴스 asset도 앱에서 이미지로 표시되도록 수정했다.
+- **깨진 이미지 아이콘/unsupported URL** — 로컬 file path를 그대로 `<img>`에 넣지 않고 Tauri `convertFileSrc()` 경로로 변환한다.
+- **stale CLI 오류 안내** — 설치된 `vib`가 오래되어 `report-card-news` 명령을 모를 때 빈 JSON parse 오류 대신 업데이트 안내를 보여준다.
+
+### Verified
+
+- Python 카드뉴스/Windows 경로 테스트, GUI 카드뉴스 미리보기 테스트, production GUI build, Tauri debug build로 확인했다. 네이티브 Windows 패키지 빌드는 태그 푸시 후 GitHub Actions의 Windows runner가 수행한다.
+
+---
+
 ## [2.5.2] — 2026-06-19
 
 **보고서 작성 폼 디자인 통일** — 보고서 내보내기 옵션 패널의 제각각이던 컨트롤(브라우저 기본 라디오·체크박스·드롭다운)을 코드탐색 화면의 사이드 버튼 디자인 언어로 통일했다.
