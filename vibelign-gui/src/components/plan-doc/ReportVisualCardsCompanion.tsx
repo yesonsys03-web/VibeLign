@@ -87,6 +87,23 @@ export function ReportVisualCardsCompanion({
     }
   };
 
+  const openPromptDir = async (path: string): Promise<void> => {
+    setOpenError(null);
+    if (!isProjectCardNewsPromptDir(cwd, path)) {
+      setOpenError("프롬프트 폴더가 현재 프로젝트의 카드뉴스 결과물 폴더가 아니에요.");
+      return;
+    }
+    try {
+      await openPath(path);
+    } catch (error) {
+      if (error instanceof Error) {
+        setOpenError(`프롬프트 폴더를 열지 못했어요: ${error.message}`);
+        return;
+      }
+      throw error;
+    }
+  };
+
   return (
     <section aria-label="카드뉴스 companion 요청" style={shell}>
       <div style={header}>
@@ -104,9 +121,17 @@ export function ReportVisualCardsCompanion({
         <div style={resultBox}>
           <p style={resultTitle}>카드뉴스 결과물 {exportResult.cardCount}장</p>
           <p style={pathText}>{exportResult.htmlPath}</p>
-          <button type="button" onClick={() => void openHtml(exportResult.htmlPath)} style={button}>
-            HTML 열기
-          </button>
+          <div style={resultActions}>
+            <button type="button" onClick={() => void openHtml(exportResult.htmlPath)} style={button}>
+              HTML 열기
+            </button>
+            {exportResult.promptDir.length > 0 && (
+              <button type="button" onClick={() => void openPromptDir(exportResult.promptDir)} style={secondaryButton}>
+                프롬프트 폴더 열기
+              </button>
+            )}
+          </div>
+          {exportResult.promptDir.length > 0 && <p style={pathText}>{exportResult.promptDir}</p>}
           {openError !== null && <p role="alert" style={errorText}>{openError}</p>}
         </div>
       )}
@@ -132,6 +157,13 @@ function isProjectCardNewsHtml(cwd: string, path: string): boolean {
   return normalizedPath.startsWith(expectedPrefix) && normalizedPath.endsWith(".html") && !normalizedPath.includes("/../");
 }
 
+function isProjectCardNewsPromptDir(cwd: string, path: string): boolean {
+  const normalizedCwd = cwd.replaceAll("\\", "/").replace(/\/+$/, "");
+  const normalizedPath = path.replaceAll("\\", "/").replace(/\/+$/, "");
+  const expectedPrefix = `${normalizedCwd}/.vibelign/reports/card-news/prompts/`;
+  return normalizedPath.startsWith(expectedPrefix) && !normalizedPath.includes("/../");
+}
+
 const shell: CSSProperties = {
   minWidth: 0,
   maxWidth: "100%",
@@ -146,9 +178,11 @@ const eyebrow: CSSProperties = { fontSize: 11, fontWeight: 800, color: "#999999"
 const title: CSSProperties = { margin: 0, fontSize: 16, lineHeight: 1.2 };
 const copy: CSSProperties = { margin: "8px 0 0", fontSize: 12, lineHeight: 1.5 };
 const button: CSSProperties = { border: "2px solid #1A1A1A", background: "#F5621E", color: "#1A1A1A", padding: "6px 9px", fontWeight: 800, cursor: "pointer", boxShadow: "2px 2px 0 #1A1A1A" };
+const secondaryButton: CSSProperties = { border: "2px solid #1A1A1A", background: "#FFFFFF", color: "#1A1A1A", padding: "6px 9px", fontWeight: 800, cursor: "pointer", boxShadow: "2px 2px 0 #1A1A1A" };
 const errorText: CSSProperties = { margin: "8px 0 0", color: "#9B1B1B", fontSize: 12 };
 const countText: CSSProperties = { margin: "8px 0", fontSize: 12, fontWeight: 800 };
 const resultBox: CSSProperties = { marginTop: 10, border: "2px solid #1A1A1A", background: "#FFFFFF", padding: 10 };
 const resultTitle: CSSProperties = { margin: 0, fontSize: 12, fontWeight: 900 };
+const resultActions: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 };
 const pathText: CSSProperties = { margin: "6px 0 8px", color: "#666666", fontSize: 11, overflowWrap: "anywhere" };
 // === ANCHOR: REPORT_VISUAL_CARDS_COMPANION_END ===

@@ -63,6 +63,9 @@ describe("report visual cards", () => {
             ok: true,
             html_path: "/repo/.vibelign/reports/card-news/cards.html",
             json_path: "/repo/.vibelign/reports/card-news/cards.json",
+            storyboard_path: "/repo/.vibelign/reports/card-news/cards.json",
+            prompt_dir: "/repo/.vibelign/reports/card-news/prompts/cards",
+            prompt_paths: ["/repo/.vibelign/reports/card-news/prompts/cards/generic-prompt.md"],
             card_count: 1,
           }),
           stderr: "",
@@ -118,6 +121,9 @@ describe("report visual cards", () => {
       ok: true,
       htmlPath: "/repo/.vibelign/reports/card-news/cards.html",
       jsonPath: "/repo/.vibelign/reports/card-news/cards.json",
+      storyboardPath: "/repo/.vibelign/reports/card-news/cards.json",
+      promptDir: "/repo/.vibelign/reports/card-news/prompts/cards",
+      promptPaths: ["/repo/.vibelign/reports/card-news/prompts/cards/generic-prompt.md"],
       cardCount: 1,
     });
     expect(mocks.writeReportJsonPayload).toHaveBeenCalledWith("/repo", draftPayload());

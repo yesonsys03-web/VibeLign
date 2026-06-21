@@ -41,7 +41,15 @@ export type ReportVisualCardsResult =
   | { readonly ok: false; readonly error: string };
 
 export type ReportCardNewsExportResult =
-  | { readonly ok: true; readonly htmlPath: string; readonly jsonPath: string; readonly cardCount: number }
+  | {
+      readonly ok: true;
+      readonly htmlPath: string;
+      readonly jsonPath: string;
+      readonly storyboardPath: string;
+      readonly promptDir: string;
+      readonly promptPaths: readonly string[];
+      readonly cardCount: number;
+    }
   | { readonly ok: false; readonly error: string };
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -63,6 +71,11 @@ function booleanValue(value: unknown): boolean {
 function recordArray(value: unknown): readonly Readonly<Record<string, unknown>>[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord);
+}
+
+function stringArray(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
 }
 
 function parseImage(value: unknown): ReportVisualCardImage {
@@ -161,6 +174,9 @@ export async function saveReportVisualCards(
       ok: true,
       htmlPath,
       jsonPath,
+      storyboardPath: stringValue(raw.storyboard_path),
+      promptDir: stringValue(raw.prompt_dir),
+      promptPaths: stringArray(raw.prompt_paths),
       cardCount: numberValue(raw.card_count),
     };
   } catch (error) {

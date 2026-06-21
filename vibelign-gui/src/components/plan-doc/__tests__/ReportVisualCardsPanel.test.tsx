@@ -43,6 +43,9 @@ beforeEach(() => {
     ok: true,
     htmlPath: "/proj/.vibelign/reports/card-news/cards.html",
     jsonPath: "/proj/.vibelign/reports/card-news/cards.json",
+    storyboardPath: "/proj/.vibelign/reports/card-news/cards.json",
+    promptDir: "/proj/.vibelign/reports/card-news/prompts/cards",
+    promptPaths: ["/proj/.vibelign/reports/card-news/prompts/cards/generic-prompt.md"],
     cardCount: 1,
   });
 });
@@ -91,8 +94,9 @@ test("keeps Korean copy as editable summary cards", () => {
 
   const summaryCard = screen.getByLabelText("card-1 요약 카드");
   expect(summaryCard).toHaveAttribute("data-candidate-version", "1");
-  expect(summaryCard).toHaveTextContent("REPORT CARD NEWS");
-  expect(summaryCard).toHaveTextContent("★");
+  expect(summaryCard).toHaveTextContent("1");
+  expect(summaryCard.querySelector("[data-sketch-symbols]")).toBeInTheDocument();
+  expect(summaryCard).toHaveTextContent("제안 요약 본문은 한국어 오버레이로 남습니다.");
 
   const title = screen.getByLabelText("제안 요약 카드 제목");
   const body = screen.getByLabelText("제안 요약 요약 본문");
@@ -101,6 +105,34 @@ test("keeps Korean copy as editable summary cards", () => {
   expect(body).toHaveValue("제안 요약 본문은 한국어 오버레이로 남습니다.");
   expect(caption).toHaveValue("출처: 제안 요약");
   expect(screen.getAllByText(/카드뉴스 요약 포맷/)[0]).toHaveTextContent("2D business comic illustration");
+});
+
+test("adapts preview sketch symbols to each plan card content", () => {
+  const adaptivePayload: ReportVisualCardsPayload = {
+    ...payload,
+    cards: [
+      {
+        ...card("card-1", "일정 알림", true),
+        body: "캘린더 날짜마다 반복 알림을 보내고 할일 목록을 확인합니다.",
+        visual_prompt: "mobile reminder app with calendar checklist notification",
+      },
+      {
+        ...card("card-2", "결제 정책", true),
+        body: "구독 가격과 환불 정책을 보안 인증 뒤에 확인합니다.",
+        visual_prompt: "subscription payment policy security screen",
+      },
+    ],
+  };
+  render(<ReportVisualCardsPanel payload={adaptivePayload} />);
+
+  expect(screen.getByLabelText("card-1 요약 카드").querySelector("[data-sketch-symbols]")).toHaveAttribute(
+    "data-sketch-symbols",
+    "calendar,bell,checklist",
+  );
+  expect(screen.getByLabelText("card-2 요약 카드").querySelector("[data-sketch-symbols]")).toHaveAttribute(
+    "data-sketch-symbols",
+    "wallet,lock,document",
+  );
 });
 
 test("production ReportComposer requests and previews visual cards", async () => {
@@ -114,12 +146,15 @@ test("production ReportComposer requests and previews visual cards", async () =>
   await waitFor(() => expect(screen.getByText("승인된 카드 1개")).toBeInTheDocument());
   fireEvent.click(screen.getByRole("button", { name: "카드뉴스 확정" }));
   await screen.findByText("카드뉴스 결과물 1장");
+  expect(screen.getByText("/proj/.vibelign/reports/card-news/prompts/cards")).toBeInTheDocument();
   expect(mockSaveReportVisualCards).toHaveBeenCalledWith(
     "/proj",
     expect.objectContaining({ cards: [expect.objectContaining({ id: "card-1", approved: true })] }),
   );
   fireEvent.click(screen.getByRole("button", { name: "HTML 열기" }));
   expect(mockOpenPath).toHaveBeenCalledWith("/proj/.vibelign/reports/card-news/cards.html");
+  fireEvent.click(screen.getByRole("button", { name: "프롬프트 폴더 열기" }));
+  expect(mockOpenPath).toHaveBeenCalledWith("/proj/.vibelign/reports/card-news/prompts/cards");
   fireEvent.click(screen.getByRole("button", { name: "다음 액션 카드 승인" }));
   await waitFor(() => expect(screen.getByText("승인된 카드 2개")).toBeInTheDocument());
 });
@@ -157,6 +192,9 @@ test("refuses to open card-news HTML outside the project result directory", asyn
     ok: true,
     htmlPath: "/tmp/outside/cards.html",
     jsonPath: "/tmp/outside/cards.json",
+    storyboardPath: "/tmp/outside/cards.json",
+    promptDir: "/tmp/outside/prompts/cards",
+    promptPaths: ["/tmp/outside/prompts/cards/generic-prompt.md"],
     cardCount: 1,
   });
   render(<ReportComposer planPath="plans/p.md" cwd="/proj" layout="inline" onClose={() => {}} />);

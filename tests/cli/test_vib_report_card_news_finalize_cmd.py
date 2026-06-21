@@ -69,7 +69,7 @@ class _CardNewsArgs:
     json: bool
 
 
-def _card(card_id: str, *, approved: ApprovedValue) -> _CardJson:
+def _card(card_id: str, *, approved: ApprovedValue, asset_path: str = "") -> _CardJson:
     return {
         "id": card_id,
         "title": "개요",
@@ -80,7 +80,7 @@ def _card(card_id: str, *, approved: ApprovedValue) -> _CardJson:
         "source_refs": [{"source_plan_path": "plans/demo.md", "section": 0, "block": 0, "heading": "개요"}],
         "image": {
             "provider": "provider-neutral-draft",
-            "asset_path": "",
+            "asset_path": asset_path,
             "prompt": "2D business comic illustration, no readable text in image",
             "generated": False,
         },
@@ -148,10 +148,140 @@ def test_report_card_news_writes_json_and_html_for_approved_cards(
     assert html_path.parent == tmp_path / ".vibelign" / "reports" / "card-news"
     html = html_path.read_text(encoding="utf-8")
     assert "보고서 핵심 메시지를 요약합니다." in html
+    assert 'class="poster"' in html
+    assert 'class="flow-strip"' in html
+    assert 'class="panel-grid"' in html
+    assert 'class="message-band"' in html
+    assert "visual-slot" not in html
+    assert "visual-draft" not in html
     assert "<script" not in html
     assert "http://" not in html
     assert "https://" not in html
     assert "fake://" not in html
+
+
+def test_report_card_news_writes_model_prompt_pack(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    payload = _payload(tmp_path / "cards.json", approved=True)
+
+    run_vib_report_card_news(_args(payload))
+
+    out = json.loads(capsys.readouterr().out)
+    prompt_dir = Path(out["prompt_dir"])
+    prompt_paths = [Path(item) for item in out["prompt_paths"]]
+    storyboard_path = Path(out["storyboard_path"])
+    assert prompt_dir == tmp_path / ".vibelign" / "reports" / "card-news" / "prompts" / "개요-card-news"
+    assert storyboard_path.exists()
+    assert {path.name for path in prompt_paths} == {
+        "chatgpt-image-prompt.md",
+        "claude-html-prompt.md",
+        "gemini-image-prompt.md",
+        "generic-prompt.md",
+    }
+    assert all(path.exists() for path in prompt_paths)
+    prompt_text = (prompt_dir / "generic-prompt.md").read_text(encoding="utf-8")
+    assert "스토리보드 JSON" in prompt_text
+    assert "보고서 핵심 메시지를 요약합니다." in prompt_text
+
+
+def test_report_card_news_renders_project_image_inside_body_slot(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    image = tmp_path / ".vibelign" / "reports" / "card-news" / "assets" / "card-1.png"
+    image.parent.mkdir(parents=True)
+    image.write_bytes(b"fake-png")
+    data: _PayloadJson = {
+        "schema_version": "report-visual-cards-v1",
+        "status": "ready",
+        "provider": "provider-neutral-draft",
+        "cards": [_card("card-1", approved=True, asset_path=str(image))],
+        "assets": [],
+    }
+    payload = tmp_path / "cards.json"
+    _ = payload.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    run_vib_report_card_news(_args(payload))
+
+    out = _read_json(capsys.readouterr().out)
+    html = Path(out.html_path).read_text(encoding="utf-8")
+    assert '<figure class="sketch">' in html
+    assert '<img class="panel-visual-img" src="assets/card-1.png"' in html
+    assert html.index('<figure class="sketch">') < html.index('<ul class="points">')
+
+
+def test_report_card_news_sketch_changes_with_card_content(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    alarm_card = {
+        **_card("card-1", approved=True),
+        "title": "일정 알림",
+        "body": "캘린더 날짜마다 반복 알림을 보내고 할일 목록을 확인합니다.",
+        "visual_prompt": "mobile reminder app with calendar checklist notification",
+    }
+    payment_card = {
+        **_card("card-2", approved=True),
+        "title": "결제 정책",
+        "body": "구독 가격과 환불 정책을 보안 인증 뒤에 확인합니다.",
+        "visual_prompt": "subscription payment policy security screen",
+    }
+    data: _PayloadJson = {
+        "schema_version": "report-visual-cards-v1",
+        "status": "ready",
+        "provider": "provider-neutral-draft",
+        "cards": [alarm_card, payment_card],
+        "assets": [],
+    }
+    payload = tmp_path / "cards.json"
+    _ = payload.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    run_vib_report_card_news(_args(payload))
+
+    out = _read_json(capsys.readouterr().out)
+    html = Path(out.html_path).read_text(encoding="utf-8")
+    assert 'data-sketch-symbols="calendar,bell,checklist"' in html
+    assert 'data-sketch-symbols="wallet,lock,document"' in html
+    assert "결제" in html
+
+
+def test_report_card_news_cleans_markdown_body_markup(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    card = _card("card-1", approved=True)
+    data: _PayloadJson = {
+        "schema_version": "report-visual-cards-v1",
+        "status": "ready",
+        "provider": "provider-neutral-draft",
+        "cards": [
+            {
+                **card,
+                "body": "**간단한 알람앱 만들기** — 최소 단위로 만듭니다. / 알람 추가 / 켜기·끄기",
+            }
+        ],
+        "assets": [],
+    }
+    payload = tmp_path / "cards.json"
+    _ = payload.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    run_vib_report_card_news(_args(payload))
+
+    out = _read_json(capsys.readouterr().out)
+    html = Path(out.html_path).read_text(encoding="utf-8")
+    assert "**" not in html
+    assert "<li>간단한 알람앱 만들기 — 최소 단위로 만듭니다.</li>" in html
+    assert "<li>알람 추가</li>" in html
 
 
 def test_report_card_news_rejects_empty_approved_cards(

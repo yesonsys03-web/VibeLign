@@ -28,6 +28,9 @@ def run_vib_report_card_news(raw: ReportCardNewsArgs) -> None:
         "ok": True,
         "json_path": str(result.json_path),
         "html_path": str(result.html_path),
+        "storyboard_path": str(result.storyboard_path),
+        "prompt_dir": str(result.prompt_dir),
+        "prompt_paths": [str(path) for path in result.prompt_paths],
         "card_count": result.card_count,
     }
     if want_json:
