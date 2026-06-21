@@ -106,6 +106,7 @@ describe("report emit wrappers", () => {
       planPath: "plans/p.md",
       reportType: "proposal",
       author: "팀장",
+      assistProvider: "codex",
     });
 
     expect(result.ok).toBe(true);
@@ -120,6 +121,8 @@ describe("report emit wrappers", () => {
         "--type",
         "proposal",
         "--assist-missing",
+        "--cli",
+        "codex",
         "--author",
         "팀장",
         "--json",

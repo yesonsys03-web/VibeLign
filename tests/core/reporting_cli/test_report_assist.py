@@ -1,6 +1,9 @@
 import json
 from pathlib import Path
 
+import pytest
+
+from vibelign.core.planning_cli import cli_adapters
 from vibelign.core.reporting_cli.reader import parse_plan_markdown
 from vibelign.core.reporting_cli.report_assist import (
     AssistProvider,
@@ -8,6 +11,7 @@ from vibelign.core.reporting_cli.report_assist import (
     ReportAssistance,
     generate_report_assistance,
 )
+from vibelign.core.reporting_cli.report_assist_cli import CliAssistProvider
 from vibelign.core.reporting_cli.report_quality import analyze_report_quality
 from vibelign.core.reporting_cli.source_chunks import (
     build_source_index,
@@ -65,21 +69,57 @@ class EchoPromptProvider:
         }
 
 
+class StubCliRunner:
+    stdout: str
+    commands: list[list[str]]
+    cwd: Path | None
+
+    def __init__(self, stdout: str) -> None:
+        self.stdout = stdout
+        self.commands = []
+        self.cwd = None
+
+    def run(
+        self,
+        command: list[str],
+        *,
+        cwd: Path,
+        input_text: str,
+        timeout_seconds: int,
+    ) -> cli_adapters.PlanningCliResult:
+        _ = (input_text, timeout_seconds)
+        self.commands.append(command)
+        self.cwd = cwd
+        return cli_adapters.PlanningCliResult(
+            status="ok",
+            stdout=self.stdout,
+            stderr="",
+            exit_code=0,
+            duration_ms=1,
+        )
+
+
 def _fixture(name: str) -> str:
     return (FIXTURE_DIR / name).read_text(encoding="utf-8")
 
 
-def test_sparse_input_yields_user_question_without_provider_call() -> None:
+def test_sparse_input_yields_recommendations_and_user_questions_without_provider_call() -> None:
     # Given: sparse source lacks evidence, risk, and next-action facts.
     text = _fixture("quality_sparse.md")
 
     # When: assistance is generated from deterministic findings.
     payload = generate_report_assistance(text, "proposal", date=TODAY)
 
-    # Then: it asks for missing facts instead of fabricating source-backed evidence.
+    # Then: it offers selectable recommendations while still asking for missing facts.
     questions = [item for item in payload["suggestions"] if item["kind"] == "user_question"]
+    recommendation_kinds = {
+        item["kind"]
+        for item in payload["suggestions"]
+        if item["kind"] != "user_question"
+    }
     assert payload["status"] == "needs_user_input"
     assert questions
+    assert {"draft_text", "risk_candidate"} <= recommendation_kinds
     assert payload["questions"] == questions
     assert payload["applied_suggestion_ids"] == []
 
@@ -172,6 +212,58 @@ def test_long_source_provider_prompt_uses_retrieved_chunks_not_full_file() -> No
     assert any(900 <= ref["start_line"] <= 1100 for ref in source_refs)
     suggestion_kinds = {item["kind"] for item in payload["suggestions"]}
     assert {"source_candidate", "risk_candidate"} <= suggestion_kinds
+
+
+def test_cli_assist_provider_runs_selected_adapter_and_parses_json(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prompts: list[str] = []
+
+    def build_command(adapter: str, prompt: str) -> list[str] | None:
+        prompts.append(prompt)
+        return [adapter, "exec", prompt]
+
+    monkeypatch.setattr(cli_adapters, "build_cli_command", build_command)
+    runner = StubCliRunner(json.dumps({
+        "schema_version": "report-assist-v1",
+        "status": "ready",
+        "suggestions": [{
+            "id": "cli-risk-1",
+            "finding_code": "missing_risk",
+            "kind": "risk_candidate",
+            "title": "운영 리스크",
+            "proposed_text": "운영팀 확인이 늦어지면 배포 일정이 지연될 수 있어 사전 승인 일정을 둡니다.",
+            "rationale": "원문 리스크 메모를 바탕으로 한 보완입니다.",
+            "source_refs": [{"chunk_id": "chunk-1", "heading_path": ["리스크"], "start_line": 3, "end_line": 4}],
+            "requires_user_confirmation": False,
+        }],
+        "questions": [],
+        "applied_suggestion_ids": ["cli-risk-1"],
+    }, ensure_ascii=False))
+    provider = CliAssistProvider("codex", root=tmp_path, runner=runner)
+
+    payload = provider.suggest({
+        "finding_code": "missing_risk",
+        "prompt": "Missing finding: missing_risk",
+        "title": "예약 앱",
+        "outline": ["# 예약 앱"],
+        "chunks": [{
+            "chunk_id": "chunk-1",
+            "heading_path": ["리스크"],
+            "start_line": 3,
+            "end_line": 4,
+            "text": "운영팀 확인이 늦어지면 배포 일정이 지연될 수 있습니다.",
+            "signals": ["risk"],
+        }],
+    })
+
+    assert runner.commands[0][0] == "codex"
+    assert runner.cwd == tmp_path
+    assert "입력 JSON" in prompts[0]
+    assert payload["suggestions"][0]["finding_code"] == "missing_risk"
+    assert payload["suggestions"][0]["requires_user_confirmation"] is True
+    assert payload["applied_suggestion_ids"] == []
 
 
 def test_assistance_contract_is_json_serializable() -> None:

@@ -197,6 +197,7 @@ test("quality panel warning blocks preview until generate-anyway", async () => {
   fireEvent.click(await screen.findByRole("button", { name: "보고서 생성" }));
 
   expect(await screen.findByText("검토 필요")).toBeInTheDocument();
+  expect(screen.getByRole("dialog", { name: "보고서 품질 점검 확대 보기" })).toBeInTheDocument();
   expect(screen.queryByTitle("보고서 미리보기")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "그래도 생성" }));
   expect(await screen.findByTitle("보고서 미리보기")).toBeInTheDocument();

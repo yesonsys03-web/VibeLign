@@ -95,7 +95,7 @@ export function ReportVisualCardsPanel({ payload, onExportChange, onFinalize, on
   return (
     <section aria-label="카드뉴스 companion" style={panel}>
       <header style={header}>
-        <div>
+        <div style={headerTitleBlock}>
           <div style={eyebrow}>카드뉴스 companion</div>
           <h2 style={title}>요약 카드 초안</h2>
         </div>
@@ -183,27 +183,64 @@ export function ReportVisualCardsPanel({ payload, onExportChange, onFinalize, on
   );
 }
 
-const panel: CSSProperties = { border: "2px solid #1A1A1A", background: "#FFFFFF", padding: 12, boxShadow: "4px 4px 0 #1A1A1A" };
-const header: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start", marginBottom: 12 };
+const panel: CSSProperties = {
+  minWidth: 0,
+  maxWidth: "100%",
+  boxSizing: "border-box",
+  border: "2px solid #1A1A1A",
+  background: "#FFFFFF",
+  padding: 12,
+  boxShadow: "4px 4px 0 #1A1A1A",
+};
+const header: CSSProperties = { display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, alignItems: "start", marginBottom: 12 };
+const headerTitleBlock: CSSProperties = { flex: "1 1 220px", minWidth: 0 };
 const headerActions: CSSProperties = { display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 };
 const eyebrow: CSSProperties = { fontSize: 11, fontWeight: 800, color: "#999999" };
-const title: CSSProperties = { margin: 0, fontSize: 20, lineHeight: 1.2 };
+const title: CSSProperties = { margin: 0, fontSize: 20, lineHeight: 1.2, wordBreak: "keep-all" };
 const providerBadge: CSSProperties = { border: "2px solid #1A1A1A", padding: "4px 8px", fontSize: 12, fontWeight: 800, background: "#FEFBF0" };
-const grid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 };
-const cardBox: CSSProperties = { display: "grid", gap: 8, border: "2px solid #1A1A1A", padding: 8, background: "#FEFBF0" };
-const summaryCard: CSSProperties = { minHeight: 360, aspectRatio: "4 / 5", border: "2px solid #1A1A1A", background: "#FFFFFF", padding: 14, display: "grid", gridTemplateRows: "auto auto auto 1fr auto", gap: 10, boxShadow: "5px 5px 0 #1A1A1A", overflow: "hidden" };
+const grid: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
+  justifyContent: "stretch",
+  alignItems: "start",
+  gap: 16,
+};
+const cardBox: CSSProperties = {
+  width: "100%",
+  minWidth: 0,
+  boxSizing: "border-box",
+  display: "grid",
+  gap: 8,
+  border: "2px solid #1A1A1A",
+  padding: 8,
+  background: "#FEFBF0",
+};
+const summaryCard: CSSProperties = {
+  width: "100%",
+  minWidth: 0,
+  boxSizing: "border-box",
+  aspectRatio: "4 / 5",
+  border: "2px solid #1A1A1A",
+  background: "#FFFFFF",
+  padding: 14,
+  display: "grid",
+  gridTemplateRows: "auto auto auto 1fr auto",
+  gap: 10,
+  boxShadow: "5px 5px 0 #1A1A1A",
+  overflow: "hidden",
+};
 const cardTopline: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 };
 const numberBadge: CSSProperties = { width: 34, height: 34, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "2px solid #1A1A1A", borderRadius: "999px", background: "#FF4D4D", color: "#FFFFFF", fontWeight: 900, fontSize: 18 };
 const seriesLabel: CSSProperties = { border: "2px solid #1A1A1A", padding: "3px 8px", background: "#FEFBF0", fontSize: 10, fontWeight: 900 };
 const doodleRow: CSSProperties = { display: "flex", alignItems: "center", gap: 8, color: "#F5621E", fontSize: 16, fontWeight: 900 };
 const doodleLine: CSSProperties = { flex: 1, borderTop: "3px solid #1A1A1A" };
 const hiddenMeta: CSSProperties = { display: "none" };
-const titleInput: CSSProperties = { border: "none", borderBottom: "4px solid #1A1A1A", background: "#FFFFFF", padding: "4px 0 8px", fontSize: 24, lineHeight: 1.15, fontWeight: 900 };
-const bodyInput: CSSProperties = { border: "2px solid #1A1A1A", borderRadius: 8, background: "#FEFBF0", padding: 12, minHeight: 150, fontSize: 14, lineHeight: 1.6, resize: "none" };
-const captionInput: CSSProperties = { border: "2px solid #1A1A1A", borderRadius: 999, background: "#FFFFFF", padding: "8px 10px", fontSize: 12, fontWeight: 800 };
+const titleInput: CSSProperties = { minWidth: 0, boxSizing: "border-box", border: "none", borderBottom: "4px solid #1A1A1A", background: "#FFFFFF", padding: "4px 0 8px", fontSize: 24, lineHeight: 1.15, fontWeight: 900 };
+const bodyInput: CSSProperties = { minWidth: 0, boxSizing: "border-box", border: "2px solid #1A1A1A", borderRadius: 8, background: "#FEFBF0", padding: 12, minHeight: 150, fontSize: 14, lineHeight: 1.6, resize: "none" };
+const captionInput: CSSProperties = { minWidth: 0, boxSizing: "border-box", border: "2px solid #1A1A1A", borderRadius: 999, background: "#FFFFFF", padding: "8px 10px", fontSize: 12, fontWeight: 800 };
 const candidateText: CSSProperties = { margin: 0, fontSize: 11, fontWeight: 800, color: "#1A1A1A" };
 const promptText: CSSProperties = { margin: 0, fontSize: 11, lineHeight: 1.4, color: "#666666", overflowWrap: "anywhere" };
-const controls: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 6 };
+const controls: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" };
 const secondaryButton: CSSProperties = { border: "2px solid #1A1A1A", background: "#FFFFFF", color: "#1A1A1A", padding: "6px 9px", fontWeight: 800, cursor: "pointer" };
 const approvedButton: CSSProperties = { ...secondaryButton, background: "#4DFF91" };
 const dangerButton: CSSProperties = { ...secondaryButton, background: "#FF4D4D" };

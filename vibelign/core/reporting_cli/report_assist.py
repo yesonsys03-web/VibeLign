@@ -7,6 +7,7 @@ from typing import Literal, Protocol, TypedDict
 
 from vibelign.core.reporting_cli.models import ReportModel
 from vibelign.core.reporting_cli.reader import build_doc_report_model, parse_plan_markdown
+from vibelign.core.reporting_cli.report_assist_local import local_suggestions, question_for
 from vibelign.core.reporting_cli.report_quality import (
     ReportQualityFinding,
     analyze_report_quality,
@@ -116,7 +117,7 @@ def generate_report_assistance_for(request: ReportAssistanceInput) -> ReportAssi
             )
         )
         if not _has_finding_suggestion(suggestions, finding.code):
-            suggestions.append(_local_suggestion(finding, chunks))
+            suggestions.extend(local_suggestions(finding, chunks))
     questions = [item for item in suggestions if item["kind"] == "user_question"]
     return {
         "schema_version": "report-assist-v1",
@@ -148,30 +149,22 @@ def _provider_suggestions(provider_input: ProviderSuggestionInput) -> list[Assis
         "outline": provider_input.index["outline"],
         "chunks": provider_input.chunks[:5],
     }
-    payload = provider_input.provider.suggest(assist_request)
-    return [_guard_suggestion(item, provider_input.finding, provider_input.chunks) for item in payload["suggestions"]]
+    try:
+        payload = provider_input.provider.suggest(assist_request)
+        raw_suggestions = payload["suggestions"]
+    except (KeyError, TypeError):
+        return []
+    guarded: list[AssistSuggestion] = []
+    for item in raw_suggestions:
+        try:
+            guarded.append(_guard_suggestion(item, provider_input.finding, provider_input.chunks))
+        except (KeyError, TypeError):
+            continue
+    return guarded
 
 
 def _has_finding_suggestion(suggestions: list[AssistSuggestion], finding_code: str) -> bool:
     return any(item["finding_code"] == finding_code for item in suggestions)
-
-
-def _local_suggestion(finding: ReportQualityFinding, chunks: list[SourceChunkDict]) -> AssistSuggestion:
-    line = _source_line(finding, chunks)
-    if line is None:
-        return _question(finding)
-    source_text, source_ref = line
-    kind = _kind_for(finding.code)
-    return {
-        "id": f"{finding.code}-{source_ref['chunk_id']}",
-        "finding_code": finding.code,
-        "kind": kind,
-        "title": _title_for(finding.code),
-        "proposed_text": source_text,
-        "rationale": "선택한 문서의 관련 줄에서 가져온 보완 후보입니다.",
-        "source_refs": [source_ref],
-        "requires_user_confirmation": True,
-    }
 
 
 def _guard_suggestion(
@@ -182,9 +175,9 @@ def _guard_suggestion(
     refs = _valid_refs(item["source_refs"], chunks)
     kind = item["kind"]
     if kind not in ("draft_text", "source_candidate", "user_question", "risk_candidate", "next_action_candidate"):
-        return _question(finding)
+        return question_for(finding)
     if kind in _SOURCE_KINDS and (not refs or not _numbers_supported(item["proposed_text"], chunks)):
-        return _question(finding)
+        return question_for(finding)
     return {
         "id": item["id"],
         "finding_code": finding.code,
@@ -211,69 +204,6 @@ def _numbers_supported(proposed_text: str, chunks: list[SourceChunkDict]) -> boo
     proposed = set(_NUMBER_RE.findall(proposed_text))
     source = set(_NUMBER_RE.findall("\n".join(chunk["text"] for chunk in chunks)))
     return proposed <= source
-
-
-def _source_line(finding: ReportQualityFinding, chunks: list[SourceChunkDict]) -> tuple[str, AssistSourceRef] | None:
-    wanted = _wanted_words(finding.code)
-    for chunk in chunks:
-        for offset, line in enumerate(chunk["text"].splitlines()):
-            if line.lstrip().startswith("#"):
-                continue
-            if any(word in line for word in wanted):
-                line_number = chunk["start_line"] + offset
-                return line.strip().lstrip("-* ").strip(), _ref(chunk, line_number)
-    return None
-
-
-def _wanted_words(code: str) -> tuple[str, ...]:
-    return {
-        "missing_evidence": ("근거", "지표", "파일럿", "감소", "증가"),
-        "missing_risk": ("리스크", "위험", "우려", "혼선"),
-        "missing_next_action": ("다음 액션", "후속", "마감", "까지", "배포", "일정"),
-        "missing_audience": ("대상", "독자", "사용자", "팀장"),
-        "missing_objective": ("목표", "목적", "개선"),
-        "missing_decision_or_recommendation": ("결정", "권고", "추천"),
-    }.get(code, ("근거", "다음 액션", "리스크"))
-
-
-def _ref(chunk: SourceChunkDict, line_number: int) -> AssistSourceRef:
-    return {
-        "chunk_id": chunk["chunk_id"],
-        "heading_path": chunk["heading_path"],
-        "start_line": line_number,
-        "end_line": line_number,
-    }
-
-
-def _question(finding: ReportQualityFinding) -> AssistSuggestion:
-    return {
-        "id": f"{finding.code}-question",
-        "finding_code": finding.code,
-        "kind": "user_question",
-        "title": _title_for(finding.code),
-        "proposed_text": f"{finding.message} 원문에서 확인되지 않은 사실을 알려주세요.",
-        "rationale": "선택한 문서에 충분한 근거가 없어 사용자 확인이 필요합니다.",
-        "source_refs": [],
-        "requires_user_confirmation": True,
-    }
-
-
-def _kind_for(code: str) -> AssistKind:
-    return {
-        "missing_risk": "risk_candidate",
-        "missing_next_action": "next_action_candidate",
-    }.get(code, "source_candidate")
-
-
-def _title_for(code: str) -> str:
-    return {
-        "missing_audience": "대상 독자 확인",
-        "missing_objective": "보고 목적 확인",
-        "missing_evidence": "근거 보완",
-        "missing_decision_or_recommendation": "결정 또는 권고 보완",
-        "missing_risk": "리스크 보완",
-        "missing_next_action": "다음 액션 보완",
-    }.get(code, "보고서 보완")
 
 
 def _prompt(finding: ReportQualityFinding, chunks: list[SourceChunkDict], index: SourceIndexDict) -> str:

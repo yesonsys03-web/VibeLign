@@ -132,8 +132,16 @@ function isProjectCardNewsHtml(cwd: string, path: string): boolean {
   return normalizedPath.startsWith(expectedPrefix) && normalizedPath.endsWith(".html") && !normalizedPath.includes("/../");
 }
 
-const shell: CSSProperties = { border: "2px solid #1A1A1A", background: "#FEFBF0", padding: 16, boxShadow: "4px 4px 0 #1A1A1A" };
-const header: CSSProperties = { display: "flex", alignItems: "start", justifyContent: "space-between", gap: 8 };
+const shell: CSSProperties = {
+  minWidth: 0,
+  maxWidth: "100%",
+  boxSizing: "border-box",
+  border: "2px solid #1A1A1A",
+  background: "#FEFBF0",
+  padding: 16,
+  boxShadow: "4px 4px 0 #1A1A1A",
+};
+const header: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "start", justifyContent: "space-between", gap: 8 };
 const eyebrow: CSSProperties = { fontSize: 11, fontWeight: 800, color: "#999999" };
 const title: CSSProperties = { margin: 0, fontSize: 16, lineHeight: 1.2 };
 const copy: CSSProperties = { margin: "8px 0 0", fontSize: 12, lineHeight: 1.5 };

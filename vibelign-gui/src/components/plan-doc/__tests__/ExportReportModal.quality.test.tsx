@@ -17,6 +17,9 @@ vi.mock("../../../lib/vib/report", () => ({
   setReportExportDir: vi.fn().mockResolvedValue(undefined),
   copyReportTo: vi.fn((src: string, dir: string) => Promise.resolve(`${dir}/${src.split("/").pop()}`)),
 }));
+vi.mock("../../../lib/vib/planning-personas", () => ({
+  probePlanningProviders: vi.fn().mockResolvedValue(["codex"]),
+}));
 vi.mock("../../../lib/vib/system", () => ({ pickFolder: vi.fn().mockResolvedValue(null) }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openPath: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("../PdfPreview", () => ({ PdfPreview: () => null }));
@@ -178,6 +181,7 @@ test("warning preflight pauses generation until generate-anyway", async () => {
   fireEvent.click(screen.getByRole("button", { name: "보고서 생성" }));
 
   expect(await screen.findByText("검토 필요")).toBeInTheDocument();
+  expect(screen.getByRole("dialog", { name: "보고서 품질 점검 확대 보기" })).toBeInTheDocument();
   expect(mockGen).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "그래도 생성" }));
 
@@ -195,6 +199,7 @@ test("generate-anyway resumes original export options", async () => {
   fireEvent.change(screen.getByLabelText("본문 폰트 크기"), { target: { value: "15" } });
   fireEvent.click(screen.getByLabelText(/페이지 번호/));
   fireEvent.click(screen.getByRole("button", { name: "보고서 생성" }));
+  expect(await screen.findByRole("dialog", { name: "보고서 품질 점검 확대 보기" })).toBeInTheDocument();
   fireEvent.click(await screen.findByRole("button", { name: "그래도 생성" }));
 
   await waitFor(() =>
@@ -221,10 +226,11 @@ test("AI assistance request only runs after explicit user action", async () => {
 
   expect(await screen.findByText("AI 보완 도움")).toBeInTheDocument();
   expect(mockRequestAssistance).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.getByLabelText("AI 보완 모델")).toHaveValue("codex"));
   fireEvent.click(screen.getByRole("button", { name: "AI 보완 제안 요청" }));
 
   expect(await screen.findByText("성과 근거 추가")).toBeInTheDocument();
-  expect(mockRequestAssistance).toHaveBeenCalledWith({ cwd: "/proj", planPath: "plans/p.md", reportType: "work", author: "" });
+  expect(mockRequestAssistance).toHaveBeenCalledWith({ cwd: "/proj", planPath: "plans/p.md", reportType: "work", author: "", assistProvider: "codex" });
   expect(screen.getByText(/전체 870줄을 한 번에 보내지 않습니다/)).toBeInTheDocument();
 });
 
@@ -236,7 +242,7 @@ test("accepted PDF assistance uses render payload while rejected and unanswered 
   fireEvent.click(await screen.findByRole("button", { name: "AI 보완 제안 요청" }));
   fireEvent.click(await screen.findByRole("button", { name: "성과 근거 추가 수락" }));
   fireEvent.click(screen.getByRole("button", { name: "일정 리스크 제외" }));
-  fireEvent.click(screen.getByRole("button", { name: "그래도 생성" }));
+  fireEvent.click(screen.getByRole("button", { name: "생성 계속" }));
 
   await waitFor(() => expect(mockRenderFileWithDecisions).toHaveBeenCalled());
   const request = mockRenderFileWithDecisions.mock.calls[0][0];
@@ -265,7 +271,7 @@ test("polish still routes to review after quality proceed with accepted assistan
   fireEvent.click(screen.getByRole("button", { name: "보고서 생성" }));
   fireEvent.click(await screen.findByRole("button", { name: "AI 보완 제안 요청" }));
   fireEvent.click(await screen.findByRole("button", { name: "성과 근거 추가 수락" }));
-  fireEvent.click(screen.getByRole("button", { name: "그래도 생성" }));
+  fireEvent.click(screen.getByRole("button", { name: "생성 계속" }));
 
   await waitFor(() => expect(onReviewRequest).toHaveBeenCalled());
   expect(onReviewRequest.mock.calls[0][0]).toEqual(expect.objectContaining({

@@ -80,7 +80,7 @@ def register_report_command_group(
     _ = r.add_argument("--date", default=None, help="보고서 날짜 (기본: 오늘)")
     _ = r.add_argument("--json", action="store_true", help="JSON 으로 결과 출력")
     _ = r.add_argument("--polish", action="store_true", help="AI 로 어조 다듬기(무료 provider, 기본 OFF)")
-    _ = r.add_argument("--cli", default="auto", choices=["auto", "codex", "opencode", "agy", "claude"], help="다듬기 provider (claude 는 명시 opt-in)")
+    _ = r.add_argument("--cli", default="auto", choices=["auto", "codex", "opencode", "agy", "claude"], help="다듬기/보완 provider (claude 는 명시 opt-in)")
     _ = r.add_argument("--emit-model", action="store_true", help="다듬기 전/후 구조화 모델을 JSON 으로 출력(파일 미저장)")
     _ = r.add_argument("--assist-missing", action="store_true", help="부족한 보고서 항목 보완 후보를 JSON 으로 출력(파일 미저장)")
     _ = r.add_argument("--visual-cards", action="store_true", help="보고서용 카드뉴스 companion JSON 을 함께 출력")

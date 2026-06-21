@@ -1,5 +1,6 @@
 // === ANCHOR: REPORTCOMPOSER_START ===
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { probePlanningProviders } from "../../lib/vib/planning-personas";
 import { pickFolder } from "../../lib/vib/system";
 import {
   copyReportTo,
@@ -14,6 +15,11 @@ import { ReportComposerControls, REPORT_TYPES } from "./ReportComposerControls";
 import { ReportComposerExportBox } from "./ReportComposerExportBox";
 import { ReportComposerLayout } from "./ReportComposerLayout";
 import { ReportVisualCardsCompanion } from "./ReportVisualCardsCompanion";
+import {
+  firstInstalledAiProvider,
+  reportAssistProviderOptions,
+  type ReportAssistProviderId,
+} from "./reportAssistProviders";
 import {
   useReportComposerGeneration,
   type ReportComposerFormat,
@@ -66,6 +72,8 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
   const [fontSizes, setFontSizes] = useState<ReportFontSizes>({});
   const [fonts, setFonts] = useState<ReportFonts>({});
   const [pageNumbers, setPageNumbers] = useState(true);
+  const [installedAssistProviders, setInstalledAssistProviders] = useState<readonly string[]>([]);
+  const [assistProvider, setAssistProvider] = useState<ReportAssistProviderId>("local");
   const [openErr, setOpenErr] = useState<string | null>(null);
   // 사용자에게 전달된 최종 저장 위치(.vibelign/reports 내부 사본과 별개로 복사한 곳).
   const [exportedPath, setExportedPath] = useState<string | null>(null);
@@ -136,6 +144,7 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
     pageNumbers,
     fontSizes,
     fonts,
+    assistProvider,
     reportTypeLabel: REPORT_TYPES.find((t) => t.id === reportType)?.label ?? reportType,
     onClose,
     onReportTypeChange: setReportType,
@@ -143,6 +152,32 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
     onExportReady: (path) => void exportTo(path),
     ...(onReviewRequest === undefined ? {} : { onReviewRequest }),
   });
+
+  const reviewActive = qualityReview !== null;
+  useEffect(() => {
+    if (!reviewActive) return;
+    let active = true;
+    void probePlanningProviders()
+      .then((providers) => {
+        if (!active) return;
+        setInstalledAssistProviders(providers);
+        setAssistProvider((current) => {
+          if (current !== "local") return current;
+          return firstInstalledAiProvider(providers) ?? "local";
+        });
+      })
+      .catch(() => {
+        if (active) setInstalledAssistProviders([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [reviewActive]);
+
+  const assistProviderOptions = useMemo(
+    () => reportAssistProviderOptions(installedAssistProviders),
+    [installedAssistProviders],
+  );
 
   // === ANCHOR: REPORTCOMPOSER_OPTIONS_START ===
   const options = (
@@ -184,6 +219,9 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
       sourceLabel="기획안"
       longSource={qualityReview.longSource}
       onRequestAssistance={requestAssistance}
+      assistProvider={assistProvider}
+      assistProviderOptions={assistProviderOptions}
+      onAssistProviderChange={setAssistProvider}
       onProceed={handleQualityProceed}
       onCancel={cancelQualityReview}
     />
@@ -209,6 +247,7 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
       cwd={cwd}
       inline={inline}
       controls={composerControls}
+      qualityReviewActive={qualityReview !== null}
       workspaceTab={workspaceTab}
       onWorkspaceTabChange={setWorkspaceTab}
       companion={<ReportVisualCardsCompanion cwd={cwd} planPath={planPath} reportType={reportType} />}

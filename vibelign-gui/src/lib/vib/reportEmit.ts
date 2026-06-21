@@ -1,4 +1,5 @@
 import { runVib } from "./core";
+import type { PlanningProviderId } from "./planning-personas";
 import { parseReportAssistPayload, type ReportAssistPayload } from "./reportAssist";
 import type { ReportType } from "./report";
 import type { EmitPayload, GuardRecord, RModel, RModelBlock, RModelSection, VagueWarning } from "./reportModel";
@@ -11,6 +12,7 @@ export type ReportAssistanceRequest = {
   readonly planPath: string;
   readonly reportType: ReportType;
   readonly author?: string;
+  readonly assistProvider?: "local" | PlanningProviderId;
 };
 
 export type ReportAssistancePayload = {
@@ -164,6 +166,7 @@ export async function requestReportAssistance(request: ReportAssistanceRequest):
       "--type",
       request.reportType,
       "--assist-missing",
+      ...(request.assistProvider !== undefined && request.assistProvider !== "local" ? ["--cli", request.assistProvider] : []),
       "--author",
       request.author ?? "",
       "--json",

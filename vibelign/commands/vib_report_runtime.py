@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import NoReturn, NotRequired, Protocol, TypedDict
+from typing import TYPE_CHECKING, NoReturn, NotRequired, Protocol, TypedDict
 
 from vibelign.commands.vib_report_context import ReportArgs, ReportCommandContext, read_report_context
 from vibelign.commands.vib_report_render_payload import (
@@ -19,6 +19,9 @@ from vibelign.core.reporting_cli.polish_cache import load_polish_cache, polish_c
 from vibelign.core.reporting_cli.render_job import render_and_write
 from vibelign.core.reporting_cli.report_visual_cards import VisualCardsDict, build_report_visual_cards
 from vibelign.core.reporting_cli.storage import _report_slug
+
+if TYPE_CHECKING:
+    from vibelign.core.reporting_cli.report_assist import AssistProvider
 
 
 # === ANCHOR: VIB_REPORT_RUNTIME_TYPES_START ===
@@ -58,11 +61,13 @@ def _print_assistance(raw: ReportArgs, ctx: ReportCommandContext) -> None:
     from vibelign.core.reporting_cli.report_assist import generate_report_assistance
     from vibelign.core.reporting_cli.report_quality import analyze_report_quality, quality_to_dict
 
+    provider = _assist_provider(ctx.provider, ctx.root)
     assistance = generate_report_assistance(
         ctx.text,
         raw.type,
         date=ctx.report_date,
         author=ctx.author,
+        provider=provider,
     )
     quality = quality_to_dict(analyze_report_quality(ctx.data, ctx.model, raw.type))
     print(
@@ -76,6 +81,14 @@ def _print_assistance(raw: ReportArgs, ctx: ReportCommandContext) -> None:
             ensure_ascii=False,
         )
     )
+
+
+def _assist_provider(provider_name: str, root: Path) -> AssistProvider | None:
+    if provider_name in ("", "auto", "local"):
+        return None
+    from vibelign.core.reporting_cli.report_assist_cli import CliAssistProvider
+
+    return CliAssistProvider(provider_name, root=root)
 
 
 def _print_emit_model(raw: ReportArgs, ctx: ReportCommandContext) -> None:

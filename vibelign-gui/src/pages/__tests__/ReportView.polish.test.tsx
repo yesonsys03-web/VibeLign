@@ -162,7 +162,7 @@ test("polish warning assistance draft survives into review render path", async (
     target: { value: "검수 지연 시 출시 일정을 재조정합니다." },
   });
   fireEvent.click(screen.getByRole("button", { name: "일정 리스크 수정 반영" }));
-  fireEvent.click(screen.getByRole("button", { name: "그래도 생성" }));
+  fireEvent.click(screen.getByRole("button", { name: "생성 계속" }));
 
   expect(await screen.findByText(/다듬기 검토/)).toBeInTheDocument();
   expect(screen.getByText("사용자 확인 보완 초안")).toBeInTheDocument();

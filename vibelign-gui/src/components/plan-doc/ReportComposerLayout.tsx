@@ -12,6 +12,7 @@ type ReportComposerLayoutProps = {
   readonly cwd: string;
   readonly inline: boolean;
   readonly controls: ReactNode;
+  readonly qualityReviewActive: boolean;
   readonly workspaceTab?: "report" | "cards";
   readonly onWorkspaceTabChange?: (tab: "report" | "cards") => void;
   readonly companion?: ReactNode;
@@ -27,6 +28,7 @@ export function ReportComposerLayout({
   cwd,
   inline,
   controls,
+  qualityReviewActive,
   workspaceTab = "report",
   onWorkspaceTabChange,
   companion,
@@ -40,6 +42,15 @@ export function ReportComposerLayout({
   const inlineShellRef = useRef<HTMLDivElement | null>(null);
   const isNarrowInline = useNarrowInlineLayout(inlineShellRef);
   const canShowTabs = companion !== undefined && onWorkspaceTabChange !== undefined;
+
+  if (qualityReviewActive) {
+    return (
+      <div role="dialog" aria-label="보고서 품질 점검 확대 보기" style={qualityReviewOverlay}>
+        <div style={qualityReviewPane}>{controls}</div>
+      </div>
+    );
+  }
+
   const workspace = (
     <div style={workspacePane}>
       {canShowTabs && (
@@ -148,8 +159,10 @@ const contentArea: CSSProperties = { padding: 16, overflow: "auto" };
 const workspacePane: CSSProperties = {
   flex: 1,
   minWidth: 0,
+  minHeight: 0,
   display: "flex",
   flexDirection: "column",
+  overflow: "hidden",
 };
 const workspaceTabs: CSSProperties = {
   display: "flex",
@@ -177,6 +190,22 @@ const iconBtn: CSSProperties = {
   cursor: "pointer",
   fontSize: 16,
 };
+const qualityReviewOverlay: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 1200,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 24,
+  background: "rgba(26,26,26,0.42)",
+};
+const qualityReviewPane: CSSProperties = {
+  width: "min(1120px, calc(100vw - 48px))",
+  maxHeight: "calc(100vh - 48px)",
+  overflow: "auto",
+  padding: "0 4px 4px 0",
+};
 
 function workspaceTabButton(active: boolean): CSSProperties {
   return {
@@ -197,6 +226,8 @@ function inlineShell(isNarrow: boolean): CSSProperties {
     height: "100%",
     gap: isNarrow ? 12 : 16,
     minHeight: 0,
+    minWidth: 0,
+    overflow: "hidden",
   };
 }
 

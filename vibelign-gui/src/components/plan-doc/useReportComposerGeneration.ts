@@ -20,6 +20,7 @@ import type { ReportFonts } from "../../lib/vib/reportFonts";
 import { isPolishable, type EmitPayload } from "../../lib/vib/reportModel";
 import type { ReportQualityPayload } from "../../lib/vib/reportQuality";
 import type { ReportQualityLongSource, ReportQualityPanelProceedPayload } from "./ReportQualityPanel";
+import type { ReportAssistProviderId } from "./reportAssistProviders";
 import { applyReportSessionDraftToEmitPayload, createReportSessionDraft, hasReportSessionDraft, type ReportSessionDraft } from "./reportSessionDraft";
 
 const POLISH_WARN_BLOCKS = 20;
@@ -57,6 +58,7 @@ export type ReportComposerGenerationOptions = {
   readonly pageNumbers: boolean;
   readonly fontSizes: ReportFontSizes;
   readonly fonts: ReportFonts;
+  readonly assistProvider: ReportAssistProviderId;
   readonly onReviewRequest?: ReportComposerReviewRequest;
   readonly onClose: () => void;
   readonly onReportTypeChange: (reportType: ReportType) => void;
@@ -149,6 +151,7 @@ export function useReportComposerGeneration(options: ReportComposerGenerationOpt
       planPath: options.planPath,
       reportType: options.reportType,
       author: options.author,
+      assistProvider: options.assistProvider,
     });
     if (!response.ok) throw new ReportAssistanceError(response.error);
     const longSource = inferLongSource(response.payload.assistance);
