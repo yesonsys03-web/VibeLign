@@ -101,12 +101,17 @@ function visualAssetSrc(cwd: string | undefined, assetPath: string): string | nu
 // === ANCHOR: REPORTVISUALCARDPREVIEW_VISUALASSETSRC_END ===
 
 function visualAssetFullPath(cwd: string | undefined, normalizedAsset: string): string | null {
-  if (normalizedAsset.startsWith("/")) {
-    return normalizedAsset.includes("/.vibelign/reports/card-news/assets/") ? normalizedAsset : null;
+  if (isAbsoluteProjectCardNewsAssetPath(normalizedAsset)) {
+    return normalizedAsset;
   }
   if (cwd === undefined || !normalizedAsset.startsWith(".vibelign/reports/card-news/assets/")) return null;
   const normalizedCwd = cwd.replaceAll("\\", "/").replace(/\/+$/, "");
   return `${normalizedCwd}/${normalizedAsset}`;
+}
+
+function isAbsoluteProjectCardNewsAssetPath(path: string): boolean {
+  const isAbsolute = path.startsWith("/") || /^[A-Za-z]:\//.test(path);
+  return isAbsolute && path.includes("/.vibelign/reports/card-news/assets/");
 }
 
 function hasPathTraversal(path: string): boolean {

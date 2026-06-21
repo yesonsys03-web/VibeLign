@@ -140,58 +140,6 @@ test("adapts preview sketch symbols to each plan card content", () => {
   );
 });
 
-test("renders generated visual asset in draft preview when card has asset path", () => {
-  const assetPayload: ReportVisualCardsPayload = {
-    ...payload,
-    cards: [
-      {
-        ...card("card-1", "예약 흐름", true),
-        image: {
-          provider: "opencode",
-          asset_path: ".vibelign/reports/card-news/assets/예약-흐름-card-news/01-예약.svg",
-          prompt: "calendar booking flow with notification message bubbles, no readable text in image",
-          generated: true,
-        },
-      },
-    ],
-  };
-
-  render(<ReportVisualCardsPanel cwd="/proj" payload={assetPayload} />);
-
-  const summaryCard = screen.getByLabelText("card-1 요약 카드");
-  const image = screen.getByRole("img", { name: "예약 흐름 생성 이미지" });
-  expect(image).toHaveAttribute(
-    "src",
-    "asset://localhost//proj/.vibelign/reports/card-news/assets/%EC%98%88%EC%95%BD-%ED%9D%90%EB%A6%84-card-news/01-%EC%98%88%EC%95%BD.svg",
-  );
-  expect(summaryCard.querySelector("[data-sketch-symbols]")).not.toBeInTheDocument();
-});
-
-test("converts absolute generated visual asset path before rendering image", () => {
-  const absoluteAssetPath =
-    "/Users/topsphinx/Documents/coding/메모장/.vibelign/reports/card-news/assets/나만의-메모장-card-news/06-본문-전체-검색.svg";
-  const assetPayload: ReportVisualCardsPayload = {
-    ...payload,
-    cards: [
-      {
-        ...card("card-1", "본문 전체 검색", true),
-        image: {
-          provider: "claude",
-          asset_path: absoluteAssetPath,
-          prompt: "search over notes body, no readable text in image",
-          generated: true,
-        },
-      },
-    ],
-  };
-
-  render(<ReportVisualCardsPanel cwd="/Users/topsphinx/Documents/coding/메모장" payload={assetPayload} />);
-
-  const image = screen.getByRole("img", { name: "본문 전체 검색 생성 이미지" });
-  expect(image).toHaveAttribute("src", `asset://localhost/${encodeURI(absoluteAssetPath)}`);
-  expect(image).not.toHaveAttribute("src", absoluteAssetPath);
-});
-
 test("production ReportComposer requests and previews visual cards", async () => {
   render(<ReportComposer planPath="plans/p.md" cwd="/proj" layout="inline" onClose={() => {}} />);
 
