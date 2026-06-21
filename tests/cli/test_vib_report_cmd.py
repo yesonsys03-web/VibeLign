@@ -30,6 +30,7 @@ def _args(plan_path: Path, **over) -> Namespace:
         cli="auto",
         assist_missing=False,
         visual_cards=False,
+        visual_card_cli="local",
     )
     base.update(over)
     return Namespace(**base)
@@ -158,6 +159,15 @@ def test_report_subcommand_accepts_font_size_options():
     assert ns.heading_font_size == 19
     assert ns.body_font_size == 15
     assert ns.meta_font_size == 11
+
+
+def test_report_subcommand_accepts_visual_card_cli_choice():
+    from vibelign.cli.vib_cli import build_parser
+
+    parser = build_parser()
+    ns = parser.parse_args(["report", "plan.md", "--visual-cards", "--visual-card-cli", "opencode"])
+    assert ns.visual_cards is True
+    assert ns.visual_card_cli == "opencode"
 
 
 def test_report_unreadable_plan_reports_error_json(

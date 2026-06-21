@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTCOMPOSERCONTROLS_START ===
 import type { CSSProperties, ReactNode } from "react";
 
 import type { ReportType } from "../../lib/vib/report";
@@ -44,6 +45,7 @@ type ReportComposerControlsProps = {
   readonly onGenerate: () => void;
 };
 
+// === ANCHOR: REPORTCOMPOSERCONTROLS_STOREPREFERENCE_START ===
 function storePreference(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
@@ -51,7 +53,9 @@ function storePreference(key: string, value: string): void {
     if (!(error instanceof Error)) throw error;
   }
 }
+// === ANCHOR: REPORTCOMPOSERCONTROLS_STOREPREFERENCE_END ===
 
+// === ANCHOR: REPORTCOMPOSERCONTROLS_REPORTCOMPOSERCONTROLS_START ===
 export function ReportComposerControls({
   reportType,
   format,
@@ -178,6 +182,7 @@ export function ReportComposerControls({
     </>
   );
 }
+// === ANCHOR: REPORTCOMPOSERCONTROLS_REPORTCOMPOSERCONTROLS_END ===
 
 const groupLabel: CSSProperties = { fontSize: 12, fontWeight: 700, color: "#1A1A1A", marginBottom: 6 };
 const srOnly: CSSProperties = {
@@ -200,6 +205,7 @@ const primaryBtn: CSSProperties = {
   cursor: "pointer",
 };
 
+// === ANCHOR: REPORTCOMPOSERCONTROLS_SIDEBTN_START ===
 function sideBtn(active: boolean): CSSProperties {
   return {
     display: "flex",
@@ -216,3 +222,5 @@ function sideBtn(active: boolean): CSSProperties {
     boxShadow: "inset 4px 0 0 #9B1B1B, var(--shadow-sm)",
   };
 }
+// === ANCHOR: REPORTCOMPOSERCONTROLS_SIDEBTN_END ===
+// === ANCHOR: REPORTCOMPOSERCONTROLS_END ===

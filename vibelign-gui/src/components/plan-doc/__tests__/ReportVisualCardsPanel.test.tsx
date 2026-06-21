@@ -1,9 +1,12 @@
+// === ANCHOR: REPORTVISUALCARDSPANEL_TEST_START ===
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ confirm: vi.fn() }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openPath: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@tauri-apps/api/core", () => ({ convertFileSrc: (path: string) => `asset://localhost/${encodeURI(path)}` }));
 vi.mock("../../../lib/vib/system", () => ({ pickFolder: vi.fn().mockResolvedValue(null) }));
+vi.mock("../../../lib/vib/planning-personas", () => ({ probePlanningProviders: vi.fn().mockResolvedValue(["claude", "codex", "agy", "opencode"]) }));
 vi.mock("../../../lib/vib/report", () => ({
   copyReportTo: vi.fn(),
   emitReportModel: vi.fn(),
@@ -69,6 +72,7 @@ const noApprovedPayload: ReportVisualCardsPayload = {
   cards: payload.cards.map((item) => ({ ...item, approved: false })),
 };
 
+// === ANCHOR: REPORTVISUALCARDSPANEL_TEST_CARD_START ===
 function card(id: string, title: string, approved: boolean): ReportVisualCard {
   return {
     id,
@@ -87,6 +91,7 @@ function card(id: string, title: string, approved: boolean): ReportVisualCard {
     approved,
   };
 }
+// === ANCHOR: REPORTVISUALCARDSPANEL_TEST_CARD_END ===
 
 test("keeps Korean copy as editable summary cards", () => {
   const onExportChange = vi.fn<(cards: readonly ReportVisualCard[]) => void>();
@@ -135,6 +140,58 @@ test("adapts preview sketch symbols to each plan card content", () => {
   );
 });
 
+test("renders generated visual asset in draft preview when card has asset path", () => {
+  const assetPayload: ReportVisualCardsPayload = {
+    ...payload,
+    cards: [
+      {
+        ...card("card-1", "예약 흐름", true),
+        image: {
+          provider: "opencode",
+          asset_path: ".vibelign/reports/card-news/assets/예약-흐름-card-news/01-예약.svg",
+          prompt: "calendar booking flow with notification message bubbles, no readable text in image",
+          generated: true,
+        },
+      },
+    ],
+  };
+
+  render(<ReportVisualCardsPanel cwd="/proj" payload={assetPayload} />);
+
+  const summaryCard = screen.getByLabelText("card-1 요약 카드");
+  const image = screen.getByRole("img", { name: "예약 흐름 생성 이미지" });
+  expect(image).toHaveAttribute(
+    "src",
+    "asset://localhost//proj/.vibelign/reports/card-news/assets/%EC%98%88%EC%95%BD-%ED%9D%90%EB%A6%84-card-news/01-%EC%98%88%EC%95%BD.svg",
+  );
+  expect(summaryCard.querySelector("[data-sketch-symbols]")).not.toBeInTheDocument();
+});
+
+test("converts absolute generated visual asset path before rendering image", () => {
+  const absoluteAssetPath =
+    "/Users/topsphinx/Documents/coding/메모장/.vibelign/reports/card-news/assets/나만의-메모장-card-news/06-본문-전체-검색.svg";
+  const assetPayload: ReportVisualCardsPayload = {
+    ...payload,
+    cards: [
+      {
+        ...card("card-1", "본문 전체 검색", true),
+        image: {
+          provider: "claude",
+          asset_path: absoluteAssetPath,
+          prompt: "search over notes body, no readable text in image",
+          generated: true,
+        },
+      },
+    ],
+  };
+
+  render(<ReportVisualCardsPanel cwd="/Users/topsphinx/Documents/coding/메모장" payload={assetPayload} />);
+
+  const image = screen.getByRole("img", { name: "본문 전체 검색 생성 이미지" });
+  expect(image).toHaveAttribute("src", `asset://localhost/${encodeURI(absoluteAssetPath)}`);
+  expect(image).not.toHaveAttribute("src", absoluteAssetPath);
+});
+
 test("production ReportComposer requests and previews visual cards", async () => {
   render(<ReportComposer planPath="plans/p.md" cwd="/proj" layout="inline" onClose={() => {}} />);
 
@@ -142,7 +199,10 @@ test("production ReportComposer requests and previews visual cards", async () =>
   fireEvent.click(screen.getByRole("button", { name: "카드뉴스 초안 만들기" }));
 
   await screen.findByText("요약 카드 초안");
-  expect(mockRequestReportVisualCards).toHaveBeenCalledWith("/proj", "plans/p.md", "work");
+  const providerSelect = await screen.findByLabelText("카드뉴스 초안 모델");
+  fireEvent.change(providerSelect, { target: { value: "opencode" } });
+  fireEvent.click(screen.getByRole("button", { name: "카드뉴스 초안 만들기" }));
+  await waitFor(() => expect(mockRequestReportVisualCards).toHaveBeenLastCalledWith("/proj", "plans/p.md", "work", "opencode"));
   await waitFor(() => expect(screen.getByText("승인된 카드 1개")).toBeInTheDocument());
   fireEvent.click(screen.getByRole("button", { name: "카드뉴스 확정" }));
   await screen.findByText("카드뉴스 결과물 1장");
@@ -253,3 +313,4 @@ test("regenerates edits deletes and exports only approved cards", async () => {
   expect(screen.queryByLabelText("card-2 요약 카드")).not.toBeInTheDocument();
   expect(screen.getByLabelText("수정된 제안 요약 카드 제목")).toHaveValue("수정된 제안 요약");
 });
+// === ANCHOR: REPORTVISUALCARDSPANEL_TEST_END ===

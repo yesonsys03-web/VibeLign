@@ -185,6 +185,7 @@ test("카드뉴스 companion은 보고서 작성 오른쪽 작업 영역 탭에�
 
   expect(await screen.findByText("카드뉴스 출력")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "카드뉴스 초안 만들기" })).toBeInTheDocument();
+  expect(screen.queryByText(/ANCHOR: REPORTCOMPOSERLAYOUT/)).toBeNull();
 });
 
 test("quality panel warning blocks preview until generate-anyway", async () => {

@@ -154,8 +154,9 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
   });
 
   const reviewActive = qualityReview !== null;
+  const providerProbeActive = reviewActive || workspaceTab === "cards";
   useEffect(() => {
-    if (!reviewActive) return;
+    if (!providerProbeActive) return;
     let active = true;
     void probePlanningProviders()
       .then((providers) => {
@@ -163,7 +164,7 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
         setInstalledAssistProviders(providers);
         setAssistProvider((current) => {
           if (current !== "local") return current;
-          return firstInstalledAiProvider(providers) ?? "local";
+          return reviewActive ? firstInstalledAiProvider(providers) ?? "local" : current;
         });
       })
       .catch(() => {
@@ -172,7 +173,7 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
     return () => {
       active = false;
     };
-  }, [reviewActive]);
+  }, [providerProbeActive, reviewActive]);
 
   const assistProviderOptions = useMemo(
     () => reportAssistProviderOptions(installedAssistProviders),
@@ -250,7 +251,16 @@ export function ReportComposer({ planPath, cwd, layout, onClose, onReviewRequest
       qualityReviewActive={qualityReview !== null}
       workspaceTab={workspaceTab}
       onWorkspaceTabChange={setWorkspaceTab}
-      companion={<ReportVisualCardsCompanion cwd={cwd} planPath={planPath} reportType={reportType} />}
+      companion={
+        <ReportVisualCardsCompanion
+          cwd={cwd}
+          planPath={planPath}
+          reportType={reportType}
+          provider={assistProvider}
+          providerOptions={assistProviderOptions}
+          onProviderChange={setAssistProvider}
+        />
+      }
       exportBox={exportBoxEl}
       result={result}
       exportedPath={exportedPath}

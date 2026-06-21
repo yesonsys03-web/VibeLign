@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTTHEMES_TEST_START ===
 import { describe, expect, test } from "vitest";
 
 import { REPORT_THEME_COUNT, REPORT_THEME_OPTIONS } from "../reportThemes";
@@ -16,3 +17,4 @@ describe("reportThemes", () => {
     expect(satgatThemes.at(-1)?.id).toBe("satgat-case-study");
   });
 });
+// === ANCHOR: REPORTTHEMES_TEST_END ===

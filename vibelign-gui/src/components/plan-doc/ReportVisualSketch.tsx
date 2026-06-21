@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTVISUALSKETCH_START ===
 import type { CSSProperties } from "react";
 
 import type { ReportVisualCard } from "../../lib/vib/reportVisualCards";
@@ -52,6 +53,7 @@ const symbols: readonly SketchSymbol[] = [
 
 const palette = ["#FFD84D", "#FF4D4D", "#4D9FFF", "#4DFF91", "#F5621E"] as const;
 
+// === ANCHOR: REPORTVISUALSKETCH_REPORTVISUALSKETCH_START ===
 export function ReportVisualSketch({ card }: { readonly card: ReportVisualCard }) {
   const descriptor = describeCard(card);
   const colors = shiftedColors(descriptor.colorShift);
@@ -79,7 +81,9 @@ export function ReportVisualSketch({ card }: { readonly card: ReportVisualCard }
     </svg>
   );
 }
+// === ANCHOR: REPORTVISUALSKETCH_REPORTVISUALSKETCH_END ===
 
+// === ANCHOR: REPORTVISUALSKETCH_DESCRIBECARD_START ===
 function describeCard(card: ReportVisualCard): SketchDescriptor {
   const text = `${card.title} ${card.body} ${card.caption} ${card.visual_prompt} ${card.image.prompt}`.toLowerCase();
   const selected = symbols
@@ -100,7 +104,9 @@ function describeCard(card: ReportVisualCard): SketchDescriptor {
   }
   return { symbols: [selected[0], selected[1], selected[2]], colorShift: hash % palette.length };
 }
+// === ANCHOR: REPORTVISUALSKETCH_DESCRIBECARD_END ===
 
+// === ANCHOR: REPORTVISUALSKETCH_HASHTEXT_START ===
 function hashText(text: string): number {
   let hash = 2166136261;
   for (const char of text) {
@@ -109,11 +115,15 @@ function hashText(text: string): number {
   }
   return Math.abs(hash);
 }
+// === ANCHOR: REPORTVISUALSKETCH_HASHTEXT_END ===
 
+// === ANCHOR: REPORTVISUALSKETCH_SHIFTEDCOLORS_START ===
 function shiftedColors(shift: number): readonly string[] {
   return palette.map((_, index) => palette[(index + shift) % palette.length]);
 }
+// === ANCHOR: REPORTVISUALSKETCH_SHIFTEDCOLORS_END ===
 
+// === ANCHOR: REPORTVISUALSKETCH_SKETCHSYMBOLMARK_START ===
 function SketchSymbolMark({ placement }: { readonly placement: SymbolPlacement }) {
   const size = 44 * placement.scale;
   const x = placement.cx - size / 2;
@@ -124,7 +134,9 @@ function SketchSymbolMark({ placement }: { readonly placement: SymbolPlacement }
     </g>
   );
 }
+// === ANCHOR: REPORTVISUALSKETCH_SKETCHSYMBOLMARK_END ===
 
+// === ANCHOR: REPORTVISUALSKETCH_SYMBOLSHAPE_START ===
 function SymbolShape({ symbol, color }: { readonly symbol: SketchSymbolKey; readonly color: string }) {
   if (symbol === "bell") {
     return (
@@ -229,5 +241,7 @@ function SymbolShape({ symbol, color }: { readonly symbol: SketchSymbolKey; read
     </>
   );
 }
+// === ANCHOR: REPORTVISUALSKETCH_SYMBOLSHAPE_END ===
 
 const svgStyle: CSSProperties = { width: "100%", maxWidth: "100%", height: 132, display: "block" };
+// === ANCHOR: REPORTVISUALSKETCH_END ===

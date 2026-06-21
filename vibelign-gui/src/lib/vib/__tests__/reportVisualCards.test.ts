@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTVISUALCARDS_TEST_START ===
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import {
@@ -39,6 +40,7 @@ const draftCard = {
   approved: true,
 } as const;
 
+// === ANCHOR: REPORTVISUALCARDS_TEST_DRAFTPAYLOAD_START ===
 function draftPayload() {
   return {
     schema_version: "report-visual-cards-v1",
@@ -48,6 +50,7 @@ function draftPayload() {
     assets: [],
   } as const;
 }
+// === ANCHOR: REPORTVISUALCARDS_TEST_DRAFTPAYLOAD_END ===
 
 describe("report visual cards", () => {
   beforeEach(() => {
@@ -106,12 +109,16 @@ describe("report visual cards", () => {
   });
 
   test("requests visual card sidecar through opt-in CLI flags", async () => {
-    const result = await requestReportVisualCards("/repo", "plan.md", "proposal");
+    const result = await requestReportVisualCards("/repo", "plan.md", "proposal", "opencode");
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.payload.cards[0].image.provider).toBe("provider-neutral-draft");
     expect(result.payload.cards[0].title).toBe("제안 요약");
+    expect(mocks.runVib).toHaveBeenCalledWith(
+      ["report", "plan.md", "--type", "proposal", "--visual-cards", "--visual-card-cli", "opencode", "--json"],
+      "/repo",
+    );
   });
 
   test("saves visual cards through a temporary payload file", async () => {
@@ -172,3 +179,4 @@ describe("report visual cards", () => {
     );
   });
 });
+// === ANCHOR: REPORTVISUALCARDS_TEST_END ===

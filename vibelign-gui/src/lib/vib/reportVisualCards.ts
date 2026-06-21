@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTVISUALCARDS_START ===
 import { runVib } from "./core";
 import type { ReportType } from "./report";
 import { removeReportRenderPayload, writeReportJsonPayload } from "./reportRenderPayload";
@@ -36,6 +37,8 @@ export type ReportVisualCardsPayload = {
   readonly assets: readonly ReportVisualCardImage[];
 };
 
+export type ReportVisualCardsProviderId = "local" | "claude" | "codex" | "agy" | "opencode";
+
 export type ReportVisualCardsResult =
   | { readonly ok: true; readonly payload: ReportVisualCardsPayload }
   | { readonly ok: false; readonly error: string };
@@ -52,32 +55,45 @@ export type ReportCardNewsExportResult =
     }
   | { readonly ok: false; readonly error: string };
 
+// === ANCHOR: REPORTVISUALCARDS_ISRECORD_START ===
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+// === ANCHOR: REPORTVISUALCARDS_ISRECORD_END ===
 
+// === ANCHOR: REPORTVISUALCARDS_STRINGVALUE_START ===
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
+// === ANCHOR: REPORTVISUALCARDS_STRINGVALUE_END ===
 
+// === ANCHOR: REPORTVISUALCARDS_NUMBERVALUE_START ===
 function numberValue(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
+// === ANCHOR: REPORTVISUALCARDS_NUMBERVALUE_END ===
 
+// === ANCHOR: REPORTVISUALCARDS_BOOLEANVALUE_START ===
 function booleanValue(value: unknown): boolean {
   return typeof value === "boolean" ? value : false;
 }
+// === ANCHOR: REPORTVISUALCARDS_BOOLEANVALUE_END ===
 
+// === ANCHOR: REPORTVISUALCARDS_RECORDARRAY_START ===
 function recordArray(value: unknown): readonly Readonly<Record<string, unknown>>[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord);
 }
+// === ANCHOR: REPORTVISUALCARDS_RECORDARRAY_END ===
 
+// === ANCHOR: REPORTVISUALCARDS_STRINGARRAY_START ===
 function stringArray(value: unknown): readonly string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === "string");
 }
+// === ANCHOR: REPORTVISUALCARDS_STRINGARRAY_END ===
 
+// === ANCHOR: REPORTVISUALCARDS_PARSEIMAGE_START ===
 function parseImage(value: unknown): ReportVisualCardImage {
   const record = isRecord(value) ? value : {};
   return {
@@ -87,7 +103,9 @@ function parseImage(value: unknown): ReportVisualCardImage {
     generated: booleanValue(record.generated),
   };
 }
+// === ANCHOR: REPORTVISUALCARDS_PARSEIMAGE_END ===
 
+// === ANCHOR: REPORTVISUALCARDS_PARSESOURCEREF_START ===
 function parseSourceRef(value: unknown): ReportVisualCardSourceRef {
   const record = isRecord(value) ? value : {};
   return {
@@ -97,7 +115,9 @@ function parseSourceRef(value: unknown): ReportVisualCardSourceRef {
     heading: stringValue(record.heading),
   };
 }
+// === ANCHOR: REPORTVISUALCARDS_PARSESOURCEREF_END ===
 
+// === ANCHOR: REPORTVISUALCARDS_PARSECARD_START ===
 function parseCard(value: unknown): ReportVisualCard {
   const record = isRecord(value) ? value : {};
   return {
@@ -112,7 +132,9 @@ function parseCard(value: unknown): ReportVisualCard {
     approved: booleanValue(record.approved),
   };
 }
+// === ANCHOR: REPORTVISUALCARDS_PARSECARD_END ===
 
+// === ANCHOR: REPORTVISUALCARDS_PARSEREPORTVISUALCARDSPAYLOAD_START ===
 export function parseReportVisualCardsPayload(value: unknown): ReportVisualCardsPayload {
   const record = isRecord(value) ? value : {};
   const cards = recordArray(record.cards).map(parseCard);
@@ -124,17 +146,25 @@ export function parseReportVisualCardsPayload(value: unknown): ReportVisualCards
     assets: recordArray(record.assets).map(parseImage),
   };
 }
+// === ANCHOR: REPORTVISUALCARDS_PARSEREPORTVISUALCARDSPAYLOAD_END ===
 
+// === ANCHOR: REPORTVISUALCARDS_APPROVEDREPORTVISUALCARDS_START ===
 export function approvedReportVisualCards(cards: readonly ReportVisualCard[]): readonly ReportVisualCard[] {
   return cards.filter((card) => card.approved);
 }
+// === ANCHOR: REPORTVISUALCARDS_APPROVEDREPORTVISUALCARDS_END ===
 
+// === ANCHOR: REPORTVISUALCARDS_REQUESTREPORTVISUALCARDS_START ===
 export async function requestReportVisualCards(
   cwd: string,
   planPath: string,
   reportType: ReportType,
+  provider: ReportVisualCardsProviderId,
 ): Promise<ReportVisualCardsResult> {
-  const res = await runVib(["report", planPath, "--type", reportType, "--visual-cards", "--json"], cwd);
+  const res = await runVib(
+    ["report", planPath, "--type", reportType, "--visual-cards", "--visual-card-cli", provider, "--json"],
+    cwd,
+  );
   try {
     const raw: unknown = JSON.parse(res.stdout.trim());
     if (!isRecord(raw) || raw.ok !== true) {
@@ -145,7 +175,9 @@ export async function requestReportVisualCards(
     return { ok: false, error: res.stderr.trim() || "카드뉴스 생성 실패" };
   }
 }
+// === ANCHOR: REPORTVISUALCARDS_REQUESTREPORTVISUALCARDS_END ===
 
+// === ANCHOR: REPORTVISUALCARDS_SAVEREPORTVISUALCARDS_START ===
 export async function saveReportVisualCards(
   cwd: string,
   payload: ReportVisualCardsPayload,
@@ -187,10 +219,14 @@ export async function saveReportVisualCards(
     await removeReportRenderPayload(cwd, payloadPath);
   }
 }
+// === ANCHOR: REPORTVISUALCARDS_SAVEREPORTVISUALCARDS_END ===
 
+// === ANCHOR: REPORTVISUALCARDS_CARDNEWSSAVEERROR_START ===
 function cardNewsSaveError(stderr: string): string {
   if (stderr.includes("invalid choice: 'report-card-news'")) {
     return "카드뉴스 확정 명령을 현재 설치된 vib에서 찾지 못했어요. VibeLign CLI를 업데이트한 뒤 다시 시도하세요.";
   }
   return stderr || "카드뉴스 저장 실패";
 }
+// === ANCHOR: REPORTVISUALCARDS_CARDNEWSSAVEERROR_END ===
+// === ANCHOR: REPORTVISUALCARDS_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTQUALITYASSISTITEM_START ===
 import type { CSSProperties } from "react";
 
 import type { ReportAssistSourceRef, ReportAssistSuggestion } from "../../lib/vib/reportAssist";
@@ -18,13 +19,16 @@ export type ReportQualityAssistItemProps = {
   readonly onSaveAnswer: () => void;
 };
 
+// === ANCHOR: REPORTQUALITYASSISTITEM_SOURCEREFLABEL_START ===
 function sourceRefLabel(ref: ReportAssistSourceRef, sourceLabel: string): string {
   if (ref.start_line === undefined || ref.end_line === undefined) {
     return ref.warning ?? `${sourceLabel} 범위 확인 필요`;
   }
   return `${sourceLabel} ${ref.start_line}-${ref.end_line}줄`;
 }
+// === ANCHOR: REPORTQUALITYASSISTITEM_SOURCEREFLABEL_END ===
 
+// === ANCHOR: REPORTQUALITYASSISTITEM_REPORTQUALITYASSISTITEM_START ===
 export function ReportQualityAssistItem(props: ReportQualityAssistItemProps) {
   const { item, sourceLabel } = props;
   const isQuestion = item.kind === "user_question";
@@ -105,6 +109,7 @@ export function ReportQualityAssistItem(props: ReportQualityAssistItemProps) {
     </article>
   );
 }
+// === ANCHOR: REPORTQUALITYASSISTITEM_REPORTQUALITYASSISTITEM_END ===
 
 const assistItem: CSSProperties = { border: "1px solid #1A1A1A", padding: 8, background: "#FFFFFF" };
 const row: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" };
@@ -121,3 +126,4 @@ const answerStatus: CSSProperties = { margin: "8px 0 0", fontSize: 12, fontWeigh
 const buttonRow: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 };
 const secondaryButton: CSSProperties = { border: "2px solid #1A1A1A", background: "#FFFFFF", color: "#1A1A1A", padding: "7px 10px", fontWeight: 800, cursor: "pointer" };
 const ghostButton: CSSProperties = { border: "1px solid #1A1A1A", background: "#FEFBF0", color: "#1A1A1A", padding: "7px 10px", fontWeight: 800, cursor: "pointer" };
+// === ANCHOR: REPORTQUALITYASSISTITEM_END ===

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
 from pathlib import Path
 
+import pytest
+
+from vibelign.core.planning_cli import cli_adapters
 from vibelign.core.reporting_cli.models import Block, ReportModel, Section
 from vibelign.core.reporting_cli.reader import parse_plan_markdown
 from vibelign.core.reporting_cli.report_visual_cards import (
@@ -12,13 +14,15 @@ from vibelign.core.reporting_cli.report_visual_cards import (
     VisualImageRequest,
     build_report_visual_cards,
 )
+from vibelign.core.reporting_cli.report_visual_cards_cli import CliVisualCardsProvider
 from vibelign.core.reporting_cli.templates import build_report_model
 
 
-@dataclass(slots=True)
 class RecordingProvider:
-    provider_name: str = "test-fake-provider"
-    requests: list[VisualImageRequest] = field(default_factory=list)
+    provider_name = "test-fake-provider"
+
+    def __init__(self) -> None:
+        self.requests: list[VisualImageRequest] = []
 
     def generate(self, request: VisualImageRequest) -> VisualImageMetadata:
         self.requests.append(request)
@@ -86,6 +90,41 @@ def test_visual_cards_use_explicit_fake_provider_at_adapter_boundary():
     assert len(provider.requests) == len(cards)
     assert all(card["image"]["provider"] == "test-fake-provider" for card in cards)
     assert all(card["image"]["asset_path"].startswith("fake://tests/") for card in cards)
+
+
+def test_visual_cards_cli_provider_rewrites_card_copy_and_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeRunner:
+        def run(
+            self,
+            command: list[str],
+            *,
+            cwd: Path,
+            input_text: str,
+            timeout_seconds: int,
+        ) -> cli_adapters.PlanningCliResult:
+            return cli_adapters.PlanningCliResult(
+                status="ok",
+                stdout='{"cards":[{"id":"report-card-1","title":"예약 흐름","body":"예약 캘린더와 알림 문자를 한눈에 정리합니다.","caption":"출처: 핵심 기능","visual_prompt":"calendar reminder app screen with checklist, no readable text in image"}]}',
+                stderr="",
+                exit_code=0,
+                duration_ms=12,
+            )
+
+    monkeypatch.setattr(cli_adapters, "build_cli_command", lambda provider, prompt: ["fake", provider, prompt])
+    base = build_report_visual_cards(_model(), source_text=_fixture_text())
+    provider = CliVisualCardsProvider("opencode", root=tmp_path, runner=FakeRunner())
+
+    sidecar = provider.draft(base, _fixture_text())
+
+    assert sidecar["provider"] == "opencode"
+    assert len(sidecar["cards"]) == 1
+    assert len(sidecar["assets"]) == 1
+    assert sidecar["cards"][0]["title"] == "예약 흐름"
+    assert sidecar["cards"][0]["image"]["provider"] == "opencode"
+    assert sidecar["cards"][0]["image"]["prompt"].startswith("calendar reminder app")
 
 
 def test_visual_prompts_never_embed_korean_report_copy():

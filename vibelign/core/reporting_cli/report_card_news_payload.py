@@ -1,3 +1,4 @@
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD_START ===
 from __future__ import annotations
 
 from pathlib import Path
@@ -13,10 +14,13 @@ from vibelign.core.reporting_cli.report_visual_cards import (
 )
 
 
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD_CARDNEWSPAYLOADERROR_START ===
 class CardNewsPayloadError(ValueError):
     pass
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD_CARDNEWSPAYLOADERROR_END ===
 
 
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD__SOURCEREFMODEL_START ===
 class _SourceRefModel(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
 
@@ -24,8 +28,10 @@ class _SourceRefModel(BaseModel):
     section: int = 0
     block: int = 0
     heading: str = ""
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD__SOURCEREFMODEL_END ===
 
 
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD__IMAGEMODEL_START ===
 class _ImageModel(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
 
@@ -33,8 +39,10 @@ class _ImageModel(BaseModel):
     asset_path: str = ""
     prompt: str = ""
     generated: StrictBool = False
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD__IMAGEMODEL_END ===
 
 
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD__CARDMODEL_START ===
 class _CardModel(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
 
@@ -47,8 +55,10 @@ class _CardModel(BaseModel):
     source_refs: list[_SourceRefModel] = Field(default_factory=list)
     image: _ImageModel = Field(default_factory=_ImageModel)
     approved: StrictBool = False
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD__CARDMODEL_END ===
 
 
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD__PAYLOADMODEL_START ===
 class _PayloadModel(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
 
@@ -56,8 +66,10 @@ class _PayloadModel(BaseModel):
     status: Literal["ready", "empty"] = "ready"
     provider: str = "generic-image-provider"
     cards: list[_CardModel]
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD__PAYLOADMODEL_END ===
 
 
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD_LOAD_VISUAL_CARDS_PAYLOAD_START ===
 def load_visual_cards_payload(payload_path: Path) -> VisualCardsDict:
     try:
         model = _PayloadModel.model_validate_json(payload_path.read_text(encoding="utf-8"))
@@ -72,8 +84,10 @@ def load_visual_cards_payload(payload_path: Path) -> VisualCardsDict:
         "cards": [_card_from_model(card) for card in model.cards],
         "assets": [],
     }
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD_LOAD_VISUAL_CARDS_PAYLOAD_END ===
 
 
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD__CARD_FROM_MODEL_START ===
 def _card_from_model(card: _CardModel) -> VisualCardDict:
     return {
         "id": card.id,
@@ -91,8 +105,10 @@ def _card_from_model(card: _CardModel) -> VisualCardDict:
         },
         "approved": card.approved is True,
     }
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD__CARD_FROM_MODEL_END ===
 
 
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD__SOURCE_REF_FROM_MODEL_START ===
 def _source_ref_from_model(ref: _SourceRefModel) -> VisualCardSourceRef:
     return {
         "source_plan_path": ref.source_plan_path,
@@ -100,3 +116,5 @@ def _source_ref_from_model(ref: _SourceRefModel) -> VisualCardSourceRef:
         "block": ref.block,
         "heading": ref.heading,
     }
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD__SOURCE_REF_FROM_MODEL_END ===
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD_END ===

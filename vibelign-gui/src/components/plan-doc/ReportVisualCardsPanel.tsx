@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTVISUALCARDSPANEL_START ===
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
 import {
@@ -8,6 +9,7 @@ import {
 import { ReportVisualCardPreview, type ReportVisualCardEdit } from "./ReportVisualCardPreview";
 
 export type ReportVisualCardsPanelProps = {
+  readonly cwd?: string;
   readonly payload: ReportVisualCardsPayload;
   readonly onExportChange?: (cards: readonly ReportVisualCard[]) => void;
   readonly onFinalize?: (cards: readonly ReportVisualCard[]) => void;
@@ -26,10 +28,13 @@ export type ReportVisualCardRegenerate = (
   nextVersion: number,
 ) => ReportVisualCardCandidate | undefined;
 
+// === ANCHOR: REPORTVISUALCARDSPANEL_EDITFOR_START ===
 function editFor(card: ReportVisualCard): ReportVisualCardEdit {
   return { title: card.title, body: card.body, caption: card.caption };
 }
+// === ANCHOR: REPORTVISUALCARDSPANEL_EDITFOR_END ===
 
+// === ANCHOR: REPORTVISUALCARDSPANEL_DEFAULTCANDIDATE_START ===
 function defaultCandidate(card: ReportVisualCard, provider: string, version: number): ReportVisualCardCandidate {
   const visualPrompt = `${card.visual_prompt}, alternate composition candidate ${version}`;
   return {
@@ -43,7 +48,9 @@ function defaultCandidate(card: ReportVisualCard, provider: string, version: num
     },
   };
 }
+// === ANCHOR: REPORTVISUALCARDSPANEL_DEFAULTCANDIDATE_END ===
 
+// === ANCHOR: REPORTVISUALCARDSPANEL_UPDATECARD_START ===
 function updateCard(
   cards: readonly ReportVisualCard[],
   cardId: string,
@@ -51,8 +58,10 @@ function updateCard(
 ): readonly ReportVisualCard[] {
   return cards.map((card) => (card.id === cardId ? update(card) : card));
 }
+// === ANCHOR: REPORTVISUALCARDSPANEL_UPDATECARD_END ===
 
-export function ReportVisualCardsPanel({ payload, onExportChange, onFinalize, onRegenerate }: ReportVisualCardsPanelProps) {
+// === ANCHOR: REPORTVISUALCARDSPANEL_REPORTVISUALCARDSPANEL_START ===
+export function ReportVisualCardsPanel({ cwd, payload, onExportChange, onFinalize, onRegenerate }: ReportVisualCardsPanelProps) {
   const [cards, setCards] = useState<readonly ReportVisualCard[]>(payload.cards);
   const [candidateVersions, setCandidateVersions] = useState<Readonly<Record<string, number>>>({});
   const approvedCards = useMemo(() => approvedReportVisualCards(cards), [cards]);
@@ -68,16 +77,21 @@ export function ReportVisualCardsPanel({ payload, onExportChange, onFinalize, on
 
   const provider = payload.provider || "generic-image-provider";
 
+  // === ANCHOR: REPORTVISUALCARDSPANEL_EDITCARD_START ===
   const editCard = (cardId: string, edit: Partial<ReportVisualCardEdit>) => {
     setCards((current) => updateCard(current, cardId, (card) => ({ ...card, ...edit })));
   };
+  // === ANCHOR: REPORTVISUALCARDSPANEL_EDITCARD_END ===
 
+  // === ANCHOR: REPORTVISUALCARDSPANEL_REGENERATECARD_START ===
   const regenerateCard = (cardId: string) => {
     const card = cards.find((item) => item.id === cardId);
     if (card === undefined) return;
+    // === ANCHOR: REPORTVISUALCARDSPANEL_NEXTVERSION_START ===
     const nextVersion = (candidateVersions[cardId] ?? 1) + 1;
     const candidate = onRegenerate?.(cardId, card, nextVersion) ?? defaultCandidate(card, provider, nextVersion);
     setCandidateVersions((versions) => ({ ...versions, [cardId]: candidate.version }));
+    // === ANCHOR: REPORTVISUALCARDSPANEL_NEXTVERSION_END ===
     setCards((current) =>
       updateCard(current, cardId, (card) => ({
         ...card,
@@ -86,6 +100,7 @@ export function ReportVisualCardsPanel({ payload, onExportChange, onFinalize, on
       })),
     );
   };
+  // === ANCHOR: REPORTVISUALCARDSPANEL_REGENERATECARD_END ===
 
   return (
     <section aria-label="카드뉴스 companion" style={panel}>
@@ -114,6 +129,7 @@ export function ReportVisualCardsPanel({ payload, onExportChange, onFinalize, on
           return (
             <article key={card.id} aria-label={`${card.title} 카드`} style={cardBox}>
               <ReportVisualCardPreview
+                cwd={cwd}
                 card={card}
                 edit={edit}
                 cardNumber={index + 1}
@@ -151,6 +167,7 @@ export function ReportVisualCardsPanel({ payload, onExportChange, onFinalize, on
     </section>
   );
 }
+// === ANCHOR: REPORTVISUALCARDSPANEL_REPORTVISUALCARDSPANEL_END ===
 
 const panel: CSSProperties = {
   minWidth: 0,
@@ -194,6 +211,9 @@ const dangerButton: CSSProperties = { ...secondaryButton, background: "#FF4D4D" 
 const finalizeButton: CSSProperties = { ...secondaryButton, background: "#F5621E", boxShadow: "2px 2px 0 #1A1A1A" };
 const disabledFinalizeButton: CSSProperties = { ...finalizeButton, opacity: 0.45, cursor: "not-allowed" };
 
+// === ANCHOR: REPORTVISUALCARDSPANEL_STRIPINLINEMARKUP_START ===
 function stripInlineMarkup(value: string): string {
   return value.replaceAll("**", "").replaceAll("__", "");
 }
+// === ANCHOR: REPORTVISUALCARDSPANEL_STRIPINLINEMARKUP_END ===
+// === ANCHOR: REPORTVISUALCARDSPANEL_END ===

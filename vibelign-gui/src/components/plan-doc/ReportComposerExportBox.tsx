@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTCOMPOSEREXPORTBOX_START ===
 import type { CSSProperties, ReactNode } from "react";
 import { openPath } from "@tauri-apps/plugin-opener";
 
@@ -14,6 +15,7 @@ type ReportComposerExportBoxProps = {
   readonly onChooseLocation: () => void;
 };
 
+// === ANCHOR: REPORTCOMPOSEREXPORTBOX_REPORTCOMPOSEREXPORTBOX_START ===
 export function ReportComposerExportBox({
   result,
   inline,
@@ -62,7 +64,9 @@ export function ReportComposerExportBox({
     </div>
   );
 }
+// === ANCHOR: REPORTCOMPOSEREXPORTBOX_REPORTCOMPOSEREXPORTBOX_END ===
 
+// === ANCHOR: REPORTCOMPOSEREXPORTBOX_OPENRESULTPATH_START ===
 export function openResultPath(
   result: ReportComposerResultState,
   exportedPath: string | null,
@@ -74,6 +78,7 @@ export function openResultPath(
     onOpenErr(`파일을 열지 못했어요: ${String(error)}`),
   );
 }
+// === ANCHOR: REPORTCOMPOSEREXPORTBOX_OPENRESULTPATH_END ===
 
 export const primaryBtn: CSSProperties = {
   background: "#9B1B1B",
@@ -100,3 +105,4 @@ const exportBox: CSSProperties = {
   border: "1px solid #e5e0d0",
   borderRadius: 6,
 };
+// === ANCHOR: REPORTCOMPOSEREXPORTBOX_END ===

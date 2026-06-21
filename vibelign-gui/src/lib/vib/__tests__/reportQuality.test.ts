@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTQUALITY_TEST_START ===
 import { describe, expect, test } from "vitest";
 
 import {
@@ -73,3 +74,4 @@ describe("report quality parser", () => {
     expect(quality.findings[0].severity).toBe("warn");
   });
 });
+// === ANCHOR: REPORTQUALITY_TEST_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTASSIST_START ===
 export const REPORT_ASSIST_STATUSES = ["not_requested", "ready", "needs_user_input", "failed"] as const;
 export type ReportAssistStatus = (typeof REPORT_ASSIST_STATUSES)[number];
 
@@ -58,27 +59,38 @@ export type ReportAssistSuggestionStateUpdate =
   | { readonly type: "edit"; readonly suggestionId: string; readonly text: string }
   | { readonly type: "reject"; readonly suggestionId: string };
 
+// === ANCHOR: REPORTASSIST_ASSERTNEVER_START ===
 function assertNever(value: never): never {
   throw new Error(`Unhandled report assistance variant: ${String(value)}`);
 }
+// === ANCHOR: REPORTASSIST_ASSERTNEVER_END ===
 
+// === ANCHOR: REPORTASSIST_ISRECORD_START ===
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+// === ANCHOR: REPORTASSIST_ISRECORD_END ===
 
+// === ANCHOR: REPORTASSIST_STRINGVALUE_START ===
 function stringValue(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value : null;
 }
+// === ANCHOR: REPORTASSIST_STRINGVALUE_END ===
 
+// === ANCHOR: REPORTASSIST_STRINGARRAY_START ===
 function stringArray(value: unknown): readonly string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === "string");
 }
+// === ANCHOR: REPORTASSIST_STRINGARRAY_END ===
 
+// === ANCHOR: REPORTASSIST_POSITIVELINE_START ===
 function positiveLine(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
 }
+// === ANCHOR: REPORTASSIST_POSITIVELINE_END ===
 
+// === ANCHOR: REPORTASSIST_NORMALIZESTATUS_START ===
 function normalizeStatus(value: unknown): ReportAssistStatus {
   switch (value) {
     case "not_requested":
@@ -90,7 +102,9 @@ function normalizeStatus(value: unknown): ReportAssistStatus {
       return "needs_user_input";
   }
 }
+// === ANCHOR: REPORTASSIST_NORMALIZESTATUS_END ===
 
+// === ANCHOR: REPORTASSIST_NORMALIZEKIND_START ===
 function normalizeKind(value: unknown): ReportAssistSuggestionKind {
   switch (value) {
     case "draft_text":
@@ -103,7 +117,9 @@ function normalizeKind(value: unknown): ReportAssistSuggestionKind {
       return "user_question";
   }
 }
+// === ANCHOR: REPORTASSIST_NORMALIZEKIND_END ===
 
+// === ANCHOR: REPORTASSIST_REPORTASSISTSUGGESTIONKINDLABEL_START ===
 export function reportAssistSuggestionKindLabel(kind: ReportAssistSuggestionKind): string {
   switch (kind) {
     case "draft_text":
@@ -120,11 +136,15 @@ export function reportAssistSuggestionKindLabel(kind: ReportAssistSuggestionKind
       return assertNever(kind);
   }
 }
+// === ANCHOR: REPORTASSIST_REPORTASSISTSUGGESTIONKINDLABEL_END ===
 
+// === ANCHOR: REPORTASSIST_WARNINGSOURCEREF_START ===
 function warningSourceRef(chunkId: string, headingPath: readonly string[], warning: string): ReportAssistSourceRef {
   return { chunk_id: chunkId, heading_path: headingPath, warning };
 }
+// === ANCHOR: REPORTASSIST_WARNINGSOURCEREF_END ===
 
+// === ANCHOR: REPORTASSIST_PARSESOURCEREF_START ===
 function parseSourceRef(value: unknown): ReportAssistSourceRef {
   if (!isRecord(value)) return warningSourceRef("unknown-source", [], "출처 범위를 확인할 수 없습니다.");
 
@@ -143,12 +163,16 @@ function parseSourceRef(value: unknown): ReportAssistSourceRef {
     end_line: endLine,
   };
 }
+// === ANCHOR: REPORTASSIST_PARSESOURCEREF_END ===
 
+// === ANCHOR: REPORTASSIST_PARSESOURCEREFS_START ===
 function parseSourceRefs(value: unknown): readonly ReportAssistSourceRef[] {
   if (!Array.isArray(value)) return [];
   return value.map(parseSourceRef);
 }
+// === ANCHOR: REPORTASSIST_PARSESOURCEREFS_END ===
 
+// === ANCHOR: REPORTASSIST_PARSESUGGESTION_START ===
 function parseSuggestion(value: unknown): ReportAssistSuggestion {
   if (!isRecord(value)) {
     return {
@@ -179,12 +203,16 @@ function parseSuggestion(value: unknown): ReportAssistSuggestion {
     requires_user_confirmation: true,
   };
 }
+// === ANCHOR: REPORTASSIST_PARSESUGGESTION_END ===
 
+// === ANCHOR: REPORTASSIST_PARSESUGGESTIONS_START ===
 function parseSuggestions(value: unknown): readonly ReportAssistSuggestion[] {
   if (!Array.isArray(value)) return [];
   return value.map(parseSuggestion);
 }
+// === ANCHOR: REPORTASSIST_PARSESUGGESTIONS_END ===
 
+// === ANCHOR: REPORTASSIST_PARSEREPORTASSISTPAYLOAD_START ===
 export function parseReportAssistPayload(value: unknown): ReportAssistPayload {
   if (!isRecord(value)) {
     return {
@@ -206,26 +234,36 @@ export function parseReportAssistPayload(value: unknown): ReportAssistPayload {
     applied_suggestion_ids: stringArray(value.applied_suggestion_ids),
   };
 }
+// === ANCHOR: REPORTASSIST_PARSEREPORTASSISTPAYLOAD_END ===
 
+// === ANCHOR: REPORTASSIST_CREATEREPORTASSISTSUGGESTIONSTATE_START ===
 export function createReportAssistSuggestionState(): ReportAssistSuggestionState {
   return { selected: [], rejectedIds: [] };
 }
+// === ANCHOR: REPORTASSIST_CREATEREPORTASSISTSUGGESTIONSTATE_END ===
 
+// === ANCHOR: REPORTASSIST_SELECTEDWITHOUTID_START ===
 function selectedWithoutId(
   selected: readonly ReportAssistSelectedSuggestion[],
   suggestionId: string,
 ): readonly ReportAssistSelectedSuggestion[] {
   return selected.filter((item) => item.id !== suggestionId);
 }
+// === ANCHOR: REPORTASSIST_SELECTEDWITHOUTID_END ===
 
+// === ANCHOR: REPORTASSIST_IDSWITHOUTID_START ===
 function idsWithoutId(ids: readonly string[], suggestionId: string): readonly string[] {
   return ids.filter((id) => id !== suggestionId);
 }
+// === ANCHOR: REPORTASSIST_IDSWITHOUTID_END ===
 
+// === ANCHOR: REPORTASSIST_HASSUGGESTION_START ===
 function hasSuggestion(suggestions: readonly ReportAssistSuggestion[], suggestionId: string): boolean {
   return suggestions.some((suggestion) => suggestion.id === suggestionId);
 }
+// === ANCHOR: REPORTASSIST_HASSUGGESTION_END ===
 
+// === ANCHOR: REPORTASSIST_REPORTASSISTSUGGESTIONSTATEUPDATE_START ===
 export function reportAssistSuggestionStateUpdate(
   state: ReportAssistSuggestionState,
   update: ReportAssistSuggestionStateUpdate,
@@ -258,15 +296,21 @@ export function reportAssistSuggestionStateUpdate(
       return assertNever(update);
   }
 }
+// === ANCHOR: REPORTASSIST_REPORTASSISTSUGGESTIONSTATEUPDATE_END ===
 
+// === ANCHOR: REPORTASSIST_ACCEPTEDREPORTASSISTSUGGESTIONIDS_START ===
 export function acceptedReportAssistSuggestionIds(state: ReportAssistSuggestionState): readonly string[] {
   return state.selected.filter((item) => item.status === "accepted").map((item) => item.id);
 }
+// === ANCHOR: REPORTASSIST_ACCEPTEDREPORTASSISTSUGGESTIONIDS_END ===
 
+// === ANCHOR: REPORTASSIST_EDITEDREPORTASSISTSUGGESTIONIDS_START ===
 export function editedReportAssistSuggestionIds(state: ReportAssistSuggestionState): readonly string[] {
   return state.selected.filter((item) => item.status === "edited").map((item) => item.id);
 }
+// === ANCHOR: REPORTASSIST_EDITEDREPORTASSISTSUGGESTIONIDS_END ===
 
+// === ANCHOR: REPORTASSIST_SELECTEDREPORTASSISTSUGGESTIONS_START ===
 export function selectedReportAssistSuggestions(
   payload: ReportAssistPayload,
   state: ReportAssistSuggestionState,
@@ -275,3 +319,5 @@ export function selectedReportAssistSuggestions(
     (item) => !state.rejectedIds.includes(item.id) && hasSuggestion(payload.suggestions, item.id),
   );
 }
+// === ANCHOR: REPORTASSIST_SELECTEDREPORTASSISTSUGGESTIONS_END ===
+// === ANCHOR: REPORTASSIST_END ===

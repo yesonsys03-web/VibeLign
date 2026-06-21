@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTVIEWCOMPOSERPANEL_START ===
 import type { ReactNode } from "react";
 
 import { ReportComposer } from "../components/plan-doc/ReportComposer";
@@ -11,6 +12,7 @@ type ReportViewComposerPanelProps = {
   readonly onReviewRequest: ReportComposerReviewRequest;
 };
 
+// === ANCHOR: REPORTVIEWCOMPOSERPANEL_REPORTVIEWCOMPOSERPANEL_START ===
 export function ReportViewComposerPanel({
   reportFor,
   projectDir,
@@ -40,3 +42,5 @@ export function ReportViewComposerPanel({
     </div>
   );
 }
+// === ANCHOR: REPORTVIEWCOMPOSERPANEL_REPORTVIEWCOMPOSERPANEL_END ===
+// === ANCHOR: REPORTVIEWCOMPOSERPANEL_END ===

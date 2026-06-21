@@ -1,3 +1,4 @@
+// === ANCHOR: REPORT_RENDER_PAYLOAD_START ===
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -56,3 +57,4 @@ pub(crate) fn remove_report_render_payload(root: String, path: String) -> Result
         Err(error) => Err(format!("render payload 삭제 실패: {error}")),
     }
 }
+// === ANCHOR: REPORT_RENDER_PAYLOAD_END ===

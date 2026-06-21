@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTVIEWREVIEWPANEL_START ===
 import type { ReactNode } from "react";
 
 import { ReportDiffReview } from "../components/report-review/ReportDiffReview";
@@ -9,6 +10,7 @@ type ReportViewReviewPanelProps = {
   readonly onCancel: () => void;
 };
 
+// === ANCHOR: REPORTVIEWREVIEWPANEL_REPORTVIEWREVIEWPANEL_START ===
 export function ReportViewReviewPanel({ payload, onConfirm, onCancel }: ReportViewReviewPanelProps): ReactNode {
   return (
     <div style={{ height: "100%", overflow: "auto", padding: "16px 20px" }}>
@@ -20,3 +22,5 @@ export function ReportViewReviewPanel({ payload, onConfirm, onCancel }: ReportVi
     </div>
   );
 }
+// === ANCHOR: REPORTVIEWREVIEWPANEL_REPORTVIEWREVIEWPANEL_END ===
+// === ANCHOR: REPORTVIEWREVIEWPANEL_END ===

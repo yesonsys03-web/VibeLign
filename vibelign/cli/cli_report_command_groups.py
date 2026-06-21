@@ -84,6 +84,12 @@ def register_report_command_group(
     _ = r.add_argument("--emit-model", action="store_true", help="다듬기 전/후 구조화 모델을 JSON 으로 출력(파일 미저장)")
     _ = r.add_argument("--assist-missing", action="store_true", help="부족한 보고서 항목 보완 후보를 JSON 으로 출력(파일 미저장)")
     _ = r.add_argument("--visual-cards", action="store_true", help="보고서용 카드뉴스 companion JSON 을 함께 출력")
+    _ = r.add_argument(
+        "--visual-card-cli",
+        default="local",
+        choices=["local", "codex", "opencode", "agy", "claude"],
+        help="카드뉴스 초안 작성 provider (기본 local=규칙 기반)",
+    )
     _ = r.add_argument("--reject-blocks", default=None, help="원본 유지할 블록 인덱스 JSON: [[section,block],...]")
     _ = r.add_argument("--polish-key", default=None, help="emit 응답의 key — render 가 그 캐시 항목만 로드(재현성)")
     _ = r.add_argument("--theme", default="classic", metavar="THEME", help="디자인 테마 (기본 classic)")

@@ -9,19 +9,27 @@ import {
   type ReportVisualCard,
   type ReportCardNewsExportResult,
   type ReportVisualCardsPayload,
+  type ReportVisualCardsProviderId,
 } from "../../lib/vib/reportVisualCards";
 import { ReportVisualCardsPanel } from "./ReportVisualCardsPanel";
+import { normalizeReportAssistProviderId, type ReportAssistProviderOption } from "./reportAssistProviders";
 
 type ReportVisualCardsCompanionProps = {
   readonly cwd: string;
   readonly planPath: string;
   readonly reportType: ReportType;
+  readonly provider: ReportVisualCardsProviderId;
+  readonly providerOptions: readonly ReportAssistProviderOption[];
+  readonly onProviderChange: (provider: ReportVisualCardsProviderId) => void;
 };
 
 export function ReportVisualCardsCompanion({
   cwd,
   planPath,
   reportType,
+  provider,
+  providerOptions,
+  onProviderChange,
 }: ReportVisualCardsCompanionProps): ReactNode {
   const [payload, setPayload] = useState<ReportVisualCardsPayload | null>(null);
   const [approvedCards, setApprovedCards] = useState<readonly ReportVisualCard[]>([]);
@@ -42,7 +50,7 @@ export function ReportVisualCardsCompanion({
   const requestCards = async (): Promise<void> => {
     setLoading(true);
     setError(null);
-    const result = await requestReportVisualCards(cwd, planPath, reportType);
+    const result = await requestReportVisualCards(cwd, planPath, reportType, provider);
     setLoading(false);
     if (!result.ok) {
       setPayload(null);
@@ -111,9 +119,22 @@ export function ReportVisualCardsCompanion({
           <div style={eyebrow}>companion</div>
           <h3 style={title}>카드뉴스 출력</h3>
         </div>
-        <button type="button" onClick={() => void requestCards()} disabled={loading} style={button}>
-          {loading ? "요청 중..." : "카드뉴스 초안 만들기"}
-        </button>
+        <div style={requestControls}>
+          <select
+            aria-label="카드뉴스 초안 모델"
+            value={provider}
+            onChange={(event) => onProviderChange(normalizeReportAssistProviderId(event.target.value))}
+            disabled={loading}
+            style={select}
+          >
+            {providerOptions.map((option) => (
+              <option key={option.id} value={option.id}>{option.label}</option>
+            ))}
+          </select>
+          <button type="button" onClick={() => void requestCards()} disabled={loading} style={requestButton}>
+            {loading ? "요청 중..." : "카드뉴스 초안 만들기"}
+          </button>
+        </div>
       </div>
       <p style={copy}>보고서 메시지를 3-6장 카드로 나누고, 한국어 문구는 편집 가능한 오버레이로 유지합니다.</p>
       {error !== null && <p role="alert" style={errorText}>{error}</p>}
@@ -139,6 +160,7 @@ export function ReportVisualCardsCompanion({
         <>
           <p style={countText}>승인된 카드 {approvedCards.length}개</p>
           <ReportVisualCardsPanel
+            cwd={cwd}
             payload={payload}
             onExportChange={setApprovedCards}
             onFinalize={(cards) => void finalizeCards(cards)}
@@ -166,6 +188,7 @@ function isProjectCardNewsPromptDir(cwd: string, path: string): boolean {
 
 const shell: CSSProperties = {
   minWidth: 0,
+  width: "100%",
   maxWidth: "100%",
   boxSizing: "border-box",
   border: "2px solid #1A1A1A",
@@ -177,7 +200,10 @@ const header: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "
 const eyebrow: CSSProperties = { fontSize: 11, fontWeight: 800, color: "#999999" };
 const title: CSSProperties = { margin: 0, fontSize: 16, lineHeight: 1.2 };
 const copy: CSSProperties = { margin: "8px 0 0", fontSize: 12, lineHeight: 1.5 };
-const button: CSSProperties = { border: "2px solid #1A1A1A", background: "#F5621E", color: "#1A1A1A", padding: "6px 9px", fontWeight: 800, cursor: "pointer", boxShadow: "2px 2px 0 #1A1A1A" };
+const requestControls: CSSProperties = { display: "grid", gridTemplateColumns: "1fr", flex: "1 1 100%", width: "100%", minWidth: 0, gap: 8 };
+const select: CSSProperties = { width: "100%", minWidth: 0, boxSizing: "border-box", border: "2px solid #1A1A1A", background: "#FFFFFF", color: "#1A1A1A", padding: "6px 8px", fontSize: 12, fontWeight: 800 };
+const button: CSSProperties = { maxWidth: "100%", boxSizing: "border-box", border: "2px solid #1A1A1A", background: "#F5621E", color: "#1A1A1A", padding: "6px 9px", fontWeight: 800, cursor: "pointer", boxShadow: "2px 2px 0 #1A1A1A" };
+const requestButton: CSSProperties = { ...button, width: "100%" };
 const secondaryButton: CSSProperties = { border: "2px solid #1A1A1A", background: "#FFFFFF", color: "#1A1A1A", padding: "6px 9px", fontWeight: 800, cursor: "pointer", boxShadow: "2px 2px 0 #1A1A1A" };
 const errorText: CSSProperties = { margin: "8px 0 0", color: "#9B1B1B", fontSize: 12 };
 const countText: CSSProperties = { margin: "8px 0", fontSize: 12, fontWeight: 800 };

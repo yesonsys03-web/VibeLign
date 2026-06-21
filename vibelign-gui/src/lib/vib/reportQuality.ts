@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTQUALITY_START ===
 export const REPORT_QUALITY_STATUSES = ["ok", "warn", "block"] as const;
 export type ReportQualityStatus = (typeof REPORT_QUALITY_STATUSES)[number];
 
@@ -63,33 +64,46 @@ const CATEGORY_LABELS: Readonly<Record<ReportQualityCategory, string>> = {
   empty_content: "빈 보고서",
 };
 
+// === ANCHOR: REPORTQUALITY_ASSERTNEVER_START ===
 function assertNever(value: never): never {
   throw new Error(`Unhandled report quality variant: ${String(value)}`);
 }
+// === ANCHOR: REPORTQUALITY_ASSERTNEVER_END ===
 
+// === ANCHOR: REPORTQUALITY_ISRECORD_START ===
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+// === ANCHOR: REPORTQUALITY_ISRECORD_END ===
 
+// === ANCHOR: REPORTQUALITY_STRINGVALUE_START ===
 function stringValue(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value : null;
 }
+// === ANCHOR: REPORTQUALITY_STRINGVALUE_END ===
 
+// === ANCHOR: REPORTQUALITY_NUMBERVALUE_START ===
 function numberValue(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
+// === ANCHOR: REPORTQUALITY_NUMBERVALUE_END ===
 
+// === ANCHOR: REPORTQUALITY_OPTIONALINDEX_START ===
 function optionalIndex(value: unknown): number | undefined {
   const parsed = numberValue(value);
   return parsed === null || !Number.isInteger(parsed) || parsed < 0 ? undefined : parsed;
 }
+// === ANCHOR: REPORTQUALITY_OPTIONALINDEX_END ===
 
+// === ANCHOR: REPORTQUALITY_NORMALIZESCORE_START ===
 function normalizeScore(value: unknown): number {
   const parsed = numberValue(value);
   if (parsed === null) return 0;
   return Math.min(100, Math.max(0, Math.round(parsed)));
 }
+// === ANCHOR: REPORTQUALITY_NORMALIZESCORE_END ===
 
+// === ANCHOR: REPORTQUALITY_NORMALIZESTATUS_START ===
 function normalizeStatus(value: unknown): ReportQualityStatus {
   switch (value) {
     case "ok":
@@ -100,7 +114,9 @@ function normalizeStatus(value: unknown): ReportQualityStatus {
       return "warn";
   }
 }
+// === ANCHOR: REPORTQUALITY_NORMALIZESTATUS_END ===
 
+// === ANCHOR: REPORTQUALITY_NORMALIZEREADINESS_START ===
 function normalizeReadiness(value: unknown): ReportQualityReadiness {
   switch (value) {
     case "ready":
@@ -111,7 +127,9 @@ function normalizeReadiness(value: unknown): ReportQualityReadiness {
       return "needs_review";
   }
 }
+// === ANCHOR: REPORTQUALITY_NORMALIZEREADINESS_END ===
 
+// === ANCHOR: REPORTQUALITY_NORMALIZESEVERITY_START ===
 function normalizeSeverity(value: unknown): ReportQualitySeverity {
   switch (value) {
     case "info":
@@ -122,7 +140,9 @@ function normalizeSeverity(value: unknown): ReportQualitySeverity {
       return "warn";
   }
 }
+// === ANCHOR: REPORTQUALITY_NORMALIZESEVERITY_END ===
 
+// === ANCHOR: REPORTQUALITY_NORMALIZESOURCE_START ===
 function normalizeSource(value: unknown): ReportQualitySource {
   switch (value) {
     case "planning_data":
@@ -135,7 +155,9 @@ function normalizeSource(value: unknown): ReportQualitySource {
       return "unknown";
   }
 }
+// === ANCHOR: REPORTQUALITY_NORMALIZESOURCE_END ===
 
+// === ANCHOR: REPORTQUALITY_CATEGORYLABEL_START ===
 export function categoryLabel(code: string): string {
   switch (code) {
     case "missing_audience":
@@ -162,7 +184,9 @@ export function categoryLabel(code: string): string {
       return "기타 점검";
   }
 }
+// === ANCHOR: REPORTQUALITY_CATEGORYLABEL_END ===
 
+// === ANCHOR: REPORTQUALITY_QUALITYSEVERITYRANK_START ===
 export function qualitySeverityRank(severity: ReportQualitySeverity): number {
   switch (severity) {
     case "block":
@@ -175,11 +199,15 @@ export function qualitySeverityRank(severity: ReportQualitySeverity): number {
       return assertNever(severity);
   }
 }
+// === ANCHOR: REPORTQUALITY_QUALITYSEVERITYRANK_END ===
 
+// === ANCHOR: REPORTQUALITY_SORTQUALITYFINDINGSBYSEVERITY_START ===
 export function sortQualityFindingsBySeverity(findings: readonly ReportQualityFinding[]): readonly ReportQualityFinding[] {
   return [...findings].sort((left, right) => qualitySeverityRank(right.severity) - qualitySeverityRank(left.severity));
 }
+// === ANCHOR: REPORTQUALITY_SORTQUALITYFINDINGSBYSEVERITY_END ===
 
+// === ANCHOR: REPORTQUALITY_PARSEFINDING_START ===
 function parseFinding(value: unknown): ReportQualityFinding {
   if (!isRecord(value)) {
     return {
@@ -216,12 +244,16 @@ function parseFinding(value: unknown): ReportQualityFinding {
     ...(suggestion === null ? {} : { suggestion }),
   };
 }
+// === ANCHOR: REPORTQUALITY_PARSEFINDING_END ===
 
+// === ANCHOR: REPORTQUALITY_PARSEFINDINGS_START ===
 function parseFindings(value: unknown): readonly ReportQualityFinding[] {
   if (!Array.isArray(value)) return [parseFinding(null)];
   return value.map(parseFinding);
 }
+// === ANCHOR: REPORTQUALITY_PARSEFINDINGS_END ===
 
+// === ANCHOR: REPORTQUALITY_PARSEREPORTQUALITYPAYLOAD_START ===
 export function parseReportQualityPayload(value: unknown): ReportQualityPayload {
   if (!isRecord(value)) {
     return {
@@ -247,3 +279,5 @@ export function parseReportQualityPayload(value: unknown): ReportQualityPayload 
     findings: parseFindings(value.findings),
   };
 }
+// === ANCHOR: REPORTQUALITY_PARSEREPORTQUALITYPAYLOAD_END ===
+// === ANCHOR: REPORTQUALITY_END ===

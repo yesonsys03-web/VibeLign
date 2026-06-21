@@ -1,3 +1,4 @@
+# === ANCHOR: __INIT___START ===
 from vibelign.core.reporting_cli.docx_renderer import ReportRendererUnavailable, render_docx
 from vibelign.core.reporting_cli.html_renderer import render_html
 from vibelign.core.reporting_cli.models import (
@@ -16,10 +17,12 @@ from vibelign.core.reporting_cli.templates import (
 )
 
 
+# === ANCHOR: __INIT___POLISH_REPORT_MODEL_START ===
 def polish_report_model(model: ReportModel, *, provider: str = "auto", root=None) -> ReportModel:
     from vibelign.core.reporting_cli.polish import polish_report_model as _polish_report_model
 
     return _polish_report_model(model, provider=provider, root=root)
+# === ANCHOR: __INIT___POLISH_REPORT_MODEL_END ===
 
 __all__ = [
     "Block",
@@ -39,3 +42,4 @@ __all__ = [
     "write_report",
     "write_report_bytes",
 ]
+# === ANCHOR: __INIT___END ===

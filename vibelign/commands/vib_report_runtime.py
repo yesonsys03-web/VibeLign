@@ -17,7 +17,9 @@ from vibelign.core.reporting_cli import (
 )
 from vibelign.core.reporting_cli.polish_cache import load_polish_cache, polish_cache_key, save_polish_cache
 from vibelign.core.reporting_cli.render_job import render_and_write
+from vibelign.core.reporting_cli.report_card_news_asset_generator import CardNewsAssetError, materialize_card_news_assets
 from vibelign.core.reporting_cli.report_visual_cards import VisualCardsDict, build_report_visual_cards
+from vibelign.core.reporting_cli.report_visual_cards_cli import CliVisualCardsProvider, VisualCardsCliError
 from vibelign.core.reporting_cli.storage import _report_slug
 
 if TYPE_CHECKING:
@@ -189,7 +191,10 @@ def _print_render_response(raw: ReportArgs, ctx: ReportCommandContext, model: Re
             "report_type": model.report_type,
         }
         if getattr(raw, "visual_cards", False):
-            payload["visual_cards"] = build_report_visual_cards(model, source_text=ctx.text)
+            try:
+                payload["visual_cards"] = _visual_cards(raw, ctx, model)
+            except (CardNewsAssetError, VisualCardsCliError) as exc:
+                _fail(ctx.want_json, str(exc))
         print(json.dumps(payload, ensure_ascii=False))
         return
     _print_saved_report(False, dest, model.report_type)
@@ -203,6 +208,18 @@ def _print_saved_report(want_json: bool, dest: Path, report_type: str) -> None:
 
     clack_intro("VibeLign 보고서")
     clack_success(f"보고서 저장: {dest}")
+
+
+def _visual_cards(raw: ReportArgs, ctx: ReportCommandContext, model: ReportModel) -> VisualCardsDict:
+    provider_name = getattr(raw, "visual_card_cli", "local") or "local"
+    base = build_report_visual_cards(model, source_text=ctx.text)
+    if provider_name in {"", "local"}:
+        return base
+    provider = CliVisualCardsProvider(provider_name, root=ctx.root)
+    draft = provider.draft(base, ctx.text)
+    slug = _report_slug(ctx.slug_source)
+    cards = materialize_card_news_assets(ctx.root, slug, draft["cards"])
+    return {**draft, "cards": cards, "assets": [card["image"] for card in cards]}
 # === ANCHOR: VIB_REPORT_RUNTIME_RENDER_END ===
 
 

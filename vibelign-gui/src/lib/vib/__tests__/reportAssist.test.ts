@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTASSIST_TEST_START ===
 import { describe, expect, test } from "vitest";
 
 import {
@@ -203,3 +204,4 @@ describe("report assist parser", () => {
     expect(reportAssistSuggestionKindLabel("source_candidate")).toBe("원문 근거 후보");
   });
 });
+// === ANCHOR: REPORTASSIST_TEST_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTQUALITYSCOREPREVIEW_START ===
 import type { CSSProperties } from "react";
 
 import type { ReportQualityStatus } from "../../lib/vib/reportQuality";
@@ -8,6 +9,7 @@ export type ReportQualityScorePreviewProps = {
   readonly preview: ReportQualityScorePreview;
 };
 
+// === ANCHOR: REPORTQUALITYSCOREPREVIEW_STATUSTEXT_START ===
 function statusText(status: ReportQualityStatus): string {
   switch (status) {
     case "ok":
@@ -20,7 +22,9 @@ function statusText(status: ReportQualityStatus): string {
       return status satisfies never;
   }
 }
+// === ANCHOR: REPORTQUALITYSCOREPREVIEW_STATUSTEXT_END ===
 
+// === ANCHOR: REPORTQUALITYSCOREPREVIEW_REPORTQUALITYSCOREPREVIEWVIEW_START ===
 export function ReportQualityScorePreviewView({ currentScore, preview }: ReportQualityScorePreviewProps) {
   const changed = preview.score !== currentScore || preview.addressedCount > 0;
   return (
@@ -40,9 +44,11 @@ export function ReportQualityScorePreviewView({ currentScore, preview }: ReportQ
     </section>
   );
 }
+// === ANCHOR: REPORTQUALITYSCOREPREVIEW_REPORTQUALITYSCOREPREVIEWVIEW_END ===
 
 const box: CSSProperties = { border: "2px solid var(--black)", background: "var(--bg)", padding: 10, display: "grid", gap: 6 };
 const label: CSSProperties = { fontSize: 11, fontWeight: 900, color: "var(--gray-dark)" };
 const scoreLine: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, fontSize: 18, lineHeight: 1.2 };
 const statusBadge: CSSProperties = { border: "1px solid var(--black)", background: "var(--white)", padding: "2px 6px", fontSize: 11, fontWeight: 900 };
 const copy: CSSProperties = { margin: 0, fontSize: 12, lineHeight: 1.5 };
+// === ANCHOR: REPORTQUALITYSCOREPREVIEW_END ===

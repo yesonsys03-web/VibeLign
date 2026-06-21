@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTFONTS_TEST_START ===
 import { describe, expect, it } from "vitest";
 import { REPORT_FONT_OPTIONS, reportFontArgs } from "../reportFonts";
 
@@ -16,3 +17,4 @@ describe("reportFonts", () => {
     ]);
   });
 });
+// === ANCHOR: REPORTFONTS_TEST_END ===

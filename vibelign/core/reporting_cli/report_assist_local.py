@@ -1,3 +1,4 @@
+# === ANCHOR: REPORT_ASSIST_LOCAL_START ===
 from __future__ import annotations
 
 from typing import Final, Literal, TypedDict
@@ -8,13 +9,16 @@ from vibelign.core.reporting_cli.source_chunks import SourceChunkDict
 AssistKind = Literal["draft_text", "source_candidate", "user_question", "risk_candidate", "next_action_candidate"]
 
 
+# === ANCHOR: REPORT_ASSIST_LOCAL_ASSISTSOURCEREF_START ===
 class AssistSourceRef(TypedDict):
     chunk_id: str
     heading_path: list[str]
     start_line: int
     end_line: int
+# === ANCHOR: REPORT_ASSIST_LOCAL_ASSISTSOURCEREF_END ===
 
 
+# === ANCHOR: REPORT_ASSIST_LOCAL_ASSISTSUGGESTION_START ===
 class AssistSuggestion(TypedDict):
     id: str
     finding_code: str
@@ -24,6 +28,7 @@ class AssistSuggestion(TypedDict):
     rationale: str
     source_refs: list[AssistSourceRef]
     requires_user_confirmation: bool
+# === ANCHOR: REPORT_ASSIST_LOCAL_ASSISTSUGGESTION_END ===
 
 
 _WANTED_WORDS: Final[dict[str, tuple[str, ...]]] = {
@@ -37,6 +42,7 @@ _WANTED_WORDS: Final[dict[str, tuple[str, ...]]] = {
 _DEFAULT_WORDS: Final[tuple[str, ...]] = ("근거", "다음 액션", "리스크")
 
 
+# === ANCHOR: REPORT_ASSIST_LOCAL_LOCAL_SUGGESTIONS_START ===
 def local_suggestions(finding: ReportQualityFinding, chunks: list[SourceChunkDict]) -> list[AssistSuggestion]:
     line = _source_line(finding, chunks)
     if line is not None:
@@ -54,8 +60,10 @@ def local_suggestions(finding: ReportQualityFinding, chunks: list[SourceChunkDic
             }
         ]
     return [*_draft_suggestions(finding), question_for(finding)]
+# === ANCHOR: REPORT_ASSIST_LOCAL_LOCAL_SUGGESTIONS_END ===
 
 
+# === ANCHOR: REPORT_ASSIST_LOCAL_QUESTION_FOR_START ===
 def question_for(finding: ReportQualityFinding) -> AssistSuggestion:
     return {
         "id": f"{finding.code}-question",
@@ -67,8 +75,10 @@ def question_for(finding: ReportQualityFinding) -> AssistSuggestion:
         "source_refs": [],
         "requires_user_confirmation": True,
     }
+# === ANCHOR: REPORT_ASSIST_LOCAL_QUESTION_FOR_END ===
 
 
+# === ANCHOR: REPORT_ASSIST_LOCAL__DRAFT_SUGGESTIONS_START ===
 def _draft_suggestions(finding: ReportQualityFinding) -> list[AssistSuggestion]:
     texts = _fallback_texts(finding.code)
     kind = _kind_for(finding.code) if finding.code in {"missing_risk", "missing_next_action"} else "draft_text"
@@ -85,8 +95,10 @@ def _draft_suggestions(finding: ReportQualityFinding) -> list[AssistSuggestion]:
         }
         for index, text in enumerate(texts, start=1)
     ]
+# === ANCHOR: REPORT_ASSIST_LOCAL__DRAFT_SUGGESTIONS_END ===
 
 
+# === ANCHOR: REPORT_ASSIST_LOCAL__FALLBACK_TEXTS_START ===
 def _fallback_texts(code: str) -> tuple[str, ...]:
     match code:
         case "missing_audience":
@@ -107,8 +119,10 @@ def _fallback_texts(code: str) -> tuple[str, ...]:
             )
         case _:
             return ()
+# === ANCHOR: REPORT_ASSIST_LOCAL__FALLBACK_TEXTS_END ===
 
 
+# === ANCHOR: REPORT_ASSIST_LOCAL__SOURCE_LINE_START ===
 def _source_line(finding: ReportQualityFinding, chunks: list[SourceChunkDict]) -> tuple[str, AssistSourceRef] | None:
     wanted = _WANTED_WORDS.get(finding.code, _DEFAULT_WORDS)
     for chunk in chunks:
@@ -119,8 +133,10 @@ def _source_line(finding: ReportQualityFinding, chunks: list[SourceChunkDict]) -
                 line_number = chunk["start_line"] + offset
                 return line.strip().lstrip("-* ").strip(), _ref(chunk, line_number)
     return None
+# === ANCHOR: REPORT_ASSIST_LOCAL__SOURCE_LINE_END ===
 
 
+# === ANCHOR: REPORT_ASSIST_LOCAL__REF_START ===
 def _ref(chunk: SourceChunkDict, line_number: int) -> AssistSourceRef:
     return {
         "chunk_id": chunk["chunk_id"],
@@ -128,15 +144,19 @@ def _ref(chunk: SourceChunkDict, line_number: int) -> AssistSourceRef:
         "start_line": line_number,
         "end_line": line_number,
     }
+# === ANCHOR: REPORT_ASSIST_LOCAL__REF_END ===
 
 
+# === ANCHOR: REPORT_ASSIST_LOCAL__KIND_FOR_START ===
 def _kind_for(code: str) -> AssistKind:
     return {
         "missing_risk": "risk_candidate",
         "missing_next_action": "next_action_candidate",
     }.get(code, "source_candidate")
+# === ANCHOR: REPORT_ASSIST_LOCAL__KIND_FOR_END ===
 
 
+# === ANCHOR: REPORT_ASSIST_LOCAL__TITLE_FOR_START ===
 def _title_for(code: str) -> str:
     return {
         "missing_audience": "대상 독자 확인",
@@ -146,3 +166,5 @@ def _title_for(code: str) -> str:
         "missing_risk": "리스크 보완",
         "missing_next_action": "다음 액션 보완",
     }.get(code, "보고서 보완")
+# === ANCHOR: REPORT_ASSIST_LOCAL__TITLE_FOR_END ===
+# === ANCHOR: REPORT_ASSIST_LOCAL_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTEMIT_START ===
 import { runVib } from "./core";
 import type { PlanningProviderId } from "./planning-personas";
 import { parseReportAssistPayload, type ReportAssistPayload } from "./reportAssist";
@@ -26,28 +27,39 @@ export type ReportAssistanceResult = { ok: true; payload: ReportAssistancePayloa
 
 const EMPTY_RECORD: Readonly<Record<string, unknown>> = {};
 
+// === ANCHOR: REPORTEMIT_ISRECORD_START ===
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+// === ANCHOR: REPORTEMIT_ISRECORD_END ===
 
+// === ANCHOR: REPORTEMIT_STRINGVALUE_START ===
 function stringValue(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
+// === ANCHOR: REPORTEMIT_STRINGVALUE_END ===
 
+// === ANCHOR: REPORTEMIT_NUMBERVALUE_START ===
 function numberValue(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
+// === ANCHOR: REPORTEMIT_NUMBERVALUE_END ===
 
+// === ANCHOR: REPORTEMIT_STRINGARRAY_START ===
 function stringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === "string");
 }
+// === ANCHOR: REPORTEMIT_STRINGARRAY_END ===
 
+// === ANCHOR: REPORTEMIT_RECORDARRAY_START ===
 function recordArray(value: unknown): readonly Readonly<Record<string, unknown>>[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord);
 }
+// === ANCHOR: REPORTEMIT_RECORDARRAY_END ===
 
+// === ANCHOR: REPORTEMIT_PARSEBLOCKKIND_START ===
 function parseBlockKind(value: unknown): RModelBlock["kind"] {
   switch (value) {
     case "paragraph":
@@ -58,7 +70,9 @@ function parseBlockKind(value: unknown): RModelBlock["kind"] {
       return "paragraph";
   }
 }
+// === ANCHOR: REPORTEMIT_PARSEBLOCKKIND_END ===
 
+// === ANCHOR: REPORTEMIT_PARSERMODELBLOCK_START ===
 function parseRModelBlock(value: unknown): RModelBlock {
   const record = isRecord(value) ? value : EMPTY_RECORD;
   return {
@@ -67,7 +81,9 @@ function parseRModelBlock(value: unknown): RModelBlock {
     items: stringArray(record.items),
   };
 }
+// === ANCHOR: REPORTEMIT_PARSERMODELBLOCK_END ===
 
+// === ANCHOR: REPORTEMIT_PARSERMODELSECTION_START ===
 function parseRModelSection(value: unknown): RModelSection {
   const record = isRecord(value) ? value : EMPTY_RECORD;
   return {
@@ -75,7 +91,9 @@ function parseRModelSection(value: unknown): RModelSection {
     blocks: Array.isArray(record.blocks) ? record.blocks.map(parseRModelBlock) : [],
   };
 }
+// === ANCHOR: REPORTEMIT_PARSERMODELSECTION_END ===
 
+// === ANCHOR: REPORTEMIT_PARSERMODEL_START ===
 function parseRModel(value: unknown): RModel {
   const record = isRecord(value) ? value : EMPTY_RECORD;
   return {
@@ -86,7 +104,9 @@ function parseRModel(value: unknown): RModel {
     sections: Array.isArray(record.sections) ? record.sections.map(parseRModelSection) : [],
   };
 }
+// === ANCHOR: REPORTEMIT_PARSERMODEL_END ===
 
+// === ANCHOR: REPORTEMIT_PARSEGUARDRECORD_START ===
 function parseGuardRecord(value: unknown): GuardRecord {
   const record = isRecord(value) ? value : EMPTY_RECORD;
   return {
@@ -96,7 +116,9 @@ function parseGuardRecord(value: unknown): GuardRecord {
     missing: stringArray(record.missing),
   };
 }
+// === ANCHOR: REPORTEMIT_PARSEGUARDRECORD_END ===
 
+// === ANCHOR: REPORTEMIT_PARSEVAGUEWARNING_START ===
 function parseVagueWarning(value: unknown): VagueWarning {
   const record = isRecord(value) ? value : EMPTY_RECORD;
   return {
@@ -106,7 +128,9 @@ function parseVagueWarning(value: unknown): VagueWarning {
     offset: numberValue(record.offset),
   };
 }
+// === ANCHOR: REPORTEMIT_PARSEVAGUEWARNING_END ===
 
+// === ANCHOR: REPORTEMIT_PARSEEMITPAYLOAD_START ===
 function parseEmitPayload(value: unknown): EmitPayload | null {
   if (!isRecord(value) || value.ok !== true) return null;
   return {
@@ -122,7 +146,9 @@ function parseEmitPayload(value: unknown): EmitPayload | null {
     assistance: parseReportAssistPayload(value.assistance),
   };
 }
+// === ANCHOR: REPORTEMIT_PARSEEMITPAYLOAD_END ===
 
+// === ANCHOR: REPORTEMIT_PARSEREPORTASSISTANCERESPONSE_START ===
 function parseReportAssistanceResponse(value: unknown): ReportAssistancePayload | null {
   if (!isRecord(value) || value.ok !== true) return null;
   return {
@@ -132,7 +158,9 @@ function parseReportAssistanceResponse(value: unknown): ReportAssistancePayload 
     assistance: parseReportAssistPayload(value.assistance),
   };
 }
+// === ANCHOR: REPORTEMIT_PARSEREPORTASSISTANCERESPONSE_END ===
 
+// === ANCHOR: REPORTEMIT_EMITREPORTMODEL_START ===
 export async function emitReportModel(
   cwd: string,
   planPath: string,
@@ -157,7 +185,9 @@ export async function emitReportModel(
     return { ok: false, error: res.stderr.trim() || "모델 생성 실패" };
   }
 }
+// === ANCHOR: REPORTEMIT_EMITREPORTMODEL_END ===
 
+// === ANCHOR: REPORTEMIT_REQUESTREPORTASSISTANCE_START ===
 export async function requestReportAssistance(request: ReportAssistanceRequest): Promise<ReportAssistanceResult> {
   const res = await runVib(
     [
@@ -185,3 +215,5 @@ export async function requestReportAssistance(request: ReportAssistanceRequest):
     return { ok: false, error: res.stderr.trim() || "보완 제안 생성 실패" };
   }
 }
+// === ANCHOR: REPORTEMIT_REQUESTREPORTASSISTANCE_END ===
+// === ANCHOR: REPORTEMIT_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTCOMPOSERLAYOUT_START ===
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 
 import { ReportComposerPreview } from "./ReportComposerPreview";
@@ -24,6 +25,7 @@ type ReportComposerLayoutProps = {
   readonly onClose: () => void;
 };
 
+// === ANCHOR: REPORTCOMPOSERLAYOUT_REPORTCOMPOSERLAYOUT_START ===
 export function ReportComposerLayout({
   cwd,
   inline,
@@ -51,6 +53,7 @@ export function ReportComposerLayout({
     );
   }
 
+  // === ANCHOR: REPORTCOMPOSERLAYOUT_WORKSPACE_START ===
   const workspace = (
     <div style={workspacePane}>
       {canShowTabs && (
@@ -84,6 +87,7 @@ export function ReportComposerLayout({
       </div>
     </div>
   );
+  // === ANCHOR: REPORTCOMPOSERLAYOUT_WORKSPACE_END ===
 
   if (inline) {
     return (
@@ -136,6 +140,7 @@ export function ReportComposerLayout({
     </div>
   );
 }
+// === ANCHOR: REPORTCOMPOSERLAYOUT_REPORTCOMPOSERLAYOUT_END ===
 
 const box: CSSProperties = {
   background: "#FEFBF0",
@@ -207,6 +212,7 @@ const qualityReviewPane: CSSProperties = {
   padding: "0 4px 4px 0",
 };
 
+// === ANCHOR: REPORTCOMPOSERLAYOUT_WORKSPACETABBUTTON_START ===
 function workspaceTabButton(active: boolean): CSSProperties {
   return {
     border: "2px solid #1A1A1A",
@@ -218,7 +224,9 @@ function workspaceTabButton(active: boolean): CSSProperties {
     boxShadow: active ? "2px 2px 0 #1A1A1A" : "none",
   };
 }
+// === ANCHOR: REPORTCOMPOSERLAYOUT_WORKSPACETABBUTTON_END ===
 
+// === ANCHOR: REPORTCOMPOSERLAYOUT_INLINESHELL_START ===
 function inlineShell(isNarrow: boolean): CSSProperties {
   return {
     display: "flex",
@@ -230,7 +238,9 @@ function inlineShell(isNarrow: boolean): CSSProperties {
     overflow: "hidden",
   };
 }
+// === ANCHOR: REPORTCOMPOSERLAYOUT_INLINESHELL_END ===
 
+// === ANCHOR: REPORTCOMPOSERLAYOUT_INLINEOPTIONSPANE_START ===
 function inlineOptionsPane(isNarrow: boolean): CSSProperties {
   return {
     width: isNarrow ? "auto" : 300,
@@ -242,7 +252,9 @@ function inlineOptionsPane(isNarrow: boolean): CSSProperties {
     borderBottom: isNarrow ? "1px solid #e5e0d0" : "none",
   };
 }
+// === ANCHOR: REPORTCOMPOSERLAYOUT_INLINEOPTIONSPANE_END ===
 
+// === ANCHOR: REPORTCOMPOSERLAYOUT_USENARROWINLINELAYOUT_START ===
 function useNarrowInlineLayout(ref: RefObject<HTMLDivElement | null>): boolean {
   const [isNarrow, setIsNarrow] = useState(false);
 
@@ -250,9 +262,11 @@ function useNarrowInlineLayout(ref: RefObject<HTMLDivElement | null>): boolean {
     const node = ref.current;
     if (node === null) return;
 
+    // === ANCHOR: REPORTCOMPOSERLAYOUT_UPDATE_START ===
     const update = () => {
       setIsNarrow(node.getBoundingClientRect().width < 760);
     };
+    // === ANCHOR: REPORTCOMPOSERLAYOUT_UPDATE_END ===
     update();
 
     if (typeof ResizeObserver === "undefined") {
@@ -267,3 +281,5 @@ function useNarrowInlineLayout(ref: RefObject<HTMLDivElement | null>): boolean {
 
   return isNarrow;
 }
+// === ANCHOR: REPORTCOMPOSERLAYOUT_USENARROWINLINELAYOUT_END ===
+// === ANCHOR: REPORTCOMPOSERLAYOUT_END ===

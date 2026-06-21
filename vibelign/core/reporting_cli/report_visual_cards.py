@@ -1,3 +1,4 @@
+# === ANCHOR: REPORT_VISUAL_CARDS_START ===
 from __future__ import annotations
 
 import re
@@ -33,20 +34,25 @@ VisualCardsStatus = Literal["ready", "empty"]
 CardSeedCategory = Literal["summary", "evidence", "decision", "risk", "next_action", "context"]
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS_VISUALCARDSOURCEREF_START ===
 class VisualCardSourceRef(TypedDict):
     source_plan_path: str
     section: int
     block: int
     heading: str
+# === ANCHOR: REPORT_VISUAL_CARDS_VISUALCARDSOURCEREF_END ===
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS_VISUALIMAGEMETADATA_START ===
 class VisualImageMetadata(TypedDict):
     provider: str
     asset_path: str
     prompt: str
     generated: bool
+# === ANCHOR: REPORT_VISUAL_CARDS_VISUALIMAGEMETADATA_END ===
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS_VISUALCARDDICT_START ===
 class VisualCardDict(TypedDict):
     id: str
     title: str
@@ -57,43 +63,56 @@ class VisualCardDict(TypedDict):
     source_refs: list[VisualCardSourceRef]
     image: VisualImageMetadata
     approved: bool
+# === ANCHOR: REPORT_VISUAL_CARDS_VISUALCARDDICT_END ===
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS_VISUALCARDSDICT_START ===
 class VisualCardsDict(TypedDict):
     schema_version: str
     status: VisualCardsStatus
     provider: str
     cards: list[VisualCardDict]
     assets: list[VisualImageMetadata]
+# === ANCHOR: REPORT_VISUAL_CARDS_VISUALCARDSDICT_END ===
 
 
 @dataclass(frozen=True)
+# === ANCHOR: REPORT_VISUAL_CARDS_VISUALIMAGEREQUEST_START ===
 class VisualImageRequest:
     card_id: str
     visual_prompt: str
     negative_prompt: str
+# === ANCHOR: REPORT_VISUAL_CARDS_VISUALIMAGEREQUEST_END ===
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS_VISUALIMAGEPROVIDER_START ===
 class VisualImageProvider(Protocol):
     provider_name: str
 
+    # === ANCHOR: REPORT_VISUAL_CARDS_GENERATE_START ===
     def generate(self, request: VisualImageRequest) -> VisualImageMetadata:
+# === ANCHOR: REPORT_VISUAL_CARDS_VISUALIMAGEPROVIDER_END ===
         ...
+    # === ANCHOR: REPORT_VISUAL_CARDS_GENERATE_END ===
 
 
 @dataclass(frozen=True)
+# === ANCHOR: REPORT_VISUAL_CARDS__CARDSEED_START ===
 class _CardSeed:
     section_index: int
     block_index: int
     heading: str
     text: str
     category: CardSeedCategory
+# === ANCHOR: REPORT_VISUAL_CARDS__CARDSEED_END ===
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS_BUILD_REPORT_VISUAL_CARDS_START ===
 def build_report_visual_cards(
     model: ReportModel,
     provider: VisualImageProvider | None = None,
     source_text: str | None = None,
+# === ANCHOR: REPORT_VISUAL_CARDS_BUILD_REPORT_VISUAL_CARDS_END ===
 ) -> VisualCardsDict:
     seeds = _card_seeds(model, source_text)
     provider_name = provider.provider_name if provider is not None else DRAFT_PROVIDER_NAME
@@ -126,6 +145,7 @@ def build_report_visual_cards(
     }
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS__DRAFT_IMAGE_START ===
 def _draft_image(request: VisualImageRequest) -> VisualImageMetadata:
     return {
         "provider": DRAFT_PROVIDER_NAME,
@@ -133,8 +153,10 @@ def _draft_image(request: VisualImageRequest) -> VisualImageMetadata:
         "prompt": request.visual_prompt,
         "generated": False,
     }
+# === ANCHOR: REPORT_VISUAL_CARDS__DRAFT_IMAGE_END ===
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS__CARD_SEEDS_START ===
 def _card_seeds(model: ReportModel, source_text: str | None) -> list[_CardSeed]:
     seeds: list[_CardSeed] = []
     for section_index, section in enumerate(model.sections):
@@ -142,8 +164,10 @@ def _card_seeds(model: ReportModel, source_text: str | None) -> list[_CardSeed]:
     if source_text:
         seeds.extend(_source_text_seeds(source_text))
     return seeds
+# === ANCHOR: REPORT_VISUAL_CARDS__CARD_SEEDS_END ===
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS__SECTION_SEEDS_START ===
 def _section_seeds(section_index: int, section: Section) -> list[_CardSeed]:
     seeds: list[_CardSeed] = []
     for block_index, block in enumerate(section.blocks):
@@ -158,23 +182,29 @@ def _section_seeds(section_index: int, section: Section) -> list[_CardSeed]:
                 )
             )
     return seeds
+# === ANCHOR: REPORT_VISUAL_CARDS__SECTION_SEEDS_END ===
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS__SOURCE_TEXT_SEEDS_START ===
 def _source_text_seeds(source_text: str) -> list[_CardSeed]:
     _, sections = parse_generic_markdown(source_text)
     seeds: list[_CardSeed] = []
     for section_index, section in enumerate(sections):
         seeds.extend(_section_seeds(_SOURCE_SECTION_OFFSET + section_index, section))
     return seeds
+# === ANCHOR: REPORT_VISUAL_CARDS__SOURCE_TEXT_SEEDS_END ===
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS__BLOCK_TEXTS_START ===
 def _block_texts(block: Block) -> list[str]:
     if block.items:
         return [item.strip() for item in block.items if item.strip()]
     text = block.text.strip()
     return [text] if text else []
+# === ANCHOR: REPORT_VISUAL_CARDS__BLOCK_TEXTS_END ===
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS__BOUNDED_SEEDS_START ===
 def _bounded_seeds(seeds: list[_CardSeed]) -> list[_CardSeed]:
     selected: list[_CardSeed] = []
     for category in _REQUIRED_CATEGORIES:
@@ -189,12 +219,15 @@ def _bounded_seeds(seeds: list[_CardSeed]) -> list[_CardSeed]:
     while len(selected) < _MIN_CARDS:
         selected.append(seeds[len(selected) % len(seeds)])
     return selected
+# === ANCHOR: REPORT_VISUAL_CARDS__BOUNDED_SEEDS_END ===
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS__FIRST_SEED_FOR_CATEGORY_START ===
 def _first_seed_for_category(
     seeds: list[_CardSeed],
     selected: list[_CardSeed],
     category: str,
+# === ANCHOR: REPORT_VISUAL_CARDS__FIRST_SEED_FOR_CATEGORY_END ===
 ) -> _CardSeed | None:
     for seed in seeds:
         if seed.category == category and seed not in selected:
@@ -202,6 +235,7 @@ def _first_seed_for_category(
     return None
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS__SEED_CATEGORY_START ===
 def _seed_category(heading: str, text: str) -> CardSeedCategory:
     heading_text = heading.strip()
     body_text = text.strip()
@@ -219,8 +253,10 @@ def _seed_category(heading: str, text: str) -> CardSeedCategory:
     if heading_text in {"제안 요약", "개요", "목표"}:
         return "summary"
     return "context"
+# === ANCHOR: REPORT_VISUAL_CARDS__SEED_CATEGORY_END ===
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS__CARD_SEED_CATEGORY_START ===
 def _card_seed_category(category: str) -> CardSeedCategory:
     if category == "risk":
         return "risk"
@@ -233,8 +269,10 @@ def _card_seed_category(category: str) -> CardSeedCategory:
     if category == "summary":
         return "summary"
     return "context"
+# === ANCHOR: REPORT_VISUAL_CARDS__CARD_SEED_CATEGORY_END ===
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS__CARD_START ===
 def _card(
     model: ReportModel,
     card_id: str,
@@ -242,6 +280,7 @@ def _card(
     visual_prompt: str,
     negative_prompt: str,
     image: VisualImageMetadata,
+# === ANCHOR: REPORT_VISUAL_CARDS__CARD_END ===
 ) -> VisualCardDict:
     return {
         "id": card_id,
@@ -263,14 +302,19 @@ def _card(
     }
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS__OVERLAY_TITLE_START ===
 def _overlay_title(heading: str) -> str:
     return heading.strip() or "핵심 카드"
+# === ANCHOR: REPORT_VISUAL_CARDS__OVERLAY_TITLE_END ===
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS__OVERLAY_BODY_START ===
 def _overlay_body(text: str) -> str:
     return text.strip()[:140]
+# === ANCHOR: REPORT_VISUAL_CARDS__OVERLAY_BODY_END ===
 
 
+# === ANCHOR: REPORT_VISUAL_CARDS__VISUAL_PROMPT_START ===
 def _visual_prompt(category: CardSeedCategory, index: int) -> str:
     scenes = {
         "summary": "operations team reviewing a clean workflow board",
@@ -285,3 +329,5 @@ def _visual_prompt(category: CardSeedCategory, index: int) -> str:
     if _HANGUL_RE.search(prompt):
         return f"2D business comic illustration, abstract report companion scene, {NO_TEXT_PROMPT}"
     return prompt
+# === ANCHOR: REPORT_VISUAL_CARDS__VISUAL_PROMPT_END ===
+# === ANCHOR: REPORT_VISUAL_CARDS_END ===

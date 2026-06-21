@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTQUALITYPANEL_TEST_START ===
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
@@ -127,6 +128,7 @@ const riskOnlyAssistance = parseReportAssistPayload({
   questions: [],
 });
 
+// === ANCHOR: REPORTQUALITYPANEL_TEST_RENDERPANEL_START ===
 function renderPanel(
   onProceed = vi.fn<(payload: ReportQualityPanelProceedPayload) => void>(),
   onRequestAssistance?: () => Promise<ReportAssistPayload>,
@@ -145,11 +147,14 @@ function renderPanel(
   );
   return { onCancel, onProceed };
 }
+// === ANCHOR: REPORTQUALITYPANEL_TEST_RENDERPANEL_END ===
 
+// === ANCHOR: REPORTQUALITYPANEL_TEST_ACTIVATEBUTTONWITHKEYBOARD_START ===
 function activateButtonWithKeyboard(button: HTMLElement, key: "Enter" | " ") {
   button.focus();
   fireEvent.keyDown(button, { key, code: key === " " ? "Space" : "Enter" });
 }
+// === ANCHOR: REPORTQUALITYPANEL_TEST_ACTIVATEBUTTONWITHKEYBOARD_END ===
 
 test("shows ok status and direct next action", () => {
   const onProceed = vi.fn<(payload: ReportQualityPanelProceedPayload) => void>();
@@ -353,3 +358,4 @@ test("renders long-source line refs without narrow overflow styles", () => {
   expect(screen.getByText("원문 근거 후보")).toBeInTheDocument();
   expect(screen.getByText("사용자 확인 필요")).toBeInTheDocument();
 });
+// === ANCHOR: REPORTQUALITYPANEL_TEST_END ===

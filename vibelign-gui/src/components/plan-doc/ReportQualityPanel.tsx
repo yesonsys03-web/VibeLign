@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTQUALITYPANEL_START ===
 import { useMemo, useState, type CSSProperties, type KeyboardEvent } from "react";
 
 import {
@@ -67,35 +68,50 @@ const nextActions = {
   block: "문서 그대로 양식으로 바꾸거나 원문 섹션을 보완하세요.",
 } satisfies Record<ReportQualityStatus, string>;
 
+// === ANCHOR: REPORTQUALITYPANEL_STATUSLABEL_START ===
 function statusLabel(status: ReportQualityStatus): string {
   return statusLabels[status];
 }
+// === ANCHOR: REPORTQUALITYPANEL_STATUSLABEL_END ===
 
+// === ANCHOR: REPORTQUALITYPANEL_READINESSLABEL_START ===
 function readinessLabel(readiness: ReportQualityPayload["readiness"]): string {
   return readinessLabels[readiness];
 }
+// === ANCHOR: REPORTQUALITYPANEL_READINESSLABEL_END ===
 
+// === ANCHOR: REPORTQUALITYPANEL_DEFAULTNEXTACTION_START ===
 function defaultNextAction(quality: ReportQualityPayload): string {
   return nextActions[quality.status];
 }
+// === ANCHOR: REPORTQUALITYPANEL_DEFAULTNEXTACTION_END ===
 
+// === ANCHOR: REPORTQUALITYPANEL_FINDINGGROUPS_START ===
 function findingGroups(findings: readonly ReportQualityFinding[]): readonly SeverityGroup[] {
   return severityGroups.filter((group) => findings.some((finding) => finding.severity === group.severity));
 }
+// === ANCHOR: REPORTQUALITYPANEL_FINDINGGROUPS_END ===
 
+// === ANCHOR: REPORTQUALITYPANEL_ALLASSISTANCEITEMS_START ===
 function allAssistanceItems(assistance: ReportAssistPayload): readonly ReportAssistSuggestion[] {
   const items = [...assistance.suggestions, ...assistance.questions];
   return items.filter((item, index) => items.findIndex((candidate) => candidate.id === item.id) === index);
 }
+// === ANCHOR: REPORTQUALITYPANEL_ALLASSISTANCEITEMS_END ===
 
+// === ANCHOR: REPORTQUALITYPANEL_SELECTEDSUGGESTIONS_START ===
 function selectedSuggestions(state: ReportAssistSuggestionState): readonly ReportAssistSelectedSuggestion[] {
   return state.selected.filter((item) => !state.rejectedIds.includes(item.id));
 }
+// === ANCHOR: REPORTQUALITYPANEL_SELECTEDSUGGESTIONS_END ===
 
+// === ANCHOR: REPORTQUALITYPANEL_HASSAVEDQUESTIONANSWER_START ===
 function hasSavedQuestionAnswer(savedAnswers: Readonly<Record<string, string>>, rejectedIds: readonly string[]): boolean {
   return Object.entries(savedAnswers).some(([suggestionId, answer]) => !rejectedIds.includes(suggestionId) && answer.trim() !== "");
 }
+// === ANCHOR: REPORTQUALITYPANEL_HASSAVEDQUESTIONANSWER_END ===
 
+// === ANCHOR: REPORTQUALITYPANEL_PROCEEDBUTTONLABEL_START ===
 function proceedButtonLabel(status: ReportQualityStatus, hasAppliedAssistance: boolean): string {
   switch (status) {
     case "block":
@@ -106,7 +122,9 @@ function proceedButtonLabel(status: ReportQualityStatus, hasAppliedAssistance: b
       return "생성 계속";
   }
 }
+// === ANCHOR: REPORTQUALITYPANEL_PROCEEDBUTTONLABEL_END ===
 
+// === ANCHOR: REPORTQUALITYPANEL_QUESTIONANSWERS_START ===
 function questionAnswers(
   items: readonly ReportAssistSuggestion[],
   savedAnswers: Readonly<Record<string, string>>,
@@ -118,13 +136,17 @@ function questionAnswers(
     return answer === undefined || answer === "" ? [] : [{ suggestionId: item.id, answer }];
   });
 }
+// === ANCHOR: REPORTQUALITYPANEL_QUESTIONANSWERS_END ===
 
+// === ANCHOR: REPORTQUALITYPANEL_ACTIVATEBUTTONFROMKEYBOARD_START ===
 function activateButtonFromKeyboard(event: KeyboardEvent<HTMLButtonElement>, action: () => void): void {
   if ((event.key !== "Enter" && event.key !== " ") || event.repeat) return;
   event.preventDefault();
   action();
 }
+// === ANCHOR: REPORTQUALITYPANEL_ACTIVATEBUTTONFROMKEYBOARD_END ===
 
+// === ANCHOR: REPORTQUALITYPANEL_ANSWERSTATUS_START ===
 function answerStatus(
   suggestionId: string,
   answerDrafts: Readonly<Record<string, string>>,
@@ -134,7 +156,9 @@ function answerStatus(
   if (savedAnswer === undefined) return "idle";
   return savedAnswer === (answerDrafts[suggestionId] ?? "") ? "saved" : "changed";
 }
+// === ANCHOR: REPORTQUALITYPANEL_ANSWERSTATUS_END ===
 
+// === ANCHOR: REPORTQUALITYPANEL_SELECTIONSTATUS_START ===
 function selectionStatus(
   suggestionId: string,
   state: ReportAssistSuggestionState,
@@ -142,7 +166,9 @@ function selectionStatus(
   if (state.selected.some((item) => item.id === suggestionId)) return "selected";
   return state.rejectedIds.includes(suggestionId) ? "rejected" : "idle";
 }
+// === ANCHOR: REPORTQUALITYPANEL_SELECTIONSTATUS_END ===
 
+// === ANCHOR: REPORTQUALITYPANEL_REPORTQUALITYPANEL_START ===
 export function ReportQualityPanel({
   quality,
   assistance = emptyAssistance,
@@ -186,6 +212,7 @@ export function ReportQualityPanel({
     ? assistProvider
     : "local";
 
+  // === ANCHOR: REPORTQUALITYPANEL_PROCEED_START ===
   const proceed = () => {
     if (isBlocking) return;
     onProceed({
@@ -195,7 +222,9 @@ export function ReportQualityPanel({
       questionAnswers: questionAnswers(items, savedAnswers, assistState.rejectedIds),
     });
   };
+  // === ANCHOR: REPORTQUALITYPANEL_PROCEED_END ===
 
+  // === ANCHOR: REPORTQUALITYPANEL_REQUESTASSISTANCE_START ===
   const requestAssistance = async () => {
     if (onRequestAssistance === undefined) return;
     setLoadingAssistance(true);
@@ -209,10 +238,13 @@ export function ReportQualityPanel({
       setLoadingAssistance(false);
     }
   };
+  // === ANCHOR: REPORTQUALITYPANEL_REQUESTASSISTANCE_END ===
 
+  // === ANCHOR: REPORTQUALITYPANEL_UPDATESUGGESTION_START ===
   const updateSuggestion = (update: Parameters<typeof reportAssistSuggestionStateUpdate>[1]) => {
     setAssistState((state) => reportAssistSuggestionStateUpdate(state, update));
   };
+  // === ANCHOR: REPORTQUALITYPANEL_UPDATESUGGESTION_END ===
 
   return (
     <section aria-label="보고서 품질 점검" style={panel}>
@@ -332,6 +364,7 @@ export function ReportQualityPanel({
     </section>
   );
 }
+// === ANCHOR: REPORTQUALITYPANEL_REPORTQUALITYPANEL_END ===
 
 const panel: CSSProperties = { border: "2px solid #1A1A1A", background: "#FFFFFF", padding: 12, boxShadow: "4px 4px 0 #1A1A1A" };
 const header: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" };
@@ -362,3 +395,4 @@ const footer: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8, margi
 const primaryButton: CSSProperties = { border: "2px solid #1A1A1A", background: "#F5621E", color: "#1A1A1A", padding: "8px 12px", fontWeight: 900, cursor: "pointer" };
 const secondaryButton: CSSProperties = { border: "2px solid #1A1A1A", background: "#FFFFFF", color: "#1A1A1A", padding: "7px 10px", fontWeight: 800, cursor: "pointer" };
 const errorText: CSSProperties = { margin: 0, color: "#9B1B1B", fontSize: 12, fontWeight: 800 };
+// === ANCHOR: REPORTQUALITYPANEL_END ===

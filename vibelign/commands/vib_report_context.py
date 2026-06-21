@@ -33,6 +33,7 @@ class ReportArgs(Protocol):
     emit_model: bool
     assist_missing: bool
     visual_cards: bool
+    visual_card_cli: str
     reject_blocks: str | None
     polish_key: str | None
     theme: str

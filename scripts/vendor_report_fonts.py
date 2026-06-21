@@ -1,3 +1,4 @@
+# === ANCHOR: VENDOR_REPORT_FONTS_START ===
 """보고서용 OFL 한글 폰트를 내려받아 woff2 로 변환해 fonts/ 에 넣는다(1회용).
 사용: uv run python scripts/vendor_report_fonts.py
 요구: fonttools, brotli (uv pip install fonttools brotli)
@@ -37,12 +38,15 @@ SOURCES = [
 ]
 
 
+# === ANCHOR: VENDOR_REPORT_FONTS__FETCH_START ===
 def _fetch(url: str) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": "vibelign-vendor"})
     with urllib.request.urlopen(req) as resp:  # noqa: S310
         return resp.read()
+# === ANCHOR: VENDOR_REPORT_FONTS__FETCH_END ===
 
 
+# === ANCHOR: VENDOR_REPORT_FONTS_MAIN_START ===
 def main() -> None:
     for font_id, files, license_url in SOURCES:
         out_dir = DEST / font_id
@@ -58,7 +62,9 @@ def main() -> None:
                 raw = buf.getvalue()
             (out_dir / out_name).write_bytes(raw)
             print(f"  wrote {out_dir / out_name} ({len(raw) // 1024} KB)")
+# === ANCHOR: VENDOR_REPORT_FONTS_MAIN_END ===
 
 
 if __name__ == "__main__":
     main()
+# === ANCHOR: VENDOR_REPORT_FONTS_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTCOMPOSERPREVIEW_START ===
 import type { CSSProperties, ReactNode } from "react";
 
 import { PdfPreview } from "./PdfPreview";
@@ -9,6 +10,7 @@ type ReportComposerPreviewProps = {
   readonly fillHeight: boolean;
 };
 
+// === ANCHOR: REPORTCOMPOSERPREVIEW_REPORTCOMPOSERPREVIEW_START ===
 export function ReportComposerPreview({ cwd, result, fillHeight }: ReportComposerPreviewProps): ReactNode {
   if (result && result.ok && result.kind === "html") {
     return (
@@ -30,6 +32,7 @@ export function ReportComposerPreview({ cwd, result, fillHeight }: ReportCompose
     </div>
   ) : null;
 }
+// === ANCHOR: REPORTCOMPOSERPREVIEW_REPORTCOMPOSERPREVIEW_END ===
 
 type PdfReportPreviewProps = {
   readonly cwd: string;
@@ -37,6 +40,7 @@ type PdfReportPreviewProps = {
   readonly fillHeight: boolean;
 };
 
+// === ANCHOR: REPORTCOMPOSERPREVIEW_PDFREPORTPREVIEW_START ===
 function PdfReportPreview({ cwd, path, fillHeight }: PdfReportPreviewProps): ReactNode {
   if (fillHeight) {
     return (
@@ -57,6 +61,7 @@ function PdfReportPreview({ cwd, path, fillHeight }: PdfReportPreviewProps): Rea
     </div>
   );
 }
+// === ANCHOR: REPORTCOMPOSERPREVIEW_PDFREPORTPREVIEW_END ===
 
 const htmlBox: CSSProperties = { marginTop: 12 };
 const filledHtmlBox: CSSProperties = { display: "flex", flexDirection: "column", height: "100%" };
@@ -80,3 +85,4 @@ const emptyPreview: CSSProperties = {
   textAlign: "center",
   padding: 24,
 };
+// === ANCHOR: REPORTCOMPOSERPREVIEW_END ===

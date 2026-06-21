@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTQUALITYSCOREPROJECTION_START ===
 import type {
   ReportAssistSelectedSuggestion,
   ReportAssistSuggestion,
@@ -23,6 +24,7 @@ export type ReportQualityScorePreviewInput = {
   readonly rejectedIds: readonly string[];
 };
 
+// === ANCHOR: REPORTQUALITYSCOREPROJECTION_FINDINGWEIGHT_START ===
 function findingWeight(code: string): number {
   switch (code) {
     case "missing_audience":
@@ -42,11 +44,15 @@ function findingWeight(code: string): number {
       return 0;
   }
 }
+// === ANCHOR: REPORTQUALITYSCOREPROJECTION_FINDINGWEIGHT_END ===
 
+// === ANCHOR: REPORTQUALITYSCOREPROJECTION_ISANSWERED_START ===
 function isAnswered(value: string | undefined): boolean {
   return value !== undefined && value.trim() !== "";
 }
+// === ANCHOR: REPORTQUALITYSCOREPROJECTION_ISANSWERED_END ===
 
+// === ANCHOR: REPORTQUALITYSCOREPROJECTION_COVEREDFINDINGCODES_START ===
 function coveredFindingCodes(input: ReportQualityScorePreviewInput): ReadonlySet<string> {
   const itemById = new Map(input.items.map((item) => [item.id, item] as const));
   const rejectedIds = new Set(input.rejectedIds);
@@ -65,12 +71,16 @@ function coveredFindingCodes(input: ReportQualityScorePreviewInput): ReadonlySet
 
   return covered;
 }
+// === ANCHOR: REPORTQUALITYSCOREPROJECTION_COVEREDFINDINGCODES_END ===
 
+// === ANCHOR: REPORTQUALITYSCOREPROJECTION_STATUSFROMREMAINING_START ===
 function statusFromRemaining(findings: readonly ReportQualityFinding[]): ReportQualityStatus {
   if (findings.some((finding) => finding.blocking)) return "block";
   return findings.length === 0 ? "ok" : "warn";
 }
+// === ANCHOR: REPORTQUALITYSCOREPROJECTION_STATUSFROMREMAINING_END ===
 
+// === ANCHOR: REPORTQUALITYSCOREPROJECTION_SCOREIMPACTFORFINDINGCODE_START ===
 export function scoreImpactForFindingCode(
   quality: ReportQualityPayload,
   findingCode: string,
@@ -88,7 +98,9 @@ export function scoreImpactForFindingCode(
   }
   return matchingScore;
 }
+// === ANCHOR: REPORTQUALITYSCOREPROJECTION_SCOREIMPACTFORFINDINGCODE_END ===
 
+// === ANCHOR: REPORTQUALITYSCOREPROJECTION_PREVIEWREPORTQUALITYSCORE_START ===
 export function previewReportQualityScore(input: ReportQualityScorePreviewInput): ReportQualityScorePreview {
   const covered = coveredFindingCodes(input);
   const remainingFindings = input.quality.findings.filter(
@@ -105,3 +117,5 @@ export function previewReportQualityScore(input: ReportQualityScorePreviewInput)
     remainingCount: remainingFindings.length,
   };
 }
+// === ANCHOR: REPORTQUALITYSCOREPROJECTION_PREVIEWREPORTQUALITYSCORE_END ===
+// === ANCHOR: REPORTQUALITYSCOREPROJECTION_END ===

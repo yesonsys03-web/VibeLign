@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTEMIT_TEST_START ===
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("../core", () => ({ runVib: vi.fn() }));
@@ -130,3 +131,4 @@ describe("report emit wrappers", () => {
     );
   });
 });
+// === ANCHOR: REPORTEMIT_TEST_END ===

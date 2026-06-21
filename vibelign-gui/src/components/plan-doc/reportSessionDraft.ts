@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTSESSIONDRAFT_START ===
 import type {
   ReportQualityPanelProceedPayload,
   ReportQualityQuestionAnswer,
@@ -14,16 +15,21 @@ export type ReportSessionDraft = {
   readonly entries: readonly ReportSessionDraftEntry[];
 };
 
+// === ANCHOR: REPORTSESSIONDRAFT_CLEANTEXT_START ===
 function cleanText(value: string): string | null {
   const trimmed = value.trim();
   return trimmed === "" ? null : trimmed;
 }
+// === ANCHOR: REPORTSESSIONDRAFT_CLEANTEXT_END ===
 
+// === ANCHOR: REPORTSESSIONDRAFT_ANSWERTEXT_START ===
 function answerText(answer: ReportQualityQuestionAnswer): string | null {
   const text = cleanText(answer.answer);
   return text === null ? null : text;
 }
+// === ANCHOR: REPORTSESSIONDRAFT_ANSWERTEXT_END ===
 
+// === ANCHOR: REPORTSESSIONDRAFT_CREATEREPORTSESSIONDRAFT_START ===
 export function createReportSessionDraft(payload: ReportQualityPanelProceedPayload): ReportSessionDraft {
   const suggestionEntries = payload.selectedSuggestions.flatMap((suggestion): readonly ReportSessionDraftEntry[] => {
     const text = cleanText(suggestion.text);
@@ -35,11 +41,15 @@ export function createReportSessionDraft(payload: ReportQualityPanelProceedPaylo
   });
   return { entries: [...suggestionEntries, ...answerEntries] };
 }
+// === ANCHOR: REPORTSESSIONDRAFT_CREATEREPORTSESSIONDRAFT_END ===
 
+// === ANCHOR: REPORTSESSIONDRAFT_HASREPORTSESSIONDRAFT_START ===
 export function hasReportSessionDraft(draft: ReportSessionDraft): boolean {
   return draft.entries.length > 0;
 }
+// === ANCHOR: REPORTSESSIONDRAFT_HASREPORTSESSIONDRAFT_END ===
 
+// === ANCHOR: REPORTSESSIONDRAFT_APPLYREPORTSESSIONDRAFTTOEMITPAYLOAD_START ===
 export function applyReportSessionDraftToEmitPayload(payload: EmitPayload, draft: ReportSessionDraft): EmitPayload {
   if (!hasReportSessionDraft(draft)) return payload;
   const draftSection: RModelSection = {
@@ -64,3 +74,5 @@ export function applyReportSessionDraftToEmitPayload(payload: EmitPayload, draft
     },
   };
 }
+// === ANCHOR: REPORTSESSIONDRAFT_APPLYREPORTSESSIONDRAFTTOEMITPAYLOAD_END ===
+// === ANCHOR: REPORTSESSIONDRAFT_END ===

@@ -1,3 +1,4 @@
+// === ANCHOR: REPORTVIEWPLANLIST_START ===
 import type { CSSProperties, ReactNode } from "react";
 
 import type { PlanningSessionSummary } from "../lib/vib/types";
@@ -12,12 +13,15 @@ type ReportViewPlanListProps = {
   readonly onSelectPlan: (path: string) => void;
 };
 
+// === ANCHOR: REPORTVIEWPLANLIST_FILENAME_START ===
 function fileName(path: string): string {
   const normalized = path.replace(/\\/g, "/");
   const slash = normalized.lastIndexOf("/");
   return slash >= 0 ? normalized.slice(slash + 1) : normalized;
 }
+// === ANCHOR: REPORTVIEWPLANLIST_FILENAME_END ===
 
+// === ANCHOR: REPORTVIEWPLANLIST_REPORTVIEWPLANLIST_START ===
 export function ReportViewPlanList({
   plans,
   reviewBusy,
@@ -52,7 +56,9 @@ export function ReportViewPlanList({
     </div>
   );
 }
+// === ANCHOR: REPORTVIEWPLANLIST_REPORTVIEWPLANLIST_END ===
 
+// === ANCHOR: REPORTVIEWPLANLIST_REPORTVIEWEMPTYSTATE_START ===
 function ReportViewEmptyState({ onStart }: { readonly onStart?: () => void }): ReactNode {
   return (
     <div style={emptyState}>
@@ -69,7 +75,9 @@ function ReportViewEmptyState({ onStart }: { readonly onStart?: () => void }): R
     </div>
   );
 }
+// === ANCHOR: REPORTVIEWPLANLIST_REPORTVIEWEMPTYSTATE_END ===
 
+// === ANCHOR: REPORTVIEWPLANLIST_REPORTVIEWPLANROW_START ===
 function ReportViewPlanRow({
   plan,
   onSelectPlan,
@@ -95,6 +103,7 @@ function ReportViewPlanRow({
     </div>
   );
 }
+// === ANCHOR: REPORTVIEWPLANLIST_REPORTVIEWPLANROW_END ===
 
 const title: CSSProperties = { fontSize: 18, fontWeight: 800, margin: "0 0 4px" };
 const description: CSSProperties = { fontSize: 13, color: "#666", margin: "0 0 16px" };
@@ -137,3 +146,4 @@ const makeReportButton: CSSProperties = {
   cursor: "pointer",
   fontWeight: 700,
 };
+// === ANCHOR: REPORTVIEWPLANLIST_END ===
