@@ -215,14 +215,21 @@ def _print_saved_report(want_json: bool, dest: Path, report_type: str) -> None:
     clack_success(f"보고서 저장: {dest}")
 
 
+def _emit_card_progress(stage: str) -> None:
+    _ = sys.stderr.write(f"[progress] step=report-cards stage={stage}\n")
+    sys.stderr.flush()
+
+
 def _visual_cards(raw: ReportArgs, ctx: ReportCommandContext, model: ReportModel) -> VisualCardsDict:
     provider_name = getattr(raw, "visual_card_cli", "local") or "local"
+    _emit_card_progress("draft")
     base = build_report_visual_cards(model, source_text=ctx.text)
     if provider_name in {"", "local"}:
         return base
     provider = CliVisualCardsProvider(provider_name, root=ctx.root)
     draft = provider.draft(base, ctx.text)
     slug = _report_slug(ctx.slug_source)
+    _emit_card_progress("assets")
     cards = materialize_card_news_assets(ctx.root, slug, draft["cards"])
     return {**draft, "cards": cards, "assets": [card["image"] for card in cards]}
 
@@ -240,6 +247,7 @@ def _card_news_poster(
         generate_card_news_poster,
     )
 
+    _emit_card_progress("poster")
     try:
         result = generate_card_news_poster(cards_payload, cards_payload["cards"], ctx.root, provider_name)
     except CardNewsPosterError as exc:

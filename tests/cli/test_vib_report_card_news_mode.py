@@ -182,3 +182,25 @@ def test_poster_mode_with_local_provider_omits_poster_key(
     assert isinstance(raw, dict)
     assert raw["ok"] is True
     assert "card_news_poster" not in raw, "card_news_poster must NOT appear when provider is local"
+
+
+def test_poster_mode_emits_progress_stages(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """poster mode with CLI provider → stderr contains stage=draft, stage=assets, stage=poster."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli_adapters, "build_cli_command", _fake_build_command)
+    monkeypatch.setattr(cli_adapters.SubprocessPlanningCliRunner, "run", _fake_run)
+
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+
+    args = _ReportArgs(plan=str(plan))
+    run_vib_report(args)
+
+    err = capsys.readouterr().err
+    assert "[progress] step=report-cards stage=draft" in err
+    assert "[progress] step=report-cards stage=assets" in err
+    assert "[progress] step=report-cards stage=poster" in err
