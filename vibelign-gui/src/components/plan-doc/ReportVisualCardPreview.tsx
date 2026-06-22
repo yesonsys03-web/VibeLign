@@ -24,10 +24,15 @@ export type ReportVisualCardPreviewProps = {
 export function ReportVisualCardPreview({ cwd, card, edit, cardNumber, candidateVersion, onEdit }: ReportVisualCardPreviewProps) {
   const points = bodyLines(edit.body);
   const assetSrc = visualAssetSrc(cwd, card.image.asset_path);
+  const sourceBadge =
+    card.image.source === "llm" ? { text: "모델 생성", bg: "#4DFF91" }
+    : card.image.source === "fallback" ? { text: "폴백 · 모델 실패", bg: "#FFD84D" }
+    : { text: "템플릿", bg: "#EEEEEE" };
   return (
     <div aria-label={`${card.id} 요약 카드`} data-candidate-version={candidateVersion} style={summaryCard}>
       <div style={hiddenMeta} aria-label={`${card.id} 카드 메타`} data-asset-path={card.image.asset_path} data-candidate-version={candidateVersion} />
       <div style={panelNo}>{cardNumber}</div>
+      <span aria-label={`${card.id} 이미지 출처`} style={{ ...sourceBadgeBase, background: sourceBadge.bg }}>{sourceBadge.text}</span>
       <input
         aria-label={`${card.title} 카드 제목`}
         value={edit.title}
@@ -141,4 +146,5 @@ const pointsList: CSSProperties = { margin: 0, padding: 0, listStyle: "none", di
 const pointItem: CSSProperties = { position: "relative", paddingLeft: 22, fontSize: 16, lineHeight: 1.38, fontWeight: 900, wordBreak: "keep-all" };
 const pointBullet: CSSProperties = { position: "absolute", left: 0, top: "0.55em", width: 9, height: 9, border: "2px solid #1A1A1A", borderRadius: 999, background: "#FFD84D" };
 const captionInput: CSSProperties = { minWidth: 0, boxSizing: "border-box", border: "none", borderTop: "3px solid #1A1A1A", background: "#FFFFFF", padding: "9px 0 0", fontSize: 12, fontWeight: 800, color: "#666666" };
+const sourceBadgeBase: CSSProperties = { display: "inline-block", marginLeft: 56, border: "2px solid #1A1A1A", padding: "2px 7px", fontSize: 11, fontWeight: 800 };
 // === ANCHOR: REPORTVISUALCARDPREVIEW_END ===

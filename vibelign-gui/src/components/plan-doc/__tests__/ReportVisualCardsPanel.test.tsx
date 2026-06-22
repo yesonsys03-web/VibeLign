@@ -87,6 +87,7 @@ function card(id: string, title: string, approved: boolean): ReportVisualCard {
       asset_path: "",
       prompt: "2D business comic illustration, no readable text in image",
       generated: false,
+      source: "template",
     },
     approved,
   };
@@ -230,6 +231,7 @@ test("regenerates edits deletes and exports only approved cards", async () => {
         asset_path: "",
         prompt: visualPrompt,
         generated: false,
+        source: "template",
       },
     };
   });

@@ -45,6 +45,7 @@ function defaultCandidate(card: ReportVisualCard, provider: string, version: num
       asset_path: "",
       prompt: visualPrompt,
       generated: false,
+      source: "template",
     },
   };
 }
@@ -76,6 +77,7 @@ export function ReportVisualCardsPanel({ cwd, payload, onExportChange, onFinaliz
   }, [approvedCards, onExportChange]);
 
   const provider = payload.provider || "generic-image-provider";
+  const fallbackCount = cards.filter((c) => c.image.source === "fallback").length;
 
   // === ANCHOR: REPORTVISUALCARDSPANEL_EDITCARD_START ===
   const editCard = (cardId: string, edit: Partial<ReportVisualCardEdit>) => {
@@ -111,6 +113,11 @@ export function ReportVisualCardsPanel({ cwd, payload, onExportChange, onFinaliz
         </div>
         <div style={headerActions}>
           <span style={providerBadge}>{provider}</span>
+          {fallbackCount > 0 && (
+            <span style={{ ...providerBadge, background: "#FFD84D" }}>
+              {`${cards.length}장 중 ${fallbackCount}장 폴백(모델 실패)`}
+            </span>
+          )}
           <button
             type="button"
             disabled={approvedCards.length === 0}

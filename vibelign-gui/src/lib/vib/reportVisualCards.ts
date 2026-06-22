@@ -15,6 +15,7 @@ export type ReportVisualCardImage = {
   readonly asset_path: string;
   readonly prompt: string;
   readonly generated: boolean;
+  readonly source: "llm" | "fallback" | "template";
 };
 
 export type ReportVisualCard = {
@@ -96,11 +97,14 @@ function stringArray(value: unknown): readonly string[] {
 // === ANCHOR: REPORTVISUALCARDS_PARSEIMAGE_START ===
 function parseImage(value: unknown): ReportVisualCardImage {
   const record = isRecord(value) ? value : {};
+  const rawSource = stringValue(record.source);
+  const source = rawSource === "llm" || rawSource === "fallback" ? rawSource : "template";
   return {
     provider: stringValue(record.provider),
     asset_path: stringValue(record.asset_path),
     prompt: stringValue(record.prompt),
     generated: booleanValue(record.generated),
+    source,
   };
 }
 // === ANCHOR: REPORTVISUALCARDS_PARSEIMAGE_END ===

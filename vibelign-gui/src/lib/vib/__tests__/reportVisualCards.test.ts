@@ -36,6 +36,7 @@ const draftCard = {
     asset_path: "",
     prompt: "2D business comic illustration, no readable text in image",
     generated: false,
+    source: "template",
   },
   approved: true,
 } as const;
@@ -94,7 +95,7 @@ describe("report visual cards", () => {
           visual_prompt: "2D business comic illustration, no readable text in image",
           negative_prompt: "readable text",
           source_refs: [{ source_plan_path: "plan.md", section: 0, block: 0, heading: "제안 요약" }],
-          image: { provider: "provider-neutral-draft", asset_path: "", prompt: "prompt", generated: false },
+          image: { provider: "provider-neutral-draft", asset_path: "", prompt: "prompt", generated: false, source: "template" },
           approved: true,
         },
       ],
@@ -157,6 +158,17 @@ describe("report visual cards", () => {
       "/repo",
       "/repo/.vibelign/reports/render-payloads/render-payload-1.json",
     );
+  });
+
+  test("parses image.source, defaulting to template", () => {
+    const payload = parseReportVisualCardsPayload({
+      status: "ready",
+      provider: "agy",
+      cards: [{ id: "c1", image: { provider: "agy", source: "llm" } }],
+    });
+    expect(payload.cards[0].image.source).toBe("llm");
+    const fallback = parseReportVisualCardsPayload({ status: "ready", cards: [{ id: "c2", image: {} }] });
+    expect(fallback.cards[0].image.source).toBe("template");
   });
 
   test("reports stderr instead of JSON parse errors when card news command is missing", async () => {
