@@ -33,3 +33,11 @@ def test_sanitize_keeps_inline_style() -> None:
     assert html is not None
     assert "<style>" in html
     assert "color:red" in html
+
+
+def test_sanitize_strips_protocol_relative_css_url() -> None:
+    html = sanitize_card_news_html("<html><head><style>div{background:url(//evil.com/x.png)}</style></head><body>카드</body></html>")
+    assert html is not None
+    assert "//evil.com" not in html
+    assert "<style>" in html  # style block itself kept
+    assert "카드" in html

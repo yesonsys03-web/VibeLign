@@ -44,10 +44,10 @@ def sanitize_card_news_html(raw_html: str) -> str | None:
     html = _HANDLER_RE.sub("", html)
     html = _EXTERNAL_ATTR_RE.sub("", html)
     if _has_remaining_external_url(html):
-        html = re.sub(r"(https?:)?//[^\s\"'>]+", "", html)
+        html = re.sub(r"(https?:)?//[^\s\"'>)]+", "", html)
     return html
 
 
 def _has_remaining_external_url(html: str) -> bool:
-    return "http://" in html or "https://" in html
+    return "http://" in html or "https://" in html or "//" in html
 # === ANCHOR: REPORT_CARD_NEWS_POSTER_END ===
