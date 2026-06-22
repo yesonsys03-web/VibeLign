@@ -36,12 +36,17 @@ export type ReportVisualCardsPayload = {
   readonly provider: string;
   readonly cards: readonly ReportVisualCard[];
   readonly assets: readonly ReportVisualCardImage[];
+  readonly poster_html?: string;
 };
 
 export type ReportVisualCardsProviderId = "local" | "claude" | "codex" | "agy" | "opencode";
 
 export type ReportVisualCardsResult =
-  | { readonly ok: true; readonly payload: ReportVisualCardsPayload }
+  | {
+      readonly ok: true;
+      readonly payload: ReportVisualCardsPayload;
+      readonly poster?: { readonly html: string; readonly source: "llm" | "fallback" };
+    }
   | { readonly ok: false; readonly error: string };
 
 export type ReportCardNewsExportResult =
@@ -164,9 +169,10 @@ export async function requestReportVisualCards(
   planPath: string,
   reportType: ReportType,
   provider: ReportVisualCardsProviderId,
+  mode: "per-card" | "poster" = "per-card",
 ): Promise<ReportVisualCardsResult> {
   const res = await runVib(
-    ["report", planPath, "--type", reportType, "--visual-cards", "--visual-card-cli", provider, "--json"],
+    ["report", planPath, "--type", reportType, "--visual-cards", "--visual-card-cli", provider, "--card-news-mode", mode, "--json"],
     cwd,
   );
   try {
@@ -174,10 +180,17 @@ export async function requestReportVisualCards(
     if (!isRecord(raw) || raw.ok !== true) {
       return { ok: false, error: isRecord(raw) ? stringValue(raw.error) || "카드뉴스 생성 실패" : "카드뉴스 생성 실패" };
     }
-    return { ok: true, payload: parseReportVisualCardsPayload(raw.visual_cards) };
+    return { ok: true, payload: parseReportVisualCardsPayload(raw.visual_cards), poster: parsePoster(raw.card_news_poster) };
   } catch {
     return { ok: false, error: res.stderr.trim() || "카드뉴스 생성 실패" };
   }
+}
+
+function parsePoster(value: unknown): { html: string; source: "llm" | "fallback" } | undefined {
+  if (!isRecord(value)) return undefined;
+  const html = stringValue(value.html);
+  if (html.length === 0) return undefined;
+  return { html, source: value.source === "fallback" ? "fallback" : "llm" };
 }
 // === ANCHOR: REPORTVISUALCARDS_REQUESTREPORTVISUALCARDS_END ===
 

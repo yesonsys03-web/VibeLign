@@ -117,7 +117,7 @@ describe("report visual cards", () => {
     expect(result.payload.cards[0].image.provider).toBe("provider-neutral-draft");
     expect(result.payload.cards[0].title).toBe("제안 요약");
     expect(mocks.runVib).toHaveBeenCalledWith(
-      ["report", "plan.md", "--type", "proposal", "--visual-cards", "--visual-card-cli", "opencode", "--json"],
+      ["report", "plan.md", "--type", "proposal", "--visual-cards", "--visual-card-cli", "opencode", "--card-news-mode", "per-card", "--json"],
       "/repo",
     );
   });
@@ -169,6 +169,27 @@ describe("report visual cards", () => {
     expect(payload.cards[0].image.source).toBe("llm");
     const fallback = parseReportVisualCardsPayload({ status: "ready", cards: [{ id: "c2", image: {} }] });
     expect(fallback.cards[0].image.source).toBe("template");
+  });
+
+  test("passes card-news-mode and parses poster", async () => {
+    mocks.runVib.mockResolvedValueOnce({
+      stdout: JSON.stringify({
+        ok: true,
+        visual_cards: draftPayload(),
+        card_news_poster: { html: "<html>poster</html>", source: "llm" },
+      }),
+      stderr: "",
+    });
+
+    const result = await requestReportVisualCards("/repo", "plan.md", "proposal", "opencode", "poster");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(mocks.runVib).toHaveBeenCalledWith(
+      ["report", "plan.md", "--type", "proposal", "--visual-cards", "--visual-card-cli", "opencode", "--card-news-mode", "poster", "--json"],
+      "/repo",
+    );
+    expect(result.poster).toEqual({ html: "<html>poster</html>", source: "llm" });
   });
 
   test("reports stderr instead of JSON parse errors when card news command is missing", async () => {
