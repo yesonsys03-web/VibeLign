@@ -24,7 +24,7 @@ _UNSAFE_ATTR_RE: Final[re.Pattern[str]] = re.compile(r"""\s(?:on[a-z]+|href|xlin
 _SVG_SCHEMA_ATTR: Final = f'data-schema="{_ASSET_SCHEMA_VERSION}"'
 _VISUAL_PROMPT_LIMIT: Final = 900
 _MAX_CONCURRENT_ASSET_REQUESTS: Final = 3
-_ASSET_TIMEOUT_SECONDS: Final = 90
+_ASSET_TIMEOUT_SECONDS: Final = 120
 
 
 # === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR_CARDNEWSASSETERROR_START ===
@@ -161,10 +161,11 @@ def _llm_asset_svg(context: _AssetRenderContext, card: VisualCardDict, provider:
 def _svg_prompt(card: VisualCardDict) -> str:
     visual_prompt = (card["visual_prompt"] or card["image"]["prompt"])[:_VISUAL_PROMPT_LIMIT]
     return (
-        "Create one standalone SVG illustration for a report card body image slot.\n"
+        "Create one rich, detailed standalone SVG illustration for a report card body image slot.\n"
         "Return only one <svg>...</svg> element. No markdown fences, no explanation.\n"
-        "Canvas: viewBox 0 0 320 150. Use a hand-drawn educational card-news style with bold black outlines.\n"
-        "Keep the SVG simple, under 80 elements, and use geometric shapes only.\n"
+        "Canvas: viewBox 0 0 320 150. Hand-drawn editorial card-news style with bold black outlines.\n"
+        "Make it visually rich: layered shapes, filled areas, soft shadows, and a clear focal scene\n"
+        "so it reads like an illustrator drew it, not a flat icon.\n"
         "Do not include readable text, Korean text, Latin text, <text>, scripts, external images, URLs, hrefs, or event handlers.\n"
         "Make the illustration specific to this visual prompt, not generic.\n\n"
         f"Card title: {card['title']}\n"
