@@ -10,12 +10,14 @@ import {
 
 const mocks = vi.hoisted(() => ({
   runVib: vi.fn(),
+  runVibWithProgress: vi.fn(),
   writeReportJsonPayload: vi.fn(),
   removeReportRenderPayload: vi.fn(),
 }));
 
 vi.mock("../core", () => ({
   runVib: mocks.runVib,
+  runVibWithProgress: mocks.runVibWithProgress,
 }));
 
 vi.mock("../reportRenderPayload", () => ({
@@ -56,6 +58,7 @@ function draftPayload() {
 describe("report visual cards", () => {
   beforeEach(() => {
     mocks.runVib.mockReset();
+    mocks.runVibWithProgress.mockReset();
     mocks.writeReportJsonPayload.mockReset();
     mocks.removeReportRenderPayload.mockReset();
     mocks.writeReportJsonPayload.mockResolvedValue("/repo/.vibelign/reports/render-payloads/render-payload-1.json");
@@ -190,6 +193,44 @@ describe("report visual cards", () => {
       "/repo",
     );
     expect(result.poster).toEqual({ html: "<html>poster</html>", source: "llm" });
+  });
+
+  test("calls onProgress with stage events when provided, and returns parsed payload", async () => {
+    mocks.runVibWithProgress.mockImplementation(
+      async (_args: readonly string[], _cwd: string, _env: undefined, onProgress: (e: { stage?: string }) => void) => {
+        onProgress({ stage: "draft" });
+        onProgress({ stage: "assets" });
+        return { stdout: JSON.stringify({ ok: true, visual_cards: draftPayload() }), stderr: "" };
+      },
+    );
+
+    const onProgress = vi.fn();
+    const result = await requestReportVisualCards("/repo", "plan.md", "proposal", "opencode", "per-card", onProgress);
+
+    expect(mocks.runVibWithProgress).toHaveBeenCalledWith(
+      ["report", "plan.md", "--type", "proposal", "--visual-cards", "--visual-card-cli", "opencode", "--card-news-mode", "per-card", "--json"],
+      "/repo",
+      undefined,
+      expect.any(Function),
+    );
+    expect(mocks.runVib).not.toHaveBeenCalled();
+    expect(onProgress).toHaveBeenCalledTimes(2);
+    expect(onProgress).toHaveBeenNthCalledWith(1, "draft");
+    expect(onProgress).toHaveBeenNthCalledWith(2, "assets");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.payload.cards[0].title).toBe("제안 요약");
+  });
+
+  test("uses runVib (not runVibWithProgress) when no onProgress is provided", async () => {
+    const result = await requestReportVisualCards("/repo", "plan.md", "proposal", "opencode");
+
+    expect(mocks.runVib).toHaveBeenCalledWith(
+      ["report", "plan.md", "--type", "proposal", "--visual-cards", "--visual-card-cli", "opencode", "--card-news-mode", "per-card", "--json"],
+      "/repo",
+    );
+    expect(mocks.runVibWithProgress).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
   });
 
   test("reports stderr instead of JSON parse errors when card news command is missing", async () => {

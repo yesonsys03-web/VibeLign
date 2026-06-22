@@ -1,5 +1,5 @@
 // === ANCHOR: REPORTVISUALCARDS_START ===
-import { runVib } from "./core";
+import { runVib, runVibWithProgress } from "./core";
 import type { ReportType } from "./report";
 import { removeReportRenderPayload, writeReportJsonPayload } from "./reportRenderPayload";
 
@@ -170,11 +170,20 @@ export async function requestReportVisualCards(
   reportType: ReportType,
   provider: ReportVisualCardsProviderId,
   mode: "per-card" | "poster" = "per-card",
+  onProgress?: (stage: string) => void,
 ): Promise<ReportVisualCardsResult> {
-  const res = await runVib(
-    ["report", planPath, "--type", reportType, "--visual-cards", "--visual-card-cli", provider, "--card-news-mode", mode, "--json"],
-    cwd,
-  );
+  const args = ["report", planPath, "--type", reportType, "--visual-cards", "--visual-card-cli", provider, "--card-news-mode", mode, "--json"] as const;
+  const res = onProgress
+    ? await runVibWithProgress(
+        [...args],
+        cwd,
+        undefined,
+        (e) => { if (e.stage) onProgress(e.stage); },
+      )
+    : await runVib(
+        [...args],
+        cwd,
+      );
   try {
     const raw: unknown = JSON.parse(res.stdout.trim());
     if (!isRecord(raw) || raw.ok !== true) {
