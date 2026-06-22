@@ -49,6 +49,7 @@ class VisualImageMetadata(TypedDict):
     asset_path: str
     prompt: str
     generated: bool
+    source: Literal["llm", "fallback", "template"]
 # === ANCHOR: REPORT_VISUAL_CARDS_VISUALIMAGEMETADATA_END ===
 
 
@@ -152,6 +153,7 @@ def _draft_image(request: VisualImageRequest) -> VisualImageMetadata:
         "asset_path": "",
         "prompt": request.visual_prompt,
         "generated": False,
+        "source": "template",
     }
 # === ANCHOR: REPORT_VISUAL_CARDS__DRAFT_IMAGE_END ===
 

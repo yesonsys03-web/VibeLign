@@ -169,6 +169,11 @@ def test_visual_cards_include_risk_and_next_action_when_source_has_them():
     assert next_action_prompts[0] not in other_prompts
 
 
+def test_draft_image_marks_source_template() -> None:
+    built = build_report_visual_cards(_category_model())
+    assert built["cards"][0]["image"]["source"] == "template"
+
+
 def test_visual_prompts_keep_category_scenes_without_provider_or_korean_leakage():
     sidecar = build_report_visual_cards(_category_model())
 
