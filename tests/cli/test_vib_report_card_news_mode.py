@@ -95,12 +95,14 @@ def _fake_run(
             },
             ensure_ascii=False,
         )
-    # SVG asset generation call
-    elif prompt.startswith("Generate a minimalist") or not prompt.startswith("아래 스토리보드"):
-        stdout = '<svg viewBox="0 0 320 150" data-model-asset="yes"><rect width="320" height="150"/></svg>'
-    # Poster HTML generation call
-    else:
+    # Poster HTML generation call (prompt starts with "아래 스토리보드")
+    elif prompt.startswith("아래 스토리보드"):
         stdout = _POSTER_HTML
+    # SVG asset generation call (batch or single: starts with "Create")
+    elif prompt.startswith("Create"):
+        stdout = '<svg viewBox="0 0 320 150" data-model-asset="yes"><rect width="320" height="150"/></svg>'
+    else:
+        raise ValueError(f"unexpected prompt: {prompt[:80]}")
     return cli_adapters.PlanningCliResult(status="ok", stdout=stdout, stderr="", exit_code=0, duration_ms=1)
 
 
@@ -165,6 +167,8 @@ def test_poster_mode_with_local_provider_omits_poster_key(
 ) -> None:
     """poster mode but local provider (no LLM) → no card_news_poster key."""
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli_adapters, "build_cli_command", _fake_build_command)
+    monkeypatch.setattr(cli_adapters.SubprocessPlanningCliRunner, "run", _fake_run)
 
     plan = tmp_path / "plan.md"
     plan.write_text(PLAN_MD, encoding="utf-8")
