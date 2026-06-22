@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+import json
 import re
 from dataclasses import dataclass
 from hashlib import sha1
@@ -25,6 +26,8 @@ _SVG_SCHEMA_ATTR: Final = f'data-schema="{_ASSET_SCHEMA_VERSION}"'
 _VISUAL_PROMPT_LIMIT: Final = 900
 _MAX_CONCURRENT_ASSET_REQUESTS: Final = 3
 _ASSET_TIMEOUT_SECONDS: Final = 120
+_BATCH_TIMEOUT_SECONDS: Final = 180
+_JSON_OBJECT_RE: Final[re.Pattern[str]] = re.compile(r"\{[\s\S]*\}")
 
 
 # === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR_CARDNEWSASSETERROR_START ===
@@ -54,6 +57,8 @@ def materialize_card_news_assets(
 ) -> list[VisualCardDict]:
     context = _AssetRenderContext(root=root, slug=slug, runner=runner, timeout_seconds=timeout_seconds)
     asset_dir = _safe_asset_dir(root, slug)
+    if len(cards) > 1 and _shared_cli_provider(cards) is not None:
+        return _materialize_via_batch(context, asset_dir, cards)
     if len(cards) <= 1:
         return [_materialize_card_asset(context, asset_dir, index, card) for index, card in enumerate(cards, 1)]
     worker_count = min(_MAX_CONCURRENT_ASSET_REQUESTS, len(cards))
@@ -82,6 +87,106 @@ def _materialize_card_asset(
     svg = _asset_svg(context, card)
     _ = asset_path.write_text(svg, encoding="utf-8")
     return _card_with_asset(card, asset_relative, _asset_source(card["image"]["provider"], svg))
+
+
+# === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__SHARED_CLI_PROVIDER_START ===
+def _shared_cli_provider(cards: list[VisualCardDict]) -> str | None:
+    providers = {card["image"]["provider"] for card in cards}
+    if len(providers) != 1:
+        return None
+    provider = next(iter(providers))
+    return provider if provider in _CLI_ASSET_PROVIDERS else None
+# === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__SHARED_CLI_PROVIDER_END ===
+
+
+# === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__MATERIALIZE_VIA_BATCH_START ===
+def _materialize_via_batch(
+    context: _AssetRenderContext,
+    asset_dir: Path,
+    cards: list[VisualCardDict],
+) -> list[VisualCardDict]:
+    resolved: dict[int, VisualCardDict] = {}
+    pending: list[tuple[int, VisualCardDict, Path]] = []
+    for index, card in enumerate(cards, 1):
+        if card["image"]["asset_path"].strip():
+            resolved[index] = card
+            continue
+        asset_relative = _asset_relative_path(context.slug, card, index)
+        existing = context.root / asset_relative
+        if existing.exists():
+            svg = existing.read_text(encoding="utf-8")
+            resolved[index] = _card_with_asset(card, asset_relative, _asset_source(card["image"]["provider"], svg))
+            continue
+        pending.append((index, card, asset_relative))
+    if pending:
+        asset_dir.mkdir(parents=True, exist_ok=True)
+        svgs = _batch_svg_list(context, [card for _, card, _ in pending])
+        for offset, (index, card, asset_relative) in enumerate(pending):
+            svg = svgs[offset] if offset < len(svgs) and svgs[offset] is not None else _fallback_asset_svg(card)
+            _ = (context.root / asset_relative).write_text(svg, encoding="utf-8")
+            resolved[index] = _card_with_asset(card, asset_relative, _asset_source(card["image"]["provider"], svg))
+    return [resolved[index] for index in range(1, len(cards) + 1)]
+# === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__MATERIALIZE_VIA_BATCH_END ===
+
+
+# === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__BATCH_SVG_LIST_START ===
+def _batch_svg_list(context: _AssetRenderContext, cards: list[VisualCardDict]) -> list[str | None]:
+    provider = cards[0]["image"]["provider"]
+    command = cli_adapters.build_cli_command(provider, _batch_svg_prompt(cards))
+    if command is None:
+        raise CardNewsAssetError(f"{provider} CLI를 찾지 못해 카드뉴스 이미지를 만들지 못했어요.")
+    runner = context.runner or cli_adapters.SubprocessPlanningCliRunner()
+    result = runner.run(command, cwd=context.root, input_text="", timeout_seconds=_BATCH_TIMEOUT_SECONDS)
+    status = safe_planning_status(result.status, result.stdout)
+    if status == "timeout":
+        return [None] * len(cards)
+    if status != "ok":
+        raise CardNewsAssetError(f"{provider} CLI 카드뉴스 이미지 생성 실패: {result.stderr.strip() or status}")
+    return _parse_batch_svgs(result.stdout, len(cards))
+# === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__BATCH_SVG_LIST_END ===
+
+
+# === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__PARSE_BATCH_SVGS_START ===
+def _parse_batch_svgs(stdout: str, count: int) -> list[str | None]:
+    match = _JSON_OBJECT_RE.search(stdout.strip())
+    if match is None:
+        return [None] * count
+    try:
+        data = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return [None] * count
+    raw = data.get("svgs") if isinstance(data, dict) else None
+    if not isinstance(raw, list):
+        return [None] * count
+    out: list[str | None] = []
+    for index in range(count):
+        item = raw[index] if index < len(raw) and isinstance(raw[index], str) else ""
+        try:
+            svg = _extract_safe_svg(item)
+        except CardNewsAssetError:
+            svg = None
+        out.append(_with_svg_schema(svg) if svg else None)
+    return out
+# === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__PARSE_BATCH_SVGS_END ===
+
+
+# === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__BATCH_SVG_PROMPT_START ===
+def _batch_svg_prompt(cards: list[VisualCardDict]) -> str:
+    lines: list[str] = []
+    for index, card in enumerate(cards, 1):
+        visual = (card["visual_prompt"] or card["image"]["prompt"])[:_VISUAL_PROMPT_LIMIT]
+        lines.append(f'{index}. title="{card["title"]}" meaning="{card["body"][:160]}" visual="{visual}"')
+    listing = "\n".join(lines)
+    return (
+        f"Create {len(cards)} rich, detailed SVG illustrations for report card body slots.\n"
+        'Return ONLY one JSON object: {"svgs": ["<svg>...</svg>", ...]} with exactly one <svg> per card, in order.\n'
+        "Each SVG: viewBox 0 0 320 150, hand-drawn editorial card-news style, bold black outlines,\n"
+        "layered filled shapes, soft shadows, a clear focal scene (not a flat icon).\n"
+        "No readable text, no Korean text, no Latin text, no <text>, no scripts, no external images, no URLs, no hrefs, no event handlers.\n"
+        "Make each illustration specific to its card.\n\n"
+        f"Cards:\n{listing}"
+    )
+# === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__BATCH_SVG_PROMPT_END ===
 
 
 # === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__SAFE_ASSET_DIR_START ===

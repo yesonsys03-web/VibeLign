@@ -156,19 +156,62 @@ def test_model_provider_reuses_existing_asset_without_cli_call(
     assert asset_path.read_text(encoding="utf-8") == original_svg
 
 
-def test_model_provider_generates_multiple_assets_concurrently(
+def test_model_provider_batches_multiple_assets_in_one_call(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    runner = CountingRunner('<svg viewBox="0 0 320 150"><rect width="320" height="150"/></svg>')
+    batch_json = '{"svgs": ['
+    batch_json += ','.join(
+        f'"<svg viewBox=\\"0 0 320 150\\" data-card=\\"{i}\\"><rect width=\\"320\\" height=\\"150\\"/></svg>"'
+        for i in range(1, 4)
+    )
+    batch_json += ']}'
+    runner = FakeRunner(batch_json)
     monkeypatch.setattr(cli_adapters, "build_cli_command", _fake_build_command)
     cards = [_card_with_id(f"card-{index}", f"카드 {index}") for index in range(1, 4)]
 
-    generated_cards = materialize_card_news_assets(tmp_path, "예약-알림", cards, runner=runner)
+    generated = materialize_card_news_assets(tmp_path, "예약-알림", cards, runner=runner)
 
-    assert len(generated_cards) == 3
-    assert len(runner.commands) == 3
-    assert runner.max_active > 1
+    assert len(generated) == 3
+    assert len(runner.commands) == 1  # 단일 배치 호출
+    for index, card in enumerate(generated, 1):
+        svg = (tmp_path / card["image"]["asset_path"]).read_text(encoding="utf-8")
+        assert f'data-card="{index}"' in svg
+        assert card["image"]["source"] == "llm"
+
+
+def test_batch_falls_back_per_card_for_missing_svg(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # svgs 배열에 2개만 제공 → 3번째 카드는 폴백 스케치
+    runner = FakeRunner('{"svgs": ["<svg viewBox=\\"0 0 320 150\\"><rect/></svg>", "<svg viewBox=\\"0 0 320 150\\"><circle/></svg>"]}')
+    monkeypatch.setattr(cli_adapters, "build_cli_command", _fake_build_command)
+    cards = [_card_with_id(f"card-{index}", f"카드 {index}") for index in range(1, 4)]
+
+    generated = materialize_card_news_assets(tmp_path, "예약-알림", cards, runner=runner)
+
+    assert len(runner.commands) == 1
+    third = (tmp_path / generated[2]["image"]["asset_path"]).read_text(encoding="utf-8")
+    assert "data-sketch-symbols" in third
+    assert generated[2]["image"]["source"] == "fallback"
+
+
+def test_batch_timeout_falls_back_all(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = FakeRunner("", status="timeout")
+    monkeypatch.setattr(cli_adapters, "build_cli_command", _fake_build_command)
+    cards = [_card_with_id(f"card-{index}", f"카드 {index}") for index in range(1, 3)]
+
+    generated = materialize_card_news_assets(tmp_path, "예약-알림", cards, runner=runner)
+
+    assert len(runner.commands) == 1
+    for card in generated:
+        svg = (tmp_path / card["image"]["asset_path"]).read_text(encoding="utf-8")
+        assert "data-sketch-symbols" in svg
+        assert card["image"]["source"] == "fallback"
 
 
 def test_model_provider_falls_back_to_local_asset_when_cli_times_out(
