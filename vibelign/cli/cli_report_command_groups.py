@@ -90,6 +90,12 @@ def register_report_command_group(
         choices=["local", "codex", "opencode", "agy", "claude"],
         help="카드뉴스 초안 작성 provider (기본 local=규칙 기반)",
     )
+    _ = r.add_argument(
+        "--card-news-mode",
+        default="per-card",
+        choices=["per-card", "poster"],
+        help="카드뉴스 생성 방식 (per-card=카드별 SVG, poster=CLI가 HTML 전체 디자인)",
+    )
     _ = r.add_argument("--reject-blocks", default=None, help="원본 유지할 블록 인덱스 JSON: [[section,block],...]")
     _ = r.add_argument("--polish-key", default=None, help="emit 응답의 key — render 가 그 캐시 항목만 로드(재현성)")
     _ = r.add_argument("--theme", default="classic", metavar="THEME", help="디자인 테마 (기본 classic)")

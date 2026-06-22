@@ -34,6 +34,7 @@ class ReportArgs(Protocol):
     assist_missing: bool
     visual_cards: bool
     visual_card_cli: str
+    card_news_mode: str
     reject_blocks: str | None
     polish_key: str | None
     theme: str
