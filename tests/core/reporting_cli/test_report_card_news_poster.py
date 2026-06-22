@@ -53,6 +53,42 @@ def test_sanitize_strips_protocol_relative_css_url() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Fix #1: dangerous URL schemes — javascript: / vbscript:
+# ---------------------------------------------------------------------------
+
+
+def test_sanitize_strips_javascript_href() -> None:
+    html = sanitize_card_news_html('<html><body><a href="javascript:alert(1)">x</a></body></html>')
+    assert html is not None
+    assert "javascript:" not in html
+    assert "x" in html
+
+
+def test_sanitize_strips_vbscript_href() -> None:
+    html = sanitize_card_news_html("<html><body><a href='vbscript:MsgBox(1)'>y</a></body></html>")
+    assert html is not None
+    assert "vbscript:" not in html
+    assert "y" in html
+
+
+# ---------------------------------------------------------------------------
+# Fix #2: data: URIs in image-bearing attrs — kept for inline svg/style
+# ---------------------------------------------------------------------------
+
+
+def test_sanitize_strips_data_uri_img_src() -> None:
+    html = sanitize_card_news_html(
+        '<html><body>'
+        '<img src="data:image/png;base64,AAAA">'
+        '<svg><circle r="5"/></svg>'
+        '</body></html>'
+    )
+    assert html is not None
+    assert "data:image" not in html
+    assert "<svg>" in html  # inline svg kept
+
+
+# ---------------------------------------------------------------------------
 # C2: generate_card_news_poster tests
 # ---------------------------------------------------------------------------
 

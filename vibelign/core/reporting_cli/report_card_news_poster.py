@@ -20,6 +20,13 @@ _HANDLER_RE: Final[re.Pattern[str]] = re.compile(r"""\son[a-z]+\s*=\s*("[^"]*"|'
 _EXTERNAL_ATTR_RE: Final[re.Pattern[str]] = re.compile(
     r"""\s(?:src|href|xlink:href)\s*=\s*("(?:https?:)?//[^"]*"|'(?:https?:)?//[^']*')""", re.IGNORECASE
 )
+# Fix #1+#2: strip javascript:, vbscript:, and data: URI attribute values.
+# Covers href/src and all other URL-bearing attrs.
+_DANGEROUS_SCHEME_ATTR_RE: Final[re.Pattern[str]] = re.compile(
+    r"""\s(?:src|href|xlink:href|srcset|poster|formaction|action|data-src)\s*=\s*"""
+    r"""("\s*(?:javascript|vbscript|data):[^"]*"|'\s*(?:javascript|vbscript|data):[^']*')""",
+    re.IGNORECASE,
+)
 _POSTER_TIMEOUT_SECONDS: Final = 150
 _MAX_SOURCE_CHARS: Final = 7000
 
@@ -43,7 +50,10 @@ def sanitize_card_news_html(raw_html: str) -> str | None:
     html = _DANGEROUS_TAG_RE.sub("", html)
     html = _HANDLER_RE.sub("", html)
     html = _EXTERNAL_ATTR_RE.sub("", html)
+    html = _DANGEROUS_SCHEME_ATTR_RE.sub("", html)
     if _has_remaining_external_url(html):
+        # Intentionally over-broad sweep (defense-in-depth backstop; pairs with
+        # the sandboxed iframe on the consumer side) — do NOT tighten this regex.
         html = re.sub(r"(https?:)?//[^\s\"'>)]+", "", html)
     return html
 
