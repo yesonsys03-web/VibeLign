@@ -169,7 +169,9 @@ export function ReportVisualCardsCompanion({
         return (
           <div aria-label="카드뉴스 생성 진행" style={progressWrap}>
             <div style={progressTrack}>
-              <span className="gyari-loader" style={{ position: "absolute", left: `calc(${stageUi.pct}% - 26px)`, transition: "left .5s ease" }} aria-hidden />
+              <span style={{ ...progressMarker, left: 8 }} aria-hidden>START</span>
+              <span style={{ ...progressMarker, right: 8 }} aria-hidden>🏁 GOAL</span>
+              <span className="gyari-loader" style={{ position: "absolute", left: `calc(${stageUi.pct}% - 26px)`, transition: "left .5s ease", zIndex: 1 }} aria-hidden />
             </div>
             <p style={progressLabel}>{stageUi.label}...</p>
           </div>
@@ -279,4 +281,5 @@ const pathText: CSSProperties = { margin: "6px 0 8px", color: "#666666", fontSiz
 const progressWrap: CSSProperties = { marginTop: 10 };
 const progressTrack: CSSProperties = { position: "relative", height: 56, border: "2px solid #1A1A1A", background: "#FEFBF0", overflow: "hidden" };
 const progressLabel: CSSProperties = { margin: "4px 0 0", fontSize: 12, fontWeight: 800 };
+const progressMarker: CSSProperties = { position: "absolute", top: "50%", transform: "translateY(-50%)", fontSize: 11, fontWeight: 900, letterSpacing: "0.06em", color: "#B7AE9E" };
 // === ANCHOR: REPORT_VISUAL_CARDS_COMPANION_END ===
