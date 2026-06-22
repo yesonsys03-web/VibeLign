@@ -83,6 +83,11 @@ export function ReportVisualCardsCompanion({
     if (!result.ok) setError(result.error);
   };
 
+  const finalizePoster = (): void => {
+    if (payload === null || poster === null) return;
+    void finalizeCards(payload.cards.map((c) => ({ ...c, approved: true })));
+  };
+
   const openHtml = async (path: string): Promise<void> => {
     setOpenError(null);
     if (!isProjectCardNewsHtml(cwd, path)) {
@@ -180,9 +185,16 @@ export function ReportVisualCardsCompanion({
             srcDoc={poster.html}
             style={{ width: "100%", height: 520, border: "2px solid #1A1A1A", background: "#FFFFFF" }}
           />
+          {mode === "poster" && (
+            <div style={resultActions}>
+              <button type="button" onClick={finalizePoster} disabled={finalizing} style={requestButton}>
+                {finalizing ? "저장 중..." : "카드뉴스 확정"}
+              </button>
+            </div>
+          )}
         </div>
       )}
-      {payload !== null && (
+      {mode === "per-card" && payload !== null && (
         <>
           <p style={countText}>승인된 카드 {approvedCards.length}개</p>
           <ReportVisualCardsPanel
@@ -193,6 +205,9 @@ export function ReportVisualCardsCompanion({
           />
           {finalizing && <p style={countText}>카드뉴스 결과물을 저장하는 중...</p>}
         </>
+      )}
+      {mode === "poster" && payload !== null && poster === null && (
+        <p style={countText}>포스터 모드는 모델(Claude 등)을 선택해야 포스터가 생성됩니다.</p>
       )}
     </section>
   );

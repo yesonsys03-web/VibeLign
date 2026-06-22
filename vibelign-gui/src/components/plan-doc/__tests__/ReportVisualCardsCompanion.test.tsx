@@ -174,4 +174,80 @@ test("does not show poster preview when no poster returned", async () => {
   await screen.findByText("승인된 카드 1개");
   expect(screen.queryByTitle("카드뉴스 포스터 프리뷰")).not.toBeInTheDocument();
 });
+
+test("poster mode: hides cards panel and shows poster iframe and 확정 button", async () => {
+  const posterHtml = "<html><body>poster only</body></html>";
+  mockRequestReportVisualCards.mockResolvedValue({
+    ok: true,
+    payload,
+    poster: { html: posterHtml, source: "llm" },
+  });
+
+  render(<ReportVisualCardsCompanion {...defaultProps} />);
+  fireEvent.change(screen.getByLabelText("카드뉴스 생성 방식"), { target: { value: "poster" } });
+  fireEvent.click(screen.getByRole("button", { name: "카드뉴스 초안 만들기" }));
+
+  const iframe = await screen.findByTitle("카드뉴스 포스터 프리뷰");
+  expect(iframe).toBeInTheDocument();
+
+  // Cards panel must NOT be rendered in poster mode
+  expect(screen.queryByText("요약 카드 초안")).not.toBeInTheDocument();
+  expect(screen.queryByText(/승인된 카드 \d+개/)).not.toBeInTheDocument();
+
+  // 확정 button must be present and enabled
+  const finalizeBtn = screen.getByRole("button", { name: "카드뉴스 확정" });
+  expect(finalizeBtn).toBeInTheDocument();
+  expect(finalizeBtn).not.toBeDisabled();
+});
+
+test("poster mode: clicking 확정 calls saveReportVisualCards with all cards approved and poster_html", async () => {
+  const posterHtml = "<html><body>poster save test</body></html>";
+  mockRequestReportVisualCards.mockResolvedValue({
+    ok: true,
+    payload,
+    poster: { html: posterHtml, source: "llm" },
+  });
+
+  render(<ReportVisualCardsCompanion {...defaultProps} />);
+  fireEvent.change(screen.getByLabelText("카드뉴스 생성 방식"), { target: { value: "poster" } });
+  fireEvent.click(screen.getByRole("button", { name: "카드뉴스 초안 만들기" }));
+
+  await screen.findByTitle("카드뉴스 포스터 프리뷰");
+
+  fireEvent.click(screen.getByRole("button", { name: "카드뉴스 확정" }));
+
+  await waitFor(() =>
+    expect(mockSaveReportVisualCards).toHaveBeenCalledWith(
+      "/proj",
+      expect.objectContaining({
+        poster_html: posterHtml,
+        cards: payload.cards.map((c) => ({ ...c, approved: true })),
+      }),
+    ),
+  );
+});
+
+test("per-card mode: cards panel IS rendered (regression)", async () => {
+  mockRequestReportVisualCards.mockResolvedValue({ ok: true, payload });
+
+  render(<ReportVisualCardsCompanion {...defaultProps} />);
+  // default mode is per-card — do not change mode select
+  fireEvent.click(screen.getByRole("button", { name: "카드뉴스 초안 만들기" }));
+
+  await screen.findByText("승인된 카드 1개");
+  // ReportVisualCardsPanel renders the section; at minimum the count line is present
+  expect(screen.getByText("승인된 카드 1개")).toBeInTheDocument();
+});
+
+test("poster mode with no poster: shows hint instead of cards panel", async () => {
+  mockRequestReportVisualCards.mockResolvedValue({ ok: true, payload });
+
+  render(<ReportVisualCardsCompanion {...defaultProps} />);
+  fireEvent.change(screen.getByLabelText("카드뉴스 생성 방식"), { target: { value: "poster" } });
+  fireEvent.click(screen.getByRole("button", { name: "카드뉴스 초안 만들기" }));
+
+  await screen.findByText(/포스터 모드는 모델/);
+  expect(screen.queryByTitle("카드뉴스 포스터 프리뷰")).not.toBeInTheDocument();
+  expect(screen.queryByText(/승인된 카드 \d+개/)).not.toBeInTheDocument();
+});
 // === ANCHOR: REPORTVISUALCARDSCOMPANION_TEST_END ===
