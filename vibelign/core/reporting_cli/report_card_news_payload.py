@@ -39,6 +39,7 @@ class _ImageModel(BaseModel):
     asset_path: str = ""
     prompt: str = ""
     generated: StrictBool = False
+    source: Literal["llm", "fallback", "template"] = "template"
 # === ANCHOR: REPORT_CARD_NEWS_PAYLOAD__IMAGEMODEL_END ===
 
 
@@ -102,6 +103,7 @@ def _card_from_model(card: _CardModel) -> VisualCardDict:
             "asset_path": card.image.asset_path,
             "prompt": card.image.prompt,
             "generated": card.image.generated,
+            "source": card.image.source,
         },
         "approved": card.approved is True,
     }

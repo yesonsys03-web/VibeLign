@@ -111,6 +111,20 @@ def test_from_dict_rejects_non_string_item_entries():
         model_from_dict(bad)
 
 
+def test_image_model_preserves_source(tmp_path) -> None:
+    from vibelign.core.reporting_cli.report_card_news_payload import load_visual_cards_payload
+    payload = tmp_path / "p.json"
+    payload.write_text(
+        '{"schema_version":"report-visual-cards-v1","status":"ready","provider":"agy",'
+        '"cards":[{"id":"c1","title":"t","body":"b","caption":"","visual_prompt":"",'
+        '"negative_prompt":"","source_refs":[],"approved":true,'
+        '"image":{"provider":"agy","asset_path":"","prompt":"","generated":true,"source":"llm"}}]}',
+        encoding="utf-8",
+    )
+    loaded = load_visual_cards_payload(payload)
+    assert loaded["cards"][0]["image"]["source"] == "llm"
+
+
 def test_author_roundtrips():
     m = ReportModel(title="t", report_type="work", date="d", author="홍길동", sections=[])
     assert model_from_dict(model_to_dict(m)).author == "홍길동"
