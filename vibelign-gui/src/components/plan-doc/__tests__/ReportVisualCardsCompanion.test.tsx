@@ -140,7 +140,7 @@ test("passes mode arg to requestReportVisualCards", async () => {
   fireEvent.click(screen.getByRole("button", { name: "카드뉴스 초안 만들기" }));
 
   await waitFor(() =>
-    expect(mockRequestReportVisualCards).toHaveBeenCalledWith("/proj", "plans/p.md", "work", "claude", "poster"),
+    expect(mockRequestReportVisualCards).toHaveBeenCalledWith("/proj", "plans/p.md", "work", "claude", "poster", expect.any(Function)),
   );
 });
 
@@ -249,5 +249,33 @@ test("poster mode with no poster: shows hint instead of cards panel", async () =
   await screen.findByText(/포스터 모드는 모델/);
   expect(screen.queryByTitle("카드뉴스 포스터 프리뷰")).not.toBeInTheDocument();
   expect(screen.queryByText(/승인된 카드 \d+개/)).not.toBeInTheDocument();
+});
+
+test("shows progress bar with gyari-loader and stage label while loading, hides when done", async () => {
+  let resolveRequest!: (v: unknown) => void;
+  let capturedOnProgress!: (stage: string) => void;
+
+  mockRequestReportVisualCards.mockImplementation((_cwd, _planPath, _reportType, _provider, _mode, onProgress) => {
+    capturedOnProgress = onProgress as (stage: string) => void;
+    return new Promise((resolve) => { resolveRequest = resolve; });
+  });
+
+  render(<ReportVisualCardsCompanion {...defaultProps} />);
+  fireEvent.click(screen.getByRole("button", { name: "카드뉴스 초안 만들기" }));
+
+  // Before onProgress fires, progress container should be visible (loading=true)
+  expect(screen.getByLabelText("카드뉴스 생성 진행")).toBeInTheDocument();
+
+  // Fire onProgress("assets") to simulate backend stage event
+  capturedOnProgress("assets");
+
+  // Progress container still visible, gyari-loader present, label shows "카드 이미지"
+  await waitFor(() => expect(screen.getByLabelText("카드뉴스 생성 진행")).toBeInTheDocument());
+  expect(document.querySelector(".gyari-loader")).toBeInTheDocument();
+  expect(screen.getByText(/카드 이미지/)).toBeInTheDocument();
+
+  // Resolve the request — loading ends, progress bar disappears
+  resolveRequest({ ok: true, payload });
+  await waitFor(() => expect(screen.queryByLabelText("카드뉴스 생성 진행")).not.toBeInTheDocument());
 });
 // === ANCHOR: REPORTVISUALCARDSCOMPANION_TEST_END ===

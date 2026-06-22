@@ -40,6 +40,7 @@ export function ReportVisualCardsCompanion({
   const [openError, setOpenError] = useState<string | null>(null);
   const [mode, setMode] = useState<"per-card" | "poster">("per-card");
   const [poster, setPoster] = useState<{ html: string; source: "llm" | "fallback" } | null>(null);
+  const [stage, setStage] = useState<string | null>(null);
 
   useEffect(() => {
     setPayload(null);
@@ -52,9 +53,15 @@ export function ReportVisualCardsCompanion({
 
   const requestCards = async (): Promise<void> => {
     setLoading(true);
+    setStage(null);
     setError(null);
-    const result = await requestReportVisualCards(cwd, planPath, reportType, provider, mode);
-    setLoading(false);
+    let result;
+    try {
+      result = await requestReportVisualCards(cwd, planPath, reportType, provider, mode, (s) => setStage(s));
+    } finally {
+      setStage(null);
+      setLoading(false);
+    }
     if (!result.ok) {
       setPayload(null);
       setApprovedCards([]);
@@ -152,11 +159,22 @@ export function ReportVisualCardsCompanion({
             <option value="poster">전체 디자인 통째</option>
           </select>
           <button type="button" onClick={() => void requestCards()} disabled={loading} style={requestButton}>
-            {loading ? "요청 중..." : "카드뉴스 초안 만들기"}
+            {loading ? "카드뉴스 만드는 중..." : "카드뉴스 초안 만들기"}
           </button>
         </div>
       </div>
       <p style={copy}>보고서 메시지를 3-6장 카드로 나누고, 한국어 문구는 편집 가능한 오버레이로 유지합니다.</p>
+      {loading && (() => {
+        const stageUi = stage ? STAGE_UI[stage] ?? { pct: 8, label: "준비 중" } : { pct: 8, label: "준비 중" };
+        return (
+          <div aria-label="카드뉴스 생성 진행" style={progressWrap}>
+            <div style={progressTrack}>
+              <span className="gyari-loader" style={{ position: "absolute", left: `calc(${stageUi.pct}% - 26px)`, transition: "left .5s ease" }} aria-hidden />
+            </div>
+            <p style={progressLabel}>{stageUi.label}...</p>
+          </div>
+        );
+      })()}
       {error !== null && <p role="alert" style={errorText}>{error}</p>}
       {exportResult !== null && exportResult.ok && (
         <div style={resultBox}>
@@ -227,6 +245,12 @@ function isProjectCardNewsPromptDir(cwd: string, path: string): boolean {
   return normalizedPath.startsWith(expectedPrefix) && !normalizedPath.includes("/../");
 }
 
+const STAGE_UI: Record<string, { pct: number; label: string }> = {
+  draft: { pct: 30, label: "초안 만드는 중" },
+  assets: { pct: 60, label: "카드 이미지 그리는 중" },
+  poster: { pct: 88, label: "포스터 디자인 중 (조금 걸려요)" },
+};
+
 const shell: CSSProperties = {
   minWidth: 0,
   width: "100%",
@@ -252,4 +276,7 @@ const resultBox: CSSProperties = { marginTop: 10, border: "2px solid #1A1A1A", b
 const resultTitle: CSSProperties = { margin: 0, fontSize: 12, fontWeight: 900 };
 const resultActions: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 };
 const pathText: CSSProperties = { margin: "6px 0 8px", color: "#666666", fontSize: 11, overflowWrap: "anywhere" };
+const progressWrap: CSSProperties = { marginTop: 10 };
+const progressTrack: CSSProperties = { position: "relative", height: 56, border: "2px solid #1A1A1A", background: "#FEFBF0", overflow: "hidden" };
+const progressLabel: CSSProperties = { margin: "4px 0 0", fontSize: 12, fontWeight: 800 };
 // === ANCHOR: REPORT_VISUAL_CARDS_COMPANION_END ===
