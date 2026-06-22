@@ -204,3 +204,44 @@ def test_poster_mode_emits_progress_stages(
     assert "[progress] step=report-cards stage=draft" in err
     assert "[progress] step=report-cards stage=assets" in err
     assert "[progress] step=report-cards stage=poster" in err
+
+
+def _fake_run_draft_unparseable(
+    _self: cli_adapters.SubprocessPlanningCliRunner,
+    command: list[str],
+    *,
+    cwd: Path,
+    input_text: str,
+    timeout_seconds: int,
+) -> cli_adapters.PlanningCliResult:
+    prompt = command[2]
+    if prompt.startswith("한국어 보고서 카드뉴스 초안"):
+        # Model returns prose instead of JSON — draft parse fails (VisualCardsCliError).
+        return cli_adapters.PlanningCliResult(
+            status="ok", stdout="죄송하지만 JSON을 만들 수 없습니다. 설명만 드릴게요.", stderr="", exit_code=0, duration_ms=1
+        )
+    return _fake_run(_self, command, cwd=cwd, input_text=input_text, timeout_seconds=timeout_seconds)
+
+
+def test_draft_parse_failure_degrades_instead_of_hard_error(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unparseable draft response must NOT hard-fail; generation degrades to base cards."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli_adapters, "build_cli_command", _fake_build_command)
+    monkeypatch.setattr(cli_adapters.SubprocessPlanningCliRunner, "run", _fake_run_draft_unparseable)
+
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+
+    args = _ReportArgs(plan=str(plan))
+    run_vib_report(args)
+
+    raw: JsonValue = json.loads(capsys.readouterr().out)
+    assert isinstance(raw, dict)
+    assert raw["ok"] is True  # no hard failure despite the unparseable draft
+    assert "visual_cards" in raw
+    # Poster mode still designs its poster from the (degraded) base cards.
+    assert "card_news_poster" in raw

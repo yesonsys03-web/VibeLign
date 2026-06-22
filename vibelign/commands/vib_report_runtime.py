@@ -227,7 +227,13 @@ def _visual_cards(raw: ReportArgs, ctx: ReportCommandContext, model: ReportModel
     if provider_name in {"", "local"}:
         return base
     provider = CliVisualCardsProvider(provider_name, root=ctx.root)
-    draft = provider.draft(base, ctx.text)
+    try:
+        draft = provider.draft(base, ctx.text)
+    except VisualCardsCliError:
+        # The model's text rewrite is non-deterministic and occasionally returns unparseable
+        # output. Degrade to the deterministic base cards instead of hard-failing the whole
+        # card-news generation (poster mode still designs its poster from these cards).
+        return base
     slug = _report_slug(ctx.slug_source)
     _emit_card_progress("assets")
     cards = materialize_card_news_assets(ctx.root, slug, draft["cards"])
