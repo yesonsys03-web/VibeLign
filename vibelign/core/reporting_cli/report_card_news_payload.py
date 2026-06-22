@@ -67,6 +67,7 @@ class _PayloadModel(BaseModel):
     status: Literal["ready", "empty"] = "ready"
     provider: str = "generic-image-provider"
     cards: list[_CardModel]
+    poster_html: str = ""
 # === ANCHOR: REPORT_CARD_NEWS_PAYLOAD__PAYLOADMODEL_END ===
 
 
@@ -86,6 +87,16 @@ def load_visual_cards_payload(payload_path: Path) -> VisualCardsDict:
         "assets": [],
     }
 # === ANCHOR: REPORT_CARD_NEWS_PAYLOAD_LOAD_VISUAL_CARDS_PAYLOAD_END ===
+
+
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD_LOAD_POSTER_HTML_START ===
+def load_card_news_poster_html(payload_path: Path) -> str:
+    try:
+        model = _PayloadModel.model_validate_json(payload_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValidationError):
+        return ""
+    return model.poster_html
+# === ANCHOR: REPORT_CARD_NEWS_PAYLOAD_LOAD_POSTER_HTML_END ===
 
 
 # === ANCHOR: REPORT_CARD_NEWS_PAYLOAD__CARD_FROM_MODEL_START ===

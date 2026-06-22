@@ -15,7 +15,8 @@ from vibelign.core.reporting_cli.report_card_news_prompts import (
     CardNewsPromptPack,
     write_card_news_prompt_pack,
 )
-from vibelign.core.reporting_cli.report_card_news_payload import load_visual_cards_payload
+from vibelign.core.reporting_cli.report_card_news_payload import load_visual_cards_payload, load_card_news_poster_html
+from vibelign.core.reporting_cli.report_card_news_poster import sanitize_card_news_html
 from vibelign.core.reporting_cli.report_visual_cards import (
     VisualCardDict,
     VisualCardsDict,
@@ -67,7 +68,12 @@ def export_card_news(payload_path: Path) -> CardNewsExport:
     approved_with_assets = materialize_card_news_assets(root, slug, approved)
     export_json = json.dumps(_export_payload(payload, approved_with_assets), ensure_ascii=False, indent=2)
     _ = json_path.write_text(f"{export_json}\n", encoding="utf-8")
-    _ = html_path.write_text(render_card_news_html(payload, approved_with_assets, root, html_path.parent), encoding="utf-8")
+    poster_html = load_card_news_poster_html(payload_path)
+    safe_poster = sanitize_card_news_html(poster_html) if poster_html else None
+    html_body = safe_poster if safe_poster is not None else render_card_news_html(
+        payload, approved_with_assets, root, html_path.parent
+    )
+    _ = html_path.write_text(html_body, encoding="utf-8")
     prompt_pack = _write_prompt_pack(root, slug, payload, approved_with_assets)
     return CardNewsExport(
         json_path=json_path,

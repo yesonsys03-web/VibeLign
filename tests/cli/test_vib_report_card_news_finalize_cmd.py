@@ -291,3 +291,55 @@ def test_report_card_news_reports_missing_payload_as_json(
     out = _read_json(capsys.readouterr().out)
     assert out.ok is False
     assert "payload" in out.error
+
+
+def test_finalize_writes_poster_html_when_present(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    payload_path = tmp_path / "cards.json"
+    data: _PayloadJson = {
+        "schema_version": "report-visual-cards-v1",
+        "status": "ready",
+        "provider": "provider-neutral-draft",
+        "cards": [_card("card-1", approved=True)],
+        "assets": [],
+    }
+    data["poster_html"] = "<html><body><h1>모델 포스터</h1></body></html>"  # type: ignore[typeddict-unknown-key]
+    _ = payload_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    run_vib_report_card_news(_args(payload_path))
+
+    out = _read_json(capsys.readouterr().out)
+    assert out.ok is True
+    html = Path(out.html_path).read_text(encoding="utf-8")
+    assert "모델 포스터" in html
+
+
+def test_finalize_falls_back_to_render_when_poster_html_fails_sanitize(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    payload_path = tmp_path / "cards.json"
+    data: _PayloadJson = {
+        "schema_version": "report-visual-cards-v1",
+        "status": "ready",
+        "provider": "provider-neutral-draft",
+        "cards": [_card("card-1", approved=True)],
+        "assets": [],
+    }
+    # sanitize_card_news_html returns None when there is no <html>...</html> wrapper
+    data["poster_html"] = "<div>no html wrapper here</div>"  # type: ignore[typeddict-unknown-key]
+    _ = payload_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    run_vib_report_card_news(_args(payload_path))
+
+    out = _read_json(capsys.readouterr().out)
+    assert out.ok is True
+    html = Path(out.html_path).read_text(encoding="utf-8")
+    # Falls back to deterministic render — should contain card body text, not the raw poster
+    assert "보고서 핵심 메시지를 요약합니다." in html
