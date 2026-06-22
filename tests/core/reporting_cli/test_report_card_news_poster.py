@@ -158,3 +158,38 @@ def test_poster_fallback_is_self_contained_no_img(tmp_path: Path, monkeypatch) -
     assert result.source == "fallback"
     assert "<img" not in result.html
     assert "<svg" in result.html
+
+
+def test_sanitize_rejects_js_interactive_buttons() -> None:
+    # The model stripped of <script> leaves dead buttons and JS-hidden content; treat as
+    # unusable so the caller falls back to the static deterministic render.
+    html = sanitize_card_news_html(
+        '<html><body><button id="slide-mode-btn">슬라이드 보기</button>'
+        '<div class="slide inactive" style="display:none">카드2</div></body></html>'
+    )
+    assert html is None
+
+
+def test_poster_with_buttons_falls_back_to_static(tmp_path: Path, monkeypatch) -> None:
+    interactive = (
+        "<html><body><button id=\"b\">슬라이드 보기</button>"
+        "<div class=\"slide inactive\" style=\"display:none\">카드 본문</div></body></html>"
+    )
+    runner = FakeRunner(interactive)
+    monkeypatch.setattr(cli_adapters, "build_cli_command", lambda p, prompt: ["fake", p])
+    p = _payload()
+
+    result = generate_card_news_poster(p, p["cards"], tmp_path, "agy", runner=runner)
+
+    assert result.source == "fallback"
+    assert "<button" not in result.html.lower()
+
+
+def test_poster_prompt_forbids_js_and_requires_all_visible() -> None:
+    from vibelign.core.reporting_cli.report_card_news_poster import _poster_prompt
+
+    p = _payload()
+    prompt = _poster_prompt(p["cards"])
+    assert "JavaScript" in prompt
+    assert "button" in prompt.lower()
+    assert "모든 카드" in prompt
