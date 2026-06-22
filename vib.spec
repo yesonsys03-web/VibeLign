@@ -20,6 +20,8 @@ hidden_imports = [
     "vibelign.commands.vib_scan_cmd","vibelign.commands.vib_secrets_cmd",
     "vibelign.commands.vib_start_cmd","vibelign.commands.vib_transfer_cmd","vibelign.commands.vib_undo_cmd",
     "vibelign.commands.watch_cmd","vibelign.commands.vib_report_cmd",
+    "vibelign.commands.vib_report_card_news_cmd","vibelign.commands.vib_plan_cmd",
+    "vibelign.commands.vib_mcp_cmd","vibelign.commands.vib_show_cmd",
     "vibelign.core.reporting_cli","vibelign.core.reporting_cli.docx_renderer",
     "vibelign.core.reporting_cli.html_renderer","vibelign.core.reporting_cli.models",
     "vibelign.core.reporting_cli.polish","vibelign.core.reporting_cli.polish_cache",
