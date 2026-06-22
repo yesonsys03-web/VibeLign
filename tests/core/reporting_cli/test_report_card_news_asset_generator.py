@@ -90,6 +90,7 @@ def _card(provider: str = "provider-neutral-draft") -> VisualCardDict:
             "asset_path": "",
             "prompt": "mobile calendar reminder permission flow with push notification toggle, no readable text in image",
             "generated": False,
+            "source": "template",
         },
         "approved": True,
     }
@@ -107,6 +108,7 @@ def _card_with_id(card_id: str, title: str, provider: str = "opencode") -> Visua
             "asset_path": "",
             "prompt": f"{title} specific visual prompt, no readable text in image",
             "generated": False,
+            "source": "template",
         },
     }
 
@@ -132,6 +134,7 @@ def test_model_provider_generates_svg_asset_from_visual_prompt(
     assert 'data-schema="report-card-news-svg-asset-v1"' in svg
     assert "data-sketch-symbols" not in svg
     assert "calendar reminder permission" in runner.commands[0][2]
+    assert cards[0]["image"]["source"] == "llm"
 
 
 def test_model_provider_reuses_existing_asset_without_cli_call(
@@ -183,6 +186,7 @@ def test_model_provider_falls_back_to_local_asset_when_cli_times_out(
     assert cards[0]["image"]["provider"] == "claude"
     assert "data-sketch-symbols" in svg
     assert len(runner.commands) == 1
+    assert cards[0]["image"]["source"] == "fallback"
 
 
 def test_model_provider_rejects_unsafe_svg(
@@ -223,3 +227,16 @@ def test_model_provider_allows_standard_svg_namespace(
     svg = (tmp_path / cards[0]["image"]["asset_path"]).read_text(encoding="utf-8")
     assert 'xmlns="http://www.w3.org/2000/svg"' in svg
     assert '<rect width="320" height="150"' in svg
+
+
+def test_non_cli_provider_marks_source_template(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = FakeRunner("")
+    monkeypatch.setattr(cli_adapters, "build_cli_command", _fake_build_command)
+
+    cards = materialize_card_news_assets(tmp_path, "예약-알림", [_card("provider-neutral-draft")], runner=runner)
+
+    assert cards[0]["image"]["source"] == "template"
+    assert runner.commands == []

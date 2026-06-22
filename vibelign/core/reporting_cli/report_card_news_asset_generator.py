@@ -76,10 +76,12 @@ def _materialize_card_asset(
     asset_relative = _asset_relative_path(context.slug, card, index)
     asset_path = context.root / asset_relative
     if asset_path.exists():
-        return _card_with_asset(card, asset_relative)
+        svg = asset_path.read_text(encoding="utf-8")
+        return _card_with_asset(card, asset_relative, _asset_source(card["image"]["provider"], svg))
     asset_dir.mkdir(parents=True, exist_ok=True)
-    _ = asset_path.write_text(_asset_svg(context, card), encoding="utf-8")
-    return _card_with_asset(card, asset_relative)
+    svg = _asset_svg(context, card)
+    _ = asset_path.write_text(svg, encoding="utf-8")
+    return _card_with_asset(card, asset_relative, _asset_source(card["image"]["provider"], svg))
 
 
 # === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__SAFE_ASSET_DIR_START ===
@@ -210,14 +212,23 @@ def _with_svg_schema(svg: str) -> str:
 # === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__WITH_SVG_SCHEMA_END ===
 
 
+# === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__ASSET_SOURCE_START ===
+def _asset_source(provider: str, svg_text: str) -> str:
+    if provider not in _CLI_ASSET_PROVIDERS:
+        return "template"
+    return "fallback" if "data-sketch-symbols" in svg_text else "llm"
+# === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__ASSET_SOURCE_END ===
+
+
 # === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__CARD_WITH_ASSET_START ===
-def _card_with_asset(card: VisualCardDict, asset_relative: Path) -> VisualCardDict:
+def _card_with_asset(card: VisualCardDict, asset_relative: Path, source: str) -> VisualCardDict:
     prompt = card["visual_prompt"] or card["image"]["prompt"]
     image: VisualImageMetadata = {
         "provider": card["image"]["provider"],
         "asset_path": asset_relative.as_posix(),
         "prompt": prompt,
         "generated": True,
+        "source": source if source in ("llm", "fallback", "template") else "template",
     }
     return {
         "id": card["id"],
