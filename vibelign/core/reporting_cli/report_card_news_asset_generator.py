@@ -26,7 +26,9 @@ _SVG_SCHEMA_ATTR: Final = f'data-schema="{_ASSET_SCHEMA_VERSION}"'
 _VISUAL_PROMPT_LIMIT: Final = 900
 _MAX_CONCURRENT_ASSET_REQUESTS: Final = 3
 _ASSET_TIMEOUT_SECONDS: Final = 120
-_BATCH_TIMEOUT_SECONDS: Final = 180
+# A 6-card rich-SVG batch with a slow model (opencode/deepseek-flash) measured ~161s and
+# varies widely; 180s timed out for whole batches → every card fell back to a sketch.
+_BATCH_TIMEOUT_SECONDS: Final = 300
 _JSON_OBJECT_RE: Final[re.Pattern[str]] = re.compile(r"\{[\s\S]*\}")
 
 
