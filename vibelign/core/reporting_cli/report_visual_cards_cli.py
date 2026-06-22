@@ -126,6 +126,7 @@ def _cards_from_payload(payload: JsonObject, base_cards: list[VisualCardDict], p
             "asset_path": "",
             "prompt": visual_prompt,
             "generated": False,
+            "source": "template",
         }
         cards.append(
             {
