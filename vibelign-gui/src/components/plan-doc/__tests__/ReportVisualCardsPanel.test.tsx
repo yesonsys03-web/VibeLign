@@ -151,7 +151,7 @@ test("production ReportComposer requests and previews visual cards", async () =>
   const providerSelect = await screen.findByLabelText("카드뉴스 초안 모델");
   fireEvent.change(providerSelect, { target: { value: "opencode" } });
   fireEvent.click(screen.getByRole("button", { name: "카드뉴스 초안 만들기" }));
-  await waitFor(() => expect(mockRequestReportVisualCards).toHaveBeenLastCalledWith("/proj", "plans/p.md", "work", "opencode"));
+  await waitFor(() => expect(mockRequestReportVisualCards).toHaveBeenLastCalledWith("/proj", "plans/p.md", "work", "opencode", "per-card"));
   await waitFor(() => expect(screen.getByText("승인된 카드 1개")).toBeInTheDocument());
   fireEvent.click(screen.getByRole("button", { name: "카드뉴스 확정" }));
   await screen.findByText("카드뉴스 결과물 1장");

@@ -38,6 +38,8 @@ export function ReportVisualCardsCompanion({
   const [exportResult, setExportResult] = useState<ReportCardNewsExportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"per-card" | "poster">("per-card");
+  const [poster, setPoster] = useState<{ html: string; source: "llm" | "fallback" } | null>(null);
 
   useEffect(() => {
     setPayload(null);
@@ -45,21 +47,24 @@ export function ReportVisualCardsCompanion({
     setExportResult(null);
     setError(null);
     setOpenError(null);
+    setPoster(null);
   }, [planPath, reportType]);
 
   const requestCards = async (): Promise<void> => {
     setLoading(true);
     setError(null);
-    const result = await requestReportVisualCards(cwd, planPath, reportType, provider);
+    const result = await requestReportVisualCards(cwd, planPath, reportType, provider, mode);
     setLoading(false);
     if (!result.ok) {
       setPayload(null);
       setApprovedCards([]);
       setExportResult(null);
+      setPoster(null);
       setError(result.error);
       return;
     }
     setPayload(result.payload);
+    setPoster(result.poster ?? null);
     setExportResult(null);
   };
 
@@ -72,7 +77,7 @@ export function ReportVisualCardsCompanion({
     setFinalizing(true);
     setError(null);
     setOpenError(null);
-    const result = await saveReportVisualCards(cwd, { ...payload, cards });
+    const result = await saveReportVisualCards(cwd, { ...payload, cards, ...(poster ? { poster_html: poster.html } : {}) });
     setFinalizing(false);
     setExportResult(result);
     if (!result.ok) setError(result.error);
@@ -131,6 +136,16 @@ export function ReportVisualCardsCompanion({
               <option key={option.id} value={option.id}>{option.label}</option>
             ))}
           </select>
+          <select
+            aria-label="카드뉴스 생성 방식"
+            value={mode}
+            onChange={(e) => setMode(e.target.value === "poster" ? "poster" : "per-card")}
+            disabled={loading}
+            style={select}
+          >
+            <option value="per-card">카드별 일러스트</option>
+            <option value="poster">전체 디자인 통째</option>
+          </select>
           <button type="button" onClick={() => void requestCards()} disabled={loading} style={requestButton}>
             {loading ? "요청 중..." : "카드뉴스 초안 만들기"}
           </button>
@@ -154,6 +169,17 @@ export function ReportVisualCardsCompanion({
           </div>
           {exportResult.promptDir.length > 0 && <p style={pathText}>{exportResult.promptDir}</p>}
           {openError !== null && <p role="alert" style={errorText}>{openError}</p>}
+        </div>
+      )}
+      {poster !== null && (
+        <div style={resultBox}>
+          <p style={resultTitle}>모델 포스터 프리뷰 · {poster.source === "llm" ? "모델 생성" : "폴백"}</p>
+          <iframe
+            title="카드뉴스 포스터 프리뷰"
+            sandbox=""
+            srcDoc={poster.html}
+            style={{ width: "100%", height: 520, border: "2px solid #1A1A1A", background: "#FFFFFF" }}
+          />
         </div>
       )}
       {payload !== null && (
