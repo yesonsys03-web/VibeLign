@@ -37,6 +37,7 @@ class ReportRenderJsonPayload(TypedDict):
     path: str
     report_type: str
     visual_cards: NotRequired[VisualCardsDict]
+    card_news_poster: NotRequired[dict[str, str]]
 # === ANCHOR: VIB_REPORT_RUNTIME_TYPES_END ===
 
 
@@ -192,7 +193,11 @@ def _print_render_response(raw: ReportArgs, ctx: ReportCommandContext, model: Re
         }
         if getattr(raw, "visual_cards", False):
             try:
-                payload["visual_cards"] = _visual_cards(raw, ctx, model)
+                cards_payload = _visual_cards(raw, ctx, model)
+                payload["visual_cards"] = cards_payload
+                poster = _card_news_poster(raw, ctx, cards_payload)
+                if poster is not None:
+                    payload["card_news_poster"] = poster
             except (CardNewsAssetError, VisualCardsCliError) as exc:
                 _fail(ctx.want_json, str(exc))
         print(json.dumps(payload, ensure_ascii=False))
@@ -220,6 +225,26 @@ def _visual_cards(raw: ReportArgs, ctx: ReportCommandContext, model: ReportModel
     slug = _report_slug(ctx.slug_source)
     cards = materialize_card_news_assets(ctx.root, slug, draft["cards"])
     return {**draft, "cards": cards, "assets": [card["image"] for card in cards]}
+
+
+def _card_news_poster(
+    raw: ReportArgs, ctx: ReportCommandContext, cards_payload: VisualCardsDict
+) -> dict[str, str] | None:
+    if getattr(raw, "card_news_mode", "per-card") != "poster":
+        return None
+    provider_name = getattr(raw, "visual_card_cli", "local") or "local"
+    if provider_name in {"", "local"} or cards_payload["status"] != "ready":
+        return None
+    from vibelign.core.reporting_cli.report_card_news_poster import (
+        CardNewsPosterError,
+        generate_card_news_poster,
+    )
+
+    try:
+        result = generate_card_news_poster(cards_payload, cards_payload["cards"], ctx.root, provider_name)
+    except CardNewsPosterError as exc:
+        _fail(ctx.want_json, str(exc))
+    return {"html": result.html, "source": result.source}
 # === ANCHOR: VIB_REPORT_RUNTIME_RENDER_END ===
 
 
