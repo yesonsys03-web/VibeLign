@@ -9,7 +9,7 @@ from typing import Final, Literal
 from vibelign.core.planning_cli import cli_adapters
 from vibelign.core.planning_cli.response_policy import safe_planning_status
 from vibelign.core.reporting_cli.report_card_news_html import render_card_news_html
-from vibelign.core.reporting_cli.report_visual_cards import VisualCardDict, VisualCardsDict
+from vibelign.core.reporting_cli.report_visual_cards import VisualCardDict, VisualCardsDict, VisualImageMetadata
 
 _HTML_RE: Final[re.Pattern[str]] = re.compile(r"<html\b[\s\S]*?</html>", re.IGNORECASE)
 _SCRIPT_RE: Final[re.Pattern[str]] = re.compile(r"<script\b[\s\S]*?</script>", re.IGNORECASE)
@@ -62,6 +62,17 @@ def _has_remaining_external_url(html: str) -> bool:
     return "http://" in html or "https://" in html or "//" in html
 
 
+def _self_contained_fallback(payload: VisualCardsDict, cards: list[VisualCardDict], root: Path) -> str:
+    # The poster is shown in a sandboxed srcDoc iframe (null origin, no base URL), so a
+    # relative <img src> to an on-disk SVG asset cannot load and renders as a broken image.
+    # Clear asset_path so the renderer inlines the sketch SVG instead — fully self-contained.
+    inline_cards: list[VisualCardDict] = []
+    for card in cards:
+        image: VisualImageMetadata = {**card["image"], "asset_path": ""}
+        inline_cards.append({**card, "image": image})
+    return render_card_news_html(payload, inline_cards, root, root)
+
+
 def generate_card_news_poster(
     payload: VisualCardsDict,
     cards: list[VisualCardDict],
@@ -77,12 +88,12 @@ def generate_card_news_poster(
     result = active_runner.run(command, cwd=root, input_text="", timeout_seconds=timeout_seconds)
     status = safe_planning_status(result.status, result.stdout)
     if status == "timeout":
-        return PosterResult(html=render_card_news_html(payload, cards, root, root), source="fallback")
+        return PosterResult(html=_self_contained_fallback(payload, cards, root), source="fallback")
     if status != "ok":
         raise CardNewsPosterError(f"{provider} CLI 카드뉴스 포스터 생성 실패: {result.stderr.strip() or status}")
     sanitized = sanitize_card_news_html(result.stdout)
     if sanitized is None:
-        return PosterResult(html=render_card_news_html(payload, cards, root, root), source="fallback")
+        return PosterResult(html=_self_contained_fallback(payload, cards, root), source="fallback")
     return PosterResult(html=sanitized, source="llm")
 
 

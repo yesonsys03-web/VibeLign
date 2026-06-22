@@ -135,3 +135,26 @@ def test_poster_missing_cli_raises(tmp_path: Path, monkeypatch) -> None:
     p = _payload()
     with pytest.raises(CardNewsPosterError):
         _ = generate_card_news_poster(p, p["cards"], tmp_path, "agy")
+
+
+def test_poster_fallback_is_self_contained_no_img(tmp_path: Path, monkeypatch) -> None:
+    # In poster mode the cards carry on-disk per-card SVG assets. The fallback render
+    # must NOT emit relative <img src> (those can't load in a null-origin srcDoc iframe);
+    # it must be self-contained (inline sketch SVG).
+    rel = ".vibelign/reports/card-news/assets/x-card-news/01-card.svg"
+    asset = tmp_path / rel
+    asset.parent.mkdir(parents=True, exist_ok=True)
+    _ = asset.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 150"><rect/></svg>',
+        encoding="utf-8",
+    )
+    p = _payload()
+    p["cards"][0]["image"]["asset_path"] = rel
+    runner = FakeRunner("", status="timeout")
+    monkeypatch.setattr(cli_adapters, "build_cli_command", lambda pr, prompt: ["fake", pr])
+
+    result = generate_card_news_poster(p, p["cards"], tmp_path, "claude", runner=runner)
+
+    assert result.source == "fallback"
+    assert "<img" not in result.html
+    assert "<svg" in result.html
