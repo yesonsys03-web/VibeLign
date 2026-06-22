@@ -122,7 +122,8 @@ def _materialize_via_batch(
         asset_dir.mkdir(parents=True, exist_ok=True)
         svgs = _batch_svg_list(context, [card for _, card, _ in pending])
         for offset, (index, card, asset_relative) in enumerate(pending):
-            svg = svgs[offset] if offset < len(svgs) and svgs[offset] is not None else _fallback_asset_svg(card)
+            candidate = svgs[offset] if offset < len(svgs) else None
+            svg = candidate if candidate is not None else _fallback_asset_svg(card)
             _ = (context.root / asset_relative).write_text(svg, encoding="utf-8")
             resolved[index] = _card_with_asset(card, asset_relative, _asset_source(card["image"]["provider"], svg))
     return [resolved[index] for index in range(1, len(cards) + 1)]
