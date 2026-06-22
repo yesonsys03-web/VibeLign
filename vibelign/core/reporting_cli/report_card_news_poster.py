@@ -27,7 +27,9 @@ _DANGEROUS_SCHEME_ATTR_RE: Final[re.Pattern[str]] = re.compile(
     r"""("\s*(?:javascript|vbscript|data):[^"]*"|'\s*(?:javascript|vbscript|data):[^']*')""",
     re.IGNORECASE,
 )
-_POSTER_TIMEOUT_SECONDS: Final = 150
+# A whole-poster HTML design for up to 6 cards measured >195s with Claude (sonnet);
+# 150s timed out and silently fell back to the deterministic render. Give real headroom.
+_POSTER_TIMEOUT_SECONDS: Final = 300
 _MAX_SOURCE_CHARS: Final = 7000
 
 
