@@ -168,7 +168,6 @@ export function approvedReportVisualCards(cards: readonly ReportVisualCard[]): r
 export type CardNewsProgress = {
   readonly stage?: string;
   readonly draft?: ReportVisualCardsPayload;
-  readonly posterDraft?: { readonly html: string };
 };
 
 export async function requestReportVisualCards(
@@ -191,11 +190,6 @@ export async function requestReportVisualCards(
             const kind = stringValue(cn.kind);
             if (kind === "draft" && isRecord(cn.visual_cards)) {
               onProgress({ draft: parseReportVisualCardsPayload(cn.visual_cards) });
-              return;
-            }
-            if (kind === "poster_draft") {
-              const html = stringValue(cn.html);
-              if (html.length > 0) onProgress({ posterDraft: { html } });
               return;
             }
           }

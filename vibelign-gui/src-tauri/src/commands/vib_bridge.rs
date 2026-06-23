@@ -156,7 +156,7 @@ struct VibProgressEvent {
     retried: Option<u64>,
     anchors: Option<u64>,
     // Sketch-first card-news preview payload: the parsed `{"type":"card_news_event",...}` line
-    // (kind=draft → visual_cards storyboard, kind=poster_draft → placeholder poster html).
+    // (kind=draft → visual_cards storyboard for instant per-card sketches).
     card_news: Option<serde_json::Value>,
 }
 

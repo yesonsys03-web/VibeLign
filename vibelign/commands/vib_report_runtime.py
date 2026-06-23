@@ -274,16 +274,10 @@ def _card_news_poster(
         return None
     from vibelign.core.reporting_cli.report_card_news_poster import (
         CardNewsPosterError,
-        deterministic_poster_html,
         generate_card_news_poster,
     )
 
     _emit_card_progress("poster")
-    # Sketch-first: show the deterministic placeholder poster immediately so the user is not
-    # staring at a blank ≤300s wait; the GUI swaps it for the finished LLM poster on resolve.
-    _emit_card_news_event(
-        "poster_draft", html=deterministic_poster_html(cards_payload, cards_payload["cards"], ctx.root)
-    )
     try:
         result = generate_card_news_poster(cards_payload, cards_payload["cards"], ctx.root, provider_name)
     except CardNewsPosterError as exc:

@@ -515,7 +515,7 @@ export interface VibProgressEvent {
   failed?: number | null;
   retried?: number | null;
   anchors?: number | null;
-  /** Sketch-first card-news preview event: `{ kind: "draft" | "poster_draft", ... }`. */
+  /** Sketch-first card-news preview event: `{ kind: "draft", visual_cards, ... }`. */
   card_news?: Record<string, unknown> | null;
 }
 

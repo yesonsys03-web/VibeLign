@@ -289,13 +289,13 @@ def _card_news_events(stderr: str) -> list[dict[str, JsonValue]]:
     return events
 
 
-def test_sketch_first_emits_draft_and_poster_draft_events(
+def test_poster_mode_emits_draft_storyboard_event(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Poster mode streams a draft storyboard and a deterministic placeholder poster on stderr
-    so the GUI can render an instant preview before the slow LLM poster finishes."""
+    """Poster mode streams the draft storyboard on stderr so the GUI has the cards immediately.
+    No poster_draft placeholder is emitted (the in-app preview shows only the progress bar)."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(cli_adapters, "build_cli_command", _fake_build_command)
     monkeypatch.setattr(cli_adapters.SubprocessPlanningCliRunner, "run", _fake_run)
@@ -308,15 +308,11 @@ def test_sketch_first_emits_draft_and_poster_draft_events(
     events = _card_news_events(capsys.readouterr().err)
     kinds = [e["kind"] for e in events]
     assert "draft" in kinds, f"expected a draft event, got {kinds}"
-    assert "poster_draft" in kinds, f"expected a poster_draft event, got {kinds}"
+    assert "poster_draft" not in kinds, "poster_draft placeholder was removed"
 
     draft = next(e for e in events if e["kind"] == "draft")
     assert isinstance(draft["visual_cards"], dict)
     assert draft["visual_cards"]["status"] == "ready"
-
-    poster_draft = next(e for e in events if e["kind"] == "poster_draft")
-    assert isinstance(poster_draft["html"], str)
-    assert "<html" in poster_draft["html"].lower()
 
 
 def test_per_card_mode_emits_draft_event_only(
