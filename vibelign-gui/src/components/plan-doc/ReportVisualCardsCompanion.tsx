@@ -42,10 +42,11 @@ export function ReportVisualCardsCompanion({
   const [mode, setMode] = useState<"per-card" | "poster">("per-card");
   const [poster, setPoster] = useState<{ html: string; source: "llm" | "fallback" } | null>(null);
   const [stage, setStage] = useState<string | null>(null);
-  // Sketch-first preview shown while the slow asset/poster stage runs, swapped for the final
-  // result on resolve. liveDraft = storyboard sketches (per-card); livePoster = placeholder.
+  // Sketch-first per-card storyboard sketches shown while the slow asset stage runs (per-card
+  // mode only), swapped for the final cards on resolve. No poster placeholder: in poster mode a
+  // deterministic placeholder looked identical to a prior result, so generation shows only the
+  // progress bar.
   const [liveDraft, setLiveDraft] = useState<ReportVisualCardsPayload | null>(null);
-  const [livePoster, setLivePoster] = useState<string | null>(null);
 
   useEffect(() => {
     setPayload(null);
@@ -55,27 +56,26 @@ export function ReportVisualCardsCompanion({
     setOpenError(null);
     setPoster(null);
     setLiveDraft(null);
-    setLivePoster(null);
-  }, [planPath, reportType]);
+    // Also reset when the model (provider) or the mode changes: a poster/cards made with the
+    // previous model — or in the other mode — are stale, so don't keep showing them after the
+    // user switches. (Switching poster→per-card otherwise surfaced the poster-run draft cards.)
+  }, [planPath, reportType, provider, mode]);
 
   const requestCards = async (): Promise<void> => {
     setLoading(true);
     setStage(null);
     setError(null);
     setLiveDraft(null);
-    setLivePoster(null);
     let result;
     try {
       result = await requestReportVisualCards(cwd, planPath, reportType, provider, mode, (p) => {
         if (p.stage) setStage(p.stage);
         if (p.draft) setLiveDraft(p.draft);
-        if (p.posterDraft) setLivePoster(p.posterDraft.html);
       });
     } finally {
       setStage(null);
       setLoading(false);
       setLiveDraft(null);
-      setLivePoster(null);
     }
     if (!result.ok) {
       setPayload(null);
@@ -192,17 +192,6 @@ export function ReportVisualCardsCompanion({
           </div>
         );
       })()}
-      {loading && livePoster !== null && (
-        <div style={resultBox}>
-          <p style={resultTitle}>임시 포스터 · 완성되면 자동으로 교체됩니다</p>
-          <iframe
-            title="카드뉴스 임시 포스터"
-            sandbox=""
-            srcDoc={livePoster}
-            style={{ width: "100%", height: 520, border: "2px dashed #1A1A1A", background: "#FFFFFF", opacity: 0.85 }}
-          />
-        </div>
-      )}
       {loading && liveDraft !== null && mode === "per-card" && (
         <div style={resultBox}>
           <p style={resultTitle}>스토리보드 미리보기 · 일러스트 생성 중</p>

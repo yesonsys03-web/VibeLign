@@ -133,6 +133,63 @@ test("shows 폴백 badge when poster source is fallback", async () => {
   expect(screen.getByText(/폴백/)).toBeInTheDocument();
 });
 
+test("switching the model clears the result generated with the previous model", async () => {
+  mockRequestReportVisualCards.mockResolvedValue({
+    ok: true,
+    payload,
+    poster: { html: "<html><body>poster</body></html>", source: "llm" },
+  });
+
+  const { rerender } = render(<ReportVisualCardsCompanion {...defaultProps} provider="claude" />);
+  fireEvent.click(screen.getByRole("button", { name: "카드뉴스 초안 만들기" }));
+  await screen.findByTitle("카드뉴스 포스터 프리뷰");
+
+  // Changing the model must drop the stale poster made with the previous model, not keep showing it.
+  rerender(<ReportVisualCardsCompanion {...defaultProps} provider="opencode" />);
+  await waitFor(() => expect(screen.queryByTitle("카드뉴스 포스터 프리뷰")).not.toBeInTheDocument());
+});
+
+test("switching the card-news mode clears the result made in the other mode", async () => {
+  mockRequestReportVisualCards.mockResolvedValue({
+    ok: true,
+    payload,
+    poster: { html: "<html><body>poster</body></html>", source: "llm" },
+  });
+
+  render(<ReportVisualCardsCompanion {...defaultProps} />);
+  // Generate in poster mode → poster shows.
+  fireEvent.change(screen.getByLabelText("카드뉴스 생성 방식"), { target: { value: "poster" } });
+  fireEvent.click(screen.getByRole("button", { name: "카드뉴스 초안 만들기" }));
+  await screen.findByTitle("카드뉴스 포스터 프리뷰");
+
+  // Switching to per-card must drop the poster-mode result, not show it under the new mode.
+  fireEvent.change(screen.getByLabelText("카드뉴스 생성 방식"), { target: { value: "per-card" } });
+  await waitFor(() => expect(screen.queryByTitle("카드뉴스 포스터 프리뷰")).not.toBeInTheDocument());
+});
+
+test("after switching models, the old poster is not shown while the new generation is running", async () => {
+  // 1) Generate with model A → its poster shows.
+  mockRequestReportVisualCards.mockResolvedValue({
+    ok: true,
+    payload,
+    poster: { html: "<html><body>deepseek poster</body></html>", source: "llm" },
+  });
+  const { rerender } = render(<ReportVisualCardsCompanion {...defaultProps} provider="opencode" />);
+  fireEvent.click(screen.getByRole("button", { name: "카드뉴스 초안 만들기" }));
+  await screen.findByTitle("카드뉴스 포스터 프리뷰");
+
+  // 2) Switch to model B → stale poster clears.
+  rerender(<ReportVisualCardsCompanion {...defaultProps} provider="agy" />);
+  await waitFor(() => expect(screen.queryByTitle("카드뉴스 포스터 프리뷰")).not.toBeInTheDocument());
+
+  // 3) Start a new (pending) generation — the old poster must stay gone while it runs.
+  let resolveSecond!: (v: unknown) => void;
+  mockRequestReportVisualCards.mockReturnValue(new Promise((r) => { resolveSecond = r; }));
+  fireEvent.click(screen.getByRole("button", { name: "카드뉴스 초안 만들기" }));
+  expect(screen.queryByTitle("카드뉴스 포스터 프리뷰")).not.toBeInTheDocument();
+  resolveSecond({ ok: true, payload, poster: { html: "<html><body>agy poster</body></html>", source: "llm" } });
+});
+
 test("passes mode arg to requestReportVisualCards", async () => {
   render(<ReportVisualCardsCompanion {...defaultProps} />);
 
