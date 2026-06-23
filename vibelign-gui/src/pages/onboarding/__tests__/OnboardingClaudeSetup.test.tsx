@@ -19,6 +19,11 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
   openUrl: vi.fn(async () => undefined),
 }));
 
+// Uninstall confirms via the Tauri dialog (migrated from window.confirm); auto-approve it.
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  confirm: () => Promise.resolve(true),
+}));
+
 vi.mock("../../../lib/vib", async () => {
   const actual = await vi.importActual<typeof import("../../../lib/vib")>("../../../lib/vib");
   return {
@@ -83,7 +88,6 @@ describe("OnboardingClaudeSetup", () => {
       snap({ state: "login_required", nextAction: "start_login", headline: "로그인만 남았어요", primaryButtonLabel: "로그인", installPathKind: "native-powershell" }),
     );
     mocks.uninstallClaudeCodeMock.mockResolvedValue(snap({ state: "ready_to_install" }));
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
 
     render(<OnboardingClaudeSetup />);
 
@@ -92,7 +96,6 @@ describe("OnboardingClaudeSetup", () => {
     await waitFor(() => {
       expect(mocks.uninstallClaudeCodeMock).toHaveBeenCalledWith("all");
     });
-    confirmSpy.mockRestore();
   });
 
   test("shows_live_logs_during_active_state", async () => {
