@@ -206,6 +206,141 @@ def test_poster_mode_emits_progress_stages(
     assert "[progress] step=report-cards stage=poster" in err
 
 
+def _recording_run_factory(
+    seen_prompts: list[str],
+):
+    def _run(
+        _self: cli_adapters.SubprocessPlanningCliRunner,
+        command: list[str],
+        *,
+        cwd: Path,
+        input_text: str,
+        timeout_seconds: int,
+    ) -> cli_adapters.PlanningCliResult:
+        seen_prompts.append(command[2])
+        return _fake_run(_self, command, cwd=cwd, input_text=input_text, timeout_seconds=timeout_seconds)
+
+    return _run
+
+
+def test_poster_mode_skips_svg_asset_generation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Poster mode redraws every card from text and never consumes the per-card SVG assets,
+    so the expensive SVG asset-generation CLI call must be skipped entirely."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli_adapters, "build_cli_command", _fake_build_command)
+    seen_prompts: list[str] = []
+    monkeypatch.setattr(cli_adapters.SubprocessPlanningCliRunner, "run", _recording_run_factory(seen_prompts))
+
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+
+    args = _ReportArgs(plan=str(plan))  # card_news_mode == "poster"
+    run_vib_report(args)
+
+    raw: JsonValue = json.loads(capsys.readouterr().out)
+    assert isinstance(raw, dict)
+    assert raw["ok"] is True
+    assert "card_news_poster" in raw, "poster must still be produced in poster mode"
+    svg_calls = [p for p in seen_prompts if p.startswith("Create")]
+    assert svg_calls == [], f"poster mode must not generate per-card SVG assets, got: {svg_calls}"
+
+
+def test_per_card_mode_still_generates_svg_assets(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The asset-skip is poster-only: per-card mode must still materialize per-card SVGs."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli_adapters, "build_cli_command", _fake_build_command)
+    seen_prompts: list[str] = []
+    monkeypatch.setattr(cli_adapters.SubprocessPlanningCliRunner, "run", _recording_run_factory(seen_prompts))
+
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+
+    args = _ReportArgs(plan=str(plan))
+    args.card_news_mode = "per-card"
+    run_vib_report(args)
+
+    raw: JsonValue = json.loads(capsys.readouterr().out)
+    assert isinstance(raw, dict)
+    assert raw["ok"] is True
+    svg_calls = [p for p in seen_prompts if p.startswith("Create")]
+    assert svg_calls, "per-card mode must still generate per-card SVG assets"
+
+
+def _card_news_events(stderr: str) -> list[dict[str, JsonValue]]:
+    events: list[dict[str, JsonValue]] = []
+    for line in stderr.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict) and obj.get("type") == "card_news_event":
+            events.append(obj)
+    return events
+
+
+def test_sketch_first_emits_draft_and_poster_draft_events(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Poster mode streams a draft storyboard and a deterministic placeholder poster on stderr
+    so the GUI can render an instant preview before the slow LLM poster finishes."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli_adapters, "build_cli_command", _fake_build_command)
+    monkeypatch.setattr(cli_adapters.SubprocessPlanningCliRunner, "run", _fake_run)
+
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+
+    run_vib_report(_ReportArgs(plan=str(plan)))  # poster mode
+
+    events = _card_news_events(capsys.readouterr().err)
+    kinds = [e["kind"] for e in events]
+    assert "draft" in kinds, f"expected a draft event, got {kinds}"
+    assert "poster_draft" in kinds, f"expected a poster_draft event, got {kinds}"
+
+    draft = next(e for e in events if e["kind"] == "draft")
+    assert isinstance(draft["visual_cards"], dict)
+    assert draft["visual_cards"]["status"] == "ready"
+
+    poster_draft = next(e for e in events if e["kind"] == "poster_draft")
+    assert isinstance(poster_draft["html"], str)
+    assert "<html" in poster_draft["html"].lower()
+
+
+def test_per_card_mode_emits_draft_event_only(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Per-card mode streams the draft storyboard but no poster_draft (no poster stage)."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli_adapters, "build_cli_command", _fake_build_command)
+    monkeypatch.setattr(cli_adapters.SubprocessPlanningCliRunner, "run", _fake_run)
+
+    plan = tmp_path / "plan.md"
+    plan.write_text(PLAN_MD, encoding="utf-8")
+
+    args = _ReportArgs(plan=str(plan))
+    args.card_news_mode = "per-card"
+    run_vib_report(args)
+
+    kinds = [e["kind"] for e in _card_news_events(capsys.readouterr().err)]
+    assert "draft" in kinds
+    assert "poster_draft" not in kinds
+
+
 def _fake_run_draft_unparseable(
     _self: cli_adapters.SubprocessPlanningCliRunner,
     command: list[str],

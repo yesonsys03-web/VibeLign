@@ -193,3 +193,37 @@ def test_poster_prompt_forbids_js_and_requires_all_visible() -> None:
     assert "JavaScript" in prompt
     assert "button" in prompt.lower()
     assert "모든 카드" in prompt
+
+
+def test_poster_output_identical_with_or_without_materialized_asset(tmp_path: Path, monkeypatch) -> None:
+    # Poster mode skips per-card SVG asset generation (it redraws every card from text), so
+    # the poster output MUST be identical whether or not the cards carry a materialized
+    # asset_path. The LLM prompt uses only title/body/caption, and the fallback clears
+    # asset_path and re-renders the sketch from text — both are independent of the asset.
+    from vibelign.core.reporting_cli.report_card_news_poster import _poster_prompt
+
+    monkeypatch.setattr(cli_adapters, "build_cli_command", lambda pr, prompt: ["fake", pr])
+
+    p_skipped = _payload()  # asset_path == "" (assets skipped)
+
+    rel = ".vibelign/reports/card-news/assets/x-card-news/01-card.svg"
+    asset = tmp_path / rel
+    asset.parent.mkdir(parents=True, exist_ok=True)
+    _ = asset.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 150"><rect/></svg>', encoding="utf-8"
+    )
+    p_materialized = _payload()
+    p_materialized["cards"][0]["image"]["asset_path"] = rel  # assets materialized
+
+    # 1) LLM input is byte-identical — the poster never sees the per-card asset.
+    assert _poster_prompt(p_skipped["cards"]) == _poster_prompt(p_materialized["cards"])
+
+    # 2) Deterministic fallback HTML is byte-identical.
+    fb_skipped = generate_card_news_poster(
+        p_skipped, p_skipped["cards"], tmp_path, "claude", runner=FakeRunner("", status="timeout")
+    )
+    fb_materialized = generate_card_news_poster(
+        p_materialized, p_materialized["cards"], tmp_path, "claude", runner=FakeRunner("", status="timeout")
+    )
+    assert fb_skipped.source == fb_materialized.source == "fallback"
+    assert fb_skipped.html == fb_materialized.html

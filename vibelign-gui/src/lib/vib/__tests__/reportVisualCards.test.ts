@@ -215,11 +215,34 @@ describe("report visual cards", () => {
     );
     expect(mocks.runVib).not.toHaveBeenCalled();
     expect(onProgress).toHaveBeenCalledTimes(2);
-    expect(onProgress).toHaveBeenNthCalledWith(1, "draft");
-    expect(onProgress).toHaveBeenNthCalledWith(2, "assets");
+    expect(onProgress).toHaveBeenNthCalledWith(1, { stage: "draft" });
+    expect(onProgress).toHaveBeenNthCalledWith(2, { stage: "assets" });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.payload.cards[0].title).toBe("제안 요약");
+  });
+
+  test("surfaces sketch-first card_news events (draft storyboard + placeholder poster)", async () => {
+    mocks.runVibWithProgress.mockImplementation(
+      async (
+        _args: readonly string[],
+        _cwd: string,
+        _env: undefined,
+        onProgress: (e: { stage?: string; card_news?: Record<string, unknown> }) => void,
+      ) => {
+        onProgress({ card_news: { type: "card_news_event", kind: "draft", visual_cards: draftPayload() } });
+        onProgress({ card_news: { type: "card_news_event", kind: "poster_draft", html: "<html>placeholder</html>" } });
+        return { stdout: JSON.stringify({ ok: true, visual_cards: draftPayload() }), stderr: "" };
+      },
+    );
+
+    const onProgress = vi.fn();
+    await requestReportVisualCards("/repo", "plan.md", "proposal", "opencode", "poster", onProgress);
+
+    expect(onProgress).toHaveBeenCalledTimes(2);
+    const first = onProgress.mock.calls[0][0] as { draft?: { cards: { title: string }[] } };
+    expect(first.draft?.cards[0].title).toBe("제안 요약");
+    expect(onProgress).toHaveBeenNthCalledWith(2, { posterDraft: { html: "<html>placeholder</html>" } });
   });
 
   test("uses runVib (not runVibWithProgress) when no onProgress is provided", async () => {

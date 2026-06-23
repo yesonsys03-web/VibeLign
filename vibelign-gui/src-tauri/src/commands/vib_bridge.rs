@@ -139,7 +139,7 @@ pub(crate) async fn run_vib(
     })
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Default)]
 struct VibProgressEvent {
     step: String,
     done: Option<u64>,
@@ -155,6 +155,9 @@ struct VibProgressEvent {
     failed: Option<u64>,
     retried: Option<u64>,
     anchors: Option<u64>,
+    // Sketch-first card-news preview payload: the parsed `{"type":"card_news_event",...}` line
+    // (kind=draft → visual_cards storyboard, kind=poster_draft → placeholder poster html).
+    card_news: Option<serde_json::Value>,
 }
 
 #[derive(serde::Deserialize)]
@@ -184,6 +187,19 @@ fn parse_progress_line(line: &str) -> Option<VibProgressEvent> {
                 failed: None,
                 retried: None,
                 anchors: None,
+                card_news: None,
+            });
+        }
+    }
+
+    // Sketch-first card-news preview events are emitted as a standalone compact JSON line
+    // (not a [progress] line); forward the whole object so the GUI can render a live preview.
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(line.trim()) {
+        if value.get("type").and_then(serde_json::Value::as_str) == Some("card_news_event") {
+            return Some(VibProgressEvent {
+                step: "card_news_event".to_string(),
+                card_news: Some(value),
+                ..Default::default()
             });
         }
     }
@@ -240,6 +256,7 @@ fn parse_progress_line(line: &str) -> Option<VibProgressEvent> {
         failed,
         retried,
         anchors,
+        card_news: None,
     })
 }
 

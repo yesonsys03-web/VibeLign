@@ -164,13 +164,20 @@ export function approvedReportVisualCards(cards: readonly ReportVisualCard[]): r
 // === ANCHOR: REPORTVISUALCARDS_APPROVEDREPORTVISUALCARDS_END ===
 
 // === ANCHOR: REPORTVISUALCARDS_REQUESTREPORTVISUALCARDS_START ===
+/** Sketch-first progressive preview signals streamed while a card-news job runs. */
+export type CardNewsProgress = {
+  readonly stage?: string;
+  readonly draft?: ReportVisualCardsPayload;
+  readonly posterDraft?: { readonly html: string };
+};
+
 export async function requestReportVisualCards(
   cwd: string,
   planPath: string,
   reportType: ReportType,
   provider: ReportVisualCardsProviderId,
   mode: "per-card" | "poster" = "per-card",
-  onProgress?: (stage: string) => void,
+  onProgress?: (progress: CardNewsProgress) => void,
 ): Promise<ReportVisualCardsResult> {
   const args = ["report", planPath, "--type", reportType, "--visual-cards", "--visual-card-cli", provider, "--card-news-mode", mode, "--json"] as const;
   const res = onProgress
@@ -178,7 +185,22 @@ export async function requestReportVisualCards(
         [...args],
         cwd,
         undefined,
-        (e) => { if (e.stage) onProgress(e.stage); },
+        (e) => {
+          const cn = e.card_news;
+          if (isRecord(cn)) {
+            const kind = stringValue(cn.kind);
+            if (kind === "draft" && isRecord(cn.visual_cards)) {
+              onProgress({ draft: parseReportVisualCardsPayload(cn.visual_cards) });
+              return;
+            }
+            if (kind === "poster_draft") {
+              const html = stringValue(cn.html);
+              if (html.length > 0) onProgress({ posterDraft: { html } });
+              return;
+            }
+          }
+          if (e.stage) onProgress({ stage: e.stage });
+        },
       )
     : await runVib(
         [...args],

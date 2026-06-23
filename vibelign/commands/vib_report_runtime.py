@@ -220,6 +220,16 @@ def _emit_card_progress(stage: str) -> None:
     sys.stderr.flush()
 
 
+def _emit_card_news_event(kind: str, **fields: object) -> None:
+    # Sketch-first progressive rendering: stream the draft cards / placeholder poster to the
+    # GUI on stderr as a single compact JSON line so it can show an instant preview before the
+    # slow LLM stages finish. Distinct from the [progress] bar lines; the Rust bridge parses
+    # `{"type":"card_news_event",...}` and forwards it as a progress event.
+    payload = {"type": "card_news_event", "kind": kind, **fields}
+    _ = sys.stderr.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    sys.stderr.flush()
+
+
 def _visual_cards(raw: ReportArgs, ctx: ReportCommandContext, model: ReportModel) -> VisualCardsDict:
     provider_name = getattr(raw, "visual_card_cli", "local") or "local"
     _emit_card_progress("draft")
@@ -234,8 +244,17 @@ def _visual_cards(raw: ReportArgs, ctx: ReportCommandContext, model: ReportModel
         # output. Degrade to the deterministic base cards instead of hard-failing the whole
         # card-news generation (poster mode still designs its poster from these cards).
         return base
-    slug = _report_slug(ctx.slug_source)
+    # Sketch-first: hand the storyboard to the GUI now so it can render instant sketch cards
+    # while the slow asset/poster stage runs. Draft cards carry empty asset_path → sketches.
+    _emit_card_news_event("draft", visual_cards=draft)
     _emit_card_progress("assets")
+    # Poster mode redraws every card from text (title/body/caption) and never consumes the
+    # per-card SVG assets: the LLM poster prompt takes only text, and the deterministic
+    # fallback clears asset_path to re-render sketches. Generating the per-card SVGs here is
+    # a wasted ~300s LLM batch, so skip it — the poster output is identical either way.
+    if getattr(raw, "card_news_mode", "per-card") == "poster":
+        return draft
+    slug = _report_slug(ctx.slug_source)
     cards = materialize_card_news_assets(ctx.root, slug, draft["cards"])
     return {**draft, "cards": cards, "assets": [card["image"] for card in cards]}
 
@@ -250,10 +269,16 @@ def _card_news_poster(
         return None
     from vibelign.core.reporting_cli.report_card_news_poster import (
         CardNewsPosterError,
+        deterministic_poster_html,
         generate_card_news_poster,
     )
 
     _emit_card_progress("poster")
+    # Sketch-first: show the deterministic placeholder poster immediately so the user is not
+    # staring at a blank ≤300s wait; the GUI swaps it for the finished LLM poster on resolve.
+    _emit_card_news_event(
+        "poster_draft", html=deterministic_poster_html(cards_payload, cards_payload["cards"], ctx.root)
+    )
     try:
         result = generate_card_news_poster(cards_payload, cards_payload["cards"], ctx.root, provider_name)
     except CardNewsPosterError as exc:

@@ -12,6 +12,7 @@ import {
   type ReportVisualCardsProviderId,
 } from "../../lib/vib/reportVisualCards";
 import { ReportVisualCardsPanel } from "./ReportVisualCardsPanel";
+import { ReportVisualSketch } from "./ReportVisualSketch";
 import { normalizeReportAssistProviderId, type ReportAssistProviderOption } from "./reportAssistProviders";
 
 type ReportVisualCardsCompanionProps = {
@@ -41,6 +42,10 @@ export function ReportVisualCardsCompanion({
   const [mode, setMode] = useState<"per-card" | "poster">("per-card");
   const [poster, setPoster] = useState<{ html: string; source: "llm" | "fallback" } | null>(null);
   const [stage, setStage] = useState<string | null>(null);
+  // Sketch-first preview shown while the slow asset/poster stage runs, swapped for the final
+  // result on resolve. liveDraft = storyboard sketches (per-card); livePoster = placeholder.
+  const [liveDraft, setLiveDraft] = useState<ReportVisualCardsPayload | null>(null);
+  const [livePoster, setLivePoster] = useState<string | null>(null);
 
   useEffect(() => {
     setPayload(null);
@@ -49,18 +54,28 @@ export function ReportVisualCardsCompanion({
     setError(null);
     setOpenError(null);
     setPoster(null);
+    setLiveDraft(null);
+    setLivePoster(null);
   }, [planPath, reportType]);
 
   const requestCards = async (): Promise<void> => {
     setLoading(true);
     setStage(null);
     setError(null);
+    setLiveDraft(null);
+    setLivePoster(null);
     let result;
     try {
-      result = await requestReportVisualCards(cwd, planPath, reportType, provider, mode, (s) => setStage(s));
+      result = await requestReportVisualCards(cwd, planPath, reportType, provider, mode, (p) => {
+        if (p.stage) setStage(p.stage);
+        if (p.draft) setLiveDraft(p.draft);
+        if (p.posterDraft) setLivePoster(p.posterDraft.html);
+      });
     } finally {
       setStage(null);
       setLoading(false);
+      setLiveDraft(null);
+      setLivePoster(null);
     }
     if (!result.ok) {
       setPayload(null);
@@ -177,6 +192,30 @@ export function ReportVisualCardsCompanion({
           </div>
         );
       })()}
+      {loading && livePoster !== null && (
+        <div style={resultBox}>
+          <p style={resultTitle}>임시 포스터 · 완성되면 자동으로 교체됩니다</p>
+          <iframe
+            title="카드뉴스 임시 포스터"
+            sandbox=""
+            srcDoc={livePoster}
+            style={{ width: "100%", height: 520, border: "2px dashed #1A1A1A", background: "#FFFFFF", opacity: 0.85 }}
+          />
+        </div>
+      )}
+      {loading && liveDraft !== null && mode === "per-card" && (
+        <div style={resultBox}>
+          <p style={resultTitle}>스토리보드 미리보기 · 일러스트 생성 중</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
+            {liveDraft.cards.map((card, index) => (
+              <div key={card.id} style={{ border: "2px dashed #1A1A1A", borderRadius: 8, padding: 6, background: "#FFFFFF" }}>
+                <ReportVisualSketch card={card} />
+                <p style={{ margin: "6px 0 0", fontSize: 12, fontWeight: 700, lineHeight: 1.3 }}>{index + 1}. {card.title}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {error !== null && <p role="alert" style={errorText}>{error}</p>}
       {exportResult !== null && exportResult.ok && (
         <div style={resultBox}>

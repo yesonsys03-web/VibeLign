@@ -253,10 +253,10 @@ test("poster mode with no poster: shows hint instead of cards panel", async () =
 
 test("shows progress bar with gyari-loader and stage label while loading, hides when done", async () => {
   let resolveRequest!: (v: unknown) => void;
-  let capturedOnProgress!: (stage: string) => void;
+  let capturedOnProgress!: (progress: { stage?: string }) => void;
 
   mockRequestReportVisualCards.mockImplementation((_cwd, _planPath, _reportType, _provider, _mode, onProgress) => {
-    capturedOnProgress = onProgress as (stage: string) => void;
+    capturedOnProgress = onProgress as (progress: { stage?: string }) => void;
     return new Promise((resolve) => { resolveRequest = resolve; });
   });
 
@@ -266,8 +266,8 @@ test("shows progress bar with gyari-loader and stage label while loading, hides 
   // Before onProgress fires, progress container should be visible (loading=true)
   expect(screen.getByLabelText("카드뉴스 생성 진행")).toBeInTheDocument();
 
-  // Fire onProgress("assets") to simulate backend stage event
-  capturedOnProgress("assets");
+  // Fire a stage event to simulate the backend progress signal
+  capturedOnProgress({ stage: "assets" });
 
   // Progress container still visible, gyari-loader present, label shows "카드 이미지"
   await waitFor(() => expect(screen.getByLabelText("카드뉴스 생성 진행")).toBeInTheDocument());

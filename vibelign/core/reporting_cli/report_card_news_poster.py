@@ -81,6 +81,12 @@ def _self_contained_fallback(payload: VisualCardsDict, cards: list[VisualCardDic
     return render_card_news_html(payload, inline_cards, root, root)
 
 
+def deterministic_poster_html(payload: VisualCardsDict, cards: list[VisualCardDict], root: Path) -> str:
+    """Self-contained placeholder poster used as an instant sketch-first preview before the
+    (slow) LLM poster is ready. Identical to the timeout/sanitize fallback render."""
+    return _self_contained_fallback(payload, cards, root)
+
+
 def generate_card_news_poster(
     payload: VisualCardsDict,
     cards: list[VisualCardDict],
