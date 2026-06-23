@@ -90,3 +90,39 @@ def test_no_fonts_keeps_theme_default_unchanged():
     assert render_html(_model(), theme="classic") == render_html(
         _model(), theme="classic", fonts=None
     )
+
+
+def _inline_model() -> ReportModel:
+    return ReportModel(
+        title="t",
+        report_type="work",
+        date="2026-06-23",
+        sections=[
+            Section(
+                "보완 초안",
+                [
+                    Block(kind="paragraph", text="**초보 사용자**: 규칙을 *모릅니다* 그리고 `vib guard` 실행."),
+                    Block(kind="paragraph", text="위험 태그 <b>주의</b> 와 2 * 3 = 6."),
+                    Block(kind="bullets", items=["**핵심 기능**: 복붙 제거", "↳ *완화 방안*: 잠금"]),
+                ],
+            ),
+        ],
+    )
+
+
+def test_inline_markdown_bold_italic_code_rendered():
+    html = render_html(_inline_model())
+    assert "<strong>초보 사용자</strong>" in html
+    assert "<em>모릅니다</em>" in html
+    assert "<code>vib guard</code>" in html
+    # bullets get inline rendering too
+    assert "<li><strong>핵심 기능</strong>: 복붙 제거</li>" in html
+    assert "<em>완화 방안</em>" in html
+
+
+def test_inline_rendering_still_escapes_html_and_leaves_stray_asterisk():
+    html = render_html(_inline_model())
+    assert "&lt;b&gt;주의&lt;/b&gt;" in html  # HTML still escaped, not raw <b>
+    assert "<b>주의</b>" not in html
+    assert "2 * 3 = 6" in html  # a lone asterisk is not turned into emphasis
+    assert "<em>" not in html.split("2 * 3")[1][:10]

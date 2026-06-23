@@ -3,7 +3,7 @@ import type {
   ReportQualityPanelProceedPayload,
   ReportQualityQuestionAnswer,
 } from "./ReportQualityPanel";
-import type { EmitPayload, RModelSection } from "../../lib/vib/reportModel";
+import type { EmitPayload, RModelBlock, RModelSection } from "../../lib/vib/reportModel";
 
 export type ReportSessionDraftEntry = {
   readonly id: string;
@@ -49,18 +49,65 @@ export function hasReportSessionDraft(draft: ReportSessionDraft): boolean {
 }
 // === ANCHOR: REPORTSESSIONDRAFT_HASREPORTSESSIONDRAFT_END ===
 
+// === ANCHOR: REPORTSESSIONDRAFT_DRAFTMARKDOWNTOBLOCKS_START ===
+const _BULLET_RE = /^(\s*)(?:[-*]\s+|\d+[.)]\s+)(.*)$/;
+const _HEADING_RE = /^#{1,6}\s+(.*)$/;
+
+/** Turn the AI draft markdown into renderer blocks (bullets/paragraph) so it reads like the
+ *  rest of the report instead of one escaped wall of `- **…**` text. Mirrors the Python
+ *  `parse_generic_markdown` block primitives; nested bullets are flattened with a `↳` prefix.
+ *  Inline markers (`**bold**`, `*em*`, `` `code` ``) are kept verbatim — the HTML renderer
+ *  converts them to <strong>/<em>/<code> (see html_renderer._render_inline). */
+function draftMarkdownToBlocks(text: string): RModelBlock[] {
+  const blocks: RModelBlock[] = [];
+  let para: string[] = [];
+  let bullets: string[] = [];
+  const flushPara = (): void => {
+    const joined = para.map((s) => s.trim()).filter((s) => s !== "").join(" ");
+    if (joined !== "") blocks.push({ kind: "paragraph", text: joined, items: [] });
+    para = [];
+  };
+  const flushBullets = (): void => {
+    if (bullets.length > 0) blocks.push({ kind: "bullets", text: "", items: bullets });
+    bullets = [];
+  };
+  for (const rawLine of text.split("\n")) {
+    const line = rawLine.replace(/\s+$/, "");
+    if (line.trim() === "") {
+      flushBullets();
+      flushPara();
+      continue;
+    }
+    const heading = _HEADING_RE.exec(line.trim());
+    if (heading) {
+      flushBullets();
+      flushPara();
+      const headingText = heading[1].trim();
+      if (headingText !== "") blocks.push({ kind: "paragraph", text: headingText, items: [] });
+      continue;
+    }
+    const bullet = _BULLET_RE.exec(line);
+    if (bullet) {
+      flushPara();
+      const content = bullet[2].trim();
+      if (content !== "") bullets.push(bullet[1].length > 0 ? `↳ ${content}` : content);
+      continue;
+    }
+    flushBullets();
+    para.push(line);
+  }
+  flushBullets();
+  flushPara();
+  return blocks.length > 0 ? blocks : [{ kind: "paragraph", text: text.trim(), items: [] }];
+}
+// === ANCHOR: REPORTSESSIONDRAFT_DRAFTMARKDOWNTOBLOCKS_END ===
+
 // === ANCHOR: REPORTSESSIONDRAFT_APPLYREPORTSESSIONDRAFTTOEMITPAYLOAD_START ===
 export function applyReportSessionDraftToEmitPayload(payload: EmitPayload, draft: ReportSessionDraft): EmitPayload {
   if (!hasReportSessionDraft(draft)) return payload;
   const draftSection: RModelSection = {
     heading: "사용자 확인 보완 초안",
-    blocks: [
-      {
-        kind: "paragraph",
-        text: draft.entries.map((entry) => entry.text).join("\n"),
-        items: [],
-      },
-    ],
+    blocks: draftMarkdownToBlocks(draft.entries.map((entry) => entry.text).join("\n")),
   };
   return {
     ...payload,

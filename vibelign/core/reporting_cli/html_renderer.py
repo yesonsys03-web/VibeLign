@@ -1,6 +1,7 @@
 # === ANCHOR: HTML_RENDERER_START ===
 from __future__ import annotations
 
+import re
 from html import escape
 
 from vibelign.core.reporting_cli.font_sizes import (
@@ -27,14 +28,32 @@ def _head(title: str, css: str) -> str:
 _TAIL = "</body>\n</html>"
 
 
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+_CODE_RE = re.compile(r"`([^`]+?)`")
+_ITALIC_RE = re.compile(r"(?<!\w)\*(?=\S)(.+?)(?<=\S)\*(?!\w)")
+
+
+# === ANCHOR: HTML_RENDERER__RENDER_INLINE_START ===
+def _render_inline(text: str) -> str:
+    """Escape first (XSS-safe), then convert a safe subset of inline markdown so the report
+    body shows **bold** / *italic* / `code` as <strong>/<em>/<code> instead of raw markers.
+    Bold is resolved before italic so `**x**` is not mis-read as two italic asterisks."""
+    out = escape(text)
+    out = _BOLD_RE.sub(r"<strong>\1</strong>", out)
+    out = _CODE_RE.sub(r"<code>\1</code>", out)
+    out = _ITALIC_RE.sub(r"<em>\1</em>", out)
+    return out
+# === ANCHOR: HTML_RENDERER__RENDER_INLINE_END ===
+
+
 # === ANCHOR: HTML_RENDERER__RENDER_BLOCK_START ===
 def _render_block(block: Block) -> str:
     if block.kind == "bullets":
-        items = "".join(f"<li>{escape(item)}</li>" for item in block.items)
+        items = "".join(f"<li>{_render_inline(item)}</li>" for item in block.items)
         return f"<ul>{items}</ul>"
     if block.kind == "summary":
-        return f'<p class="summary">{escape(block.text)}</p>'
-    return f"<p>{escape(block.text)}</p>"
+        return f'<p class="summary">{_render_inline(block.text)}</p>'
+    return f"<p>{_render_inline(block.text)}</p>"
 # === ANCHOR: HTML_RENDERER__RENDER_BLOCK_END ===
 
 
