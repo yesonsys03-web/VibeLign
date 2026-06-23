@@ -147,12 +147,16 @@ function parseCard(value: unknown): ReportVisualCard {
 export function parseReportVisualCardsPayload(value: unknown): ReportVisualCardsPayload {
   const record = isRecord(value) ? value : {};
   const cards = recordArray(record.cards).map(parseCard);
+  // poster_html is written on save (Companion); parse it back so a saved payload round-trips
+  // without silently dropping the field declared on ReportVisualCardsPayload.
+  const posterHtml = stringValue(record.poster_html);
   return {
     schema_version: "report-visual-cards-v1",
     status: record.status === "empty" ? "empty" : "ready",
     provider: stringValue(record.provider) || "generic-image-provider",
     cards,
     assets: recordArray(record.assets).map(parseImage),
+    ...(posterHtml.length > 0 ? { poster_html: posterHtml } : {}),
   };
 }
 // === ANCHOR: REPORTVISUALCARDS_PARSEREPORTVISUALCARDSPAYLOAD_END ===

@@ -174,6 +174,13 @@ describe("report visual cards", () => {
     expect(fallback.cards[0].image.source).toBe("template");
   });
 
+  test("round-trips poster_html when present and omits it when absent", () => {
+    const withPoster = parseReportVisualCardsPayload({ status: "ready", cards: [], poster_html: "<html>poster</html>" });
+    expect(withPoster.poster_html).toBe("<html>poster</html>");
+    const withoutPoster = parseReportVisualCardsPayload({ status: "ready", cards: [] });
+    expect(withoutPoster.poster_html).toBeUndefined();
+  });
+
   test("passes card-news-mode and parses poster", async () => {
     mocks.runVib.mockResolvedValueOnce({
       stdout: JSON.stringify({
