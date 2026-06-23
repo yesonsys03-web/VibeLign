@@ -145,14 +145,19 @@ export function useReportComposerGeneration(options: ReportComposerGenerationOpt
   const [result, setResult] = useState<ReportComposerResultState | null>(null);
   const [qualityReview, setQualityReview] = useState<ReportQualityReviewState | null>(null);
 
-  const requestAssistance = async (): Promise<ReportAssistPayload> => {
-    const response = await requestReportAssistance({
-      cwd: options.cwd,
-      planPath: options.planPath,
-      reportType: options.reportType,
-      author: options.author,
-      assistProvider: options.assistProvider,
-    });
+  const requestAssistance = async (
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<ReportAssistPayload> => {
+    const response = await requestReportAssistance(
+      {
+        cwd: options.cwd,
+        planPath: options.planPath,
+        reportType: options.reportType,
+        author: options.author,
+        assistProvider: options.assistProvider,
+      },
+      onProgress,
+    );
     if (!response.ok) throw new ReportAssistanceError(response.error);
     const longSource = inferLongSource(response.payload.assistance);
     setQualityReview((state) =>

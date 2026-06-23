@@ -225,7 +225,7 @@ test("shows request-AI-help loading and error states", async () => {
   );
 
   activateButtonWithKeyboard(screen.getByRole("button", { name: "AI 보완 제안 요청" }), "Enter");
-  expect(screen.getByText("관련 섹션을 분석하고 있습니다.")).toBeInTheDocument();
+  expect(screen.getByLabelText("AI 보완 생성 진행")).toBeInTheDocument();
   rejectRequest(new Error("assist failed"));
   expect(await screen.findByRole("alert")).toHaveTextContent("보완 제안을 불러오지 못했습니다.");
   expect(onRequestAssistance).toHaveBeenCalledTimes(1);

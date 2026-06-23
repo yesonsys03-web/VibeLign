@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Literal, Protocol, TypedDict
+from typing import Callable, Final, Literal, Protocol, TypedDict
 
 from vibelign.core.reporting_cli.models import ReportModel
 from vibelign.core.reporting_cli.reader import build_doc_report_model, parse_plan_markdown
@@ -19,6 +20,10 @@ from vibelign.core.reporting_cli.source_chunks import (
     retrieve_relevant_chunks,
 )
 from vibelign.core.reporting_cli.templates import build_report_model
+
+# Per-finding suggestions are independent CLI/LLM calls; run a small pool so 4-5 missing
+# findings finish in one wave instead of a ~90s-each sequential loop.
+_MAX_CONCURRENT_ASSIST_REQUESTS: Final = 4
 
 AssistStatus = Literal["not_requested", "ready", "needs_user_input", "failed"]
 AssistKind = Literal["draft_text", "source_candidate", "user_question", "risk_candidate", "next_action_candidate"]
@@ -90,6 +95,7 @@ def generate_report_assistance(
     date: str,
     author: str = "",
     provider: AssistProvider | None = None,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> ReportAssistance:
     request = ReportAssistanceInput(
         source_text=source_text,
@@ -98,26 +104,49 @@ def generate_report_assistance(
         author=author,
         provider=provider,
     )
-    return generate_report_assistance_for(request)
+    return generate_report_assistance_for(request, on_progress=on_progress)
 
 
-def generate_report_assistance_for(request: ReportAssistanceInput) -> ReportAssistance:
+def generate_report_assistance_for(
+    request: ReportAssistanceInput,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> ReportAssistance:
     data = parse_plan_markdown(request.source_text)
     model = _model(request)
     quality = analyze_report_quality(data, model, request.report_type)
     index = build_source_index(request.source_text)
-    suggestions: list[AssistSuggestion] = []
-    for finding in quality.findings:
-        if not finding.code.startswith("missing_"):
-            continue
+    missing = [finding for finding in quality.findings if finding.code.startswith("missing_")]
+    total = len(missing)
+    if on_progress is not None:
+        on_progress(0, total)
+
+    def _suggest_for(finding: ReportQualityFinding) -> list[AssistSuggestion]:
         chunks = retrieve_relevant_chunks(index, finding)
-        suggestions.extend(
-            _provider_suggestions(
-                ProviderSuggestionInput(provider=request.provider, finding=finding, chunks=chunks, index=index)
-            )
+        found = _provider_suggestions(
+            ProviderSuggestionInput(provider=request.provider, finding=finding, chunks=chunks, index=index)
         )
-        if not _has_finding_suggestion(suggestions, finding.code):
-            suggestions.extend(local_suggestions(finding, chunks))
+        if not _has_finding_suggestion(found, finding.code):
+            found = [*found, *local_suggestions(finding, chunks)]
+        return found
+
+    # Index-keyed assembly keeps the output order identical to the source finding order even
+    # though provider calls finish out of order.
+    per_finding: list[list[AssistSuggestion]] = [[] for _ in missing]
+    if total <= 1 or request.provider is None:
+        # Single finding, or local-only (no LLM) → threads add no value.
+        for position, finding in enumerate(missing):
+            per_finding[position] = _suggest_for(finding)
+            if on_progress is not None:
+                on_progress(position + 1, total)
+    else:
+        with ThreadPoolExecutor(max_workers=min(_MAX_CONCURRENT_ASSIST_REQUESTS, total)) as executor:
+            future_to_position = {executor.submit(_suggest_for, finding): pos for pos, finding in enumerate(missing)}
+            for done_count, future in enumerate(as_completed(future_to_position), 1):
+                per_finding[future_to_position[future]] = future.result()
+                if on_progress is not None:
+                    on_progress(done_count, total)
+
+    suggestions: list[AssistSuggestion] = [item for group in per_finding for item in group]
     questions = [item for item in suggestions if item["kind"] == "user_question"]
     return {
         "schema_version": "report-assist-v1",

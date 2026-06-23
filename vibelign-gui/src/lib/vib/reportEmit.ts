@@ -1,5 +1,5 @@
 // === ANCHOR: REPORTEMIT_START ===
-import { runVib } from "./core";
+import { runVib, runVibWithProgress } from "./core";
 import type { PlanningProviderId } from "./planning-personas";
 import { parseReportAssistPayload, type ReportAssistPayload } from "./reportAssist";
 import type { ReportType } from "./report";
@@ -188,21 +188,28 @@ export async function emitReportModel(
 // === ANCHOR: REPORTEMIT_EMITREPORTMODEL_END ===
 
 // === ANCHOR: REPORTEMIT_REQUESTREPORTASSISTANCE_START ===
-export async function requestReportAssistance(request: ReportAssistanceRequest): Promise<ReportAssistanceResult> {
-  const res = await runVib(
-    [
-      "report",
-      request.planPath,
-      "--type",
-      request.reportType,
-      "--assist-missing",
-      ...(request.assistProvider !== undefined && request.assistProvider !== "local" ? ["--cli", request.assistProvider] : []),
-      "--author",
-      request.author ?? "",
-      "--json",
-    ],
-    request.cwd,
-  );
+export async function requestReportAssistance(
+  request: ReportAssistanceRequest,
+  onProgress?: (done: number, total: number) => void,
+): Promise<ReportAssistanceResult> {
+  const args = [
+    "report",
+    request.planPath,
+    "--type",
+    request.reportType,
+    "--assist-missing",
+    ...(request.assistProvider !== undefined && request.assistProvider !== "local" ? ["--cli", request.assistProvider] : []),
+    "--author",
+    request.author ?? "",
+    "--json",
+  ];
+  const res = onProgress
+    ? await runVibWithProgress(args, request.cwd, undefined, (e) => {
+        if (e.step === "report-assist" && typeof e.done === "number" && typeof e.total === "number") {
+          onProgress(e.done, e.total);
+        }
+      })
+    : await runVib(args, request.cwd);
   try {
     const raw: unknown = JSON.parse(res.stdout.trim());
     const payload = parseReportAssistanceResponse(raw);

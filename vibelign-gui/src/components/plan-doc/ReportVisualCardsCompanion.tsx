@@ -11,6 +11,7 @@ import {
   type ReportVisualCardsPayload,
   type ReportVisualCardsProviderId,
 } from "../../lib/vib/reportVisualCards";
+import { GyariProgressBar } from "./GyariProgressBar";
 import { ReportVisualCardsPanel } from "./ReportVisualCardsPanel";
 import { ReportVisualSketch } from "./ReportVisualSketch";
 import { normalizeReportAssistProviderId, type ReportAssistProviderOption } from "./reportAssistProviders";
@@ -181,16 +182,7 @@ export function ReportVisualCardsCompanion({
       <p style={copy}>보고서 메시지를 3-6장 카드로 나누고, 한국어 문구는 편집 가능한 오버레이로 유지합니다.</p>
       {loading && (() => {
         const stageUi = stage ? STAGE_UI[stage] ?? { pct: 8, label: "준비 중" } : { pct: 8, label: "준비 중" };
-        return (
-          <div aria-label="카드뉴스 생성 진행" style={progressWrap}>
-            <div style={progressTrack}>
-              <span style={{ ...progressMarker, left: 8 }} aria-hidden>START</span>
-              <span style={{ ...progressMarker, right: 8 }} aria-hidden>🏁 GOAL</span>
-              <span className="gyari-loader" style={{ position: "absolute", left: `calc(${stageUi.pct}% - 26px)`, transition: "left .5s ease", zIndex: 1 }} aria-hidden />
-            </div>
-            <p style={progressLabel}>{stageUi.label}...</p>
-          </div>
-        );
+        return <GyariProgressBar ariaLabel="카드뉴스 생성 진행" pct={stageUi.pct} label={stageUi.label} />;
       })()}
       {loading && liveDraft !== null && mode === "per-card" && (
         <div style={resultBox}>
@@ -306,8 +298,4 @@ const resultBox: CSSProperties = { marginTop: 10, border: "2px solid #1A1A1A", b
 const resultTitle: CSSProperties = { margin: 0, fontSize: 12, fontWeight: 900 };
 const resultActions: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 };
 const pathText: CSSProperties = { margin: "6px 0 8px", color: "#666666", fontSize: 11, overflowWrap: "anywhere" };
-const progressWrap: CSSProperties = { marginTop: 10 };
-const progressTrack: CSSProperties = { position: "relative", height: 56, border: "2px solid #1A1A1A", background: "#FEFBF0", overflow: "hidden" };
-const progressLabel: CSSProperties = { margin: "4px 0 0", fontSize: 12, fontWeight: 800 };
-const progressMarker: CSSProperties = { position: "absolute", top: "50%", transform: "translateY(-50%)", fontSize: 11, fontWeight: 900, letterSpacing: "0.06em", color: "#B7AE9E" };
 // === ANCHOR: REPORT_VISUAL_CARDS_COMPANION_END ===

@@ -99,6 +99,58 @@ class StubCliRunner:
         )
 
 
+class RecordingProvider:
+    """Records one suggest() call per finding and returns a guard-passing draft suggestion."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def suggest(self, request: ReportAssistRequest) -> ReportAssistance:
+        code = request["finding_code"]
+        self.calls.append(code)
+        return {
+            "schema_version": "report-assist-v1",
+            "status": "ready",
+            "suggestions": [
+                {
+                    "id": f"s-{code}",
+                    "finding_code": code,
+                    "kind": "draft_text",
+                    "title": "보완",
+                    "proposed_text": "보완 문단",
+                    "rationale": "근거",
+                    "source_refs": [],
+                    "requires_user_confirmation": True,
+                }
+            ],
+            "questions": [],
+            "applied_suggestion_ids": [],
+        }
+
+
+def test_assistance_reports_progress_and_calls_provider_once_per_missing_finding() -> None:
+    text = _fixture("quality_sparse.md")
+    provider = RecordingProvider()
+    progress: list[tuple[int, int]] = []
+
+    payload = generate_report_assistance(
+        text, "proposal", date=TODAY, provider=provider, on_progress=lambda done, total: progress.append((done, total))
+    )
+
+    total = len(provider.calls)
+    assert total >= 2, "sparse input should yield multiple missing findings"
+    # progress is emitted from 0..total against a stable total, monotonically.
+    assert progress, "on_progress must be called"
+    assert progress[0] == (0, total)
+    assert progress[-1] == (total, total)
+    assert [d for d, _ in progress] == sorted(d for d, _ in progress)
+    assert all(t == total for _, t in progress)
+    # Every missing finding still receives a suggestion (order preserved by index assembly).
+    out_codes = [s["finding_code"] for s in payload["suggestions"]]
+    for code in provider.calls:
+        assert code in out_codes
+
+
 def _fixture(name: str) -> str:
     return (FIXTURE_DIR / name).read_text(encoding="utf-8")
 

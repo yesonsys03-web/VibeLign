@@ -15,6 +15,7 @@ import type {
   ReportQualitySeverity,
   ReportQualityStatus,
 } from "../../lib/vib/reportQuality";
+import { GyariProgressBar } from "./GyariProgressBar";
 import { ReportQualityAssistItem } from "./ReportQualityAssistItem";
 import { ReportQualityScorePreviewView } from "./ReportQualityScorePreview";
 import {
@@ -42,7 +43,7 @@ export type ReportQualityPanelProps = {
   readonly sourceLabel?: string;
   readonly longSource?: ReportQualityLongSource;
   readonly nextActionText?: string;
-  readonly onRequestAssistance?: () => Promise<ReportAssistPayload>;
+  readonly onRequestAssistance?: (onProgress?: (done: number, total: number) => void) => Promise<ReportAssistPayload>;
   readonly assistProvider?: ReportAssistProviderId;
   readonly assistProviderOptions?: readonly ReportAssistProviderOption[];
   readonly onAssistProviderChange?: (providerId: ReportAssistProviderId) => void;
@@ -188,6 +189,7 @@ export function ReportQualityPanel({
   const [answerDrafts, setAnswerDrafts] = useState<Readonly<Record<string, string>>>({});
   const [savedAnswers, setSavedAnswers] = useState<Readonly<Record<string, string>>>({});
   const [loadingAssistance, setLoadingAssistance] = useState(false);
+  const [assistProgress, setAssistProgress] = useState<{ done: number; total: number } | null>(null);
   const [assistError, setAssistError] = useState<string | null>(null);
 
   const items = useMemo(() => allAssistanceItems(currentAssistance), [currentAssistance]);
@@ -228,14 +230,16 @@ export function ReportQualityPanel({
   const requestAssistance = async () => {
     if (onRequestAssistance === undefined) return;
     setLoadingAssistance(true);
+    setAssistProgress(null);
     setAssistError(null);
     try {
-      setCurrentAssistance(await onRequestAssistance());
+      setCurrentAssistance(await onRequestAssistance((done, total) => setAssistProgress({ done, total })));
     } catch (error) {
       const detail = error instanceof Error ? error.message : "unknown";
       setAssistError(`보완 제안을 불러오지 못했습니다. ${detail}`);
     } finally {
       setLoadingAssistance(false);
+      setAssistProgress(null);
     }
   };
   // === ANCHOR: REPORTQUALITYPANEL_REQUESTASSISTANCE_END ===
@@ -325,7 +329,17 @@ export function ReportQualityPanel({
               </div>
             )}
           </div>
-          {loadingAssistance && <p style={assistCopy}>관련 섹션을 분석하고 있습니다.</p>}
+          {loadingAssistance && (
+            <GyariProgressBar
+              ariaLabel="AI 보완 생성 진행"
+              pct={assistProgress && assistProgress.total > 0 ? 4 + (assistProgress.done / assistProgress.total) * 92 : 8}
+              label={
+                assistProgress && assistProgress.total > 0
+                  ? `보완 제안 분석 중 (${assistProgress.done}/${assistProgress.total})`
+                  : "관련 섹션을 분석하는 중"
+              }
+            />
+          )}
           {assistError !== null && (
             <p role="alert" style={errorText}>
               {assistError}

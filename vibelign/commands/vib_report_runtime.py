@@ -64,6 +64,10 @@ def _print_assistance(raw: ReportArgs, ctx: ReportCommandContext) -> None:
     from vibelign.core.reporting_cli.report_assist import generate_report_assistance
     from vibelign.core.reporting_cli.report_quality import analyze_report_quality, quality_to_dict
 
+    def _emit_assist_progress(done: int, total: int) -> None:
+        _ = sys.stderr.write(f"[progress] step=report-assist stage=analyze done={done} total={total}\n")
+        sys.stderr.flush()
+
     provider = _assist_provider(ctx.provider, ctx.root)
     assistance = generate_report_assistance(
         ctx.text,
@@ -71,6 +75,7 @@ def _print_assistance(raw: ReportArgs, ctx: ReportCommandContext) -> None:
         date=ctx.report_date,
         author=ctx.author,
         provider=provider,
+        on_progress=_emit_assist_progress,
     )
     quality = quality_to_dict(analyze_report_quality(ctx.data, ctx.model, raw.type))
     print(

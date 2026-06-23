@@ -230,7 +230,10 @@ test("AI assistance request only runs after explicit user action", async () => {
   fireEvent.click(screen.getByRole("button", { name: "AI 보완 제안 요청" }));
 
   expect(await screen.findByText("성과 근거 추가")).toBeInTheDocument();
-  expect(mockRequestAssistance).toHaveBeenCalledWith({ cwd: "/proj", planPath: "plans/p.md", reportType: "work", author: "", assistProvider: "codex" });
+  expect(mockRequestAssistance).toHaveBeenCalledWith(
+    { cwd: "/proj", planPath: "plans/p.md", reportType: "work", author: "", assistProvider: "codex" },
+    expect.any(Function),
+  );
   expect(screen.getByText(/전체 870줄을 한 번에 보내지 않습니다/)).toBeInTheDocument();
 });
 
