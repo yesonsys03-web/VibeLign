@@ -115,8 +115,76 @@ def _payload_with_raw_approved(path: Path, approved: Literal["false"]) -> Path:
     return path
 
 
+def _payload_with_poster(path: Path, *, poster_html: str, provider: str = "agy") -> Path:
+    card = _card("card-1", approved=True)
+    card["image"] = {"provider": provider, "asset_path": "", "prompt": "", "generated": False}
+    data = {
+        "schema_version": "report-visual-cards-v1",
+        "status": "ready",
+        "provider": provider,
+        "cards": [card],
+        "assets": [],
+        "poster_html": poster_html,
+    }
+    _ = path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
 def _args(payload_path: Path) -> _CardNewsArgs:
     return _CardNewsArgs(payload=str(payload_path), json=True)
+
+
+def _spy_materialize(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    from vibelign.core.reporting_cli import report_card_news_export as exp
+
+    calls: list[str] = []
+    real = exp.materialize_card_news_assets
+
+    def spy(root: Path, slug: str, cards, *args, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(slug)
+        return real(root, slug, cards, *args, **kwargs)
+
+    monkeypatch.setattr(exp, "materialize_card_news_assets", spy)
+    return calls
+
+
+def test_poster_mode_finalize_skips_unused_per_card_asset_generation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """In poster mode the saved HTML is the poster (card text only); per-card SVGs are never
+    rendered, so finalize must NOT pay the (slow) asset-generation cost. Regression: the
+    generation-stage skip moved that cost to finalize until this was fixed here too."""
+    monkeypatch.chdir(tmp_path)
+    calls = _spy_materialize(monkeypatch)
+    poster = "<html><body><h1>포스터 디자인</h1></body></html>"
+    payload = _payload_with_poster(tmp_path / "cards.json", poster_html=poster, provider="agy")
+
+    run_vib_report_card_news(_args(payload))
+
+    out = _read_json(capsys.readouterr().out)
+    assert out.ok is True
+    assert calls == [], "poster mode finalize must not materialize per-card SVG assets"
+    html = Path(out.html_path).read_text(encoding="utf-8")
+    assert "포스터 디자인" in html  # the poster is the saved deliverable
+
+
+def test_per_card_finalize_still_materializes_assets(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The finalize skip is poster-only: per-card mode (no poster) still materializes assets."""
+    monkeypatch.chdir(tmp_path)
+    calls = _spy_materialize(monkeypatch)
+    payload = _payload(tmp_path / "cards.json", approved=True)  # no poster_html
+
+    run_vib_report_card_news(_args(payload))
+
+    out = _read_json(capsys.readouterr().out)
+    assert out.ok is True
+    assert calls != [], "per-card mode finalize must still materialize per-card assets"
 
 
 def _read_json(stdout: str) -> _CliJson:

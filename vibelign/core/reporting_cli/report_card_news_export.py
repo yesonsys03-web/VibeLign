@@ -65,14 +65,20 @@ def export_card_news(payload_path: Path) -> CardNewsExport:
     json_path = _safe_card_news_path(root, slug, ".json")
     html_path = _safe_card_news_path(root, slug, ".html")
     out_dir.mkdir(parents=True, exist_ok=True)
-    approved_with_assets = materialize_card_news_assets(root, slug, approved)
-    export_json = json.dumps(_export_payload(payload, approved_with_assets), ensure_ascii=False, indent=2)
-    _ = json_path.write_text(f"{export_json}\n", encoding="utf-8")
     poster_html = load_card_news_poster_html(payload_path)
     safe_poster = sanitize_card_news_html(poster_html) if poster_html else None
-    html_body = safe_poster if safe_poster is not None else render_card_news_html(
-        payload, approved_with_assets, root, html_path.parent
-    )
+    if safe_poster is not None:
+        # Poster mode: the saved HTML is the poster (built from card text only), and the prompt
+        # pack uses the storyboard text — neither renders the per-card SVG assets. Skip the
+        # costly materialization so finalize stays fast (it would otherwise generate every
+        # card's SVG from scratch here, since poster-mode generation no longer pre-makes them).
+        approved_with_assets = approved
+        html_body = safe_poster
+    else:
+        approved_with_assets = materialize_card_news_assets(root, slug, approved)
+        html_body = render_card_news_html(payload, approved_with_assets, root, html_path.parent)
+    export_json = json.dumps(_export_payload(payload, approved_with_assets), ensure_ascii=False, indent=2)
+    _ = json_path.write_text(f"{export_json}\n", encoding="utf-8")
     _ = html_path.write_text(html_body, encoding="utf-8")
     prompt_pack = _write_prompt_pack(root, slug, payload, approved_with_assets)
     return CardNewsExport(
