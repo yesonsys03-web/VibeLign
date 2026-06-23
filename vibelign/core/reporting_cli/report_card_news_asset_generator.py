@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 import json
+import logging
 import re
 from dataclasses import dataclass
 from hashlib import sha1
@@ -12,9 +13,10 @@ from typing import Final
 from vibelign.core.planning_cli import cli_adapters
 from vibelign.core.planning_cli.storage import safe_plan_slug
 from vibelign.core.planning_cli.response_policy import safe_planning_status
-from vibelign.core.reporting_cli.report_card_news_sketch import render_card_sketch_svg
+from vibelign.core.reporting_cli.report_card_news_sketch import SKETCH_MARKER_ATTR, render_card_sketch_svg
 from vibelign.core.reporting_cli.report_visual_cards import VisualCardDict, VisualImageMetadata
 
+_LOG = logging.getLogger(__name__)
 _ASSET_SCHEMA_VERSION = "report-card-news-svg-asset-v1"
 _MAX_ASSET_STEM_CHARS = 56
 _CLI_ASSET_PROVIDERS: Final = frozenset({"claude", "codex", "agy", "opencode"})
@@ -123,11 +125,20 @@ def _materialize_via_batch(
     if pending:
         asset_dir.mkdir(parents=True, exist_ok=True)
         svgs = _batch_svg_list(context, [card for _, card, _ in pending])
+        fallback_count = 0
         for offset, (index, card, asset_relative) in enumerate(pending):
             candidate = svgs[offset] if offset < len(svgs) else None
+            if candidate is None:
+                fallback_count += 1
             svg = candidate if candidate is not None else _fallback_asset_svg(card)
             _ = (context.root / asset_relative).write_text(svg, encoding="utf-8")
             resolved[index] = _card_with_asset(card, asset_relative, _asset_source(card["image"]["provider"], svg))
+        if fallback_count:
+            _LOG.debug(
+                "card-news batch SVG: %d/%d cards fell back to sketch (model returned fewer or invalid SVGs)",
+                fallback_count,
+                len(pending),
+            )
     return [resolved[index] for index in range(1, len(cards) + 1)]
 # === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__MATERIALIZE_VIA_BATCH_END ===
 
@@ -325,7 +336,7 @@ def _with_svg_schema(svg: str) -> str:
 def _asset_source(provider: str, svg_text: str) -> str:
     if provider not in _CLI_ASSET_PROVIDERS:
         return "template"
-    return "fallback" if "data-sketch-symbols" in svg_text else "llm"
+    return "fallback" if SKETCH_MARKER_ATTR in svg_text else "llm"
 # === ANCHOR: REPORT_CARD_NEWS_ASSET_GENERATOR__ASSET_SOURCE_END ===
 
 

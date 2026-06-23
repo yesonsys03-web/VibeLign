@@ -197,6 +197,36 @@ def test_batch_falls_back_per_card_for_missing_svg(
     assert generated[2]["image"]["source"] == "fallback"
 
 
+def test_asset_source_stays_in_sync_with_sketch_renderer() -> None:
+    from vibelign.core.reporting_cli.report_card_news_asset_generator import _asset_source
+    from vibelign.core.reporting_cli.report_card_news_sketch import SKETCH_MARKER_ATTR, render_card_sketch_svg
+
+    svg = render_card_sketch_svg(_card("opencode"))
+    # Renderer emits the shared marker and the classifier keys off the same constant — locking
+    # provenance classification against silent drift if the marker is ever renamed.
+    assert SKETCH_MARKER_ATTR in svg
+    assert _asset_source("opencode", svg) == "fallback"
+    assert _asset_source("opencode", '<svg viewBox="0 0 320 150"><rect/></svg>') == "llm"
+
+
+def test_batch_partial_fallback_logs_debug_signal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # 3 cards requested but the model returns only 2 SVGs → 1 falls back to sketch; a debug
+    # line must surface that so partial batch output is diagnosable in the field.
+    runner = FakeRunner('{"svgs": ["<svg viewBox=\\"0 0 320 150\\"><rect/></svg>", "<svg viewBox=\\"0 0 320 150\\"><circle/></svg>"]}')
+    monkeypatch.setattr(cli_adapters, "build_cli_command", _fake_build_command)
+    cards = [_card_with_id(f"card-{index}", f"카드 {index}") for index in range(1, 4)]
+
+    with caplog.at_level("DEBUG", logger="vibelign.core.reporting_cli.report_card_news_asset_generator"):
+        _ = materialize_card_news_assets(tmp_path, "예약-알림", cards, runner=runner)
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("fell back to sketch" in message and "1/3" in message for message in messages)
+
+
 def test_batch_timeout_falls_back_all(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

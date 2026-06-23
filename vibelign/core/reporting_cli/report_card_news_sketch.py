@@ -3,8 +3,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha1
+from typing import Final
 
 from vibelign.core.reporting_cli.report_visual_cards import VisualCardDict
+
+# Single source of truth for the sketch marker attribute. Asset provenance classification
+# (report_card_news_asset_generator._asset_source) imports this so the renderer and the
+# classifier can't drift out of sync.
+SKETCH_MARKER_ATTR: Final = "data-sketch-symbols"
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,7 +50,7 @@ def render_card_sketch_svg(card: VisualCardDict) -> str:
     data_symbols = ",".join(symbol.key for symbol in symbols)
     aria = "카드뉴스 그림: " + ", ".join(symbol.label for symbol in symbols)
     colors = _colors(descriptor.color_shift)
-    return f"""<svg viewBox="0 0 320 150" role="img" aria-label="{aria}" data-sketch-symbols="{data_symbols}">
+    return f"""<svg viewBox="0 0 320 150" role="img" aria-label="{aria}" {SKETCH_MARKER_ATTR}="{data_symbols}">
 <rect x="16" y="18" width="288" height="110" rx="16" fill="#FFF9DA" stroke="#1B1714" stroke-width="4"/>
 <path d="M55 116 C95 100 126 128 164 112 S235 98 278 116" fill="none" stroke="{colors[2]}" stroke-width="5" stroke-linecap="round"/>
 <path d="M92 76 C120 54 194 54 226 76" fill="none" stroke="#1B1714" stroke-width="4" stroke-linecap="round" stroke-dasharray="8 9"/>
