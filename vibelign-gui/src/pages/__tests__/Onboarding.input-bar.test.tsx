@@ -70,6 +70,7 @@ describe("Onboarding input bar", () => {
     mocks.readProjectSummaryMock.mockReset();
 
     mocks.openDialogMock.mockResolvedValue(null);
+    mocks.openUrlMock.mockResolvedValue(undefined);
     mocks.getVibPathMock.mockResolvedValue("/usr/local/bin/vib");
     mocks.checkGitInstalledMock.mockResolvedValue(true);
     mocks.checkXcodeCltMock.mockResolvedValue(true);
@@ -86,6 +87,7 @@ describe("Onboarding input bar", () => {
     expect(await screen.findByText("계획부터, 바이브까지, 되돌림은 언제든")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("무엇을 만들고 싶나요?")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /AI 도구/ })).toBeInTheDocument();
+    expect(screen.getByLabelText("VibeLign 온보딩 영상")).toBeInTheDocument();
     expect(screen.getByText("Instant")).toBeInTheDocument();
 
     expect(screen.queryByText("코드맵 생성")).not.toBeInTheDocument();
@@ -99,6 +101,34 @@ describe("Onboarding input bar", () => {
     expect(screen.queryByText("patch")).not.toBeInTheDocument();
     expect(screen.queryByText("CodeSpeak")).not.toBeInTheDocument();
     expect(screen.queryByText("plan-structure")).not.toBeInTheDocument();
+  });
+
+  test("test_intro_video_autoplays_loops_and_stays_at_bottom", async () => {
+    renderOnboarding();
+
+    const setupToggle = await screen.findByRole("button", { name: /AI 도구/ });
+    const guideButton = screen.getByRole("button", { name: "갸리카 길잡이" });
+    const video = screen.getByLabelText("VibeLign 온보딩 영상 플레이어");
+
+    expect(guideButton.compareDocumentPosition(setupToggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(setupToggle.compareDocumentPosition(video) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(guideButton.compareDocumentPosition(video) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(video).toHaveAttribute("autoplay");
+    expect(video).toHaveAttribute("controls");
+    expect(video).toHaveAttribute("loop");
+    expect(video).toHaveAttribute("playsinline");
+    expect(video).toHaveProperty("muted", true);
+    expect(video).toHaveAttribute("src", expect.stringContaining("raw=1"));
+    expect(video).toHaveStyle({ aspectRatio: "16 / 9", objectFit: "contain" });
+  });
+
+  test("test_intro_video_title_opens_threads_profile", async () => {
+    renderOnboarding();
+
+    const title = await screen.findByRole("button", { name: "VibeLign 시작 영상" });
+    fireEvent.click(title);
+
+    expect(mocks.openUrlMock).toHaveBeenCalledWith("https://www.threads.com/@jongjatdon");
   });
 
   test("test_text_submit_without_folder_keeps_prompt_and_shows_folder_hint", async () => {

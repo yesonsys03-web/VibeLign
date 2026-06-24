@@ -15,6 +15,7 @@ import {
 import { OnboardingAdvancedPanel } from "./onboarding/OnboardingAdvancedPanel";
 import { OnboardingClaudeSetup } from "./onboarding/OnboardingClaudeSetup";
 import { OnboardingInputBar, type OnboardingCoach } from "./onboarding/OnboardingInputBar";
+import { OnboardingIntroVideo } from "./onboarding/OnboardingIntroVideo";
 import { OnboardingStartProgress } from "./onboarding/OnboardingStartProgress";
 import { OnboardingGitWarning, OnboardingSystemWarnings } from "./onboarding/OnboardingSystemWarnings";
 import { ToolSetupSelector } from "../components/ToolSetupSelector";
@@ -262,6 +263,7 @@ export default function Onboarding({ onComplete, onPlanRequest, onResume, onRemo
               />
             </div>
           )}
+          <OnboardingIntroVideo />
         </section>
       </main>
     </div>
