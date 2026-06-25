@@ -10,6 +10,26 @@
 
 ---
 
+## [2.5.6] — 2026-06-25
+
+**Intel(x86_64) macOS 빌드 + 자동 업데이트 지원** — macOS 릴리즈가 Apple Silicon(arm64)만 제공하던 것을 Intel(x86_64)까지 확장했다. GUI CI가 Intel 네이티브 러너에서 빌드·서명·업로드하고, 업데이터 매니페스트에 `darwin-x86_64`를 추가해 Intel Mac도 인앱 자동 업데이트를 받는다.
+
+### Added
+
+- **Intel macOS 네이티브 빌드** — GUI CI 빌드 매트릭스에 Intel 네이티브 러너(`macos-13`)를 추가했다. PyInstaller `vib-runtime`은 호스트 아키텍처로만 빌드되어 크로스컴파일이 불가능하므로 x86_64 산출물은 Intel 네이티브 러너에서 빌드한다. Intel `.dmg`와 업데이터 아카이브(`vibelign-gui_x64.app.tar.gz`)가 릴리즈 에셋에 추가된다.
+- **Intel 자동 업데이트** — 릴리즈 워크플로가 러너 아키텍처에 맞는 업데이터 platform 키(`darwin-aarch64` / `darwin-x86_64`)를 생성하고, 두 macOS 매니페스트 조각을 병합해 `latest.json`에 두 아키텍처를 모두 싣는다.
+
+### Changed
+
+- **macOS 업데이터 아카이브 유일화** — arm64/Intel 두 빌드의 `.app.tar.gz`가 동일 이름이라 릴리즈 에셋이 충돌하던 것을 아키텍처 라벨로 분리했다(`vibelign-gui_aarch64.app.tar.gz` / `vibelign-gui_x64.app.tar.gz`). 업데이터 서명은 파일 내용 기준이라 이름 변경의 영향이 없다.
+- **Intel 빌드 실패 격리** — Intel(`macos-13`) 빌드가 실패해도 arm64/Windows 릴리즈 발행을 막지 않도록 릴리즈 잡이 Intel 산출물 누락을 건너뛴다.
+
+### Verified
+
+- 워크플로 YAML 파싱·빌드 매트릭스 표현식·매니페스트 병합/publish 글롭 구조를 로컬에서 확인했다. 실제 Intel `.dmg` 생성과 인앱 자동 업데이트 적용은 태그 빌드 산출물에서 확인 대상이다.
+
+---
+
 ## [2.5.5] — 2026-06-24
 
 **온보딩 시작 영상 + 카드뉴스 후속 안정화** — 첫 실행 온보딩 하단에 바로 재생되는 시작 영상을 추가하고, 제목 클릭으로 Threads 프로필을 열 수 있게 했다. v2.5.4 카드뉴스 후속으로 포스터 HTML round-trip, asset 출처 분류, 배치 SVG 부분 폴백 로깅을 정리했다.
