@@ -44,12 +44,14 @@ jobs:
       # 수동 실행(workflow_dispatch)에서 target=windows/macos 면 해당 OS만 빌드한다.
       # push/PR 등 inputs 가 없는 이벤트는 빈 문자열이라 기본값(전부)으로 떨어진다.
       # macOS 는 2종을 빌드한다:
-      #   - macos-latest = Apple Silicon / aarch64 네이티브
-      #   - macos-13     = Intel / x86_64 네이티브
+      #   - macos-latest    = Apple Silicon / aarch64 네이티브
+      #   - macos-15-intel  = Intel / x86_64 네이티브
       # PyInstaller(vib-runtime)는 호스트 아키텍처로만 빌드되어 크로스컴파일 불가하므로
-      # Intel 산출물은 반드시 Intel 네이티브 러너(macos-13)에서 만들어야 한다.
+      # Intel 산출물은 반드시 Intel 네이티브 러너에서 만들어야 한다.
+      # NOTE: 이전 Intel 러너 macos-13 은 2025-12 에 은퇴(retired)되어 큐에서 영원히
+      #       배정되지 않는다. GitHub 대체 라벨인 macos-15-intel(macOS 15 / x86_64)을 쓴다.
       matrix:
-        os: ${{ fromJSON(github.event.inputs.target == 'windows' && '["windows-latest"]' || github.event.inputs.target == 'macos' && '["macos-latest","macos-13"]' || '["windows-latest","macos-latest","macos-13"]') }}
+        os: ${{ fromJSON(github.event.inputs.target == 'windows' && '["windows-latest"]' || github.event.inputs.target == 'macos' && '["macos-latest","macos-15-intel"]' || '["windows-latest","macos-latest","macos-15-intel"]') }}
 
     defaults:
       run:
@@ -60,7 +62,7 @@ jobs:
         uses: actions/checkout@v4
 
       # macOS 잡은 러너 아키텍처에 따라 업데이터 platform 키와 에셋 라벨이 달라진다.
-      # macos-latest(arm64) → darwin-aarch64 / aarch64,  macos-13(x86_64) → darwin-x86_64 / x64.
+      # macos-latest(arm64) → darwin-aarch64 / aarch64,  macos-15-intel(x86_64) → darwin-x86_64 / x64.
       # 여기서 $GITHUB_ENV 에 심으면 이후 모든 스텝의 ${{ env.* }} / os.environ 에서 쓸 수 있다.
       - name: Determine macOS arch (updater key + asset label)
         if: runner.os == 'macOS'
@@ -437,7 +439,7 @@ jobs:
 
       - name: Download macOS artifacts (Intel)
         uses: actions/download-artifact@v4
-        # Intel(macos-13) 빌드가 실패해도 arm64/windows 릴리즈는 막지 않는다.
+        # Intel(macos-15-intel) 빌드가 실패해도 arm64/windows 릴리즈는 막지 않는다.
         # 매니페스트 병합/publish 글롭이 누락 파일을 자연스럽게 건너뛴다.
         continue-on-error: true
         with:
