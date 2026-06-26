@@ -77,6 +77,9 @@ export default function SpotlightTour({
 
   const hole = spotlightStyle(rect);
   const total = tutorial.steps.length;
+  // 말풍선(좌하단 고정)이 강조 영역을 가리지 않도록: 타겟이 화면 아래쪽이면 말풍선을 위로 옮긴다.
+  const viewportH = typeof window !== "undefined" ? window.innerHeight : 800;
+  const placeBubbleTop = rect != null && rect.top + rect.height / 2 > viewportH / 2;
 
   function handleCopy() {
     if (step.copyText) navigator.clipboard.writeText(step.copyText).catch(() => {});
@@ -91,7 +94,7 @@ export default function SpotlightTour({
     <div className="tour-root" role="dialog" aria-label="튜토리얼">
       {/* 어두운 마스크 + 구멍(box-shadow 트릭) */}
       <div className="tour-spotlight" style={hole} />
-      <div className="tour-bubble-wrap">
+      <div className="tour-bubble-wrap" style={placeBubbleTop ? { top: 24, bottom: "auto" } : undefined}>
         <span className="guide-mascot pop">🧭</span>
         <div className="guide-bubble pop tour-bubble">
           <div className="tour-progress">{stepIndex + 1} / {total}</div>
