@@ -729,7 +729,7 @@ export default function App() {
           }}
         />
       )}
-      {tutorial.active && tutorial.step && (
+      {projectDir && tutorial.active && tutorial.step && (
         <SpotlightTour
           tutorial={tutorial.active}
           stepIndex={tutorial.stepIndex}
@@ -740,13 +740,13 @@ export default function App() {
           onNavigate={navigate}
         />
       )}
-      {showPicker && (
+      {showPicker && projectDir && !tutorial.active && (
         <TutorialPicker
           onPick={(id) => { setShowPicker(false); setTutorialGraduated(false); tutorial.start(id); }}
           onClose={() => setShowPicker(false)}
         />
       )}
-      {tutorialGraduated && (
+      {tutorialGraduated && projectDir && (
         <div className="tutpick-backdrop" role="dialog" aria-label="졸업">
           <div className="tutpick-panel">
             <h2 className="tutpick-title">🎉 축하합니다 — 당신이 첫 앱을 완성했어요!</h2>
