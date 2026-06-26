@@ -8,8 +8,6 @@ import type { StepDone } from "./types";
  */
 export function isStepComplete(done: StepDone, s: GuideSignals): boolean {
   switch (done) {
-    case "sent":
-      return s.planningPending;
     case "planResponded":
       return s.hasPlanDoc;
     case "changedFiles":

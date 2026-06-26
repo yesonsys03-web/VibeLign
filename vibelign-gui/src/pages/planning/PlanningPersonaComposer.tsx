@@ -206,7 +206,7 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
           <span style={{ fontSize: 12, opacity: 0.6 }}>Tab 키로 완성</span>
         </div>
       )}
-      <div data-tour="planning-compose" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 72px", gap: 8, alignItems: "end" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 72px", gap: 8, alignItems: "end" }}>
         <textarea
           className="input-field"
           value={message}
@@ -246,7 +246,6 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
         <button
           className="btn btn-black"
           type="button"
-          data-tour="planning-send"
           onClick={() => void handleSubmit()}
           disabled={!canSubmit}
           style={{ height: 42, fontSize: 12, opacity: canSubmit ? 1 : 0.5 }}

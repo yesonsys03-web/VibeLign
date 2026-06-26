@@ -46,7 +46,6 @@ export function PlanningActionBar({
         type="button"
         onClick={onSave}
         disabled={!canSave}
-        data-tour="plan-save"
         style={{ fontSize: 12, opacity: canSave ? 1 : 0.5 }}
       >
         {isSaving ? "저장중" : hasSavedPlan ? "기획안 다시 저장" : "기획안으로 저장"}
