@@ -73,12 +73,12 @@ const TODO: Tutorial = {
     },
     {
       id: "todo-8-save",
-      kind: "click",
+      kind: "confirm",
       say: "마음에 들면 저장! [체크포인트 저장]을 다시 누르세요.",
       why: "좋은 상태를 저장해두면 다음에 또 여기서 시작할 수 있어요.",
       target: "checkpoint-save",
       goPage: "backups",
-      done: "checkpoint",
+      done: "manual",
     },
     {
       id: "todo-9-undo",
@@ -106,7 +106,7 @@ const GUESTBOOK: Tutorial = {
     { id: "gb-5-guard", kind: "click", say: "안전한지 검사해요. [상태 확인]을 누르세요.", why: "건드리면 안 되는 곳을 안 건드렸는지 확인해줘요.", target: "home-guard-check", goPage: "home", done: "guardChecked" },
     { id: "gb-6-run", kind: "click", say: "[실행해보기]를 눌러 직접 봐요.", why: "방명록이 실제로 뜨는지 확인해요.", target: "run-app", goPage: "run", done: "runVerified" },
     { id: "gb-7-try", kind: "confirm", say: "이름과 한마디를 직접 남겨보세요. 목록에 떴나요?", why: "직접 써보는 게 완성의 증거예요.", target: "run-app", goPage: "run", done: "manual" },
-    { id: "gb-8-save", kind: "click", say: "마음에 들면 [체크포인트 저장]을 다시 누르세요.", why: "좋은 상태를 저장해두면 다음에 또 시작할 수 있어요.", target: "checkpoint-save", goPage: "backups", done: "checkpoint" },
+    { id: "gb-8-save", kind: "confirm", say: "마음에 들면 [체크포인트 저장]을 다시 누르세요.", why: "좋은 상태를 저장해두면 다음에 또 시작할 수 있어요.", target: "checkpoint-save", goPage: "backups", done: "manual" },
     { id: "gb-9-undo", kind: "confirm", say: "잘못돼도 괜찮아요. [되돌리기]로 저장 시점으로 돌아갈 수 있어요. [알겠어요].", why: "되돌릴 수 있다는 안심이 겁 없이 만드는 비결이에요.", target: "checkpoint-restore", goPage: "backups", done: "manual" },
   ],
 };
@@ -125,7 +125,7 @@ const QUIZ: Tutorial = {
     { id: "qz-5-guard", kind: "click", say: "안전한지 검사해요. [상태 확인]을 누르세요.", why: "건드리면 안 되는 곳을 안 건드렸는지 확인해줘요.", target: "home-guard-check", goPage: "home", done: "guardChecked" },
     { id: "qz-6-run", kind: "click", say: "[실행해보기]를 눌러 직접 봐요.", why: "퀴즈가 실제로 도는지 확인해요.", target: "run-app", goPage: "run", done: "runVerified" },
     { id: "qz-7-try", kind: "confirm", say: "직접 퀴즈를 풀어보세요. 점수가 나왔나요?", why: "직접 해보는 게 완성의 증거예요.", target: "run-app", goPage: "run", done: "manual" },
-    { id: "qz-8-save", kind: "click", say: "마음에 들면 [체크포인트 저장]을 다시 누르세요.", why: "좋은 상태를 저장해두면 다음에 또 시작할 수 있어요.", target: "checkpoint-save", goPage: "backups", done: "checkpoint" },
+    { id: "qz-8-save", kind: "confirm", say: "마음에 들면 [체크포인트 저장]을 다시 누르세요.", why: "좋은 상태를 저장해두면 다음에 또 시작할 수 있어요.", target: "checkpoint-save", goPage: "backups", done: "manual" },
     { id: "qz-9-undo", kind: "confirm", say: "잘못돼도 괜찮아요. [되돌리기]로 저장 시점으로 돌아갈 수 있어요. [알겠어요].", why: "되돌릴 수 있다는 안심이 겁 없이 만드는 비결이에요.", target: "checkpoint-restore", goPage: "backups", done: "manual" },
   ],
 };

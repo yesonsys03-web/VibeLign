@@ -30,7 +30,7 @@ function setup(stepIndex: number, s: GuideSignals = signals, extra = {}) {
   const onAdvance = vi.fn();
   const onExit = vi.fn();
   const onNavigate = vi.fn();
-  render(
+  const { rerender } = render(
     <SpotlightTour
       tutorial={tut}
       stepIndex={stepIndex}
@@ -42,7 +42,7 @@ function setup(stepIndex: number, s: GuideSignals = signals, extra = {}) {
       {...extra}
     />,
   );
-  return { onAdvance, onExit, onNavigate };
+  return { onAdvance, onExit, onNavigate, rerender };
 }
 
 describe("SpotlightTour", () => {
@@ -67,9 +67,28 @@ describe("SpotlightTour", () => {
     expect(onAdvance).toHaveBeenCalled();
   });
 
-  it("click 단계: 신호가 충족되면 자동 advance한다", () => {
-    const { onAdvance } = setup(1, { ...signals, hasCheckpoint: true });
+  it("click 단계: 신호 false→true 전이 시 자동 advance한다", () => {
+    // mount with signal false (armed), then re-render with signal true (fires)
+    const { onAdvance, rerender } = setup(1, signals);
+    expect(onAdvance).not.toHaveBeenCalled();
+    rerender(
+      <SpotlightTour
+        tutorial={tut}
+        stepIndex={1}
+        step={tut.steps[1]}
+        signals={{ ...signals, hasCheckpoint: true }}
+        onAdvance={onAdvance}
+        onExit={vi.fn()}
+        onNavigate={vi.fn()}
+      />,
+    );
     expect(onAdvance).toHaveBeenCalled();
+  });
+
+  it("click 단계: 진입 시 신호가 이미 충족되면 advance하지 않는다 (edge-gating)", () => {
+    // signal already true on mount — no false→true transition → must NOT advance
+    const { onAdvance } = setup(1, { ...signals, hasCheckpoint: true });
+    expect(onAdvance).not.toHaveBeenCalled();
   });
 
   it("click 단계: 신호 미충족이면 advance하지 않는다", () => {
@@ -81,5 +100,27 @@ describe("SpotlightTour", () => {
     const { onAdvance } = setup(2);
     fireEvent.click(screen.getByRole("button", { name: /알겠어요/ }));
     expect(onAdvance).toHaveBeenCalled();
+  });
+
+  it("confirm 단계: 신호 true여도 자동 advance하지 않는다 (step-8 변환 안전)", () => {
+    // confirm step with done:"checkpoint" + hasCheckpoint:true must never auto-advance
+    const onAdvance = vi.fn();
+    const confirmStep = {
+      id: "s-confirm-save", kind: "confirm" as const,
+      say: "저장하세요", target: "checkpoint-save", done: "checkpoint" as const,
+    };
+    const confirmTut = { ...tut, steps: [confirmStep] };
+    render(
+      <SpotlightTour
+        tutorial={confirmTut}
+        stepIndex={0}
+        step={confirmStep}
+        signals={{ ...signals, hasCheckpoint: true }}
+        onAdvance={onAdvance}
+        onExit={vi.fn()}
+        onNavigate={vi.fn()}
+      />,
+    );
+    expect(onAdvance).not.toHaveBeenCalled();
   });
 });

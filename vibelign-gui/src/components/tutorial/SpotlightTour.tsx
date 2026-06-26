@@ -1,5 +1,5 @@
 // ANCHOR: SPOTLIGHT_TOUR_START
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { GuideSignals } from "../../lib/nav/guide";
 import type { Page } from "../../lib/nav/stages";
 import type { Tutorial, TutorialStep } from "../../lib/tutorial/types";
@@ -29,10 +29,18 @@ export default function SpotlightTour({
 }: SpotlightTourProps) {
   const [rect, setRect] = useState<SpotRect | null>(null);
 
-  // 이 단계가 요구하는 화면으로 데려다 놓기
+  // goPage: refs keep latest values; the effect fires once per step.id change (not per render)
+  // so onNavigate being a new closure each render cannot re-trigger navigation.
+  const onNavigateRef = useRef(onNavigate);
+  const goPageRef = useRef(step.goPage);
+  onNavigateRef.current = onNavigate;
+  goPageRef.current = step.goPage;
+
+  // 이 단계가 요구하는 화면으로 데려다 놓기 (단계 변경 시 1회만)
   useEffect(() => {
-    if (step.goPage) onNavigate(step.goPage);
-  }, [step.id, step.goPage, onNavigate]);
+    if (goPageRef.current) onNavigateRef.current(goPageRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step.id]);
 
   // 대상 요소 위치 추적(레이아웃/리사이즈/스크롤 반영)
   useLayoutEffect(() => {
@@ -48,9 +56,17 @@ export default function SpotlightTour({
     };
   }, [step.id, step.target]);
 
-  // 신호 기반 자동 진행(click/pasteSend)
+  // 신호 기반 자동 진행(click/pasteSend) — edge-gating: 진입 시 이미 충족된 신호는 무시
+  const lastStepId = useRef<string | null>(null);
+  const armed = useRef(false);
   useEffect(() => {
-    if ((step.kind === "click" || step.kind === "pasteSend") && isStepComplete(step.done, signals)) {
+    if (step.kind !== "click" && step.kind !== "pasteSend") return;
+    if (lastStepId.current !== step.id) {
+      lastStepId.current = step.id;
+      armed.current = !isStepComplete(step.done, signals); // arm only if not already satisfied
+    }
+    if (armed.current && isStepComplete(step.done, signals)) {
+      armed.current = false;
       onAdvance();
     }
   }, [step.id, step.kind, step.done, signals, onAdvance]);
