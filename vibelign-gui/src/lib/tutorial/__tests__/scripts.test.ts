@@ -32,4 +32,17 @@ describe("tutorial scripts", () => {
     // 되돌리기 인지: restore 버튼을 가리키는 단계가 있다
     expect(todo.steps.some((s) => s.target === "checkpoint-restore")).toBe(true);
   });
+
+  it("3종 대본이 모두 등록돼 있다", () => {
+    expect(TUTORIALS.map((t) => t.id).sort()).toEqual(["guestbook", "quiz", "todo"]);
+  });
+
+  it("모든 대본이 안전 절반을 포함한다", () => {
+    for (const t of TUTORIALS) {
+      const dones = t.steps.map((s) => s.done);
+      expect(dones, t.id).toContain("checkpoint");
+      expect(dones, t.id).toContain("guardChecked");
+      expect(t.steps.some((s) => s.target === "checkpoint-restore"), t.id).toBe(true);
+    }
+  });
 });
