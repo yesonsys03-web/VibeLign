@@ -15,6 +15,7 @@ const tut: Tutorial = {
     { id: "s1", kind: "copy", say: "복사하세요", why: "이유", done: "copy", copyText: "HELLO" },
     { id: "s2", kind: "click", say: "버튼 누르세요", target: "x", done: "checkpoint" },
     { id: "s3", kind: "confirm", say: "확인했나요?", target: "x", done: "manual" },
+    { id: "s4", kind: "pasteSend", say: "붙여넣고 보내세요", target: "planning-compose", done: "planResponded", copyText: "HELLO" },
   ],
 };
 
@@ -50,7 +51,7 @@ describe("SpotlightTour", () => {
     setup(0);
     expect(screen.getByText("복사하세요")).toBeTruthy();
     expect(screen.getByText(/이유/)).toBeTruthy();
-    expect(screen.getByText("1 / 3")).toBeTruthy();
+    expect(screen.getByText("1 / 4")).toBeTruthy();
   });
 
   it("copy 단계: 복사 버튼이 클립보드에 쓰고 advance한다", async () => {
@@ -99,6 +100,29 @@ describe("SpotlightTour", () => {
   it("confirm 단계: 알겠어요가 advance한다", () => {
     const { onAdvance } = setup(2);
     fireEvent.click(screen.getByRole("button", { name: /알겠어요/ }));
+    expect(onAdvance).toHaveBeenCalled();
+  });
+
+  it("copyText가 있는 단계는 해당 텍스트를 tour-copybox에 표시한다", () => {
+    setup(0); // s1: copy step with copyText "HELLO"
+    expect(screen.getByText("HELLO")).toBeTruthy();
+  });
+
+  it("pasteSend 단계: 다시 복사 버튼이 클립보드에 쓰지만 advance하지 않는다", async () => {
+    const { onAdvance } = setup(3); // s4: pasteSend with copyText "HELLO"
+    const recopBtn = screen.getByRole("button", { name: /다시 복사/ });
+    expect(recopBtn).toBeTruthy();
+    fireEvent.click(recopBtn);
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("HELLO");
+    await Promise.resolve();
+    expect(onAdvance).not.toHaveBeenCalled();
+  });
+
+  it("copy 단계: 복사 버튼은 클립보드에 쓰고 advance한다 (회귀)", async () => {
+    const { onAdvance } = setup(0);
+    fireEvent.click(screen.getByRole("button", { name: /^📋 복사$/ }));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("HELLO");
+    await Promise.resolve();
     expect(onAdvance).toHaveBeenCalled();
   });
 

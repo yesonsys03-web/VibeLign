@@ -83,6 +83,10 @@ export default function SpotlightTour({
     onAdvance();
   }
 
+  function handleReCopy() {
+    if (step.copyText) navigator.clipboard.writeText(step.copyText).catch(() => {});
+  }
+
   return (
     <div className="tour-root" role="dialog" aria-label="튜토리얼">
       {/* 어두운 마스크 + 구멍(box-shadow 트릭) */}
@@ -92,10 +96,16 @@ export default function SpotlightTour({
         <div className="guide-bubble pop tour-bubble">
           <div className="tour-progress">{stepIndex + 1} / {total}</div>
           <p className="tour-say">{step.say}</p>
+          {step.copyText && (
+            <div className="tour-copybox">{step.copyText}</div>
+          )}
           {step.why && <p className="tour-why">〔왜?〕 {step.why}</p>}
           <div className="tour-actions">
             {step.kind === "copy" && (
               <button className="btn" onClick={handleCopy}>📋 복사</button>
+            )}
+            {step.kind === "pasteSend" && step.copyText && (
+              <button className="btn btn-sm" onClick={handleReCopy}>📋 다시 복사</button>
             )}
             {step.kind === "confirm" && (
               <button className="btn" onClick={onAdvance}>알겠어요</button>
