@@ -246,6 +246,7 @@ export function PlanningPersonaComposer({ projectDir, result, sessionId, onResul
         <button
           className="btn btn-black"
           type="button"
+          data-tour="planning-send"
           onClick={() => void handleSubmit()}
           disabled={!canSubmit}
           style={{ height: 42, fontSize: 12, opacity: canSubmit ? 1 : 0.5 }}

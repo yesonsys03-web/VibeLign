@@ -232,6 +232,7 @@ export default function RunPanel({ projectDir, onNavigate, onRequestWorkHandoff,
             {!isActive && (
               <button
                 className="btn"
+                data-tour="run-app"
                 disabled={detectState !== "ready" || starting}
                 onClick={() => void handleStart()}
               >

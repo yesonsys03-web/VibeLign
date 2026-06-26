@@ -525,7 +525,7 @@ export default function WorkRoom({
 
         {phase === "idle" && (
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <button className="btn" disabled={!effectiveInstruction || !ready} onClick={() => setPhase("confirm")}>
+            <button className="btn" data-tour="work-run-ai" disabled={!effectiveInstruction || !ready} onClick={() => setPhase("confirm")}>
               {handoff != null ? (handoff.kind === "error" ? "이 에러 고치기" : "이 개선 작업하기") : "AI에게 작업 시키기"}
             </button>
             <span style={{ fontSize: 13, color: "#666", fontWeight: 700 }}>

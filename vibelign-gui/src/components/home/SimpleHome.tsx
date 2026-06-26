@@ -83,7 +83,7 @@ export function SimpleHome({
             </button>
           ) : null}
           {canRunGuard ? (
-            <button className="btn btn-black btn-sm" type="button" disabled={guardCheckPending} onClick={onRunGuard} style={{ marginTop: 12, fontSize: 12 }}>
+            <button className="btn btn-black btn-sm" type="button" data-tour="home-guard-check" disabled={guardCheckPending} onClick={onRunGuard} style={{ marginTop: 12, fontSize: 12 }}>
               {guardCheckPending ? "확인 중..." : "상태 확인하기"}
             </button>
           ) : null}
