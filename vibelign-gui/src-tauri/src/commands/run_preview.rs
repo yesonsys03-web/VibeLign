@@ -729,7 +729,9 @@ pub(crate) fn run_start(
         RunProgram::Npx(_) => find_executable("npx")
             .ok_or_else(|| "npx 를 찾을 수 없어요. Node.js 설치를 확인해 주세요.".to_string())?,
         // StaticWeb 은 위에서 start_static_preview 로 early-return 되어 여기 도달하지 않는다.
-        RunProgram::Static => unreachable!("StaticWeb is handled before the npm spawn path"),
+        RunProgram::Static => {
+            return Err("internal: static program reached npm spawn path".into())
+        }
     };
     let run_args = recipe.program.args().to_vec();
 
@@ -830,16 +832,21 @@ fn start_static_preview(
         }
     });
 
-    // run-status(running)+run-preview-ready 는 짧은 지연 후 emit — runStart 응답이 프런트에서
-    // 먼저 처리돼 status 가 'starting' 으로 덮이는 경쟁을 피한다(npm 경로는 orchestrator
-    // 스레드의 자연 지연으로 이 문제가 없다). 위의 동기 세팅 덕에 run_status 복원은 무관.
-    let ready_app = app.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(150));
-        let _ = ready_app
+    // run-status(running)+run-preview-ready 를 동기로 emit — runStart 커맨드 핸들러 스레드에서
+    // 직접 보내므로 150ms 지연 없이도 응답보다 늦게 도달할 수 있는 경쟁이 없다.
+    // (프런트엔드는 await runStart() 완료 전까지 handleStop 을 호출할 수 없으므로
+    //  emit 시점에 cancel 은 구조적으로 불가능하다. 그래도 run_id 일치·cancelled 가드를 둬
+    //  미래 호출 경로 변경 시 안전을 유지한다.)
+    let should_emit = state
+        .0
+        .lock()
+        .map(|g| !g.cancelled && g.run_id == run_id)
+        .unwrap_or(false);
+    if should_emit {
+        let _ = app
             .emit("run-status", RunStatusEvent { run_id, status: "running", exit_code: None });
-        let _ = ready_app.emit("run-preview-ready", RunPreviewReadyEvent { run_id, url });
-    });
+        let _ = app.emit("run-preview-ready", RunPreviewReadyEvent { run_id, url });
+    }
 
     Ok(RunStartInfo {
         run_id,

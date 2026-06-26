@@ -155,7 +155,7 @@ export default function RunPanel({ projectDir, onNavigate, onRequestWorkHandoff,
     try {
       const info = await runStart(projectDir);
       activeRunIdRef.current = info.runId;
-      setStatus(info.needsInstall ? "installing" : "starting");
+      setStatus((prev) => (prev === "running" ? "running" : (info.needsInstall ? "installing" : "starting")));
     } catch (e) {
       activeRunIdRef.current = null;
       setStatus(null);
@@ -209,8 +209,8 @@ export default function RunPanel({ projectDir, onNavigate, onRequestWorkHandoff,
             <div style={{ display: "grid", gap: 4 }}>
               <div style={{ fontSize: 13, fontWeight: 800 }}>실행 방법을 못 찾았어요</div>
               <div style={{ fontSize: 12, color: "#666", lineHeight: 1.6 }}>
-                package.json 에 <b>dev</b> 또는 <b>start</b> 스크립트가 필요해요. 기획방에서 먼저 실행 가능한
-                형태로 만들어 보세요.
+                index.html 파일이 있으면 바로 실행돼요. 또는 package.json 에 <b>dev</b> 또는 <b>start</b>{" "}
+                스크립트가 있어야 해요. 기획방에서 먼저 실행 가능한 형태로 만들어 보세요.
               </div>
             </div>
           )}
