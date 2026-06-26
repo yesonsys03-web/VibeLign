@@ -47,6 +47,9 @@ import { runDetect } from "./lib/vib/run";
 import { HomePlanningStart } from "./components/home/HomePlanningStart";
 import "./styles/brutalism.css";
 import "./App.css";
+import { useTutorial } from "./lib/tutorial/useTutorial";
+import SpotlightTour from "./components/tutorial/SpotlightTour";
+import TutorialPicker from "./components/tutorial/TutorialPicker";
 
 // ─── Error Boundary ────────────────────────────────────────────────────────────
 class ErrorBoundary extends Component<
@@ -492,6 +495,28 @@ export default function App() {
     backupLoaded,
   );
 
+  const tutorial = useTutorial();
+  const [showPicker, setShowPicker] = useState(false);
+  const [tutorialGraduated, setTutorialGraduated] = useState(false);
+
+  // 튜토리얼 신호 객체 (useGuide에 넘기는 것과 동일 — 재사용)
+  const tutorialSignals = {
+    hasPlanDoc: Boolean(planningResult?.outputPath),
+    planningPending: planningPendingNow,
+    hasCheckpoint: hasUserCheckpoint,
+    changedFileCount,
+    guardStatus,
+    runVerified,
+  };
+
+  useEffect(() => {
+    if (tutorial.isComplete && !tutorialGraduated) {
+      setTutorialGraduated(true);
+      guide.setEnabled(true);   // 반응형 가이드로 졸업 인계
+      tutorial.exit();
+    }
+  }, [tutorial.isComplete, tutorialGraduated, guide, tutorial]);
+
   // 4️⃣ 도구 미보유 분기(spec §3.2) — 0개 "확정 탐지"일 때만 true. 탐지 실패는 기존 값 유지(추측 안내 금지).
   const [aiToolMissing, setAiToolMissing] = useState(false);
   const prevPageForToolsRef = useRef<Page | null>(null);
@@ -565,7 +590,7 @@ export default function App() {
         {!projectDir ? (
           <Onboarding
             recentDirs={recentDirs}
-            onComplete={(dir, key) => { addToRecent(dir); setProjectDir(dir); if (key) setApiKey(key); setPage("home"); void loadProjectPlanning(dir); }}
+            onComplete={(dir, key) => { addToRecent(dir); setProjectDir(dir); if (key) setApiKey(key); setPage("home"); void loadProjectPlanning(dir); setShowPicker(true); }}
             onPlanRequest={openPlanningRoom}
             onResume={(dir) => { void resumeProject(dir); }}
             onRemoveRecent={(dir) => removeFromRecent(dir)}
@@ -583,22 +608,24 @@ export default function App() {
             />
             <StageSubnav page={page} onNavigate={navigate} />
 
-            <GuideStrip
-              enabled={guide.enabled}
-              step={guide.step}
-              currentPage={page}
-              hasCheckpoint={hasCheckpoint}
-              planningPending={planningPendingNow}
-              aiToolMissing={aiToolMissing}
-              celebrating={celebrating}
-              runVerified={runVerified}
-              guardOk={guardStatus === "ok"}
-              onNavigate={navigate}
-              onStepChange={guide.setStep}
-              onDisable={() => guide.setEnabled(false)}
-              onOpenSettings={() => openSettings()}
-              onCelebrateDismiss={() => setCelebrating(false)}
-            />
+            {!tutorial.active && (
+              <GuideStrip
+                enabled={guide.enabled}
+                step={guide.step}
+                currentPage={page}
+                hasCheckpoint={hasCheckpoint}
+                planningPending={planningPendingNow}
+                aiToolMissing={aiToolMissing}
+                celebrating={celebrating}
+                runVerified={runVerified}
+                guardOk={guardStatus === "ok"}
+                onNavigate={navigate}
+                onStepChange={guide.setStep}
+                onDisable={() => guide.setEnabled(false)}
+                onOpenSettings={() => openSettings()}
+                onCelebrateDismiss={() => setCelebrating(false)}
+              />
+            )}
 
             <DesignJobChip status={designJob.status} page={page} onOpen={() => navigate("design-preview")} />
 
@@ -613,7 +640,7 @@ export default function App() {
                         // 재조회에서 지문 불일치로) 리셋된다 — baseline과 같은 좁은 경쟁 구간 허용(spec §4-7).
                         guardCheckedFingerprintRef.current = changedFingerprint;
                         setGuardStatus(status);
-                      }} />
+                      }} onStartTutorial={() => setShowPicker(true)} />
                   </>
                 )}
                 {page === "planning" && (planningResult ? (
@@ -701,6 +728,32 @@ export default function App() {
             }
           }}
         />
+      )}
+      {tutorial.active && tutorial.step && (
+        <SpotlightTour
+          tutorial={tutorial.active}
+          stepIndex={tutorial.stepIndex}
+          step={tutorial.step}
+          signals={tutorialSignals}
+          onAdvance={tutorial.advance}
+          onExit={tutorial.exit}
+          onNavigate={navigate}
+        />
+      )}
+      {showPicker && (
+        <TutorialPicker
+          onPick={(id) => { setShowPicker(false); setTutorialGraduated(false); tutorial.start(id); }}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
+      {tutorialGraduated && (
+        <div className="tutpick-backdrop" role="dialog" aria-label="졸업">
+          <div className="tutpick-panel">
+            <h2 className="tutpick-title">🎉 축하합니다 — 당신이 첫 앱을 완성했어요!</h2>
+            <p className="tutpick-sub">방금 이 순서로 만든 거예요: 기획 → 저장 → AI 작업 → 검사 → 저장/되돌리기.<br/>이제 혼자 같은 순서로 무엇이든 만들 수 있어요.</p>
+            <button className="btn" onClick={() => setTutorialGraduated(false)}>좋아요!</button>
+          </div>
+        </div>
       )}
       <ScrollToTopButton />
     </div>
