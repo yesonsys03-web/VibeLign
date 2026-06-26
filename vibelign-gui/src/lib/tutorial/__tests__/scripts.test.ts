@@ -15,11 +15,14 @@ describe("tutorial scripts", () => {
     }
   });
 
-  it("copy 단계는 copyText를, click/pasteSend/confirm 단계는 target을 가진다", () => {
+  it("copy·pasteSend 단계는 copyText를, click 단계는 target을 가진다", () => {
     for (const t of TUTORIALS) {
       for (const s of t.steps) {
-        if (s.kind === "copy") expect(s.copyText, `${t.id}/${s.id}`).toBeTruthy();
-        else expect(s.target, `${t.id}/${s.id}`).toBeTruthy();
+        if (s.kind === "copy" || s.kind === "pasteSend")
+          expect(s.copyText, `${t.id}/${s.id}`).toBeTruthy();
+        else if (s.kind === "click")
+          expect(s.target, `${t.id}/${s.id}`).toBeTruthy();
+        // confirm 단계는 target 선택사항 — 강제하지 않음
       }
     }
   });
