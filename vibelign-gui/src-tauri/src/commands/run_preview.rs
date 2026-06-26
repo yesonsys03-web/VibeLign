@@ -57,7 +57,8 @@ pub(crate) enum RunProgram {
     Npx(Vec<String>),
     /// 정적 HTML — 외부 프로그램이 아니라 임베드 tiny_http 서버가 직접 서빙한다.
     /// run_start 가 spawn_orchestrator 경유 없이 특수 처리하므로 executable/args 는 미사용.
-    Static,
+    /// `entry` 는 미리보기 URL 경로에 쓰인다: index.html → `/`, 다른 파일 → `/<entry>`.
+    Static { entry: String },
 }
 
 impl RunProgram {
@@ -74,14 +75,14 @@ impl RunProgram {
         match self {
             RunProgram::Npm(_) => "npm",
             RunProgram::Npx(_) => "npx",
-            RunProgram::Static => "static",
+            RunProgram::Static { .. } => "static",
         }
     }
 
     fn args(&self) -> &[String] {
         match self {
             RunProgram::Npm(a) | RunProgram::Npx(a) => a,
-            RunProgram::Static => &[],
+            RunProgram::Static { .. } => &[],
         }
     }
 
@@ -672,6 +673,42 @@ fn spawn_orchestrator(
     });
 }
 
+/// 루트에서 정적 HTML 진입 파일을 결정한다 — 순수, 파일 I/O 만(테스트 용이).
+/// 1) index.html 이 있으면 무조건 그것.
+/// 2) 없으면 루트 .html 파일 전체 수집:
+///    - 없으면 None, 하나면 그것,
+///    - 여럿이면 index > main > app 이름 우선(대소문자 무시), 그것도 없으면 알파벳 첫번째.
+fn detect_static_entry(cwd_path: &Path) -> Option<String> {
+    // 1) index.html 우선 — 가장 흔한 케이스, 빠르게 반환.
+    if cwd_path.join("index.html").is_file() {
+        return Some("index.html".to_string());
+    }
+    // 2) 루트의 .html 파일 목록(파일만, 재귀 없음).
+    let mut html_files: Vec<String> = std::fs::read_dir(cwd_path)
+        .ok()?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().ok().map(|ft| ft.is_file()).unwrap_or(false))
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            if name.to_ascii_lowercase().ends_with(".html") { Some(name) } else { None }
+        })
+        .collect();
+    match html_files.len() {
+        0 => None,
+        1 => Some(html_files.remove(0)),
+        _ => {
+            // 복수: index > main > app 순으로 우선, 없으면 알파벳 첫번째.
+            for preferred in &["index.html", "main.html", "app.html"] {
+                if html_files.iter().any(|f| f.eq_ignore_ascii_case(preferred)) {
+                    return Some(preferred.to_string());
+                }
+            }
+            html_files.sort();
+            Some(html_files.remove(0))
+        }
+    }
+}
+
 /// package.json → 실행 레시피(파일 I/O 래퍼). UI 가 실행 전 타입을 보여줄 때 쓴다.
 #[tauri::command]
 pub(crate) fn run_detect(cwd: String) -> Option<RunRecipe> {
@@ -682,12 +719,12 @@ pub(crate) fn run_detect(cwd: String) -> Option<RunRecipe> {
             return Some(recipe);
         }
     }
-    // 2순위 — package.json 이 없거나 레시피가 안 나오면, index.html 만으로 정적 미리보기.
-    // 초보가 만든 단일 HTML 앱(빌드/노드 없음)을 임베드 서버로 서빙한다.
-    if cwd_path.join("index.html").is_file() {
+    // 2순위 — package.json 이 없거나 레시피가 안 나오면 루트 HTML 로 정적 미리보기.
+    // index.html 우선, 없으면 유일한 .html(복수면 index>main>app 또는 알파벳 첫번째).
+    if let Some(entry) = detect_static_entry(cwd_path) {
         return Some(RunRecipe {
             kind: ProjectKind::StaticWeb,
-            program: RunProgram::Static,
+            program: RunProgram::Static { entry },
             command_label: "정적 미리보기 (HTML)".to_string(),
             preview: PreviewKind::Webview { default_port: None },
         });
@@ -729,7 +766,7 @@ pub(crate) fn run_start(
         RunProgram::Npx(_) => find_executable("npx")
             .ok_or_else(|| "npx 를 찾을 수 없어요. Node.js 설치를 확인해 주세요.".to_string())?,
         // StaticWeb 은 위에서 start_static_preview 로 early-return 되어 여기 도달하지 않는다.
-        RunProgram::Static => {
+        RunProgram::Static { .. } => {
             return Err("internal: static program reached npm spawn path".into())
         }
     };
@@ -787,7 +824,16 @@ fn start_static_preview(
         .to_ip()
         .map(|addr| addr.port())
         .ok_or_else(|| "미리보기 포트를 할당하지 못했어요.".to_string())?;
-    let url = format!("http://localhost:{port}");
+    // index.html 은 `/`(서버 기본 폴백), 그 외 파일은 `/파일명` 으로 직접 지정한다.
+    let entry = match &recipe.program {
+        RunProgram::Static { entry } => entry.clone(),
+        _ => "index.html".to_string(),
+    };
+    let url = if entry == "index.html" {
+        format!("http://localhost:{port}")
+    } else {
+        format!("http://localhost:{port}/{entry}")
+    };
 
     // run_id 점유 — npm 경로와 동일한 토큰 의미(run_status/stop 일관성). 동기로
     // active/preview_url/status_label 을 세팅해 탭 복귀(run_status) 복원이 바로 동작한다.
@@ -1188,9 +1234,41 @@ mod detect_tests {
         std::fs::write(dir.path().join("index.html"), "<h1>hi</h1>").expect("write index.html");
         let r = run_detect(dir.path().to_string_lossy().to_string()).expect("static recipe");
         assert_eq!(r.kind, ProjectKind::StaticWeb);
-        assert_eq!(r.program, RunProgram::Static);
+        assert_eq!(r.program, RunProgram::Static { entry: "index.html".to_string() });
         assert_eq!(r.command_label, "정적 미리보기 (HTML)");
         assert_eq!(r.preview, PreviewKind::Webview { default_port: None });
+    }
+
+    #[test]
+    fn single_non_index_html_uses_filename_as_entry() {
+        // quiz.html at root, no package.json, no index.html → StaticWeb entry="quiz.html".
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("quiz.html"), "<h1>quiz</h1>").expect("write quiz.html");
+        let r = run_detect(dir.path().to_string_lossy().to_string()).expect("recipe");
+        assert_eq!(r.kind, ProjectKind::StaticWeb);
+        assert_eq!(r.program, RunProgram::Static { entry: "quiz.html".to_string() });
+        assert_eq!(r.command_label, "정적 미리보기 (HTML)");
+        assert_eq!(r.preview, PreviewKind::Webview { default_port: None });
+    }
+
+    #[test]
+    fn multiple_html_files_prefers_index_when_present() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("about.html"), "").expect("write");
+        std::fs::write(dir.path().join("index.html"), "").expect("write");
+        std::fs::write(dir.path().join("quiz.html"), "").expect("write");
+        let r = run_detect(dir.path().to_string_lossy().to_string()).expect("recipe");
+        assert_eq!(r.program, RunProgram::Static { entry: "index.html".to_string() });
+    }
+
+    #[test]
+    fn multiple_html_files_without_index_falls_back_alpha_first() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("contact.html"), "").expect("write");
+        std::fs::write(dir.path().join("quiz.html"), "").expect("write");
+        let r = run_detect(dir.path().to_string_lossy().to_string()).expect("recipe");
+        // no index/main/app → alphabetically first = "contact.html"
+        assert_eq!(r.program, RunProgram::Static { entry: "contact.html".to_string() });
     }
 
     #[test]
