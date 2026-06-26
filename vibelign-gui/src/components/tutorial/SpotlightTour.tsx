@@ -113,7 +113,9 @@ export default function SpotlightTour({
             {step.kind === "confirm" && (
               <button className="btn" onClick={onAdvance}>알겠어요</button>
             )}
-            <button className="tour-skip" onClick={onAdvance}>건너뛰기</button>
+            {(step.kind === "click" || step.kind === "pasteSend") && (
+              <button className="btn btn-sm" onClick={onAdvance}>✓ 다 했어요</button>
+            )}
             <button className="tour-quit" onClick={onExit}>그만하기</button>
           </div>
         </div>

@@ -62,9 +62,9 @@ describe("SpotlightTour", () => {
     expect(onAdvance).toHaveBeenCalled();
   });
 
-  it("건너뛰기는 advance한다", () => {
+  it("click 단계: '다 했어요' 버튼이 advance한다", () => {
     const { onAdvance } = setup(1);
-    fireEvent.click(screen.getByRole("button", { name: /건너뛰기/ }));
+    fireEvent.click(screen.getByRole("button", { name: /다 했어요/ }));
     expect(onAdvance).toHaveBeenCalled();
   });
 
