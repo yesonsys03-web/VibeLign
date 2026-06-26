@@ -517,6 +517,13 @@ export default function App() {
     }
   }, [tutorial.isComplete, tutorialGraduated, guide, tutorial]);
 
+  // 앱을 새로 켜면(재실행) 이전 튜토리얼은 초기화 — 재시작 시 엉뚱한 지점에서 되살아나지 않게.
+  // 세션 내 화면 이동에는 영향 없음(App은 재마운트되지 않음). 다시 하려면 피커에서 새로 시작.
+  useEffect(() => {
+    tutorial.exit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 4️⃣ 도구 미보유 분기(spec §3.2) — 0개 "확정 탐지"일 때만 true. 탐지 실패는 기존 값 유지(추측 안내 금지).
   const [aiToolMissing, setAiToolMissing] = useState(false);
   const prevPageForToolsRef = useRef<Page | null>(null);
