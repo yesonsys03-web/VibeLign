@@ -628,4 +628,29 @@ html, body {
   }
 }
 
+/* tutorial spotlight overlay */
+.tour-root { position: fixed; inset: 0; z-index: 9000; pointer-events: none; }
+.tour-spotlight {
+  position: fixed;
+  border-radius: 6px;
+  box-shadow: 0 0 0 9999px rgba(26, 26, 26, 0.55);
+  transition: top 0.15s, left 0.15s, width 0.15s, height 0.15s;
+  pointer-events: none;
+}
+.tour-bubble-wrap {
+  position: fixed; left: 24px; bottom: 24px;
+  display: flex; align-items: flex-end; gap: 8px;
+  max-width: 420px; pointer-events: auto;
+}
+.tour-bubble { display: flex; flex-direction: column; gap: 6px; }
+.tour-progress { font-size: 12px; font-weight: 700; color: var(--primary); }
+.tour-say { margin: 0; font-weight: 700; }
+.tour-why { margin: 0; font-size: 13px; color: #5a5a5a; }
+.tour-actions { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.tour-skip, .tour-quit {
+  background: none; border: none; font-size: 12px; text-decoration: underline; cursor: pointer;
+}
+.tour-skip { color: #777; }
+.tour-quit { color: var(--red); }
+
 /* === ANCHOR: BRUTALISM_CSS_END === */
