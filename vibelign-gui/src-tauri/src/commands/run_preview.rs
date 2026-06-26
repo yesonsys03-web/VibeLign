@@ -41,6 +41,9 @@ pub(crate) enum ProjectKind {
     Web,
     /// unknown — scripts.start 만 있어 타입을 못 좁힘. 로그만, 포트 감지되면 webview.
     Unknown,
+    /// staticWeb — package.json 없이 index.html 만 있는 정적 HTML. 임베드 tiny_http
+    /// 서버가 cwd 를 서빙하고 앱 내 webview 로 미리보기(외부 프로세스/네트워크 불필요).
+    StaticWeb,
 }
 
 /// 실행 프로그램 — npm 서브커맨드 또는 npx(electron 폴백). 임의 문자열이 아니라
@@ -52,6 +55,9 @@ pub(crate) enum RunProgram {
     Npm(Vec<String>),
     /// npx 직접 실행. ["electron","."] → `npx electron .` (start 스크립트 없는 electron 폴백).
     Npx(Vec<String>),
+    /// 정적 HTML — 외부 프로그램이 아니라 임베드 tiny_http 서버가 직접 서빙한다.
+    /// run_start 가 spawn_orchestrator 경유 없이 특수 처리하므로 executable/args 는 미사용.
+    Static,
 }
 
 impl RunProgram {
@@ -68,12 +74,14 @@ impl RunProgram {
         match self {
             RunProgram::Npm(_) => "npm",
             RunProgram::Npx(_) => "npx",
+            RunProgram::Static => "static",
         }
     }
 
     fn args(&self) -> &[String] {
         match self {
             RunProgram::Npm(a) | RunProgram::Npx(a) => a,
+            RunProgram::Static => &[],
         }
     }
 
@@ -262,6 +270,10 @@ struct RunRuntime {
     /// 구분 못 해, 탭 복귀 시 install 중인데 "실행 중"으로 오표시된다(M3a 리뷰 P2). run_status
     /// 가 이 값을 돌려줘 복원이 진짜 단계를 보여준다.
     status_label: Option<&'static str>,
+    /// 정적 HTML 실행 시 임베드 tiny_http 서버 핸들. child 와 상호 배타적 —
+    /// 정적 실행엔 child 가 없고, npm 실행엔 static_server 가 없다. 중지/앱종료 때
+    /// `.unblock()` 으로 서빙 스레드를 끝낸다(child 트리 kill 과 동형).
+    static_server: Option<Arc<tiny_http::Server>>,
 }
 
 impl RunRuntime {
@@ -273,6 +285,7 @@ impl RunRuntime {
             cancelled: false,
             preview_url: None,
             status_label: None,
+            static_server: None,
         }
     }
 }
@@ -293,6 +306,9 @@ pub(crate) fn stop_for_exit(handle: &RunShutdownHandle) {
         if let Some(mut child) = guard.child.take() {
             kill_child_tree(&mut child);
         }
+        if let Some(server) = guard.static_server.take() {
+            server.unblock();
+        }
     }
 }
 
@@ -301,6 +317,9 @@ impl Drop for RunState {
         if let Ok(mut guard) = self.0.lock() {
             if let Some(mut child) = guard.child.take() {
                 kill_child_tree(&mut child);
+            }
+            if let Some(server) = guard.static_server.take() {
+                server.unblock();
             }
         }
     }
@@ -656,8 +675,24 @@ fn spawn_orchestrator(
 /// package.json → 실행 레시피(파일 I/O 래퍼). UI 가 실행 전 타입을 보여줄 때 쓴다.
 #[tauri::command]
 pub(crate) fn run_detect(cwd: String) -> Option<RunRecipe> {
-    let content = std::fs::read_to_string(Path::new(&cwd).join("package.json")).ok()?;
-    detect_run_recipe(&content)
+    let cwd_path = Path::new(&cwd);
+    // 1순위 — package.json dev/start 레시피.
+    if let Ok(content) = std::fs::read_to_string(cwd_path.join("package.json")) {
+        if let Some(recipe) = detect_run_recipe(&content) {
+            return Some(recipe);
+        }
+    }
+    // 2순위 — package.json 이 없거나 레시피가 안 나오면, index.html 만으로 정적 미리보기.
+    // 초보가 만든 단일 HTML 앱(빌드/노드 없음)을 임베드 서버로 서빙한다.
+    if cwd_path.join("index.html").is_file() {
+        return Some(RunRecipe {
+            kind: ProjectKind::StaticWeb,
+            program: RunProgram::Static,
+            command_label: "정적 미리보기 (HTML)".to_string(),
+            preview: PreviewKind::Webview { default_port: None },
+        });
+    }
+    None
 }
 
 #[tauri::command]
@@ -674,11 +709,17 @@ pub(crate) fn run_start(
         return Err("작업방에서 AI가 작업 중이에요. 끝난 뒤 실행해 주세요.".into());
     }
     let cwd_path = std::path::PathBuf::from(&cwd);
-    let content = std::fs::read_to_string(cwd_path.join("package.json"))
-        .map_err(|_| "package.json 을 찾을 수 없어요. Node 프로젝트 폴더인지 확인해 주세요.".to_string())?;
-    let recipe = detect_run_recipe(&content).ok_or_else(|| {
-        "실행 방법을 못 찾았어요. package.json 에 dev/start 스크립트가 필요해요.".to_string()
+    let recipe = run_detect(cwd.clone()).ok_or_else(|| {
+        "실행 방법을 못 찾았어요. package.json 의 dev/start 스크립트 또는 index.html 이 필요해요."
+            .to_string()
     })?;
+
+    // ── 정적 HTML(index.html, package.json 없음): 임베드 tiny_http 서버 ──
+    // npm/노드 없이 cwd 를 직접 서빙하고 webview 로 미리보기. 외부 프로세스가 없으므로
+    // spawn_orchestrator 경로를 타지 않고 여기서 run_id 점유·서버 스레드·이벤트를 직접 만든다.
+    if recipe.kind == ProjectKind::StaticWeb {
+        return start_static_preview(app, &state, cwd_path, recipe);
+    }
 
     // npm 은 install·npm 실행 양쪽에 필요. 미설치 시 온보딩으로 안내(§9 P1).
     let npm = find_executable("npm")
@@ -687,6 +728,8 @@ pub(crate) fn run_start(
         RunProgram::Npm(_) => npm.clone(),
         RunProgram::Npx(_) => find_executable("npx")
             .ok_or_else(|| "npx 를 찾을 수 없어요. Node.js 설치를 확인해 주세요.".to_string())?,
+        // StaticWeb 은 위에서 start_static_preview 로 early-return 되어 여기 도달하지 않는다.
+        RunProgram::Static => unreachable!("StaticWeb is handled before the npm spawn path"),
     };
     let run_args = recipe.program.args().to_vec();
 
@@ -725,6 +768,156 @@ pub(crate) fn run_start(
     })
 }
 
+// ─── 정적 HTML 임베드 서버 (tiny_http, child 없는 실행) ─────────────────────────
+
+/// 정적 HTML 미리보기 시작 — 127.0.0.1:0(임의 포트)에 tiny_http 를 바인드하고 cwd 를
+/// 서빙하는 스레드를 띄운 뒤 webview 를 연다. 외부 프로세스(child)가 없으므로 종료 보고
+/// (stopped)는 서버가 unblock 된 뒤 서빙 스레드가 직접 emit 한다.
+fn start_static_preview(
+    app: tauri::AppHandle,
+    state: &tauri::State<RunState>,
+    cwd: std::path::PathBuf,
+    recipe: RunRecipe,
+) -> Result<RunStartInfo, String> {
+    let server = Arc::new(tiny_http::Server::http("127.0.0.1:0").map_err(|e| e.to_string())?);
+    let port = server
+        .server_addr()
+        .to_ip()
+        .map(|addr| addr.port())
+        .ok_or_else(|| "미리보기 포트를 할당하지 못했어요.".to_string())?;
+    let url = format!("http://localhost:{port}");
+
+    // run_id 점유 — npm 경로와 동일한 토큰 의미(run_status/stop 일관성). 동기로
+    // active/preview_url/status_label 을 세팅해 탭 복귀(run_status) 복원이 바로 동작한다.
+    let run_id = {
+        let mut guard = state.0.lock().map_err(|e| e.to_string())?;
+        if guard.active {
+            return Err("이미 실행 중이에요. 중지한 뒤 다시 시작해 주세요.".into());
+        }
+        let run_id = guard.run_id + 1;
+        guard.run_id = run_id;
+        guard.cancelled = false;
+        guard.active = true;
+        guard.child = None;
+        guard.preview_url = Some(url.clone());
+        guard.status_label = Some("running");
+        guard.static_server = Some(Arc::clone(&server));
+        run_id
+    };
+
+    // 서빙 스레드 — incoming_requests 가 unblock 될 때까지 cwd 의 파일을 서빙한다.
+    // 루프가 끝나면(중지/앱종료) 내 실행일 때만 슬롯을 비우고 "stopped" 를 보고한다.
+    let serve_app = app.clone();
+    let shared = Arc::clone(&state.0);
+    std::thread::spawn(move || {
+        for request in server.incoming_requests() {
+            serve_static_request(&cwd, request);
+        }
+        let mut owned = false;
+        if let Ok(mut guard) = shared.lock() {
+            if guard.run_id == run_id {
+                guard.active = false;
+                guard.preview_url = None;
+                guard.status_label = None;
+                guard.static_server = None;
+                owned = true;
+            }
+        }
+        if owned {
+            close_preview_window(&serve_app);
+            let _ = serve_app
+                .emit("run-status", RunStatusEvent { run_id, status: "stopped", exit_code: None });
+        }
+    });
+
+    // run-status(running)+run-preview-ready 는 짧은 지연 후 emit — runStart 응답이 프런트에서
+    // 먼저 처리돼 status 가 'starting' 으로 덮이는 경쟁을 피한다(npm 경로는 orchestrator
+    // 스레드의 자연 지연으로 이 문제가 없다). 위의 동기 세팅 덕에 run_status 복원은 무관.
+    let ready_app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        let _ = ready_app
+            .emit("run-status", RunStatusEvent { run_id, status: "running", exit_code: None });
+        let _ = ready_app.emit("run-preview-ready", RunPreviewReadyEvent { run_id, url });
+    });
+
+    Ok(RunStartInfo {
+        run_id,
+        command_label: recipe.command_label,
+        kind: recipe.kind,
+        needs_install: false,
+    })
+}
+
+/// 확장자 → Content-Type. 정적 미리보기에 흔한 타입만 명시, 나머지는 octet-stream.
+fn content_type_for(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("html") | Some("htm") => "text/html; charset=utf-8",
+        Some("js") | Some("mjs") => "text/javascript; charset=utf-8",
+        Some("css") => "text/css; charset=utf-8",
+        Some("json") => "application/json; charset=utf-8",
+        Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("ico") => "image/x-icon",
+        Some("wasm") => "application/wasm",
+        Some("txt") => "text/plain; charset=utf-8",
+        _ => "application/octet-stream",
+    }
+}
+
+/// 상태코드 응답(403/404 등) — Request 를 소비한다.
+fn respond_status(request: tiny_http::Request, code: u16, body: &str) {
+    let response =
+        tiny_http::Response::from_string(body).with_status_code(tiny_http::StatusCode(code));
+    let _ = request.respond(response);
+}
+
+/// 정적 서버의 한 요청 처리 — cwd(root) 안의 파일만 서빙한다. path-traversal 2중 방어:
+/// (1) 경로 세그먼트의 ".." 거부, (2) canonicalize 후 root 내부 여부 확인(심볼릭 링크 포함).
+fn serve_static_request(root: &Path, request: tiny_http::Request) {
+    // request.url() 차용을 끊기 위해 즉시 owned 로 — 아래에서 request 를 소비하므로.
+    let raw = request.url().to_string();
+    let path_part = raw.split(['?', '#']).next().unwrap_or("/");
+    let rel = path_part.trim_start_matches('/');
+    let rel = if rel.is_empty() { "index.html" } else { rel };
+
+    // (1) ".." 세그먼트 거부.
+    if rel.split('/').any(|seg| seg == "..") {
+        respond_status(request, 403, "Forbidden");
+        return;
+    }
+    let candidate = root.join(rel);
+    // (2) canonicalize 후 root 내부 확인.
+    let (Ok(canon_root), Ok(canon_path)) = (root.canonicalize(), candidate.canonicalize()) else {
+        respond_status(request, 404, "Not Found");
+        return;
+    };
+    if !canon_path.starts_with(&canon_root) || !canon_path.is_file() {
+        respond_status(request, 404, "Not Found");
+        return;
+    }
+    match std::fs::read(&canon_path) {
+        Ok(bytes) => {
+            let mut response = tiny_http::Response::from_data(bytes);
+            if let Ok(header) = tiny_http::Header::from_bytes(
+                &b"Content-Type"[..],
+                content_type_for(&canon_path).as_bytes(),
+            ) {
+                response = response.with_header(header);
+            }
+            let _ = request.respond(response);
+        }
+        Err(_) => respond_status(request, 404, "Not Found"),
+    }
+}
+
 /// 취소 코어 — child 를 자리에 둔 채 트리 kill 만 한다. stopped 보고는 오케스트레이터가
 /// poll 로 회수하며 일원화한다(work_room cancel_current 동형). 반환: 점유 중이었는지.
 fn cancel_current(runtime: &Arc<Mutex<RunRuntime>>) -> bool {
@@ -735,6 +928,11 @@ fn cancel_current(runtime: &Arc<Mutex<RunRuntime>>) -> bool {
     guard.cancelled = true;
     if let Some(child) = guard.child.as_mut() {
         kill_child_tree(child);
+    }
+    // 정적 실행: child 가 없고 서버 스레드가 incoming_requests 에 묶여 있다.
+    // unblock 하면 그 루프가 끝나며 슬롯 해제 + "stopped" 보고를 스스로 수행한다.
+    if let Some(server) = guard.static_server.take() {
+        server.unblock();
     }
     true
 }
@@ -973,6 +1171,36 @@ mod detect_tests {
     fn invalid_json_returns_none() {
         assert!(detect_run_recipe("{ not json").is_none());
         assert!(detect_run_recipe("").is_none());
+    }
+
+    // ─── 정적 HTML 감지 (run_detect, 파일 I/O) ────────────────────────────────────
+
+    #[test]
+    fn index_html_without_package_json_is_static_web() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("index.html"), "<h1>hi</h1>").expect("write index.html");
+        let r = run_detect(dir.path().to_string_lossy().to_string()).expect("static recipe");
+        assert_eq!(r.kind, ProjectKind::StaticWeb);
+        assert_eq!(r.program, RunProgram::Static);
+        assert_eq!(r.command_label, "정적 미리보기 (HTML)");
+        assert_eq!(r.preview, PreviewKind::Webview { default_port: None });
+    }
+
+    #[test]
+    fn package_json_recipe_wins_over_index_html() {
+        // dev 스크립트가 있으면 정적 폴백이 아니라 web 레시피여야 한다(1순위).
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("index.html"), "<h1>hi</h1>").expect("write");
+        std::fs::write(dir.path().join("package.json"), r#"{"scripts":{"dev":"vite"}}"#)
+            .expect("write");
+        let r = run_detect(dir.path().to_string_lossy().to_string()).expect("recipe");
+        assert_eq!(r.kind, ProjectKind::Web);
+    }
+
+    #[test]
+    fn empty_dir_without_package_json_or_index_returns_none() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        assert!(run_detect(dir.path().to_string_lossy().to_string()).is_none());
     }
 
     // ─── 포트 감지 ──────────────────────────────────────────────────────────────
