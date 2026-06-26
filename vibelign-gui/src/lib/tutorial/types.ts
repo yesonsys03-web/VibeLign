@@ -8,6 +8,7 @@ export type TutorialStepKind = "copy" | "pasteSend" | "click" | "confirm";
 // spec §3 enum + 'copy'(복사 클릭 즉시 완료) + 'guardChecked'(§5 안전검사 단계)
 export type StepDone =
   | "copy"
+  | "sent"
   | "planResponded"
   | "changedFiles"
   | "checkpoint"

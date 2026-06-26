@@ -37,6 +37,12 @@ describe("isStepComplete", () => {
     expect(isStepComplete("runVerified", { ...base, runVerified: true })).toBe(true);
   });
 
+  it("sent: planningPending이 true일 때만 완료", () => {
+    expect(isStepComplete("sent", base)).toBe(false);
+    expect(isStepComplete("sent", { ...base, planningPending: false })).toBe(false);
+    expect(isStepComplete("sent", { ...base, planningPending: true })).toBe(true);
+  });
+
   it("copy/manual: 신호로는 절대 자동 완료되지 않는다", () => {
     const full: GuideSignals = {
       hasPlanDoc: true, planningPending: false, hasCheckpoint: true,
