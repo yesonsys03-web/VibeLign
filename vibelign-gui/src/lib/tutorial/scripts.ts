@@ -22,7 +22,7 @@ const TODO: Tutorial = {
       kind: "pasteSend",
       say: "기획방 입력칸에 붙여넣고 보내보세요.",
       why: "AI가 무엇을 만들지 계획을 먼저 세워줘요.",
-      target: "planning-send",
+      target: "planning-compose",
       goPage: "planning",
       done: "planResponded",
     },
@@ -100,7 +100,7 @@ const GUESTBOOK: Tutorial = {
   steps: [
     { id: "gb-1-copy", kind: "copy", say: "AI에게 이렇게 말해볼게요. 아래 문장을 복사하세요.", why: "기획방은 AI에게 무엇을 만들지 설명하는 곳이에요.", goPage: "planning", done: "copy",
       copyText: "이름과 한마디를 입력해 남기면 아래 목록에 계속 쌓이는 간단한 '방명록' 웹페이지를 HTML 파일 하나로 만들어줘." },
-    { id: "gb-2-send", kind: "pasteSend", say: "기획방 입력칸에 붙여넣고 보내보세요.", why: "AI가 무엇을 만들지 계획을 세워줘요.", target: "planning-send", goPage: "planning", done: "planResponded" },
+    { id: "gb-2-send", kind: "pasteSend", say: "기획방 입력칸에 붙여넣고 보내보세요.", why: "AI가 무엇을 만들지 계획을 세워줘요.", target: "planning-compose", goPage: "planning", done: "planResponded" },
     { id: "gb-3-checkpoint", kind: "click", say: "작업 전에 먼저 저장! [체크포인트 저장]을 누르세요.", why: "시키기 전에 저장해두면 언제든 되돌릴 수 있어요.", target: "checkpoint-save", goPage: "backups", done: "checkpoint" },
     { id: "gb-4-work", kind: "click", say: "[AI에게 작업 시키기]를 누르세요.", why: "AI가 계획대로 방명록을 만들어요.", target: "work-run-ai", goPage: "work", done: "changedFiles" },
     { id: "gb-5-guard", kind: "click", say: "안전한지 검사해요. [상태 확인]을 누르세요.", why: "건드리면 안 되는 곳을 안 건드렸는지 확인해줘요.", target: "home-guard-check", goPage: "home", done: "guardChecked" },
@@ -119,7 +119,7 @@ const QUIZ: Tutorial = {
   steps: [
     { id: "qz-1-copy", kind: "copy", say: "AI에게 이렇게 말해볼게요. 아래 문장을 복사하세요.", why: "기획방은 AI에게 무엇을 만들지 설명하는 곳이에요.", goPage: "planning", done: "copy",
       copyText: "객관식 문제 3개를 풀면 맞힌 개수만큼 점수가 나오는 간단한 '퀴즈 게임'을 HTML 파일 하나로 만들어줘." },
-    { id: "qz-2-send", kind: "pasteSend", say: "기획방 입력칸에 붙여넣고 보내보세요.", why: "AI가 무엇을 만들지 계획을 세워줘요.", target: "planning-send", goPage: "planning", done: "planResponded" },
+    { id: "qz-2-send", kind: "pasteSend", say: "기획방 입력칸에 붙여넣고 보내보세요.", why: "AI가 무엇을 만들지 계획을 세워줘요.", target: "planning-compose", goPage: "planning", done: "planResponded" },
     { id: "qz-3-checkpoint", kind: "click", say: "작업 전에 먼저 저장! [체크포인트 저장]을 누르세요.", why: "시키기 전에 저장해두면 언제든 되돌릴 수 있어요.", target: "checkpoint-save", goPage: "backups", done: "checkpoint" },
     { id: "qz-4-work", kind: "click", say: "[AI에게 작업 시키기]를 누르세요.", why: "AI가 계획대로 퀴즈를 만들어요.", target: "work-run-ai", goPage: "work", done: "changedFiles" },
     { id: "qz-5-guard", kind: "click", say: "안전한지 검사해요. [상태 확인]을 누르세요.", why: "건드리면 안 되는 곳을 안 건드렸는지 확인해줘요.", target: "home-guard-check", goPage: "home", done: "guardChecked" },

@@ -1,5 +1,5 @@
 // ANCHOR: SPOTLIGHT_TOUR_START
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { GuideSignals } from "../../lib/nav/guide";
 import type { Page } from "../../lib/nav/stages";
 import type { Tutorial, TutorialStep } from "../../lib/tutorial/types";
@@ -42,18 +42,22 @@ export default function SpotlightTour({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.id]);
 
-  // 대상 요소 위치 추적(레이아웃/리사이즈/스크롤 반영)
-  useLayoutEffect(() => {
-    const update = () => setRect(readRect(step.target));
-    update();
-    const t = window.setTimeout(update, 120); // 화면 전환 후 재측정
-    window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, true);
-    return () => {
-      window.clearTimeout(t);
-      window.removeEventListener("resize", update);
-      window.removeEventListener("scroll", update, true);
+  // 대상 요소 위치 추적 — rAF 루프로 레이아웃 변화를 즉시 반영
+  useEffect(() => {
+    let raf = 0;
+    let prev: SpotRect | null = null;
+    const tick = () => {
+      const next = readRect(step.target);
+      const changed =
+        (!prev !== !next) ||
+        (prev !== null && next !== null &&
+          (prev.top !== next.top || prev.left !== next.left ||
+           prev.width !== next.width || prev.height !== next.height));
+      if (changed) { prev = next; setRect(next); }
+      raf = requestAnimationFrame(tick);
     };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, [step.id, step.target]);
 
   // 신호 기반 자동 진행(click/pasteSend) — edge-gating: 진입 시 이미 충족된 신호는 무시
