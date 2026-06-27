@@ -17,7 +17,7 @@
 //! M3 seam: 작업방과의 동시 1개(§5) — 두 표면이 만나는 곳에서 상호배제 추가.
 
 use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -41,8 +41,6 @@ pub(crate) enum ProjectKind {
     Web,
     /// unknown — scripts.start 만 있어 타입을 못 좁힘. 로그만, 포트 감지되면 webview.
     Unknown,
-    /// staticWeb — package.json 없이 index.html 만 있는 정적 HTML. 임베드 tiny_http
-    /// 서버가 cwd 를 서빙하고 앱 내 webview 로 미리보기(외부 프로세스/네트워크 불필요).
     StaticWeb,
 }
 
@@ -55,9 +53,7 @@ pub(crate) enum RunProgram {
     Npm(Vec<String>),
     /// npx 직접 실행. ["electron","."] → `npx electron .` (start 스크립트 없는 electron 폴백).
     Npx(Vec<String>),
-    /// 정적 HTML — 외부 프로그램이 아니라 임베드 tiny_http 서버가 직접 서빙한다.
     /// run_start 가 spawn_orchestrator 경유 없이 특수 처리하므로 executable/args 는 미사용.
-    /// `entry` 는 미리보기 URL 경로에 쓰인다: index.html → `/`, 다른 파일 → `/<entry>`.
     Static { entry: String },
 }
 
@@ -239,26 +235,34 @@ pub(crate) fn detect_preview_url(line: &str) -> Option<String> {
 /// 미리보기 webview 창의 고정 라벨 — 한 실행당 하나(재사용·정리 대상).
 const PREVIEW_LABEL: &str = "run-preview";
 
-/// 미리보기로 허용되는 주소인지 — 로컬 http(s) 만. detect_preview_url 가 만든 주소를
-/// 프런트가 그대로 돌려보내지만, 임의 외부 URL 로딩을 막는 방어선이다.
-fn validate_local_url(url: &str) -> Result<tauri::Url, String> {
+fn validate_preview_url(
+    url: &str,
+    active_file_preview_url: Option<&str>,
+) -> Result<tauri::Url, String> {
     let parsed = tauri::Url::parse(url).map_err(|_| "잘못된 미리보기 주소예요.".to_string())?;
     let scheme_ok = matches!(parsed.scheme(), "http" | "https");
     let host_ok =
         matches!(parsed.host_str(), Some("localhost") | Some("127.0.0.1") | Some("0.0.0.0"));
     if scheme_ok && host_ok {
         Ok(parsed)
+    } else if parsed.scheme() == "file" && active_file_preview_url == Some(url) {
+        Ok(parsed)
     } else {
         Err("로컬 미리보기 주소만 열 수 있어요.".into())
     }
 }
 
-fn should_allow_preview_navigation(url: &tauri::Url) -> bool {
+fn should_allow_preview_navigation(url: &tauri::Url, active_file_preview_root: Option<&Path>) -> bool {
     match url.scheme() {
         "http" | "https" => matches!(
             url.host_str(),
             Some("localhost") | Some("127.0.0.1") | Some("0.0.0.0")
         ),
+        "file" => {
+            let Some(root) = active_file_preview_root else { return false };
+            let Ok(path) = url.to_file_path() else { return false };
+            path.canonicalize().map(|p| p.starts_with(root)).unwrap_or(false)
+        }
         // WebView2 can emit internal frame navigations while the document is booting. Blocking
         // these leaves the preview window on a blank renderer even though the local server works.
         "about" => url.as_str() == "about:blank",
@@ -827,9 +831,6 @@ pub(crate) fn run_start(
 
 // ─── 정적 HTML 임베드 서버 (tiny_http, child 없는 실행) ─────────────────────────
 
-/// 정적 HTML 미리보기 시작 — 127.0.0.1:0(임의 포트)에 tiny_http 를 바인드하고 cwd 를
-/// 서빙하는 스레드를 띄운 뒤 webview 를 연다. 외부 프로세스(child)가 없으므로 종료 보고
-/// (stopped)는 서버가 unblock 된 뒤 서빙 스레드가 직접 emit 한다.
 fn start_static_preview(
     app: tauri::AppHandle,
     state: &tauri::State<RunState>,
@@ -837,17 +838,12 @@ fn start_static_preview(
     recipe: RunRecipe,
 ) -> Result<RunStartInfo, String> {
     let server = Arc::new(tiny_http::Server::http("127.0.0.1:0").map_err(|e| e.to_string())?);
-    let port = server
-        .server_addr()
-        .to_ip()
-        .map(|addr| addr.port())
-        .ok_or_else(|| "미리보기 포트를 할당하지 못했어요.".to_string())?;
     // index.html 은 `/`(서버 기본 폴백), 그 외 파일은 `/파일명` 으로 직접 지정한다.
     let entry = match &recipe.program {
         RunProgram::Static { entry } => entry.clone(),
         _ => "index.html".to_string(),
     };
-    let url = static_preview_url(port, &entry);
+    let url = static_preview_url(&cwd, &entry)?;
 
     // run_id 점유 — npm 경로와 동일한 토큰 의미(run_status/stop 일관성). 동기로
     // active/preview_url/status_label 을 세팅해 탭 복귀(run_status) 복원이 바로 동작한다.
@@ -916,12 +912,28 @@ fn start_static_preview(
     })
 }
 
-fn static_preview_url(port: u16, entry: &str) -> String {
-    if entry == "index.html" {
-        format!("http://127.0.0.1:{port}")
-    } else {
-        format!("http://127.0.0.1:{port}/{entry}")
+fn static_preview_url(root: &Path, entry: &str) -> Result<String, String> {
+    let entry_path = Path::new(entry);
+    if entry_path.is_absolute() || entry_path.components().count() != 1 {
+        return Err("미리보기 파일 이름이 안전하지 않아요.".to_string());
     }
+    let candidate = root.join(entry_path);
+    let canon_root = root.canonicalize().map_err(|_| "미리보기 폴더를 찾지 못했어요.".to_string())?;
+    let canon_path =
+        candidate.canonicalize().map_err(|_| "미리보기 HTML 파일을 찾지 못했어요.".to_string())?;
+    if !canon_path.starts_with(&canon_root) || !canon_path.is_file() {
+        return Err("미리보기 HTML 파일이 프로젝트 폴더 밖에 있어요.".to_string());
+    }
+    tauri::Url::from_file_path(&canon_path)
+        .map(|url| url.to_string())
+        .map_err(|_| "미리보기 HTML 파일 주소를 만들지 못했어요.".to_string())
+}
+
+fn active_file_preview_root(url: &tauri::Url) -> Option<PathBuf> {
+    if url.scheme() != "file" {
+        return None;
+    }
+    url.to_file_path().ok()?.parent()?.canonicalize().ok()
 }
 
 /// 확장자 → Content-Type. 정적 미리보기에 흔한 타입만 명시, 나머지는 octet-stream.
@@ -1051,7 +1063,11 @@ fn close_preview_window(app: &tauri::AppHandle) {
 #[tauri::command]
 pub(crate) fn open_preview(app: tauri::AppHandle, url: String) -> Result<(), String> {
     use tauri::Manager;
-    let parsed = validate_local_url(&url)?;
+    let active_preview_url = app
+        .try_state::<RunState>()
+        .and_then(|state| state.0.lock().ok().and_then(|g| g.preview_url.clone()));
+    let parsed = validate_preview_url(&url, active_preview_url.as_deref())?;
+    let active_file_root = active_file_preview_root(&parsed);
     if let Some(win) = app.get_webview_window(PREVIEW_LABEL) {
         let _ = win.destroy();
     }
@@ -1062,7 +1078,7 @@ pub(crate) fn open_preview(app: tauri::AppHandle, url: String) -> Result<(), Str
         // 이동하는 것을 막는다. 초기 URL 은 이미 로컬이라 통과하고, HMR 의 ws:// 는
         // navigation 이 아니라 영향 없다. capability 가 이미 이 창에 백엔드 권한을 안 주지만
         // 한 겹 더 — 안전 도구 정체성(§8).
-        .on_navigation(|url| should_allow_preview_navigation(url))
+        .on_navigation(move |url| should_allow_preview_navigation(url, active_file_root.as_deref()))
         .build()
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -1097,12 +1113,14 @@ mod runner_tests {
     }
 
     #[test]
-    fn static_preview_url_uses_ipv4_loopback_for_webview2() {
-        assert_eq!(static_preview_url(43123, "index.html"), "http://127.0.0.1:43123");
-        assert_eq!(
-            static_preview_url(43123, "quiz.html"),
-            "http://127.0.0.1:43123/quiz.html"
-        );
+    fn static_preview_url_uses_file_url_for_static_html() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let index = dir.path().join("index.html");
+        std::fs::write(&index, "<h1>hi</h1>").expect("write index.html");
+        let url = static_preview_url(dir.path(), "index.html").expect("preview url");
+        let parsed = tauri::Url::parse(&url).expect("parse file url");
+        assert_eq!(parsed.scheme(), "file");
+        assert_eq!(parsed.to_file_path().expect("file path"), index.canonicalize().expect("canon"));
     }
 
     #[cfg(unix)]
@@ -1378,38 +1396,79 @@ mod detect_tests {
     }
 
     #[test]
-    fn validate_local_url_accepts_localhost_rejects_external() {
-        assert!(validate_local_url("http://localhost:5173").is_ok());
-        assert!(validate_local_url("http://127.0.0.1:3000").is_ok());
-        assert!(validate_local_url("https://evil.example.com").is_err());
-        assert!(validate_local_url("file:///etc/passwd").is_err());
-        assert!(validate_local_url("not a url").is_err());
+    fn validate_preview_url_accepts_localhost_rejects_external() {
+        assert!(validate_preview_url("http://localhost:5173", None).is_ok());
+        assert!(validate_preview_url("http://127.0.0.1:3000", None).is_ok());
+        assert!(validate_preview_url("https://evil.example.com", None).is_err());
+        assert!(validate_preview_url("file:///etc/passwd", None).is_err());
+        assert!(validate_preview_url("not a url", None).is_err());
+    }
+
+    #[test]
+    fn validate_preview_url_accepts_only_active_file_preview_url() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let index = dir.path().join("index.html");
+        let other = dir.path().join("other.html");
+        std::fs::write(&index, "<h1>hi</h1>").expect("write index");
+        std::fs::write(&other, "<h1>other</h1>").expect("write other");
+        let index_url = tauri::Url::from_file_path(index.canonicalize().expect("canon index"))
+            .expect("index url")
+            .to_string();
+        let other_url = tauri::Url::from_file_path(other.canonicalize().expect("canon other"))
+            .expect("other url")
+            .to_string();
+        assert!(validate_preview_url(&index_url, Some(&index_url)).is_ok());
+        assert!(validate_preview_url(&other_url, Some(&index_url)).is_err());
     }
 
     #[test]
     fn preview_navigation_allows_webview_internal_urls() {
         assert!(should_allow_preview_navigation(
-            &tauri::Url::parse("about:blank").expect("url")
+            &tauri::Url::parse("about:blank").expect("url"),
+            None
         ));
         assert!(should_allow_preview_navigation(
-            &tauri::Url::parse("data:text/html,%3Ch1%3Eok%3C/h1%3E").expect("url")
+            &tauri::Url::parse("data:text/html,%3Ch1%3Eok%3C/h1%3E").expect("url"),
+            None
         ));
         assert!(should_allow_preview_navigation(
-            &tauri::Url::parse("blob:http://127.0.0.1:43123/preview").expect("url")
+            &tauri::Url::parse("blob:http://127.0.0.1:43123/preview").expect("url"),
+            None
         ));
     }
 
     #[test]
     fn preview_navigation_still_blocks_external_http() {
         assert!(should_allow_preview_navigation(
-            &tauri::Url::parse("http://127.0.0.1:43123").expect("url")
+            &tauri::Url::parse("http://127.0.0.1:43123").expect("url"),
+            None
         ));
         assert!(!should_allow_preview_navigation(
-            &tauri::Url::parse("https://evil.example.com").expect("url")
+            &tauri::Url::parse("https://evil.example.com").expect("url"),
+            None
         ));
         assert!(!should_allow_preview_navigation(
-            &tauri::Url::parse("file:///etc/passwd").expect("url")
+            &tauri::Url::parse("file:///etc/passwd").expect("url"),
+            None
         ));
+    }
+
+    #[test]
+    fn preview_navigation_allows_file_only_under_active_preview_root() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let index = dir.path().join("index.html");
+        let child = dir.path().join("child.html");
+        let outside = tempfile::NamedTempFile::new().expect("outside");
+        std::fs::write(&index, "<h1>hi</h1>").expect("write index");
+        std::fs::write(&child, "<h1>child</h1>").expect("write child");
+        let root = index.parent().expect("parent").canonicalize().expect("root");
+        let child_url = tauri::Url::from_file_path(child.canonicalize().expect("canon child"))
+            .expect("child url");
+        let outside_url =
+            tauri::Url::from_file_path(outside.path().canonicalize().expect("canon outside"))
+                .expect("outside url");
+        assert!(should_allow_preview_navigation(&child_url, Some(&root)));
+        assert!(!should_allow_preview_navigation(&outside_url, Some(&root)));
     }
 }
 // === ANCHOR: RUN_PREVIEW_END ===
