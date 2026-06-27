@@ -99,6 +99,8 @@ export function buildPlanningWorkInstruction({ prompt, outputPath, persona, cont
     "작업 기준:",
     "- 먼저 저장된 Markdown 기획안을 읽고 구현 범위, 제외할 것, 아직 결정이 필요한 질문을 확인하세요.",
     "- 기존 코드 구조를 읽고 컴포넌트/모듈 단위로 작게 나눠 작업하세요.",
+    "- 완료 전 실행해보기 대상이 반드시 감지되게 하세요: 프로젝트 루트에 index.html 파일을 만들거나, package.json에 dev 또는 start 스크립트를 제공하세요.",
+    "- 정적 HTML 앱이면 프로젝트 루트의 index.html 하나만으로 바로 열리게 만들고, 하위 폴더에만 HTML을 두고 끝내지 마세요.",
     "- 공식 CLI를 사용할 때는 사용자가 이미 로그인한 CLI 프로세스만 실행하고 stdout/stderr만 캡처하세요.",
     "- 토큰, 쿠키, 세션 파일을 읽지 마세요.",
     "- 변경 전 baseline 테스트와 새 동작 RED 테스트를 먼저 작성하세요.",

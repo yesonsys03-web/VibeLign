@@ -62,6 +62,12 @@ const TONE_COLOR: Record<RunTone, string> = {
   error: "#b42318",
 };
 
+const MISSING_RUN_TARGET_HANDOFF = [
+  "실행 방법을 못 찾았어요.",
+  "프로젝트 루트에 index.html 파일을 만들거나, package.json에 dev 또는 start 스크립트를 제공해서 실행해보기 버튼이 활성화되게 고쳐주세요.",
+  "정적 HTML 앱이면 하위 폴더가 아니라 프로젝트 루트의 index.html 하나만으로 바로 열리게 만들어 주세요.",
+].join("\n");
+
 export default function RunPanel({ projectDir, onNavigate, onRequestWorkHandoff, guardStatus, runVerified, onRunVerified }: RunPanelProps) {
   const [recipe, setRecipe] = useState<RunRecipe | null>(null);
   const [detectState, setDetectState] = useState<"loading" | "ready" | "none">("loading");
@@ -206,12 +212,21 @@ export default function RunPanel({ projectDir, onNavigate, onRequestWorkHandoff,
             <div style={{ fontSize: 13, fontWeight: 700, color: "#666" }}>프로젝트를 살펴보는 중…</div>
           )}
           {detectState === "none" && (
-            <div style={{ display: "grid", gap: 4 }}>
+            <div style={{ display: "grid", gap: 6 }}>
               <div style={{ fontSize: 13, fontWeight: 800 }}>실행 방법을 못 찾았어요</div>
               <div style={{ fontSize: 12, color: "#666", lineHeight: 1.6 }}>
                 index.html 파일이 있으면 바로 실행돼요. 또는 package.json 에 <b>dev</b> 또는 <b>start</b>{" "}
-                스크립트가 있어야 해요. 기획방에서 먼저 실행 가능한 형태로 만들어 보세요.
+                스크립트가 있어야 해요.
               </div>
+              {onRequestWorkHandoff && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ justifySelf: "start", fontSize: 12 }}
+                  onClick={() => onRequestWorkHandoff({ kind: "error", text: MISSING_RUN_TARGET_HANDOFF })}
+                >
+                  작업방에서 실행 형태 만들기 →
+                </button>
+              )}
             </div>
           )}
           {detectState === "ready" && recipe && kind && (

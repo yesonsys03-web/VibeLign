@@ -17,6 +17,19 @@ describe("buildPlanningWorkInstruction", () => {
     expect(instruction).toContain("토큰, 쿠키, 세션 파일을 읽지 마세요");
   });
 
+  test("requires_a_runnable_entrypoint_for_run_preview", () => {
+    const instruction = buildPlanningWorkInstruction({
+      prompt: "예약 앱 만들고 싶어",
+      outputPath: "plans/예약-앱-만들고-싶어.md",
+    });
+
+    expect(instruction).toContain("프로젝트 루트");
+    expect(instruction).toContain("index.html");
+    expect(instruction).toContain("package.json");
+    expect(instruction).toContain("dev");
+    expect(instruction).toContain("start");
+  });
+
   test("builds_persona_specific_official_cli_instruction", () => {
     const instruction = buildPlanningWorkInstruction({
       prompt: "예약 앱 만들고 싶어",
