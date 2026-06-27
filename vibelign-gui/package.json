@@ -1,7 +1,7 @@
 {
   "name": "vibelign-gui",
   "private": true,
-  "version": "2.5.12",
+  "version": "2.5.13",
   "type": "module",
   "scripts": {
     "copy:pdfjs": "node scripts/copy-pdfjs-assets.mjs",

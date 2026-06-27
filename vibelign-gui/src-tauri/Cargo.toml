@@ -1,6 +1,6 @@
 [package]
 name = "vibelign-gui"
-version = "2.5.12"
+version = "2.5.13"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -34,6 +34,7 @@ similar = "2"
 tiny_http = "0.12"
 tauri-plugin-updater = "2.10.1"
 tauri-plugin-process = "2.3.1"
+percent-encoding = "2.3"
 vibelign-core = { path = "../../vibelign-core" }
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

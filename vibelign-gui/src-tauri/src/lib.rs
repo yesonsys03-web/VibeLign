@@ -29,7 +29,7 @@ pub fn run() {
         logs: String::new(),
     }));
 
-    match tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -96,7 +96,9 @@ pub fn run() {
             }
 
             Ok(())
-        })
+        });
+
+    match commands::run_preview::register_preview_protocol(builder, &run_state)
         .manage(watch_state)
         .manage(work_state)
         .manage(run_state)
