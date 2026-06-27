@@ -313,6 +313,10 @@ pub(crate) fn stop_for_exit(handle: &RunShutdownHandle) {
     }
 }
 
+pub(crate) fn close_preview_for_exit(app: &tauri::AppHandle) {
+    close_preview_window(app);
+}
+
 impl Drop for RunState {
     fn drop(&mut self) {
         if let Ok(mut guard) = self.0.lock() {
@@ -829,11 +833,7 @@ fn start_static_preview(
         RunProgram::Static { entry } => entry.clone(),
         _ => "index.html".to_string(),
     };
-    let url = if entry == "index.html" {
-        format!("http://localhost:{port}")
-    } else {
-        format!("http://localhost:{port}/{entry}")
-    };
+    let url = static_preview_url(port, &entry);
 
     // run_id 점유 — npm 경로와 동일한 토큰 의미(run_status/stop 일관성). 동기로
     // active/preview_url/status_label 을 세팅해 탭 복귀(run_status) 복원이 바로 동작한다.
@@ -900,6 +900,14 @@ fn start_static_preview(
         kind: recipe.kind,
         needs_install: false,
     })
+}
+
+fn static_preview_url(port: u16, entry: &str) -> String {
+    if entry == "index.html" {
+        format!("http://127.0.0.1:{port}")
+    } else {
+        format!("http://127.0.0.1:{port}/{entry}")
+    }
 }
 
 /// 확장자 → Content-Type. 정적 미리보기에 흔한 타입만 명시, 나머지는 octet-stream.
@@ -1061,7 +1069,7 @@ pub(crate) fn close_preview(app: tauri::AppHandle) {
 
 #[cfg(test)]
 mod runner_tests {
-    use super::{cancel_current, new_state_pair, stop_for_exit};
+    use super::{cancel_current, new_state_pair, static_preview_url, stop_for_exit};
 
     #[test]
     fn state_pair_shares_runtime_between_managed_state_and_exit_handle() {
@@ -1080,6 +1088,15 @@ mod runner_tests {
     fn cancel_without_active_run_reports_false() {
         let (state, _shutdown) = new_state_pair();
         assert!(!cancel_current(&state.0));
+    }
+
+    #[test]
+    fn static_preview_url_uses_ipv4_loopback_for_webview2() {
+        assert_eq!(static_preview_url(43123, "index.html"), "http://127.0.0.1:43123");
+        assert_eq!(
+            static_preview_url(43123, "quiz.html"),
+            "http://127.0.0.1:43123/quiz.html"
+        );
     }
 
     #[cfg(unix)]

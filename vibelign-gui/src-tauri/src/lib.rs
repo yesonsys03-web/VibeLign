@@ -201,10 +201,21 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
     {
-        Ok(app) => app.run(move |_app_handle, event| match event {
+        Ok(app) => app.run(move |app_handle, event| match event {
+            tauri::RunEvent::WindowEvent {
+                label,
+                event: tauri::WindowEvent::CloseRequested { .. },
+                ..
+            } if label == "main" => {
+                commands::watch::stop_for_exit(&watch_shutdown);
+                commands::work_room::stop_for_exit(&work_shutdown);
+                commands::run_preview::close_preview_for_exit(app_handle);
+                commands::run_preview::stop_for_exit(&run_shutdown);
+            }
             tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. } => {
                 commands::watch::stop_for_exit(&watch_shutdown);
                 commands::work_room::stop_for_exit(&work_shutdown);
+                commands::run_preview::close_preview_for_exit(app_handle);
                 commands::run_preview::stop_for_exit(&run_shutdown);
             }
             _ => {}
