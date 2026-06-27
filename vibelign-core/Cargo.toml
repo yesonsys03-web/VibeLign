@@ -1,6 +1,6 @@
 [package]
 name = "vibelign-core"
-version = "2.5.7"
+version = "2.5.8"
 edition = "2021"
 
 [lib]

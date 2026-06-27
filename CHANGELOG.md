@@ -10,6 +10,26 @@
 
 ---
 
+## [2.5.8] — 2026-06-27
+
+**Windows onboarding Gari car animation parity** — Windows 11에서 첫 실행 온보딩의 갸리차가 왼쪽에서 들어오지 않고 중앙에 멈춰 있던 문제를 고쳤다.
+
+### Fixed
+
+- **Windows 갸리차 진입 애니메이션 정지** — reduced-motion 분기에서 갸리차의 `rollin`, `rollout`, `gyari-drive` 애니메이션을 꺼 버리던 CSS를 수정했다. Windows 접근성 설정이나 WebView2 reduced-motion 감지 상태에서도 갸리차가 macOS처럼 왼쪽에서 들어오고, 클릭 시 퇴장 애니메이션을 유지한다.
+- **전역 reduced-motion 가드와 갸리차 충돌** — 전역 모션 완화 규칙이 갸리차 애니메이션 시간을 `0.01ms`로 눌러 즉시 중앙 정지처럼 보이던 문제를 갸리차 전용 override로 보정했다.
+
+### Upgrade Notes
+
+- Windows에서 갸리차가 중앙에 멈춰 있던 사용자는 v2.5.8 Windows GUI 산출물로 업데이트한 뒤 앱을 다시 실행하면 된다.
+- 이번 변경은 온보딩 갸리차 CSS에 한정되며, MCP 설정이나 Python 런타임 번들 동작은 v2.5.7과 동일하다.
+
+### Verified
+
+- GUI production build, 온보딩/갸리 로딩 관련 Vitest, forced reduced-motion Chrome screenshot 확인으로 macOS와 같은 진입 애니메이션을 검증했다. 실제 Windows 설치본 재검증은 v2.5.8 태그 빌드 산출물에서 확인 대상이다.
+
+---
+
 ## [2.5.7] — 2026-06-27
 
 **Windows MCP runtime packaging fix** — Windows 11에서 Claude Code의 VibeLign MCP 도구가 연결은 되지만 모든 호출이 `No module named 'vibelign.mcp.mcp_memory_handlers'`로 실패하던 번들 런타임 문제를 고쳤다.

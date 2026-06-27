@@ -532,9 +532,9 @@ html, body {
 }
 .gyari-car-wrap.rollout { animation: gyari-rollout 1.3s linear both; }
 @media (prefers-reduced-motion: reduce) {
-  .gyari-car { animation: none; }
-  .gyari-car-wrap.rollin { animation: none; }
-  .gyari-car-wrap.rollout { animation: none; opacity: 0; } /* 슬라이드 없이 즉시 사라짐 */
+  .gyari-car { animation: gyari-drive 0.5s steps(1) infinite; }
+  .gyari-car-wrap.rollin { animation: gyari-rollin 1.7s linear both; }
+  .gyari-car-wrap.rollout { animation: gyari-rollout 1.3s linear both; }
 }
 
 /* 기획방 로딩 — 페르소나(클로이/지오/미나/딥시기)가 답하는 동안(pending) 지루하지 않게
@@ -625,6 +625,18 @@ html, body {
     animation-duration: .01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
+  }
+  .gyari-car, .gyari-loader {
+    animation-duration: 0.5s !important;
+    animation-iteration-count: infinite !important;
+  }
+  .gyari-car-wrap.rollin {
+    animation-duration: 1.7s !important;
+    animation-iteration-count: 1 !important;
+  }
+  .gyari-car-wrap.rollout {
+    animation-duration: 1.3s !important;
+    animation-iteration-count: 1 !important;
   }
 }
 
