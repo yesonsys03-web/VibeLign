@@ -76,6 +76,8 @@ hidden_imports = [
     "vibelign.mcp.mcp_protect_handlers","vibelign.mcp.mcp_misc_handlers",
     "vibelign.mcp.mcp_health_handlers","vibelign.mcp.mcp_transfer_handlers",
     "vibelign.mcp.mcp_anchor_handlers","vibelign.mcp.mcp_doctor_handlers",
+    "vibelign.mcp.mcp_denied_handlers","vibelign.mcp.mcp_memory_handlers",
+    "vibelign.mcp.mcp_recovery_handlers",
     "vibelign.mcp.mcp_state_store","vibelign.patch","vibelign.patch.patch_builder",
     "vibelign.patch.patch_contract_helpers","vibelign.patch.patch_fanout",
     "vibelign.patch.patch_handoff","vibelign.patch.patch_output",

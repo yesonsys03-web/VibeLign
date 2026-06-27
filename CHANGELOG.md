@@ -10,6 +10,26 @@
 
 ---
 
+## [2.5.7] — 2026-06-27
+
+**Windows MCP runtime packaging fix** — Windows 11에서 Claude Code의 VibeLign MCP 도구가 연결은 되지만 모든 호출이 `No module named 'vibelign.mcp.mcp_memory_handlers'`로 실패하던 번들 런타임 문제를 고쳤다.
+
+### Fixed
+
+- **Windows MCP handler 번들 누락** — PyInstaller `vib-runtime`에 동적 import로 로딩되는 MCP handler 모듈이 빠져 `mcp_memory_handlers` 등에서 `ModuleNotFoundError`가 날 수 있던 문제를 수정했다. `mcp_denied_handlers`, `mcp_memory_handlers`, `mcp_recovery_handlers`를 hidden imports에 명시했다.
+- **MCP handler 번들 회귀 방지** — `vibelign/mcp/mcp_*_handlers.py` 파일이 추가되면 `vib.spec` hidden imports에 빠지지 않았는지 검사하는 회귀 테스트를 추가했다.
+
+### Upgrade Notes
+
+- Windows에서 이미 깨진 2.5.6 런타임은 내부 모듈이 누락된 상태라 `.mcp.json`만 수정해도 복구되지 않는다. v2.5.7 Windows GUI 산출물로 재설치한 뒤 Claude Code를 완전히 종료하고 다시 열어야 한다.
+- 기존 `.mcp.json`이 `vib.exe mcp`를 가리키는 경우에도 현재 코드의 `vib mcp` 하위호환 진입점은 유지된다.
+
+### Verified
+
+- MCP handler hidden import 회귀 테스트, MCP memory/recovery/denied/grant 관련 테스트, Claude/Cursor MCP 등록 테스트를 로컬에서 확인했다. 실제 Windows 설치본 재검증은 v2.5.7 태그 빌드 산출물에서 확인 대상이다.
+
+---
+
 ## [2.5.6] — 2026-06-25
 
 **Intel(x86_64) macOS 빌드 + 자동 업데이트 지원** — macOS 릴리즈가 Apple Silicon(arm64)만 제공하던 것을 Intel(x86_64)까지 확장했다. GUI CI가 Intel 네이티브 러너에서 빌드·서명·업로드하고, 업데이터 매니페스트에 `darwin-x86_64`를 추가해 Intel Mac도 인앱 자동 업데이트를 받는다.
