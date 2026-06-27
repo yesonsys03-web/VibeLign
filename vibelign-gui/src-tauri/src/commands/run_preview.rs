@@ -1085,12 +1085,26 @@ fn close_preview_window(app: &tauri::AppHandle) {
 /// 미리보기 창 열기/포커스 — 프런트의 [미리보기 열기] 버튼이 run-preview-ready 의 url 로
 /// 호출한다. 이미 있으면 그 창을 해당 url 로 이동·포커스(중복 창 방지). 메인 앱과
 /// 생명주기를 분리한 별도 창이라 사용자가 따로 옮기거나 닫을 수 있다(§5).
+///
+/// **async 필수(Windows 데드락 방지)**: WebviewWindowBuilder::build() 는 동기 커맨드에서
+/// 호출하면 Windows(WebView2)에서 데드락한다 — 동기 커맨드는 메인 스레드(=WebView2 COM
+/// 메시지 펌프 소유)에서 돌고, build() 는 창 생성을 다시 그 메인 스레드로 디스패치한 뒤
+/// 반환을 기다려 재진입 데드락이 난다(공식 docs.rs 명시, tauri#13963: 빈 화면+닫기 불가).
+/// async 로 두면 커맨드가 tokio 풀에서 돌아 메인 스레드가 펌프를 계속 돌릴 수 있다.
 #[tauri::command]
-pub(crate) fn open_preview(app: tauri::AppHandle, url: String) -> Result<(), String> {
+pub(crate) async fn open_preview(app: tauri::AppHandle, url: String) -> Result<(), String> {
     use tauri::Manager;
     let parsed = validate_preview_url(&url)?;
+    // 반복 열기 보강: 이미 열려 있으면 destroy()+build() 로 같은 label 을 재생성하지 않는다.
+    // Windows 에서 destroy 의 비동기 정리가 끝나기 전 같은 label 로 build 하면 경합이 난다
+    // (빈 창/HWND 패닉, tauri#13969·#9353). 한 실행의 미리보기 URL 은 고정이므로, 창이 있으면
+    // 그 URL 로 navigate(=새로고침)하고 앞으로 가져오면 충분하다(두 번째 [미리보기 열기] =
+    // 기존 창 포커스). v2.5.11 이 재사용을 피했던 "멈춘 렌더러" 우려는 데드락이 원인이었고,
+    // 동기→async 전환으로 데드락이 사라진 지금은 재사용이 안전하다.
     if let Some(win) = app.get_webview_window(PREVIEW_LABEL) {
-        let _ = win.destroy();
+        win.navigate(parsed).map_err(|e| e.to_string())?;
+        let _ = win.set_focus();
+        return Ok(());
     }
     tauri::WebviewWindowBuilder::new(&app, PREVIEW_LABEL, tauri::WebviewUrl::External(parsed))
         .title("미리보기 — VibeLign")
