@@ -98,7 +98,7 @@ pub fn run() {
             Ok(())
         });
 
-    match commands::run_preview::register_preview_protocol(builder, &run_state)
+    match builder
         .manage(watch_state)
         .manage(work_state)
         .manage(run_state)
