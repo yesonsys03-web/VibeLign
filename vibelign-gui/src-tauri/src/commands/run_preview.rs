@@ -253,6 +253,20 @@ fn validate_local_url(url: &str) -> Result<tauri::Url, String> {
     }
 }
 
+fn should_allow_preview_navigation(url: &tauri::Url) -> bool {
+    match url.scheme() {
+        "http" | "https" => matches!(
+            url.host_str(),
+            Some("localhost") | Some("127.0.0.1") | Some("0.0.0.0")
+        ),
+        // WebView2 can emit internal frame navigations while the document is booting. Blocking
+        // these leaves the preview window on a blank renderer even though the local server works.
+        "about" => url.as_str() == "about:blank",
+        "data" | "blob" => true,
+        _ => false,
+    }
+}
+
 // ─── 러너 (watch/work_room 수명주기 복제) ───────────────────────────────────────
 
 struct RunRuntime {
@@ -1039,9 +1053,7 @@ pub(crate) fn open_preview(app: tauri::AppHandle, url: String) -> Result<(), Str
     use tauri::Manager;
     let parsed = validate_local_url(&url)?;
     if let Some(win) = app.get_webview_window(PREVIEW_LABEL) {
-        win.navigate(parsed).map_err(|e| e.to_string())?;
-        let _ = win.set_focus();
-        return Ok(());
+        let _ = win.destroy();
     }
     tauri::WebviewWindowBuilder::new(&app, PREVIEW_LABEL, tauri::WebviewUrl::External(parsed))
         .title("미리보기 — VibeLign")
@@ -1050,13 +1062,7 @@ pub(crate) fn open_preview(app: tauri::AppHandle, url: String) -> Result<(), Str
         // 이동하는 것을 막는다. 초기 URL 은 이미 로컬이라 통과하고, HMR 의 ws:// 는
         // navigation 이 아니라 영향 없다. capability 가 이미 이 창에 백엔드 권한을 안 주지만
         // 한 겹 더 — 안전 도구 정체성(§8).
-        .on_navigation(|url| {
-            matches!(url.scheme(), "http" | "https")
-                && matches!(
-                    url.host_str(),
-                    Some("localhost") | Some("127.0.0.1") | Some("0.0.0.0")
-                )
-        })
+        .on_navigation(|url| should_allow_preview_navigation(url))
         .build()
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -1378,6 +1384,32 @@ mod detect_tests {
         assert!(validate_local_url("https://evil.example.com").is_err());
         assert!(validate_local_url("file:///etc/passwd").is_err());
         assert!(validate_local_url("not a url").is_err());
+    }
+
+    #[test]
+    fn preview_navigation_allows_webview_internal_urls() {
+        assert!(should_allow_preview_navigation(
+            &tauri::Url::parse("about:blank").expect("url")
+        ));
+        assert!(should_allow_preview_navigation(
+            &tauri::Url::parse("data:text/html,%3Ch1%3Eok%3C/h1%3E").expect("url")
+        ));
+        assert!(should_allow_preview_navigation(
+            &tauri::Url::parse("blob:http://127.0.0.1:43123/preview").expect("url")
+        ));
+    }
+
+    #[test]
+    fn preview_navigation_still_blocks_external_http() {
+        assert!(should_allow_preview_navigation(
+            &tauri::Url::parse("http://127.0.0.1:43123").expect("url")
+        ));
+        assert!(!should_allow_preview_navigation(
+            &tauri::Url::parse("https://evil.example.com").expect("url")
+        ));
+        assert!(!should_allow_preview_navigation(
+            &tauri::Url::parse("file:///etc/passwd").expect("url")
+        ));
     }
 }
 // === ANCHOR: RUN_PREVIEW_END ===
