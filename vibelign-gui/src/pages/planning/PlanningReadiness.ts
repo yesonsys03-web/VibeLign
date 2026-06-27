@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGREADINESS_START ===
 import type { ReadinessReport, RequirementReadiness } from "../../lib/vib/types";
 
 export interface ReadinessSummary {
@@ -8,10 +9,13 @@ export interface ReadinessSummary {
   canStartWork: boolean;
 }
 
+// === ANCHOR: PLANNINGREADINESS_REQUIREMENTHASRED_START ===
 function requirementHasRed(requirement: RequirementReadiness): boolean {
   return Object.values(requirement.checks).some((check) => check.verdict === "red");
 }
+// === ANCHOR: PLANNINGREADINESS_REQUIREMENTHASRED_END ===
 
+// === ANCHOR: PLANNINGREADINESS_READINESSSUMMARY_START ===
 export function readinessSummary(report: ReadinessReport | null | undefined): ReadinessSummary {
   if (!report || report.status !== "judged") {
     return {
@@ -38,3 +42,5 @@ export function readinessSummary(report: ReadinessReport | null | undefined): Re
   }
   return { status: "judged", green, red, coreRedCount, canStartWork: coreRedCount === 0 };
 }
+// === ANCHOR: PLANNINGREADINESS_READINESSSUMMARY_END ===
+// === ANCHOR: PLANNINGREADINESS_END ===

@@ -1,0 +1,44 @@
+DoneClaim:
+- task: Todo 6 final programming/no-excuse cleanup blockers.
+- changed_files:
+  - `vibelign/commands/vib_report_cmd.py`
+  - `tests/cli/test_vib_report_cmd.py`
+  - `tests/cli/test_vib_report_render_payload.py`
+  - `vibelign-gui/src-tauri/src/lib.rs`
+  - `.omo/evidence/report-writing-quality/task-6-pytest.txt`
+  - `.omo/evidence/report-writing-quality/task-6-ruff.txt`
+  - `.omo/evidence/report-writing-quality/task-6-python-compile.txt`
+  - `.omo/evidence/report-writing-quality/task-6-cargo-check.txt`
+  - `.omo/evidence/report-writing-quality/task-6-cleanup.txt`
+  - `.omo/evidence/report-writing-quality/task-6-no-excuse-fixes.txt`
+  - `.omo/evidence/report-writing-quality/task-6-tests.txt`
+  - `.omo/evidence/report-writing-quality/task-6-doneclaim.txt`
+- fixes:
+  - Split render/export decision-path coverage from `tests/cli/test_vib_report_cmd.py` into `tests/cli/test_vib_report_render_payload.py` without deleting assertions.
+  - Replaced the render-payload loader's generic `ValueError` with typed `RenderPayloadFormatError`, preserving JSON error output for malformed payloads and avoiding tracebacks.
+  - Changed `run_vib_report` from `args: object` plus `cast` to a direct `ReportArgs` protocol boundary.
+  - Replaced the Tauri bootstrap `.expect(...)` with an explicit `match` that reports build failure and exits without panicking.
+- tests:
+  - Scenario `cli_report_split_regression`: invocation `.venv/bin/python3 -m pytest tests/cli/test_vib_report_cmd.py tests/cli/test_vib_report_render_payload.py -v`; binary observable `33 passed`; artifact `.omo/evidence/report-writing-quality/task-6-pytest.txt`.
+  - Scenario `ruff_changed_python`: invocation `uv run ruff check vibelign/commands/vib_report_cmd.py tests/cli/test_vib_report_cmd.py tests/cli/test_vib_report_render_payload.py`; binary observable `All checks passed!`; artifact `.omo/evidence/report-writing-quality/task-6-ruff.txt`.
+  - Scenario `python_command_compile`: invocation `.venv/bin/python3 -m compileall vibelign/commands`; binary observable `Compiling 'vibelign/commands/vib_report_cmd.py'`; artifact `.omo/evidence/report-writing-quality/task-6-python-compile.txt`.
+  - Scenario `tauri_cargo_check`: invocation `cargo check` in `vibelign-gui/src-tauri`; binary observable `Finished dev profile`; artifact `.omo/evidence/report-writing-quality/task-6-cargo-check.txt`.
+  - Scenario `todo_6_focused_gui_regression`: invocation `npm run test -- src/lib/vib/__tests__/report.test.ts src/components/plan-doc/__tests__/ExportReportModal.test.tsx src/pages/__tests__/ReportView.test.tsx` in `vibelign-gui`; binary observable `Test Files 3 passed (3)` and `Tests 46 passed (46)`; artifact `.omo/evidence/report-writing-quality/task-6-tests.txt`.
+  - Scenario `full_blocker_no_excuse`: invocation `uv run python .../check-no-excuse-rules.py` over the original blocker Python scope plus the new split test, and `bash .../check-no-excuse-rules.sh` over the Tauri render-payload registration scope; binary observable `no violations in 10 file(s)` and `rust-programmer: no-excuse rules passed for 3 file(s).`; artifact `.omo/evidence/report-writing-quality/task-6-no-excuse-fixes.txt`.
+- manual_qa:
+  - Scenario `malformed_render_payload_boundary`: covered by `test_render_decisions_payload_file_malformed_schema_reports_json_error`; invocation included in `cli_report_split_regression`; binary observable test passed and JSON error assertion passed; artifact `.omo/evidence/report-writing-quality/task-6-pytest.txt`.
+  - Scenario `render_payload_draft_persistence`: covered by `test_render_decisions_payload_file_writes_draft_content`; invocation included in `cli_report_split_regression`; binary observable test passed and saved HTML assertion passed; artifact `.omo/evidence/report-writing-quality/task-6-pytest.txt`.
+  - Scenario `vibelign_safe_mode_guard`: invocation `guard_check(strict=true, since_minutes=30)` through the VibeLign MCP; binary observable `status: fail`, `protected_violations: []`, `anchor_violations: []`, with repo-wide `planning_required` from the broad dirty Todo 6 worktree; no file artifact because MCP output is tool output.
+  - Scenario `vibelign_checkpoint`: invocation `checkpoint_create(message="todo 6 no-excuse cleanup fixes")`; binary observable checkpoint id `20260620082924407957Z`.
+- adversarial_classes:
+  - Oversized test module: `test_vib_report_cmd.py` is now 237 pure LOC and `test_vib_report_render_payload.py` is 224 pure LOC.
+  - Malformed payload schema: typed payload error path returns JSON error through `_fail`, with no traceback.
+  - Pre-existing typed boundary escape: `run_vib_report` no longer uses `object` or `cast`.
+  - Tauri startup panic escape: `.expect(...)` removed from changed `lib.rs` scope.
+  - GUI contract drift: focused Todo 6 GUI tests still pass with 46 tests.
+- cleanup:
+  - Scenario `pure_loc_and_diff_check`: invocation in `.omo/evidence/report-writing-quality/task-6-cleanup.txt`; binary observable `vib_report_cmd.py 248`, `test_vib_report_cmd.py 237`, `test_vib_report_render_payload.py 224`, `lib.rs 182`, `report_render_payload.rs 52`, `commands/mod.rs 30`, and `git diff --check` exit 0.
+  - No `.omo/plans` checkboxes were edited.
+  - Pre-edit checkpoint recorded as `20260620082222816215Z`; post-edit checkpoint recorded as `20260620082924407957Z`.
+- risks:
+  - VibeLign guard remains repo-wide red because the existing dirty Todo 6 worktree triggers `planning_required` and legacy structural warnings; task-specific no-excuse, tests, compile, Ruff, cargo, LOC, and diff-check evidence are green.

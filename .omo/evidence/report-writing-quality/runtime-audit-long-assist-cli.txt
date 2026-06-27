@@ -1,0 +1,40 @@
+Surface: CLI report assist-missing on 2000-line markdown source
+Invocation: /usr/bin/time -p uv run vib report tests/fixtures/reporting_cli/quality_long_2000.md --type work --assist-missing --json
+ExitCode: 0
+
+## time/stderr
+real 0.20
+user 0.13
+sys 0.03
+
+## validation summary
+{
+  "ok": true,
+  "report_type": "work",
+  "status": "ready",
+  "suggestion_count": 2,
+  "source_ref_count": 2,
+  "min_ref_start": 1009,
+  "max_ref_end": 1010,
+  "mid_file_refs": [
+    {
+      "chunk_id": "chunk-0006",
+      "heading_path": [
+        "장기 운영 개선 보고서",
+        "확정된 결정"
+      ],
+      "start_line": 1009,
+      "end_line": 1009
+    },
+    {
+      "chunk_id": "chunk-0006",
+      "heading_path": [
+        "장기 운영 개선 보고서",
+        "확정된 결정"
+      ],
+      "start_line": 1010,
+      "end_line": 1010
+    }
+  ]
+}
+Validation: 2000-line assist completed, bounded refs, mid-file evidence present

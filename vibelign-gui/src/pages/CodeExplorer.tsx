@@ -18,9 +18,10 @@ interface CodeExplorerProps {
   /** 저장된 기획안·계약보다 기획방 대화가 더 진행됨 — 지시문이 구버전 기준이라는 경고용. */
   planningDocStale?: boolean;
   onReviewInPlanning?: (path: string) => void;
+  onGenerateReport?: (path: string) => void;
 }
 
-export default function CodeExplorer({ projectDir, planningPrompt = "", planningOutputPath = null, planningContract = null, planningDocStale = false, onReviewInPlanning }: CodeExplorerProps) {
+export default function CodeExplorer({ projectDir, planningPrompt = "", planningOutputPath = null, planningContract = null, planningDocStale = false, onReviewInPlanning, onGenerateReport }: CodeExplorerProps) {
   const [files, setFiles] = useState<CodeFileEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<CodeFileReadResult | null>(null);
@@ -123,7 +124,7 @@ export default function CodeExplorer({ projectDir, planningPrompt = "", planning
     <CodeExplorerLayout
       planningContext={planningOutputPath ? <CodeExplorerPlanningContext prompt={planningPrompt} outputPath={planningOutputPath} contract={planningContract} docStale={planningDocStale} /> : undefined}
       toolbar={<CodeExplorerToolbar query={query} fileCount={filteredFiles.length} isRefreshing={isRefreshing} onQueryChange={setQuery} onRefresh={() => void refreshFiles()} />}
-      tree={<CodeFileTree files={filteredFiles} selectedPath={selectedPath} onSelect={setSelectedPath} autoExpandAll={query.trim().length > 0} changes={changes} onReviewInPlanning={onReviewInPlanning} />}
+      tree={<CodeFileTree files={filteredFiles} selectedPath={selectedPath} onSelect={setSelectedPath} autoExpandAll={query.trim().length > 0} changes={changes} onReviewInPlanning={onReviewInPlanning} onGenerateReport={onGenerateReport} />}
       viewer={<CodeFileViewer
         selectedPath={selectedPath}
         file={selectedFile}

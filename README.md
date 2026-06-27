@@ -27,7 +27,7 @@
 VibeLign (`vibelign`) is an AI coding safety **CLI + Desktop GUI** for vibe coding workflows.
 It helps developers and non-developers protect project structure, save checkpoints, undo bad AI edits, manage anchors, and block secret leaks before commit.
 
-> **🆕 v2.4**: Design Preview now synthesizes styles from plain-language descriptions (+ background generation while you navigate away), AI tools (opencode/codex/agy) install in one click from the app, the run/verify flow guides you from first `vib start` to a working app, and async Tauri commands eliminate UI freezes during heavy operations. See [CHANGELOG](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md). v1 → v2 사용자: [migration notes](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md).
+> **🆕 v2.5.1**: Report export now includes 13 satgat-inspired specimen themes, and the planning room is back to the original Chloe (Claude) → Gio (Codex) priority after Claude reverted the policy change that prompted the warning labels. See [CHANGELOG](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md). v1 → v2 users: [migration notes](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md).
 
 Documentation: `https://yesonsys03-web.github.io/VibeLign/`  
 Repository: `https://github.com/yesonsys03-web/VibeLign`  
@@ -316,6 +316,43 @@ VibeLign promises:
 ---
 
 ## 📋 Release Notes
+
+**v2.5.1** — Satgat specimen report pack + Claude warning cleanup:
+
+- 🧾 **13 new satgat-inspired report specimen themes** for comparing business report, proposal, result report, and document-style exports without hand-styling each run.
+- 🔁 **Planning-room priority restored** — default response mode is back to **Draft · Chloe** first, with **Instant · Gio** still available next.
+- 🧹 **Claude credit warning labels removed** after the policy reversal: planning-room chips, persona settings, Work Room, and Design Preview no longer show the `claude -p` credit warning.
+
+**v2.5.0** — Major report export upgrade:
+
+- 📄 **One-click plan/document → report export** in HTML preview, PDF, Word, and PowerPoint.
+- 🎨 **50+ report themes**, adjustable heading/body/header font sizes, page numbers, and remembered save locations.
+- 🔤 **Free Korean font selection** with embedded PDF fonts: Pretendard, Nanum Myeongjo, Gowun Batang, Gowun Dodum, and Geomun Gothic.
+- 🛠 **Korean Word/PPT text normalization fixed** so decomposed Hangul filenames/content no longer render as split jamo.
+
+**v2.4.4** — New 갸리카 (car) guide mascot in onboarding & the planning room:
+
+- 🚗 **Onboarding mascot drives in** from off-screen left, brakes under the input, then pops a welcome bubble. Click it to dismiss the bubble, click again to "vroom" off-screen right, and click anywhere to drive it back in.
+- ⏳ **Planning-room loading** — while personas (클로이/지오/미나/딥시기) prepare their answers, the car runs in place as a "부릉부릉" loading animation instead of plain waiting text.
+- 🧭→🚗 Replaces the old compass guide mascot.
+
+**v2.4.3** — Adapt to Claude's programmatic-usage pricing change (minimize automatic Claude calls):
+
+- 🔻 **Planning personas no longer auto-fall-back to Claude** (Codex/OpenCode first); the Claude persona ("클로이") is **off by default — opt-in**. Disabled personas can't be selected in the composer and "모두" only calls enabled ones.
+- 💲 **When Claude is used, it's pinned to Sonnet** (not Opus) to reduce credit burn — across personas, the readiness judge, design generation, and the CLI.
+- 🎨 **Design preview** and 🛠 **Work Room** default to **Codex**; choosing Claude Code shows a **credit-usage warning** (it runs `claude -p`, which from 2026-06-15 bills a separate monthly credit / standard API rates instead of the subscription pool).
+- ℹ️ **Unaffected**: interactive Claude Code in your terminal, MCP integration, and your own API-key calls (`vib ask`, docs-enhance).
+
+**v2.4.2** — Accurate install detection + Settings readability + planning-room auto-scroll:
+
+- 🔍 **Installed AI tools now detected reliably** — Settings tool detection relied on `zsh -lc`/`bash -lc` (login, non-interactive) `command -v`, which skips `.zshrc` where most PATH exports live (e.g. `~/.bun/bin` for opencode) — so installed tools showed as missing. Now it probes an augmented PATH (homebrew/cargo/bun/.local/bin) directly, so tools are found even when the app is launched from Finder/Dock.
+- ✅ **Clearer install state** — replaced the cryptic " MCP" suffix with a distinct **"✓ Installed"** badge, and color-coded the Installed / Auto-install / Manual badges (green / amber / gray) so they stay readable on the selected (blue) button.
+- 🔤 **Settings text readability** — unified the small, faded description text across the AI-tools, planning-persona, and API-key cards to the standard card style (13px, solid color); provider names no longer use the unreadable terminal-green on white.
+- ⬇️ **Planning-room smart auto-scroll** — after you send or a new reply arrives, the view scrolls to that reply (not the page bottom); it won't hijack your scroll while you're reading earlier messages.
+
+**v2.4.1** — Uninstall for AI CLI tools (OpenCode / Codex / Antigravity):
+
+- 🧹 **One-click uninstall in `ToolInstallPanel`** — Remove opencode/codex/antigravity from the app. opencode & codex (macOS) use their uninstall command; agy (macOS) deletes only the PATH-resolved single binary via `std::fs::remove_file` (one file, non-recursive, no shell) then re-probes to confirm — preventing false success on symlink/duplicate-PATH installs; codex/agy (Windows) fall back to a manual guide. Binary-only removal — MCP config, tool config, and login state are preserved.
 
 **v2.2.20** — Code Explorer adds docs tree + per-category color coding:
 

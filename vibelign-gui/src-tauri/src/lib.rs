@@ -29,7 +29,7 @@ pub fn run() {
         logs: String::new(),
     }));
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -94,8 +94,11 @@ pub fn run() {
                     let _ = cmd.status();
                 });
             }
+
             Ok(())
-        })
+        });
+
+    match builder
         .manage(watch_state)
         .manage(work_state)
         .manage(run_state)
@@ -189,16 +192,40 @@ pub fn run() {
             onboarding::detect_installed_tools,
             commands::tool_install::install_tool,
             commands::tool_install::tool_install_status,
+            commands::tool_install::uninstall_tool,
+            commands::report_pdf::export_report_pdf,
+            commands::report_pdf::read_report_pdf_bytes,
+            commands::report_pdf::copy_report_to,
+            commands::report_pdf::get_report_export_dir,
+            commands::report_pdf::set_report_export_dir,
+            commands::report_render_payload::write_report_render_payload,
+            commands::report_render_payload::remove_report_render_payload,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building tauri application")
-        .run(move |_app_handle, event| match event {
+    {
+        Ok(app) => app.run(move |app_handle, event| match event {
+            tauri::RunEvent::WindowEvent {
+                label,
+                event: tauri::WindowEvent::CloseRequested { .. },
+                ..
+            } if label == "main" => {
+                commands::watch::stop_for_exit(&watch_shutdown);
+                commands::work_room::stop_for_exit(&work_shutdown);
+                commands::run_preview::close_preview_for_exit(app_handle);
+                commands::run_preview::stop_for_exit(&run_shutdown);
+            }
             tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. } => {
                 commands::watch::stop_for_exit(&watch_shutdown);
                 commands::work_room::stop_for_exit(&work_shutdown);
+                commands::run_preview::close_preview_for_exit(app_handle);
                 commands::run_preview::stop_for_exit(&run_shutdown);
             }
             _ => {}
-        });
+        }),
+        Err(error) => {
+            eprintln!("VibeLign: Tauri 앱 빌드 실패: {error}");
+            std::process::exit(1);
+        }
+    }
 }
 // === ANCHOR: LIB_END ===

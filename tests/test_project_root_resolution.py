@@ -78,7 +78,10 @@ class ProjectRootResolutionTest(unittest.TestCase):
                 "export const card = 1\n", encoding="utf-8"
             )
 
-            with patch.object(Path, "cwd", return_value=nested):
+            with patch.object(Path, "cwd", return_value=nested), patch(
+                "vibelign.core.checkpoint_engine.rust_engine.discovery._candidate_paths",
+                return_value=[],
+            ):
                 run_vib_checkpoint(Namespace(message=["nested", "save"], json=True))
 
             checkpoints_dir = root / ".vibelign" / "checkpoints"

@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 src-tauri/binaries/
 src-tauri/vib-runtime/
+
+# pdf.js runtime assets (copied from node_modules by scripts/copy-pdfjs-assets.mjs)
+public/pdfjs/

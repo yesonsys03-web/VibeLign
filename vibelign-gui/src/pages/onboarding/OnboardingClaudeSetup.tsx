@@ -1,5 +1,6 @@
 // === ANCHOR: ONBOARDINGCLAUDESETUP_START ===
 import { useEffect, useState, type ReactNode } from "react";
+import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   addClaudeToUserPath,
@@ -115,8 +116,9 @@ export function OnboardingClaudeSetup({ topContent }: OnboardingClaudeSetupProps
   }
 
   async function uninstall() {
-    const ok = window.confirm(
+    const ok = await tauriConfirm(
       "Claude Code 를 완전히 삭제할까요?\n\n바이너리·설정·PATH 항목까지 모두 정리해요. 되돌릴 수 없어요.",
+      { title: "Claude Code 삭제", kind: "warning" },
     );
     if (!ok) {
       return;

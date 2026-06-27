@@ -1,7 +1,8 @@
 // === ANCHOR: SETTINGS_START ===
 import { useState, useEffect, useMemo } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { saveProviderApiKey, deleteProviderApiKey, getVibPath, getEnvKeyStatus, getAiEnhancement, setAiEnhancement, getAutoBackupOnCommit, setAutoBackupOnCommit, detectInstalledTools, runVib } from "../lib/vib";
+import { saveProviderApiKey, deleteProviderApiKey, getVibPath, getEnvKeyStatus, getAiEnhancement, setAiEnhancement, getAutoBackupOnCommit, setAutoBackupOnCommit, detectInstalledTools, runVib, pickFolder } from "../lib/vib";
+import { getReportExportDir, setReportExportDir } from "../lib/vib/report";
 import { ToolSetupSelector } from "../components/ToolSetupSelector";
 import { PlanningPersonaSettings } from "../components/PlanningPersonaSettings";
 
@@ -54,6 +55,28 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
   const [selectedTools, setSelectedTools] = useState<Set<string>>(new Set());
   const [toolSetupRunning, setToolSetupRunning] = useState(false);
   const [toolSetupMsg, setToolSetupMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [reportExportDir, setReportExportDirState] = useState<string | null>(null);
+  const [reportDirSaving, setReportDirSaving] = useState(false);
+
+  useEffect(() => {
+    getReportExportDir()
+      .then(setReportExportDirState)
+      .catch(() => setReportExportDirState(null));
+  }, []);
+
+  async function handleChangeReportDir() {
+    const dir = await pickFolder(reportExportDir ?? undefined).catch(() => null);
+    if (!dir) return;
+    setReportDirSaving(true);
+    try {
+      await setReportExportDir(dir);
+      setReportExportDirState(dir);
+    } catch (e) {
+      setMsg({ type: "err", text: `보고서 저장 폴더 변경 실패: ${e}` });
+    } finally {
+      setReportDirSaving(false);
+    }
+  }
 
   useEffect(() => {
     detectInstalledTools()
@@ -351,7 +374,7 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
           <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
             API 키 (제공자별)
           </div>
-          <div style={{ fontSize: 11, color: "#777", lineHeight: 1.6, marginBottom: 14 }}>
+          <div style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 14 }}>
             API 키는 AI 회사에서 발급받는 이용권이에요. 대부분은 사용량에 따라 비용이 나올 수 있고,
             Google Gemini는 무료로 시작 가능한 키를 받을 수 있어요.
           </div>
@@ -368,7 +391,7 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <div style={{ fontWeight: 700, fontSize: 11, color: "#7DFF6B" }}>{p.label}</div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: "#1A1A1A" }}>{p.label}</div>
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm"
@@ -379,7 +402,7 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
                     키 받기 ↗
                   </button>
                 </div>
-                <div style={{ marginBottom: 8, fontSize: 11, color: p.id === "GEMINI" ? "#4D7CFF" : "#777", fontWeight: p.id === "GEMINI" ? 700 : 500 }}>
+                <div style={{ marginBottom: 8, fontSize: 13, lineHeight: 1.7, color: p.id === "GEMINI" ? "#2563EB" : "#1A1A1A", fontWeight: p.id === "GEMINI" ? 700 : 400 }}>
                   {p.costNote}
                 </div>
                 <div style={{ marginBottom: 8, fontSize: 12 }}>
@@ -393,7 +416,7 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
                   )}
                 </div>
                 {envOnly && (
-                  <div style={{ marginBottom: 8, fontSize: 10, color: "#888", lineHeight: 1.45 }}>
+                  <div style={{ marginBottom: 8, fontSize: 13, lineHeight: 1.7 }}>
                     이 키는 GUI 저장소에 없어서 여기서 삭제할 수 없어요. 터미널 환경 변수나 시스템 환경 설정의 {envKeyNameForProvider(p.id)} 값을 제거해야 합니다.
                   </div>
                 )}
@@ -446,7 +469,7 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
           )}
         </div>
 
-        <div style={{ fontSize: 11, color: "#555", lineHeight: 1.6 }}>
+        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
           키는 사용자 설정 폴더의 <code style={{ color: "#888" }}>api_keys.json</code>에 저장됩니다. 레포에는 커밋하지 마세요.<br />
           <code style={{ color: "#888" }}>vib ask</code>, <code style={{ color: "#888" }}>vib doctor --apply</code> 실행 시 GUI에 저장된 키가 해당 환경변수로 전달됩니다.
         </div>
@@ -589,7 +612,7 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
         {/* AI 도구 설정 (설치 후 추가 등록) 섹션 */}
         <div className="card" style={{ marginTop: 16, padding: 14 }}>
           <h2 style={{ fontSize: 13, margin: "0 0 6px", fontWeight: 900 }}>AI 도구 설정</h2>
-          <div style={{ fontSize: 11, color: "#666", lineHeight: 1.6, marginBottom: 10 }}>
+          <div style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 10 }}>
             VibeLign을 사용할 AI 도구를 선택해 규칙 파일과 MCP 등록을 생성해요.
             나중에 새 도구를 설치하면 여기서 그 도구만 추가로 설정할 수 있어요. (설치된 도구는 자동 선택)
           </div>
@@ -618,6 +641,39 @@ export default function Settings({ apiKey, onApiKeyChange, providerKeys, onKeysU
               {toolSetupMsg.text}
             </div>
           )}
+        </div>
+
+        {/* 보고서 저장 폴더 섹션 */}
+        <div className="card" style={{ marginTop: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
+            보고서 저장 폴더
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 10 }}>
+            "보고서로 내보내기"가 파일을 복사해 둘 기본 폴더입니다. 미설정 시 OS 문서 폴더로 저장돼요.
+            (원본 사본은 항상 프로젝트의 <code style={{ color: "#888" }}>.vibelign/reports</code>에도 남습니다)
+          </div>
+          <div
+            style={{
+              background: "#1A1A1A",
+              border: "1px solid #333",
+              padding: "6px 10px",
+              fontFamily: "IBM Plex Mono, monospace",
+              fontSize: 11,
+              color: "#7DFF6B",
+              wordBreak: "break-all",
+              marginBottom: 10,
+            }}
+          >
+            {reportExportDir ?? "불러오는 중…"}
+          </div>
+          <button
+            className="btn btn-sm"
+            disabled={reportDirSaving}
+            onClick={() => void handleChangeReportDir()}
+            style={{ background: "#1A1A1A", color: "#fff", border: "2px solid #1A1A1A", fontWeight: 700 }}
+          >
+            {reportDirSaving ? <span className="spinner" /> : "폴더 변경"}
+          </button>
         </div>
 
         <PlanningPersonaSettings />

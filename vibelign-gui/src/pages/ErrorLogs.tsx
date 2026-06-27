@@ -1,5 +1,6 @@
 // === ANCHOR: ERROR_LOGS_PAGE_START ===
 import { useState, useEffect, useCallback } from "react";
+import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { clearErrorLogs, readErrorLogs, type ErrorLogEntry } from "../lib/vib";
 
@@ -145,10 +146,11 @@ export default function ErrorLogs({ projectDir }: ErrorLogsPageProps) {
 
   const handleClear = useCallback(async () => {
     if (entries.length === 0) return;
-    const confirmed = window.confirm(
+    const confirmed = await tauriConfirm(
       `현재 ${entries.length}건의 에러 로그를 모두 정리합니다.\n` +
         `수정 완료된 에러를 정리해두면 새로 발생하는 에러가 눈에 띄어요.\n\n` +
-        `정말 정리할까요?`
+        `정말 정리할까요?`,
+      { title: "에러 로그 정리", kind: "warning" },
     );
     if (!confirmed) return;
     setLoading(true);
@@ -196,11 +198,12 @@ export default function ErrorLogs({ projectDir }: ErrorLogsPageProps) {
     if (checkedEntries.length === 0) return;
     if (
       checkedEntries.length > 5 &&
-      !window.confirm(
+      !(await tauriConfirm(
         `${checkedEntries.length}개의 GitHub 이슈 탭을 순차적으로 엽니다.\n` +
           `각 탭에서 검토 후 직접 Submit 해야 합니다.\n\n` +
-          `진행할까요?`
-      )
+          `진행할까요?`,
+        { title: "이슈 탭 열기" },
+      ))
     ) {
       return;
     }

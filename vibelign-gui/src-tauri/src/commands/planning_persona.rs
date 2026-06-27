@@ -5,7 +5,9 @@ use std::time::{Duration, Instant};
 
 use super::platform::{augmented_vib_path, hide_console};
 
-pub(crate) const INTERNAL_PROVIDER_PRIORITY: &[&str] = &["claude", "codex", "agy", "opencode"];
+// claude 는 `claude -p`(헤드리스)라 구독 크레딧/API 로 과금될 수 있어 자동 폴백에서 맨 뒤로
+// 둔다(사용자가 클로이를 명시적으로 켤 때만 호출). judge/생성 폴백도 무료 provider 를 먼저 고른다.
+pub(crate) const INTERNAL_PROVIDER_PRIORITY: &[&str] = &["codex", "opencode", "agy", "claude"];
 
 /// 페르소나 CLI 한 번 호출의 상한. 초과하면 자식을 죽이고 timeout 으로 처리한다.
 const PERSONA_TIMEOUT_SECS: u64 = 120;
@@ -81,12 +83,29 @@ fn persona_enabled_from_value(config: &serde_json::Value, persona_id: &str) -> b
         .and_then(|p| p.get(persona_id))
         .and_then(|e| e.get("enabled"))
         .and_then(|v| v.as_bool())
-        .unwrap_or(true)
+        .unwrap_or_else(|| persona_default_enabled(persona_id))
 }
 
-/// 전역 설정에서 해당 페르소나가 활성인지. 부재 시 true.
+/// 페르소나별 기본 활성값. 클로이(claude)는 `claude -p` 가 구독 크레딧/API 로 과금될 수
+/// 있어 기본 비활성(opt-in) — 사용자가 설정에서 켤 때만 호출된다. 나머지는 기본 활성.
+fn persona_default_enabled(persona_id: &str) -> bool {
+    persona_id != "chloe"
+}
+
+/// 전역 설정에서 해당 페르소나가 활성인지. 부재 시 persona_default_enabled.
 pub(crate) fn is_persona_enabled(persona_id: &str) -> bool {
     persona_enabled_from_value(&read_gui_config_value(), persona_id)
+}
+
+/// 비활성 페르소나가 호출됐을 때 대화에 남길 안내. UI 는 평소 비활성 페르소나 선택을
+/// 막지만(설정 OFF), 비-UI 경로로 들어와도 조용한 무응답 대신 이유를 보여준다.
+pub(crate) fn disabled_persona_message(persona_id: &str) -> String {
+    let name = persona_spec(persona_id).map(|s| s.name).unwrap_or("이 도우미");
+    let mut msg = format!("{name}는 꺼져 있어요. 설정 > 기획방 페르소나에서 켜면 응답해요.");
+    if persona_id == "chloe" {
+        msg.push_str(" 클로이는 켜면 claude -p 로 실행돼 구독 크레딧/API 가 차감될 수 있어요.");
+    }
+    msg
 }
 
 /// 전역 gui_config.json 을 읽는다. 부재/손상 시 빈 객체.
@@ -284,7 +303,7 @@ fn resolve_role(persona_id: &str, spec: &PersonaSpec) -> (&'static str, &'static
 
 fn provider_spec(provider_id: &str) -> Option<(&'static str, &'static [&'static str])> {
     match provider_id {
-        "claude" => Some(("claude", &["-p"])),
+        "claude" => Some(("claude", &["-p", "--model", "sonnet"])),
         "codex" => Some(("codex", &["exec"])),
         "agy" => Some(("agy", &["-p"])),
         "opencode" => Some(("opencode", &["run", "-m", "opencode/deepseek-v4-flash-free"])),
@@ -497,8 +516,8 @@ fn resolve_persona_cli(persona_id: &str) -> Option<(PathBuf, Vec<String>, String
     None
 }
 
-/// 판정·추출(readiness/contract/cards)은 작업 시작 경고·계약의 근거라 정밀도 우선 —
-/// claude 는 opus 로 고정한다(사용자 결정: 속도는 모델 강등이 아니라 캐시·선행 분석으로 푼다).
+/// 판정·추출(readiness/contract/cards)에서 claude 를 쓸 경우 sonnet 으로 고정한다
+/// (과금 정책 변경: opus 는 구독 크레딧을 빨리 소모 → 품질/비용 절충으로 sonnet).
 /// 다른 provider 는 모델 플래그를 검증하지 못해 기본 그대로 둔다(opencode 는 이미 flash 고정).
 fn judge_cli_args(
     (path, args, provider): (PathBuf, Vec<String>, String),
@@ -506,7 +525,7 @@ fn judge_cli_args(
     match provider.as_str() {
         "claude" => (
             path,
-            ["-p", "--model", "opus"].iter().map(|a| a.to_string()).collect(),
+            ["-p", "--model", "sonnet"].iter().map(|a| a.to_string()).collect(),
         ),
         _ => (path, args),
     }
@@ -535,26 +554,30 @@ pub(crate) fn run_active_ai(
     }
 }
 
-/// 생성용 CLI 선택 — judge_cli_args(opus 고정) 미적용, provider 기본 args 그대로.
+/// 생성용 CLI 선택 — provider 기본 args 그대로(claude 는 provider_spec 에서 sonnet).
 fn pick_generation_cli(
     messages: &[crate::commands::planning_chat_types::PlanningChatMessage],
 ) -> Option<(PathBuf, Vec<String>)> {
     // stdin 1-shot 으로 검증된 provider 만 허용 — claude(-p)·codex(exec) 만 stdin EOF 를
     // 입력 종료로 인식한다. opencode(run) 등은 프롬프트를 argv 로 받아 stdin 만 주면 타임아웃까지 행.
+    // 과금 회피: codex 를 우선하고, claude 는 클로이(opt-in)가 켜진 경우에만 쓴다.
+    let allow_claude = is_persona_enabled("chloe");
+    let usable = |provider: &str| provider == "codex" || (provider == "claude" && allow_claude);
     for message in messages.iter().rev() {
         if message.role == "assistant" && message.status == "ok" {
             if let Some(persona_id) = message.persona_id.as_deref() {
                 if let Some((path, args, provider)) = resolve_persona_cli(persona_id) {
-                    if provider == "claude" || provider == "codex" {
+                    if usable(&provider) {
                         return Some((path, args));
                     }
                 }
             }
         }
     }
-    for persona_id in ["chloe", "gio", "mina", "deepseek"] {
+    // codex(지오)를 먼저, claude(클로이)는 뒤로 — 켜진 경우에만 폴백된다.
+    for persona_id in ["gio", "chloe", "mina", "deepseek"] {
         if let Some((path, args, provider)) = resolve_persona_cli(persona_id) {
-            if provider == "claude" || provider == "codex" {
+            if usable(&provider) {
                 return Some((path, args));
             }
         }
@@ -665,7 +688,7 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn judge_cli_args_pins_opus_for_claude_only() {
+    fn judge_cli_args_pins_sonnet_for_claude_only() {
         use std::path::PathBuf;
         let (path, args) = super::judge_cli_args((
             PathBuf::from("/bin/claude"),
@@ -673,7 +696,7 @@ mod tests {
             "claude".to_string(),
         ));
         assert_eq!(path, PathBuf::from("/bin/claude"));
-        assert!(args.windows(2).any(|w| w[0] == "--model" && w[1] == "opus"));
+        assert!(args.windows(2).any(|w| w[0] == "--model" && w[1] == "sonnet"));
         assert_eq!(args.first().map(String::as_str), Some("-p")); // 프롬프트 모드 유지
 
         // 다른 provider 는 기본 인자 그대로 — 검증 안 된 모델 플래그를 붙이지 않는다.
@@ -746,7 +769,7 @@ mod tests {
     #[test]
     fn provider_spec_returns_executable_and_args() {
         assert_eq!(provider_spec("codex").unwrap(), ("codex", &["exec"][..]));
-        assert_eq!(provider_spec("claude").unwrap(), ("claude", &["-p"][..]));
+        assert_eq!(provider_spec("claude").unwrap(), ("claude", &["-p", "--model", "sonnet"][..]));
         assert_eq!(provider_spec("agy").unwrap(), ("agy", &["-p"][..]));
         assert_eq!(
             provider_spec("opencode").unwrap(),
@@ -799,13 +822,20 @@ mod tests {
     }
 
     #[test]
-    fn persona_enabled_defaults_true_and_reads_false() {
+    fn persona_enabled_defaults_per_persona_and_reads_explicit() {
         let v: serde_json::Value = serde_json::from_str(
-            r#"{"planning_personas":{"personas":{"gio":{"enabled":false}}}}"#,
+            r#"{"planning_personas":{"personas":{"gio":{"enabled":false},"chloe":{"enabled":true}}}}"#,
         )
         .unwrap();
-        assert!(!persona_enabled_from_value(&v, "gio"));
-        assert!(persona_enabled_from_value(&v, "chloe")); // 미지정 → true
+        assert!(!persona_enabled_from_value(&v, "gio")); // 명시 false
+        assert!(persona_enabled_from_value(&v, "chloe")); // 명시 true (opt-in 켜짐)
+
+        // 미지정 기본값: 클로이(claude)는 과금 우려로 false, 나머지는 true
+        let empty: serde_json::Value = serde_json::json!({});
+        assert!(!persona_enabled_from_value(&empty, "chloe"));
+        assert!(persona_enabled_from_value(&empty, "gio"));
+        assert!(persona_enabled_from_value(&empty, "mina"));
+        assert!(persona_enabled_from_value(&empty, "deepseek"));
     }
 
     #[test]

@@ -11,6 +11,7 @@ export type Page =
   | "settings"
   | "planning"
   | "plan-doc"
+  | "report"
   | "design-preview"
   | "work"
   | "run";
@@ -25,7 +26,7 @@ export interface StageDef {
 }
 
 export const STAGE_DEFS: StageDef[] = [
-  { key: "planning", label: "기획", icon: "📋", pages: ["planning", "plan-doc"] },
+  { key: "planning", label: "기획", icon: "📋", pages: ["planning", "plan-doc", "report"] },
   { key: "develop", label: "개발", icon: "⚙️", pages: ["code", "docs", "design-preview", "work", "run"] },
   { key: "maintain", label: "유지보수", icon: "🛡️", pages: ["doctor", "backups", "logs"] },
 ];
@@ -45,6 +46,7 @@ export const PAGE_LABELS: Record<Page, string> = {
   home: "홈",
   planning: "기획방",
   "plan-doc": "기획안",
+  report: "보고서 작성",
   code: "코드탐색",
   docs: "문서",
   "design-preview": "디자인 미리보기",
@@ -62,6 +64,7 @@ export const PAGE_DESCRIPTIONS: Record<Page, string> = {
   home: "처음 화면",
   planning: "AI와 계획 짜기",
   "plan-doc": "계획 문서",
+  report: "보고서 만들기",
   code: "코드 둘러보기",
   docs: "설명 문서",
   "design-preview": "화면 미리보기",

@@ -1,3 +1,4 @@
+// === ANCHOR: DESIGNCHIP_TEST_START ===
 import { describe, test, expect } from "vitest";
 import { designChipState } from "../designChip";
 
@@ -29,3 +30,4 @@ describe("designChipState", () => {
     expect(designChipState("idle", "home").visible).toBe(false);
   });
 });
+// === ANCHOR: DESIGNCHIP_TEST_END ===

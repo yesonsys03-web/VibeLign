@@ -1,0 +1,50 @@
+Status: DONE
+
+Changed files:
+- tests/cli/test_vib_report_cmd.py
+- tests/cli/test_vib_report_format_parity.py
+
+Evidence files:
+- .omo/evidence/report-writing-quality/task-7-post-fix-pytest.txt
+- .omo/evidence/report-writing-quality/task-7-pdf-conversion.txt
+- .omo/evidence/report-writing-quality/task-7-no-slop-check.txt
+- .omo/evidence/report-writing-quality/task-7-manual-qa-matrix.md
+- .omo/evidence/report-writing-quality/task-7-html.json
+- .omo/evidence/report-writing-quality/task-7-docx.json
+- .omo/evidence/report-writing-quality/task-7-pptx.json
+- .omo/evidence/report-writing-quality/task-7-content-check.txt
+- .omo/evidence/report-writing-quality/task-7-sparse-render.json
+
+Exact commands and result:
+- PASS: PATH="$PWD/.venv/bin:$PATH" python3 -m pytest tests/core/reporting_cli/test_html_renderer.py tests/core/reporting_cli/test_docx_renderer.py tests/core/reporting_cli/test_pptx_renderer.py tests/cli/test_vib_report_cmd.py tests/cli/test_vib_report_format_parity.py -v
+  Evidence: .omo/evidence/report-writing-quality/task-7-post-fix-pytest.txt
+- PASS: cd vibelign-gui && npm run test -- src/lib/vib/__tests__/report.test.ts -t "generateReportPdf uses html render then export_report_pdf"
+  Evidence: .omo/evidence/report-writing-quality/task-7-pdf-conversion.txt
+- PASS: awk pure-LOC check, git diff --check, parity observable grep, GUI PDF no-backend-pdf grep, and Todo 8 visual-card diff grep.
+  Evidence: .omo/evidence/report-writing-quality/task-7-no-slop-check.txt
+- PASS: manual QA matrix covers HTML, DOCX, PPTX direct CLI ok:true+content, GUI PDF via HTML export, sparse non-blocking CLI render, no backend --format pdf, and no Todo 8 visual cards.
+  Evidence: .omo/evidence/report-writing-quality/task-7-manual-qa-matrix.md
+
+Split summary:
+- Moved Todo 7 DOCX/PPTX complete-fixture package parity tests out of tests/cli/test_vib_report_cmd.py into tests/cli/test_vib_report_format_parity.py.
+- tests/cli/test_vib_report_cmd.py now owns general vib report command behavior and remains 237 pure LOC.
+- tests/cli/test_vib_report_format_parity.py owns format package/content parity and is 100 pure LOC.
+- Existing Todo 7 test files checked in the no-excuse pass are all <=250 pure LOC:
+  - tests/cli/test_vib_report_cmd.py: 237
+  - tests/cli/test_vib_report_format_parity.py: 100
+  - tests/cli/test_vib_report_render_payload.py: 224
+  - vibelign-gui/src/lib/vib/__tests__/report.test.ts: 237
+  - vibelign-gui/src/lib/vib/__tests__/reportRenderPayload.test.ts: 167
+
+Why format parity and options preservation are covered:
+- Renderer/CLI pytest now covers HTML, DOCX, PPTX renderers plus both CLI command behavior and focused format parity tests in one invocation.
+- Direct CLI generation evidence uses the complete fixture and existing report options for all three formats: theme satgat-proposal, author 팀장, title/heading/body/meta font sizes, and no page numbers.
+- DOCX and PPTX verification inspects package XML text, including Korean title, evidence phrase, author, heading/body fonts, and DOCX no-page-number field absence.
+- GUI PDF evidence proves generateReportPdf calls vib report with --format html, preserves theme/font/font-size/author/page-number/polish options, then calls export_report_pdf, with an explicit negative assertion against backend --format pdf.
+- Sparse fixture CLI HTML generation evidence remains ok:true, proving quality warnings do not block non-GUI CLI rendering.
+- No Todo 8 visual-card files, tests, or paths are included in this Todo 7 fix diff.
+
+Cleanup/temp files:
+- Pytest tmp_path directories are managed by pytest.
+- Vitest temp state only for the focused GUI wrapper test.
+- Generated report files remain under .vibelign/reports as artifacts referenced by task-7 JSON outputs.

@@ -201,7 +201,7 @@ def run_vib_checkpoint(args: object) -> None:
     _print_warning(warning, as_json)
     if context_update_error:
         _print_warning(f"PROJECT_CONTEXT.md 자동 갱신을 건너뜁니다: {context_update_error}", as_json)
-    print(f"✓ 체크포인트 저장 완료!")
+    print("✓ 체크포인트 저장 완료!")
     print(f"  메시지: {display_msg}")
     print(f"  파일 수: {summary.file_count}개")
     if summary.pruned_count:

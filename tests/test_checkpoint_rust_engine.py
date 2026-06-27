@@ -146,7 +146,10 @@ class CheckpointRustEngineTest(unittest.TestCase):
             root = Path(tmp)
             engine = root / "vibelign-engine"
             _write_fake_engine(engine, '{"status":"ok","result":"engine_info"}')
-            with patch.dict(os.environ, {"VIBELIGN_ENGINE_PATH": str(engine)}, clear=False):
+            with patch(
+                "vibelign.core.checkpoint_engine.rust_engine.discovery._candidate_paths",
+                return_value=[engine],
+            ):
                 availability = find_rust_engine(root)
 
             self.assertFalse(availability.available)
@@ -813,24 +816,22 @@ class CheckpointRustEngineTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "app.py").write_text("print('hi')\n", encoding="utf-8")
-            missing_engine = root / "missing-vibelign-engine"
 
-            with patch.dict(
-                os.environ,
-                {"VIBELIGN_ENGINE_PATH": str(missing_engine)},
-                clear=False,
+            with patch(
+                "vibelign.core.checkpoint_engine.rust_engine.discovery._candidate_paths",
+                return_value=[],
             ):
                 result = create_post_commit_backup(root, "abc1234", "feat: demo")
 
-            self.assertEqual(result.status, "created")
-            checkpoints = list_checkpoints(root)
-            self.assertGreaterEqual(len(checkpoints), 1)
-            self.assertEqual(checkpoints[0].trigger, "post_commit")
-            self.assertEqual(checkpoints[0].git_commit_message, "feat: demo")
+                self.assertEqual(result.status, "created")
+                checkpoints = list_checkpoints(root)
+                self.assertGreaterEqual(len(checkpoints), 1)
+                self.assertEqual(checkpoints[0].trigger, "post_commit")
+                self.assertEqual(checkpoints[0].git_commit_message, "feat: demo")
 
-            state = json.loads((root / ".vibelign" / "state.json").read_text())
-            self.assertEqual(state["engine_used"], "python")
-            self.assertIn("RUST_ENGINE_UNAVAILABLE", state["last_fallback_reason"])
+                state = json.loads((root / ".vibelign" / "state.json").read_text())
+                self.assertEqual(state["engine_used"], "python")
+                self.assertIn("RUST_ENGINE_UNAVAILABLE", state["last_fallback_reason"])
 
     def test_python_checkpoint_preserves_post_commit_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1068,8 +1069,9 @@ class CheckpointRustEngineTest(unittest.TestCase):
             _ = (root / "app.py").write_text("print(1)\n", encoding="utf-8")
             engine = RustCheckpointEngine()
 
-            with patch.dict(
-                os.environ, {"VIBELIGN_ENGINE_PATH": str(root / "missing")}, clear=False
+            with patch(
+                "vibelign.core.checkpoint_engine.rust_engine.discovery._candidate_paths",
+                return_value=[],
             ):
                 summary = engine.create_checkpoint(root, "fallback")
 
@@ -1094,11 +1096,11 @@ class CheckpointRustEngineTest(unittest.TestCase):
 
             with patch.dict(
                 os.environ,
-                {
-                    "VIBELIGN_ENGINE_PATH": str(root / "missing"),
-                    "VIBELIGN_REQUIRE_RUST_CHECKPOINT": "1",
-                },
+                {"VIBELIGN_REQUIRE_RUST_CHECKPOINT": "1"},
                 clear=False,
+            ), patch(
+                "vibelign.core.checkpoint_engine.rust_engine.discovery._candidate_paths",
+                return_value=[],
             ):
                 with self.assertRaisesRegex(RuntimeError, "RUST_ENGINE_UNAVAILABLE"):
                     _ = engine.create_checkpoint(root, "must use rust")
@@ -1137,8 +1139,9 @@ class CheckpointRustEngineTest(unittest.TestCase):
             )
             engine = RustCheckpointEngine()
 
-            with patch.dict(
-                os.environ, {"VIBELIGN_ENGINE_PATH": str(engine_path)}, clear=False
+            with patch(
+                "vibelign.core.checkpoint_engine.rust_engine.discovery._candidate_paths",
+                return_value=[engine_path],
             ):
                 summary = engine.create_checkpoint(root, "integrity")
 
@@ -1165,8 +1168,9 @@ class CheckpointRustEngineTest(unittest.TestCase):
             )
             engine = RustCheckpointEngine()
 
-            with patch.dict(
-                os.environ, {"VIBELIGN_ENGINE_PATH": str(engine_path)}, clear=False
+            with patch(
+                "vibelign.core.checkpoint_engine.rust_engine.discovery._candidate_paths",
+                return_value=[engine_path],
             ):
                 checkpoints = engine.list_checkpoints(root)
 

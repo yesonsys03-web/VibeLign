@@ -1,0 +1,9 @@
+{"ok": false, "error": "승인된 카드가 없습니다. 카드뉴스로 내보낼 카드를 먼저 승인하세요."}
+{"ok": false, "error": "카드뉴스 payload를 읽을 수 없어요: 1 validation error for _PayloadModel\ncards.0.approved\n  Input should be a valid boolean [type=bool_type, input_value='false', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.12/v/bool_type"}
+{"ok": false, "error": "카드뉴스 출력 경로가 프로젝트 밖을 가리켜요."}
+empty_exit_status=1
+string_false_exit_status=1
+symlink_exit_status=1
+outside_dir_empty=yes
+cleanup_target=/var/folders/_t/6r2qjps14jd83045jgx81k8r0000gn/T/tmp.j8zBud5xyr
+outside_cleanup_target=/var/folders/_t/6r2qjps14jd83045jgx81k8r0000gn/T/tmp.FDq9k5tlvZ

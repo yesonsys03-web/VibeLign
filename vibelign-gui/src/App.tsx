@@ -39,6 +39,7 @@ import { StageSwitcherBar } from "./components/nav/StageSwitcherBar";
 import { StageSubnav } from "./components/nav/StageSubnav";
 import { StageHubCards } from "./components/nav/StageHubCards";
 import PlanDocView from "./pages/PlanDocView";
+import ReportView from "./pages/ReportView";
 import DesignPreview, { type DesignBinding } from "./pages/DesignPreview";
 import { useDesignJob } from "./lib/design-preview/useDesignJob";
 import { DesignJobChip } from "./components/nav/DesignJobChip";
@@ -46,6 +47,9 @@ import { runDetect } from "./lib/vib/run";
 import { HomePlanningStart } from "./components/home/HomePlanningStart";
 import "./styles/brutalism.css";
 import "./App.css";
+import { useTutorial } from "./lib/tutorial/useTutorial";
+import SpotlightTour from "./components/tutorial/SpotlightTour";
+import TutorialPicker from "./components/tutorial/TutorialPicker";
 
 // ─── Error Boundary ────────────────────────────────────────────────────────────
 class ErrorBoundary extends Component<
@@ -92,6 +96,7 @@ export default function App() {
   const [projectDir, setProjectDir] = useState<string | null>(null);
   const [recentDirs, setRecentDirs] = useState<string[]>([]);
   const [page, setPage] = useState<Page>("home");
+  const [reportSourcePath, setReportSourcePath] = useState<string | null>(null);
   const designJob = useDesignJob(projectDir ?? "");
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [providerKeys, setProviderKeys] = useState<Record<string, string>>({});
@@ -353,6 +358,11 @@ export default function App() {
     setPage(next);
   }
 
+  function openReportFor(path: string) {
+    setReportSourcePath(path);
+    navigate("report");
+  }
+
   useEffect(() => {
     if (page !== "doctor" || !doctorLaunchIntent) return;
     const nextIntent = buildGuardDoctorLaunchIntent(hasAnyAiKey);
@@ -485,6 +495,35 @@ export default function App() {
     backupLoaded,
   );
 
+  const tutorial = useTutorial();
+  const [showPicker, setShowPicker] = useState(false);
+  const [tutorialGraduated, setTutorialGraduated] = useState(false);
+
+  // 튜토리얼 신호 객체 (useGuide에 넘기는 것과 동일 — 재사용)
+  const tutorialSignals = {
+    hasPlanDoc: Boolean(planningResult?.outputPath),
+    planningPending: planningPendingNow,
+    hasCheckpoint: hasUserCheckpoint,
+    changedFileCount,
+    guardStatus,
+    runVerified,
+  };
+
+  useEffect(() => {
+    if (tutorial.isComplete && !tutorialGraduated) {
+      setTutorialGraduated(true);
+      guide.setEnabled(true);   // 반응형 가이드로 졸업 인계
+      tutorial.exit();
+    }
+  }, [tutorial.isComplete, tutorialGraduated, guide, tutorial]);
+
+  // 앱을 새로 켜면(재실행) 이전 튜토리얼은 초기화 — 재시작 시 엉뚱한 지점에서 되살아나지 않게.
+  // 세션 내 화면 이동에는 영향 없음(App은 재마운트되지 않음). 다시 하려면 피커에서 새로 시작.
+  useEffect(() => {
+    tutorial.exit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 4️⃣ 도구 미보유 분기(spec §3.2) — 0개 "확정 탐지"일 때만 true. 탐지 실패는 기존 값 유지(추측 안내 금지).
   const [aiToolMissing, setAiToolMissing] = useState(false);
   const prevPageForToolsRef = useRef<Page | null>(null);
@@ -558,7 +597,7 @@ export default function App() {
         {!projectDir ? (
           <Onboarding
             recentDirs={recentDirs}
-            onComplete={(dir, key) => { addToRecent(dir); setProjectDir(dir); if (key) setApiKey(key); setPage("home"); void loadProjectPlanning(dir); }}
+            onComplete={(dir, key) => { addToRecent(dir); setProjectDir(dir); if (key) setApiKey(key); setPage("home"); void loadProjectPlanning(dir); setShowPicker(true); }}
             onPlanRequest={openPlanningRoom}
             onResume={(dir) => { void resumeProject(dir); }}
             onRemoveRecent={(dir) => removeFromRecent(dir)}
@@ -576,22 +615,24 @@ export default function App() {
             />
             <StageSubnav page={page} onNavigate={navigate} />
 
-            <GuideStrip
-              enabled={guide.enabled}
-              step={guide.step}
-              currentPage={page}
-              hasCheckpoint={hasCheckpoint}
-              planningPending={planningPendingNow}
-              aiToolMissing={aiToolMissing}
-              celebrating={celebrating}
-              runVerified={runVerified}
-              guardOk={guardStatus === "ok"}
-              onNavigate={navigate}
-              onStepChange={guide.setStep}
-              onDisable={() => guide.setEnabled(false)}
-              onOpenSettings={() => openSettings()}
-              onCelebrateDismiss={() => setCelebrating(false)}
-            />
+            {!tutorial.active && (
+              <GuideStrip
+                enabled={guide.enabled}
+                step={guide.step}
+                currentPage={page}
+                hasCheckpoint={hasCheckpoint}
+                planningPending={planningPendingNow}
+                aiToolMissing={aiToolMissing}
+                celebrating={celebrating}
+                runVerified={runVerified}
+                guardOk={guardStatus === "ok"}
+                onNavigate={navigate}
+                onStepChange={guide.setStep}
+                onDisable={() => guide.setEnabled(false)}
+                onOpenSettings={() => openSettings()}
+                onCelebrateDismiss={() => setCelebrating(false)}
+              />
+            )}
 
             <DesignJobChip status={designJob.status} page={page} onOpen={() => navigate("design-preview")} />
 
@@ -606,7 +647,7 @@ export default function App() {
                         // 재조회에서 지문 불일치로) 리셋된다 — baseline과 같은 좁은 경쟁 구간 허용(spec §4-7).
                         guardCheckedFingerprintRef.current = changedFingerprint;
                         setGuardStatus(status);
-                      }} />
+                      }} onStartTutorial={() => setShowPicker(true)} />
                   </>
                 )}
                 {page === "planning" && (planningResult ? (
@@ -625,6 +666,7 @@ export default function App() {
                     <button className="nav-tab" onClick={() => setShowSessionPicker(true)}>이전 기획 불러오기</button>
                   </div>
                 ))}
+                {page === "report" && <ReportView projectDir={projectDir} sourcePath={reportSourcePath} onSourceHandled={() => setReportSourcePath(null)} onStart={() => { if (planningResult) navigate("planning"); else setPage("home"); }} />}
                 {page === "plan-doc" && <PlanDocView projectDir={projectDir} activeSessionId={planningResult?.sessionId ?? null} onStart={() => { if (planningResult) navigate("planning"); else setPage("home"); }} onDeleted={(sessionId) => { if (planningResult?.sessionId === sessionId) setPlanningResult(null); }} onEdit={(sessionId) => void resumeSession(sessionId)} onDesignPreview={(planPath) => {
                   setDesignPlanPath(planPath);
                   // 웹 게이트(비차단): 확정 web 일 때만 무경고. electron·unknown 은 경고, 탐지 실패(null)는 무경고.
@@ -651,8 +693,8 @@ export default function App() {
                   </div>
                 ))}
                 {page === "manual" && <Home key="manual" projectDir={projectDir} apiKey={apiKey} providerKeys={providerKeys} hasAnyAiKey={hasAnyAiKey} aiKeyStatusLoaded={envKeyStatusLoaded} onNavigate={navigate} onOpenSettings={openSettings} initialView="manual_list" watchOn={watchOn} setWatchOn={setWatchOn} mapMode={mapMode} setMapMode={setMapMode} onStartPlanning={(idea) => { if (projectDir) void openPlanningRoom(projectDir, idea); }} guideStep={guide.enabled ? guide.step : null} />}
-                {page === "docs" && <DocsViewer projectDir={projectDir} />}
-                {page === "code" && <CodeExplorer projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} planningDocStale={planningResult?.docStale ?? false} onReviewInPlanning={(path) => { if (projectDir) void openPlanningRoom(projectDir, buildPlanReviewPrompt(path), path); }} />}
+                {page === "docs" && <DocsViewer projectDir={projectDir} onGenerateReport={openReportFor} />}
+                {page === "code" && <CodeExplorer projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} planningDocStale={planningResult?.docStale ?? false} onReviewInPlanning={(path) => { if (projectDir) void openPlanningRoom(projectDir, buildPlanReviewPrompt(path), path); }} onGenerateReport={openReportFor} />}
                 {page === "work" && <WorkRoom projectDir={projectDir} planningPrompt={planningPrompt} planningOutputPath={planningResult?.outputPath ?? null} planningContract={planningResult?.contract ?? null} planningDocStale={planningResult?.docStale ?? false} design={designBinding ?? undefined} designPlanPath={designPlanPath ?? undefined} workHandoff={workHandoff} onWorkHandoffConsumed={() => setWorkHandoff(null)} onNavigate={navigate} onOpenSettings={() => openSettings()} onGuardResult={(status) => {
                   // 작업방 자동 검사도 홈 '상태 확인'과 같은 가이드 신호 채널로 보고(spec §4-7와 동일 지문 기록).
                   guardCheckedFingerprintRef.current = changedFingerprint;
@@ -693,6 +735,32 @@ export default function App() {
             }
           }}
         />
+      )}
+      {projectDir && tutorial.active && tutorial.step && (
+        <SpotlightTour
+          tutorial={tutorial.active}
+          stepIndex={tutorial.stepIndex}
+          step={tutorial.step}
+          signals={tutorialSignals}
+          onAdvance={tutorial.advance}
+          onExit={tutorial.exit}
+          onNavigate={navigate}
+        />
+      )}
+      {showPicker && projectDir && !tutorial.active && (
+        <TutorialPicker
+          onPick={(id) => { setShowPicker(false); setTutorialGraduated(false); tutorial.start(id); }}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
+      {tutorialGraduated && projectDir && (
+        <div className="tutpick-backdrop" role="dialog" aria-label="졸업">
+          <div className="tutpick-panel">
+            <h2 className="tutpick-title">🎉 축하합니다 — 당신이 첫 앱을 완성했어요!</h2>
+            <p className="tutpick-sub">방금 이 순서로 만든 거예요: 기획 → 저장 → AI 작업 → 검사 → 저장/되돌리기.<br/>이제 혼자 같은 순서로 무엇이든 만들 수 있어요.</p>
+            <button className="btn" onClick={() => setTutorialGraduated(false)}>좋아요!</button>
+          </div>
+        </div>
       )}
       <ScrollToTopButton />
     </div>

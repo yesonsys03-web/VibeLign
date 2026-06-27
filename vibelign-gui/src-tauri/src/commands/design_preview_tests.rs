@@ -1,3 +1,4 @@
+// === ANCHOR: DESIGN_PREVIEW_TESTS_START ===
 use super::design_preview::*;
 
 #[test]
@@ -223,3 +224,4 @@ fn strip_code_fences_removes_html_fence() {
     assert_eq!(strip_code_fences("```html\n<!doctype html>\n```"), "<!doctype html>");
     assert_eq!(strip_code_fences("<!doctype html>"), "<!doctype html>");
 }
+// === ANCHOR: DESIGN_PREVIEW_TESTS_END ===

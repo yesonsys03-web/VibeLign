@@ -3,7 +3,7 @@
 // 타입은 백엔드 serde(camelCase) 계약과 1:1. watch.ts 패턴을 따른다.
 import { invoke } from "@tauri-apps/api/core";
 
-export type RunProjectKind = "electron" | "web" | "unknown";
+export type RunProjectKind = "electron" | "web" | "unknown" | "staticWeb";
 
 /** run_detect 결과. program/preview 상세는 UI 가 안 써서 생략(invoke 가 추가 필드는 무시). */
 export interface RunRecipe {

@@ -143,7 +143,7 @@ describe("PlanningRoom chat session view", () => {
       projectDir: "/tmp/demo",
       sessionId: "chat_1",
       prompt: "사용 흐름을 더 구체화해줘",
-      agents: ["gio"],
+      agents: ["chloe"],
       includeUserMessage: true,
       extractCards: true,
     });
@@ -278,17 +278,19 @@ describe("PlanningRoom chat session view", () => {
         expect.objectContaining({
           messages: expect.arrayContaining([
             expect.objectContaining({ content: "세 명이 차례로 봐줘", role: "user" }),
-            expect.objectContaining({ content: "클로이가 답변을 준비하고 있어요.", personaId: "chloe", status: "pending" }),
+            // 클로이는 기본 OFF(opt-in)라 "모두"에서 제외 → 첫 응답자는 지오.
+            expect.objectContaining({ content: "지오가 답변을 준비하고 있어요.", personaId: "gio", status: "pending" }),
           ]),
         }),
       );
     });
-    await waitFor(() => expect(mocks.appendPlanningChatTurnMock).toHaveBeenCalledTimes(4));
+    // "모두" = 켜진 페르소나만(지오·미나·딥시기) — 클로이 제외라 3회 호출.
+    await waitFor(() => expect(mocks.appendPlanningChatTurnMock).toHaveBeenCalledTimes(3));
     expect(mocks.appendPlanningChatTurnMock).toHaveBeenNthCalledWith(1, {
       projectDir: "/tmp/demo",
       sessionId: "chat_1",
       prompt: "세 명이 차례로 봐줘",
-      agents: ["chloe"],
+      agents: ["gio"],
       includeUserMessage: true,
       extractCards: false,
     });
@@ -296,7 +298,7 @@ describe("PlanningRoom chat session view", () => {
       projectDir: "/tmp/demo",
       sessionId: "chat_1",
       prompt: "세 명이 차례로 봐줘",
-      agents: ["gio"],
+      agents: ["mina"],
       includeUserMessage: false,
       extractCards: false,
     });

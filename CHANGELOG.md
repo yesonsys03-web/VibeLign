@@ -10,6 +10,323 @@
 
 ---
 
+## [2.5.8] — 2026-06-27
+
+**Windows onboarding Gari car animation parity** — Windows 11에서 첫 실행 온보딩의 갸리차가 왼쪽에서 들어오지 않고 중앙에 멈춰 있던 문제를 고쳤다.
+
+### Fixed
+
+- **Windows 갸리차 진입 애니메이션 정지** — reduced-motion 분기에서 갸리차의 `rollin`, `rollout`, `gyari-drive` 애니메이션을 꺼 버리던 CSS를 수정했다. Windows 접근성 설정이나 WebView2 reduced-motion 감지 상태에서도 갸리차가 macOS처럼 왼쪽에서 들어오고, 클릭 시 퇴장 애니메이션을 유지한다.
+- **전역 reduced-motion 가드와 갸리차 충돌** — 전역 모션 완화 규칙이 갸리차 애니메이션 시간을 `0.01ms`로 눌러 즉시 중앙 정지처럼 보이던 문제를 갸리차 전용 override로 보정했다.
+
+### Upgrade Notes
+
+- Windows에서 갸리차가 중앙에 멈춰 있던 사용자는 v2.5.8 Windows GUI 산출물로 업데이트한 뒤 앱을 다시 실행하면 된다.
+- 이번 변경은 온보딩 갸리차 CSS에 한정되며, MCP 설정이나 Python 런타임 번들 동작은 v2.5.7과 동일하다.
+
+### Verified
+
+- GUI production build, 온보딩/갸리 로딩 관련 Vitest, forced reduced-motion Chrome screenshot 확인으로 macOS와 같은 진입 애니메이션을 검증했다. 실제 Windows 설치본 재검증은 v2.5.8 태그 빌드 산출물에서 확인 대상이다.
+
+---
+
+## [2.5.7] — 2026-06-27
+
+**Windows MCP runtime packaging fix** — Windows 11에서 Claude Code의 VibeLign MCP 도구가 연결은 되지만 모든 호출이 `No module named 'vibelign.mcp.mcp_memory_handlers'`로 실패하던 번들 런타임 문제를 고쳤다.
+
+### Fixed
+
+- **Windows MCP handler 번들 누락** — PyInstaller `vib-runtime`에 동적 import로 로딩되는 MCP handler 모듈이 빠져 `mcp_memory_handlers` 등에서 `ModuleNotFoundError`가 날 수 있던 문제를 수정했다. `mcp_denied_handlers`, `mcp_memory_handlers`, `mcp_recovery_handlers`를 hidden imports에 명시했다.
+- **MCP handler 번들 회귀 방지** — `vibelign/mcp/mcp_*_handlers.py` 파일이 추가되면 `vib.spec` hidden imports에 빠지지 않았는지 검사하는 회귀 테스트를 추가했다.
+
+### Upgrade Notes
+
+- Windows에서 이미 깨진 2.5.6 런타임은 내부 모듈이 누락된 상태라 `.mcp.json`만 수정해도 복구되지 않는다. v2.5.7 Windows GUI 산출물로 재설치한 뒤 Claude Code를 완전히 종료하고 다시 열어야 한다.
+- 기존 `.mcp.json`이 `vib.exe mcp`를 가리키는 경우에도 현재 코드의 `vib mcp` 하위호환 진입점은 유지된다.
+
+### Verified
+
+- MCP handler hidden import 회귀 테스트, MCP memory/recovery/denied/grant 관련 테스트, Claude/Cursor MCP 등록 테스트를 로컬에서 확인했다. 실제 Windows 설치본 재검증은 v2.5.7 태그 빌드 산출물에서 확인 대상이다.
+
+---
+
+## [2.5.6] — 2026-06-25
+
+**Intel(x86_64) macOS 빌드 + 자동 업데이트 지원** — macOS 릴리즈가 Apple Silicon(arm64)만 제공하던 것을 Intel(x86_64)까지 확장했다. GUI CI가 Intel 네이티브 러너에서 빌드·서명·업로드하고, 업데이터 매니페스트에 `darwin-x86_64`를 추가해 Intel Mac도 인앱 자동 업데이트를 받는다.
+
+### Added
+
+- **Intel macOS 네이티브 빌드** — GUI CI 빌드 매트릭스에 Intel 네이티브 러너(`macos-15-intel`)를 추가했다. PyInstaller `vib-runtime`은 호스트 아키텍처로만 빌드되어 크로스컴파일이 불가능하므로 x86_64 산출물은 Intel 네이티브 러너에서 빌드한다. (이전 Intel 러너 `macos-13`은 2025-12 은퇴.) Intel `.dmg`와 업데이터 아카이브(`vibelign-gui_x64.app.tar.gz`)가 릴리즈 에셋에 추가된다.
+- **Intel 자동 업데이트** — 릴리즈 워크플로가 러너 아키텍처에 맞는 업데이터 platform 키(`darwin-aarch64` / `darwin-x86_64`)를 생성하고, 두 macOS 매니페스트 조각을 병합해 `latest.json`에 두 아키텍처를 모두 싣는다.
+
+### Changed
+
+- **macOS 업데이터 아카이브 유일화** — arm64/Intel 두 빌드의 `.app.tar.gz`가 동일 이름이라 릴리즈 에셋이 충돌하던 것을 아키텍처 라벨로 분리했다(`vibelign-gui_aarch64.app.tar.gz` / `vibelign-gui_x64.app.tar.gz`). 업데이터 서명은 파일 내용 기준이라 이름 변경의 영향이 없다.
+- **Intel 빌드 실패 격리** — Intel(`macos-15-intel`) 빌드가 실패해도 arm64/Windows 릴리즈 발행을 막지 않도록 릴리즈 잡이 Intel 산출물 누락을 건너뛴다.
+
+### Verified
+
+- 워크플로 YAML 파싱·빌드 매트릭스 표현식·매니페스트 병합/publish 글롭 구조를 로컬에서 확인했다. 실제 Intel `.dmg` 생성과 인앱 자동 업데이트 적용은 태그 빌드 산출물에서 확인 대상이다.
+
+---
+
+## [2.5.5] — 2026-06-24
+
+**온보딩 시작 영상 + 카드뉴스 후속 안정화** — 첫 실행 온보딩 하단에 바로 재생되는 시작 영상을 추가하고, 제목 클릭으로 Threads 프로필을 열 수 있게 했다. v2.5.4 카드뉴스 후속으로 포스터 HTML round-trip, asset 출처 분류, 배치 SVG 부분 폴백 로깅을 정리했다.
+
+### Added
+
+- **온보딩 시작 영상** — 첫 실행 화면의 `AI 도구 · 설치 · 시스템 상태` 아래에 Dropbox 원본 영상을 자동 반복 재생 플레이어로 배치했다. 영상은 원본 16:9 비율을 유지하고 플레이어 안에서 잘리지 않게 표시한다.
+- **Threads 프로필 연결** — 온보딩 영상 제목 `VibeLign 시작 영상`을 클릭하면 `https://www.threads.com/@jongjatdon`을 기본 브라우저로 연다. Tauri opener 기본 권한(`https://`)과 Windows target check로 확인했다.
+- **카드뉴스 배치 폴백 로그** — 모델이 카드 수보다 적은 SVG를 반환해 일부 카드가 스케치로 폴백될 때 debug 로그로 폴백 개수를 남긴다.
+
+### Changed
+
+- **카드뉴스 sketch 출처 마커 단일화** — 스케치 SVG 렌더러와 asset 출처 분류기가 같은 `SKETCH_MARKER_ATTR` 상수를 공유해 마커명 drift로 fallback/LLM 출처가 오분류되지 않게 했다.
+- **죽은 poster_draft 배선 제거** — v2.5.4에서 제거된 생성 중 임시 포스터 소비처의 잔여 stderr 이벤트, GUI 파싱 타입, 백엔드 wrapper를 정리했다. 살아있는 per-card sketch-first draft 이벤트는 유지된다.
+
+### Fixed
+
+- **poster_html 파싱 보존** — 저장된 카드뉴스 payload를 다시 읽을 때 `poster_html`이 조용히 사라지던 latent round-trip 문제를 고쳤다.
+- **온보딩 영상 링크 테스트 안정화** — `openUrl` mock을 각 테스트마다 Promise 반환 계약으로 복원해 제목 클릭 테스트가 실제 Tauri API 계약과 맞게 동작한다.
+
+### Verified
+
+- GUI 온보딩 테스트, 변경 파일 ESLint, `npx tsc --noEmit`, `cargo check --target x86_64-pc-windows-gnu`로 확인했다. 브라우저 단독 렌더링에서 데스크톱/모바일 영상 배치와 16:9 비율도 확인했다. 실제 Windows 앱에서 기본 브라우저가 열리는 수동 클릭 QA는 태그 빌드 산출물에서 확인 대상이다.
+
+---
+
+## [2.5.4] — 2026-06-23
+
+**카드뉴스 포스터 모드 + 생성 진행 시각화 + 보고서 속도 개선** — 카드뉴스를 "전체 디자인 통째(포스터)"로도 만들 수 있게 하고, 오래 걸리는 생성·AI 보완 작업에 갸리 자동차 진행바를 붙였다. 포스터 모드에서 쓰이지 않는 카드 이미지 생성을 건너뛰고 AI 보완 제안을 병렬화해 대기 시간을 크게 줄였다.
+
+### Added
+
+- **카드뉴스 포스터 모드(전체 디자인 통째)** — 카드별 일러스트 대신 한 장짜리 포스터 카드뉴스를 모델이 직접 디자인한다. 결과는 null-origin sandbox iframe으로 안전하게 미리보기한다.
+- **생성 진행바 + 갸리 자동차** — 카드뉴스 생성과 AI 보완 제안 요청 모두 START→🏁 GOAL 진행바에 갸리 자동차가 움직여 대기 중 진행 상황을 보여준다.
+- **sketch-first 점진 렌더링** — 카드뉴스(카드별 모드) 생성 중 스토리보드 스케치를 즉시 보여주고, 완성된 이미지로 교체한다.
+- **카드별 개별 이미지 프롬프트** — 카드뉴스 확정 시 저장되는 이미지 프롬프트가 "번호대로 N장 개별 이미지(하나로 합치지 말 것)"를 요청한다(Gemini·ChatGPT·범용). Claude HTML 프롬프트는 카드별 분리 + 인쇄 시 1장=1페이지.
+
+### Changed
+
+- **AI 보완 제안 병렬화** — 품질 경고별 LLM 호출을 순차에서 동시 최대 4개로 병렬화해, 경고 4개 기준 대기 시간을 약 4배(≈360s→≈90s) 단축했다.
+- **포스터 모드 속도 최적화** — 포스터는 카드 텍스트로 디자인되고 카드별 SVG를 소비하지 않으므로, 생성·확정 양쪽에서 미사용 SVG 생성을 건너뛴다(포스터 출력은 동일).
+- **카드뉴스 SVG 배치 생성** — 카드별 개별 호출 대신 단일 CLI 배치 호출로 생성해 호출 수를 줄였다(타임아웃 300s).
+- **보완 초안 가독성** — "사용자 확인 보완 초안"이 원문 마크다운 덩어리 대신 불릿 목록으로 렌더되고, **굵게**/*기울임*/`코드` 인라인 서식이 적용된다.
+- **모델·모드 전환 시 결과 리셋** — 카드뉴스 모델이나 모드(카드별↔포스터)를 바꾸면 이전 결과를 즉시 비워, 다른 컨텍스트의 stale 결과가 남지 않는다.
+
+### Fixed
+
+- **생성 중 stale 포스터 표시 제거** — 모델 전환 후 생성 중에 이전 포스터(모델-무관 결정적 렌더)가 보이던 혼동을 없앴다. 포스터 모드 생성 중엔 진행바만 표시한다.
+- **카드뉴스 HTML sanitizer 강화** — `javascript:`/`vbscript:`/`data:` URI, 프로토콜 상대 URL, JS 인터랙티브 포스터(`<button>`/슬라이드)를 제거하고 정적·전체표시 포스터로 강제한다.
+- **포스터 폴백 self-contained** — srcDoc iframe에서 깨지던 상대경로 `<img>`를 인라인 스케치 SVG로 대체한다.
+- **빌드 누락 모듈** — `vib.spec` hidden_imports에 누락된 lazy_command 모듈을 추가해 번들 사이드카에서의 ModuleNotFoundError를 막았다.
+
+### Verified
+
+- Python report/카드뉴스/보완 테스트(pytest 270건), GUI 테스트(vitest), ruff/tsc/eslint로 확인했다. 실행 중인 Tauri 앱의 시각 동작(진행바·포스터 미리보기)과 실측 속도는 사용자 육안 검증 대상이다. 네이티브 Windows/macOS 패키지 빌드는 태그 푸시 후 GitHub Actions가 수행한다.
+
+---
+
+## [2.5.3] — 2026-06-21
+
+**보고서 카드뉴스 출력 강화** — 보고서 내용을 3-6장 요약 카드로 나누고, 사용자가 구독 중인 CLI 모델별로 초안과 카드별 이미지를 다르게 생성할 수 있게 했다. 최종 HTML 카드뉴스에서도 생성 이미지가 실제로 보이도록 asset 저장·렌더링 경로를 정리했다.
+
+### Added
+
+- **카드뉴스 초안 모델 선택** — GUI 카드뉴스 companion에서 Local, Claude Code, Codex, Antigravity, OpenCode/DeepSeek 계열을 선택해 카드뉴스 초안을 만들 수 있다.
+- **내용 기반 카드 이미지 asset 생성** — 각 카드의 `visual_prompt`를 바탕으로 카드 본문 칸에 들어갈 SVG asset을 생성하고 `.vibelign/reports/card-news/assets/` 아래에 저장한다.
+- **LLM별 prompt pack 출력** — 카드뉴스 확정 시 각 LLM에서 바로 재생성·비교할 수 있는 prompt 파일을 함께 저장한다.
+- **asset 전용 미리보기 테스트** — 상대경로, macOS/POSIX 절대경로, Windows `C:\...` 절대경로 모두 생성 이미지로 렌더링되는지 검증한다.
+
+### Changed
+
+- **초안 화면과 최종 HTML의 표현 일치** — 초안 카드에서도 최종 HTML 카드뉴스처럼 생성 이미지가 카드 본문 칸에 표시된다.
+- **모델별 결과 차이 보존** — 모델이 다시 쓴 카드 문구와 `visual_prompt`가 asset 생성까지 이어져, 모델별 초안 이미지가 같은 placeholder로 수렴하지 않도록 했다.
+- **Tauri asset protocol 허용 범위 추가** — 앱 안에서 `.vibelign/reports/card-news/assets/` SVG를 안전하게 로드하도록 설정했다.
+
+### Fixed
+
+- **Windows 생성 이미지 미리보기** — Windows 절대경로(`C:\Users\...\ .vibelign\reports\card-news\assets\...`)로 저장된 카드뉴스 asset도 앱에서 이미지로 표시되도록 수정했다.
+- **깨진 이미지 아이콘/unsupported URL** — 로컬 file path를 그대로 `<img>`에 넣지 않고 Tauri `convertFileSrc()` 경로로 변환한다.
+- **stale CLI 오류 안내** — 설치된 `vib`가 오래되어 `report-card-news` 명령을 모를 때 빈 JSON parse 오류 대신 업데이트 안내를 보여준다.
+
+### Verified
+
+- Python 카드뉴스/Windows 경로 테스트, GUI 카드뉴스 미리보기 테스트, production GUI build, Tauri debug build로 확인했다. 네이티브 Windows 패키지 빌드는 태그 푸시 후 GitHub Actions의 Windows runner가 수행한다.
+
+---
+
+## [2.5.2] — 2026-06-19
+
+**보고서 작성 폼 디자인 통일** — 보고서 내보내기 옵션 패널의 제각각이던 컨트롤(브라우저 기본 라디오·체크박스·드롭다운)을 코드탐색 화면의 사이드 버튼 디자인 언어로 통일했다.
+
+### Changed
+
+- **종류·형식 선택을 사이드 버튼으로** — `업무/제안/결과/문서`, `HTML/PDF/Word/PPT` 라디오를 코드탐색식 풀폭 세로 버튼(선택 시 다크 배경 + 좌측 액센트 바)으로 교체 (`ReportComposer.tsx`).
+- **페이지 번호·AI 다듬기를 토글 버튼으로** — 두 체크박스를 동일한 사이드 버튼식 토글(✓ 표시)로 통일 (`ReportComposer.tsx`).
+- **디자인 테마·작성자·폰트 종류 통일** — 드롭다운/입력을 브루탈리즘 `input-field`(검정 테두리 + 그림자 + 풀폭)로 맞추고 그룹마다 라벨 헤더를 추가 (`ReportComposer.tsx`, `ReportThemeSelect.tsx`, `ReportFontSelect.tsx`).
+
+### Fixed
+
+- **PPT 파일 버튼 잘림** — `<label>`이 `.btn`의 display 를 못 받아 가로로 흐르며 잘리던 문제를 `display:flex` 명시로 풀폭 세로 적층 수정 (`ReportComposer.tsx`).
+
+### Verified
+
+- 라디오·체크박스는 input 을 sr-only 로 숨기고 label 을 버튼화해 네이티브 토글·키보드·접근성(role/aria)·`getByLabelText` 테스트를 모두 보존. `npx tsc --noEmit`·ESLint·`vite build` 통과, `ExportReportModal` 14/14 통과, 전체 GUI 348 통과(기존 flaky/부채 3건은 부모 커밋에서도 동일 재현 — 본 변경 무관).
+
+---
+
+## [2.5.1] — 2026-06-18
+
+**삿갓 specimen 보고서팩 + Claude 안내 복원** — v2.5.0 보고서 내보내기 위에 satgat 스타일 specimen 테마 13종을 추가하고, 취소된 Claude 정책 변경 대응 문구를 되돌렸다. 기획방 기본 우선순위도 기존 흐름인 클로이(Claude) → 지오(Codex) 순서로 복원했다.
+
+### Added
+
+- **삿갓 specimen 보고서 테마 13종** — satgat 데모팩 전수 specimen처럼 바로 비교할 수 있는 보고서 양식을 theme catalog와 GUI 드롭다운에 추가 (`theme_catalog.py`, `reportThemes.ts`).
+
+### Changed
+
+- **기획방 기본 응답 모드 복원** — 기본 선택을 `초안 · 클로이`로 되돌리고, `Instant · 지오`는 두 번째 선택지로 유지 (`PlanningModes.ts`, `PlanningRoom.mode.test.tsx`).
+- **Claude 크레딧/차감 경고 제거** — 취소된 `claude -p` 정책 변경 대응 문구를 기획방 칩, 페르소나 설정, 작업방, 디자인 미리보기에서 제거 (`PlanningPersonaComposer.tsx`, `PlanningPersonaSettings.tsx`, `WorkRoom.tsx`, `DesignPreview.tsx`).
+
+### Verified
+
+- GUI 기획방/디자인 테스트 22개 통과, 변경 파일 ESLint 통과, `npx tsc --noEmit` 통과, `npx vite build` 통과. 보고서 테마 테스트는 13종 specimen 테마 ID와 GUI theme metadata를 검증.
+
+---
+
+## [2.5.0] — 2026-06-18
+
+**보고서 작성 대폭 강화** — 기획방에서 만든 기획안(또는 임의 문서)을 직장에서 바로 쓰는 보고서로 내보내는 흐름을 처음부터 끝까지 다듬었다. PDF·Word·PPT 출력, 50여 종 테마, 한글 무료 폰트 선택, 그리고 Word 한글이 "풀려" 보이던 문제까지 정리했다.
+
+### Added
+
+- **기획안 → 보고서 원클릭** — 저장된 기획안을 **업무 보고 · 제안서 · 결과 보고 · 문서 그대로** 네 종류로 내보낸다 (`ReportComposer.tsx`, `ReportView.tsx`, `vib report`).
+- **우클릭으로 보고서 작성** — 문서/코드 탐색에서 우클릭 → "보고서 작성" 진입. 기획 양식이 아닌 임의 `.md` 도 "문서 그대로"(`--type doc`)로 보고서화 (`parse_generic_markdown`).
+- **4가지 출력 포맷** — HTML 미리보기 · **PDF** · **Word(.docx)** · **PPT(.pptx)**.
+- **PDF 인앱 미리보기 + 2-pane 작성 화면** — 왼쪽 옵션, 오른쪽에 결과 PDF 가 바로 보인다(pdf.js 내장 렌더).
+- **디자인 테마 50여 종** — 레이아웃 × 색상 팔레트 × 밀도 조합.
+- **폰트 크기 조절** — 제목 · 머리말(종류·날짜·작성자) · 소제목 · 본문 각각.
+- **폰트 선택 — 무료 한글 폰트 5종(OFL, 상업적 사용 무료)** — Pretendard · 나눔명조 · 고운바탕 · 고운돋움 · 검은고딕. **제목용·본문용을 따로** 고르며, PDF 에는 폰트가 **파일에 임베딩**되어 폰트가 없는 PC 에서 열어도 동일하게 보인다 (`fonts.py`, `reportFonts.ts`, `ReportFontSelect.tsx`, HTML/Word/PPT 렌더러).
+- **AI 어조 다듬기(무료)** — 보고서 어조를 블록 단위로 다듬고 수락/거부 검토. 큰 문서는 소요시간을 미리 경고.
+- **페이지 번호**(Word·PDF) 및 **저장 위치 지정/기억**.
+
+### Fixed
+
+- **Word/PPT 에서 한글이 "풀려" 보이던 문제 해결** — macOS 파일명에서 유입된 NFD(자모 분해형) 한글이 Word 에서 자모로 분리돼 보이던 현상을, 출력 직전 NFC(조합형) 정규화로 수정 (`render_job.py`).
+- 번들에 폰트 파일이 없어도 크래시 없이 시스템 폰트로 폴백(graceful degrade).
+- 일반 문서에 기획 양식 종류(업무/제안/결과)를 고르면 빈 보고서가 나오던 문제 방지.
+- "AI 다듬기"가 켜진 상태에서 빈 기획안 화면이 검토 화면을 가리던 버그 수정.
+
+### Changed
+
+- Word/PPT 내보내기 의존성(python-docx/pptx 등)을 기본 설치에 포함 — 별도 설치 불필요.
+- 앱 내 확인창을 `window.confirm` → Tauri 네이티브 다이얼로그로 전환(웹뷰 반환값 신뢰성 개선).
+- 폰트 자산을 wheel/sdist 패키징과 PyInstaller 번들 양쪽에 포함, 런타임 로딩을 `importlib.resources` 로 전환해 배포본(GUI 사이드카)에서도 안정적으로 동작.
+
+### Verified
+
+- Python reporting + CLI 테스트 통과(폰트/렌더/CLI), `ruff` 클린, GUI `tsc`·`eslint` 클린, vitest 통과. CLI 스모크로 PDF 에 한글 폰트 임베딩 + Word 한글 정상 조합 확인. 다중 에이전트 태스크별 리뷰 + 최종 전체 리뷰 통과.
+
+---
+
+## [2.4.4] — 2026-06-15
+
+**온보딩·기획방 갸리카(자동차) 마스코트** — 처음 쓰는 사람도 친근하게 시작하고, 기다리는 시간도 덜 지루하도록 길잡이 캐릭터를 "운전하는 갸리카"로 바꿨다.
+
+### Added
+
+- **온보딩 갸리카 마스코트** — 첫 화면에서 자동차가 왼쪽 화면 밖에서 운전해 들어와 입력란 아래에서 급정거한 뒤, 잠시 후 환영 말풍선("안녕! 난 바이브라인 길잡이 🚗")을 띄운다. 정지 후엔 제자리에서 바퀴만 도는 idle 루프 (`Onboarding.tsx`, `brutalism.css`, 신규 `gyaricar_ani2.png`).
+- **클릭 순환 인터랙션** — 갸리카 클릭 → 말풍선 접기, 다시 클릭 → "부릉부릉" 뒤로 움츠렸다 오른쪽 화면 밖으로 퇴장, 빈 곳 아무 데나 클릭 → 다시 운전해 들어옴(루프).
+
+### Changed
+
+- **기획방 답변 대기 로딩** — 페르소나(클로이/지오/미나/딥시기)가 답변을 준비하는 동안, 밋밋한 대기 텍스트 대신 갸리카가 제자리에서 "부릉부릉" 달리는 로딩 애니메이션을 보여준다 (`PlanningMessages.tsx`).
+- **길잡이 마스코트 교체** — 기존 나침반(🧭) 이모지 길잡이를 운전하는 갸리카 캐릭터로 교체(타이틀 정렬·측정 기반 등장 로직 제거).
+
+### Internal
+
+- 다수 GUI/코어 소스·테스트 파일에 `ANCHOR` 경계 주석을 일괄 추가(코드맵·안전 편집 구역 정비). 동작 변경 없음.
+
+### Verified
+
+- GUI 타입체크(`tsc --noEmit`)·기획방 메시지 테스트·`eslint` 통과. 스프라이트 알파(투명 배경)·온보딩 클릭 루프·기획방 로딩 애니메이션 육안 확인.
+
+---
+
+## [2.4.3] — 2026-06-15
+
+**Claude 가격 정책 변경 대응 — 자동 Claude 호출 최소화** — 2026-06-15부터 `claude -p`(헤드리스)·Claude Agent SDK 등 **프로그래밍 방식** Claude 사용이 구독 사용량 풀이 아니라 **별도 월 크레딧/표준 API 요금**으로 청구되도록 정책이 바뀌었다. VibeLign이 사용자 모르게 Claude를 자동 호출해 크레딧을 소모하지 않도록 정리하고, 쓸 때도 비용을 낮췄다. (터미널에서 직접 쓰는 **인터랙티브 Claude Code 사용은 영향 없음**)
+
+### Changed
+
+- **기획방 페르소나** — 자동 폴백 우선순위에서 claude를 맨 뒤로 돌려 codex·opencode를 먼저 쓰고, **클로이(claude)는 기본 OFF(opt-in)**. 컴포저에서 꺼진 페르소나는 선택이 막히고 "꺼짐"으로 표시되며 "모두"는 켜진 도구만 부른다 (`planning_persona.rs`, `planning_chat.rs`, `PlanningPersonaComposer.tsx`, `PlanningPersonaSettings.tsx`).
+- **Claude 모델 opus→sonnet** — 켜서 쓰더라도 크레딧 소모를 줄이도록 페르소나·판정(judge)·디자인 생성·Python CLI 전반에서 sonnet으로 고정.
+- **디자인 미리보기** — codex 우선 생성, Claude는 클로이가 켜진 경우에만. "클로드"→"AI" 문구로 바꾸고 크레딧 안내 추가 (`pick_generation_cli`, `DesignPreview.tsx`, `useDesignJob.ts`).
+- **작업방(WorkRoom)** — 기본 실행 도구를 **Codex**로, Claude Code 선택 시 `claude -p` 크레딧 차감 경고 배너 + 실행 전 확인 노트 (`WorkRoom.tsx`).
+- **Python `vib` CLI** — 기본 페르소나 세트(@모두·멘션 없음)에서 클로이 제외(`@클로이`로 명시할 때만 실행), claude→sonnet (`mentions.py`, `cli_adapters.py`).
+
+### Added
+
+- 비활성 페르소나가 호출되면 조용한 무응답 대신 **"꺼짐" 안내 메시지**(status=disabled)를 남긴다.
+- 클로이/Claude Code 선택 지점마다 **"크레딧 차감 가능" 경고** 표시.
+
+### Notes
+
+- **영향받지 않음**: 터미널에서 직접 쓰는 인터랙티브 Claude Code, MCP 서버 연동, 사용자 API 키 직접 호출(`vib ask`·docs-enhance).
+
+### Verified
+
+- `cargo test` 93 통과 · `pytest` 1195 통과 · GUI vitest 통과.
+
+---
+
+## [2.4.2] — 2026-06-15
+
+**설치된 AI 도구 감지 정확화 + 설정 화면 가독성 + 기획방 자동 스크롤** — 컴퓨터에 깔려 있는 AI CLI 도구가 설정에서 "설치됨"으로 안 뜨던 문제를 고치고, 설정 카드 텍스트 가독성을 통일했으며, 기획방에서 새 답변으로 자동 스크롤되게 했다.
+
+### Fixed
+
+- **설치된 AI 도구 감지 누락** — 설정 "AI 도구 설정"의 도구 감지가 `zsh -lc`/`bash -lc` 로그인(비대화형) 셸의 `command -v` 에 의존해, `.zshrc`(대화형 셸 전용)에서 PATH를 export 하는 도구(`~/.bun/bin` 의 opencode 등)를 설치돼 있어도 못 찾던 문제. augmented PATH(homebrew·cargo·bun·.local/bin 등)를 직접 탐색하는 `find_executable` 우선 방식으로 변경 — Finder/Dock 실행 시에도 누락 없이 감지되고, 설치된 도구는 느린 셸 spawn 도 건너뛴다 (`vibelign-gui/src-tauri/src/onboarding/macos.rs`, `vibelign-gui/src-tauri/src/onboarding/mod.rs`).
+
+### Changed
+
+- **설치 상태 표시 명확화** — 도구 이름 뒤 모호한 " MCP" 접미사를 또렷한 **"✓ 설치됨"** 배지로 교체. 설치됨/자동설치/직접설치 배지를 초록/앰버/회색으로 구분하고, 선택(파란 버튼) 여부와 무관하게 밝은 배경+진한 글자로 고정해 가독성을 확보 (`vibelign-gui/src/components/ToolSetupSelector.tsx`).
+- **설정 카드 텍스트 가독성 통일** — AI 도구 설정·기획방 페르소나·API 키 카드의 설명 문구가 다른 카드보다 작고(11px) 흐린 회색이라 안 읽히던 문제를 표준 카드 스타일(13px·진한색·lineHeight 1.7)로 통일. API 키 제공자 이름의 터미널용 네온 그린(#7DFF6B)도 흰 카드에서 안 읽혀 진한색으로 변경 (`vibelign-gui/src/pages/Settings.tsx`, `vibelign-gui/src/components/PlanningPersonaSettings.tsx`).
+
+### Added
+
+- **기획방 대화창 스마트 자동 스크롤** — 메시지를 보내거나 새 응답이 오면 화면이 페이지 맨 아래가 아니라 그 답변 메시지 위치로 자동 스크롤된다. 사용자가 위에서 이전 대화를 읽는 중이면 가로채지 않는 stick-to-bottom 방식 (`vibelign-gui/src/pages/planning/PlanningMessages.tsx`).
+
+### Verified
+
+- `tsc --noEmit` ✓, `eslint` ✓, GUI 단위 테스트(PlanningMessages 6/6) ✓, `cargo build`(GUI 백엔드) ✓.
+
+---
+
+## [2.4.1] — 2026-06-14
+
+**AI CLI 도구 언인스톨 + dead-code 정리** — opencode/codex/antigravity CLI를 앱 안에서 제거할 수 있게 했다. 클로드코드 언인스톨과 동일하게 **CLI 바이너리만** 제거하고 MCP 설정·도구 config·로그인은 보존한다.
+
+### Added
+
+- **AI CLI 도구 언인스톨** — opencode / codex / antigravity(agy) 를 GUI에서 제거. opencode·codex(macOS)는 제거 명령으로 자동 처리, agy(macOS)는 PATH에서 resolve된 단일 바이너리만 `std::fs::remove_file`(파일 1개·비재귀·셸 미경유) 후 재-probe로 검증해 심링크/중복 PATH 거짓성공을 방지, codex/agy(Windows)는 수동 제거 안내 폴백. `ToolInstallPanel` 에 🗑 제거 버튼 + 확인 + 진행/완료/안내 단계 추가. CLI 바이너리만 제거하고 MCP 설정(`.mcp.json` 등)·도구 config·로그인 상태는 보존 (`vibelign-gui/src-tauri/src/commands/tool_install.rs`, `vibelign-gui/src/lib/tools/installerRegistry.ts`, `vibelign-gui/src/components/tools/ToolInstallPanel.tsx`).
+
+### Fixed
+
+- **`SPAWN_FAIL` dead-code 경고 제거** — `vibelign-gui/src-tauri/src/commands/project_summary.rs` 에서 쓰이지 않던 `const SPAWN_FAIL` 상수를 삭제해 `dead_code` 경고를 없앴다.
+
+### Notes
+
+- **버전 동기화 보정** — `vibelign-core/Cargo.toml` 이 v2.4.0 에서 2.3.1 에 머물던 드리프트를 2.4.1 로 맞춰 6개 버전 소스를 재동기화.
+
+### Verified
+
+- Rust `cargo test --lib tool_install` 11 passed, 프론트 `vitest ToolInstallPanel.test.tsx` 4 passed. 4-task TDD 구현이 각각 스펙+품질 리뷰 + 최종 전체 리뷰를 통과.
+
+---
+
 ## [2.4.0] — 2026-06-14
 
 **디자인 미리보기의 도약 + 앱 반응성 대수술** — 일상어로 스타일을 즉석 합성하고, 생성 작업이 탭을 넘나들며 살아남는 백그라운드 잡 시스템을 도입했으며, 동기 Tauri 커맨드가 메인 스레드를 막던 근본 원인을 `async + spawn_blocking`으로 해소한 릴리즈. AI 도구 원클릭 설치, 온보딩 "실행해보기" 흐름, `vib start` 베이스라인 커밋까지 더해 처음 사용자의 데드엔드를 제거했다.

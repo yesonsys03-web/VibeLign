@@ -1,3 +1,4 @@
+// === ANCHOR: DESIGNPREVIEW_START ===
 import { useEffect, useState } from "react";
 import { DESIGN_STYLES, type StyleSpec, type MotionSpec } from "../lib/design-preview/styles";
 import { saveDesignMockup, listCustomStyles, saveCustomStyle, deleteCustomStyle } from "../lib/vib/design";
@@ -36,6 +37,7 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, job, 
   const selected = selectedId ? allStyles.find((s) => s.id === selectedId) : undefined;
   const running = job.status === "running";
 
+  // === ANCHOR: DESIGNPREVIEW_CREATEFROMDESCRIPTION_START ===
   function createFromDescription(baseStyle?: StyleSpec) {
     const desc = describe.trim();
     if (!desc && !baseStyle) return;
@@ -43,7 +45,9 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, job, 
     setConfirmError(null);
     job.run({ kind: "describe", description: desc, baseStyle }, planPath);
   }
+  // === ANCHOR: DESIGNPREVIEW_CREATEFROMDESCRIPTION_END ===
 
+  // === ANCHOR: DESIGNPREVIEW_GENERATE_START ===
   function generate(useFeedback: boolean) {
     const style = job.synth ?? selected;
     if (!style) return;
@@ -58,7 +62,9 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, job, 
       planPath,
     );
   }
+  // === ANCHOR: DESIGNPREVIEW_GENERATE_END ===
 
+  // === ANCHOR: DESIGNPREVIEW_CONFIRM_START ===
   async function confirm() {
     const style = job.synth ?? selected;
     if (!style || !job.html) return;
@@ -70,6 +76,7 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, job, 
       setConfirmError(String(e));
     }
   }
+  // === ANCHOR: DESIGNPREVIEW_CONFIRM_END ===
 
   return (
     <div className="page-content" style={{ height: "100%" }}>
@@ -120,8 +127,11 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, job, 
             style={{ flex: 1, minWidth: 220, padding: "9px 12px", border: "2px solid #1A1A1A", fontSize: 14 }} />
           <button className="btn" disabled={!describe.trim() || running} onClick={() => createFromDescription()}
             style={{ background: "#1A1A1A", color: "#fff", border: "2px solid #1A1A1A", fontWeight: 900 }}>
-            {running ? "클로드가 그리는 중…" : "✦ 클로드에게 그려달라기"}
+            {running ? "AI가 그리는 중…" : "✦ AI에게 그려달라기"}
           </button>
+        </div>
+        <div style={{ fontSize: 11, color: "#555", lineHeight: 1.5 }}>
+          설정에서 켜둔 기획 도우미를 사용해 디자인을 생성해요.
         </div>
       </div>
       <button disabled={(!selected && !job.synth) || running} onClick={() => generate(false)}>
@@ -142,7 +152,7 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, job, 
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, padding: "12px 14px", border: "2px solid #1A1A1A", background: "#F5F1E3" }}>
           <span className="spinner" />
           <div>
-            <div style={{ fontSize: 13, fontWeight: 900 }}>{job.phaseMsg || "클로드가 작업 중…"}</div>
+            <div style={{ fontSize: 13, fontWeight: 900 }}>{job.phaseMsg || "AI가 작업 중…"}</div>
             <div style={{ fontSize: 12, color: "#666" }}>⏳ 멈춘 게 아니에요 — 다른 탭을 써도 돼요. 끝나면 알려드려요.</div>
           </div>
         </div>
@@ -208,3 +218,4 @@ export default function DesignPreview({ projectDir, planPath, isLikelyWeb, job, 
     </div>
   );
 }
+// === ANCHOR: DESIGNPREVIEW_END ===

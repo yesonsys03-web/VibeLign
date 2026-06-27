@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGSESSIONPICKER_START ===
 import { useEffect, useState } from "react";
 
 import { deletePlanningChatSession, listPlanningChatSessions } from "../../lib/vib";
@@ -11,12 +12,15 @@ interface PlanningSessionPickerProps {
   readonly onDeleted?: (sessionId: string) => void;
 }
 
+// === ANCHOR: PLANNINGSESSIONPICKER_FILENAME_START ===
 function fileName(path: string): string {
   const normalized = path.replace(/\\/g, "/");
   const slash = normalized.lastIndexOf("/");
   return slash >= 0 ? normalized.slice(slash + 1) : normalized;
 }
+// === ANCHOR: PLANNINGSESSIONPICKER_FILENAME_END ===
 
+// === ANCHOR: PLANNINGSESSIONPICKER_PLANNINGSESSIONPICKER_START ===
 export function PlanningSessionPicker({ projectDir, onSelect, onClose, onDeleted }: PlanningSessionPickerProps) {
   const [sessions, setSessions] = useState<PlanningSessionSummary[] | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -35,6 +39,7 @@ export function PlanningSessionPicker({ projectDir, onSelect, onClose, onDeleted
     };
   }, [projectDir]);
 
+  // === ANCHOR: PLANNINGSESSIONPICKER_HANDLEDELETE_START ===
   async function handleDelete(sessionId: string) {
     setConfirmingId(null);
     setError(null);
@@ -49,6 +54,7 @@ export function PlanningSessionPicker({ projectDir, onSelect, onClose, onDeleted
       setDeletingId(null);
     }
   }
+  // === ANCHOR: PLANNINGSESSIONPICKER_HANDLEDELETE_END ===
 
   return (
     <div
@@ -113,5 +119,7 @@ export function PlanningSessionPicker({ projectDir, onSelect, onClose, onDeleted
         </div>
       </div>
     </div>
+// === ANCHOR: PLANNINGSESSIONPICKER_PLANNINGSESSIONPICKER_END ===
   );
 }
+// === ANCHOR: PLANNINGSESSIONPICKER_END ===

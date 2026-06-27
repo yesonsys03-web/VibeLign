@@ -252,6 +252,24 @@ fn write_gui_config(data: &serde_json::Value) -> Result<(), String> {
     std::fs::write(&path, data.to_string()).map_err(|e| e.to_string())
 }
 
+/// 사용자가 지정한 보고서 기본 내보내기 폴더(gui_config.json). 미설정 시 None.
+pub(crate) fn read_report_export_dir() -> Option<String> {
+    read_gui_config()
+        .get("report_export_dir")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
+/// 보고서 기본 내보내기 폴더를 gui_config.json 에 저장한다(다른 키 보존).
+pub(crate) fn write_report_export_dir(dir: &str) -> Result<(), String> {
+    let mut cfg = read_gui_config();
+    if !cfg.is_object() {
+        cfg = serde_json::json!({});
+    }
+    cfg["report_export_dir"] = serde_json::Value::String(dir.to_string());
+    write_gui_config(&cfg)
+}
+
 /// 현재 GUI 버전이 이미 CLI 를 PATH 에 설치했는지 확인한다.
 /// Why: `install_cli_to_path` 가 앱 시작마다 호출되면서 사용자가 `uv tool install`/`pipx`
 /// 등으로 직접 관리하던 `~/.local/bin/vib` 를 매번 덮어쓰는 문제를 차단한다.

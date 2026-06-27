@@ -1,3 +1,4 @@
+// === ANCHOR: USEDESIGNJOB_TEST_START ===
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 
@@ -79,3 +80,4 @@ describe("useDesignJob", () => {
     expect(mocks.gen).toHaveBeenCalledTimes(1); // 재호출 없음
   });
 });
+// === ANCHOR: USEDESIGNJOB_TEST_END ===

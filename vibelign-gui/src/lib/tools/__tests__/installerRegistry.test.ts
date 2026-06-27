@@ -1,3 +1,4 @@
+// === ANCHOR: INSTALLERREGISTRY_TEST_START ===
 import { describe, expect, test } from "vitest";
 import { TOOL_INSTALLERS, getInstaller, shouldGuideManual } from "../installerRegistry";
 
@@ -20,3 +21,4 @@ describe("installerRegistry", () => {
     expect(shouldGuideManual({ installed: true, exitCode: 0 })).toBe(false);
   });
 });
+// === ANCHOR: INSTALLERREGISTRY_TEST_END ===

@@ -98,19 +98,28 @@ class DistributionMetadataTest(unittest.TestCase):
         self.assertIn('"_bundled/vibelign-engine.exe.sha256"', text)
 
     def test_python_build_compiles_and_bundles_rust_sidecar(self):
-        text = (ROOT / "setup.py").read_text(encoding="utf-8")
+        # setup.py only handles platform-tagging; cargo build + bundling moved
+        # to cibuildwheel's CIBW_BEFORE_ALL_* steps in build-wheels.yml.
+        setup_text = (ROOT / "setup.py").read_text(encoding="utf-8")
 
-        self.assertIn("cargo", text)
-        self.assertIn('"build"', text)
-        self.assertIn('"--release"', text)
-        self.assertIn('"--bin"', text)
-        self.assertIn('"vibelign-engine"', text)
-        self.assertIn("BinaryDistribution", text)
-        self.assertIn("has_ext_modules", text)
-        self.assertIn("bdist_wheel", text)
-        self.assertIn('return "py3", "none", platform_tag', text)
-        self.assertIn("_bundled", text)
-        self.assertIn(".sha256", text)
+        self.assertIn("BinaryDistribution", setup_text)
+        self.assertIn("has_ext_modules", setup_text)
+        self.assertIn("bdist_wheel", setup_text)
+        self.assertIn('return "py3", "none", platform_tag', setup_text)
+
+        # cargo build --release --bin vibelign-engine lives in CIBW_BEFORE_ALL_* env vars
+        cibw_text = (ROOT / ".github" / "workflows" / "build-wheels.yml").read_text(encoding="utf-8")
+
+        self.assertIn("cargo build", cibw_text)
+        self.assertIn("--release", cibw_text)
+        self.assertIn("--bin vibelign-engine", cibw_text)
+        self.assertIn("install_bundled_engine.py", cibw_text)
+
+        # install_bundled_engine.py copies binary + writes .sha256 manifest into _bundled/
+        install_text = (ROOT / "scripts" / "install_bundled_engine.py").read_text(encoding="utf-8")
+
+        self.assertIn("_bundled", install_text)
+        self.assertIn(".sha256", install_text)
 
     def test_source_distribution_includes_rust_engine_sources(self):
         text = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
@@ -129,7 +138,7 @@ class DistributionMetadataTest(unittest.TestCase):
     def test_publish_workflow_builds_platform_wheels(self):
         text = (ROOT / ".github" / "workflows" / "publish.yml").read_text(encoding="utf-8")
 
-        self.assertIn("os: [ubuntu-latest, macos-13, windows-latest]", text)
+        self.assertIn("os: [macos-latest, windows-latest]", text)
         self.assertIn("dtolnay/rust-toolchain@stable", text)
         self.assertIn("python -m build --wheel", text)
         self.assertIn("python -m build --sdist", text)

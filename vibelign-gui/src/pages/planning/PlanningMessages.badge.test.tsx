@@ -1,10 +1,13 @@
+// === ANCHOR: PLANNINGMESSAGES_BADGE_TEST_START ===
 import { describe, it, expect } from "vitest";
 import { fallbackBadgeLabel } from "./PlanningMessages";
 import type { PlanningChatMessage } from "../../lib/vib";
 
+// === ANCHOR: PLANNINGMESSAGES_BADGE_TEST_MSG_START ===
 function msg(extra: Partial<PlanningChatMessage>): PlanningChatMessage {
   return { id: "m", role: "assistant", personaId: "chloe", content: "x", status: "ok", createdAt: "t", ...extra };
 }
+// === ANCHOR: PLANNINGMESSAGES_BADGE_TEST_MSG_END ===
 
 describe("fallbackBadgeLabel", () => {
   it("returns null when no providerUsed", () => {
@@ -25,3 +28,4 @@ describe("fallbackBadgeLabel", () => {
     expect(fallbackBadgeLabel(msg({ providerUsed: "claude", fallbackReason: "weird" }))).toBe("claude로 대체됨");
   });
 });
+// === ANCHOR: PLANNINGMESSAGES_BADGE_TEST_END ===

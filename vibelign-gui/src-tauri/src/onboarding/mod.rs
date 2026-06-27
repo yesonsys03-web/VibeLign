@@ -627,19 +627,23 @@ pub(crate) fn installed_tools() -> Vec<String> {
         let cli_tools = ["claude", "codex", "cursor", "opencode"];
         let mut found: Vec<String> = Vec::new();
         for tool in &cli_tools {
+            // Probe an augmented PATH first: `bash -lc` is a login non-interactive
+            // shell that skips `.bashrc`/`.zshrc`, so PATH exported there (e.g.
+            // ~/.bun/bin) is invisible to `command -v`. The augmented probe (same as
+            // tool_install.rs) catches those and avoids the slow shell spawn.
+            let path_ok = crate::commands::planning_persona::find_executable(tool).is_some();
             let cmd = format!("command -v {}", tool);
-            let bash_ok =
-                run_command_capture_with_timeout("/bin/bash", &["-lc", &cmd], &[], 10)
+            let bash_ok = !path_ok
+                && run_command_capture_with_timeout("/bin/bash", &["-lc", &cmd], &[], 10)
                     .map(|r| r.ok)
                     .unwrap_or(false);
-            let direct_ok = if !bash_ok && *tool == "claude" {
-                std::path::PathBuf::from(&home)
+            let direct_ok = !path_ok
+                && !bash_ok
+                && *tool == "claude"
+                && std::path::PathBuf::from(&home)
                     .join(".local/bin/claude")
-                    .exists()
-            } else {
-                false
-            };
-            if bash_ok || direct_ok {
+                    .exists();
+            if path_ok || bash_ok || direct_ok {
                 found.push(tool.to_string());
             }
         }

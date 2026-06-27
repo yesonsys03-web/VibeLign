@@ -14,6 +14,8 @@ interface CodeFileTreeProps {
   changes: ReadonlyMap<string, ChangeStatus>;
   // md/spec 문서를 우클릭하면 "기획방에서 검토" 메뉴를 띄운다.
   onReviewInPlanning?: (path: string) => void;
+  // md/markdown 문서를 우클릭하면 "보고서 작성" 메뉴를 띄운다.
+  onGenerateReport?: (path: string) => void;
 }
 
 // 기획/스펙 문서로 취급해 우클릭 검토 메뉴를 노출할 확장자.
@@ -22,7 +24,13 @@ function isReviewableDoc(path: string): boolean {
   return ext === "md" || ext === "spec";
 }
 
-export default function CodeFileTree({ files, selectedPath, onSelect, autoExpandAll, changes, onReviewInPlanning }: CodeFileTreeProps) {
+// 보고서로 만들 수 있는 문서 확장자(임의 .md).
+function isReportableDoc(path: string): boolean {
+  const ext = path.split(".").pop()?.toLowerCase();
+  return ext === "md" || ext === "markdown";
+}
+
+export default function CodeFileTree({ files, selectedPath, onSelect, autoExpandAll, changes, onReviewInPlanning, onGenerateReport }: CodeFileTreeProps) {
   const tree = useMemo(() => buildCodeTree(files, changes), [files, changes]);
   // 기본 펼침: 프로젝트가 무엇이든(VibeLign 레포 가정 금지) 1단계 디렉터리를 펼친다.
   const firstLevelDirs = useMemo(
@@ -81,6 +89,7 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
         // 변경된 파일 행은 diff 스타일 배경 색조로 강하게 강조한다(카테고리 tint를 덮어씀).
         // 선택된 행은 다크 배경을 유지해 선택 상태가 항상 우선 보이게 한다.
         const reviewable = !isDirectory && Boolean(onReviewInPlanning) && isReviewableDoc(node.path);
+        const reportable = !isDirectory && Boolean(onGenerateReport) && isReportableDoc(node.path);
         const changeWash =
           isDirectory || !node.changeStatus
             ? null
@@ -93,7 +102,7 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
             type="button"
             className="btn btn-ghost btn-sm"
             onClick={() => isDirectory ? toggle(node.path) : onSelect(node.path)}
-            onContextMenu={reviewable ? (e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, path: node.path }); } : undefined}
+            onContextMenu={(reviewable || reportable) ? (e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, path: node.path }); } : undefined}
             title={node.path}
             style={{
               width: "100%",
@@ -175,14 +184,26 @@ export default function CodeFileTree({ files, selectedPath, onSelect, autoExpand
         style={{ position: "fixed", left: menu.x, top: menu.y, zIndex: 1000, border: "2px solid #1A1A1A", background: "#fff", boxShadow: "var(--shadow-sm)" }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          style={{ display: "block", width: "100%", textAlign: "left", textTransform: "none", letterSpacing: 0 }}
-          onClick={() => { onReviewInPlanning?.(menu.path); setMenu(null); }}
-        >
-          기획방에서 검토
-        </button>
+        {onReviewInPlanning && isReviewableDoc(menu.path) && (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            style={{ display: "block", width: "100%", textAlign: "left", textTransform: "none", letterSpacing: 0 }}
+            onClick={() => { onReviewInPlanning?.(menu.path); setMenu(null); }}
+          >
+            기획방에서 검토
+          </button>
+        )}
+        {onGenerateReport && isReportableDoc(menu.path) && (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            style={{ display: "block", width: "100%", textAlign: "left", textTransform: "none", letterSpacing: 0 }}
+            onClick={() => { onGenerateReport?.(menu.path); setMenu(null); }}
+          >
+            보고서 작성
+          </button>
+        )}
       </div>
     )}
     </>

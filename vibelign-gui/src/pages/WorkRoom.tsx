@@ -97,8 +97,8 @@ const LINE_STYLE: Record<WorkDisplayLine["kind"], CSSProperties> = {
 
 /** MVP 프로바이더 — 코딩 에이전트로 검증된 CLI 만(기획안 §1). 러너 work_adapter 와 짝. */
 const PROVIDER_DEFS: { id: "claude" | "codex"; label: string }[] = [
-  { id: "claude", label: "Claude Code" },
   { id: "codex", label: "Codex" },
+  { id: "claude", label: "Claude Code" },
 ];
 
 type ProviderId = (typeof PROVIDER_DEFS)[number]["id"];
@@ -515,7 +515,7 @@ export default function WorkRoom({
           <div style={{ display: "grid", gap: 6 }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: "#b42318" }}>실행할 AI 도구를 찾지 못했어요</span>
             <span style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>
-              작업방은 <strong>Claude Code</strong> 또는 <strong>Codex</strong>로 코딩해요. Claude Code는 자동 설치돼요 — 처음 설정에서 Claude를 설치하면 바로 쓸 수 있어요. (codex·antigravity는 도구 설정에서 설치/등록)
+              작업방은 <strong>Codex</strong> 또는 <strong>Claude Code</strong>로 코딩해요. 도구 설정에서 Codex(또는 Claude)를 설치/등록하세요.
             </span>
             <button className="btn btn-ghost btn-sm" onClick={onOpenSettings} style={{ fontSize: 12, justifySelf: "start" }}>
               설정에서 도구 설치/등록하기 →
@@ -525,7 +525,7 @@ export default function WorkRoom({
 
         {phase === "idle" && (
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <button className="btn" disabled={!effectiveInstruction || !ready} onClick={() => setPhase("confirm")}>
+            <button className="btn" data-tour="work-run-ai" disabled={!effectiveInstruction || !ready} onClick={() => setPhase("confirm")}>
               {handoff != null ? (handoff.kind === "error" ? "이 에러 고치기" : "이 개선 작업하기") : "AI에게 작업 시키기"}
             </button>
             <span style={{ fontSize: 13, color: "#666", fontWeight: 700 }}>

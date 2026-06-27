@@ -1,3 +1,4 @@
+// === ANCHOR: SCROLLTOTOPBUTTON_TEST_START ===
 import { describe, it, expect } from "vitest";
 import { scrollNavVisibility } from "../ScrollToTopButton";
 
@@ -26,3 +27,4 @@ describe("scrollNavVisibility", () => {
     expect(v.showBottom).toBe(true);
   });
 });
+// === ANCHOR: SCROLLTOTOPBUTTON_TEST_END ===

@@ -1,0 +1,42 @@
+DoneClaim:
+- task: Todo 4 - TypeScript wrapper code-review blockers fixed for exhaustive normalized unions, assistance rejection semantics, and wrapper-test isolation.
+- changed_files:
+  - vibelign-gui/src/lib/vib/reportQuality.ts
+  - vibelign-gui/src/lib/vib/reportAssist.ts
+  - vibelign-gui/src/lib/vib/__tests__/reportAssist.test.ts
+  - vibelign-gui/src/lib/vib/__tests__/report.test.ts
+  - vibelign-gui/src/lib/vib/__tests__/reportEmit.test.ts
+  - .omo/evidence/report-writing-quality/task-4-ts-quality-assist-test.txt
+  - .omo/evidence/report-writing-quality/task-4-ts-assist-confirmation.txt
+  - .omo/evidence/report-writing-quality/task-4-report-wrapper-test.txt
+  - .omo/evidence/report-writing-quality/task-4-build.txt
+  - .omo/evidence/report-writing-quality/task-4-cleanup.txt
+  - .omo/evidence/report-writing-quality/task-4-code-review-fixes.txt
+  - .omo/evidence/report-writing-quality/task-4-doneclaim.txt
+- fixes:
+  - Replaced closed-union default fallback in qualitySeverityRank with assertNever while preserving raw unknown backend parser fallbacks.
+  - Replaced closed-union default fallbacks in reportAssistSuggestionKindLabel and reportAssistSuggestionStateUpdate with assertNever while preserving raw unknown backend parser fallbacks.
+  - Added reject-after-accept and reject-after-edit tests proving rejected suggestions are removed from accepted/edited tracking and selected output.
+  - Moved emitReportModel/requestReportAssistance wrapper cases from oversized report.test.ts into focused reportEmit.test.ts; report.test.ts now measures 240 pure LOC.
+- tests:
+  - Scenario: quality and assistance parser/state regression suite. Invocation: cd vibelign-gui && npm run test -- src/lib/vib/__tests__/reportQuality.test.ts src/lib/vib/__tests__/reportAssist.test.ts. Observable: Vitest exit 0, 2 files passed, 8 tests passed. Artifact: .omo/evidence/report-writing-quality/task-4-ts-quality-assist-test.txt.
+  - Scenario: assistance reject-after-accept and reject-after-edit confirmation. Invocation: cd vibelign-gui && npm run test -- src/lib/vib/__tests__/reportAssist.test.ts. Observable: Vitest exit 0, 1 file passed, 5 tests passed. Artifact: .omo/evidence/report-writing-quality/task-4-ts-assist-confirmation.txt.
+  - Scenario: requested combined wrapper verification including new focused test file. Invocation: cd vibelign-gui && npm run test -- src/lib/vib/__tests__/reportQuality.test.ts src/lib/vib/__tests__/reportAssist.test.ts src/lib/vib/__tests__/report.test.ts src/lib/vib/__tests__/reportEmit.test.ts. Observable: Vitest exit 0, 4 files passed, 28 tests passed. Artifact: .omo/evidence/report-writing-quality/task-4-report-wrapper-test.txt.
+  - Scenario: production TypeScript/Vite build. Invocation: cd vibelign-gui && npm run build. Observable: exit 0 with existing Vite chunk-size warning only. Artifact: .omo/evidence/report-writing-quality/task-4-build.txt.
+- manual_qa:
+  - Scenario: TypeScript escape-hatch and size cleanup. Invocation: rg -n " any|@ts-ignore|@ts-expect-error| as " <changed TS files>; awk pure LOC over changed TS files. Observable: only allowed as const entries found; report.test.ts 240 pure LOC, reportEmit.test.ts 119 pure LOC. Artifact: .omo/evidence/report-writing-quality/task-4-cleanup.txt.
+  - Scenario: VibeLign safe-mode CLI fallback. Invocation: vib doctor --strict; vib scan; vib explain --write-report; vib guard --strict --write-report. Observable: doctor/guard remain nonzero due broad shared worktree structural risk, while scan/explain completed; guard output captured as broad planning_required stop. Artifact: .omo/evidence/report-writing-quality/task-4-cleanup.txt.
+- adversarial_classes:
+  - future_closed_union_variant: assertNever now forces compile-time handling in internal normalized union switches.
+  - unknown_backend_value: parser boundary fallbacks remain for raw unknown status/readiness/severity/source/kind values.
+  - reject_after_selected: tests cover rejecting already accepted and already edited suggestions.
+  - test_bloat: wrapper-specific cases moved out of report.test.ts into reportEmit.test.ts.
+  - type_escape_hatch: grep found no any, @ts-ignore, @ts-expect-error, or non-const as assertions in changed TS files.
+  - dirty_worktree: unrelated pre-existing/shared worktree changes were not reverted or staged.
+- cleanup:
+  - Regenerated all requested task-4 evidence artifacts and added task-4-code-review-fixes.txt.
+  - Did not edit .omo/plans checkboxes.
+  - Cleanup artifact: .omo/evidence/report-writing-quality/task-4-cleanup.txt.
+- risks:
+  - vib guard still reports STOP because the repository contains broad uncommitted Todo 1-3 and new production-file changes outside this blocker-fix scope.
+  - reportQuality.ts and reportAssist.ts remain in the 200-250 pure LOC warning band; this pass only fixed blockers and did not broaden into a module split.

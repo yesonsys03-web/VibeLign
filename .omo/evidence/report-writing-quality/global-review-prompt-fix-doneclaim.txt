@@ -1,0 +1,31 @@
+Status: DONE
+
+Changed files:
+- vibelign/core/reporting_cli/report_visual_cards.py
+- tests/core/reporting_cli/test_report_visual_cards.py
+
+Scenario: prompt builder regression for visual cards
+Invocation: uv run python -m pytest tests/core/reporting_cli/test_report_visual_cards.py tests/cli/test_vib_report_visual_cards_cmd.py -v
+Binary observable: 7 passed
+Artifact: .omo/evidence/report-writing-quality/global-review-prompt-fix-pytest.txt
+
+Scenario: CLI visual-cards JSON regeneration
+Invocation: uv run vib report tests/fixtures/reporting_cli/quality_complete.md --type proposal --format html --date 2026-06-20 --json --visual-cards
+Binary observable: ok_true PASS, six_cards PASS, all category scene checks PASS, no_hangul/no_fake/no_imagen2 checks PASS
+Artifacts:
+- .omo/evidence/report-writing-quality/global-review-prompt-fix-visual-cards.json
+- .omo/evidence/report-writing-quality/global-review-prompt-fix-check.txt
+
+Scenario: changed-file LOC/no-slop scan
+Invocation: uv run python - <<'PY' (pure LOC and leakage/category assertions)
+Binary observable: no_slop_result PASS; production pure LOC 240, test pure LOC 111
+Artifact: .omo/evidence/report-writing-quality/global-review-prompt-fix-no-slop.txt
+
+Scenario: VibeLign guard fallback
+Invocation: uv run vib guard --strict --write-report
+Binary observable: command exited 0 but report status says project High Risk due broad pre-existing shared worktree changes and missing anchor on untracked source file
+Artifact: .omo/evidence/report-writing-quality/global-review-prompt-fix-vib-guard.txt
+
+Remaining risk:
+- Shared worktree has many unrelated modified/untracked files; not reverted or touched.
+- VibeLign guard reports High Risk for the broad workspace state, not for a failed focused visual-card pytest/CLI prompt check.

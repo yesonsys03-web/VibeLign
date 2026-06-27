@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGPERSONASETTINGS_START ===
 import { useEffect, useState } from "react";
 import {
   getPlanningPersonas,
@@ -23,12 +24,15 @@ export interface EffectivePersona {
   role: string;
 }
 
+// === ANCHOR: PLANNINGPERSONASETTINGS_EFFECTIVEPERSONA_START ===
 export function effectivePersona(map: PlanningPersonaConfigMap, id: string): EffectivePersona {
   const entry = map[id] ?? {};
-  return { enabled: entry.enabled ?? true, role: entry.role ?? DEFAULT_ROLE[id] ?? "design" };
+  return { enabled: entry.enabled ?? id !== "chloe", role: entry.role ?? DEFAULT_ROLE[id] ?? "design" };
 }
+// === ANCHOR: PLANNINGPERSONASETTINGS_EFFECTIVEPERSONA_END ===
 
 /** persona 에 newRole 을 주고, 그 역할을 갖고 있던 persona 와 1:1 맞교환. */
+// === ANCHOR: PLANNINGPERSONASETTINGS_APPLYROLESWAP_START ===
 export function applyRoleSwap(map: PlanningPersonaConfigMap, id: string, newRole: string): PlanningPersonaConfigMap {
   const current = effectivePersona(map, id);
   if (current.role === newRole) return map;
@@ -41,7 +45,9 @@ export function applyRoleSwap(map: PlanningPersonaConfigMap, id: string, newRole
   }
   return next;
 }
+// === ANCHOR: PLANNINGPERSONASETTINGS_APPLYROLESWAP_END ===
 
+// === ANCHOR: PLANNINGPERSONASETTINGS_PLANNINGPERSONASETTINGS_START ===
 export function PlanningPersonaSettings() {
   const [map, setMap] = useState<PlanningPersonaConfigMap>({});
   const [installed, setInstalled] = useState<string[] | null>(null);
@@ -52,6 +58,7 @@ export function PlanningPersonaSettings() {
     probePlanningProviders().then(setInstalled).catch(() => setInstalled([]));
   }, []);
 
+  // === ANCHOR: PLANNINGPERSONASETTINGS_PERSIST_START ===
   async function persist(next: PlanningPersonaConfigMap) {
     setMap(next);
     setSaving(true);
@@ -61,6 +68,7 @@ export function PlanningPersonaSettings() {
       setSaving(false);
     }
   }
+  // === ANCHOR: PLANNINGPERSONASETTINGS_PERSIST_END ===
 
   // marginBottom: .page-content 의 마지막 카드라 뒤따르는 형제가 만들어 주던 여백이 없다.
   // WKWebView 는 컨테이너 padding-bottom 을 스크롤 영역에 안 넣어 테두리·그림자가 잘리므로
@@ -70,7 +78,7 @@ export function PlanningPersonaSettings() {
       <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
         기획방 페르소나
       </div>
-      <div style={{ fontSize: 11, color: "#777", lineHeight: 1.6, marginBottom: 12 }}>
+      <div style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 12 }}>
         각 AI가 어떤 역할을 맡을지 고르세요. 역할을 바꾸면 그 역할을 갖고 있던 AI와 서로 맞바뀝니다.
         모델이 없거나 로그인이 안 되어 있으면 다른 모델로 자동 대체돼요. {saving && <span style={{ color: "#4DFF91" }}>저장 중…</span>}
       </div>
@@ -105,5 +113,7 @@ export function PlanningPersonaSettings() {
         );
       })}
     </div>
+// === ANCHOR: PLANNINGPERSONASETTINGS_PLANNINGPERSONASETTINGS_END ===
   );
 }
+// === ANCHOR: PLANNINGPERSONASETTINGS_END ===

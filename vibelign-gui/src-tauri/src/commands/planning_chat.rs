@@ -12,7 +12,7 @@ use super::planning_chat_types::{
     PlanningSessionSummary, SavePlanningChatPlanRequest,
 };
 use super::planning_chat_cards::{extract_and_apply, read_cards};
-use super::planning_persona::{is_persona_enabled, run_persona_response, PlanningChatLine};
+use super::planning_persona::{disabled_persona_message, is_persona_enabled, run_persona_response, PlanningChatLine};
 
 #[tauri::command]
 pub(crate) async fn create_planning_chat_session(
@@ -173,6 +173,18 @@ pub(crate) async fn append_planning_chat_turn(
         }
         for agent in request.agents {
             if !is_persona_enabled(&agent) {
+                // 비활성 페르소나: 호출하지 않고(=claude -p 안 뜸) 이유만 남긴다.
+                // status="disabled" 라 이후 페르소나 맥락("ok"만)에서 제외되고 재시도 버튼("failed")도 안 뜬다.
+                messages.push(PlanningChatMessage {
+                    id: format!("msg_{}_{}", agent, timestamp_ms()),
+                    role: "assistant".to_string(),
+                    persona_id: Some(agent.clone()),
+                    content: disabled_persona_message(&agent),
+                    status: "disabled".to_string(),
+                    created_at: now.clone(),
+                    provider_used: None,
+                    fallback_reason: None,
+                });
                 continue;
             }
             // 실패/대기 메시지는 페르소나 맥락에서 제외한다(에러 문구가 대화로 새는 것 방지).

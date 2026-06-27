@@ -1,3 +1,4 @@
+// === ANCHOR: TOOL_INSTALL_START ===
 // ANCHOR: TOOL_INSTALL_START
 use serde::Serialize;
 
@@ -23,6 +24,16 @@ pub(crate) struct ToolInstaller {
     pub auth_hint: &'static str,
     pub manual_url: &'static str,
     pub recommended_for_beginner: bool,
+    /// OS별 제거 명령. None = 그 OS는 안내 폴백.
+    pub mac_uninstall: Option<(&'static str, &'static [&'static str])>,
+    pub win_uninstall: Option<(&'static str, &'static [&'static str])>,
+    /// true 면 mac 에서 probe_binary 경로를 resolve 후 remove_file (agy).
+    /// Windows 에서는 이 플래그를 무시하고 win_uninstall 명령 또는 안내 폴백으로 진행.
+    pub uninstall_remove_binary: bool,
+    /// 안내 폴백 시 보여줄 수동 제거 단계.
+    pub uninstall_hint: &'static str,
+    /// 안내 폴백 시 열 공식 문서 URL.
+    pub uninstall_url: &'static str,
 }
 
 const OPENCODE: ToolInstaller = ToolInstaller {
@@ -32,6 +43,11 @@ const OPENCODE: ToolInstaller = ToolInstaller {
     auth: AuthKind::None,
     auth_hint: "무료 모델이라 추가 로그인이 필요 없어요 — 바로 쓸 수 있어요.",
     manual_url: "https://opencode.ai/download", recommended_for_beginner: true,
+    mac_uninstall: Some(("opencode", &["uninstall", "--keep-config", "--keep-data", "--force"])),
+    win_uninstall: Some(("npm", &["uninstall", "-g", "opencode-ai"])),
+    uninstall_remove_binary: false,
+    uninstall_hint: "제거가 안 되면 `npm uninstall -g opencode-ai` 또는 설치 시 사용한 방법으로 지워주세요.",
+    uninstall_url: "https://opencode.ai/docs/cli/",
 };
 const CODEX: ToolInstaller = ToolInstaller {
     id: "codex", display_name: "Codex", probe_binary: "codex",
@@ -40,6 +56,11 @@ const CODEX: ToolInstaller = ToolInstaller {
     auth: AuthKind::Login,
     auth_hint: "설치 후 OpenAI 로그인이 필요해요 — 터미널에서 `codex` 를 한 번 실행해 로그인하세요.",
     manual_url: "https://www.npmjs.com/package/@openai/codex", recommended_for_beginner: false,
+    mac_uninstall: Some(("npm", &["uninstall", "-g", "@openai/codex"])),
+    win_uninstall: None,
+    uninstall_remove_binary: false,
+    uninstall_hint: "`npm uninstall -g @openai/codex` 를 실행하거나, npm 으로 설치하지 않았다면 설치 페이지의 제거 안내를 따라주세요.",
+    uninstall_url: "https://www.npmjs.com/package/@openai/codex",
 };
 const AGY: ToolInstaller = ToolInstaller {
     id: "agy", display_name: "Antigravity", probe_binary: "agy",
@@ -48,6 +69,11 @@ const AGY: ToolInstaller = ToolInstaller {
     auth: AuthKind::Login,
     auth_hint: "설치 후 Google 로그인이 필요해요 — `agy` 를 처음 실행하면 브라우저 로그인이 열려요.",
     manual_url: "https://antigravity.google/docs/cli-install", recommended_for_beginner: false,
+    mac_uninstall: None,
+    win_uninstall: None,
+    uninstall_remove_binary: true,
+    uninstall_hint: "macOS: PATH 의 agy 실행파일(예: ~/.local/bin/agy)을 직접 지워주세요. Windows: 설정 > 앱 > 설치된 앱에서 'Antigravity CLI' 를 제거하세요. ANTIGRAVITY_API_KEY 환경변수가 있으면 함께 지워주세요.",
+    uninstall_url: "https://antigravity.google/docs/cli-install",
 };
 
 pub(crate) fn tool_installer(id: &str) -> Option<&'static ToolInstaller> {
@@ -66,6 +92,16 @@ pub(crate) fn install_command(t: &ToolInstaller, os: &str) -> Option<(String, Ve
         "windows" => Some((t.win_program.to_string(), t.win_args.iter().map(|s| s.to_string()).collect())),
         _ => None,
     }
+}
+
+/// os: "macos" | "windows". 그 OS에 제거 명령이 없으면 None(→ 안내 폴백 또는 remove_binary).
+pub(crate) fn uninstall_command(t: &ToolInstaller, os: &str) -> Option<(String, Vec<String>)> {
+    let (prog, args) = match os {
+        "macos" => t.mac_uninstall?,
+        "windows" => t.win_uninstall?,
+        _ => return None,
+    };
+    Some((prog.to_string(), args.iter().map(|s| s.to_string()).collect()))
 }
 
 #[cfg(target_os = "macos")]
@@ -96,6 +132,17 @@ pub(crate) struct ToolInstallOutput {
     pub id: String,
     pub stream: String,
     pub line: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ToolUninstallResult {
+    /// 이 호출 후 바이너리가 없으면 true (애초에 설치 안 돼 있던 경우도 포함).
+    pub removed: bool,
+    pub exit_code: Option<i32>,
+    /// removed=false 일 때 보여줄 수동 제거 안내.
+    pub manual_hint: String,
+    pub manual_url: String,
 }
 
 #[tauri::command]
@@ -177,6 +224,89 @@ pub(crate) async fn install_tool(
 }
 // ANCHOR: TOOL_INSTALL_END
 
+// ANCHOR: TOOL_UNINSTALL_START
+/// resolve된 실행파일 경로(Option)를 받아 있으면 삭제. 파일 1개만 remove_file — 비재귀·셸 미경유.
+/// None 이면 이미 없으므로 no-op.
+fn remove_resolved_binary(resolved: Option<std::path::PathBuf>) -> std::io::Result<()> {
+    if let Some(path) = resolved {
+        std::fs::remove_file(&path)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn uninstall_tool(
+    app: tauri::AppHandle,
+    id: String,
+) -> Result<ToolUninstallResult, String> {
+    let t = tool_installer(&id).ok_or_else(|| "알 수 없는 도구".to_string())?;
+    let manual_hint = t.uninstall_hint.to_string();
+    let manual_url = t.uninstall_url.to_string();
+
+    // 1) agy mac: 명령이 없어 resolve된 단일 바이너리만 삭제(파일 1개, 비재귀, 셸 미경유).
+    if t.uninstall_remove_binary && current_os() == "macos" {
+        let probe = t.probe_binary;
+        remove_resolved_binary(find_executable(probe)).map_err(|e| format!("제거 실패: {e}"))?;
+        // 명령 경로와 동일하게 재-probe — 심링크/중복 PATH 로 agy 가 여전히 잡히면
+        // removed=false → 프론트가 안내 폴백으로 전환(거짓 성공 방지, 스펙 §50).
+        let removed = find_executable(probe).is_none();
+        return Ok(ToolUninstallResult { removed, exit_code: None, manual_hint, manual_url });
+    }
+
+    // 2) 제거 명령이 있으면 실행. 없으면 안내 폴백.
+    let Some((program, args)) = uninstall_command(t, current_os()) else {
+        return Ok(ToolUninstallResult { removed: false, exit_code: None, manual_hint, manual_url });
+    };
+
+    let probe_binary = t.probe_binary;
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Emitter;
+        let mut cmd = std::process::Command::new(&program);
+        cmd.args(&args);
+        cmd.env("PATH", augmented_vib_path());
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
+        hide_console(&mut cmd);
+        let mut child = cmd.spawn().map_err(|e| format!("제거 실행 실패: {e}"))?;
+
+        let stderr_handle = child.stderr.take().map(|err| {
+            let app2 = app.clone();
+            let id2 = id.clone();
+            std::thread::spawn(move || {
+                for line in BufReader::new(err).lines().map_while(Result::ok) {
+                    let _ = app2.emit(
+                        "tool-install-output",
+                        ToolInstallOutput { id: id2.clone(), stream: "stderr".into(), line },
+                    );
+                }
+            })
+        });
+        if let Some(out) = child.stdout.take() {
+            for line in BufReader::new(out).lines().map_while(Result::ok) {
+                let _ = app.emit(
+                    "tool-install-output",
+                    ToolInstallOutput { id: id.clone(), stream: "stdout".into(), line },
+                );
+            }
+        }
+        if let Some(h) = stderr_handle {
+            let _ = h.join();
+        }
+        let status = child.wait().map_err(|e| format!("제거 대기 실패: {e}"))?;
+        // 제거 후 재-probe — 정말 사라졌는지 검증(거짓 성공 방지).
+        let removed = find_executable(probe_binary).is_none();
+        Ok(ToolUninstallResult {
+            removed,
+            exit_code: status.code(),
+            manual_hint,
+            manual_url,
+        })
+    })
+    .await
+    .map_err(|_| SPAWN_FAIL.to_string())?
+}
+// ANCHOR: TOOL_UNINSTALL_END
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,4 +345,55 @@ mod tests {
         let t = tool_installer("agy").unwrap();
         assert!(install_command(t, "linux-unknown").is_none());
     }
+
+    #[test]
+    fn uninstall_command_per_os() {
+        let oc = tool_installer("opencode").unwrap();
+        let mac = uninstall_command(oc, "macos").expect("opencode mac uninstall");
+        assert_eq!(mac.0, "opencode");
+        assert!(mac.1.iter().any(|a| a == "uninstall"));
+        let win = uninstall_command(oc, "windows").expect("opencode win uninstall");
+        assert_eq!(win.0, "npm");
+    }
+
+    #[test]
+    fn codex_win_and_agy_have_no_command_fallback_to_manual() {
+        let cx = tool_installer("codex").unwrap();
+        assert!(uninstall_command(cx, "macos").is_some());
+        assert!(uninstall_command(cx, "windows").is_none());
+        let agy = tool_installer("agy").unwrap();
+        assert!(uninstall_command(agy, "macos").is_none());
+        assert!(uninstall_command(agy, "windows").is_none());
+    }
+
+    #[test]
+    fn agy_uses_remove_binary_others_do_not() {
+        assert!(tool_installer("agy").unwrap().uninstall_remove_binary);
+        assert!(!tool_installer("opencode").unwrap().uninstall_remove_binary);
+        assert!(!tool_installer("codex").unwrap().uninstall_remove_binary);
+    }
+
+    #[test]
+    fn remove_resolved_binary_none_is_noop() {
+        assert!(remove_resolved_binary(None).is_ok());
+    }
+
+    #[test]
+    fn remove_resolved_binary_deletes_single_file() {
+        let path = std::env::temp_dir().join("vibelign_uninstall_test_bin");
+        std::fs::write(&path, b"x").unwrap();
+        assert!(path.exists());
+        remove_resolved_binary(Some(path.clone())).unwrap();
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn manual_fallback_tools_have_hint_and_url() {
+        for id in ["opencode", "codex", "agy"] {
+            let t = tool_installer(id).unwrap();
+            assert!(!t.uninstall_hint.is_empty(), "{id} hint");
+            assert!(!t.uninstall_url.is_empty(), "{id} url");
+        }
+    }
 }
+// === ANCHOR: TOOL_INSTALL_END ===

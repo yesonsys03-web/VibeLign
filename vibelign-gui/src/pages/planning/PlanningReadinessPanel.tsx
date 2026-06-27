@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGREADINESSPANEL_START ===
 import type { CSSProperties } from "react";
 import type { ReadinessReport, ReadinessVerdict } from "../../lib/vib/types";
 import { readinessSummary } from "./PlanningReadiness";
@@ -16,6 +17,7 @@ interface PlanningReadinessPanelProps {
   readonly report: ReadinessReport | null | undefined;
 }
 
+// === ANCHOR: PLANNINGREADINESSPANEL_PLANNINGREADINESSPANEL_START ===
 export function PlanningReadinessPanel({ report }: PlanningReadinessPanelProps) {
   if (!report) {
     return null;
@@ -58,9 +60,11 @@ export function PlanningReadinessPanel({ report }: PlanningReadinessPanelProps) 
     </div>
   );
 }
+// === ANCHOR: PLANNINGREADINESSPANEL_PLANNINGREADINESSPANEL_END ===
 
 const panelStyle: CSSProperties = {
   border: "2px solid #1A1A1A",
   background: "#FEFBF0",
   padding: "12px 14px",
 };
+// === ANCHOR: PLANNINGREADINESSPANEL_END ===

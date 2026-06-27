@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "createdAt": "2026-06-02T05:00:07.366Z",
+  "updatedAt": "2026-06-02T05:29:56.884Z",
+  "briefPath": ".omo/ulw-loop/019e859f-8155-7c50-b3cc-82aa7c4242bd/brief.md",
+  "goalsPath": ".omo/ulw-loop/019e859f-8155-7c50-b3cc-82aa7c4242bd/goals.json",
+  "ledgerPath": ".omo/ulw-loop/019e859f-8155-7c50-b3cc-82aa7c4242bd/ledger.jsonl",
+  "codexGoalMode": "aggregate",
+  "goals": [
+    {
+      "id": "G001-pr1-plans-spec-onboarding-input-bar",
+      "title": "PR1 온보딩 입력 바 구현 시작: plans/spec-onboarding-input-bar.md 기준으로 VibeLign...",
+      "objective": "PR1 온보딩 입력 바 구현 시작: plans/spec-onboarding-input-bar.md 기준으로 VibeLign GUI 첫 온보딩 화면을 ChatGPT식 단일 입력 바 중심으로 바꾸고, 기존 기능 카드/터미널/도움말/GitHub/첫걸음 아코디언을 기본 첫 화면에서 제거한다. TDD로 Onboarding 입력 바 테스트를 먼저 작성하고 RED→GREEN 증거를 남긴다. Browser 또는 computer-use 실제 화면 QA 증거를 캡처한다.",
+      "status": "blocked",
+      "successCriteria": [
+        {
+          "id": "C001",
+          "scenario": "Browser use: start Vite dev server on localhost, open /, with no projectDir so Onboarding renders; assert visible text '내 프로젝트를 안전하게 만들기', placeholder '무엇을 만들고 싶나요?', 'Claude Code도 자동으로 준비하기', and no default feature-card/terminal/GitHub/guide text. Capture Playwright action log and screenshot.",
+          "userModel": "happy",
+          "expectedEvidence": ".omo/ulw-loop/evidence/pr1-c001-onboarding-default.json + .omo/ulw-loop/evidence/pr1-c001-onboarding-default.png",
+          "capturedEvidence": ".omo/ulw-loop/evidence/pr1-c001-onboarding-default.json + .png: browser opened /, default input bar visible, legacy feature/terminal/GitHub/guide terms absent | cleanup: stopped Vite session 72681; stopped Chrome session 57273; lsof confirmed no listeners on 4173/9222",
+          "status": "pass",
+          "capturedAt": "2026-06-02T05:27:05.893Z"
+        },
+        {
+          "id": "C002",
+          "scenario": "Browser use: start Vite dev server, open /, type Korean text '예약 앱 만들고 싶어' into onboarding prompt, click send without selecting a folder; assert text remains in input, a short folder-required 안내 appears, app stays on onboarding, and no vib start/progress text appears. Capture Playwright action log and screenshot.",
+          "userModel": "edge",
+          "expectedEvidence": ".omo/ulw-loop/evidence/pr1-c002-text-no-folder.json + .omo/ulw-loop/evidence/pr1-c002-text-no-folder.png",
+          "capturedEvidence": ".omo/ulw-loop/evidence/pr1-c002-text-no-folder.json + .png: browser typed '예약 앱 만들고 싶어', clicked send without folder, inputValue preserved and folder hint shown, no progress/start text | cleanup: stopped Vite session 72681; stopped Chrome session 57273; lsof confirmed no listeners on 4173/9222",
+          "status": "pass",
+          "capturedAt": "2026-06-02T05:27:12.281Z"
+        },
+        {
+          "id": "C003",
+          "scenario": "Browser use: start Vite dev server, open /, click '고급 설정 보기'; assert secondary/recent-project/system-detail area becomes available, but legacy terms patch/CodeSpeak/plan-structure are not recommended in the default onboarding surface before expansion. Capture Playwright action log and screenshot.",
+          "userModel": "regression",
+          "expectedEvidence": ".omo/ulw-loop/evidence/pr1-c003-advanced-panel.json + .omo/ulw-loop/evidence/pr1-c003-advanced-panel.png",
+          "capturedEvidence": ".omo/ulw-loop/evidence/pr1-c003-advanced-panel.json + .png: browser clicked advanced toggle, system status and recent project details visible, legacy CodeSpeak/plan-structure absent | cleanup: stopped Vite session 72681; stopped Chrome session 57273; lsof confirmed no listeners on 4173/9222",
+          "status": "pass",
+          "capturedAt": "2026-06-02T05:27:17.810Z"
+        }
+      ],
+      "attempt": 1,
+      "createdAt": "2026-06-02T05:00:07.366Z",
+      "updatedAt": "2026-06-02T05:29:56.884Z",
+      "startedAt": "2026-06-02T05:00:53.018Z",
+      "blockedReason": "Implementation and all criteria passed, but terminal complete checkpoint is blocked because get_goal returns a different completed legacy Codex goal in this thread. CLI instructed not to repeat --status complete here."
+    }
+  ],
+  "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/019e859f-8155-7c50-b3cc-82aa7c4242bd/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/019e859f-8155-7c50-b3cc-82aa7c4242bd/ledger.jsonl as the audit trail."
+}

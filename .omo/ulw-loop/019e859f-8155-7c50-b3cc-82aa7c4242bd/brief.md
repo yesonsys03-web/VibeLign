@@ -1,0 +1,1 @@
+PR1 온보딩 입력 바 구현 시작: plans/spec-onboarding-input-bar.md 기준으로 VibeLign GUI 첫 온보딩 화면을 ChatGPT식 단일 입력 바 중심으로 바꾸고, 기존 기능 카드/터미널/도움말/GitHub/첫걸음 아코디언을 기본 첫 화면에서 제거한다. TDD로 Onboarding 입력 바 테스트를 먼저 작성하고 RED→GREEN 증거를 남긴다. Browser 또는 computer-use 실제 화면 QA 증거를 캡처한다.

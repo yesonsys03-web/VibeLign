@@ -27,7 +27,7 @@
 VibeLign(`vibelign`)은 바이브 코딩 작업을 더 안전하게 해주는 AI 코딩 안전 **CLI + 데스크톱 GUI** 예요.
 프로젝트 구조 보호, 체크포인트 저장, 되돌리기, 앵커 관리, 커밋 전 비밀정보 차단을 도와줘요.
 
-> **🆕 v2.4**: 디자인 미리보기에서 일상어로 스타일을 즉석 합성(다른 탭으로 이동해도 백그라운드 생성 유지), opencode·codex·agy를 앱 안에서 원클릭 설치, "실행해보기" 흐름으로 첫 `vib start`부터 동작 확인까지 안내, 무거운 작업 중에도 UI가 멈추지 않는 비동기 Tauri 커맨드 적용. [CHANGELOG](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md) 참고. v1 → v2 사용자: [마이그레이션 가이드](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md).
+> **🆕 v2.5.1**: 보고서 내보내기에 삿갓 스타일 specimen 테마 13종을 추가했고, Claude 정책 변경이 취소되어 경고 배지를 제거했습니다. 기획방 우선순위도 기존처럼 클로이(Claude) → 지오(Codex) 순서로 돌아왔어요. [CHANGELOG](https://github.com/yesonsys03-web/VibeLign/blob/main/CHANGELOG.md) 참고. v1 → v2 사용자: [마이그레이션 가이드](https://github.com/yesonsys03-web/VibeLign/blob/main/MIGRATION_v1_to_v2.md).
 
 문서: `https://yesonsys03-web.github.io/VibeLign/`  
 저장소: `https://github.com/yesonsys03-web/VibeLign`  
@@ -316,6 +316,43 @@ VibeLign이 보장하는 것:
 ---
 
 ## 📋 업데이트 내역 (Release Notes)
+
+**v2.5.1** — 삿갓 specimen 보고서팩 + Claude 경고 정리:
+
+- 🧾 **삿갓 스타일 보고서 specimen 테마 13종 추가** — 업무 보고, 제안서, 결과 보고, 문서 그대로 내보내기를 손으로 꾸미지 않고 바로 비교할 수 있어요.
+- 🔁 **기획방 우선순위 복원** — 기본 응답 모드가 다시 **초안 · 클로이** 우선이고, **Instant · 지오**는 바로 다음 선택지로 유지됩니다.
+- 🧹 **Claude 크레딧 경고 배지 제거** — 정책 변경이 취소되어 기획방 칩, 페르소나 설정, 작업방, 디자인 미리보기의 `claude -p` 크레딧 경고를 걷어냈어요.
+
+**v2.5.0** — 보고서 내보내기 대폭 강화:
+
+- 📄 **기획안/일반 문서 → 보고서 원클릭 내보내기** — HTML 미리보기, PDF, Word, PowerPoint 지원.
+- 🎨 **50여 종 보고서 테마**, 제목/본문/머리말 폰트 크기 조절, 페이지 번호, 저장 위치 기억.
+- 🔤 **무료 한글 폰트 선택** — Pretendard, 나눔명조, 고운바탕, 고운돋움, 검은고딕을 고르고 PDF에 임베딩해요.
+- 🛠 **Word/PPT 한글 풀림 해결** — 자모가 분리돼 보이던 한글을 출력 직전 NFC로 정규화합니다.
+
+**v2.4.4** — 온보딩·기획방에 새 갸리카(자동차) 길잡이 마스코트:
+
+- 🚗 **온보딩 마스코트가 운전해 들어와요** — 왼쪽 화면 밖에서 들어와 입력란 아래에서 급정거한 뒤 환영 말풍선을 띄워요. 클릭하면 말풍선 접기 → 다시 클릭하면 "부릉부릉" 오른쪽으로 퇴장 → 아무 데나 클릭하면 다시 들어와요.
+- ⏳ **기획방 답변 대기** — 페르소나(클로이/지오/미나/딥시기)가 답을 준비하는 동안, 밋밋한 텍스트 대신 갸리카가 제자리에서 "부릉부릉" 달리는 로딩 애니메이션을 보여줘요.
+- 🧭→🚗 기존 나침반 길잡이 마스코트를 교체했어요.
+
+**v2.4.3** — Claude 프로그래밍 사용 과금 정책 변경 대응 (자동 Claude 호출 최소화):
+
+- 🔻 **기획방 페르소나가 더는 Claude로 자동 폴백하지 않아요** (Codex·OpenCode 우선). Claude 페르소나(클로이)는 **기본 꺼짐 — opt-in**. 꺼진 페르소나는 선택이 막히고 "모두"도 켜진 도구만 불러요.
+- 💲 **Claude를 쓸 때도 Sonnet 고정**(Opus 아님)으로 크레딧 소모를 줄였어요 — 페르소나·검토(judge)·디자인 생성·CLI 전반.
+- 🎨 **디자인 미리보기**와 🛠 **작업방** 기본 도구는 **Codex**. Claude Code를 고르면 **크레딧 차감 경고**가 떠요 (`claude -p`로 실행돼 2026-06-15부터 구독 풀이 아니라 별도 월 크레딧/표준 API 요금으로 청구).
+- ℹ️ **영향 없음**: 터미널에서 직접 쓰는 인터랙티브 Claude Code, MCP 연동, 사용자 API 키 직접 호출(`vib ask`·docs-enhance).
+
+**v2.4.2** — 설치된 AI 도구 감지 정확화 + 설정 가독성 + 기획방 자동 스크롤:
+
+- 🔍 **설치된 AI 도구가 이제 제대로 "설치됨"으로 표시** — 설정의 도구 감지가 `zsh -lc`/`bash -lc`(로그인·비대화형) 셸의 `command -v` 에 의존했는데, 이 셸은 PATH export 가 대부분 들어있는 `.zshrc`(대화형 전용)를 안 읽어서 `~/.bun/bin` 의 opencode 같은 도구가 설치돼 있어도 누락됐다. 이제 augmented PATH(homebrew/cargo/bun/.local/bin)를 직접 탐색해, Finder/Dock 으로 앱을 실행해도 빠짐없이 감지한다.
+- ✅ **설치 상태 표시 명확화** — 모호한 " MCP" 접미사를 또렷한 **"✓ 설치됨"** 배지로 교체하고, 설치됨/자동설치/직접설치 배지를 초록/앰버/회색으로 구분해 선택된(파란) 버튼 위에서도 잘 읽히게 했다.
+- 🔤 **설정 텍스트 가독성** — AI 도구 설정·기획방 페르소나·API 키 카드의 작고 흐리던 설명 문구를 표준 카드 스타일(13px·진한색)로 통일했고, 흰 배경에서 안 읽히던 제공자 이름의 터미널 그린도 진한색으로 바꿨다.
+- ⬇️ **기획방 스마트 자동 스크롤** — 메시지를 보내거나 새 응답이 오면 페이지 맨 아래가 아니라 그 답변으로 스크롤된다. 위에서 이전 대화를 읽는 중이면 스크롤을 가로채지 않는다.
+
+**v2.4.1** — AI CLI 도구 언인스톨 (OpenCode / Codex / Antigravity):
+
+- 🧹 **`ToolInstallPanel` 원클릭 제거** — opencode/codex/antigravity 를 앱에서 제거. opencode·codex(macOS)는 제거 명령으로, agy(macOS)는 PATH에서 resolve된 단일 바이너리만 `std::fs::remove_file`(파일 1개·비재귀·셸 미경유) 후 재-probe로 검증 — 심링크/중복 PATH 설치의 거짓성공 방지, codex/agy(Windows)는 수동 안내 폴백. 바이너리만 제거 — MCP 설정·도구 config·로그인은 보존.
 
 **v2.2.20** — Code Explorer 사이드바에 docs 트리 + 카테고리별 컬러 구분:
 

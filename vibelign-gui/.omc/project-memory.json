@@ -42,8 +42,8 @@
     "runtime": null
   },
   "build": {
-    "buildCommand": "rtk tsc --noEmit 2>&1 | tail -1 && rtk vitest --reporter=default 2>&1 | tail -2",
-    "testCommand": "rtk tsc --noEmit 2>&1 | tail -1 && rtk vitest --reporter=default 2>&1 | tail -2",
+    "buildCommand": "cd /Users/usabatch/coding/VibeLign/vibelign-gui\necho \"=== T3 통합 테스트 단독 ===\"\nnpx vitest run src/pages/__tests__/PlanDocView.report.test.tsx 2>&1 | tail -6\necho \"=== tsc --noEmit ===\"\nnpx tsc --noEmit 2>&1 | tail -5 && echo \"  ✅ 타입 0\"\necho \"=== lint ===\"\nnpm run lint 2>&1 | tail -6",
+    "testCommand": "cd /Users/usabatch/coding/VibeLign/vibelign-gui\nnpx vitest run src/lib/vib/__tests__/report.test.ts src/components/plan-doc/__tests__/ExportReportModal.test.tsx src/pages/__tests__/PlanDocView.report.test.tsx 2>&1 | grep -E 'Test Files|Tests '",
     "lintCommand": null,
     "devCommand": "npm run dev",
     "scripts": {
@@ -186,15 +186,27 @@
       "type": "file"
     },
     {
-      "path": "src/App.tsx",
-      "accessCount": 27,
-      "lastAccessed": 1781183092967,
+      "path": "src/pages/Onboarding.tsx",
+      "accessCount": 29,
+      "lastAccessed": 1781508363561,
       "type": "file"
     },
     {
-      "path": "src/pages/Onboarding.tsx",
+      "path": "src/App.tsx",
+      "accessCount": 28,
+      "lastAccessed": 1781486091600,
+      "type": "file"
+    },
+    {
+      "path": "src/styles/brutalism.css",
+      "accessCount": 28,
+      "lastAccessed": 1781510031137,
+      "type": "file"
+    },
+    {
+      "path": "src/pages/PlanningRoom.tsx",
       "accessCount": 19,
-      "lastAccessed": 1780832384865,
+      "lastAccessed": 1781486079134,
       "type": "file"
     },
     {
@@ -204,9 +216,9 @@
       "type": "file"
     },
     {
-      "path": "src/pages/PlanningRoom.tsx",
-      "accessCount": 18,
-      "lastAccessed": 1781179660208,
+      "path": "src/pages/Settings.tsx",
+      "accessCount": 16,
+      "lastAccessed": 1781485380858,
       "type": "file"
     },
     {
@@ -217,14 +229,20 @@
     },
     {
       "path": "src-tauri/src/commands/planning_chat.rs",
-      "accessCount": 9,
-      "lastAccessed": 1781177741275,
+      "accessCount": 12,
+      "lastAccessed": 1781490772252,
       "type": "file"
     },
     {
       "path": "src/lib/vib/types.ts",
       "accessCount": 9,
       "lastAccessed": 1781177869878,
+      "type": "file"
+    },
+    {
+      "path": "src-tauri/src/commands/planning_persona.rs",
+      "accessCount": 8,
+      "lastAccessed": 1781490749794,
       "type": "file"
     },
     {
@@ -240,21 +258,9 @@
       "type": "file"
     },
     {
-      "path": "src-tauri/src/commands/planning_persona.rs",
+      "path": "src/components/ToolSetupSelector.tsx",
       "accessCount": 7,
-      "lastAccessed": 1780923507022,
-      "type": "file"
-    },
-    {
-      "path": "src/styles/brutalism.css",
-      "accessCount": 7,
-      "lastAccessed": 1781182350224,
-      "type": "file"
-    },
-    {
-      "path": "src/pages/Settings.tsx",
-      "accessCount": 6,
-      "lastAccessed": 1774423066692,
+      "lastAccessed": 1781485783795,
       "type": "file"
     },
     {
@@ -312,12 +318,6 @@
       "type": "file"
     },
     {
-      "path": "src/components/ToolSetupSelector.tsx",
-      "accessCount": 3,
-      "lastAccessed": 1780832435263,
-      "type": "file"
-    },
-    {
       "path": "src/pages/planning/PlanningModes.ts",
       "accessCount": 3,
       "lastAccessed": 1780835954309,
@@ -337,8 +337,8 @@
     },
     {
       "path": "src/components/ScrollToTopButton.tsx",
-      "accessCount": 2,
-      "lastAccessed": 1778642920155,
+      "accessCount": 3,
+      "lastAccessed": 1781486085294,
       "type": "file"
     },
     {
@@ -396,6 +396,18 @@
       "type": "file"
     },
     {
+      "path": "src-tauri/src/onboarding/mod.rs",
+      "accessCount": 2,
+      "lastAccessed": 1781483155385,
+      "type": "file"
+    },
+    {
+      "path": "src/pages/planning/PlanningActionBar.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1781486117887,
+      "type": "file"
+    },
+    {
       "path": "src/App.css",
       "accessCount": 1,
       "lastAccessed": 1774422235395,
@@ -432,12 +444,6 @@
       "type": "file"
     },
     {
-      "path": "src-tauri/src/onboarding/mod.rs",
-      "accessCount": 1,
-      "lastAccessed": 1780703085042,
-      "type": "file"
-    },
-    {
       "path": "src/pages/onboarding/__tests__/OnboardingClaudeSetup.test.tsx",
       "accessCount": 1,
       "lastAccessed": 1780709762329,
@@ -453,12 +459,6 @@
       "path": "src/pages/onboarding/OnboardingSystemWarnings.tsx",
       "accessCount": 1,
       "lastAccessed": 1780757867752,
-      "type": "file"
-    },
-    {
-      "path": "src/pages/planning/PlanningActionBar.tsx",
-      "accessCount": 1,
-      "lastAccessed": 1780810298530,
       "type": "file"
     },
     {

@@ -1,3 +1,4 @@
+// === ANCHOR: PLANNINGPERSONASETTINGS_TEST_START ===
 import { describe, it, expect } from "vitest";
 import { PLANNING_ROLE_OPTIONS, effectivePersona, applyRoleSwap } from "../PlanningPersonaSettings";
 
@@ -6,8 +7,8 @@ describe("PlanningPersonaSettings role swap", () => {
     expect(PLANNING_ROLE_OPTIONS.map((r) => r.id)).toEqual(["design", "review", "explore", "assist"]);
   });
 
-  it("effectivePersona falls back to default role + enabled true", () => {
-    expect(effectivePersona({}, "chloe")).toEqual({ enabled: true, role: "design" });
+  it("effectivePersona falls back to default role; chloe defaults OFF (opt-in), others ON", () => {
+    expect(effectivePersona({}, "chloe")).toEqual({ enabled: false, role: "design" });
     expect(effectivePersona({ gio: { role: "design" } }, "gio")).toEqual({ enabled: true, role: "design" });
     expect(effectivePersona({ mina: { enabled: false } }, "mina")).toEqual({ enabled: false, role: "explore" });
   });
@@ -23,3 +24,4 @@ describe("PlanningPersonaSettings role swap", () => {
     expect(applyRoleSwap({}, "chloe", "design")).toEqual({});
   });
 });
+// === ANCHOR: PLANNINGPERSONASETTINGS_TEST_END ===

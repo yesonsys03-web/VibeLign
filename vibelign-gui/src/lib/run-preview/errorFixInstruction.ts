@@ -29,6 +29,7 @@ export function buildRunErrorFixInstruction({ errorText, planPath }: RunErrorFix
       : []),
     "작업 기준:",
     "- 원인을 먼저 한두 줄로 설명한 뒤, 최소한의 변경으로 고치세요.",
+    "- 실행 방법을 못 찾은 상태라면 프로젝트 루트에 index.html 파일을 만들거나, package.json에 dev 또는 start 스크립트를 제공하세요.",
     "- 앵커 경계를 지키고, 약속한 범위 밖 파일은 건드리기 전에 확인하세요.",
     "- 고친 뒤 다시 실행이나 미리보기는 사용자가 직접 합니다 — dev 서버를 직접 띄우지 마세요.",
   ].join("\n");

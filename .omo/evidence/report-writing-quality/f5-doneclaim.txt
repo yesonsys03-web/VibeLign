@@ -1,0 +1,117 @@
+Status: DONE
+Verdict: confirmed
+Timestamp: 2026-06-20T Asia/Seoul
+
+Scope
+- Final verification F5 for .omo/plans/report-writing-quality.md.
+- Read-only verification; no product code or plan checkboxes edited.
+- Wrote only requested evidence artifacts:
+  - .omo/evidence/report-writing-quality/f5-full-focused.txt
+  - .omo/evidence/report-writing-quality/f5-doneclaim.txt
+
+Exact F5 command attempted first
+- Surface: terminal
+- Invocation:
+  mkdir -p .omo/evidence/report-writing-quality && bash -lc 'set -euo pipefail
+  python3 -m pytest tests/core/reporting_cli/test_report_quality.py tests/core/reporting_cli/test_report_assist.py tests/core/reporting_cli/test_report_visual_cards.py tests/core/reporting_cli/test_emit.py tests/core/reporting_cli/test_model_json.py tests/cli/test_vib_report_cmd.py -v
+  python3 -m pytest tests/core/reporting_cli/test_html_renderer.py tests/core/reporting_cli/test_docx_renderer.py tests/core/reporting_cli/test_pptx_renderer.py -v
+  python3 -m compileall vibelign/core/reporting_cli vibelign/commands
+  cd vibelign-gui
+  npm run test -- src/lib/vib/__tests__/reportQuality.test.ts src/lib/vib/__tests__/reportAssist.test.ts src/lib/vib/__tests__/reportVisualCards.test.ts src/lib/vib/__tests__/report.test.ts src/components/plan-doc/__tests__/ReportQualityPanel.test.tsx src/components/plan-doc/__tests__/ReportVisualCardsPanel.test.tsx src/components/plan-doc/__tests__/ExportReportModal.test.tsx src/pages/__tests__/ReportView.test.tsx
+  npm run build
+  ' > .omo/evidence/report-writing-quality/f5-full-focused.txt
+- Result: FAIL, expected environment mismatch.
+- Evidence: f5-full-focused.txt lines show Python 3.9.6 via /Applications/Xcode.../python3 and SyntaxError at vibelign/core/planning_cli/cli_adapters.py:190 for Python 3.10 match syntax.
+
+Accepted environment fallback
+- Reason: python3 resolves to /usr/bin/python3 / Python 3.9.6; uv run python resolves to Python 3.11.15.
+- Backend/CLI fallback preserved the same focused backend verification with uv run python and added split CLI tests omitted by the exact F5 command:
+  - tests/cli/test_vib_report_visual_cards_cmd.py
+  - tests/cli/test_vib_report_assist_cmd.py
+  - tests/cli/test_vib_report_format_parity.py
+  - tests/cli/test_vib_report_render_payload.py
+- GUI npm test/build checks were preserved.
+
+Commands run with pass/fail
+- FAIL: exact F5 command with python3; failed during pytest collection under Python 3.9.6 SyntaxError for match/case syntax.
+- PASS: uv run python -m pytest tests/core/reporting_cli/test_report_quality.py tests/core/reporting_cli/test_report_assist.py tests/core/reporting_cli/test_report_visual_cards.py tests/core/reporting_cli/test_emit.py tests/core/reporting_cli/test_model_json.py tests/cli/test_vib_report_cmd.py tests/cli/test_vib_report_visual_cards_cmd.py tests/cli/test_vib_report_assist_cmd.py tests/cli/test_vib_report_format_parity.py tests/cli/test_vib_report_render_payload.py -v
+- PASS: uv run python -m pytest tests/core/reporting_cli/test_html_renderer.py tests/core/reporting_cli/test_docx_renderer.py tests/core/reporting_cli/test_pptx_renderer.py -v
+- PASS: uv run python -m compileall vibelign/core/reporting_cli vibelign/commands
+- PASS: cd vibelign-gui && npm run test -- src/lib/vib/__tests__/reportQuality.test.ts src/lib/vib/__tests__/reportAssist.test.ts src/lib/vib/__tests__/reportVisualCards.test.ts src/lib/vib/__tests__/report.test.ts src/components/plan-doc/__tests__/ReportQualityPanel.test.tsx src/components/plan-doc/__tests__/ReportVisualCardsPanel.test.tsx src/components/plan-doc/__tests__/ExportReportModal.test.tsx src/pages/__tests__/ReportView.test.tsx
+- PASS: cd vibelign-gui && npm run build
+
+manualQa
+surfaceEvidence:
+- scenarioId: F5-exact-command
+  criterionRef: .omo/plans/report-writing-quality.md F5 exact command
+  surface: terminal
+  exactInvocation: mkdir -p .omo/evidence/report-writing-quality && bash -lc 'set -euo pipefail ... npm run build' > .omo/evidence/report-writing-quality/f5-full-focused.txt
+  verdict: FAIL due accepted Python 3.9 environment mismatch
+  artifactRefs: [artifact-f5-full]
+- scenarioId: F5-backend-cli-fallback
+  criterionRef: F5 fallback instruction plus split CLI coverage requirement
+  surface: terminal
+  exactInvocation: uv run python -m pytest tests/core/reporting_cli/test_report_quality.py tests/core/reporting_cli/test_report_assist.py tests/core/reporting_cli/test_report_visual_cards.py tests/core/reporting_cli/test_emit.py tests/core/reporting_cli/test_model_json.py tests/cli/test_vib_report_cmd.py tests/cli/test_vib_report_visual_cards_cmd.py tests/cli/test_vib_report_assist_cmd.py tests/cli/test_vib_report_format_parity.py tests/cli/test_vib_report_render_payload.py -v
+  verdict: PASS
+  artifactRefs: [artifact-f5-full]
+- scenarioId: F5-renderer-fallback
+  criterionRef: F5 focused renderer verification
+  surface: terminal
+  exactInvocation: uv run python -m pytest tests/core/reporting_cli/test_html_renderer.py tests/core/reporting_cli/test_docx_renderer.py tests/core/reporting_cli/test_pptx_renderer.py -v
+  verdict: PASS
+  artifactRefs: [artifact-f5-full]
+- scenarioId: F5-compileall-fallback
+  criterionRef: F5 compile verification
+  surface: terminal
+  exactInvocation: uv run python -m compileall vibelign/core/reporting_cli vibelign/commands
+  verdict: PASS
+  artifactRefs: [artifact-f5-full]
+- scenarioId: F5-gui-tests
+  criterionRef: F5 GUI focused test verification
+  surface: terminal
+  exactInvocation: cd vibelign-gui && npm run test -- src/lib/vib/__tests__/reportQuality.test.ts src/lib/vib/__tests__/reportAssist.test.ts src/lib/vib/__tests__/reportVisualCards.test.ts src/lib/vib/__tests__/report.test.ts src/components/plan-doc/__tests__/ReportQualityPanel.test.tsx src/components/plan-doc/__tests__/ReportVisualCardsPanel.test.tsx src/components/plan-doc/__tests__/ExportReportModal.test.tsx src/pages/__tests__/ReportView.test.tsx
+  verdict: PASS
+  artifactRefs: [artifact-f5-full]
+- scenarioId: F5-gui-build
+  criterionRef: F5 GUI build verification
+  surface: terminal
+  exactInvocation: cd vibelign-gui && npm run build
+  verdict: PASS
+  artifactRefs: [artifact-f5-full]
+
+adversarialCases:
+- scenarioId: F5-python39-mismatch
+  criterionRef: user fallback instruction
+  adversarialClass: unsupported interpreter syntax level
+  expectedBehavior: capture exact-command failure, rerun focused backend/CLI verification with uv run python, preserve GUI npm checks
+  verdict: PASS
+  artifactRefs: [artifact-f5-full]
+- scenarioId: F5-split-cli-coverage
+  criterionRef: user split CLI test inclusion instruction
+  adversarialClass: exact command omits current split CLI coverage
+  expectedBehavior: include split CLI tests in uv backend fallback
+  verdict: PASS
+  artifactRefs: [artifact-f5-full]
+- scenarioId: F5-readonly-scope
+  criterionRef: user read-only/product-code restriction
+  adversarialClass: accidental product code or plan checkbox edits during QA
+  expectedBehavior: only requested evidence artifacts are written by this verification run
+  verdict: PASS
+  artifactRefs: [artifact-f5-doneclaim]
+
+artifactRefs:
+- id: artifact-f5-full
+  kind: terminal transcript
+  description: exact F5 failure under Python 3.9, uv fallback backend/CLI/compileall, GUI npm tests, and GUI build output
+  path: .omo/evidence/report-writing-quality/f5-full-focused.txt
+- id: artifact-f5-doneclaim
+  kind: doneclaim
+  description: verification verdict, command outcomes, fallback rationale, and manualQa matrix
+  path: .omo/evidence/report-writing-quality/f5-doneclaim.txt
+
+Blockers
+- None remaining.
+- Accepted fallback: /usr/bin/python3 is Python 3.9.6 and cannot parse Python 3.10 match/case syntax; uv run python 3.11.15 was used for backend/CLI and compileall verification as instructed.
+
+Scope caveat
+- Final git status shows a dirty worktree with many product and plan files outside f5 evidence. This run did not intentionally edit product code or plan checkboxes; because no pre-run baseline was provided, those unrelated changes are treated as pre-existing workspace state. The verification writes intentionally performed by this run are the f5 evidence artifacts above.

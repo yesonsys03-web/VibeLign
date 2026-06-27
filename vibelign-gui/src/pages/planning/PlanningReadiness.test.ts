@@ -1,8 +1,10 @@
+// === ANCHOR: PLANNINGREADINESS_TEST_START ===
 import { describe, expect, it } from "vitest";
 
 import type { ReadinessReport, RequirementReadiness } from "../../lib/vib/types";
 import { readinessSummary } from "./PlanningReadiness";
 
+// === ANCHOR: PLANNINGREADINESS_TEST_REQ_START ===
 function req(title: string, core: boolean, triggerRed: boolean): RequirementReadiness {
   const ok = { verdict: "green", note: "" } as const;
   return {
@@ -19,6 +21,7 @@ function req(title: string, core: boolean, triggerRed: boolean): RequirementRead
     },
   };
 }
+// === ANCHOR: PLANNINGREADINESS_TEST_REQ_END ===
 
 describe("readinessSummary", () => {
   it("counts green/red and blocks when a core requirement has red", () => {
@@ -47,3 +50,4 @@ describe("readinessSummary", () => {
     expect(readinessSummary(undefined).canStartWork).toBe(true);
   });
 });
+// === ANCHOR: PLANNINGREADINESS_TEST_END ===

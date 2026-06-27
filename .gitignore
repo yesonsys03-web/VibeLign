@@ -66,3 +66,8 @@ vibelign/_bundled/vibelign-engine.sha256
 vibelign/_bundled/vibelign-engine.exe.sha256
 .vibelign/logs/
 .vibelign/reports/
+
+# ulw-loop run evidence (transient; already-tracked policy-docs-*.txt stay tracked)
+.omo/ulw-loop/evidence/
+
+.superpowers/

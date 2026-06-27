@@ -17,10 +17,11 @@
 //! M3 seam: 작업방과의 동시 1개(§5) — 두 표면이 만나는 곳에서 상호배제 추가.
 
 use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+use percent_encoding::percent_decode_str;
 use serde::Serialize;
 use tauri::Emitter;
 
@@ -41,6 +42,7 @@ pub(crate) enum ProjectKind {
     Web,
     /// unknown — scripts.start 만 있어 타입을 못 좁힘. 로그만, 포트 감지되면 webview.
     Unknown,
+    StaticWeb,
 }
 
 /// 실행 프로그램 — npm 서브커맨드 또는 npx(electron 폴백). 임의 문자열이 아니라
@@ -52,6 +54,8 @@ pub(crate) enum RunProgram {
     Npm(Vec<String>),
     /// npx 직접 실행. ["electron","."] → `npx electron .` (start 스크립트 없는 electron 폴백).
     Npx(Vec<String>),
+    /// run_start 가 spawn_orchestrator 경유 없이 특수 처리하므로 executable/args 는 미사용.
+    Static { entry: String },
 }
 
 impl RunProgram {
@@ -68,12 +72,14 @@ impl RunProgram {
         match self {
             RunProgram::Npm(_) => "npm",
             RunProgram::Npx(_) => "npx",
+            RunProgram::Static { .. } => "static",
         }
     }
 
     fn args(&self) -> &[String] {
         match self {
             RunProgram::Npm(a) | RunProgram::Npx(a) => a,
+            RunProgram::Static { .. } => &[],
         }
     }
 
@@ -230,17 +236,33 @@ pub(crate) fn detect_preview_url(line: &str) -> Option<String> {
 /// 미리보기 webview 창의 고정 라벨 — 한 실행당 하나(재사용·정리 대상).
 const PREVIEW_LABEL: &str = "run-preview";
 
-/// 미리보기로 허용되는 주소인지 — 로컬 http(s) 만. detect_preview_url 가 만든 주소를
-/// 프런트가 그대로 돌려보내지만, 임의 외부 URL 로딩을 막는 방어선이다.
-fn validate_local_url(url: &str) -> Result<tauri::Url, String> {
+fn validate_preview_url(url: &str) -> Result<tauri::Url, String> {
     let parsed = tauri::Url::parse(url).map_err(|_| "잘못된 미리보기 주소예요.".to_string())?;
     let scheme_ok = matches!(parsed.scheme(), "http" | "https");
-    let host_ok =
-        matches!(parsed.host_str(), Some("localhost") | Some("127.0.0.1") | Some("0.0.0.0"));
+    let host_ok = matches!(
+        parsed.host_str(),
+        Some("localhost") | Some("127.0.0.1") | Some("0.0.0.0")
+    );
     if scheme_ok && host_ok {
         Ok(parsed)
     } else {
         Err("로컬 미리보기 주소만 열 수 있어요.".into())
+    }
+}
+
+fn should_allow_preview_navigation(url: &tauri::Url) -> bool {
+    match url.scheme() {
+        "http" | "https" => {
+            matches!(
+                url.host_str(),
+                Some("localhost") | Some("127.0.0.1") | Some("0.0.0.0")
+            )
+        }
+        // WebView2 can emit internal frame navigations while the document is booting. Blocking
+        // these leaves the preview window on a blank renderer even though the local server works.
+        "about" => url.as_str() == "about:blank",
+        "data" | "blob" => true,
+        _ => false,
     }
 }
 
@@ -262,6 +284,10 @@ struct RunRuntime {
     /// 구분 못 해, 탭 복귀 시 install 중인데 "실행 중"으로 오표시된다(M3a 리뷰 P2). run_status
     /// 가 이 값을 돌려줘 복원이 진짜 단계를 보여준다.
     status_label: Option<&'static str>,
+    /// 정적 HTML 실행 시 임베드 tiny_http 서버 핸들. child 와 상호 배타적 —
+    /// 정적 실행엔 child 가 없고, npm 실행엔 static_server 가 없다. 중지/앱종료 때
+    /// `.unblock()` 으로 서빙 스레드를 끝낸다(child 트리 kill 과 동형).
+    static_server: Option<Arc<tiny_http::Server>>,
 }
 
 impl RunRuntime {
@@ -273,6 +299,7 @@ impl RunRuntime {
             cancelled: false,
             preview_url: None,
             status_label: None,
+            static_server: None,
         }
     }
 }
@@ -293,7 +320,14 @@ pub(crate) fn stop_for_exit(handle: &RunShutdownHandle) {
         if let Some(mut child) = guard.child.take() {
             kill_child_tree(&mut child);
         }
+        if let Some(server) = guard.static_server.take() {
+            server.unblock();
+        }
     }
+}
+
+pub(crate) fn close_preview_for_exit(app: &tauri::AppHandle) {
+    close_preview_window(app);
 }
 
 impl Drop for RunState {
@@ -301,6 +335,9 @@ impl Drop for RunState {
         if let Ok(mut guard) = self.0.lock() {
             if let Some(mut child) = guard.child.take() {
                 kill_child_tree(&mut child);
+            }
+            if let Some(server) = guard.static_server.take() {
+                server.unblock();
             }
         }
     }
@@ -653,11 +690,63 @@ fn spawn_orchestrator(
     });
 }
 
+/// 루트에서 정적 HTML 진입 파일을 결정한다 — 순수, 파일 I/O 만(테스트 용이).
+/// 1) index.html 이 있으면 무조건 그것.
+/// 2) 없으면 루트 .html 파일 전체 수집:
+///    - 없으면 None, 하나면 그것,
+///    - 여럿이면 index > main > app 이름 우선(대소문자 무시), 그것도 없으면 알파벳 첫번째.
+fn detect_static_entry(cwd_path: &Path) -> Option<String> {
+    // 1) index.html 우선 — 가장 흔한 케이스, 빠르게 반환.
+    if cwd_path.join("index.html").is_file() {
+        return Some("index.html".to_string());
+    }
+    // 2) 루트의 .html 파일 목록(파일만, 재귀 없음).
+    let mut html_files: Vec<String> = std::fs::read_dir(cwd_path)
+        .ok()?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().ok().map(|ft| ft.is_file()).unwrap_or(false))
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            if name.to_ascii_lowercase().ends_with(".html") { Some(name) } else { None }
+        })
+        .collect();
+    match html_files.len() {
+        0 => None,
+        1 => Some(html_files.remove(0)),
+        _ => {
+            // 복수: index > main > app 순으로 우선, 없으면 알파벳 첫번째.
+            for preferred in &["index.html", "main.html", "app.html"] {
+                if html_files.iter().any(|f| f.eq_ignore_ascii_case(preferred)) {
+                    return Some(preferred.to_string());
+                }
+            }
+            html_files.sort();
+            Some(html_files.remove(0))
+        }
+    }
+}
+
 /// package.json → 실행 레시피(파일 I/O 래퍼). UI 가 실행 전 타입을 보여줄 때 쓴다.
 #[tauri::command]
 pub(crate) fn run_detect(cwd: String) -> Option<RunRecipe> {
-    let content = std::fs::read_to_string(Path::new(&cwd).join("package.json")).ok()?;
-    detect_run_recipe(&content)
+    let cwd_path = Path::new(&cwd);
+    // 1순위 — package.json dev/start 레시피.
+    if let Ok(content) = std::fs::read_to_string(cwd_path.join("package.json")) {
+        if let Some(recipe) = detect_run_recipe(&content) {
+            return Some(recipe);
+        }
+    }
+    // 2순위 — package.json 이 없거나 레시피가 안 나오면 루트 HTML 로 정적 미리보기.
+    // index.html 우선, 없으면 유일한 .html(복수면 index>main>app 또는 알파벳 첫번째).
+    if let Some(entry) = detect_static_entry(cwd_path) {
+        return Some(RunRecipe {
+            kind: ProjectKind::StaticWeb,
+            program: RunProgram::Static { entry },
+            command_label: "정적 미리보기 (HTML)".to_string(),
+            preview: PreviewKind::Webview { default_port: None },
+        });
+    }
+    None
 }
 
 #[tauri::command]
@@ -674,11 +763,17 @@ pub(crate) fn run_start(
         return Err("작업방에서 AI가 작업 중이에요. 끝난 뒤 실행해 주세요.".into());
     }
     let cwd_path = std::path::PathBuf::from(&cwd);
-    let content = std::fs::read_to_string(cwd_path.join("package.json"))
-        .map_err(|_| "package.json 을 찾을 수 없어요. Node 프로젝트 폴더인지 확인해 주세요.".to_string())?;
-    let recipe = detect_run_recipe(&content).ok_or_else(|| {
-        "실행 방법을 못 찾았어요. package.json 에 dev/start 스크립트가 필요해요.".to_string()
+    let recipe = run_detect(cwd.clone()).ok_or_else(|| {
+        "실행 방법을 못 찾았어요. package.json 의 dev/start 스크립트 또는 index.html 이 필요해요."
+            .to_string()
     })?;
+
+    // ── 정적 HTML(index.html, package.json 없음): 임베드 tiny_http 서버 ──
+    // npm/노드 없이 cwd 를 직접 서빙하고 webview 로 미리보기. 외부 프로세스가 없으므로
+    // spawn_orchestrator 경로를 타지 않고 여기서 run_id 점유·서버 스레드·이벤트를 직접 만든다.
+    if recipe.kind == ProjectKind::StaticWeb {
+        return start_static_preview(app, &state, cwd_path, recipe);
+    }
 
     // npm 은 install·npm 실행 양쪽에 필요. 미설치 시 온보딩으로 안내(§9 P1).
     let npm = find_executable("npm")
@@ -687,6 +782,10 @@ pub(crate) fn run_start(
         RunProgram::Npm(_) => npm.clone(),
         RunProgram::Npx(_) => find_executable("npx")
             .ok_or_else(|| "npx 를 찾을 수 없어요. Node.js 설치를 확인해 주세요.".to_string())?,
+        // StaticWeb 은 위에서 start_static_preview 로 early-return 되어 여기 도달하지 않는다.
+        RunProgram::Static { .. } => {
+            return Err("internal: static program reached npm spawn path".into())
+        }
     };
     let run_args = recipe.program.args().to_vec();
 
@@ -725,6 +824,209 @@ pub(crate) fn run_start(
     })
 }
 
+// ─── 정적 HTML 임베드 서버 (tiny_http, child 없는 실행) ─────────────────────────
+
+fn start_static_preview(
+    app: tauri::AppHandle,
+    state: &tauri::State<RunState>,
+    cwd: std::path::PathBuf,
+    recipe: RunRecipe,
+) -> Result<RunStartInfo, String> {
+    let server = Arc::new(tiny_http::Server::http("127.0.0.1:0").map_err(|e| e.to_string())?);
+    let port = server
+        .server_addr()
+        .to_ip()
+        .map(|addr| addr.port())
+        .ok_or_else(|| "미리보기 포트를 할당하지 못했어요.".to_string())?;
+    // index.html 은 `/`(서버 기본 폴백), 그 외 파일은 `/파일명` 으로 직접 지정한다.
+    let entry = match &recipe.program {
+        RunProgram::Static { entry } => entry.clone(),
+        _ => "index.html".to_string(),
+    };
+    let url = static_preview_url(&cwd, &entry, port)?;
+
+    // run_id 점유 — npm 경로와 동일한 토큰 의미(run_status/stop 일관성). 동기로
+    // active/preview_url/status_label 을 세팅해 탭 복귀(run_status) 복원이 바로 동작한다.
+    let run_id = {
+        let mut guard = state.0.lock().map_err(|e| e.to_string())?;
+        if guard.active {
+            return Err("이미 실행 중이에요. 중지한 뒤 다시 시작해 주세요.".into());
+        }
+        let run_id = guard.run_id + 1;
+        guard.run_id = run_id;
+        guard.cancelled = false;
+        guard.active = true;
+        guard.child = None;
+        guard.preview_url = Some(url.clone());
+        guard.status_label = Some("running");
+        guard.static_server = Some(Arc::clone(&server));
+        run_id
+    };
+
+    // 서빙 스레드 — incoming_requests 가 unblock 될 때까지 cwd 의 파일을 서빙한다.
+    // 루프가 끝나면(중지/앱종료) 내 실행일 때만 슬롯을 비우고 "stopped" 를 보고한다.
+    let serve_app = app.clone();
+    let shared = Arc::clone(&state.0);
+    std::thread::spawn(move || {
+        for request in server.incoming_requests() {
+            serve_static_request(&cwd, request);
+        }
+        let mut owned = false;
+        if let Ok(mut guard) = shared.lock() {
+            if guard.run_id == run_id {
+                guard.active = false;
+                guard.preview_url = None;
+                guard.status_label = None;
+                guard.static_server = None;
+                owned = true;
+            }
+        }
+        if owned {
+            close_preview_window(&serve_app);
+            let _ = serve_app
+                .emit("run-status", RunStatusEvent { run_id, status: "stopped", exit_code: None });
+        }
+    });
+
+    // run-status(running)+run-preview-ready 를 동기로 emit — runStart 커맨드 핸들러 스레드에서
+    // 직접 보내므로 150ms 지연 없이도 응답보다 늦게 도달할 수 있는 경쟁이 없다.
+    // (프런트엔드는 await runStart() 완료 전까지 handleStop 을 호출할 수 없으므로
+    //  emit 시점에 cancel 은 구조적으로 불가능하다. 그래도 run_id 일치·cancelled 가드를 둬
+    //  미래 호출 경로 변경 시 안전을 유지한다.)
+    let should_emit = state
+        .0
+        .lock()
+        .map(|g| !g.cancelled && g.run_id == run_id)
+        .unwrap_or(false);
+    if should_emit {
+        let _ = app
+            .emit("run-status", RunStatusEvent { run_id, status: "running", exit_code: None });
+        let _ = app.emit("run-preview-ready", RunPreviewReadyEvent { run_id, url });
+    }
+
+    Ok(RunStartInfo {
+        run_id,
+        command_label: recipe.command_label,
+        kind: recipe.kind,
+        needs_install: false,
+    })
+}
+
+fn static_preview_url(root: &Path, entry: &str, port: u16) -> Result<String, String> {
+    let entry_path = Path::new(entry);
+    if entry_path.is_absolute() || entry_path.components().count() != 1 {
+        return Err("미리보기 파일 이름이 안전하지 않아요.".to_string());
+    }
+    let candidate = root.join(entry_path);
+    let canon_root = root.canonicalize().map_err(|_| "미리보기 폴더를 찾지 못했어요.".to_string())?;
+    let canon_path =
+        candidate.canonicalize().map_err(|_| "미리보기 HTML 파일을 찾지 못했어요.".to_string())?;
+    if !canon_path.starts_with(&canon_root) || !canon_path.is_file() {
+        return Err("미리보기 HTML 파일이 프로젝트 폴더 밖에 있어요.".to_string());
+    }
+    let mut url = tauri::Url::parse(&format!("http://localhost:{port}/"))
+        .map_err(|_| "미리보기 HTML 파일 주소를 만들지 못했어요.".to_string())?;
+    url.path_segments_mut()
+        .map_err(|_| "미리보기 HTML 파일 주소를 만들지 못했어요.".to_string())?
+        .push(entry);
+    Ok(url.to_string())
+}
+
+/// 확장자 → Content-Type. 정적 미리보기에 흔한 타입만 명시, 나머지는 octet-stream.
+fn content_type_for(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("html") | Some("htm") => "text/html; charset=utf-8",
+        Some("js") | Some("mjs") => "text/javascript; charset=utf-8",
+        Some("css") => "text/css; charset=utf-8",
+        Some("json") => "application/json; charset=utf-8",
+        Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("ico") => "image/x-icon",
+        Some("wasm") => "application/wasm",
+        Some("txt") => "text/plain; charset=utf-8",
+        _ => "application/octet-stream",
+    }
+}
+
+fn resolve_static_request_path(root: &Path, request_url: &str) -> Result<PathBuf, u16> {
+    let raw_path = request_url.split(['?', '#']).next().unwrap_or("/");
+    let rel = raw_path.trim_start_matches('/');
+    let rel = if rel.is_empty() { "index.html" } else { rel };
+    let decoded = percent_decode_str(rel)
+        .decode_utf8()
+        .map_err(|_| 400u16)?
+        .into_owned();
+    if decoded.contains('\\')
+        || decoded
+            .split('/')
+            .any(|seg| seg.is_empty() || seg == "." || seg == "..")
+    {
+        return Err(403);
+    }
+    let canon_root = root.canonicalize().map_err(|_| 404u16)?;
+    let candidate = decoded
+        .split('/')
+        .fold(canon_root.clone(), |path, segment| path.join(segment));
+    let canon_path = candidate.canonicalize().map_err(|_| 404u16)?;
+    if !canon_path.starts_with(&canon_root) {
+        return Err(403);
+    }
+    if !canon_path.is_file() {
+        return Err(404);
+    }
+    Ok(canon_path)
+}
+
+fn status_body(code: u16) -> &'static str {
+    match code {
+        400 => "Bad Request",
+        403 => "Forbidden",
+        404 => "Not Found",
+        _ => "Preview Error",
+    }
+}
+
+/// 상태코드 응답(403/404 등) — Request 를 소비한다.
+fn respond_status(request: tiny_http::Request, code: u16, body: &str) {
+    let response =
+        tiny_http::Response::from_string(body).with_status_code(tiny_http::StatusCode(code));
+    let _ = request.respond(response);
+}
+
+/// 정적 서버의 한 요청 처리 — cwd(root) 안의 파일만 서빙한다. path-traversal 2중 방어:
+/// (1) 경로 세그먼트의 ".." 거부, (2) canonicalize 후 root 내부 여부 확인(심볼릭 링크 포함).
+fn serve_static_request(root: &Path, request: tiny_http::Request) {
+    // request.url() 차용을 끊기 위해 즉시 owned 로 — 아래에서 request 를 소비하므로.
+    let raw = request.url().to_string();
+    let canon_path = match resolve_static_request_path(root, &raw) {
+        Ok(path) => path,
+        Err(code) => {
+            respond_status(request, code, status_body(code));
+            return;
+        }
+    };
+    match std::fs::read(&canon_path) {
+        Ok(bytes) => {
+            let mut response = tiny_http::Response::from_data(bytes);
+            if let Ok(header) = tiny_http::Header::from_bytes(
+                &b"Content-Type"[..],
+                content_type_for(&canon_path).as_bytes(),
+            ) {
+                response = response.with_header(header);
+            }
+            let _ = request.respond(response);
+        }
+        Err(_) => respond_status(request, 404, "Not Found"),
+    }
+}
+
 /// 취소 코어 — child 를 자리에 둔 채 트리 kill 만 한다. stopped 보고는 오케스트레이터가
 /// poll 로 회수하며 일원화한다(work_room cancel_current 동형). 반환: 점유 중이었는지.
 fn cancel_current(runtime: &Arc<Mutex<RunRuntime>>) -> bool {
@@ -735,6 +1037,14 @@ fn cancel_current(runtime: &Arc<Mutex<RunRuntime>>) -> bool {
     guard.cancelled = true;
     if let Some(child) = guard.child.as_mut() {
         kill_child_tree(child);
+    }
+    // 정적 실행: child 가 없고 서버 스레드가 incoming_requests 에 묶여 있다.
+    // unblock 하면 그 루프가 끝나며 슬롯 해제 + "stopped" 보고를 스스로 수행한다.
+    if let Some(server) = guard.static_server.take() {
+        guard.active = false;
+        guard.preview_url = None;
+        guard.status_label = None;
+        server.unblock();
     }
     true
 }
@@ -775,10 +1085,22 @@ fn close_preview_window(app: &tauri::AppHandle) {
 /// 미리보기 창 열기/포커스 — 프런트의 [미리보기 열기] 버튼이 run-preview-ready 의 url 로
 /// 호출한다. 이미 있으면 그 창을 해당 url 로 이동·포커스(중복 창 방지). 메인 앱과
 /// 생명주기를 분리한 별도 창이라 사용자가 따로 옮기거나 닫을 수 있다(§5).
+///
+/// **async 필수(Windows 데드락 방지)**: WebviewWindowBuilder::build() 는 동기 커맨드에서
+/// 호출하면 Windows(WebView2)에서 데드락한다 — 동기 커맨드는 메인 스레드(=WebView2 COM
+/// 메시지 펌프 소유)에서 돌고, build() 는 창 생성을 다시 그 메인 스레드로 디스패치한 뒤
+/// 반환을 기다려 재진입 데드락이 난다(공식 docs.rs 명시, tauri#13963: 빈 화면+닫기 불가).
+/// async 로 두면 커맨드가 tokio 풀에서 돌아 메인 스레드가 펌프를 계속 돌릴 수 있다.
 #[tauri::command]
-pub(crate) fn open_preview(app: tauri::AppHandle, url: String) -> Result<(), String> {
+pub(crate) async fn open_preview(app: tauri::AppHandle, url: String) -> Result<(), String> {
     use tauri::Manager;
-    let parsed = validate_local_url(&url)?;
+    let parsed = validate_preview_url(&url)?;
+    // 반복 열기 보강: 이미 열려 있으면 destroy()+build() 로 같은 label 을 재생성하지 않는다.
+    // Windows 에서 destroy 의 비동기 정리가 끝나기 전 같은 label 로 build 하면 경합이 난다
+    // (빈 창/HWND 패닉, tauri#13969·#9353). 한 실행의 미리보기 URL 은 고정이므로, 창이 있으면
+    // 그 URL 로 navigate(=새로고침)하고 앞으로 가져오면 충분하다(두 번째 [미리보기 열기] =
+    // 기존 창 포커스). v2.5.11 이 재사용을 피했던 "멈춘 렌더러" 우려는 데드락이 원인이었고,
+    // 동기→async 전환으로 데드락이 사라진 지금은 재사용이 안전하다.
     if let Some(win) = app.get_webview_window(PREVIEW_LABEL) {
         win.navigate(parsed).map_err(|e| e.to_string())?;
         let _ = win.set_focus();
@@ -791,13 +1113,7 @@ pub(crate) fn open_preview(app: tauri::AppHandle, url: String) -> Result<(), Str
         // 이동하는 것을 막는다. 초기 URL 은 이미 로컬이라 통과하고, HMR 의 ws:// 는
         // navigation 이 아니라 영향 없다. capability 가 이미 이 창에 백엔드 권한을 안 주지만
         // 한 겹 더 — 안전 도구 정체성(§8).
-        .on_navigation(|url| {
-            matches!(url.scheme(), "http" | "https")
-                && matches!(
-                    url.host_str(),
-                    Some("localhost") | Some("127.0.0.1") | Some("0.0.0.0")
-                )
-        })
+        .on_navigation(should_allow_preview_navigation)
         .build()
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -810,7 +1126,10 @@ pub(crate) fn close_preview(app: tauri::AppHandle) {
 
 #[cfg(test)]
 mod runner_tests {
-    use super::{cancel_current, new_state_pair, stop_for_exit};
+    use super::{
+        cancel_current, content_type_for, new_state_pair, resolve_static_request_path,
+        static_preview_url, stop_for_exit,
+    };
 
     #[test]
     fn state_pair_shares_runtime_between_managed_state_and_exit_handle() {
@@ -829,6 +1148,43 @@ mod runner_tests {
     fn cancel_without_active_run_reports_false() {
         let (state, _shutdown) = new_state_pair();
         assert!(!cancel_current(&state.0));
+    }
+
+    #[test]
+    fn static_preview_url_uses_localhost_http_for_static_html() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let index = dir.path().join("index.html");
+        std::fs::write(&index, "<h1>hi</h1>").expect("write index.html");
+        let url = static_preview_url(dir.path(), "index.html", 43123).expect("preview url");
+        let parsed = tauri::Url::parse(&url).expect("parse preview url");
+        assert_eq!(parsed.scheme(), "http");
+        assert_eq!(parsed.host_str(), Some("localhost"));
+        assert_eq!(parsed.port(), Some(43123));
+        assert_eq!(parsed.path(), "/index.html");
+        assert!(index.is_file());
+    }
+
+    #[test]
+    fn static_request_resolves_encoded_local_files_only() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let index = dir.path().join("index.html");
+        let asset = dir.path().join("hello world.css");
+        std::fs::write(&index, "<h1>hi</h1>").expect("write index.html");
+        std::fs::write(&asset, "body{}").expect("write asset");
+
+        let resolved = resolve_static_request_path(dir.path(), "/").expect("resolve index.html");
+        assert_eq!(resolved, index.canonicalize().expect("canon index"));
+        let resolved =
+            resolve_static_request_path(dir.path(), "/hello%20world.css?cache=1").expect("asset");
+        assert_eq!(resolved, asset.canonicalize().expect("canon asset"));
+        assert_eq!(resolve_static_request_path(dir.path(), "/../secret.txt"), Err(403));
+    }
+
+    #[test]
+    fn static_content_types_cover_browser_app_assets() {
+        assert_eq!(content_type_for(std::path::Path::new("index.html")), "text/html; charset=utf-8");
+        assert_eq!(content_type_for(std::path::Path::new("app.mjs")), "text/javascript; charset=utf-8");
+        assert_eq!(content_type_for(std::path::Path::new("style.css")), "text/css; charset=utf-8");
     }
 
     #[cfg(unix)]
@@ -975,6 +1331,68 @@ mod detect_tests {
         assert!(detect_run_recipe("").is_none());
     }
 
+    // ─── 정적 HTML 감지 (run_detect, 파일 I/O) ────────────────────────────────────
+
+    #[test]
+    fn index_html_without_package_json_is_static_web() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("index.html"), "<h1>hi</h1>").expect("write index.html");
+        let r = run_detect(dir.path().to_string_lossy().to_string()).expect("static recipe");
+        assert_eq!(r.kind, ProjectKind::StaticWeb);
+        assert_eq!(r.program, RunProgram::Static { entry: "index.html".to_string() });
+        assert_eq!(r.command_label, "정적 미리보기 (HTML)");
+        assert_eq!(r.preview, PreviewKind::Webview { default_port: None });
+    }
+
+    #[test]
+    fn single_non_index_html_uses_filename_as_entry() {
+        // quiz.html at root, no package.json, no index.html → StaticWeb entry="quiz.html".
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("quiz.html"), "<h1>quiz</h1>").expect("write quiz.html");
+        let r = run_detect(dir.path().to_string_lossy().to_string()).expect("recipe");
+        assert_eq!(r.kind, ProjectKind::StaticWeb);
+        assert_eq!(r.program, RunProgram::Static { entry: "quiz.html".to_string() });
+        assert_eq!(r.command_label, "정적 미리보기 (HTML)");
+        assert_eq!(r.preview, PreviewKind::Webview { default_port: None });
+    }
+
+    #[test]
+    fn multiple_html_files_prefers_index_when_present() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("about.html"), "").expect("write");
+        std::fs::write(dir.path().join("index.html"), "").expect("write");
+        std::fs::write(dir.path().join("quiz.html"), "").expect("write");
+        let r = run_detect(dir.path().to_string_lossy().to_string()).expect("recipe");
+        assert_eq!(r.program, RunProgram::Static { entry: "index.html".to_string() });
+    }
+
+    #[test]
+    fn multiple_html_files_without_index_falls_back_alpha_first() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("contact.html"), "").expect("write");
+        std::fs::write(dir.path().join("quiz.html"), "").expect("write");
+        let r = run_detect(dir.path().to_string_lossy().to_string()).expect("recipe");
+        // no index/main/app → alphabetically first = "contact.html"
+        assert_eq!(r.program, RunProgram::Static { entry: "contact.html".to_string() });
+    }
+
+    #[test]
+    fn package_json_recipe_wins_over_index_html() {
+        // dev 스크립트가 있으면 정적 폴백이 아니라 web 레시피여야 한다(1순위).
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("index.html"), "<h1>hi</h1>").expect("write");
+        std::fs::write(dir.path().join("package.json"), r#"{"scripts":{"dev":"vite"}}"#)
+            .expect("write");
+        let r = run_detect(dir.path().to_string_lossy().to_string()).expect("recipe");
+        assert_eq!(r.kind, ProjectKind::Web);
+    }
+
+    #[test]
+    fn empty_dir_without_package_json_or_index_returns_none() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        assert!(run_detect(dir.path().to_string_lossy().to_string()).is_none());
+    }
+
     // ─── 포트 감지 ──────────────────────────────────────────────────────────────
 
     #[test]
@@ -1042,12 +1460,54 @@ mod detect_tests {
     }
 
     #[test]
-    fn validate_local_url_accepts_localhost_rejects_external() {
-        assert!(validate_local_url("http://localhost:5173").is_ok());
-        assert!(validate_local_url("http://127.0.0.1:3000").is_ok());
-        assert!(validate_local_url("https://evil.example.com").is_err());
-        assert!(validate_local_url("file:///etc/passwd").is_err());
-        assert!(validate_local_url("not a url").is_err());
+    fn validate_preview_url_accepts_localhost_rejects_external() {
+        assert!(validate_preview_url("http://localhost:5173").is_ok());
+        assert!(validate_preview_url("http://127.0.0.1:3000").is_ok());
+        assert!(validate_preview_url("https://evil.example.com").is_err());
+        assert!(validate_preview_url("file:///etc/passwd").is_err());
+        assert!(validate_preview_url("not a url").is_err());
+    }
+
+    #[test]
+    fn validate_preview_url_rejects_preview_protocol_urls() {
+        assert!(validate_preview_url("vibelign-preview://localhost/index.html").is_err());
+        assert!(validate_preview_url("http://vibelign-preview.localhost/index.html").is_err());
+    }
+
+    #[test]
+    fn preview_navigation_allows_webview_internal_urls() {
+        assert!(should_allow_preview_navigation(
+            &tauri::Url::parse("about:blank").expect("url")
+        ));
+        assert!(should_allow_preview_navigation(
+            &tauri::Url::parse("data:text/html,%3Ch1%3Eok%3C/h1%3E").expect("url")
+        ));
+        assert!(should_allow_preview_navigation(
+            &tauri::Url::parse("blob:http://127.0.0.1:43123/preview").expect("url")
+        ));
+    }
+
+    #[test]
+    fn preview_navigation_still_blocks_external_http() {
+        assert!(should_allow_preview_navigation(
+            &tauri::Url::parse("http://127.0.0.1:43123").expect("url")
+        ));
+        assert!(!should_allow_preview_navigation(
+            &tauri::Url::parse("https://evil.example.com").expect("url")
+        ));
+        assert!(!should_allow_preview_navigation(
+            &tauri::Url::parse("file:///etc/passwd").expect("url")
+        ));
+    }
+
+    #[test]
+    fn preview_navigation_rejects_preview_protocol_urls() {
+        assert!(!should_allow_preview_navigation(
+            &tauri::Url::parse("vibelign-preview://localhost/index.html").expect("url")
+        ));
+        assert!(!should_allow_preview_navigation(
+            &tauri::Url::parse("http://vibelign-preview.localhost/index.html").expect("url")
+        ));
     }
 }
 // === ANCHOR: RUN_PREVIEW_END ===

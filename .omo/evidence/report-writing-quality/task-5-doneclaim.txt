@@ -1,0 +1,40 @@
+DoneClaim:
+- task: Todo 5 reusable GUI report quality and AI completion review panel gate blockers fixed.
+- changed_files:
+  - vibelign-gui/src/components/plan-doc/ReportQualityPanel.tsx
+  - vibelign-gui/src/components/plan-doc/__tests__/ReportQualityPanel.test.tsx
+  - .omo/evidence/report-writing-quality/task-5-panel-test.txt
+  - .omo/evidence/report-writing-quality/task-5-panel-assist-confirmation.txt
+  - .omo/evidence/report-writing-quality/task-5-build-or-typecheck.txt
+  - .omo/evidence/report-writing-quality/task-5-cleanup.txt
+  - .omo/evidence/report-writing-quality/task-5-gate-fixes.txt
+  - .omo/evidence/report-writing-quality/task-5-doneclaim.txt
+  - .omo/evidence/todo-5-panel-code-review.md
+- fixes:
+  - Rejected user-question answers are filtered before the proceed payload is built; savedAnswers no longer leaks an excluded question into questionAnswers.
+  - Added a regression test for save answer -> exclude same question -> generate anyway, asserting rejectedSuggestionIds includes the question and questionAnswers is empty.
+  - Added keyboard activation coverage for Space on 취소, Enter on 그래도 생성, and Enter on AI 보완 제안 요청.
+  - Added explicit Todo 5 code-review evidence with programming and remove-ai-slops coverage.
+- tests:
+  - Scenario: full ReportQualityPanel component regression suite. Invocation: cd vibelign-gui && npm run test -- src/components/plan-doc/__tests__/ReportQualityPanel.test.tsx. Observable: Vitest exit 0, 1 file passed, 8 tests passed. Artifact: .omo/evidence/report-writing-quality/task-5-panel-test.txt.
+  - Scenario: focused assist confirmation from plan. Invocation: cd vibelign-gui && npm run test -- src/components/plan-doc/__tests__/ReportQualityPanel.test.tsx -t "requires confirmation before applying assistance". Observable: Vitest exit 0, 1 test passed, 7 skipped. Artifact: .omo/evidence/report-writing-quality/task-5-panel-assist-confirmation.txt.
+  - Scenario: GUI production build/typecheck. Invocation: cd vibelign-gui && npm run build. Observable: tsc and vite build exit 0; known Vite large-chunk warning only. Artifact: .omo/evidence/report-writing-quality/task-5-build-or-typecheck.txt.
+  - Scenario: gate-fix regression history. Invocation: focused rejected-answer and keyboard tests before production fix. Observable: rejected-answer test exited 1 because questionAnswers still contained owner-question; keyboard test exited 1 because Space did not activate 취소. Artifact: .omo/evidence/report-writing-quality/task-5-gate-fixes.txt.
+- manual_qa:
+  - Scenario: no ReportComposer/ReportView wiring drift. Invocation: rg -n 'ReportQualityPanel|ReportQualityAssistItem' vibelign-gui/src/components/plan-doc/ReportComposer.tsx vibelign-gui/src/pages/ReportView.tsx vibelign-gui/src/components/plan-doc/ExportReportModal.tsx. Observable: PASS; no matches. Artifact: .omo/evidence/report-writing-quality/task-5-cleanup.txt.
+  - Scenario: visual browser QA. Observable: not run because Todo 5 remains an unintegrated reusable component; Todo 6 owns mounted ReportComposer/ReportView browser verification. Artifact: .omo/evidence/report-writing-quality/task-5-doneclaim.txt.
+- adversarial_classes:
+  - rejected_answer_leakage: covered by omitted-answer regression after exclusion.
+  - keyboard_claim_overreach: covered by Enter/Space activation tests instead of focus-only assertions.
+  - type_escape: grep and OMO no-excuse checker passed with no any, TS suppressions, non-null assertion, enum, mutable export, or non-const type assertion.
+  - scope_drift: scope search shows no Composer/View/ExportReportModal wiring.
+  - slop_overfit: code-review artifact checks no dead code, debug output, speculative abstraction, broad catch, or tautological tests.
+- cleanup:
+  - Scenario: changed TS/TSX no-escape grep. Invocation: rg -n ' any|@ts-ignore|@ts-expect-error| as ' vibelign-gui/src/components/plan-doc/ReportQualityPanel.tsx vibelign-gui/src/components/plan-doc/ReportQualityAssistItem.tsx vibelign-gui/src/components/plan-doc/__tests__/ReportQualityPanel.test.tsx. Observable: PASS; no matches. Artifact: .omo/evidence/report-writing-quality/task-5-cleanup.txt.
+  - Scenario: OMO TypeScript no-excuse checker. Invocation: cd vibelign-gui && NODE_PATH="$PWD/node_modules" bun run /Users/topsphinx/.codex/plugins/cache/sisyphuslabs/omo/4.11.1/skills/programming/scripts/typescript/check-no-excuse-rules.ts src/components/plan-doc/ReportQualityPanel.tsx src/components/plan-doc/ReportQualityAssistItem.tsx src/components/plan-doc/__tests__/ReportQualityPanel.test.tsx. Observable: PASS; no violations in 3 files. Artifact: .omo/evidence/report-writing-quality/task-5-cleanup.txt.
+  - Scenario: pure LOC ceiling. Invocation: awk pure-LOC count per Todo 5 file. Observable: PASS; ReportQualityPanel.tsx 245, ReportQualityAssistItem.tsx 92, ReportQualityPanel.test.tsx 240. Artifact: .omo/evidence/report-writing-quality/task-5-cleanup.txt.
+- risks:
+  - ReportQualityPanel.tsx and ReportQualityPanel.test.tsx remain in the 200-250 pure-LOC warning band; split before adding feature-sized behavior.
+  - Vite still reports the existing large-chunk warning during build; not introduced by this Todo 5 gate fix.
+  - Browser screenshot QA remains deferred until Todo 6 wires the panel into a visible route.
+EVIDENCE_RECORDED: .omo/evidence/report-writing-quality/task-5-doneclaim.txt

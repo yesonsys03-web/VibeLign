@@ -1,0 +1,33 @@
+Task 9 done claim
+
+Status: DONE_WITH_ACCEPTED_RESIDUAL
+
+Docs decision:
+- Updated the visible `vib report` manual entry in `vibelign/commands/vib_manual_cmd.py` because it was stale: it said HTML-only/template-only and did not mention report quality preflight, opt-in assistance, DOCX/PPTX, or visual cards.
+
+Direct Todo 9 changes:
+- `vibelign/commands/vib_manual_cmd.py`
+- `.omo/evidence/report-writing-quality/task-9-*`
+
+Commands and results:
+- `python3 -m pytest ...` in `.omo/evidence/report-writing-quality/task-9-final-focused.txt`: FAIL under `/usr/bin/python3` 3.9.6 because the project requires Python >=3.10 and existing `match` syntax cannot parse.
+- `python3.11 -m pytest ...` in `.omo/evidence/report-writing-quality/task-9-final-focused.txt`: FAIL because standalone Python 3.11 lacks pytest.
+- `uv run python -m pytest ...` plus renderer tests and compileall in `.omo/evidence/report-writing-quality/task-9-final-focused.txt`: PASS, 66 backend/CLI tests passed, 25 renderer tests passed, compileall passed.
+- `(cd vibelign-gui && npm run build)` in `.omo/evidence/report-writing-quality/task-9-gui-build.txt`: PASS.
+- `vib guard --strict --write-report` in `.omo/evidence/report-writing-quality/task-9-vib-guard.txt`: FAIL due accepted residual guard state, not a new Todo 9 blocker.
+- `git diff --check` in `.omo/evidence/report-writing-quality/task-9-diff-check.txt`: PASS, empty output.
+- Changed-files scope audit in `.omo/evidence/report-writing-quality/task-9-changed-files.txt` and `.omo/evidence/report-writing-quality/task-9-scope-check.txt`: PASS_WITH_FLAGGED_PREEXISTING_OUTLIERS.
+- CLI/GUI sparse/complete scenario refresh in `.omo/evidence/report-writing-quality/task-9-evidence-matrix.md`: PASS.
+- Plan compliance audit in `.omo/evidence/report-writing-quality/task-9-plan-compliance.txt`: PASS.
+
+Accepted guard residual:
+- `vib guard` reports `planning_required` for the broad Todo 1-8 report-quality feature diff: `new_production_file` and `multi_file_production_edit`.
+- `vib guard` reports missing anchor for `vibelign/core/reporting_cli/report_visual_cards.py`.
+- User explicitly accepted this Todo 8 anchor/worktree residual; no new anchor fix was attempted in Todo 9.
+
+Other residuals surfaced by scope check:
+- Scope check flags pre-existing untracked gate-review artifacts under `.omo/evidence/` outside `.omo/evidence/report-writing-quality/`.
+- Scope check flags product paths outside the report-quality allowlist: `vibelign/cli/cli_base.py`, `vibelign/cli/cli_core_commands.py`, `vibelign/commands/init_cmd.py`, `vibelign/core/planning_cli/__init__.py`, and `vibelign/terminal_render.py`.
+- These were not reverted because the worktree is shared and they pre-existed this Todo 9 execution.
+
+No staging or commit was performed.

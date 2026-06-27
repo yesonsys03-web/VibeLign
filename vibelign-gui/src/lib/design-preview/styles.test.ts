@@ -1,3 +1,4 @@
+// === ANCHOR: STYLES_TEST_START ===
 import { describe, it, expect } from "vitest";
 import { DESIGN_STYLES, getStyle } from "./styles";
 
@@ -51,3 +52,4 @@ describe("DESIGN_STYLES 5종 완성", () => {
     }
   });
 });
+// === ANCHOR: STYLES_TEST_END ===

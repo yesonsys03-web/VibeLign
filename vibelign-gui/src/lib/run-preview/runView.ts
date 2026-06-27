@@ -12,6 +12,8 @@ export function kindLabel(kind: RunProjectKind): string {
       return "데스크톱 앱(Electron)";
     case "unknown":
       return "프로그램";
+    case "staticWeb":
+      return "웹페이지(HTML)";
   }
 }
 

@@ -1,0 +1,82 @@
+{
+  "surfaceEvidence": [
+    {
+      "scenarioId": "C001",
+      "criterionRef": "approved-cards-finalize-json-html-no-api",
+      "surface": "CLI",
+      "exactInvocation": "uv run vib report-card-news '<temp>/cards.json' --json",
+      "verdict": "PASS",
+      "artifactRefs": ["A001"]
+    },
+    {
+      "scenarioId": "C003",
+      "criterionRef": "gui-shows-result-and-opens-html",
+      "surface": "GUI component/library via npm/vitest plus inspected browser screenshot evidence",
+      "exactInvocation": "cd vibelign-gui && npm test -- --run src/components/plan-doc/__tests__/ReportVisualCardsPanel.test.tsx src/lib/vib/__tests__/reportVisualCards.test.ts",
+      "verdict": "PASS",
+      "artifactRefs": ["A003", "A005", "A006"]
+    },
+    {
+      "scenarioId": "C004",
+      "criterionRef": "regression-contract-parser-exporter",
+      "surface": "Python pytest via uv",
+      "exactInvocation": "uv run pytest tests/cli/test_vib_report_card_news_finalize_cmd.py",
+      "verdict": "PASS",
+      "artifactRefs": ["A004"]
+    }
+  ],
+  "adversarialCases": [
+    {
+      "scenarioId": "C002",
+      "criterionRef": "empty-approved-set-errors",
+      "adversarialClass": "empty approved set",
+      "expectedBehavior": "Command exits nonzero, emits ok=false approval error, and creates no card-news output files.",
+      "verdict": "PASS",
+      "artifactRefs": ["A002"]
+    }
+  ],
+  "artifactRefs": [
+    {
+      "id": "A001",
+      "kind": "text",
+      "description": "Fresh CLI approved-card finalize transcript with output file checks and no API/network HTML check.",
+      "path": ".omo/evidence/card-news-finalize-qa/C001-cli-approved-finalize.txt"
+    },
+    {
+      "id": "A002",
+      "kind": "text",
+      "description": "Fresh CLI empty-approved transcript showing nonzero exit, ok=false error, and no new card-news files.",
+      "path": ".omo/evidence/card-news-finalize-qa/C002-cli-empty-approved-error.txt"
+    },
+    {
+      "id": "A003",
+      "kind": "text",
+      "description": "Targeted GUI/library npm test transcript for result display, HTML opener path, and report-card-news invocation.",
+      "path": ".omo/evidence/card-news-finalize-qa/C003-gui-result-open-targeted-tests.txt"
+    },
+    {
+      "id": "A004",
+      "kind": "text",
+      "description": "Dedicated Python regression test transcript for card-news CLI parser/exporter behavior.",
+      "path": ".omo/evidence/card-news-finalize-qa/C004-python-regression-test.txt"
+    },
+    {
+      "id": "A005",
+      "kind": "json",
+      "description": "Prior browser action evidence showing resultVisible/pathVisible/no overflow for desktop card-news finalize UI.",
+      "path": ".omo/ulw-loop/report-card-news-complete/evidence/C001-browser-finalize.json"
+    },
+    {
+      "id": "A006",
+      "kind": "png",
+      "description": "Prior browser screenshot visually inspected: finalized card-news result path visible under card-news companion UI.",
+      "path": ".omo/ulw-loop/report-card-news-complete/evidence/C001-card-news-finalize.png"
+    },
+    {
+      "id": "A007",
+      "kind": "text",
+      "description": "Cleanup receipt for QA-generated .vibelign/reports/card-news files.",
+      "path": ".omo/evidence/card-news-finalize-qa/cleanup.txt"
+    }
+  ]
+}

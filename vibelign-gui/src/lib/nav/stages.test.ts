@@ -1,3 +1,4 @@
+// === ANCHOR: STAGES_TEST_START ===
 import { describe, it, expect } from "vitest";
 import {
   stageOf,
@@ -38,8 +39,8 @@ describe("pagesForStage", () => {
   it("유지보수 단계는 진단·백업·에러로그 순서", () => {
     expect(pagesForStage("maintain")).toEqual(["doctor", "backups", "logs"]);
   });
-  it("기획 단계는 기획방·기획안 순서", () => {
-    expect(pagesForStage("planning")).toEqual(["planning", "plan-doc"]);
+  it("기획 단계는 기획방·기획안·보고서 순서", () => {
+    expect(pagesForStage("planning")).toEqual(["planning", "plan-doc", "report"]);
   });
 });
 
@@ -62,6 +63,7 @@ describe("PAGE_LABELS", () => {
       home: "홈",
       planning: "기획방",
       "plan-doc": "기획안",
+      report: "보고서 작성",
       code: "코드탐색",
       docs: "문서",
       "design-preview": "디자인 미리보기",
@@ -77,6 +79,7 @@ describe("PAGE_LABELS", () => {
 });
 
 describe("PAGE_DESCRIPTIONS / STAGE_DESCRIPTIONS (말풍선)", () => {
+  // === ANCHOR: STAGES_TEST_LEN_START ===
   const len = (s: string) => s.replace(/\s/g, "").length; // 공백 제외 글자 수
 
   it("모든 page 에 말풍선이 있고 비어있지 않다", () => {
@@ -84,6 +87,7 @@ describe("PAGE_DESCRIPTIONS / STAGE_DESCRIPTIONS (말풍선)", () => {
       expect(PAGE_DESCRIPTIONS[page]?.length ?? 0).toBeGreaterThan(0);
     }
   });
+  // === ANCHOR: STAGES_TEST_LEN_END ===
 
   it("모든 page 말풍선은 10자 이내", () => {
     for (const [page, desc] of Object.entries(PAGE_DESCRIPTIONS)) {
@@ -97,3 +101,4 @@ describe("PAGE_DESCRIPTIONS / STAGE_DESCRIPTIONS (말풍선)", () => {
     }
   });
 });
+// === ANCHOR: STAGES_TEST_END ===

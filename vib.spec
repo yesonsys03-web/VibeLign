@@ -19,7 +19,21 @@ hidden_imports = [
     "vibelign.commands.vib_plan_structure_cmd","vibelign.commands.vib_precheck_cmd",
     "vibelign.commands.vib_scan_cmd","vibelign.commands.vib_secrets_cmd",
     "vibelign.commands.vib_start_cmd","vibelign.commands.vib_transfer_cmd","vibelign.commands.vib_undo_cmd",
-    "vibelign.commands.watch_cmd",
+    "vibelign.commands.watch_cmd","vibelign.commands.vib_report_cmd",
+    "vibelign.commands.vib_report_card_news_cmd","vibelign.commands.vib_plan_cmd",
+    "vibelign.commands.vib_mcp_cmd","vibelign.commands.vib_show_cmd",
+    "vibelign.core.reporting_cli","vibelign.core.reporting_cli.docx_renderer",
+    "vibelign.core.reporting_cli.html_renderer","vibelign.core.reporting_cli.models",
+    "vibelign.core.reporting_cli.polish","vibelign.core.reporting_cli.polish_cache",
+    "vibelign.core.reporting_cli.pptx_renderer","vibelign.core.reporting_cli.reader",
+    "vibelign.core.reporting_cli.storage","vibelign.core.reporting_cli.templates",
+    "vibelign.commands.vib_report_stamp_cmd","vibelign.core.reporting_cli.pdf_stamp",
+    "vibelign.core.reporting_cli.model_json","vibelign.core.reporting_cli.emit",
+    "vibelign.core.reporting_cli.merge","vibelign.core.reporting_cli.render_job",
+    "vibelign.core.reporting_cli.polish_guard","vibelign.core.reporting_cli.vague_lint",
+    "vibelign.core.reporting_cli.themes",
+    "vibelign.core.reporting_cli.fonts",
+    "pypdf","reportlab","reportlab.pdfgen.canvas","reportlab.lib.pagesizes",
     "vibelign.core.__init__","vibelign.core.ai_codespeak","vibelign.core.ai_dev_system",
     "vibelign.core.ai_explain","vibelign.core.analysis_cache","vibelign.core.anchor_tools",
     "vibelign.core.auto_install","vibelign.core.change_explainer","vibelign.core.codespeak",
@@ -62,6 +76,8 @@ hidden_imports = [
     "vibelign.mcp.mcp_protect_handlers","vibelign.mcp.mcp_misc_handlers",
     "vibelign.mcp.mcp_health_handlers","vibelign.mcp.mcp_transfer_handlers",
     "vibelign.mcp.mcp_anchor_handlers","vibelign.mcp.mcp_doctor_handlers",
+    "vibelign.mcp.mcp_denied_handlers","vibelign.mcp.mcp_memory_handlers",
+    "vibelign.mcp.mcp_recovery_handlers",
     "vibelign.mcp.mcp_state_store","vibelign.patch","vibelign.patch.patch_builder",
     "vibelign.patch.patch_contract_helpers","vibelign.patch.patch_fanout",
     "vibelign.patch.patch_handoff","vibelign.patch.patch_output",
@@ -81,6 +97,8 @@ if Path("vibelign/core/memory/memory_state.schema.json").exists():
     datas.append(("vibelign/core/memory/memory_state.schema.json", "vibelign/core/memory"))
 if Path("vibelign/core/recovery/recovery_plan.schema.json").exists():
     datas.append(("vibelign/core/recovery/recovery_plan.schema.json", "vibelign/core/recovery"))
+if Path("vibelign/core/reporting_cli/fonts").exists():
+    datas.append(("vibelign/core/reporting_cli/fonts", "vibelign/core/reporting_cli/fonts"))
 
 a = Analysis(
     ["vibelign/_vib_entry.py"],

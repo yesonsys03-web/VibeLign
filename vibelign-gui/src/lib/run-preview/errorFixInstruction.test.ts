@@ -1,3 +1,4 @@
+// === ANCHOR: ERRORFIXINSTRUCTION_TEST_START ===
 import { describe, expect, it } from "vitest";
 import { buildRunErrorFixInstruction } from "./errorFixInstruction";
 
@@ -22,9 +23,19 @@ describe("buildRunErrorFixInstruction", () => {
     expect(out).toContain("dev 서버를 직접 띄우지 마세요");
   });
 
+  it("asks for a run-preview-detectable entrypoint when execution cannot be detected", () => {
+    const out = buildRunErrorFixInstruction({ errorText: "실행 방법을 못 찾았어요", planPath: null });
+    expect(out).toContain("프로젝트 루트");
+    expect(out).toContain("index.html");
+    expect(out).toContain("package.json");
+    expect(out).toContain("dev");
+    expect(out).toContain("start");
+  });
+
   it("degrades gracefully when no output was captured", () => {
     // 즉시 실패(출력 0줄)면 collectErrorTail 이 정확히 "" 를 낸다 — 실제 producer 값.
     expect(buildRunErrorFixInstruction({ errorText: "", planPath: null })).toContain("캡처된 출력이 없어요");
     expect(buildRunErrorFixInstruction({ errorText: "   ", planPath: null })).toContain("캡처된 출력이 없어요");
   });
 });
+// === ANCHOR: ERRORFIXINSTRUCTION_TEST_END ===

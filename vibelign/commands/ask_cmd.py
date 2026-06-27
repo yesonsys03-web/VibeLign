@@ -1,6 +1,5 @@
 # === ANCHOR: ASK_CMD_START ===
 from collections.abc import Iterable
-import os
 import json
 import importlib
 import urllib.error
@@ -556,7 +555,7 @@ def run_ask(args: AskArgs) -> None:
         print()
         for i, item in enumerate(_MENU_ITEMS, 1):
             print(f"  {i}. {item}")
-        print(f"  0. 전체 다 설명해주세요")
+        print("  0. 전체 다 설명해주세요")
         print()
 
         choice = input("선택 (0-4): ").strip()

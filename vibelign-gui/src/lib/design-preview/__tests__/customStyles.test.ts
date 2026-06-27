@@ -1,13 +1,16 @@
+// === ANCHOR: CUSTOMSTYLES_TEST_START ===
 import { describe, expect, test } from "vitest";
 import { mergeStyleLists, EXAMPLE_CHIPS, tokensToCssVars, replaceRootBlock } from "../customStyles";
 import type { StyleSpec } from "../styles";
 
+// === ANCHOR: CUSTOMSTYLES_TEST_MK_START ===
 const mk = (id: string, name: string): StyleSpec => ({
   id, name, description: "d",
   tokens: { bg: "#fff", surface: "#fff", text: "#000", primary: "#000", accent: "#000",
     border: "1px solid #000", fontFamily: "sans-serif", radius: "8px", shadow: "none" },
   recipe: "r",
 });
+// === ANCHOR: CUSTOMSTYLES_TEST_MK_END ===
 
 describe("customStyles", () => {
   test("mergeStyleLists: 내장 뒤에 커스텀을 붙인다", () => {
@@ -43,3 +46,4 @@ describe("customStyles", () => {
     expect(replaceRootBlock("<style>.x{}</style>", ":root{--bg:#fff;}")).toBe("<style>.x{}</style>");
   });
 });
+// === ANCHOR: CUSTOMSTYLES_TEST_END ===

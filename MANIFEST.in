@@ -4,6 +4,7 @@ include README.ko.md
 include pyproject.toml
 include setup.py
 recursive-include vibelign *.py *.json
+recursive-include vibelign/core/reporting_cli/fonts *.woff2 OFL.txt
 recursive-include vibelign/_bundled .gitkeep
 recursive-include vibelign-core Cargo.toml Cargo.lock
 recursive-include vibelign-core/src *.rs

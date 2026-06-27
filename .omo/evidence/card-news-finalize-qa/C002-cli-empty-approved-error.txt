@@ -1,0 +1,9 @@
+surface=CLI
+invocation=uv run vib report-card-news '/var/folders/_t/6r2qjps14jd83045jgx81k8r0000gn/T/tmp.iJyFvBOzCr/cards-empty.json' --json
+exit_status=1
+stdout={"ok": false, "error": "승인된 카드가 없습니다. 카드뉴스로 내보낼 카드를 먼저 승인하세요."}
+stdout_json_valid=yes
+ok_false=yes
+approval_error=yes
+no_new_card_news_files=yes
+cleanup_target=/var/folders/_t/6r2qjps14jd83045jgx81k8r0000gn/T/tmp.iJyFvBOzCr

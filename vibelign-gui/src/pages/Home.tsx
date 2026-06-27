@@ -49,11 +49,13 @@ interface HomeProps {
   guideStep?: ActiveGuideStep | null;
   /** 활성 작업 계약 — 범위 비교 리포트용(없으면 리포트 미노출). */
   planningContract?: PlanningContract | null;
+  /** 튜토리얼 피커 열기 — 없으면 버튼 미노출. */
+  onStartTutorial?: () => void;
 }
 
 
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────────
-export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenDoctor, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, watchError = null, onRetryWatch, hasCheckpoint = false, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning, onStartPlanning, onOpenPlanningHistory, onGuardResult, guideStep = null, planningContract = null }: HomeProps) {
+export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = false, aiKeyStatusLoaded = false, onNavigate, onOpenDoctor, onOpenSettings, initialView = "home", watchOn: watchOnProp, setWatchOn: setWatchOnProp, watchError = null, onRetryWatch, hasCheckpoint = false, mapMode: mapModeProp, setMapMode: setMapModeProp, planningPrompt = "", planningOutputPath = null, planningPending = false, onOpenPlanning, onStartPlanning, onOpenPlanningHistory, onGuardResult, guideStep = null, planningContract = null, onStartTutorial }: HomeProps) {
   const [view, setView]                   = useState<View>(initialView);
   const [selectedCmd, setSelectedCmd]     = useState<ManualCommand | null>(null);
   const [guardResult, setGuardResult]     = useState<GuardResult | null>(null);
@@ -152,6 +154,11 @@ export default function Home({ projectDir, apiKey, providerKeys, hasAnyAiKey = f
       />
 
       <div className="page-content" style={{ padding: "12px 20px 20px" }}>
+        {onStartTutorial && (
+          <button className="btn" data-tour="start-tutorial" onClick={onStartTutorial}>
+            🧭 따라하며 만들기
+          </button>
+        )}
         {planningPrompt && onOpenPlanning ? (
           <>
             <HomePlanningEntry

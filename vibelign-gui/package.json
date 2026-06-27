@@ -1,10 +1,13 @@
 {
   "name": "vibelign-gui",
   "private": true,
-  "version": "2.4.0",
+  "version": "2.5.15",
   "type": "module",
   "scripts": {
+    "copy:pdfjs": "node scripts/copy-pdfjs-assets.mjs",
+    "predev": "npm run copy:pdfjs",
     "dev": "vite",
+    "prebuild": "npm run copy:pdfjs",
     "build": "tsc && vite build",
     "test": "vitest run",
     "lint": "node scripts/lint-backup-copy.mjs && eslint .",
@@ -22,6 +25,7 @@
     "@tauri-apps/plugin-store": "^2.4.2",
     "@tauri-apps/plugin-updater": "^2.10.1",
     "mermaid": "^11.14.0",
+    "pdfjs-dist": "^4.10.38",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",

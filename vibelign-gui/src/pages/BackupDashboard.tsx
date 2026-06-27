@@ -1,5 +1,6 @@
 // === ANCHOR: BACKUP_DASHBOARD_PAGE_START ===
 import { useCallback, useEffect, useState } from "react";
+import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
 import BackupDashboardView from "../components/backup-dashboard/BackupDashboard";
 import RecoveryOptionsCard from "../components/agent-memory/RecoveryOptionsCard";
 import type { BackupEntry } from "../lib/vib";
@@ -66,7 +67,7 @@ export default function BackupDashboardPage({ projectDir, apiKey, providerKeys, 
   }
 
   async function handleRestore(id: string) {
-    if (!window.confirm("이 저장본으로 되돌릴까요? 지금 상태도 먼저 안전하게 보관됩니다.")) return;
+    if (!(await tauriConfirm("이 저장본으로 되돌릴까요? 지금 상태도 먼저 안전하게 보관됩니다.", { title: "되돌리기", kind: "warning" }))) return;
     setRestoring(true);
     setError(null);
     try {
@@ -87,7 +88,7 @@ export default function BackupDashboardPage({ projectDir, apiKey, providerKeys, 
         <span className="page-title">BACKUPS</span>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <input className="input-field" value={newNote} onChange={(event) => setNewNote(event.target.value)} onKeyDown={(event) => event.key === "Enter" && handleSave()} placeholder="저장 메모" style={{ width: 220, fontSize: 12 }} />
-          <button className="btn btn-sm" onClick={handleSave} disabled={saving}>{saving ? <span className="spinner" /> : "지금 저장"}</button>
+          <button className="btn btn-sm" data-tour="checkpoint-save" onClick={handleSave} disabled={saving}>{saving ? <span className="spinner" /> : "지금 저장"}</button>
         </div>
       </div>
       <div style={{ padding: "12px 20px 0", display: "grid", gap: 8 }}>
